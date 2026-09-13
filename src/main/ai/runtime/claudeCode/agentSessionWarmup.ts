@@ -50,7 +50,7 @@ import {
 } from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
-import { isTrustedClaudeChannel } from './environment'
+import { isTrustedClaudeSlot } from './environment'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import {
   buildClaudeCodeSessionSettings,
@@ -107,7 +107,13 @@ interface ClaudeCodeRouteFacts {
    * trust rebuilds the connection even when ids and windows are unchanged. Empty unless
    * gateway — direct sessions budget the primary alone.
    */
-  budgetSlots: Array<{ providerId: string; contextWindow?: number; maxOutputTokens?: number; trusted: boolean }>
+  budgetSlots: Array<{
+    providerId: string
+    modelId: string
+    contextWindow?: number
+    maxOutputTokens?: number
+    trusted: boolean
+  }>
 }
 
 interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
@@ -736,9 +742,10 @@ function deriveRouteFacts(
       },
       budgetSlots: [sonnetRef, haikuRef].map((ref) => ({
         providerId: ref.providerId,
+        modelId: ref.modelId,
         contextWindow: ref.contextWindow,
         maxOutputTokens: ref.model?.maxOutputTokens,
-        trusted: isTrustedClaudeChannel(ref.provider ?? null)
+        trusted: isTrustedClaudeSlot(ref.provider ?? null, ref.model ?? null)
       })),
       usageModels: []
     }

@@ -15,6 +15,7 @@ import path from 'node:path'
 import type { CanUseTool, Options, PermissionResult, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
@@ -59,6 +60,7 @@ import {
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -150,6 +152,7 @@ export interface ClaudeCodeSessionOptions {
 /** A routed model slot the process-wide compaction budget must cover. */
 export interface ClaudeCodeGatewayModelSlot {
   providerId: string
+  modelId?: string
   contextWindow?: number
   maxOutputTokens?: number
 }
@@ -308,31 +311,43 @@ export async function buildClaudeCodeSessionSettings(
   )
   // Gateway sessions fan out per-model slots to providers this builder never sees.
   // The single process-wide budget protects the weakest routed slot: budget each slot
-  // (window, output, provider) and take the minimum. Slot providers that fail to
-  // resolve fail closed to untrusted. Routed slots with missing or sub-SDK-floor
-  // windows contribute the SDK floor instead of being silently skipped — the floor is
-  // the most conservative SDK-valid value, so a small or unknown sub-model pulls the
-  // shared budget down rather than riding the primary's. Direct sessions budget the
-  // primary alone (unknown primary window omits the budget, as before).
+  // (window, output, provider, model) and take the minimum. Slot providers/models
+  // that fail to resolve fail closed to untrusted / provider-wide trust. Routed slots
+  // with missing or sub-SDK-floor windows contribute the SDK floor instead of being
+  // silently skipped — the floor is the most conservative SDK-valid value, so a small
+  // or unknown sub-model pulls the shared budget down rather than riding the
+  // primary's. Direct sessions budget the primary alone (unknown primary window
+  // omits the budget, as before).
   const budgetSlots: Array<{
     contextWindow?: number
     output: number
     provider?: Provider | null
+    model?: Model | null
     isGatewaySlot: boolean
   }> = [
     {
       contextWindow: declaredContextWindow,
       output: requestedOutputTokens,
       provider,
+      model: undefined,
       isGatewaySlot: false
     }
   ]
   for (const gatewaySlot of options?.gatewayModelSlots ?? []) {
     let slotProvider: Provider | null = null
+    let slotModel: Model | null = null
     try {
       slotProvider = providerService.getByProviderId(gatewaySlot.providerId) ?? null
     } catch {
       slotProvider = null
+    }
+    try {
+      slotModel =
+        gatewaySlot.modelId !== undefined
+          ? (modelService.getByKey(gatewaySlot.providerId, gatewaySlot.modelId) ?? null)
+          : null
+    } catch {
+      slotModel = null
     }
     budgetSlots.push({
       contextWindow: gatewaySlot.contextWindow,
@@ -342,22 +357,30 @@ export async function buildClaudeCodeSessionSettings(
         env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
       ),
       provider: slotProvider,
+      model: slotModel,
       isGatewaySlot: true
     })
   }
   const slotResults = budgetSlots.map((slot) => {
-    const window = resolveAutoCompactWindow(slot.contextWindow, slot.output, slot.provider ?? null)
+    const window = resolveAutoCompactWindow(slot.contextWindow, slot.output, slot.provider ?? null, slot.model ?? null)
     if (window !== undefined) {
       return {
         window,
-        cap: resolveClaudeOutputCap(slot.contextWindow, slot.output, slot.provider ?? null, window)
+        cap: resolveClaudeOutputCap(slot.contextWindow, slot.output, slot.provider ?? null, window, slot.model ?? null)
       }
     }
     // A routed slot with a missing or sub-SDK-floor window cannot satisfy the SDK
-    // minimum, so it contributes the floor (paired with the default output cap)
-    // instead of being silently skipped. The primary slot keeps the omit behavior.
+    // minimum, so it contributes the floor paired with the smaller of its declared
+    // output and the default cap — never reserving more than the model declares.
+    // The primary slot keeps the omit behavior. This floors the shared trigger at
+    // 80K input: the earliest SDK-valid point, though still past a sub-floor
+    // slot's own real limit (no shared window can protect those; see #18894).
     if (!slot.isGatewaySlot) return { window: undefined, cap: undefined }
-    return { window: MIN_AUTO_COMPACT_WINDOW, cap: DEFAULT_REQUESTED_OUTPUT_TOKENS }
+    logger.warn('Gateway slot cannot satisfy the compaction floor; budgeting it at the SDK minimum', {
+      providerId: slot.provider?.id,
+      contextWindow: slot.contextWindow
+    })
+    return { window: MIN_AUTO_COMPACT_WINDOW, cap: Math.min(slot.output, DEFAULT_REQUESTED_OUTPUT_TOKENS) }
   })
   const usableResults = slotResults.filter(
     (result): result is { window: number; cap: number } => result.window !== undefined && result.cap !== undefined

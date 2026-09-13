@@ -11,6 +11,7 @@ import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { COMPACTION_CLAUDE_SAFETY_MARGIN } from '@main/ai/constants'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
@@ -18,8 +19,8 @@ import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import { ENDPOINT_TYPE, type EndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
 import {
@@ -70,20 +71,45 @@ const require_ = createRequire(import.meta.url)
 // (e.g. #18894: 256K declared / 128K real), causing auto-compaction to trigger too late.
 // Apply the conservative safety margin only to untrusted providers; Anthropic-official
 // channels report accurate windows and must not lose half their context to a blanket 0.6.
-// Trust any channel that resolves to the official Anthropic endpoint — a custom
-// provider cloned from the preset (or inheriting its endpoint type) reports an
-// accurate window when it keeps the official baseUrl. Only a custom baseUrl
-// proves an untrusted relay that can overstate the window (e.g. #18894).
-// `claude-code` (external-cli) is the second official channel and is trusted alike.
+/**
+ * Whether a Claude Code channel reports accurate context windows. Decided by the
+ * endpoint that actually serves the model — not the provider-wide default: a model
+ * materializing to another dialect on an otherwise-Anthropic provider is untrusted,
+ * while a model reaching the official endpoint through a non-Anthropic default is
+ * trusted. Without a model record (primary path) the provider default stands in.
+ */
+export function isTrustedClaudeSlot(provider?: Provider | null, model?: Model | null): boolean {
+  if (provider == null) return false
+  if (model == null) return isTrustedClaudeChannel(provider)
+  const endpoint = resolveEffectiveEndpoint(provider, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType
+  return isTrustedClaudeEndpoint(
+    provider,
+    endpoint,
+    endpoint !== undefined ? provider.endpointConfigs?.[endpoint] : undefined
+  )
+}
+
 export function isTrustedClaudeChannel(provider?: Provider | null): boolean {
   if (provider == null) return false
+  return isTrustedClaudeEndpoint(
+    provider,
+    provider.defaultChatEndpoint,
+    provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+  )
+}
+
+function isTrustedClaudeEndpoint(
+  provider: Provider,
+  endpoint: EndpointType | undefined,
+  entry: EndpointConfig | undefined
+): boolean {
+  const rawBaseUrl = entry?.baseUrl
   // A custom baseUrl confirms an untrusted channel that can overstate the
   // window (e.g. #18894). The preset itself defines `https://api.anthropic.com`,
   // which is merged into every provider's runtime endpointConfigs, so the check
   // must compare against that value rather than merely testing for existence.
   // "Official" reuses the shared host predicate from contextWindowSuffix so
   // suffix selection and compaction safety cannot disagree on the endpoint.
-  const rawBaseUrl = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
   if (typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== '' && !isAnthropicOfficialHost(rawBaseUrl.trim())) {
     return false
   }
@@ -93,29 +119,22 @@ export function isTrustedClaudeChannel(provider?: Provider | null): boolean {
     // warmup `|| baseUrl` fallback), so traffic can still reach a relay — preset
     // trust needs an absent or explicitly official entry. Non-empty here means
     // official, since a custom baseUrl already returned false above.
-    if (!Object.prototype.hasOwnProperty.call(provider.endpointConfigs ?? {}, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)) {
+    if (entry === undefined) {
       return true
     }
     return typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== ''
   }
-  // Speaking the Anthropic protocol does not prove the official endpoint: an
-  // absent entry fails closed, and a URL-less entry still resolves through the
-  // getBaseUrl cascade to another entry's host — so only cloud-SDK transports
-  // with no URL at all (Bedrock / Vertex) stay trusted without a baseUrl.
-  const hasAnthropicEntry = Object.prototype.hasOwnProperty.call(
-    provider.endpointConfigs ?? {},
-    ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-  )
+  // A URL-less entry still resolves through the getBaseUrl cascade to another
+  // entry's host — so only cloud-SDK transports with no URL at all (Bedrock /
+  // Vertex) stay trusted without a baseUrl. First-party transports serve accurate
+  // windows regardless of which endpoint is the provider default.
   const hasEntryBaseUrl = typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== ''
-  // First-party cloud transports serve accurate windows regardless of which endpoint
-  // is the provider default (Vertex defaults to google-generate-content): a present
-  // URL-less Bedrock/Vertex entry stays trusted.
-  if (hasAnthropicEntry && !hasEntryBaseUrl) {
-    const adapterFamily = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily
+  if (entry !== undefined && !hasEntryBaseUrl) {
+    const adapterFamily = entry?.adapterFamily
     if (adapterFamily === 'bedrock' || adapterFamily === 'google-vertex-anthropic') return true
   }
-  if (provider.defaultChatEndpoint !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return false
-  if (!hasAnthropicEntry) return false
+  if (endpoint !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return false
+  if (entry === undefined) return false
   if (hasEntryBaseUrl) return true
   return false
 }
@@ -128,9 +147,10 @@ export function isTrustedClaudeChannel(provider?: Provider | null): boolean {
 function resolveEffectiveClaudeContextWindow(
   contextWindow: number,
   requestedOutput: number,
-  provider?: Provider | null
+  provider?: Provider | null,
+  model?: Model | null
 ): number {
-  if (isTrustedClaudeChannel(provider)) {
+  if (isTrustedClaudeSlot(provider, model)) {
     return contextWindow
   }
   // For tiny windows the 0.6 margin would make the MIN floor even more
@@ -156,7 +176,8 @@ function resolveEffectiveClaudeContextWindow(
 export function resolveAutoCompactWindow(
   contextWindow: number | undefined,
   requestedOutput: number,
-  provider?: Provider | null
+  provider?: Provider | null,
+  model?: Model | null
 ): number | undefined {
   if (
     typeof contextWindow !== 'number' ||
@@ -165,8 +186,8 @@ export function resolveAutoCompactWindow(
   ) {
     return undefined
   }
-  const isTrustedAnthropic = isTrustedClaudeChannel(provider)
-  const effectiveContextWindow = resolveEffectiveClaudeContextWindow(contextWindow, requestedOutput, provider)
+  const isTrustedAnthropic = isTrustedClaudeSlot(provider, model)
+  const effectiveContextWindow = resolveEffectiveClaudeContextWindow(contextWindow, requestedOutput, provider, model)
   const inputRoom = effectiveContextWindow - requestedOutput
   const budget = Math.floor(inputRoom * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
   const clamped = Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
@@ -209,18 +230,19 @@ export function resolveClaudeOutputCap(
   contextWindow: number | undefined,
   requestedOutput: number,
   provider: Provider | null | undefined,
-  autoCompactWindow: number | undefined
+  autoCompactWindow: number | undefined,
+  model?: Model | null
 ): number {
   if (
     typeof contextWindow !== 'number' ||
     !Number.isInteger(contextWindow) ||
     autoCompactWindow === undefined ||
-    isTrustedClaudeChannel(provider) ||
+    isTrustedClaudeSlot(provider, model) ||
     requestedOutput <= DEFAULT_REQUESTED_OUTPUT_TOKENS
   ) {
     return requestedOutput
   }
-  const effectiveContextWindow = resolveEffectiveClaudeContextWindow(contextWindow, requestedOutput, provider)
+  const effectiveContextWindow = resolveEffectiveClaudeContextWindow(contextWindow, requestedOutput, provider, model)
   const triggerRoom = Math.floor((autoCompactWindow * AUTO_COMPACT_TRIGGER_PCT) / 100)
   // In the SDK-floor branch the emitted window sits below the derated room, so it
   // is the tighter proxy for the unknown real limit — fit the trigger-point

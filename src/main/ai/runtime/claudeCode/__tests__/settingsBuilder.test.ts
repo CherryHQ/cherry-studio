@@ -797,6 +797,77 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' })
+    expect(mocks.loggerWarn).toHaveBeenCalled()
+  })
+
+  // The floor pairing never reserves more than the sub-model declares: a 16K
+  // declared output survives the floor instead of being replaced by the default.
+  it('floors a windowless gateway sub-model at its declared output cap', async () => {
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      trustedProvider,
+      {
+        contextWindow: 256_000,
+        maxOutputTokens: 32_000,
+        gatewayModelSlots: [{ providerId: 'openrouter', maxOutputTokens: 16_000 }]
+      }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '16000' })
+  })
+
+  // Trust follows the endpoint that actually serves the sub-model, not the
+  // provider-wide default: a model materializing to the official endpoint
+  // through an OpenAI-default provider keeps the full budget.
+  it('trusts a gateway sub-model on its materialized endpoint, not the provider default', async () => {
+    mocks.getByProviderId.mockImplementation((id: string) =>
+      id === 'mixed'
+        ? {
+            id: 'mixed',
+            presetProviderId: 'mixed',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: {
+              'anthropic-messages': { baseUrl: 'https://api.anthropic.com' },
+              'openai-chat-completions': { baseUrl: 'https://mix.example.com' }
+            }
+          }
+        : undefined
+    )
+    mocks.modelGetByKey.mockImplementation(() => ({
+      endpointTypes: ['anthropic-messages']
+    }))
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      trustedProvider,
+      {
+        contextWindow: 256_000,
+        maxOutputTokens: 32_000,
+        gatewayModelSlots: [
+          { providerId: 'mixed', modelId: 'claude-via-official', contextWindow: 256_000, maxOutputTokens: 32_000 }
+        ]
+      }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
   })
 
   // All-trusted gateway slots keep full budgets with no blanket derate: Vertex
