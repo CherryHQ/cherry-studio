@@ -13,6 +13,7 @@ import { isDev } from '@main/core/platform'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
 import { LEVEL, LEVEL_MAP, MAX_LOG_RETENTION_DAYS } from '@shared/types/logger'
+import { redactSecretText } from '@shared/utils/redaction'
 
 const ANSICOLORS = {
   RED: '\x1b[31m',
@@ -46,6 +47,41 @@ const APP_VERSION = `${app?.getVersion?.() || 'unknown'}`
 // winston concatenates fileMessage and entry.message, so this counts twice.
 const MAX_ERROR_MESSAGE_CHARS = 500
 const MAX_ERROR_STACK_CHARS = 4000
+const MAX_SAFE_ERROR_TAG_CHARS = 100
+const MAX_NESTED_SANITIZE_DEPTH = 5
+
+function safeErrorText(value: unknown): string {
+  const redacted = redactSecretText(String(value ?? ''))
+  return redacted.length > MAX_ERROR_MESSAGE_CHARS ? `${redacted.slice(0, MAX_ERROR_MESSAGE_CHARS)}…` : redacted
+}
+
+function toSafeError(error: Error): Record<string, unknown> {
+  const safe: Record<string, unknown> = { name: error.name, message: safeErrorText(error.message) }
+  if (typeof error.stack === 'string') safe.stack = redactSecretText(error.stack).slice(0, MAX_ERROR_STACK_CHARS)
+  const source = error as unknown as Record<string, unknown>
+  if (typeof source.code === 'string' && source.code.length <= MAX_SAFE_ERROR_TAG_CHARS) {
+    safe.code = redactSecretText(source.code)
+  }
+  if (typeof source.statusCode === 'number') safe.statusCode = source.statusCode
+  if (typeof source.status === 'number') safe.status = source.status
+  if (typeof source.reason === 'string' && source.reason.length <= MAX_SAFE_ERROR_TAG_CHARS) {
+    safe.reason = redactSecretText(source.reason)
+  }
+  if (typeof source.isRetryable === 'boolean') safe.isRetryable = source.isRetryable
+  return safe
+}
+
+function sanitizeLogValue(value: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
+  if (value instanceof Error) return toSafeError(value)
+  if (value === null || typeof value !== 'object') return value
+  if (seen.has(value)) return '[Circular]'
+  if (depth >= MAX_NESTED_SANITIZE_DEPTH) return '[Truncated]'
+  seen.add(value)
+  if (Array.isArray(value)) return value.map((item) => sanitizeLogValue(item, depth + 1, seen))
+  const out: Record<string, unknown> = {}
+  for (const [key, nested] of Object.entries(value)) out[key] = sanitizeLogValue(nested, depth + 1, seen)
+  return out
+}
 
 /**
  * CS_DIAGNOSTICS makes a packaged build behave like dev for logging: the verbose file
@@ -262,25 +298,17 @@ export class LoggerService {
 
     const [first, ...others] = meta
     if (first instanceof Error) {
-      // Keep name/message/stack only, bounded: custom enumerable props
-      // (e.g. AI SDK requestBodyValues) never reach the log file (#20363).
-      const errorMessage = String(first.message ?? '')
-      Object.assign(entry, {
-        name: first.name,
-        message:
-          errorMessage.length > MAX_ERROR_MESSAGE_CHARS
-            ? `${errorMessage.slice(0, MAX_ERROR_MESSAGE_CHARS)}…`
-            : errorMessage
-      })
-      if (typeof first.stack === 'string') entry.stack = first.stack.slice(0, MAX_ERROR_STACK_CHARS)
+      // Bounded name/message/stack plus small diagnostic tags only: custom
+      // enumerable props (e.g. AI SDK requestBodyValues) never reach disk (#20363).
+      Object.assign(entry, toSafeError(first))
       fileMessage = `${message} ${String(entry.message)}`
     } else if (first !== null && typeof first === 'object') {
-      Object.assign(entry, first)
+      Object.assign(entry, sanitizeLogValue(first) as Record<string, unknown>)
     } else if (first !== undefined) {
       rest.push(first)
     }
     for (const item of others) {
-      rest.push(item instanceof Error ? { name: item.name, message: item.message, stack: item.stack } : item)
+      rest.push(sanitizeLogValue(item))
     }
     if (rest.length > 0) {
       entry.data = rest
@@ -292,7 +320,7 @@ export class LoggerService {
     if (source.process === 'main') {
       entry.module = this.module
       if (Object.keys(this.context).length > 0) {
-        entry.context = this.context
+        entry.context = sanitizeLogValue(this.context)
       }
     } else {
       if (source.window !== undefined) {
@@ -302,7 +330,7 @@ export class LoggerService {
         entry.module = source.module
       }
       if (source.context !== undefined) {
-        entry.context = source.context
+        entry.context = sanitizeLogValue(source.context)
       }
     }
 
