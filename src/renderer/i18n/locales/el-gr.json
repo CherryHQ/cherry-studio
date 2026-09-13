@@ -4146,6 +4146,8 @@
   "settings.doctor.checks.config-hardware-acceleration.detail.disabled_without_recent_crash": "Η επιτάχυνση υλικού είναι απενεργοποιημένη, παρότι δεν εντοπίστηκε πρόσφατη κατάρρευση γραφικών.",
   "settings.doctor.checks.config-hardware-acceleration.title": "Επιτάχυνση υλικού",
   "settings.doctor.checks.error": "Αυτός ο έλεγχος δεν ολοκληρώθηκε. Δοκιμάστε να εκτελέσετε ξανά τους ελέγχους.",
+  "settings.doctor.checks.install-architecture-match.detail.translated": "Η έκδοση {{arch}} εκτελείται μέσω μετάφρασης ARM64. Εγκαταστήστε την εγγενή έκδοση ARM64 για καλύτερη απόδοση και συμβατότητα.",
+  "settings.doctor.checks.install-architecture-match.title": "Αρχιτεκτονική εγκατάστασης",
   "settings.doctor.checks.install-native-modules.detail.unavailable": "Ένα απαραίτητο εγγενές στοιχείο δεν είναι διαθέσιμο.",
   "settings.doctor.checks.install-native-modules.title": "Εγγενή στοιχεία",
   "settings.doctor.checks.install-update-available.detail.available": "Υπάρχει διαθέσιμη νεότερη έκδοση του Cherry Studio.",

@@ -4146,6 +4146,8 @@
   "settings.doctor.checks.config-hardware-acceleration.detail.disabled_without_recent_crash": "Accelerarea hardware este dezactivată, deși nu s-a găsit nicio blocare grafică recentă.",
   "settings.doctor.checks.config-hardware-acceleration.title": "Accelerare hardware",
   "settings.doctor.checks.error": "Această verificare nu a putut fi finalizată. Încearcă să rulezi din nou verificările.",
+  "settings.doctor.checks.install-architecture-match.detail.translated": "Versiunea {{arch}} rulează prin traducere ARM64. Instalează versiunea ARM64 nativă pentru performanță și compatibilitate mai bune.",
+  "settings.doctor.checks.install-architecture-match.title": "Arhitectura instalării",
   "settings.doctor.checks.install-native-modules.detail.unavailable": "O componentă nativă necesară nu este disponibilă.",
   "settings.doctor.checks.install-native-modules.title": "Componente native",
   "settings.doctor.checks.install-update-available.detail.available": "Este disponibilă o versiune mai nouă de Cherry Studio.",

@@ -4146,6 +4146,8 @@
   "settings.doctor.checks.config-hardware-acceleration.detail.disabled_without_recent_crash": "L’accélération matérielle est désactivée alors qu’aucun plantage graphique récent n’a été détecté.",
   "settings.doctor.checks.config-hardware-acceleration.title": "Accélération matérielle",
   "settings.doctor.checks.error": "Cette vérification n’a pas pu être effectuée. Essayez de relancer les vérifications.",
+  "settings.doctor.checks.install-architecture-match.detail.translated": "La version {{arch}} s’exécute via la traduction ARM64. Installez la version ARM64 native pour améliorer les performances et la compatibilité.",
+  "settings.doctor.checks.install-architecture-match.title": "Architecture de l’installation",
   "settings.doctor.checks.install-native-modules.detail.unavailable": "Un composant natif requis n’est pas disponible.",
   "settings.doctor.checks.install-native-modules.title": "Composants natifs",
   "settings.doctor.checks.install-update-available.detail.available": "Une version plus récente de Cherry Studio est disponible.",
