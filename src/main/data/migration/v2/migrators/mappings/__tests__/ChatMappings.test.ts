@@ -12,6 +12,7 @@ import type {
   TextUIPart
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { resolveUniqueModelId } from '@shared/utils/model'
 
 // Use the repo-wide application mock; the default `getPath` already
 // returns deterministic `/mock/<key>/<filename>` paths.
@@ -913,6 +914,103 @@ describe('transformMessage', () => {
       model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
     })
   })
+
+  it('normalizes a pre-composed legacy model ID in the assistant snapshot', async () => {
+    const oldMsg: OldMessage = {
+      ...msg('m1', 'assistant'),
+      model: {
+        id: 'provider-a::model-a',
+        name: 'Model A',
+        provider: 'provider-a',
+        group: 'group-a'
+      }
+    }
+    const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'hello')]
+
+    const result = await transformMessage(oldMsg, null, 0, blocks, 'topic-1', undefined, {
+      id: 'asst-1',
+      name: 'Assistant',
+      emoji: ''
+    })
+
+    expect(result.modelId).toBe('provider-a::model-a')
+    expect(result.messageSnapshot?.model).toEqual({
+      id: 'model-a',
+      name: 'Model A',
+      provider: 'provider-a',
+      group: 'group-a'
+    })
+    expect(resolveUniqueModelId(null, result.messageSnapshot?.model)).toBe(result.modelId)
+  })
+
+  it('uses a valid fallback model ID when the legacy model object is malformed', async () => {
+    const oldMsg: OldMessage = {
+      ...msg('m1', 'assistant'),
+      modelId: 'provider-b::model-b',
+      model: {
+        id: 'model?version',
+        name: 'Legacy Model',
+        provider: 'provider-a',
+        group: 'group-a'
+      }
+    }
+    const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'hello')]
+
+    const result = await transformMessage(oldMsg, null, 0, blocks, 'topic-1', undefined, {
+      id: 'asst-1',
+      name: 'Assistant',
+      emoji: ''
+    })
+
+    expect(result.modelId).toBe('provider-b::model-b')
+    expect(result.messageSnapshot?.model).toEqual({
+      id: 'model-b',
+      name: 'Legacy Model',
+      provider: 'provider-b',
+      group: 'group-a'
+    })
+    expect(resolveUniqueModelId(null, result.messageSnapshot?.model)).toBe(result.modelId)
+  })
+
+  it.each([
+    ['missing', undefined, 'model-b', undefined],
+    ['blank', { id: '', name: 'Legacy Model', provider: '', group: 'group-a' }, 'Legacy Model', 'group-a'],
+    [
+      'non-string',
+      { id: 42, name: 'Legacy Model', provider: null, group: 'group-a' } as unknown as OldMessage['model'],
+      'Legacy Model',
+      'group-a'
+    ]
+  ] as const)(
+    'uses a valid fallback model ID when the legacy model object is %s',
+    async (_scenario, model, expectedName, expectedGroup) => {
+      const oldMsg: OldMessage = {
+        ...msg('m1', 'assistant'),
+        modelId: 'provider-b::model-b',
+        model
+      }
+      const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'hello')]
+
+      const result = await transformMessage(oldMsg, null, 0, blocks, 'topic-1', undefined, {
+        id: 'asst-1',
+        name: 'Assistant',
+        emoji: ''
+      })
+
+      expect(result.modelId).toBe('provider-b::model-b')
+      expect(result.messageSnapshot).toEqual({
+        id: 'asst-1',
+        name: 'Assistant',
+        emoji: '',
+        model: {
+          id: 'model-b',
+          name: expectedName,
+          provider: 'provider-b',
+          group: expectedGroup
+        }
+      })
+    }
+  )
 
   it('returns null snapshot when the assistant is missing (author owns the model)', async () => {
     const oldMsg: OldMessage = {

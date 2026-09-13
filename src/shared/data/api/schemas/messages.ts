@@ -47,7 +47,7 @@ export const CreateMessageSchema = z.strictObject({
   data: MessageDataSchema,
   /** Message status */
   status: MessageStatusSchema.optional(),
-  /** Siblings group ID (0 = normal, >0 = multi-model group) */
+  /** Siblings group ID (0 = normal; non-zero groups contain edit/resend, multi-model, or regeneration alternatives) */
   siblingsGroupId: z.number().optional(),
   /** Model identifier */
   modelId: z.string().optional(),
@@ -272,8 +272,10 @@ export type MessageSchemas = {
     /**
      * Delete a message
      * - cascade=true: deletes message and all descendants
-     * - cascade=false: an active grouped reply transfers children to the next live sibling
-     *   (previous at the end); otherwise reparents children to the parent.
+     * - cascade=false: with the default parent strategy, a grouped assistant reply on the active
+     *   path transfers children to the newest different-model sibling when itself active, or to
+     *   the next live sibling (previous at the end) when an active descendant survives. Without
+     *   that successor, or outside this case, children are reparented to the deleted node's parent.
      * - activeNodeStrategy='parent' (default): if the active node is deleted, descends from that
      *   sibling — or from the parent — to the newest surviving leaf, so remaining replies stay on
      *   the conversation path; null when only the virtual root is left.
