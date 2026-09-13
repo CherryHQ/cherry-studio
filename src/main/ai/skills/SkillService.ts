@@ -94,7 +94,14 @@ function normalizeSkillSourceUrl(source: string, sourceUrl: string | null): stri
 }
 
 function sameSkillSourceUrl(left: string[], right: string[]): boolean {
-  return left.some((identity) => right.includes(identity))
+  const isRepositoryIdentity = (identity: string) => identity.split('/').length === 2
+  const leftSpecific = left.filter((identity) => !isRepositoryIdentity(identity))
+  const rightSpecific = right.filter((identity) => !isRepositoryIdentity(identity))
+
+  // A repository-root identity is ambiguous when either URL also has a possible skill path (the
+  // ref itself may contain slashes). Only use it when both URLs are unambiguously root skills.
+  if (leftSpecific.length === 0 && rightSpecific.length === 0) return left.some((identity) => right.includes(identity))
+  return leftSpecific.some((identity) => rightSpecific.includes(identity))
 }
 
 /**

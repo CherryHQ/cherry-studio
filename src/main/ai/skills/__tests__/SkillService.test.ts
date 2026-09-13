@@ -1228,6 +1228,41 @@ describe('SkillService', () => {
       }
     })
 
+    it('does not alias repository-root and nested skills from the same GitHub repository', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
+      const nestedUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/first/SKILL.md'
+      const rootUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+
+      try {
+        vi.mocked(parseSkillMetadata).mockResolvedValue({
+          ...githubRootMetadata({ name: 'First' }),
+          filename: 'First'
+        } as never)
+        await fs.promises.mkdir(path.join(workDir, 'nested'), { recursive: true })
+        await fs.promises.writeFile(path.join(workDir, 'nested', 'SKILL.md'), '# first')
+        const nested = await skillService['installSkillDir'](path.join(workDir, 'nested'), 'marketplace', nestedUrl)
+
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Second', declaredName: 'Second' }) as never
+        )
+        await fs.promises.mkdir(path.join(workDir, 'content'), { recursive: true })
+        await fs.promises.writeFile(path.join(workDir, 'content', 'SKILL.md'), '# second')
+        const root = await skillService['installSkillDir'](path.join(workDir, 'content'), 'marketplace', rootUrl, {
+          folderNameFallback: 'repo'
+        })
+
+        expect(root.id).not.toBe(nested.id)
+        expect(root.folderName).toBe('Second')
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(2)
+        await expect(fs.promises.readFile(path.join(dataSkillsRoot, 'First', 'SKILL.md'), 'utf-8')).resolves.toBe(
+          '# first'
+        )
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
     it('selects a matching folder deterministically when restored rows share a source URL', async () => {
       const { skillService, restoreGetPath } = await setupGithubRootInstall()
       const sourceUrl = 'https://raw.githubusercontent.com/owner/duplicate-repo/refs/heads/main/SKILL.md'
