@@ -5,13 +5,20 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as MainFileUtils from '@main/utils/file'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import type * as PathStorage from '../../../pathStorage'
 
+const getFileTypeMock = vi.hoisted(() => vi.fn(async () => 'text'))
 const copyFileIntoKnowledgeBaseAtMock = vi.hoisted(() =>
   vi.fn(async (_baseId: string, _externalPath: string, relativePath: string) => relativePath)
 )
+
+vi.mock('@main/utils/file', async () => {
+  const actual = await vi.importActual<typeof MainFileUtils>('@main/utils/file')
+  return { ...actual, getFileType: getFileTypeMock }
+})
 
 vi.mock('node:path', async () => {
   const actual = await vi.importActual<typeof NodePath>('node:path')
@@ -229,14 +236,16 @@ describe('expandDirectoryOwnerToTree', () => {
     )
   })
 
-  it('skips unsupported file extensions while expanding directory trees', async () => {
+  it('skips unknown files without content-sniffing during directory discovery', async () => {
     tempRoot = createTempRoot()
     const rootDir = path.join(tempRoot, 'workspace')
     realFs.mkdirSync(rootDir, { recursive: true })
     realFs.writeFileSync(path.join(rootDir, 'README'), 'extensionless text')
     realFs.writeFileSync(path.join(rootDir, 'build.zig.zon'), 'compound-extension text')
     realFs.writeFileSync(path.join(rootDir, 'readme.md'), '# readme')
-    realFs.writeFileSync(path.join(rootDir, 'app.exe'), Buffer.from([0, 1, 2, 3, 0, 255]))
+    for (let index = 0; index < 25; index++) {
+      realFs.writeFileSync(path.join(rootDir, `unknown-${index}.blob`), `text payload ${index}`)
+    }
     // OpenDocument formats are app-wide "documents" but intentionally unsupported by the
     // knowledge base, so a rebuild/restore that walks a directory must skip them too.
     realFs.writeFileSync(path.join(rootDir, 'legacy.odt'), 'odt')
@@ -254,9 +263,10 @@ describe('expandDirectoryOwnerToTree', () => {
     )
 
     expect(children.map((child) => child.data.source).sort()).toEqual(
-      [path.join(rootDir, 'README'), path.join(rootDir, 'build.zig.zon'), path.join(rootDir, 'readme.md')].sort()
+      [path.join(rootDir, 'build.zig.zon'), path.join(rootDir, 'readme.md')].sort()
     )
-    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledTimes(3)
+    expect(getFileTypeMock).not.toHaveBeenCalled()
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledTimes(2)
     // The expansion copy threads the abort signal (so a hung file can be interrupted)
     // and sets overwrite so a retry re-copies over its own orphans from a prior attempt.
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(

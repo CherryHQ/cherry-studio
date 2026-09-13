@@ -3,9 +3,8 @@ import path from 'node:path'
 
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { isKnowledgeSupportedFileName } from '@shared/utils/file'
 
-import { isSupportedKnowledgeFilePath } from '../../items'
 import { assertSafeKnowledgeRelativePath, copyFileIntoKnowledgeBaseAt } from '../../pathStorage'
 
 /** A scanned filesystem entry under a directory owner — only the fields this module reads. */
@@ -60,7 +59,7 @@ async function readDirectoryTree(
       continue
     }
 
-    if (entry.isFile() && (await isSupportedKnowledgeFilePath(AbsoluteFilePathSchema.parse(entryPath)))) {
+    if (entry.isFile() && isKnowledgeSupportedFileName(entryPath)) {
       nodes.push({
         type: 'file',
         treePath,
