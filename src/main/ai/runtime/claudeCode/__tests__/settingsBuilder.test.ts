@@ -588,7 +588,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 1_048_576, maxOutputTokens: 393_216 }
     )
 
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000' })
+    // The 393_216 declared cap first clamps to the 128_000 CLI ceiling, then shrinks
+    // so the trigger-point request fits the emitted untrusted budget
+    // (392_897 + 98_225 = 491_122) instead of outrunning it.
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '98225' })
   })
 
   it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
@@ -992,6 +995,109 @@ describe('buildClaudeCodeSessionSettings', () => {
       CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000',
       CLAUDE_CODE_MAX_CONTEXT_TOKENS: '256000'
     })
+  })
+
+  // A cap that fits the derated room can still outrun the emitted non-floor budget
+  // (137_984 trigger + 64_000 = 201_984 > 172_480), so the trigger-point request
+  // fits the emitted window instead: 172_480 - 137_984 = 34_496.
+  it('shrinks an output cap that outruns the emitted non-floor window', async () => {
+    const untrustedProvider = {
+      id: 'openrouter',
+      presetProviderId: 'openrouter',
+      defaultChatEndpoint: 'openai-chat-completions'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      untrustedProvider,
+      { contextWindow: 400_000, maxOutputTokens: 64_000 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(172_480)
+    expect(settings.env).toMatchObject({
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '34496',
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '400000'
+    })
+  })
+
+  // In a gateway session the primary is also a routed slot: a sub-floor primary
+  // contributes the floor instead of being skipped while a larger secondary
+  // (119_168 on its own) sets the pace.
+  it('floors a sub-floor primary instead of skipping it in a gateway session', async () => {
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      trustedProvider,
+      {
+        contextWindow: 64_000,
+        maxOutputTokens: 32_000,
+        gatewayModelSlots: [{ providerId: 'openrouter', contextWindow: 256_000, maxOutputTokens: 32_000 }]
+      }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
+  })
+
+  // Budgeting derives trust from the route-materialized verdict, not a fresh
+  // provider/model read: an unresolvable relay keeps the full budget when the
+  // route calls it trusted, and no provider lookup happens at all.
+  it('budgets gateway slots from the materialized trust verdict', async () => {
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    } as never
+    const trusted = await buildClaudeCodeSessionSettings(session, trustedProvider, {
+      contextWindow: 256_000,
+      maxOutputTokens: 32_000,
+      gatewayModelSlots: [
+        {
+          providerId: 'openrouter',
+          modelId: 'relay-model',
+          contextWindow: 256_000,
+          maxOutputTokens: 32_000,
+          trusted: true
+        }
+      ]
+    })
+
+    expect((trusted.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
+    expect(mocks.getByProviderId).not.toHaveBeenCalled()
+
+    // ...and a materialized-untrusted slot keeps the margin even when the live
+    // provider row still reads as the official endpoint.
+    mocks.getByProviderId.mockReturnValue(trustedProvider)
+    const untrusted = await buildClaudeCodeSessionSettings(session, trustedProvider, {
+      contextWindow: 256_000,
+      maxOutputTokens: 32_000,
+      gatewayModelSlots: [
+        {
+          providerId: 'anthropic',
+          modelId: 'relay-model',
+          contextWindow: 256_000,
+          maxOutputTokens: 32_000,
+          trusted: false
+        }
+      ]
+    })
+
+    expect((untrusted.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
   })
 
   it.each([undefined, 64_000, 99_999])(

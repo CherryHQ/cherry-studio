@@ -162,6 +162,11 @@ export interface ClaudeCodeGatewayModelSlot {
   modelId?: string
   contextWindow?: number
   maxOutputTokens?: number
+  /**
+   * Trust verdict materialized with the route. Budgeting prefers it over
+   * re-reading provider/model rows; absent verdicts resolve live, failing closed.
+   */
+  trusted?: boolean
 }
 
 export type { LinkedChannelSnapshot, McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
@@ -316,15 +321,12 @@ export async function buildClaudeCodeSessionSettings(
     options?.maxOutputTokens,
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
   )
-  // Gateway sessions fan out per-model slots to providers this builder never sees.
-  // The single process-wide budget protects the weakest routed slot: budget each slot
-  // (window, output, provider, model) and take the minimum. Slot providers/models
-  // that fail to resolve fail closed to untrusted / provider-wide trust. Routed slots
-  // with missing or sub-SDK-floor windows contribute the SDK floor instead of being
-  // silently skipped — the floor is the most conservative SDK-valid value, so a small
-  // or unknown sub-model pulls the shared budget down rather than riding the
-  // primary's. Direct sessions budget the primary alone (unknown primary window
-  // omits the budget, as before).
+  // Gateway sessions fan out per-model slots to providers this builder never sees:
+  // budget each slot (window, output, trust) and take the minimum. Trust comes from
+  // the route-materialized verdict, not a fresh read, so a concurrent edit cannot
+  // split the budget from its route; verdict-less slots resolve live, failing closed.
+  // Slots with missing or sub-floor windows — primary included — contribute the SDK
+  // floor; direct sessions budget the primary alone (unknown window omits it).
   // Trust follows the endpoint that actually serves the primary model rather than
   // the provider-wide default; an unresolvable id degrades to provider-wide trust.
   let primaryModel: Model | null = null
@@ -336,11 +338,14 @@ export async function buildClaudeCodeSessionSettings(
   } catch {
     primaryModel = null
   }
+  const hasGatewaySlots = (options?.gatewayModelSlots ?? []).length > 0
   const budgetSlots: Array<{
     contextWindow?: number
     output: number
     provider?: Provider | null
     model?: Model | null
+    trusted?: boolean
+    providerId?: string
     isGatewaySlot: boolean
   }> = [
     {
@@ -352,20 +357,23 @@ export async function buildClaudeCodeSessionSettings(
     }
   ]
   for (const gatewaySlot of options?.gatewayModelSlots ?? []) {
+    // The verdict travels with the route facts; only resolve live without one.
     let slotProvider: Provider | null = null
     let slotModel: Model | null = null
-    try {
-      slotProvider = providerService.getByProviderId(gatewaySlot.providerId) ?? null
-    } catch {
-      slotProvider = null
-    }
-    try {
-      slotModel =
-        gatewaySlot.modelId !== undefined
-          ? (modelService.getByKey(gatewaySlot.providerId, gatewaySlot.modelId) ?? null)
-          : null
-    } catch {
-      slotModel = null
+    if (gatewaySlot.trusted === undefined) {
+      try {
+        slotProvider = providerService.getByProviderId(gatewaySlot.providerId) ?? null
+      } catch {
+        slotProvider = null
+      }
+      try {
+        slotModel =
+          gatewaySlot.modelId !== undefined
+            ? (modelService.getByKey(gatewaySlot.providerId, gatewaySlot.modelId) ?? null)
+            : null
+      } catch {
+        slotModel = null
+      }
     }
     budgetSlots.push({
       contextWindow: gatewaySlot.contextWindow,
@@ -376,26 +384,37 @@ export async function buildClaudeCodeSessionSettings(
       ),
       provider: slotProvider,
       model: slotModel,
+      trusted: gatewaySlot.trusted,
+      providerId: gatewaySlot.providerId,
       isGatewaySlot: true
     })
   }
   const slotResults = budgetSlots.map((slot) => {
-    const window = resolveAutoCompactWindow(slot.contextWindow, slot.output, slot.provider ?? null, slot.model ?? null)
+    const window = resolveAutoCompactWindow(
+      slot.contextWindow,
+      slot.output,
+      slot.provider ?? null,
+      slot.model ?? null,
+      slot.trusted
+    )
     if (window !== undefined) {
       return {
         window,
-        cap: resolveClaudeOutputCap(slot.contextWindow, slot.output, slot.provider ?? null, window, slot.model ?? null)
+        cap: resolveClaudeOutputCap(
+          slot.contextWindow,
+          slot.output,
+          slot.provider ?? null,
+          window,
+          slot.model ?? null,
+          slot.trusted
+        )
       }
     }
-    // A routed slot with a missing or sub-SDK-floor window cannot satisfy the SDK
-    // minimum, so it contributes the floor paired with the smaller of its declared
-    // output and the default cap — never reserving more than the model declares.
-    // The primary slot keeps the omit behavior. This floors the shared trigger at
-    // 80K input: the earliest SDK-valid point, though still past a sub-floor
-    // slot's own real limit (no shared window can protect those; see #18894).
-    if (!slot.isGatewaySlot) return { window: undefined, cap: undefined }
+    // Only direct sessions omit an unusable primary; in a gateway session the
+    // primary is a routed slot like the others and contributes the floor.
+    if (!slot.isGatewaySlot && !hasGatewaySlots) return { window: undefined, cap: undefined }
     logger.warn('Gateway slot cannot satisfy the compaction floor; budgeting it at the SDK minimum', {
-      providerId: slot.provider?.id,
+      providerId: slot.provider?.id ?? slot.providerId,
       contextWindow: slot.contextWindow
     })
     return { window: MIN_AUTO_COMPACT_WINDOW, cap: Math.min(slot.output, DEFAULT_REQUESTED_OUTPUT_TOKENS) }

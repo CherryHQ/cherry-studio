@@ -148,9 +148,10 @@ function resolveEffectiveClaudeContextWindow(
   contextWindow: number,
   requestedOutput: number,
   provider?: Provider | null,
-  model?: Model | null
+  model?: Model | null,
+  trustedOverride?: boolean
 ): number {
-  if (isTrustedClaudeSlot(provider, model)) {
+  if (trustedOverride ?? isTrustedClaudeSlot(provider, model)) {
     return contextWindow
   }
   // For tiny windows the 0.6 margin would make the MIN floor even more
@@ -173,11 +174,17 @@ function resolveEffectiveClaudeContextWindow(
   return shouldSkipMargin ? contextWindow : margined
 }
 
+/**
+ * The SDK's auto-compact window for a catalog window and output reservation.
+ * `trustedOverride` pins the channel verdict from route facts so callers
+ * budgeting materialized routes don't re-read provider/model rows mid-build.
+ */
 export function resolveAutoCompactWindow(
   contextWindow: number | undefined,
   requestedOutput: number,
   provider?: Provider | null,
-  model?: Model | null
+  model?: Model | null,
+  trustedOverride?: boolean
 ): number | undefined {
   if (
     typeof contextWindow !== 'number' ||
@@ -186,8 +193,14 @@ export function resolveAutoCompactWindow(
   ) {
     return undefined
   }
-  const isTrustedAnthropic = isTrustedClaudeSlot(provider, model)
-  const effectiveContextWindow = resolveEffectiveClaudeContextWindow(contextWindow, requestedOutput, provider, model)
+  const isTrustedAnthropic = trustedOverride ?? isTrustedClaudeSlot(provider, model)
+  const effectiveContextWindow = resolveEffectiveClaudeContextWindow(
+    contextWindow,
+    requestedOutput,
+    provider,
+    model,
+    trustedOverride
+  )
   const inputRoom = effectiveContextWindow - requestedOutput
   const budget = Math.floor(inputRoom * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
   const clamped = Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
@@ -231,25 +244,24 @@ export function resolveClaudeOutputCap(
   requestedOutput: number,
   provider: Provider | null | undefined,
   autoCompactWindow: number | undefined,
-  model?: Model | null
+  model?: Model | null,
+  trustedOverride?: boolean
 ): number {
   if (
     typeof contextWindow !== 'number' ||
     !Number.isInteger(contextWindow) ||
     autoCompactWindow === undefined ||
-    isTrustedClaudeSlot(provider, model) ||
+    (trustedOverride ?? isTrustedClaudeSlot(provider, model)) ||
     requestedOutput <= DEFAULT_REQUESTED_OUTPUT_TOKENS
   ) {
     return requestedOutput
   }
-  const effectiveContextWindow = resolveEffectiveClaudeContextWindow(contextWindow, requestedOutput, provider, model)
   const triggerRoom = Math.floor((autoCompactWindow * AUTO_COMPACT_TRIGGER_PCT) / 100)
-  // In the SDK-floor branch the emitted window sits below the derated room, so it
-  // is the tighter proxy for the unknown real limit — fit the trigger-point
-  // request to it (a mid-size cap that fits the derated room can still outrun a
-  // 128K-real provider). Otherwise fit to the derated room itself.
-  const ceiling = autoCompactWindow <= MIN_AUTO_COMPACT_WINDOW ? autoCompactWindow : effectiveContextWindow
-  if (triggerRoom + requestedOutput <= ceiling) {
+  // The emitted window is the tighter proxy for the unknown real limit in every
+  // branch: a cap that fits only the derated room can still outrun the budget the
+  // CLI compacts off (e.g. an 80K trigger plus a mid-size cap on a non-floor
+  // window) and reach the provider before compaction.
+  if (triggerRoom + requestedOutput <= autoCompactWindow) {
     return requestedOutput
   }
   return Math.max(autoCompactWindow - triggerRoom, DEFAULT_REQUESTED_OUTPUT_TOKENS)
