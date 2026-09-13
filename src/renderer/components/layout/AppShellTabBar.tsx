@@ -32,6 +32,7 @@ type AppShellTabBarProps = {
   activeTabId: string
   isFullscreen?: boolean
   isFocusedTab?: boolean
+  legacyCombinedLayout?: boolean
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
   closeTabs: (ids: readonly string[], activateId?: string) => void
@@ -148,8 +149,8 @@ const PinnedTabButton = ({
   )
 }
 
-const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE =
-  'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px) + 2px))'
+const MACOS_TRAFFIC_LIGHT_RESERVE = 'calc(env(titlebar-area-x, 0px) + 2px)'
+const MACOS_COMBINED_TAB_STRIP_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px) + 2px))'
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -594,6 +595,7 @@ export const AppShellTabBar = ({
   activeTabId,
   isFullscreen = false,
   isFocusedTab = false,
+  legacyCombinedLayout = false,
   setActiveTab,
   closeTab,
   closeTabs,
@@ -812,7 +814,10 @@ export const AppShellTabBar = ({
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleOpenLaunchpad = () => {
-    openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true })
+    openTab('/app/launchpad', {
+      title: t('title.launchpad'),
+      ...(legacyCombinedLayout ? { forceNew: true } : {})
+    })
   }
 
   // ─── Close-in-place freeze/thaw ─────────────────────────────────────────────
@@ -926,9 +931,10 @@ export const AppShellTabBar = ({
           style={
             isMac && !isFullscreen
               ? {
-                  paddingLeft: isFocusedTab
-                    ? 'calc(env(titlebar-area-x, 0px) + 2px)'
-                    : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
+                  paddingLeft:
+                    !isFocusedTab && legacyCombinedLayout
+                      ? MACOS_COMBINED_TAB_STRIP_RESERVE
+                      : MACOS_TRAFFIC_LIGHT_RESERVE
                 }
               : undefined
           }
@@ -1194,10 +1200,10 @@ export const AppShellTabBar = ({
                 </Tooltip>
               </div>
             )}
-            <WindowControls />
+            {legacyCombinedLayout ? <WindowControls /> : <ShellTabBarActions showSettings />}
           </div>
         ) : (
-          <ShellTabBarActions />
+          <ShellTabBarActions showSettings={!legacyCombinedLayout} />
         )}
       </header>
     </>

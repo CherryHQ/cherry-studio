@@ -52,6 +52,10 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
   })
 
+  it('defaults to the legacy combined navigation layout', () => {
+    expect(DefaultPreferences.default['ui.navigation.layout']).toBe('both')
+  })
+
   it('pins permission mode on the agent composer toolbar for new users', () => {
     const agentPinnedToolsDefault: PreferenceSchemas['default']['agent.input.toolbar.pinned_tools'] = [
       'composer:new-session',

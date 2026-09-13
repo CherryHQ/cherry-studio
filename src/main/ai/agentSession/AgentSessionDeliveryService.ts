@@ -303,6 +303,9 @@ export class AgentSessionDeliveryService extends BaseService {
     deliveryResults: AgentSessionMessageEntity[],
     retrySessionIds: string[] = []
   ): Promise<void> {
+    application
+      .get('AiStreamManager')
+      .clearConversationTaskStatuses(sessionIds.map((sessionId) => buildAgentSessionTopicId(sessionId)))
     const closed = await Promise.allSettled(
       sessionIds.map((sessionId) => application.get('AgentSessionRuntimeService').closeSession(sessionId))
     )

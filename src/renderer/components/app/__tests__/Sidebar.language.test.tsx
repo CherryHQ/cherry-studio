@@ -57,6 +57,10 @@ vi.mock('@renderer/hooks/useAvatar', () => ({
   default: () => null
 }))
 
+vi.mock('@renderer/hooks/useWorkspaceTaskStatuses', () => ({
+  useWorkspaceTaskStatuses: () => new Map()
+}))
+
 vi.mock('@renderer/hooks/useModel', () => ({
   modelGenerating: vi.fn().mockResolvedValue(undefined)
 }))
@@ -68,6 +72,9 @@ vi.mock('@renderer/hooks/tab', () => ({
       type: 'route',
       url: '/home'
     },
+    tabs: [],
+    activateWorkspace: vi.fn(),
+    closeWorkspace: vi.fn(),
     openTab: vi.fn(),
     updateTab: vi.fn()
   }),

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
+  openRoute: vi.fn(),
   setActiveTab: vi.fn(),
   updateTab: vi.fn(),
   attachTab: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock('../useTabs', () => ({
   useTabs: () => ({
     tabs: mocks.tabs,
     openTab: mocks.openTab,
+    openRoute: mocks.openRoute,
     setActiveTab: mocks.setActiveTab,
     updateTab: mocks.updateTab,
     attachTab: mocks.attachTab
@@ -151,7 +153,7 @@ describe('useMainWindowNavigation', () => {
     mocks.initData = { kind: 'navigation', to: '/agents', requestId: 1 }
     render(<MainWindowNavigationHarness />)
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/agents')
+    expect(mocks.openRoute).toHaveBeenCalledWith('/agents')
   })
 
   it('re-attaches a tab from tab-attach init data and acknowledges it', () => {
@@ -179,7 +181,7 @@ describe('useMainWindowNavigation', () => {
 
     mocks.ipcListeners.get('navigation.open_route_requested')?.({ to: '/knowledge' })
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/knowledge')
+    expect(mocks.openRoute).toHaveBeenCalledWith('/knowledge')
   })
 
   it('routes a settings path from the open_route_requested event through the settings singleton', () => {
@@ -239,7 +241,7 @@ describe('useMainWindowNavigation', () => {
       })
     )
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/agents')
+    expect(mocks.openRoute).toHaveBeenCalledWith('/agents')
   })
 
   it('removes the main-route event bridge on unmount', () => {
@@ -253,6 +255,6 @@ describe('useMainWindowNavigation', () => {
     window.dispatchEvent(event)
 
     expect(event.defaultPrevented).toBe(false)
-    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.openRoute).not.toHaveBeenCalled()
   })
 })
