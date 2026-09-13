@@ -271,6 +271,71 @@ describe('expandDirectoryOwnerToTree', () => {
     )
   })
 
+  it('skips common development dependency directories from copying and progress', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'workspace')
+    const dependencyDirectories = [
+      'node_modules',
+      'bower_components',
+      'jspm_packages',
+      'vendor',
+      'Pods',
+      'Carthage',
+      'venv',
+      '__pypackages__'
+    ]
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'readme.md'), '# readme')
+    for (const directory of dependencyDirectories) {
+      const dependencyDir = path.join(rootDir, directory)
+      realFs.mkdirSync(dependencyDir, { recursive: true })
+      realFs.writeFileSync(path.join(dependencyDir, 'dependency.md'), '# dependency')
+    }
+
+    copyFileIntoKnowledgeBaseAtMock.mockClear()
+    const onCopyProgress = vi.fn()
+    const owner = createDirectoryOwner(rootDir)
+    const children = await expandDirectoryOwnerToTree(
+      owner,
+      'kb-1',
+      chooseDirectoryPathPrefix(owner, new Set()),
+      createSignal(),
+      onCopyProgress
+    )
+
+    expect(children).toEqual([
+      {
+        type: 'file',
+        data: {
+          source: path.join(rootDir, 'readme.md'),
+          relativePath: 'workspace/readme.md'
+        }
+      }
+    ])
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledTimes(1)
+    expect(onCopyProgress.mock.calls.map(([percent]) => percent)).toEqual([0, 100])
+  })
+
+  it('does not import a dependency directory selected as the root', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'NODE_MODULES')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'dependency.md'), '# dependency')
+
+    copyFileIntoKnowledgeBaseAtMock.mockClear()
+    const owner = createDirectoryOwner(rootDir)
+    const children = await expandDirectoryOwnerToTree(
+      owner,
+      'kb-1',
+      chooseDirectoryPathPrefix(owner, new Set()),
+      createSignal(),
+      ignoreCopyProgress
+    )
+
+    expect(children).toEqual([])
+    expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
+  })
+
   it('reports copied files against the supported-file total', async () => {
     tempRoot = createTempRoot()
     const rootDir = path.join(tempRoot, 'workspace')

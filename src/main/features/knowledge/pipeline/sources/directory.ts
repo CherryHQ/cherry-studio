@@ -8,6 +8,20 @@ import { knowledgeSupportedFileExts } from '@shared/utils/file'
 import { assertSafeKnowledgeRelativePath, copyFileIntoKnowledgeBaseAt } from '../../pathStorage'
 
 const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
+const DEVELOPMENT_DEPENDENCY_DIRECTORY_NAMES = new Set([
+  '__pypackages__',
+  'bower_components',
+  'carthage',
+  'jspm_packages',
+  'node_modules',
+  'pods',
+  'vendor',
+  'venv'
+])
+
+function isDevelopmentDependencyDirectory(name: string): boolean {
+  return DEVELOPMENT_DEPENDENCY_DIRECTORY_NAMES.has(name.toLowerCase())
+}
 
 /** A scanned filesystem entry under a directory owner — only the fields this module reads. */
 interface DirectoryEntryNode {
@@ -43,7 +57,7 @@ async function readDirectoryTree(
   for (const entry of entries) {
     signal.throwIfAborted()
 
-    if (entry.name.startsWith('.')) {
+    if (entry.name.startsWith('.') || (entry.isDirectory() && isDevelopmentDependencyDirectory(entry.name))) {
       continue
     }
 
@@ -185,6 +199,9 @@ export async function expandDirectoryOwnerToTree(
   }
 
   const resolvedPath = path.resolve(owner.data.source)
+  if (isDevelopmentDependencyDirectory(path.basename(resolvedPath))) {
+    return []
+  }
   const children = await readDirectoryTree(resolvedPath, signal)
   const expandedChildren: ExpandedDirectoryNode[] = []
   const totalFiles = countSupportedFiles(children)
