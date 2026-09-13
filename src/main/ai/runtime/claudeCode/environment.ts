@@ -102,13 +102,22 @@ function isTrustedClaudeChannel(provider?: Provider | null): boolean {
   // absent entry fails closed, and a URL-less entry still resolves through the
   // getBaseUrl cascade to another entry's host — so only cloud-SDK transports
   // with no URL at all (Bedrock / Vertex) stay trusted without a baseUrl.
-  if (provider.defaultChatEndpoint !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return false
-  if (!Object.prototype.hasOwnProperty.call(provider.endpointConfigs ?? {}, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)) {
-    return false
+  const hasAnthropicEntry = Object.prototype.hasOwnProperty.call(
+    provider.endpointConfigs ?? {},
+    ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  )
+  const hasEntryBaseUrl = typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== ''
+  // First-party cloud transports serve accurate windows regardless of which endpoint
+  // is the provider default (Vertex defaults to google-generate-content): a present
+  // URL-less Bedrock/Vertex entry stays trusted.
+  if (hasAnthropicEntry && !hasEntryBaseUrl) {
+    const adapterFamily = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily
+    if (adapterFamily === 'bedrock' || adapterFamily === 'google-vertex-anthropic') return true
   }
-  if (typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== '') return true
-  const adapterFamily = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily
-  return adapterFamily === 'bedrock' || adapterFamily === 'google-vertex-anthropic'
+  if (provider.defaultChatEndpoint !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return false
+  if (!hasAnthropicEntry) return false
+  if (hasEntryBaseUrl) return true
+  return false
 }
 
 /**
