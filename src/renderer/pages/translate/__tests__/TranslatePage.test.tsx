@@ -113,7 +113,9 @@ vi.mock('@data/hooks/useCache', async (importOriginal) => {
     ...MockUseCache,
     // This handoff must use the same CacheService store as the revision fence.
     useCache: ((key, initValue) =>
-      key === 'translate.restored_pdf' || key === 'translate.history_restore_pending'
+      key === 'translate.restored_pdf' ||
+      key === 'translate.history_restore_pending' ||
+      key === 'translate.exchange_pending'
         ? actual.useCache(key, initValue)
         : MockUseCache.useCache(key, initValue)) as typeof actual.useCache
   }
@@ -741,6 +743,29 @@ describe('TranslatePage', () => {
     })
     rerender(<TranslatePage />)
     expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('typed while reading file content')
+  })
+
+  it('finishes a selected file read after remount when no newer content operation replaced it', async () => {
+    let resolveRead!: (value: string) => void
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/input.txt', size: 10 }])
+    fileMock.readText.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveRead = resolve
+      })
+    )
+    MockUseCacheUtils.setCacheValue('translate.input', 'prefix ')
+    MockCacheUtils.setInitialState({ memory: [['translate.input', 'prefix ']] })
+
+    const previousPage = render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+    await waitFor(() => expect(fileMock.readText).toHaveBeenCalledWith('/tmp/input.txt'))
+    previousPage.unmount()
+
+    const currentPage = render(<TranslatePage />)
+    await act(async () => resolveRead('file content'))
+    currentPage.rerender(<TranslatePage />)
+
+    expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('prefix file content')
   })
 
   it('starts a File Processing image_to_text job and appends recognized text from the job snapshot', async () => {
@@ -1468,6 +1493,50 @@ describe('TranslatePage', () => {
 
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('zh-cn')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('en-us')
+  })
+
+  it('keeps a remounted history action behind an earlier exchange', async () => {
+    const user = userEvent.setup()
+    const { persistLanguages, resolvePersist } = createDeferredLanguagePersist()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    MockUseCacheUtils.setCacheValue('translate.input', 'history input')
+    MockUseCacheUtils.setCacheValue('translate.output', 'history output')
+    MockCacheUtils.setInitialState({
+      memory: [
+        ['translate.input', 'history input'],
+        ['translate.output', 'history output']
+      ]
+    })
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const previousPage = render(<TranslatePage />)
+        await user.click(screen.getByRole('button', { name: 'translate.exchange.label' }))
+        previousPage.unmount()
+
+        const currentPage = render(<TranslatePage />)
+        expect(screen.getByRole('button', { name: 'translate.history.title' })).toBeDisabled()
+        await act(async () => resolvePersist())
+        currentPage.rerender(<TranslatePage />)
+
+        await user.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        await user.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+        await act(async () => resolvePersist())
+        currentPage.rerender(<TranslatePage />)
+
+        expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('history input')
+        expect(screen.getByTestId('translate-output-content')).toHaveTextContent('history output')
+      }
+    )
   })
 
   it('keeps the language pair and text unchanged when the batch exchange fails', async () => {

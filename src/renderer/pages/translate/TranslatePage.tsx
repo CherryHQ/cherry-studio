@@ -83,6 +83,7 @@ const advanceContentIntentRevision = () =>
 const getContentOperationRevision = () => cacheService.get('translate.content_operation_revision') ?? 0
 const advanceContentOperationRevision = () =>
   cacheService.set('translate.content_operation_revision', getContentOperationRevision() + 1)
+const isExchangePendingNow = () => cacheService.get('translate.exchange_pending') != null
 const useBabelDoc = (enabled: boolean) => {
   const { t } = useTranslation()
   const [availability, setAvailability] = useState<BabelDocAvailability>('checking')
@@ -256,6 +257,7 @@ const TranslatePage: FC = () => {
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
   const [pendingHistoryRestore, setPendingHistoryRestore] = useCache('translate.history_restore_pending')
+  const [pendingExchange, setPendingExchange] = useCache('translate.exchange_pending')
   const [restoredPdfHandoff, setRestoredPdfHandoff] = useCache('translate.restored_pdf')
 
   const translationOperationRef = useRef<{ revision: number } | null>(null)
@@ -301,7 +303,7 @@ const TranslatePage: FC = () => {
   const [pdfTextFallbackActive, setPdfTextFallbackActive] = useState(false)
   const [pdfTextOcrRequired, setPdfTextOcrRequired] = useState(false)
   const [isPdfTextExtracting, setIsPdfTextExtracting] = useState(false)
-  const [isExchangePending, setIsExchangePending] = useState(false)
+  const isExchangePending = pendingExchange !== null
   const isHistoryRestorePending = pendingHistoryRestore !== null
   const isOcrRunning = ocrJob !== null
   const isPdfMode = pdfFile !== null
@@ -316,7 +318,6 @@ const TranslatePage: FC = () => {
   const pdfTextRequestIdRef = useRef(0)
   const pdfTextFallbackStartedRef = useRef(false)
   const prePdfOutputRef = useRef<string | null>(null)
-  const exchangePendingRef = useRef(false)
   const historyRestorePendingRef = useRef(false)
   const historyRestoreBarrierRef = useRef<Promise<boolean> | null>(null)
   const isMountedRef = useRef(true)
@@ -624,7 +625,7 @@ const TranslatePage: FC = () => {
   ])
 
   const onTranslate = useCallback(async () => {
-    if (exchangePendingRef.current || cacheService.get('translate.history_restore_pending') != null) return
+    if (isExchangePendingNow() || cacheService.get('translate.history_restore_pending') != null) return
     markContentChanged()
     translationOperationRef.current = { revision: getContentOperationRevision() }
     if (pdfFile) {
@@ -684,12 +685,12 @@ const TranslatePage: FC = () => {
       targetLanguage === UNKNOWN_LANG_CODE ||
       isTranslating ||
       isDetecting ||
-      exchangePendingRef.current ||
+      isExchangePendingNow() ||
       cacheService.get('translate.history_restore_pending') != null
     )
       return
-    exchangePendingRef.current = true
-    setIsExchangePending(true)
+    const exchangeToken = Symbol('translate exchange')
+    setPendingExchange(exchangeToken)
     try {
       const persisted = await safePersist(
         setTranslateLanguages({ sourceLanguage: targetLanguage, targetLanguage: sourceLanguage }),
@@ -707,13 +708,13 @@ const TranslatePage: FC = () => {
       setTranslateInput(output)
       setTranslateOutput(input)
     } finally {
-      exchangePendingRef.current = false
-      if (isMountedRef.current) setIsExchangePending(false)
+      setPendingExchange((current) => (current === exchangeToken ? null : current))
     }
   }, [
     isDetecting,
     markContentChanged,
     safePersist,
+    setPendingExchange,
     setTranslateLanguages,
     setTranslateInput,
     setTranslateOutput,
@@ -725,7 +726,7 @@ const TranslatePage: FC = () => {
 
   const onHistoryItemClick = useCallback(
     async (history: TranslateHistory, files?: TranslationFiles) => {
-      if (exchangePendingRef.current || historyRestorePendingRef.current) return
+      if (isExchangePendingNow() || historyRestorePendingRef.current) return
       const contentBeforePersist = translateContentRef.current
       const contentIntentRevisionBeforePersist = getContentIntentRevision()
       const nextTargetLanguage =
@@ -939,7 +940,7 @@ const TranslatePage: FC = () => {
           const result = isDocument
             ? await window.api.file.readExternal(file.path, true)
             : await window.api.fs.readText(file.path)
-          if (!isContentOperationCurrent(contentOperationRevision)) {
+          if (contentOperationRevision !== getContentOperationRevision()) {
             closeStaleToast()
             return
           }
@@ -991,7 +992,7 @@ const TranslatePage: FC = () => {
 
   const processFile = useCallback(
     async (file: FileMetadata, contentOperationRevision: number) => {
-      if (exchangePendingRef.current || !isContentOperationCurrent(contentOperationRevision)) return
+      if (isExchangePendingNow() || !isContentOperationCurrent(contentOperationRevision)) return
       if (getFileExtension(file.path) === '.pdf') {
         const maxSize = 20 * MB
         if (file.size > maxSize) {
@@ -1022,7 +1023,7 @@ const TranslatePage: FC = () => {
   )
 
   const handleSelectFile = useCallback(async () => {
-    if (exchangePendingRef.current || selecting || isTranslationRunning || isOcrRunning) return
+    if (isExchangePendingNow() || selecting || isTranslationRunning || isOcrRunning) return
     const contentOperationRevision = getContentOperationRevision()
     setIsProcessing(true)
     try {
@@ -1067,7 +1068,7 @@ const TranslatePage: FC = () => {
 
   const onDrop = useCallback(
     async (e: DragEvent<HTMLDivElement>) => {
-      if (exchangePendingRef.current || isProcessing || isOcrRunning || isTranslationRunning) return
+      if (isExchangePendingNow() || isProcessing || isOcrRunning || isTranslationRunning) return
       const contentOperationRevision = getContentOperationRevision()
       setIsProcessing(true)
       try {
@@ -1121,7 +1122,7 @@ const TranslatePage: FC = () => {
 
   const onPaste = useCallback(
     async (event: ClipboardEvent<HTMLTextAreaElement>) => {
-      if (exchangePendingRef.current || isProcessing || isOcrRunning || isTranslationRunning) return
+      if (isExchangePendingNow() || isProcessing || isOcrRunning || isTranslationRunning) return
       const hasFiles = !!event.clipboardData.files && event.clipboardData.files.length > 0
       if (!hasFiles) return
       const contentOperationRevision = getContentOperationRevision()
@@ -1244,13 +1245,13 @@ const TranslatePage: FC = () => {
             className="px-0 py-0 lg:px-0"
             sourceLanguage={sourceLanguage}
             onSourceChange={(language) => {
-              if (!exchangePendingRef.current && cacheService.get('translate.history_restore_pending') == null) {
+              if (!isExchangePendingNow() && cacheService.get('translate.history_restore_pending') == null) {
                 void safePersist(setSourceLanguage(language), 'translate source language')
               }
             }}
             targetLanguage={targetLanguage}
             onTargetChange={(language) => {
-              if (!exchangePendingRef.current && cacheService.get('translate.history_restore_pending') == null) {
+              if (!isExchangePendingNow() && cacheService.get('translate.history_restore_pending') == null) {
                 void safePersist(setTargetLanguage(language), 'translate target language')
               }
             }}

@@ -172,6 +172,7 @@ export type UseCacheSchema = {
   'translate.content_intent_revision': number
   'translate.last_history_restore': { revision: number; input: string; output: string } | null
   'translate.history_restore_pending': symbol | null
+  'translate.exchange_pending': symbol | null
   'translate.restored_pdf': {
     file: { name: string; path: AbsoluteFilePath }
     output: { outputPath: AbsoluteFilePath; fileName: string }
@@ -273,6 +274,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'translate.content_intent_revision': 0,
   'translate.last_history_restore': null,
   'translate.history_restore_pending': null,
+  'translate.exchange_pending': null,
   'translate.restored_pdf': null,
   'translate.content_operation_revision': 0,
   'translate.translating': {
