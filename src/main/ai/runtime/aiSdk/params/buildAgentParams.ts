@@ -26,7 +26,7 @@ import {
 } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isFunctionCallingModel } from '@shared/utils/model'
+import { isFunctionCallingModel, isSupportTemperatureModel, isSupportTopPModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
@@ -694,7 +694,8 @@ function resolveEffectiveThinkingBudget(
 /**
  * Merge per-request `callOverrides` (highest precedence) onto base sampling params +
  * providerOptions. Sampling passes through `filterStandardParams` for model-capability
- * gating (e.g. topK dropped for Gemini 3.x / Claude 4.7); providerOptions merge
+ * gating (e.g. topK dropped for Gemini 3.x / Claude 4.7); temperature/topP additionally
+ * respect the model's `parameterSupport`; providerOptions merge
  * per-provider so other providers' keys aren't clobbered. Exported for unit testing.
  */
 export function applyCallOverrides(
@@ -705,9 +706,15 @@ export function applyCallOverrides(
   if (!callOverrides) return base
 
   const sampling: Partial<Record<string, unknown>> = {}
-  if (callOverrides.temperature !== undefined) sampling.temperature = callOverrides.temperature
+  // Caller-supplied sampling must honor the model's parameterSupport: a fixed-sampling
+  // model (e.g. Kimi K2.5+/K3 via a passthrough provider) 400s on any explicit value.
+  if (callOverrides.temperature !== undefined && isSupportTemperatureModel(model)) {
+    sampling.temperature = callOverrides.temperature
+  }
   if (callOverrides.maxOutputTokens !== undefined) sampling.maxOutputTokens = callOverrides.maxOutputTokens
-  if (callOverrides.topP !== undefined) sampling.topP = callOverrides.topP
+  if (callOverrides.topP !== undefined && isSupportTopPModel(model)) {
+    sampling.topP = callOverrides.topP
+  }
   if (callOverrides.topK !== undefined) sampling.topK = callOverrides.topK
   if (callOverrides.stopSequences !== undefined) sampling.stopSequences = callOverrides.stopSequences
   const standardParams = { ...base.standardParams, ...filterStandardParams(sampling, model) }

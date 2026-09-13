@@ -1692,6 +1692,26 @@ describe('applyCallOverrides', () => {
     expect(result.standardParams).not.toHaveProperty('topK')
   })
 
+  // A caller (API Gateway) supplying explicit sampling for a fixed-sampling model would
+  // surface the upstream 400 (e.g. Kimi K2.5+/K3 through a passthrough provider).
+  it('drops temperature/topP overrides for a model that marks them unsupported', () => {
+    const model = makeModel({
+      id: 'dashscope::kimi-k3',
+      providerId: 'dashscope',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+    const result = applyCallOverrides(base(), { temperature: 0.7, topP: 1, maxOutputTokens: 100 }, model)
+    expect(result.standardParams).not.toHaveProperty('temperature')
+    expect(result.standardParams).not.toHaveProperty('topP')
+    expect(result.standardParams.maxOutputTokens).toBe(100)
+  })
+
   it('keeps topK for models that support it', () => {
     const result = applyCallOverrides(base(), { topK: 40 }, makeModel({ id: 'openai::gpt-4o' }))
     expect(result.standardParams.topK).toBe(40)
