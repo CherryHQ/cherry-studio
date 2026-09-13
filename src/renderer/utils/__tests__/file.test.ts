@@ -1,6 +1,23 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { formatFileSize, getFileDirectory, getFileExtension, removeSpecialCharactersForFileName } from '../file'
+import {
+  anyFileExt,
+  formatFileSize,
+  getFileDirectory,
+  getFileExtension,
+  isSupportedExtension,
+  isSupportedFile,
+  removeSpecialCharactersForFileName
+} from '../file'
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+
+beforeEach(() => {
+  mocks.request.mockReset()
+  mocks.request.mockResolvedValue({ kind: 'file', type: 'other' })
+})
 
 describe('file', () => {
   describe('getFileDirectory', () => {
@@ -114,6 +131,49 @@ describe('file', () => {
     it('should return empty string for empty input', () => {
       // 验证空字符串
       expect(removeSpecialCharactersForFileName('')).toBe('')
+    })
+  })
+
+  describe('isSupportedFile', () => {
+    it('accepts a listed extension without consulting the file', async () => {
+      expect(await isSupportedFile('/tmp/report.pdf', new Set(['.pdf']))).toBe(true)
+      expect(mocks.request).not.toHaveBeenCalled()
+    })
+
+    it('accepts an unlisted extension when the file content is text', async () => {
+      mocks.request.mockResolvedValue({ kind: 'file', type: 'text' })
+
+      expect(await isSupportedFile('/tmp/netlist.sp', new Set(['.pdf']))).toBe(true)
+    })
+
+    it('rejects an unlisted binary extension', async () => {
+      expect(await isSupportedFile('/tmp/weights.onnx', new Set(['.pdf']))).toBe(false)
+    })
+
+    it('accepts any extension when the allowlist carries the wildcard', async () => {
+      // The wildcard means "this caller only needs the path" — an unknown binary
+      // format must not be rejected on a caller that never reads the bytes.
+      expect(await isSupportedFile('/tmp/weights.onnx', new Set([anyFileExt]))).toBe(true)
+    })
+  })
+
+  describe('isSupportedExtension', () => {
+    // The pathless-paste checks (clipboard images) can only consult the allowlist, so
+    // the array form of the same question has to answer identically to isSupportedFile.
+    it('accepts a listed extension', () => {
+      expect(isSupportedExtension('.png', ['.png'])).toBe(true)
+    })
+
+    it('rejects an unlisted extension without the wildcard', () => {
+      expect(isSupportedExtension('.avif', ['.png'])).toBe(false)
+    })
+
+    it('accepts an unlisted extension when the allowlist carries the wildcard', () => {
+      expect(isSupportedExtension('.avif', ['.png', anyFileExt])).toBe(true)
+    })
+
+    it('rejects an extensionless name without the wildcard', () => {
+      expect(isSupportedExtension('.', ['.png'])).toBe(false)
     })
   })
 })

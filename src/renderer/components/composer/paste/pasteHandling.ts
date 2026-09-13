@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types/file'
-import { getFileExtension, isSupportedFile, removeFileExtension } from '@renderer/utils/file'
+import { getFileExtension, isSupportedExtension, isSupportedFile, removeFileExtension } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import { hasSupportedClipboardImage, LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../composerPaste'
@@ -137,7 +137,7 @@ export const handlePaste = async (
           // 如果没有路径，可能是剪贴板中的图像数据
           if (!filePath) {
             // 图像生成也支持图像编辑
-            if (file.type.startsWith('image/') && supportExts.includes(getFileExtension(file.name))) {
+            if (file.type.startsWith('image/') && isSupportedExtension(getFileExtension(file.name), supportExts)) {
               const tempFilePath = await window.api.file.createTempFile(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)
