@@ -314,6 +314,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     description: dto.description ?? null,
     group: dto.group ?? null,
     capabilities: dto.capabilities ?? [],
+    capabilitiesExplicit: dto.capabilities !== undefined,
     inputModalities: dto.inputModalities ?? null,
     inputModalitiesExplicit: dto.inputModalities !== undefined,
     outputModalities: dto.outputModalities ?? null,
@@ -379,6 +380,7 @@ function presetDeltaToNewUserModel(
     description: fields.has('description') ? (dto.description ?? null) : null,
     group: fields.has('group') ? (dto.group ?? null) : null,
     capabilities: fields.has('capabilities') ? (dto.capabilities ?? null) : null,
+    capabilitiesExplicit: fields.has('capabilities'),
     inputModalities: fields.has('inputModalities') ? (dto.inputModalities ?? null) : null,
     inputModalitiesExplicit: fields.has('inputModalities'),
     outputModalities: fields.has('outputModalities') ? (dto.outputModalities ?? null) : null,
@@ -578,6 +580,7 @@ class ModelService {
       }
     }
     if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
+    if (dto.capabilities !== undefined) updates.capabilitiesExplicit = true
     return updates
   }
 
@@ -759,6 +762,11 @@ class ModelService {
 
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
+        // Non-explicit custom rows derive capabilities from the registry (#20239). Guard on the
+        // explicit bit ONLY — unlike inputModalities, a non-empty snapshot can still be incomplete.
+        if (!row.capabilitiesExplicit && registryModel) {
+          updates.capabilities = registryModel.capabilities
+        }
         if (model.description === undefined && registryModel?.description !== undefined) {
           updates.description = registryModel.description
         }

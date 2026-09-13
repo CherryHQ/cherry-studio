@@ -1,12 +1,23 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 
+import { loggerService } from '@logger'
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
+import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import { isSupportedToolUse } from '@renderer/utils/assistant'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { composerKnowledgeBaseTokenId, getComposerTokenIds } from '../../variants/shared/composerTokens'
 import { KnowledgeBaseToolRuntime } from '../components/KnowledgeBaseButton'
 import { KNOWLEDGE_BASE_TOOLBAR_MANIFEST } from '../toolbarManifests'
+
+const logger = loggerService.withContext('KnowledgeBaseTool')
+
+/** Tolerates the serialized shape (plain object with `code`) crossing IPC boundaries. */
+const isRequestTimeout = (error: unknown): boolean =>
+  error instanceof DataApiError
+    ? error.code === ErrorCode.TIMEOUT
+    : (error as { code?: unknown })?.code === ErrorCode.TIMEOUT
 
 type KnowledgeBaseToolContext = ToolRenderContext<
   readonly ['selectedKnowledgeBases', 'files', 'selectableKnowledgeBases'],
@@ -27,15 +38,93 @@ const useKnowledgeBaseSelect = (context: KnowledgeBaseToolContext) => {
 const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolContext }) => {
   const { state, launcher } = context
   const handleSelect = useKnowledgeBaseSelect(context)
+  const { updateAssistant } = useAssistantMutations()
   // Sessions skip the model tool-use probe: an Agent session reaches its knowledge bases through the
   // runtime's own kb_* MCP tools, not through the model's function-calling support, so the composer
   // model here (which may be a sub-model) says nothing about whether the picker is usable.
   const isToolUseAvailable = context.session ? true : !!context.assistant && isSupportedToolUse(context.model)
+  // Chat scope shows every loaded base and auto-links an unconfigured pick to the assistant
+  // (#20238); Agent scope keeps the configured intersection (linking edits the agent definition).
+  const isChatScope = !!context.assistant
+  const assistantKnowledgeBaseIds = context.assistant?.knowledgeBaseIds
+  // Latest ids this runtime has settled on: the assistant snapshot, or the last PATCH's
+  // own write while React Query has not delivered a fresher assistant yet.
+  const assistantSnapshotRef = useRef(context.assistant)
+  const latestKnowledgeBaseIdsRef = useRef<string[] | null>(null)
+  if (assistantSnapshotRef.current !== context.assistant) {
+    const nextIds = context.assistant?.knowledgeBaseIds ?? null
+    const settled = latestKnowledgeBaseIdsRef.current
+    // A same-assistant delivery missing ids this runtime already persisted predates
+    // those writes (stale fetch); accepting it would resurrect the loss in the next
+    // full PATCH. A different assistant's delivery is a new scope, not staleness.
+    const sameAssistant = context.assistant?.id === assistantSnapshotRef.current?.id
+    const isStaleDelivery =
+      sameAssistant && settled != null && nextIds != null && !settled.every((id) => nextIds.includes(id))
+    assistantSnapshotRef.current = context.assistant
+    if (!isStaleDelivery) {
+      latestKnowledgeBaseIdsRef.current = nextIds
+    }
+  }
+  // Auto-link PATCHes run strictly one at a time, each body computed from the previous
+  // outcome: a failed link must not leak into the next pick's body, and a carried one forward.
+  const linkQueueRef = useRef<Promise<boolean>>(Promise.resolve(true))
+
+  const unconfiguredBaseIds = useMemo(() => {
+    if (!isChatScope) return new Set<string>()
+    const configured = new Set(assistantKnowledgeBaseIds ?? [])
+    return new Set(state.selectableKnowledgeBases.filter((base) => !configured.has(base.id)).map((base) => base.id))
+  }, [assistantKnowledgeBaseIds, isChatScope, state.selectableKnowledgeBases])
+
+  const handleLinkBase = useCallback(
+    (base: KnowledgeBase): Promise<boolean> => {
+      // The pick belongs to this assistant; if the user switches before the queued
+      // PATCH runs, dropping the link beats silently widening another assistant.
+      const assistantAtPick = assistantSnapshotRef.current
+      // Scope is the assistant id, not the snapshot object: refresh deliveries mint new
+      // same-id snapshots mid-flight and must not read as a switch.
+      const pickStillInScope = () => assistantSnapshotRef.current?.id === assistantAtPick?.id
+      const run = async (): Promise<boolean> => {
+        if (!assistantAtPick || !pickStillInScope()) return false
+        const currentIds = latestKnowledgeBaseIdsRef.current ?? assistantAtPick.knowledgeBaseIds ?? []
+        if (currentIds.includes(base.id)) return true
+        const knowledgeBaseIds = [...currentIds, base.id]
+        try {
+          await updateAssistant(assistantAtPick.id, { knowledgeBaseIds })
+          // A mid-PATCH switch already re-scoped the settled ids to the new assistant;
+          // writing the old list back would leak this assistant's bases into its next PATCH.
+          if (pickStillInScope()) {
+            latestKnowledgeBaseIdsRef.current = knowledgeBaseIds
+          }
+          return true
+        } catch (error) {
+          logger.error('Failed to auto-link knowledge base to assistant', error as Error, {
+            assistantId: assistantAtPick.id,
+            knowledgeBaseId: base.id
+          })
+          // A renderer-side timeout abandons the wait, not the write: the IPC PATCH may
+          // still commit in the main process. Treating it as failed would let the next
+          // full-array PATCH delete that committed link; keeping the pick settled (and
+          // checked) retries the id idempotently in the next PATCH instead.
+          if (isRequestTimeout(error) && pickStillInScope()) {
+            latestKnowledgeBaseIdsRef.current = knowledgeBaseIds
+            return true
+          }
+          return false
+        }
+      }
+      const result = linkQueueRef.current.then(run, run)
+      linkQueueRef.current = result.catch(() => false)
+      return result
+    },
+    [updateAssistant]
+  )
 
   return (
     <KnowledgeBaseToolRuntime
       launcher={launcher}
-      configuredKnowledgeBaseIds={context.assistant?.knowledgeBaseIds ?? context.session?.knowledgeBaseIds ?? []}
+      bases={state.selectableKnowledgeBases}
+      unconfiguredBaseIds={unconfiguredBaseIds}
+      onLinkBase={isChatScope ? handleLinkBase : undefined}
       selectedBases={state.selectedKnowledgeBases}
       onSelect={handleSelect}
       disabled={!isToolUseAvailable || (Array.isArray(state.files) && state.files.length > 0)}

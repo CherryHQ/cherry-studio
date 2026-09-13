@@ -15,23 +15,22 @@ import {
   type QuickPanelOpenOptions,
   useQuickPanel
 } from '@renderer/components/QuickPanel'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 interface Props {
   launcher: ToolLauncherApi
-  configuredKnowledgeBaseIds?: readonly string[]
+  /** Bases selectable in this scope — the scope hook's output (chat: every base, agent: configured). */
+  bases: KnowledgeBase[]
+  /** Bases in `bases` not linked to the assistant; selecting one auto-links it (#20238). */
+  unconfiguredBaseIds: Set<string>
+  /** Links an unconfigured base to the assistant before the pick settles. Absent in agent scope. */
+  onLinkBase?: (base: KnowledgeBase) => Promise<boolean>
   selectedBases?: KnowledgeBase[]
   onSelect: (bases: KnowledgeBase[]) => void
   disabled?: boolean
   disabledReason?: string
-}
-
-const KNOWLEDGE_BASE_IDS_KEY_SEPARATOR = '\u0000'
-
-function getKnowledgeBaseIdsKey(ids: readonly string[] | undefined) {
-  return (ids ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
 }
 
 function clearKnowledgeBaseInputQuery(
@@ -52,7 +51,9 @@ function clearKnowledgeBaseInputQuery(
 
 const useKnowledgeBaseToolController = ({
   launcher,
-  configuredKnowledgeBaseIds,
+  bases,
+  unconfiguredBaseIds,
+  onLinkBase,
   selectedBases,
   onSelect,
   disabled,
@@ -65,36 +66,29 @@ const useKnowledgeBaseToolController = ({
   const panelNeedsData =
     isQuickPanelVisible &&
     (quickPanelSymbol === ComposerPanelSymbol.Root || quickPanelSymbol === ComposerPanelSymbol.KnowledgeBase)
-  const knowledgeBasesEnabled = dataRequested || panelNeedsData || (selectedBases?.length ?? 0) > 0
-  const { bases: knowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
-    enabled: knowledgeBasesEnabled
-  })
+  const knowledgeBasesReady = dataRequested || panelNeedsData || (selectedBases?.length ?? 0) > 0
   const onSelectRef = useRef(onSelect)
   const selectedBasesRef = useRef<KnowledgeBase[]>(selectedBases ?? [])
-  const configuredBasesRef = useRef<KnowledgeBase[]>([])
+  const basesRef = useRef<KnowledgeBase[]>(bases)
   const tRef = useRef(t)
-  const disposeCloseOnInputAfterSelectionRef = useRef<(() => void) | undefined>(undefined)
-  const configuredKnowledgeBaseIdsKey = getKnowledgeBaseIdsKey(configuredKnowledgeBaseIds)
+  // Latest pick intent per base: a pick awaiting its auto-link PATCH must not commit a
+  // selection the user has since toggled away from.
+  const lastPickIntentByBaseIdRef = useRef(new Map<string, boolean>())
 
-  const configuredBases = useMemo(() => {
-    const configuredIds = new Set(
-      configuredKnowledgeBaseIdsKey ? configuredKnowledgeBaseIdsKey.split(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR) : []
-    )
-    if (configuredIds.size === 0) return knowledgeBases
-    return knowledgeBases.filter((base) => configuredIds.has(base.id))
-  }, [configuredKnowledgeBaseIdsKey, knowledgeBases])
   onSelectRef.current = onSelect
   selectedBasesRef.current = selectedBases ?? []
-  configuredBasesRef.current = configuredBases
+  basesRef.current = bases
   tRef.current = t
 
   const isEnabled = (selectedBases?.length ?? 0) > 0
-  const isDisabled = disabled || (knowledgeBasesEnabled && !isKnowledgeBasesLoading && configuredBases.length === 0)
+  const isDisabled = disabled || (knowledgeBasesReady && bases.length === 0)
   const fallbackDisabledReason = disabled
     ? t('chat.input.knowledge_base_disabled_by_files')
     : t('chat.save.knowledge.empty.no_knowledge_base')
   const resolvedDisabledReason = isDisabled ? (disabledReason ?? fallbackDisabledReason) : undefined
   const selectedBaseIds = useMemo(() => new Set((selectedBases ?? []).map((base) => base.id)), [selectedBases])
+
+  const disposeCloseOnInputAfterSelectionRef = useRef<(() => void) | undefined>(undefined)
 
   const disposeCloseOnInputAfterSelection = useCallback(() => {
     disposeCloseOnInputAfterSelectionRef.current?.()
@@ -126,27 +120,49 @@ const useKnowledgeBaseToolController = ({
 
   const buildKnowledgeBaseItems = useCallback((): QuickPanelListItem[] => {
     void language
-    return configuredBases.map((base) => ({
-      id: `knowledge-base:${base.id}`,
-      label: base.name,
-      description: tRef.current('library.config.knowledge.doc_count', { count: base.itemCount ?? 0 }),
-      filterText: [base.name, base.id].join(' '),
-      icon: <FileSearch />,
-      isSelected: selectedBaseIds.has(base.id),
-      action: ({ context, inputAdapter, item }) => {
-        const nextSelectedIds = new Set(selectedBasesRef.current.map((selectedBase) => selectedBase.id))
-        if (item.isSelected) {
-          nextSelectedIds.add(base.id)
-        } else {
-          nextSelectedIds.delete(base.id)
+    return bases.map((base) => {
+      // The scope hook types bases as KnowledgeBase, but the composer feeds it list items
+      // carrying itemCount at runtime; read it defensively for the doc-count description.
+      const itemCount = (base as { itemCount?: number }).itemCount ?? 0
+      return {
+        id: `knowledge-base:${base.id}`,
+        label: base.name,
+        description: unconfiguredBaseIds.has(base.id)
+          ? `${tRef.current('library.config.knowledge.doc_count', { count: itemCount })} · ${tRef.current('chat.input.knowledge_base_not_linked')}`
+          : tRef.current('library.config.knowledge.doc_count', { count: itemCount }),
+        filterText: [base.name, base.id].join(' '),
+        icon: <FileSearch />,
+        isSelected: selectedBaseIds.has(base.id),
+        action: async ({ context, inputAdapter, item }) => {
+          // QuickPanel flips isSelected before invoking, so item.isSelected is the post-click state.
+          const isSelected = item.isSelected === true
+          lastPickIntentByBaseIdRef.current.set(base.id, isSelected)
+          if (isSelected && unconfiguredBaseIds.has(base.id)) {
+            if (!onLinkBase || !(await onLinkBase(base))) {
+              // Roll the panel's selection state back through the provider — `item` here is
+              // a copy, so mutating it would leave the panel checked.
+              context?.updateItemSelection?.(item, false)
+              toast.error(tRef.current('chat.input.knowledge_base_link_failed'))
+              return
+            }
+          }
+          // A newer pick on the same base (e.g. an un-select while this pick's PATCH was
+          // in flight) owns the selection now; committing this one would undo it.
+          if (lastPickIntentByBaseIdRef.current.get(base.id) !== isSelected) return
+          const nextSelectedIds = new Set(selectedBasesRef.current.map((selectedBase) => selectedBase.id))
+          if (isSelected) {
+            nextSelectedIds.add(base.id)
+          } else {
+            nextSelectedIds.delete(base.id)
+          }
+          const nextSelectedBases = basesRef.current.filter((candidate) => nextSelectedIds.has(candidate.id))
+          selectedBasesRef.current = nextSelectedBases
+          onSelectRef.current(nextSelectedBases)
+          closeKnowledgeBasePanelOnNextInput({ context, inputAdapter })
         }
-        const nextSelectedBases = configuredBasesRef.current.filter((candidate) => nextSelectedIds.has(candidate.id))
-        selectedBasesRef.current = nextSelectedBases
-        onSelectRef.current(nextSelectedBases)
-        closeKnowledgeBasePanelOnNextInput({ context, inputAdapter })
       }
-    }))
-  }, [closeKnowledgeBasePanelOnNextInput, configuredBases, language, selectedBaseIds])
+    })
+  }, [bases, closeKnowledgeBasePanelOnNextInput, language, onLinkBase, selectedBaseIds, unconfiguredBaseIds])
 
   const knowledgeBaseItems = useMemo(() => buildKnowledgeBaseItems(), [buildKnowledgeBaseItems])
   const manageKnowledgeBaseAction = useMemo<ComposerToolFooterAction>(() => {
@@ -185,7 +201,6 @@ const useKnowledgeBaseToolController = ({
     }) => {
       if (isDisabled) return
       setDataRequested(true)
-      disposeCloseOnInputAfterSelection()
       const inputQueryCleared = clearKnowledgeBaseInputQuery(inputAdapter, queryAnchor, triggerInfo)
       actionQuickPanel.open({
         title: t('chat.input.knowledge_base'),

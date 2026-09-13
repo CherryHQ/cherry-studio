@@ -274,7 +274,9 @@ describe('toCreateModelDto', () => {
     })
   })
 
-  it('forwards all discovered capabilities for a custom model', () => {
+  it('forwards provider-reported capabilities for an unmatched custom model', () => {
+    // No registry match means the read path never supplies capabilities, so the
+    // provider's own report is the only source and must land in the row.
     const dto = toCreateModelDto('ollama', {
       id: 'ollama::acme-thinker:latest',
       providerId: 'ollama',

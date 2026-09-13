@@ -4906,7 +4906,10 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.tokens).toEqual([])
   })
 
-  it('drops selected knowledge bases that are no longer configured before sending', async () => {
+  it('keeps a stale-selected base in the chat draft; the main-side scope resolver narrows it', async () => {
+    // Chat scope opts into unconfigured picks (#20238): a selection that outlives the
+    // assistant's binding is no longer pruned renderer-side. The payload keeps the pick and
+    // the main-side resolveKnowledgeBaseScope silently narrows it back into the binding.
     const knowledgeBase = {
       id: 'kb-1',
       name: 'Knowledge One',
@@ -4934,12 +4937,12 @@ describe('ChatComposer', () => {
     }
     view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
 
-    expect(mocks.surfaceProps?.tokens).toEqual([])
+    expect(mocks.surfaceProps?.tokens).toEqual([staleKnowledgeToken])
 
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [serializeComposerToken(staleKnowledgeToken)] })
 
     expect(onSend).toHaveBeenCalledWith('hello', expect.any(Object))
-    expect(onSend.mock.calls[0]?.[1]?.userMessageParts).not.toContainEqual(
+    expect(onSend.mock.calls[0]?.[1]?.userMessageParts).toContainEqual(
       expect.objectContaining({ type: 'data-knowledge-scope' })
     )
   })
