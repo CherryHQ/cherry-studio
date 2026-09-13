@@ -259,10 +259,13 @@ export class LoggerService {
     const [first, ...others] = meta
     if (first instanceof Error) {
       Object.assign(entry, first)
+      entry.name = first.name
+      entry.errorMessage = first.message
       entry.stack = first.stack
       fileMessage = `${message} ${first.message}`
     } else if (first !== null && typeof first === 'object') {
       Object.assign(entry, first)
+      if (typeof first.errorMessage === 'string') fileMessage = `${message} ${first.errorMessage}`
     } else if (first !== undefined) {
       rest.push(first)
     }

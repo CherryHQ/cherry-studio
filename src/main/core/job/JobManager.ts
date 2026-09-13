@@ -2141,6 +2141,7 @@ export class JobManager extends BaseService {
       } catch (err) {
         const e = err as Error & { code?: string }
         logger.error('Schedule fire failed', {
+          operation: 'job.schedule.fire',
           scheduleId: currentSchedule.id,
           type: currentSchedule.type,
           code: e.code,

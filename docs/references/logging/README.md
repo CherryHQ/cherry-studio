@@ -3,6 +3,10 @@ description: How to log through the unified LoggerService in main and renderer, 
 sources:
   - src/main/core/logger/LoggerService.ts
   - src/renderer/services/LoggerService.ts
+  - src/main/services/sentry.ts
+  - src/main/services/AnalyticsService.ts
+  - src/renderer/services/sentry.ts
+  - src/shared/utils/sentry.ts
 ---
 
 # How to use the LoggerService
@@ -10,6 +14,28 @@ sources:
 This is a developer document on how to use the logger.
 
 CherryStudio uses a unified logging service to print and record logs. **Unless there is a special reason, do not use `console.xxx` to print logs**.
+
+## Error reporting
+
+Production Sentry uploads require data collection to be enabled and the current
+privacy policy to be accepted. Disabling collection blocks outbound reporting;
+local logging continues.
+
+Pass the original `Error` as the first data argument and use a fixed operation identifier:
+
+```typescript
+logger.error('Save failed', error, { operation: 'translate.history.save' })
+```
+
+For logged errors, only `error` entries with stacks are reported; cancellation and
+telemetry diagnostic errors are excluded. Reports include module/window/process, operation, string error code,
+and React component stack when available. Arbitrary log context is excluded and
+credentials are redacted. Never derive operation identifiers from user input;
+use letters, digits, dots, underscores or hyphens, starting with a letter (max 80 characters).
+
+Renderer errors are captured in their originating process to retain causes and source-map
+Debug IDs. Both processes share the package-based release and `app.version`,
+`app.edition` (`global` / `cn`), and `app.channel` (prerelease identifier or `stable`).
 
 The following are detailed instructions.
 

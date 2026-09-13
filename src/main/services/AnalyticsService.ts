@@ -5,8 +5,11 @@ import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-cl
 import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
-import { APP_NAME, LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
+import { APP_NAME } from '@shared/utils/constants'
+
+import { attachSentryLogTransport } from './sentry'
 
 const logger = loggerService.withContext('AnalyticsService')
 
@@ -39,13 +42,15 @@ export class AnalyticsService extends BaseService implements Activatable {
 
   private refreshDesiredEnabled(): void {
     const preferenceService = application.get('PreferenceService')
-    this.desiredEnabled =
-      preferenceService.get('app.privacy.data_collection.enabled') &&
-      preferenceService.get('app.privacy.policy_version') === LATEST_PRIVACY_POLICY_VERSION
+    this.desiredEnabled = isDataCollectionConsented(
+      preferenceService.get('app.privacy.data_collection.enabled'),
+      preferenceService.get('app.privacy.policy_version')
+    )
     this.reconciler.request()
   }
 
   protected async onInit() {
+    this.registerDisposable(attachSentryLogTransport())
     // The reconciler is the sole driver of activate/deactivate (latest-wins): a re-enable that lands
     // while the async onDeactivate (`await client.destroy()`) is in flight must not be dropped by the
     // shared `_activating` guard. The reconciler holds no OS resources and is a construct-once field
