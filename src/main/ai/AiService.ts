@@ -1366,8 +1366,7 @@ export class AiService extends BaseService {
         // A health check has no topic; each probe is its own conversation.
         conversation: { id: `check:${randomUUID()}` },
         system: 'test',
-        prompt: 'hi',
-        reasoningEffort: 'none'
+        prompt: 'hi'
       })
     }
 
