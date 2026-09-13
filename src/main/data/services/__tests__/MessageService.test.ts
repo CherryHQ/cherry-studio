@@ -715,8 +715,14 @@ describe('MessageService', () => {
         .values({ ...sibling, id: 'm-a3', createdAt: 220 })
         .run()
       topicService.setActiveNode('topic-1', targetId)
-      expect(messageService.delete(targetId, false).newActiveNodeId).toBe(expectedId)
-      expect(messageService.getBranchMessages('topic-1').items.at(-1)?.message.id).toBe(expectedId)
+      // The follow-up lives under the neighbour that inherits, so the branch has to run
+      // through it down to that leaf instead of stopping where the deleted reply stood.
+      expect(messageService.delete(targetId, false).newActiveNodeId).toBe('m-follow')
+      expect(messageService.getBranchMessages('topic-1').items.map((item) => item.message.id)).toEqual([
+        'm-root',
+        expectedId,
+        'm-follow'
+      ])
     })
 
     it('chooses the previous live neighbour deterministically and clears obsolete context summaries', async () => {
@@ -805,7 +811,9 @@ describe('MessageService', () => {
       await seedMultiModelTree()
       dbh.db.update(messageTable).set({ siblingsGroupId: group }).where(eq(messageTable.id, 'm-a1')).run()
       topicService.setActiveNode('topic-1', 'm-a2')
-      expect(messageService.delete('m-a2', false).newActiveNodeId).toBe('m-root')
+      // No group to inherit from: the follow-up is spliced onto the shared parent, and the
+      // branch descends from that parent to it rather than truncating at the user message.
+      expect(messageService.delete('m-a2', false).newActiveNodeId).toBe('m-follow')
       expect(messageService.getById('m-follow').parentId).toBe('m-root')
     })
 
@@ -846,10 +854,10 @@ describe('MessageService', () => {
       expect(result.deletedIds).toEqual(['m-a2'])
       expect(messageService.getById('m-follow').parentId).toBe('m-a1')
       const branch = messageService.getBranchMessages('topic-1', { includeSiblings: true })
-      expect(branch.items.map((item) => item.message.id)).toEqual(
-        withDescendants ? ['m-root', 'm-a1', 'm-follow'] : ['m-root', 'm-a1']
-      )
-      expect(branch.activeNodeId).toBe(withDescendants ? 'm-follow' : 'm-a1')
+      // Whether the view sat on the reply or on its follow-up, the surviving conversation
+      // is the same — nothing below the deleted reply may drop out of the branch.
+      expect(branch.items.map((item) => item.message.id)).toEqual(['m-root', 'm-a1', 'm-follow'])
+      expect(branch.activeNodeId).toBe('m-follow')
     })
 
     it('does not change the active branch when deleting another reply', async () => {
@@ -861,6 +869,33 @@ describe('MessageService', () => {
         'm-follow'
       ])
     })
+
+    it.each([false, true])(
+      'keeps a surviving regenerated group on the branch when the active reply is deleted (cascade=%s)',
+      async (cascade) => {
+        // m-root already carries the group-1 replies; m-regen is a later regeneration, so
+        // deleting it leaves no group member to inherit from — only the shared parent.
+        await seedMultiModelTree()
+        await dbh.db.insert(messageTable).values({
+          id: 'm-regen',
+          parentId: 'm-root',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: mainText('regenerated reply'),
+          status: 'success',
+          siblingsGroupId: 2,
+          createdAt: 400,
+          updatedAt: 400
+        })
+        topicService.setActiveNode('topic-1', 'm-regen')
+
+        messageService.delete('m-regen', cascade)
+
+        const branch = messageService.getBranchMessages('topic-1', { includeSiblings: true })
+        expect(branch.items.map((item) => item.message.id)).toEqual(['m-root', 'm-a2', 'm-follow'])
+        expect(branch.items[1].siblingsGroup?.map((sibling) => sibling.id)).toEqual(['m-a1'])
+      }
+    )
   })
 
   describe('getBranchMessages — regression for raw SQL casing bug', () => {
@@ -2478,20 +2513,34 @@ describe('MessageService', () => {
       expect(rows.find((row) => row.id === 'm-follow')?.parentId).toBe('m-a2')
     })
 
-    it('falls the active node back to the shared parent when the active reply is deleted', async () => {
+    it('keeps the active node on the reparented follow-up when the active reply is deleted', async () => {
       await seedMultiModelTree()
       await dbh.db.update(topicTable).set({ activeNodeId: 'm-a2' }).where(eq(topicTable.id, 'topic-1'))
 
       const result = messageService.deleteReplyGroup('m-a1')
 
-      expect(result.newActiveNodeId).toBe('m-root')
+      expect(result.newActiveNodeId).toBe('m-follow')
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
-      expect(topic.activeNodeId).toBe('m-root')
+      expect(topic.activeNodeId).toBe('m-follow')
     })
 
-    it('clears the active node when the deleted group is directly under the virtual root', async () => {
+    it('descends past the virtual root when the deleted group sat directly under it', async () => {
+      await seedMultiModelTree()
+      // Splices m-root out, so m-a1/m-a2 become first-turn replies under the virtual root.
+      messageService.delete('m-root', false)
+      await dbh.db.update(topicTable).set({ activeNodeId: 'm-a2' }).where(eq(topicTable.id, 'topic-1'))
+
+      const result = messageService.deleteReplyGroup('m-a1')
+
+      expect(result.newActiveNodeId).toBe('m-follow')
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
+      expect(topic.activeNodeId).toBe('m-follow')
+    })
+
+    it('clears the active node when the deleted group leaves the topic empty', async () => {
       await seedMultiModelTree()
       messageService.delete('m-root', false)
+      messageService.delete('m-follow', false)
       await dbh.db.update(topicTable).set({ activeNodeId: 'm-a2' }).where(eq(topicTable.id, 'topic-1'))
 
       const result = messageService.deleteReplyGroup('m-a1')

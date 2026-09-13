@@ -931,10 +931,52 @@ export function FolderComposerToken(props: ComposerTokenProps) {
 }
 
 export function KnowledgeComposerToken(props: ComposerTokenProps) {
-  return renderActiveComposerTokenElement({
-    ...props,
-    icon: tokenIconByKind.knowledge
-  })
+  const removeLabel = props.removeLabel ?? 'Remove'
+
+  const chipElement = (
+    <span
+      className={cn(
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
+        'group-focus-visible:border-primary',
+        props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
+        'border-border bg-background hover:bg-accent',
+        props.selected && 'border-primary ring-1 ring-primary/40',
+        props.className
+      )}
+      title={props.token.description ? undefined : props.token.label}
+      data-composer-token-kind={props.token.kind}
+      onMouseDown={props.onMouseDown}>
+      <span
+        className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 bg-accent text-muted-foreground leading-none"
+        data-knowledge-token-icon="">
+        <InlineTokenIconSlot
+          icon={props.token.icon ? props.token.icon : <Boxes className={tokenIconClassName} aria-hidden />}
+          removeLabel={removeLabel}
+          onRemove={props.onRemove}
+          removeButtonClassName="size-full rounded-[5px]"
+          removeIconClassName="size-3"
+        />
+      </span>
+      {props.children ?? (
+        <span className={cn('whitespace-nowrap! min-w-0 max-w-full truncate break-normal', props.maxWidthClassName)}>
+          {props.token.label}
+        </span>
+      )}
+    </span>
+  )
+
+  if (!props.token.description) return chipElement
+
+  return (
+    <NormalTooltip
+      content={props.token.description}
+      side="top"
+      sideOffset={6}
+      delayDuration={300}
+      triggerProps={props.readOnly ? { tabIndex: 0, 'aria-label': props.token.label } : undefined}>
+      {chipElement}
+    </NormalTooltip>
+  )
 }
 
 export function ReferenceComposerToken(props: ComposerTokenProps) {
