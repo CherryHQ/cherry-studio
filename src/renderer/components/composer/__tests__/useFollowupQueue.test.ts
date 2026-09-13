@@ -502,25 +502,32 @@ describe('useFollowupQueue', () => {
     expect(markSeen).not.toHaveBeenCalled()
   })
 
-  it('refuses to remove a freshly claimed item', () => {
+  it('refuses to remove a freshly claimed item', async () => {
     wireQuery([row('h', 'head', 'sending', new Date().toISOString())])
-    const { deleteTrigger } = wireMutations()
+    const { claimTrigger, deleteTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: false })
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
 
-    act(() => result.current.removeId('h'))
+    await act(async () => {
+      result.current.removeId('h')
+    })
 
+    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(deleteTrigger).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
-  it('removes a crash-orphaned sending item', () => {
+  it('removes a crash-orphaned sending item', async () => {
     wireQuery([row('h', 'head', 'sending', '2026-01-01T00:00:00.000Z')])
-    const { deleteTrigger } = wireMutations()
+    const { claimTrigger, deleteTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
 
-    act(() => result.current.removeId('h'))
+    await act(async () => {
+      result.current.removeId('h')
+    })
 
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
   })
@@ -687,6 +694,125 @@ describe('useFollowupQueue', () => {
     }
   })
 
+  it('chains background resolve retries until the write succeeds', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValueOnce({ claimed: true })
+      deleteTrigger.mockRejectedValue(new Error('db down'))
+      const onDrain = vi.fn(async () => true)
+
+      const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
+        initialProps: { isFulfilled: false }
+      })
+
+      await act(async () => {
+        rerender({ isFulfilled: true })
+      })
+
+      expect(deleteTrigger).toHaveBeenCalledTimes(3)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(deleteTrigger).toHaveBeenCalledTimes(4)
+
+      deleteTrigger.mockResolvedValueOnce(undefined)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+
+      expect(deleteTrigger).toHaveBeenCalledTimes(5)
+      expect(onDrain).toHaveBeenCalledOnce()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30000)
+      })
+      expect(deleteTrigger).toHaveBeenCalledTimes(5)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps retrying the claim while the edge stays unacked', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimTrigger } = wireMutations()
+      claimTrigger.mockRejectedValue(new Error('ipc down'))
+      const markSeen = vi.fn()
+
+      const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen })), {
+        initialProps: { isFulfilled: false }
+      })
+
+      await act(async () => {
+        rerender({ isFulfilled: true })
+      })
+
+      expect(claimTrigger).toHaveBeenCalledTimes(2)
+      for (let tick = 0; tick < 3; tick++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000)
+        })
+      }
+
+      expect(claimTrigger).toHaveBeenCalledTimes(8)
+      expect(markSeen).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('waits out background revalidation before draining', async () => {
+    const head = row('h', 'head')
+    const refetch = vi.fn()
+    const refetchState = vi.fn()
+    const queryImpl = (refreshing: boolean) => (path: string) => {
+      if (path === '/followup-queues') {
+        return {
+          data: [head],
+          isLoading: false,
+          isRefreshing: refreshing,
+          error: undefined,
+          refetch,
+          mutate: vi.fn()
+        }
+      }
+      return {
+        data: { scopeKey: SCOPE, paused: false, createdAt: '', updatedAt: '' },
+        isLoading: false,
+        isRefreshing: refreshing,
+        error: undefined,
+        refetch: refetchState,
+        mutate: vi.fn()
+      }
+    }
+    mockUseQuery.mockImplementation(queryImpl(true))
+    const { claimTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const onDrain = vi.fn(async () => true)
+    const markSeen = vi.fn()
+
+    const { rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
+      { initialProps: { isFulfilled: true } }
+    )
+
+    await act(async () => {})
+    expect(claimTrigger).not.toHaveBeenCalled()
+    expect(markSeen).not.toHaveBeenCalled()
+
+    mockUseQuery.mockImplementation(queryImpl(false))
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(markSeen).toHaveBeenCalled()
+    expect(onDrain).toHaveBeenCalledWith(head.payload)
+  })
+
   it('keeps retrying the dequeue in the background after a successful send', async () => {
     vi.useFakeTimers()
     try {
@@ -763,15 +889,18 @@ describe('useFollowupQueue', () => {
     })
   })
 
-  it('removes and reorders through the API', () => {
+  it('removes and reorders through the API', async () => {
     const first = row('a', 'a')
     const second = row('b', 'b')
     wireQuery([first, second])
-    const { deleteTrigger, reorderTrigger } = wireMutations()
+    const { claimTrigger, deleteTrigger, reorderTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
 
     const { result } = renderHook(() => useFollowupQueue(baseProps()))
 
-    act(() => result.current.removeId('a'))
+    await act(async () => {
+      result.current.removeId('a')
+    })
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'a' } })
 
     act(() => result.current.reorder([result.current.items[1], result.current.items[0]]))
