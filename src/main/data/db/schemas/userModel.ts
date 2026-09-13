@@ -59,6 +59,11 @@ export const userModelTable = sqliteTable(
     /** Custom capabilities or an exact preset override; null inherits the preset */
     capabilities: text({ mode: 'json' }).$type<ModelCapability[]>(),
 
+    /** Whether capabilities was explicitly supplied by the user. Rows migrated under an early
+     *  catalog carry a snapshot that stays healable from the current registry; rows the user
+     *  edited are pinned and never re-derived. */
+    capabilitiesExplicit: integer({ mode: 'boolean' }).notNull().default(false),
+
     /** Supported input modalities (e.g., TEXT, VISION, AUDIO, VIDEO) */
     inputModalities: text({ mode: 'json' }).$type<Modality[]>(),
 
