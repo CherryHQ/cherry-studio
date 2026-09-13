@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
 import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import { isSupportedToolUse } from '@renderer/utils/assistant'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { composerKnowledgeBaseTokenId, getComposerTokenIds } from '../../variants/shared/composerTokens'
@@ -11,6 +12,12 @@ import { KnowledgeBaseToolRuntime } from '../components/KnowledgeBaseButton'
 import { KNOWLEDGE_BASE_TOOLBAR_MANIFEST } from '../toolbarManifests'
 
 const logger = loggerService.withContext('KnowledgeBaseTool')
+
+/** Tolerates the serialized shape (plain object with `code`) crossing IPC boundaries. */
+const isRequestTimeout = (error: unknown): boolean =>
+  error instanceof DataApiError
+    ? error.code === ErrorCode.TIMEOUT
+    : (error as { code?: unknown })?.code === ErrorCode.TIMEOUT
 
 type KnowledgeBaseToolContext = ToolRenderContext<
   readonly ['selectedKnowledgeBases', 'files', 'selectableKnowledgeBases'],
@@ -94,6 +101,14 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
             assistantId: assistantAtPick.id,
             knowledgeBaseId: base.id
           })
+          // A renderer-side timeout abandons the wait, not the write: the IPC PATCH may
+          // still commit in the main process. Treating it as failed would let the next
+          // full-array PATCH delete that committed link; keeping the pick settled (and
+          // checked) retries the id idempotently in the next PATCH instead.
+          if (isRequestTimeout(error) && pickStillInScope()) {
+            latestKnowledgeBaseIdsRef.current = knowledgeBaseIds
+            return true
+          }
           return false
         }
       }
