@@ -99,12 +99,8 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
       subtree: true
     })
 
-    // Focus-driven affordances (the focus shortcut hint leaving the layout
-    // while the editor is focused) change the editor's inline size without
-    // touching the inputbar's outer width or the content, so neither observer
-    // above would notice: text that fit while focused can wrap on blur and get
-    // clipped by the fixed-height compact frame. Watch the editor width itself
-    // and remeasure on change.
+    // Focus affordances (the focus hint leaving the layout) resize the editor
+    // without touching the inputbar width or content, so watch the editor itself.
     let observedEditorElement: HTMLElement | null = null
     let lastEditorWidth = 0
     let lastSeenRenderedCompact = true
@@ -125,12 +121,8 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
         if (nextEditorWidth === lastEditorWidth) return
 
         lastEditorWidth = nextEditorWidth
-        // A presentation flip (the optimistic compact render while a
-        // measurement is pending, or the settled re-render afterwards) changes
-        // the editor width on its own. Feeding that echo back into a new
-        // measurement would toggle compact and regular forever while the
-        // compact content keeps overflowing, so consume it here and only
-        // remeasure for width changes that happen in a steady presentation.
+        // Consume the editor resize a presentation flip causes; remeasuring
+        // that echo would cycle compact/regular while compact content overflows.
         const renderedCompactNow = renderedIsCompactRef.current
         const flipDrivenWidthChange = renderedCompactNow !== lastSeenRenderedCompact
         lastSeenRenderedCompact = renderedCompactNow
