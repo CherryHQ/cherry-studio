@@ -96,6 +96,16 @@ function recoverOptionalModelListFailure<T>(error: unknown, context: Record<stri
   return { data: [] }
 }
 
+function warnSkippedOpenAIModelEntries(
+  providerId: string,
+  ...responses: Array<{ data: unknown[]; skippedModelCount?: number }>
+): void {
+  const skippedModelCount = responses.reduce((total, response) => total + (response.skippedModelCount ?? 0), 0)
+  if (skippedModelCount > 0) {
+    logger.warn('Skipped malformed OpenAI-compatible model entries', { providerId, skippedModelCount })
+  }
+}
+
 // ── API Layer ──
 
 const ApiErrorSchema = z.object({
@@ -599,6 +609,7 @@ const openRouterFetcher: ModelFetcher = {
         })
       )
     ])
+    warnSkippedOpenAIModelEntries(provider.id, modelsResponse, embedModelsResponse, imageModelsResponse)
     const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
     const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
     return dedup(all, (m) => m.id).map((m) => {
@@ -652,6 +663,7 @@ const ppioFetcher: ModelFetcher = {
         })
       )
     ])
+    warnSkippedOpenAIModelEntries(provider.id, chat, embed, reranker)
     const modelsById = new Map<string, Partial<Model>>()
     const mergeModel = (model: OpenAIModelResponseItem, capability?: (typeof MODEL_CAPABILITY.RERANK)[]) => {
       const id = model.id?.trim()
@@ -764,6 +776,7 @@ const jinaFetcher: ModelFetcher = {
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
+    warnSkippedOpenAIModelEntries(provider.id, response)
     return dedup(response.data, (m) => m.id).map((m) => {
       const apiModelId = m.id.replace(/^jina-ai\//, '')
       return toModel(apiModelId, provider, { name: m.name || apiModelId, ownedBy: m.owned_by })
@@ -781,6 +794,7 @@ const openAIFetcher: ModelFetcher = {
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
+    warnSkippedOpenAIModelEntries(provider.id, response)
     return dedup(response.data, (m) => m.id)
       .filter((m) => isSupportedOpenAIModel(m.id))
       .map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
@@ -797,6 +811,7 @@ const openAICompatibleFetcher: ModelFetcher = {
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
+    warnSkippedOpenAIModelEntries(provider.id, response)
     return dedup(response.data, (m) => m.id).map((m) =>
       toModel(m.id, provider, {
         name: m.name || m.id,
