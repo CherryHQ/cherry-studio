@@ -15,6 +15,7 @@ import path from 'node:path'
 import type { CanUseTool, Options, PermissionResult, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -137,12 +138,19 @@ export interface ClaudeCodeSessionOptions {
   /** Claude Code SDK-native Fast mode. */
   fastMode?: boolean
   /**
-   * Whether the materialized session route fans out through the gateway. The gateway
-   * serves per-model providers this builder never sees, so the single process-wide
-   * compaction budget cannot rely on the primary provider's trust — it derives as
-   * untrusted. Covered by route facts for staleness (the branch is fingerprinted).
+   * Routed sub-model slots for gateway sessions, derived from the materialized route.
+   * The gateway fans out per-model slots to providers this builder never sees, so the
+   * single process-wide budget protects the weakest usable slot (minimum wins).
+   * Covered by route facts for staleness (branch + per-slot providers/windows).
    */
-  usesGatewayRoute?: boolean
+  gatewayModelSlots?: ClaudeCodeGatewayModelSlot[]
+}
+
+/** A routed model slot the process-wide compaction budget must cover. */
+export interface ClaudeCodeGatewayModelSlot {
+  providerId: string
+  contextWindow?: number
+  maxOutputTokens?: number
 }
 
 export type { LinkedChannelSnapshot, McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
@@ -297,10 +305,47 @@ export async function buildClaudeCodeSessionSettings(
     options?.maxOutputTokens,
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
   )
-  // Gateway routes fan out per-model slots to providers this builder never sees; the
-  // process-wide budget must protect the weakest slot, so it derives as untrusted.
-  const budgetProvider = options?.usesGatewayRoute ? null : provider
-  const autoCompactWindow = resolveAutoCompactWindow(declaredContextWindow, requestedOutputTokens, budgetProvider)
+  // Gateway sessions fan out per-model slots to providers this builder never sees.
+  // The single process-wide budget protects the weakest usable slot: budget each slot
+  // (window, output, provider) and take the minimum. Slot providers that fail to
+  // resolve fail closed to untrusted; slots without a usable window are skipped.
+  // Direct sessions have one slot (primary) and behave exactly as before.
+  const budgetSlots: Array<{ contextWindow?: number; output: number; provider?: Provider | null }> = [
+    { contextWindow: declaredContextWindow, output: requestedOutputTokens, provider }
+  ]
+  for (const gatewaySlot of options?.gatewayModelSlots ?? []) {
+    let slotProvider: Provider | null = null
+    try {
+      slotProvider = providerService.getByProviderId(gatewaySlot.providerId) ?? null
+    } catch {
+      slotProvider = null
+    }
+    budgetSlots.push({
+      contextWindow: gatewaySlot.contextWindow,
+      output: resolveRequestedOutputTokens(
+        gatewaySlot.contextWindow,
+        gatewaySlot.maxOutputTokens,
+        env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
+      ),
+      provider: slotProvider
+    })
+  }
+  const slotResults = budgetSlots.map((slot) => {
+    const window = resolveAutoCompactWindow(slot.contextWindow, slot.output, slot.provider ?? null)
+    return {
+      window,
+      cap:
+        window === undefined
+          ? undefined
+          : resolveClaudeOutputCap(slot.contextWindow, slot.output, slot.provider ?? null, window)
+    }
+  })
+  const usableResults = slotResults.filter(
+    (result): result is { window: number; cap: number } => result.window !== undefined && result.cap !== undefined
+  )
+  // hasUsableContextWindow below implies the primary slot is usable, so the minimum is safe.
+  const autoCompactWindow =
+    usableResults.length > 0 ? Math.min(...usableResults.map((result) => result.window)) : undefined
   // Pin the request whenever the catalog window is usable, even when the budget is omitted
   // (untrusted large-output corner): otherwise the CLI silently falls back to its own defaults.
   const hasUsableContextWindow =
@@ -308,9 +353,7 @@ export async function buildClaudeCodeSessionSettings(
     Number.isInteger(declaredContextWindow) &&
     declaredContextWindow >= MIN_AUTO_COMPACT_WINDOW
   if (hasUsableContextWindow && env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined) {
-    env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(
-      resolveClaudeOutputCap(declaredContextWindow, requestedOutputTokens, budgetProvider, autoCompactWindow)
-    )
+    env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(Math.min(...usableResults.map((result) => result.cap)))
   }
   // Undocumented, and the only way to declare a third-party model's window — without it every
   // non-`claude-*` model is treated as 200K. The budget belongs in `autoCompactWindow`.

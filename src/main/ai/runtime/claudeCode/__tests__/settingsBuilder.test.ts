@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => ({
   getSkillPluginDirectory: vi.fn(),
   checkSkillRuntimeDependencies: vi.fn(),
   modelGetByKey: vi.fn(),
+  getByProviderId: vi.fn(),
   findBySessionId: vi.fn(),
   createMcpBridgeServer: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
@@ -120,7 +121,7 @@ vi.mock('@data/services/ModelService', () => ({
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
-  providerService: { list: vi.fn(() => []) }
+  providerService: { list: vi.fn(() => []), getByProviderId: mocks.getByProviderId }
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
@@ -717,8 +718,10 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   // A gateway route fans out per-model slots to providers the builder never sees,
-  // so even a trusted primary derives the budget as untrusted (weakest slot wins).
-  it('derives the budget as untrusted for a gateway route on a trusted primary', async () => {
+  // so even a trusted primary is budgeted at the weakest usable slot: the 100K
+  // relay sub-model pulls the 219_520 primary budget down to the 100K floor.
+  // The unresolvable slot provider fails closed to untrusted (no mock needed).
+  it('budgets a gateway route at the weakest usable slot on a trusted primary', async () => {
     const trustedProvider = {
       id: 'anthropic',
       presetProviderId: 'anthropic',
@@ -731,10 +734,48 @@ describe('buildClaudeCodeSessionSettings', () => {
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       trustedProvider,
-      { contextWindow: 256_000, maxOutputTokens: 32_000, usesGatewayRoute: true }
+      {
+        contextWindow: 256_000,
+        maxOutputTokens: 32_000,
+        gatewayModelSlots: [{ providerId: 'openrouter', contextWindow: 100_000, maxOutputTokens: 32_000 }]
+      }
     )
 
-    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' })
+  })
+
+  // All-trusted gateway slots keep full budgets with no blanket derate: Vertex
+  // primary plus Bedrock sonnet resolves to the weaker declared window.
+  it('keeps full budgets for all-trusted gateway slots without a blanket margin', async () => {
+    mocks.getByProviderId.mockReturnValue({
+      id: 'aws-bedrock',
+      presetProviderId: 'aws-bedrock',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'bedrock' }
+      }
+    })
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      trustedProvider,
+      {
+        contextWindow: 256_000,
+        maxOutputTokens: 32_000,
+        gatewayModelSlots: [{ providerId: 'aws-bedrock', contextWindow: 200_000, maxOutputTokens: 32_000 }]
+      }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(164_640)
   })
   // safety-adjusted room, so the resolver emits the bounded SDK floor (100K)
   // instead of omitting the window: with the trigger fixed at 80% this compacts
