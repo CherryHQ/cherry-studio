@@ -4,6 +4,7 @@ sources:
   - src/main/features/apiGateway
   - src/renderer/hooks/useApiGateway.ts
   - src/renderer/pages/settings/ToolSettings/ApiGatewaySettings
+  - src/shared/utils/apiGateway.ts
 ---
 
 # API Gateway Reference
@@ -100,9 +101,9 @@ guard, described below.
 | `POST /v1/messages/count_tokens` | Anthropic | token estimate over the converted request; anthropic-dialect endpoints forward it to the provider's own `count_tokens` (via the app proxy/auth), other dialects stay local; no stream |
 | `POST /v1/chat/completions` | OpenAI Chat | `openai` → `openai` |
 | `POST /v1/responses` | OpenAI Responses | `openai-responses` → `openai-responses` |
-| `POST /v1beta/models/{provider:model}:generateContent` | Gemini | `gemini` → Gemini JSON |
-| `POST /v1beta/models/{provider:model}:streamGenerateContent?alt=sse` | Gemini | `gemini` → Gemini SSE |
-| `POST /v1beta/models/{provider:model}:countTokens` | Gemini | local converted-request estimate |
+| `POST /v1beta/models/{model}:generateContent` | Gemini | `gemini` → Gemini JSON |
+| `POST /v1beta/models/{model}:streamGenerateContent?alt=sse` | Gemini | `gemini` → Gemini SSE |
+| `POST /v1beta/models/{model}:countTokens` | Gemini | local converted-request estimate |
 | `GET /v1/models` | OpenAI list | `{ object:'list', data:[…] }`, ids are `providerId:modelId` (offset/limit) |
 | `GET /v1/knowledge-bases` | Cherry REST | list (offset/limit) |
 | `POST /v1/knowledge-bases/search` | Cherry REST | semantic search across bases |
@@ -111,8 +112,26 @@ guard, described below.
 | `GET /v1/mcps/:id` | Cherry REST | one active server plus its warmed tool catalog |
 | `POST /v1/mcps/:id/mcp` | MCP Streamable HTTP | initialize/session request or sessionless one-shot JSON-RPC |
 
-The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
+The model in every chat/messages/responses body remains `"<providerId>:<apiModelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
+
+Gemini's `{model}` also accepts the versioned values produced by the shared
+codecs in `src/shared/utils/apiGateway.ts`:
+
+- Gemini CLI: `cherry-gw-v1.<payload>@cherry`.
+- Antigravity: `cherry-gw-v1/models/<payload>`, carried in its `gemini-api://` selector.
+
+Both encode `[providerId, apiModelId]` as canonical base64url JSON. Generation
+requests resolve ordinary legacy suffix/path addresses only when exactly one
+interpretation matches the enabled, routable provider/model catalog; multiple
+matches return HTTP 400. Once a value is recognized as a versioned address, an
+unsupported version or malformed payload is a terminal HTTP 400, even if a legacy catalog
+entry matches. For example, `cherry-gw-v2/models/foo` cannot route to provider
+`cherry-gw-v2` and model `foo` through legacy fallback.
+
+Generic colon addresses remain supported: `cherry-gw-v2:foo` is not a tagged
+address, and a raw colon in `cherry-gw-v1/models/provider:model` keeps that value
+in ordinary generic/legacy candidate resolution rather than the tagged grammar.
 
 Gemini routes carry a separate local auth guard because Gemini clients use
 `x-goog-api-key` or `?key=`. The `/v1` scoped guard must not intercept `/v1beta`.

@@ -5,7 +5,15 @@ import { getAppEdition } from '@main/utils/appEdition'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import {
+  formatGatewayModelId,
+  type GatewayModelAddress,
+  parseAntigravityGatewayModelPath,
+  parseGatewayModelId,
+  parseGeminiGatewayModelId,
+  parseLegacyAntigravityGatewayModelPaths,
+  parseLegacyGeminiGatewayModelId
+} from '@shared/utils/apiGateway'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { isAgentOnlyProvider, isExternalCliProvider } from '@shared/utils/provider'
 
@@ -33,9 +41,7 @@ export interface ModelsFilter {
   limit?: number
 }
 
-export interface ResolvedGatewayModelAddress {
-  providerId: string
-  apiModelId: string
+export interface ResolvedGatewayModelAddress extends GatewayModelAddress {
   uniqueModelId: UniqueModelId
   provider: Provider
   model: Model
@@ -88,13 +94,7 @@ function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
 
 /** Resolve a `providerId:apiModelId`; Agent-only models require an authenticated internal request. */
 export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly = false): ResolvedGatewayModelAddress {
-  const sepIdx = modelAddress.indexOf(':')
-  if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
-    throw new Error(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`)
-  }
-
-  const providerId = modelAddress.slice(0, sepIdx)
-  const apiModelId = modelAddress.slice(sepIdx + 1)
+  const { providerId, apiModelId } = parseGatewayModelId(modelAddress)
   if (isManagedCherryAiDefaultModel(providerId, apiModelId)) {
     throw new Error('CherryAI managed default model is not available through the API gateway')
   }
@@ -124,6 +124,61 @@ export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly 
   return { providerId, apiModelId, uniqueModelId: model.id, provider, model }
 }
 
+function addGatewayModelCandidate(
+  candidates: Map<string, GatewayModelAddress>,
+  address: GatewayModelAddress | undefined
+): void {
+  if (address) candidates.set(JSON.stringify([address.providerId, address.apiModelId]), address)
+}
+
+function tryParseGatewayModelId(value: string): GatewayModelAddress | undefined {
+  try {
+    return parseGatewayModelId(value)
+  } catch {
+    return undefined
+  }
+}
+
+function getLegacyGeminiModelCandidates(value: string): GatewayModelAddress[] {
+  const candidates = new Map<string, GatewayModelAddress>()
+  addGatewayModelCandidate(candidates, tryParseGatewayModelId(value))
+  addGatewayModelCandidate(candidates, parseLegacyGeminiGatewayModelId(value))
+  for (const address of parseLegacyAntigravityGatewayModelPaths(value)) {
+    addGatewayModelCandidate(candidates, address)
+  }
+  return Array.from(candidates.values())
+}
+
+/** Resolve a tagged or legacy Gemini-route model string without guessing between valid catalog entries. */
+export function resolveGeminiGatewayModelAddress(modelAddress: string): string {
+  const taggedAddress = parseGeminiGatewayModelId(modelAddress) ?? parseAntigravityGatewayModelPath(modelAddress)
+  if (taggedAddress) {
+    const canonicalAddress = formatGatewayModelId(taggedAddress.providerId, taggedAddress.apiModelId)
+    resolveGatewayModelAddress(canonicalAddress)
+    return canonicalAddress
+  }
+
+  const resolved = new Map<UniqueModelId, ResolvedGatewayModelAddress>()
+  for (const candidate of getLegacyGeminiModelCandidates(modelAddress)) {
+    try {
+      const canonicalAddress = formatGatewayModelId(candidate.providerId, candidate.apiModelId)
+      const match = resolveGatewayModelAddress(canonicalAddress)
+      resolved.set(match.uniqueModelId, match)
+    } catch {
+      // Legacy strings are ambiguous by construction; only catalog-backed candidates count.
+    }
+  }
+
+  if (resolved.size === 1) {
+    const [match] = resolved.values()
+    return formatGatewayModelId(match.providerId, match.apiModelId)
+  }
+  if (resolved.size > 1) {
+    throw new Error(`Ambiguous legacy gateway model address: "${modelAddress}"`)
+  }
+  throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+}
+
 /**
  * Build the OpenAI `/v1/models` listing: enabled models across enabled providers,
  * deduplicated by gateway id and optionally paginated. Never throws — returns an empty
@@ -136,6 +191,7 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
 
     // Deduplicate by the gateway-addressable id ("providerId:apiModelId").
     const uniqueModels = new Map<string, ApiModel>()
+    const warnedUnaddressableProviders = new Set<string>()
     for (const model of models) {
       const provider = providers.find((p) => p.id === model.providerId)
       // Agent-only providers (external-CLI, edition-gated Cherry Cloud) are never advertised to
@@ -147,10 +203,20 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
       // Same routable-model predicate as the renderer's gateway picker — the
       // listing must never advertise a model the proxy cannot route.
       if (!isGatewayRoutableModel(model)) {
+        if (model.providerId.includes(':') && !warnedUnaddressableProviders.has(model.providerId)) {
+          logger.warn(`Skipping API gateway model from unaddressable provider "${model.providerId}"`)
+          warnedUnaddressableProviders.add(model.providerId)
+        }
         continue
       }
 
-      const apiModel = transformModelToOpenAi(model, provider)
+      let apiModel: ApiModel
+      try {
+        apiModel = transformModelToOpenAi(model, provider)
+      } catch (error) {
+        logger.warn(`Skipping unaddressable API gateway model "${model.id}"`, error as Error)
+        continue
+      }
       if (!uniqueModels.has(apiModel.id)) {
         uniqueModels.set(apiModel.id, apiModel)
       }
