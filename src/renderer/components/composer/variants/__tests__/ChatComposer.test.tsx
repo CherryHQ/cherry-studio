@@ -163,7 +163,9 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
         replaceDraft: mocks.replaceDraft,
-        getDraft: mocks.getDraft
+        // Bind the draft getter to this surface instance; during topic switches the old surface can unmount after the new renders.
+        // Avoid reading shared `surfaceProps`, which would point at the new topic.
+        getDraft: () => mocks.getDraft(props)
       })
     }, [props])
 
@@ -2751,7 +2753,10 @@ describe('ChatComposer', () => {
   it('keeps a mentioned-model selection made while previewing history', async () => {
     seedInputHistory(['history entry'])
     mocks.mentionedModels = [model]
-    mocks.getDraft.mockImplementation(() => ({ text: mocks.surfaceProps?.text ?? '', tokens: [] }))
+    mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+      text: surfaceProps?.text ?? '',
+      tokens: []
+    }))
 
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
@@ -2889,7 +2894,10 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
       drafts.set(key, value)
     })
-    mocks.getDraft.mockImplementation(() => ({ text: mocks.surfaceProps?.text ?? '', tokens: [] }))
+    mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+      text: surfaceProps?.text ?? '',
+      tokens: []
+    }))
     const topicTwo = { ...topic, id: 'topic-2' }
     const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -2980,6 +2988,10 @@ describe('ChatComposer', () => {
     })
     mocks.knowledgeBasesLoading = true
     mocks.modelPending = true
+    mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+      text: surfaceProps?.text ?? '',
+      tokens: surfaceProps?.draftTokens?.map(serializeComposerToken) ?? []
+    }))
     const topicTwo = { ...topic, id: 'topic-2' }
     const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
@@ -3095,6 +3107,74 @@ describe('ChatComposer', () => {
         expect.any(Number)
       )
     })
+  })
+
+  it('persists text and tokens from the same live composer snapshot', async () => {
+    const knowledgePrompt = 'The user attached knowledge base "Base 1" (id: base-1).'
+    const liveDraft = {
+      text: `summarize ${knowledgePrompt}`,
+      tokens: [
+        {
+          id: 'knowledge:base-1',
+          kind: 'knowledge',
+          label: 'Base 1',
+          promptText: knowledgePrompt,
+          index: 0,
+          textOffset: 'summarize '.length
+        } as ComposerSerializedToken
+      ]
+    }
+    mocks.getDraft.mockReturnValue(liveDraft)
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      // The editor snapshot can be newer than the React text prop during token synchronization.
+      mocks.surfaceProps?.onTextChange('summarize')
+    })
+
+    await waitFor(() => {
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'chat.composer_draft.topic-1',
+        expect.objectContaining({
+          text: liveDraft.text,
+          tokens: liveDraft.tokens
+        }),
+        expect.any(Number)
+      )
+    })
+  })
+
+  it('persists the live draft snapshot when the chat composer unmounts', () => {
+    const knowledgePrompt = 'The user attached knowledge base "Base 1" (id: base-1).'
+    const liveDraft = {
+      text: `summarize ${knowledgePrompt}`,
+      tokens: [
+        {
+          id: 'knowledge:base-1',
+          kind: 'knowledge',
+          label: 'Base 1',
+          promptText: knowledgePrompt,
+          index: 0,
+          textOffset: 'summarize '.length
+        } as ComposerSerializedToken
+      ]
+    }
+    mocks.getDraft.mockReturnValue(liveDraft)
+
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    vi.mocked(cacheService.set).mockClear()
+
+    view.unmount()
+
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'chat.composer_draft.topic-1',
+      expect.objectContaining({
+        text: liveDraft.text,
+        tokens: liveDraft.tokens
+      }),
+      expect.any(Number)
+    )
   })
 
   it('persists token-only draft changes when the serialized text stays unchanged', async () => {
