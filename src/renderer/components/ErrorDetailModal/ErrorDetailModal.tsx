@@ -1,5 +1,5 @@
 import { ArrowLeft, Copy, FileUp } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
@@ -39,7 +39,7 @@ import {
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
-import type { DoctorNavigateTarget } from '@shared/types/doctor'
+import type { DoctorNavigateTarget, DoctorSubjectRef } from '@shared/types/doctor'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import Scrollbar from '../Scrollbar'
@@ -522,8 +522,17 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   const { t } = useTranslation()
   const [detailsOpen, setDetailsOpen] = useState(false)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
+  // Diagnose the model this error came from, not the app-wide default; without both ids fall back to global.
+  const doctorSubject = useMemo<DoctorSubjectRef | undefined>(
+    () =>
+      diagnosisContext?.providerId && diagnosisContext.modelId
+        ? { kind: 'chat', providerId: diagnosisContext.providerId, modelId: diagnosisContext.modelId }
+        : undefined,
+    [diagnosisContext?.providerId, diagnosisContext?.modelId]
+  )
   const doctorController = useDoctorController({
     initialPanel: 'checks',
+    subject: doctorSubject,
     onNavigate: onDoctorNavigate ?? ignoreDoctorNavigation,
     onReportProblem: onOpenDiagnosticReport
   })

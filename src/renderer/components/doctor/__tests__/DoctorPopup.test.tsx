@@ -105,6 +105,7 @@ function completedDoctorState(
     status: 'completed',
     report: {
       schemaVersion: 1,
+      scope: 'global',
       runId: 'completed-quick',
       tier: 'quick',
       startedAt: new Date(now - 1_000).toISOString(),
@@ -271,7 +272,10 @@ describe('DoctorPopup', () => {
 
     await user.click(await screen.findByRole('button', { name: 'settings.doctor.actions.cancel_run' }))
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: `running-${tier}` })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', {
+      scope: 'global',
+      runId: `running-${tier}`
+    })
   })
 
   it('uses the export title and keeps generic problem reporting out of the checks menu', async () => {
@@ -342,6 +346,7 @@ describe('DoctorPopup', () => {
       status: 'completed',
       report: {
         schemaVersion: 1,
+        scope: 'global',
         runId: 'run-2',
         tier: 'quick',
         startedAt: new Date(Date.now() - 1_000).toISOString(),
@@ -498,6 +503,7 @@ describe('DoctorPopup', () => {
 
     expect(await screen.findByText('Fixed: 1')).toHaveClass('text-success')
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.fix', {
+      scope: 'global',
       runId: 'completed-quick',
       checkId: 'permission-accessibility',
       fixId: 'request'

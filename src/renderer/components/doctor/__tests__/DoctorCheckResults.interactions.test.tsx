@@ -142,6 +142,7 @@ function createCompletedPanelController() {
       problemCount: 1,
       report: {
         schemaVersion: 1,
+        scope: 'global',
         runId: 'run-1',
         tier: 'quick',
         startedAt: '2026-09-05T00:00:00.000Z',

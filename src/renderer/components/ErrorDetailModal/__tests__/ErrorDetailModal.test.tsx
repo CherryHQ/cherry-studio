@@ -83,7 +83,7 @@ const skippedResult: DoctorCheckResult = {
   id: 'provider-api-key-present',
   status: 'skip',
   durationMs: 1,
-  skippedBy: 'provider-default-model'
+  skippedBy: 'provider-model'
 }
 
 const mocks = vi.hoisted(() => ({
@@ -241,6 +241,7 @@ function completedDoctorState(
     status: 'completed',
     report: {
       schemaVersion: 1,
+      scope: 'global',
       runId: 'completed-quick',
       tier: 'quick',
       startedAt: new Date(now - 1_000).toISOString(),
@@ -299,7 +300,7 @@ describe('ErrorDetailContent diagnostics', () => {
     const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
 
     renderErrorDetailContent({
-      diagnosisContext: { errorSource: 'chat', providerName: 'OpenAI', modelId: 'gpt-5' },
+      diagnosisContext: { errorSource: 'chat', providerId: 'OpenAI', modelId: 'gpt-5' },
       diagnosticReport: { location: 'Home conversation' },
       error: providerError
     })
@@ -629,7 +630,10 @@ describe('ErrorDetailContent diagnostics', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cancel checks' }))
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: `running-${tier}` })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', {
+      scope: 'global',
+      runId: `running-${tier}`
+    })
   })
 
   it('shows only problem reporting in the footer and excludes diagnostic results from its prefill', async () => {
