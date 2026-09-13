@@ -28,6 +28,7 @@ import type { BinaryAvailability } from '@shared/types/binary'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { createTimeout, delay as sleep } from '@shared/utils/async'
 import { isNonChatModel } from '@shared/utils/model'
 import { redactSecretText } from '@shared/utils/redaction'
 
@@ -541,18 +542,18 @@ export class OpenClawService extends BaseService {
         if (stderrCapture.append(chunk)) outputTruncated = true
       })
 
-      const timeoutId = setTimeout(() => {
+      const timeoutId = createTimeout(OPENCLAW_COMMAND_TIMEOUT_MS, () => {
         if (settled) return
         proc.kill('SIGKILL')
         settled = true
         logger.warn('OpenClaw preflight command timed out', { timeoutMs: OPENCLAW_COMMAND_TIMEOUT_MS })
         reject(new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed')))
-      }, OPENCLAW_COMMAND_TIMEOUT_MS)
+      })
 
       proc.on('error', (error) => {
         if (settled) return
         settled = true
-        clearTimeout(timeoutId)
+        timeoutId.dispose()
         logger.warn('OpenClaw preflight command failed', { summary: this.sanitizeDiagnostic(error.message) })
         reject(new OpenClawPreflightError('preflight_failed', t('openclaw.errors.preflight_failed')))
       })
@@ -560,7 +561,7 @@ export class OpenClawService extends BaseService {
       proc.on('close', (exitCode) => {
         if (settled) return
         settled = true
-        clearTimeout(timeoutId)
+        timeoutId.dispose()
         resolve({
           exitCode,
           stdout: stdoutCapture.read(),
@@ -871,7 +872,7 @@ export class OpenClawService extends BaseService {
     let lastError = ''
 
     while (Date.now() - startTime < maxWaitMs) {
-      await new Promise((r) => setTimeout(r, pollIntervalMs))
+      await sleep(pollIntervalMs)
       pollCount++
 
       // Check if the process crashed early
@@ -973,7 +974,7 @@ export class OpenClawService extends BaseService {
       }
       if (i < maxRetries - 1) {
         logger.debug(`Gateway still running after stop, retrying check (${i + 1}/${maxRetries})...`)
-        await new Promise((r) => setTimeout(r, intervalMs))
+        await sleep(intervalMs)
       }
     }
     return true

@@ -16,6 +16,7 @@ import {
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
+import { createTimeout, raceTimeout } from '@shared/utils/async'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
@@ -529,10 +530,13 @@ export class JobManager extends BaseService {
     if (inFlight.length === 0) {
       logger.info('JobManager.onStop: no in-flight jobs')
     } else {
-      const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), JOB_DRAIN_TIMEOUT_MS))
       // Executed signals are resolve-only (never reject), so Promise.all
       // cannot short-circuit on a rejection.
-      const winner = await Promise.race([Promise.all(executedSignals).then(() => 'done' as const), timeout])
+      const winner = await raceTimeout(
+        Promise.all(executedSignals).then(() => 'done' as const),
+        JOB_DRAIN_TIMEOUT_MS,
+        () => 'timeout' as const
+      )
 
       if (winner === 'timeout') {
         logger.warn('JobManager.onStop timed out — pending jobs will be recovered on next start', {
@@ -686,12 +690,11 @@ export class JobManager extends BaseService {
       )
     }
 
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<'timeout'>((resolve) => {
-      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
-    })
-    const winner = await Promise.race([Promise.all(parts).then(() => 'done' as const), timeout])
-    if (timeoutHandle) clearTimeout(timeoutHandle)
+    const winner = await raceTimeout(
+      Promise.all(parts).then(() => 'done' as const),
+      opts.timeoutMs,
+      () => 'timeout' as const
+    )
 
     if (winner === 'done') {
       return { stragglerIds: [], startupRecoveryPending: false }
@@ -1103,8 +1106,11 @@ export class JobManager extends BaseService {
       // who enqueued the job, so this works after cross-restart recovery too.
       const executed = this.inFlightExecuted.get(jobId)
       if (executed) {
-        const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), graceMs))
-        const winner = await Promise.race([executed.then(() => 'done' as const), timeout])
+        const winner = await raceTimeout(
+          executed.then(() => 'done' as const),
+          graceMs,
+          () => 'timeout' as const
+        )
         if (winner === 'timeout') {
           logger.warn('cancel timed out — forcing terminal state', { jobId, graceMs })
           await this.finalizeJob(jobId, 'cancelled', undefined, {
@@ -1719,7 +1725,7 @@ export class JobManager extends BaseService {
    * (the claim happened inside the dispatch tx), so concurrent dispatchers
    * see the seat occupied via the active-count query.
    *
-   * Timeout handling: an unref'd setTimeout aborts the controller when
+   * Timeout handling: an unref'd deadline aborts the controller when
    * `row.timeoutMs` elapses. The catch branch then classifies the error as
    * `JOB_HANDLER_TIMEOUT` (vs the generic `JOB_HANDLER_THREW`).
    */
@@ -1758,19 +1764,13 @@ export class JobManager extends BaseService {
     const controller = new AbortController()
     this.abortControllers.set(row.id, controller)
 
-    let resolveExecuted!: () => void
-    const executed = new Promise<void>((resolve) => {
-      resolveExecuted = resolve
-    })
+    const { promise: executed, resolve: resolveExecuted } = Promise.withResolvers<void>()
     this.inFlightExecuted.set(row.id, executed)
 
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    if (row.timeoutMs && row.timeoutMs > 0) {
-      timeoutHandle = setTimeout(() => {
-        controller.abort(new JobHandlerTimeoutError())
-      }, row.timeoutMs)
-      timeoutHandle.unref?.()
-    }
+    const deadline =
+      row.timeoutMs && row.timeoutMs > 0
+        ? createTimeout(row.timeoutMs, () => controller.abort(new JobHandlerTimeoutError()), { ref: false })
+        : undefined
 
     const initialMetadata = Object.freeze(row.metadata)
     const ctx: JobContext = {
@@ -1804,10 +1804,10 @@ export class JobManager extends BaseService {
       const sleepHold = application.get('PowerService').preventSleep(`job:${row.type}:${row.id}`)
       try {
         const output = await handler.execute(ctx)
-        if (timeoutHandle) clearTimeout(timeoutHandle)
+        deadline?.dispose()
         await this.finalizeJob(row.id, 'completed', output, null)
       } catch (err) {
-        if (timeoutHandle) clearTimeout(timeoutHandle)
+        deadline?.dispose()
         // Classify via controller state, not error message — handler errors with
         // strings like "abort" or "timeout" cannot fool the classifier this way.
         const isAbort = controller.signal.aborted
@@ -2364,10 +2364,7 @@ export class JobManager extends BaseService {
     if (this.isTerminal(snapshot.status)) {
       return { id: snapshot.id, snapshot, finished: Promise.resolve(snapshot) }
     }
-    let resolve!: (s: JobSnapshot) => void
-    const promise = new Promise<JobSnapshot>((res) => {
-      resolve = res
-    })
+    const { promise, resolve } = Promise.withResolvers<JobSnapshot>()
     this.finishedResolvers.set(snapshot.id, { resolve, promise })
     return { id: snapshot.id, snapshot, finished: promise }
   }

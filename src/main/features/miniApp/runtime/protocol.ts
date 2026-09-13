@@ -10,6 +10,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { MINI_APP_RESERVED_DIR, MINI_APP_SCHEME } from '@shared/types/miniAppManifest'
+import { Semaphore } from '@shared/utils/async'
 
 const logger = loggerService.withContext('miniAppProtocol')
 
@@ -94,37 +95,25 @@ const MAX_CONCURRENT_READS = 8
 const MAX_QUEUED_READS = 64
 // Per app: shared across apps, a guest that spent the budget kept every other guest
 // from loading so much as its index.html.
-const readers = new Map<string, { active: number; queue: Array<() => void> }>()
+const readers = new Map<string, { admitted: number; semaphore: Semaphore }>()
 
 function acquireReadSlot(appId: string): Promise<() => void> {
-  const state = readers.get(appId) ?? { active: 0, queue: [] }
+  const state = readers.get(appId) ?? { admitted: 0, semaphore: new Semaphore(MAX_CONCURRENT_READS) }
   readers.set(appId, state)
-  // Idempotent: `finalize` may be reached from more than one path, and a release
-  // that ran twice would hand out a slot that was never taken.
-  const makeRelease = () => {
+  if (state.admitted >= MAX_CONCURRENT_READS + MAX_QUEUED_READS) {
+    return Promise.reject(new Error('Too many concurrent mini app reads'))
+  }
+  state.admitted += 1
+  return state.semaphore.acquire().then(([, releasePermit]) => {
     let released = false
     return () => {
       if (released) return
       released = true
-      state.active -= 1
-      const next = state.queue.shift()
-      if (next) next()
-      else if (state.active === 0) readers.delete(appId)
+      state.admitted -= 1
+      releasePermit()
+      if (state.admitted === 0) readers.delete(appId)
     }
-  }
-  if (state.active < MAX_CONCURRENT_READS) {
-    state.active += 1
-    return Promise.resolve(makeRelease())
-  }
-  if (state.queue.length >= MAX_QUEUED_READS) {
-    return Promise.reject(new Error('Too many concurrent mini app reads'))
-  }
-  return new Promise((resolve) =>
-    state.queue.push(() => {
-      state.active += 1
-      resolve(makeRelease())
-    })
-  )
+  })
 }
 
 function reservedAsset(assetsDir: string, rest: string): { body: Buffer; type: string } | undefined {

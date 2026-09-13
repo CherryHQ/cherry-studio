@@ -2,10 +2,11 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 
 import { t } from '@main/i18n'
 import { createPaintingGenerateError, PaintingGenerateError } from '@shared/ai/paintingGenerateError'
+import { createAbortError, createTimeout, onAbort as subscribeToAbort } from '@shared/utils/async'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 import { readErrorMessage } from '../readErrorMessage'
-import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
+import { fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
 /**
  * Tencent TokenHub image transport (cloud.tencent.com/document/product/1823/130080).
@@ -269,17 +270,12 @@ class TokenhubTransport implements ImageGenerationTransport {
     const controller = new AbortController()
     let externallyAborted = false
 
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    const deadline = createTimeout(timeout, () => controller.abort())
     const onExternalAbort = () => {
       externallyAborted = true
       controller.abort()
     }
-    if (externalSignal?.aborted) {
-      externallyAborted = true
-      controller.abort()
-    } else {
-      externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
-    }
+    const disposeAbort = subscribeToAbort(externalSignal, onExternalAbort)
 
     try {
       const doFetch = this.customFetch ?? globalThis.fetch
@@ -311,8 +307,8 @@ class TokenhubTransport implements ImageGenerationTransport {
       }
       throw error
     } finally {
-      clearTimeout(timeoutId)
-      externalSignal?.removeEventListener('abort', onExternalAbort)
+      deadline.dispose()
+      disposeAbort()
     }
   }
 }

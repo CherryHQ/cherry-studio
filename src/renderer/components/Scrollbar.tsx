@@ -1,8 +1,8 @@
-import { throttle } from 'es-toolkit/compat'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { throttle } from '@shared/utils/async'
 
 export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
   ref?: React.Ref<HTMLDivElement | null>

@@ -12,6 +12,7 @@ import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation
 import { atomicWriteFile } from '@main/utils/file'
 import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { delay as sleep } from '@shared/utils/async'
 
 import {
   type CacheCleanupIssue,
@@ -481,7 +482,7 @@ async function withLegacyHomeConfigLock<T>(targetPath: string, callback: () => P
         throw lockError
       }
 
-      await new Promise((resolve) => setTimeout(resolve, LEGACY_HOME_CONFIG_LOCK_RETRY_DELAY_MS))
+      await sleep(LEGACY_HOME_CONFIG_LOCK_RETRY_DELAY_MS)
       continue
     }
 

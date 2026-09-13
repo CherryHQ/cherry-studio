@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { onAbort as subscribeToAbort } from '@shared/utils/async'
 
 const logger = loggerService.withContext('ToolApprovalRegistry')
 
@@ -22,11 +23,11 @@ type PendingApproval = {
   presentation: 'stream' | 'message'
   resolve: (decision: DispatchDecision) => void
   signal?: AbortSignal
-  abortListener?: () => void
+  disposeAbort?: () => void
 }
 
 type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'toolCallId' | 'presentation'>
-type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'presentation'> & {
+type PendingApprovalRegistration = Omit<PendingApproval, 'disposeAbort' | 'presentation'> & {
   presentation?: PendingApproval['presentation']
 }
 
@@ -60,13 +61,10 @@ class ToolApprovalRegistry {
     }
 
     const stored: PendingApproval = { ...entry, presentation: entry.presentation ?? 'stream' }
-    if (signal) {
-      const abortListener = () => this.dispatch(approvalId, { approved: false, reason: 'aborted' })
-      stored.abortListener = abortListener
-      signal.addEventListener('abort', abortListener, { once: true })
-    }
-
     this.pending.set(approvalId, stored)
+    stored.disposeAbort = subscribeToAbort(signal, () => {
+      this.dispatch(approvalId, { approved: false, reason: 'aborted' })
+    })
     return true
   }
 
@@ -130,9 +128,7 @@ class ToolApprovalRegistry {
   }
 
   private detachAbort(entry: PendingApproval): void {
-    if (entry.signal && entry.abortListener) {
-      entry.signal.removeEventListener('abort', entry.abortListener)
-    }
+    entry.disposeAbort?.()
   }
 }
 

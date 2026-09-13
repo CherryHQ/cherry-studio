@@ -29,6 +29,30 @@ describe('ResponseManager', () => {
   })
 
   describe('waitForResponse', () => {
+    // A cancelled transfer must not leave an acknowledgement waiter that later disconnects on timeout.
+    it('rejects a pre-aborted response wait and removes its pending deadline', () => {
+      const reason = new Error('Transfer cancelled before acknowledgement')
+      const errors: Error[] = []
+      let timeouts = 0
+      manager.setTimeoutCallback(() => timeouts++)
+
+      manager.waitForResponse(
+        'file_start_ack',
+        1000,
+        () => {},
+        (error) => errors.push(error),
+        'transfer',
+        undefined,
+        AbortSignal.abort(reason)
+      )
+
+      expect(errors).toEqual([reason])
+      expect(manager.tryResolve('file_start_ack', {}, 'transfer')).toBe(false)
+      vi.advanceTimersByTime(1001)
+      expect(errors).toEqual([reason])
+      expect(timeouts).toBe(0)
+    })
+
     it('should resolve when tryResolve is called with matching key', async () => {
       const resolvePromise = new Promise<unknown>((resolve, reject) => {
         manager.waitForResponse('handshake_ack', 5000, resolve, reject)
@@ -148,30 +172,24 @@ describe('ResponseManager', () => {
     })
   })
 
-  describe('getAbortError', () => {
-    it('should return Error reason directly', () => {
-      const originalError = new Error('Original error')
-      const signal = { aborted: true, reason: originalError } as AbortSignal
-
-      const error = manager.getAbortError(signal, 'Fallback')
-
-      expect(error).toBe(originalError)
+  // LAN callers must receive Error objects without losing an Error reason's identity.
+  it.each([
+    { reason: new Error('Original error'), message: 'Original error' },
+    { reason: 'String reason', message: 'String reason' },
+    { reason: null, message: 'Aborted while waiting for test' }
+  ])('maps abort reason $reason for response waits', async ({ reason, message }) => {
+    const controller = new AbortController()
+    const result = new Promise<unknown>((resolve, reject) => {
+      manager.waitForResponse('test', 5000, resolve, reject, undefined, undefined, controller.signal)
     })
+    const outcome = result.catch((error: unknown) => error)
 
-    it('should create Error from string reason', () => {
-      const signal = { aborted: true, reason: 'String reason' } as AbortSignal
+    controller.abort(reason)
 
-      const error = manager.getAbortError(signal, 'Fallback')
-
-      expect(error.message).toBe('String reason')
-    })
-
-    it('should use fallback message when no reason', () => {
-      const signal = { aborted: true } as AbortSignal
-
-      const error = manager.getAbortError(signal, 'Fallback message')
-
-      expect(error.message).toBe('Fallback message')
-    })
+    const error = await outcome
+    expect(error).toBeInstanceOf(Error)
+    expect(error).toMatchObject({ message })
+    if (reason instanceof Error) expect(error).toBe(reason)
+    expect(manager.tryResolve('test', {})).toBe(false)
   })
 })

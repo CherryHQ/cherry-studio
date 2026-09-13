@@ -25,6 +25,7 @@ import type {
 import { loggerService } from '@logger'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
+import { createTimeout } from '@shared/utils/async'
 
 import type { AgentRuntimeEvent } from '../types'
 import { loadDshSdkProtocol } from './dshSdk'
@@ -106,19 +107,22 @@ export class DshBridgeServer {
     if (this.ready) return Promise.resolve()
     if (this.closed) return Promise.reject(new Error('dsh bridge server is closed'))
     return new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        const index = this.readyWaiters.indexOf(waiter)
-        if (index !== -1) this.readyWaiters.splice(index, 1)
-        reject(new Error(`dsh bridge plugin did not report ready within ${timeoutMs}ms`))
-      }, timeoutMs)
-      timer.unref?.()
+      const timer = createTimeout(
+        timeoutMs,
+        () => {
+          const index = this.readyWaiters.indexOf(waiter)
+          if (index !== -1) this.readyWaiters.splice(index, 1)
+          reject(new Error(`dsh bridge plugin did not report ready within ${timeoutMs}ms`))
+        },
+        { ref: false }
+      )
       const waiter = {
         resolve: () => {
-          clearTimeout(timer)
+          timer.dispose()
           resolve()
         },
         reject: (error: Error) => {
-          clearTimeout(timer)
+          timer.dispose()
           reject(error)
         }
       }
@@ -142,12 +146,15 @@ export class DshBridgeServer {
     // The transport has no timeouts; aborting drops the pending entry and rejects with this reason.
     const { timeoutMs } = options
     const controller = new AbortController()
-    const timer = setTimeout(() => {
-      controller.abort(new Error(`dsh bridge ${method} timed out after ${timeoutMs}ms`))
-    }, timeoutMs)
-    timer.unref?.()
+    const timer = createTimeout(
+      timeoutMs,
+      () => {
+        controller.abort(new Error(`dsh bridge ${method} timed out after ${timeoutMs}ms`))
+      },
+      { ref: false }
+    )
     return (transport.request(method, params, controller.signal) as Promise<BridgeHostRequestMap[M]['result']>).finally(
-      () => clearTimeout(timer)
+      () => timer.dispose()
     )
   }
 

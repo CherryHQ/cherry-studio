@@ -24,6 +24,7 @@ import {
   type PreparedMigrationExportPaths,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
+import { Sequencer } from '@shared/utils/async'
 
 import { migrationEngine } from '../core/MigrationEngine'
 import { isValidLocalDate } from '../utils/localDate'
@@ -119,20 +120,15 @@ export function registerMigrationIpcHandlers(paths: MigrationPaths): void {
     ].map((exportPath) => path.resolve(exportPath))
   )
   exportPrepared = false
-  let exportCleanupQueue: Promise<void> = Promise.resolve()
+  const exportCleanupQueue = new Sequencer()
 
   const cleanupExportDirectories = (): Promise<void> => {
     exportPrepared = false
-    // Preserve ordering after a failed cleanup so a retry can make a fresh attempt.
-    const cleanup = exportCleanupQueue
-      .catch(() => undefined)
-      .then(async () => {
-        await Promise.all(
-          [...allowedExportDirectories].map((exportPath) => fs.rm(exportPath, { recursive: true, force: true }))
-        )
-      })
-    exportCleanupQueue = cleanup
-    return cleanup
+    return exportCleanupQueue.queue(async () => {
+      await Promise.all(
+        [...allowedExportDirectories].map((exportPath) => fs.rm(exportPath, { recursive: true, force: true }))
+      )
+    })
   }
 
   const cleanupExportDirectoriesBestEffort = async (reason: string): Promise<void> => {

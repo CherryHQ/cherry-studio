@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { loggerService } from '@logger'
+import { isAbortError, raceCancellation, raceTimeout } from '@shared/utils/async'
 
 const logger = loggerService.withContext('FallbackFavicon')
 
@@ -94,35 +95,29 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
         })
         .catch((error) => {
           // Rethrow aborted errors but silence other failures
-          if (error.name === 'AbortError') {
+          if (isAbortError(error)) {
             throw error
           }
           return null // Return null for failed requests
         })
     )
 
-    // Create a timeout promise
-    const timeoutPromise = new Promise<string>((resolve) => {
-      const timer = setTimeout(() => {
-        resolve(faviconUrls[0]) // Default to first URL after timeout
-      }, 2000)
-
-      // Clear timeout if signal is aborted
-      signal.addEventListener('abort', () => clearTimeout(timer))
-    })
-
-    // Use Promise.race to get the first successful result
-    Promise.race([
-      // Filter out failed requests (null results)
-      Promise.any(faviconPromises)
-        .then((result) => result || faviconUrls[0]) // Ensure we always have a string, not null
-        .catch(() => faviconUrls[0]),
-      timeoutPromise
-    ])
+    raceTimeout(
+      raceCancellation(
+        Promise.any(faviconPromises)
+          .then((result) => result || faviconUrls[0])
+          .catch(() => faviconUrls[0]),
+        signal
+      ),
+      2000,
+      () => faviconUrls[0]
+    )
       .then((url) => {
+        if (signal.aborted) return
         setFaviconState({ status: 'loaded', src: url })
       })
       .catch((error) => {
+        if (signal.aborted) return
         logger.error('All favicon requests failed:', error)
         setFaviconState({ status: 'loaded', src: faviconUrls[0] })
       })

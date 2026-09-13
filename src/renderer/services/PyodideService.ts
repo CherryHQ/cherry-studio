@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { uuid } from '@renderer/utils/uuid'
 import { IpcChannel } from '@shared/IpcChannel'
+import { createTimeout } from '@shared/utils/async'
 
 const logger = loggerService.withContext('PyodideService')
 
@@ -60,23 +61,23 @@ class PyodideService {
           this.worker.onmessage = this.handleMessage.bind(this)
 
           // 设置初始化超时
-          const timeout = setTimeout(() => {
+          const deadline = createTimeout(SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.INIT, () => {
             this.worker = null
             this.initPromise = null
             this.initRetryCount++
             reject(new Error('Pyodide initialization timeout'))
-          }, SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.INIT)
+          })
 
           // 设置初始化处理器
           const initHandler = (event: MessageEvent) => {
             if (event.data?.type === 'initialized') {
-              clearTimeout(timeout)
+              deadline.dispose()
               this.worker?.removeEventListener('message', initHandler)
               this.initRetryCount = 0
               this.initPromise = null
               resolve()
             } else if (event.data?.type === 'init-error') {
-              clearTimeout(timeout)
+              deadline.dispose()
               this.worker?.removeEventListener('message', initHandler)
               this.worker?.terminate()
               this.worker = null
@@ -157,18 +158,18 @@ class PyodideService {
         const id = uuid()
 
         // 设置消息超时
-        const timeoutId = setTimeout(() => {
+        const deadline = createTimeout(timeout, () => {
           this.resolvers.delete(id)
           reject(new Error('Python execution timed out'))
-        }, timeout)
+        })
 
         this.resolvers.set(id, {
           resolve: (output) => {
-            clearTimeout(timeoutId)
+            deadline.dispose()
             resolve(output)
           },
           reject: (error) => {
-            clearTimeout(timeoutId)
+            deadline.dispose()
             reject(error)
           }
         })

@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { SHUTDOWN_TIMEOUT_MS } from '@main/core/lifecycle'
 // Preboot dialogs cannot use PreferenceService-backed translations.
 import { t } from '@main/i18n'
+import { raceTimeout } from '@shared/utils/async'
 
 const logger = loggerService.withContext('DataReset')
 
@@ -491,23 +492,16 @@ async function clearChromiumState(): Promise<void> {
       clearOperation(name, 'authentication cache', () => target.clearAuthCache())
     ])
 
-  let timeout: NodeJS.Timeout | undefined
-  try {
-    await Promise.race([
-      Promise.all([
-        clearSession('default', session.defaultSession),
-        clearSession('persist:webview', session.fromPartition('persist:webview'))
-      ]),
-      new Promise<void>((resolve) => {
-        timeout = setTimeout(() => {
-          logger.warn('Chromium state clear timed out during data reset request — continuing with shutdown')
-          resolve()
-        }, CHROMIUM_CLEAR_TIMEOUT_MS)
-      })
-    ])
-  } finally {
-    if (timeout) clearTimeout(timeout)
-  }
+  await raceTimeout(
+    Promise.all([
+      clearSession('default', session.defaultSession),
+      clearSession('persist:webview', session.fromPartition('persist:webview'))
+    ]),
+    CHROMIUM_CLEAR_TIMEOUT_MS,
+    () => {
+      logger.warn('Chromium state clear timed out during data reset request — continuing with shutdown')
+    }
+  )
 }
 
 /** Resolves the physical target used to authorize the wipe. */

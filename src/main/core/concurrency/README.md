@@ -1,7 +1,8 @@
 # Concurrency
 
-General concurrency primitives for the main process. **Event-source-agnostic** — nothing here knows
-about Preference, lifecycle, IPC, or any specific trigger.
+Main-process logging adapter for the [shared asynchronous primitives](../../../shared/utils/async/README.md).
+Import `KeyedMutex` and other general mechanisms from `@shared/utils/async`; this directory
+keeps `createLatestReconciler` with its default `loggerService` error reporting.
 
 ## `KeyedMutex`
 
@@ -46,7 +47,7 @@ Do **not** use it for:
 |---|---|---|
 | Synchronous side effect | Runs to completion; nothing can interleave, nothing to coalesce. | Just call it. |
 | Command / delta semantics (every event must run, in order) | Coalescing would drop work. | A FIFO queue (e.g. `p-queue`, `async-mutex`). |
-| Per-key serialisation of independent items | Reconciler is single-stream. | `KeyedMutex` (`src/main/core/concurrency/KeyedMutex.ts`). |
+| Per-key serialisation of independent items | Reconciler is single-stream. | `KeyedMutex` (`@shared/utils/async`). |
 
 > Precondition: a **successful** `apply` must make progress toward `isSettled` (be convergent /
 > idempotent). If `apply` can succeed without converging, the loop spins — that is a consumer bug,

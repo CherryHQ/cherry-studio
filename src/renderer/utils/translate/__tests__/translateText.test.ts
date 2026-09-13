@@ -1,5 +1,9 @@
+import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useTranslate } from '@renderer/hooks/translate/useTranslate'
+import { toast } from '@renderer/services/toast'
+import { isAbortError } from '@renderer/utils/error'
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
@@ -10,6 +14,10 @@ interface IpcMock {
 
 vi.mock('i18next', () => ({
   t: (key: string) => `t(${key})`
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => `t(${key})` })
 }))
 
 // AI stream calls go through ipcApi.request('ai.stream_*') / ipcApi.on('ai.stream_*') and
@@ -314,25 +322,81 @@ describe('translateText (main-driven streaming)', () => {
       const err = await promise.catch((e) => e)
       expect(err).toBeInstanceOf(Error)
       expect((err as Error).name).toBe('AbortError')
+      expect(isAbortError(err)).toBe(true)
+    })
+
+    it('silently completes an active translation for a serialized AbortError', async () => {
+      const { result } = renderHook(() => useTranslate({ rethrowError: true }))
+      let pending!: Promise<string | undefined>
+      act(() => {
+        pending = result.current.translate('source', TARGET)
+      })
+      const outcome = pending.then(
+        (value) => ({ value }),
+        (error) => ({ error })
+      )
+      await waitForOpen(mockRequest)
+
+      await act(async () => {
+        emitError(mockListeners, { name: 'AbortError', message: 'stopped by user' }, lastStreamId(mockRequest))
+        expect(await outcome).toEqual({ value: undefined })
+      })
+      expect(result.current.isTranslating).toBe(false)
+      expect(toast.error).not.toHaveBeenCalled()
     })
   })
 
   describe('abort signal', () => {
-    it('calls streamAbort with the streamId when the signal fires mid-stream', async () => {
+    it('requests abort but waits for the terminal stream event before rejecting', async () => {
       const controller = new AbortController()
       const promise = translateText('source', TARGET, undefined, controller.signal)
+      let settled = false
+      const outcome = promise.then(
+        (value) => {
+          settled = true
+          return value
+        },
+        (error: unknown) => {
+          settled = true
+          return error
+        }
+      )
       await waitForOpen(mockRequest)
       const streamId = lastStreamId(mockRequest)
 
       emitChunk(mockListeners, 'partial', streamId)
       controller.abort()
-      // Main would emit an abort-shaped error in response; simulate it here so
-      // the function's reject path completes.
-      emitError(mockListeners, { name: 'AbortError', message: 'aborted' }, streamId)
-
-      await promise.catch(() => undefined)
-
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      expect(settled).toBe(false)
       expect(mockAi.streamAbort).toHaveBeenCalledWith({ topicId: streamId })
+
+      emitError(mockListeners, { name: 'AbortError', message: 'aborted' }, streamId)
+      expect(await outcome).toMatchObject({ name: 'AbortError', message: 'aborted' })
+      expect(mockListeners).toEqual({ chunk: [], done: [], error: [] })
+    })
+
+    it.each(['done', 'error', 'open failure'] as const)('detaches the abort callback after %s', async (terminal) => {
+      const controller = new AbortController()
+      if (terminal === 'open failure') mockTranslateOpen.mockRejectedValueOnce(new Error('cannot open'))
+      const promise = translateText('source', TARGET, undefined, controller.signal)
+      const outcome = promise.catch((error: unknown) => error)
+      await waitForOpen(mockRequest)
+      const streamId = lastStreamId(mockRequest)
+
+      if (terminal === 'done') {
+        emitChunk(mockListeners, 'complete', streamId)
+        emitDone(mockListeners, streamId)
+        expect(await outcome).toBe('complete')
+      } else if (terminal === 'error') {
+        emitError(mockListeners, { name: 'Error', message: 'stream failed' }, streamId)
+        expect(await outcome).toMatchObject({ message: 'stream failed' })
+      } else {
+        expect(await outcome).toMatchObject({ message: 'cannot open' })
+      }
+
+      controller.abort()
+      expect(mockAi.streamAbort).not.toHaveBeenCalled()
+      expect(mockListeners).toEqual({ chunk: [], done: [], error: [] })
     })
 
     it('rejects synchronously when the supplied signal is already aborted', async () => {

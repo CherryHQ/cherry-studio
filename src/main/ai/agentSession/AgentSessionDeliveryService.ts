@@ -13,6 +13,7 @@ import type {
   ReuseOrCreateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import { raceTimeout } from '@shared/utils/async'
 
 import { agentChatContextProvider, finalizeInterruptedParts, type StreamListener } from '../streamManager'
 import { buildAgentSessionTopicId } from './topic'
@@ -216,10 +217,7 @@ export class AgentSessionDeliveryService extends BaseService {
     while (this.inFlight.size > 0 && Date.now() < deadline) {
       const snapshot = [...this.inFlight.keys()]
       const remaining = deadline - Date.now()
-      await Promise.race([
-        Promise.allSettled(snapshot),
-        new Promise<void>((resolve) => setTimeout(resolve, Math.max(remaining, 0)))
-      ])
+      await raceTimeout(Promise.allSettled(snapshot), Math.max(remaining, 0), () => undefined)
     }
     return { stragglerIds: [...this.inFlight.values()] }
   }

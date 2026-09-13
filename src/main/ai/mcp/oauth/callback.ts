@@ -4,6 +4,7 @@ import { URL } from 'url'
 
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
+import { createTimeout } from '@shared/utils/async'
 
 import type { OAuthCallbackServerOptions } from './types'
 
@@ -126,13 +127,13 @@ export class CallBackServer {
   async waitForAuthCode(timeoutMs = 300_000): Promise<string> {
     return new Promise((resolve, reject) => {
       const onCode = (code: string) => {
-        clearTimeout(timer)
+        timer.dispose()
         resolve(code)
       }
-      const timer = setTimeout(() => {
+      const timer = createTimeout(timeoutMs, () => {
         this.events.off('auth-code-received', onCode)
         reject(new Error(`Timed out waiting for OAuth authorization code after ${Math.round(timeoutMs / 1000)}s`))
-      }, timeoutMs)
+      })
       this.events.once('auth-code-received', onCode)
     })
   }

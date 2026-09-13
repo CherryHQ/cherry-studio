@@ -1,4 +1,3 @@
-import { debounce } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
 
@@ -10,6 +9,7 @@ import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { FileVersion } from '@shared/types/file'
+import { debounce, SingleFlight } from '@shared/utils/async'
 
 const logger = loggerService.withContext('useFileEditSession')
 
@@ -52,8 +52,7 @@ interface FileEditModel {
   /** Last non-stale write failure (disk full, permissions…); cleared on success. */
   lastWriteError: Error | null
   /** Serialized writer: at most one write loop runs per model at a time. */
-  chain: Promise<void>
-  writeRunning: boolean
+  writeTask: SingleFlight<void>
 }
 
 export interface FileEditSession {
@@ -246,18 +245,10 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     }
   }
 
-  // TaskSequentializer-lite: one running write loop per model; a request while
-  // one runs is a no-op because the loop re-reads the latest draft each round.
+  // The running loop re-reads the latest draft, so concurrent requests join it.
   const requestWrite = useCallback((model: FileEditModel) => {
-    if (model.writeRunning || model.conflict) return
-    model.writeRunning = true
-    model.chain = (async () => {
-      try {
-        await runWritesRef.current?.(model)
-      } finally {
-        model.writeRunning = false
-      }
-    })()
+    if (model.conflict) return
+    void model.writeTask.run(() => runWritesRef.current?.(model) ?? Promise.resolve())
   }, [])
 
   const debouncedWrite = useMemo(
@@ -294,8 +285,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       draft: data.content,
       conflict: false,
       lastWriteError: null,
-      chain: Promise.resolve(),
-      writeRunning: false
+      writeTask: new SingleFlight<void>()
     }
     modelRef.current = next
     syncFromModel(next)
@@ -351,7 +341,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     // An IPC write that has already started cannot be cancelled safely. Keep
     // the draft stable until it settles; consumers also disable discard while
     // `isSaving` is true, and this guard protects future callers.
-    if (!model || model.writeRunning) return
+    if (!model || model.writeTask.isRunning) return
     debouncedWrite.cancel()
     model.draft = model.snapshot.content
     model.lastWriteError = null
@@ -362,7 +352,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     const model = modelRef.current
     if (!model) return
     debouncedWrite.cancel()
-    await model.chain
+    await model.writeTask.promise
     const disk = await readFile(model.handle)
     if (modelRef.current !== model) return
     model.snapshot = disk
@@ -378,10 +368,9 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     debouncedWrite.cancel()
     if (!model) return
     requestWrite(model)
-    await model.chain
-    // The chain resolving is not proof of persistence — an I/O failure or
-    // conflict leaves the draft dirty. Reject so callers abort the operation
-    // that prompted the flush instead of silently losing the edit.
+    await model.writeTask.promise
+    // I/O failures and conflicts leave the draft dirty after the writer settles.
+    // Reject so callers abort the operation that prompted the flush.
     if (model.draft !== model.snapshot.content) {
       throw model.lastWriteError ?? new Error('Pending edit could not be saved')
     }

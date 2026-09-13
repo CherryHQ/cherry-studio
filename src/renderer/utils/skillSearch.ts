@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import type { SkillSearchResult } from '@shared/types/skill'
+import { createTimeout } from '@shared/utils/async'
 import {
   searchSkillMarketplaces,
   SKILL_SEARCH_FAILED_ERROR as SHARED_SKILL_SEARCH_FAILED_ERROR
@@ -16,11 +17,11 @@ export const SKILL_SEARCH_FAILED_ERROR = SHARED_SKILL_SEARCH_FAILED_ERROR
 
 async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const deadline = createTimeout(REQUEST_TIMEOUT_MS, () => controller.abort())
   try {
     return await fetch(url, { ...init, signal: controller.signal })
   } finally {
-    clearTimeout(timer)
+    deadline.dispose()
   }
 }
 

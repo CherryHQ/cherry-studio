@@ -1,5 +1,7 @@
 import type { GoogleAuth } from 'google-auth-library'
 
+import { AsyncInitializer } from '@shared/utils/async'
+
 interface ServiceAccountCredentials {
   privateKey: string
   clientEmail: string
@@ -12,11 +14,7 @@ interface VertexAiAuthParams {
 
 const REQUIRED_VERTEX_AI_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
 
-let googleAuthPromise: Promise<typeof GoogleAuth> | undefined
-
-function loadGoogleAuth(): Promise<typeof GoogleAuth> {
-  return (googleAuthPromise ??= import('google-auth-library').then(({ GoogleAuth }) => GoogleAuth))
-}
+const googleAuth = new AsyncInitializer(() => import('google-auth-library').then(({ GoogleAuth }) => GoogleAuth))
 
 export class VertexAiService {
   private authClients: Map<string, GoogleAuth> = new Map()
@@ -77,7 +75,7 @@ export class VertexAiService {
         const formattedPrivateKey = this.formatPrivateKey(serviceAccount.privateKey)
 
         // 创建新的认证客户端
-        const GoogleAuth = await loadGoogleAuth()
+        const GoogleAuth = await googleAuth.get()
         auth = new GoogleAuth({
           credentials: {
             private_key: formattedPrivateKey,
@@ -127,7 +125,7 @@ export class VertexAiService {
     let auth = this.authClients.get(cacheKey)
 
     if (!auth) {
-      const GoogleAuth = await loadGoogleAuth()
+      const GoogleAuth = await googleAuth.get()
       auth = new GoogleAuth({
         credentials: {
           private_key: formattedPrivateKey,

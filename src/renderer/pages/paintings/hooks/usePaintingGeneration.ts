@@ -4,6 +4,7 @@ import { cacheService } from '@data/CacheService'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils/uuid'
 import type { FileEntry } from '@shared/data/types/file'
+import { isAbortError } from '@shared/utils/async'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToCreateDto } from '../model/mappers/paintingDataToCreateDto'
@@ -126,7 +127,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         applyIfVisible({ ...targetPainting, files: generatedFiles })
         await refresh()
       } catch (error) {
-        const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
+        const isCanceled = controller.signal.aborted || (error instanceof Error && isAbortError(error))
         const failedState: PaintingGenerationState = {
           ...generationState,
           generationStatus: isCanceled ? 'canceled' : 'failed',

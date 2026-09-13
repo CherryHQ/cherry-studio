@@ -1,4 +1,3 @@
-import { debounce } from 'es-toolkit/compat'
 import { useEffect, useMemo, useRef } from 'react'
 
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@renderer/data/hooks/useDataApi'
@@ -8,6 +7,7 @@ import type {
   AiUsageRecordStatsBucket
 } from '@shared/data/api/schemas/aiUsageRecords'
 import { CURRENCY, type Currency } from '@shared/data/types/model'
+import { debounce } from '@shared/utils/async'
 
 import {
   applyTimelineCurrency,

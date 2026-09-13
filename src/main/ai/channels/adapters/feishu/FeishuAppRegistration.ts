@@ -1,5 +1,4 @@
 import { net } from 'electron'
-import { delay } from 'es-toolkit'
 
 /**
  * Feishu App Registration via Device Flow.
@@ -11,6 +10,7 @@ import { delay } from 'es-toolkit'
  */
 import { loggerService } from '@logger'
 import type { FeishuDomain } from '@shared/data/types/channel'
+import { delay } from '@shared/utils/async'
 
 const logger = loggerService.withContext('FeishuAppRegistration')
 
@@ -97,7 +97,7 @@ export async function registrationPoll(
       throw new Error('Registration polling aborted')
     }
 
-    await delay(interval, { signal: options.signal })
+    await delay(interval, options.signal)
 
     const res = await postRegistration(baseUrl, {
       action: 'poll',

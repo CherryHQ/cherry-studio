@@ -30,6 +30,7 @@ import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/erro
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import { type CancelablePromise, createCancelablePromise } from '@shared/utils/async'
 
 const TRANSLATE_ERROR_KEY_PATTERN = /\btranslate\.error\.[a-zA-Z0-9_.-]+\b/
 
@@ -83,36 +84,25 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
     optionsRef.current = options
   })
 
-  // Tracks the abort key of the currently in-flight translation. `null` when
-  // nothing is running or the active translation has been cancelled /
-  // superseded. Used as the source-of-truth for "is this call still ours?"
-  // checks against late-resolving IPC promises. Paired with `activeControllerRef`
-  // which owns the actual AbortSignal threaded into `translateText` →
-  // `streamAbort`.
-  const activeAbortKeyRef = useRef<string | null>(null)
-  const activeControllerRef = useRef<AbortController | null>(null)
+  // Streaming callbacks need an identity before the eager task factory runs.
+  const activeRequestIdRef = useRef<string | null>(null)
+  const activeTaskRef = useRef<CancelablePromise<string> | null>(null)
 
   const cancel = useCallback(() => {
-    if (!activeAbortKeyRef.current) return
-    // Clear the ref first so the in-flight translate's continuation sees
-    // "you've been cancelled" and discards its result even if the abort
-    // doesn't unwind the underlying IPC immediately.
-    activeAbortKeyRef.current = null
-    activeControllerRef.current?.abort()
-    activeControllerRef.current = null
+    if (!activeRequestIdRef.current) return
+    // Invalidate streaming callbacks before cancellation reaches the producer.
+    activeRequestIdRef.current = null
+    activeTaskRef.current?.cancel()
+    activeTaskRef.current = null
     setIsTranslating(false)
   }, [])
 
   const translate = useCallback<UseTranslateResult['translate']>(
     async (text, targetLanguage) => {
-      // A new call supersedes any in-flight one — keeps semantics simple
-      // (one translation per hook instance) and matches the existing stop-button
-      // behaviour in TranslatePage.
-      activeControllerRef.current?.abort()
-      const controller = new AbortController()
-      activeControllerRef.current = controller
-      activeAbortKeyRef.current = uuid()
-      const abortKey = activeAbortKeyRef.current
+      const previousTask = activeTaskRef.current
+      activeRequestIdRef.current = uuid()
+      const requestId = activeRequestIdRef.current
+      previousTask?.cancel()
 
       setIsTranslating(true)
 
@@ -121,22 +111,25 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
       const onResponse = optionsRef.current?.onResponse
       const guardedOnResponse = onResponse
         ? (chunkText: string, isComplete: boolean) => {
-            if (activeAbortKeyRef.current !== abortKey) return
+            if (activeRequestIdRef.current !== requestId) return
             onResponse(chunkText, isComplete)
           }
         : undefined
 
-      const wasSuperseded = () => activeAbortKeyRef.current !== abortKey
+      const wasSuperseded = () => activeRequestIdRef.current !== requestId
       const finishIfActive = () => {
-        if (activeAbortKeyRef.current === abortKey) {
-          activeAbortKeyRef.current = null
-          activeControllerRef.current = null
+        if (activeRequestIdRef.current === requestId) {
+          activeRequestIdRef.current = null
+          activeTaskRef.current = null
           setIsTranslating(false)
         }
       }
 
       try {
-        const result = await translateText(text, targetLanguage, guardedOnResponse, controller.signal)
+        const task = createCancelablePromise((signal) => translateText(text, targetLanguage, guardedOnResponse, signal))
+        if (wasSuperseded()) task.cancel()
+        else activeTaskRef.current = task
+        const result = await task
         if (wasSuperseded()) {
           // Cancelled or superseded mid-flight — discard the result so the
           // caller's `if (result)` success branch stays gated.
@@ -164,13 +157,12 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
     [t]
   )
 
-  // On unmount: abort the active controller (propagates to main via streamAbort
-  // inside translateText) and clear the marker so any late settle is discarded.
+  // Invalidate callbacks before cancelling on unmount, without setting state.
   useEffect(() => {
     return () => {
-      activeAbortKeyRef.current = null
-      activeControllerRef.current?.abort()
-      activeControllerRef.current = null
+      activeRequestIdRef.current = null
+      activeTaskRef.current?.cancel()
+      activeTaskRef.current = null
     }
   }, [])
 

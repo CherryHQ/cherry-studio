@@ -1,4 +1,4 @@
-import { debounce, trim } from 'es-toolkit/compat'
+import { trim } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -8,6 +8,7 @@ import { validateApiHost } from '@renderer/utils/api'
 import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { debounce } from '@shared/utils/async'
 import { isVertexProvider } from '@shared/utils/provider'
 
 import type { PatchProvider } from './types'

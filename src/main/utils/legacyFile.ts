@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { FileType } from '@shared/types/file'
 import { FILE_TYPE } from '@shared/types/file'
+import { delay as sleep } from '@shared/utils/async'
 import { MB } from '@shared/utils/constants'
 import {
   audioExts,
@@ -291,7 +292,7 @@ export async function writeWithLock(
         }
       }
 
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+      await sleep(retryDelayMs)
     }
   }
 }

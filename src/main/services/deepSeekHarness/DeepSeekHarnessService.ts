@@ -1,7 +1,5 @@
 import type { ChildProcess } from 'node:child_process'
 
-import { Mutex } from 'async-mutex'
-
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -16,6 +14,7 @@ import type { DeepSeekHarnessPermissionMode, DeepSeekHarnessSettings } from '@sh
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { ManagedToolStatus, ManagedToolStatusState } from '@shared/types/managedTool'
 import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { createTimeout, Mutex, onAbort as subscribeToAbort } from '@shared/utils/async'
 import { isNonChatModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 import { redactLiteral, redactSecretText } from '@shared/utils/redaction'
@@ -404,15 +403,16 @@ function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal):
     let stderr = ''
     let checkingUrl = false
     let settled = false
+    let disposeAbort = () => {}
 
     const cleanup = () => {
-      clearTimeout(timeout)
+      timeout.dispose()
       child.stdout?.off('data', onStdout)
       child.stderr?.off('data', onStderr)
       child.off('error', onError)
       child.off('exit', onClose)
       child.off('close', onClose)
-      signal.removeEventListener('abort', onAbort)
+      disposeAbort()
       child.stdout?.resume()
       child.stderr?.resume()
     }
@@ -444,14 +444,13 @@ function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal):
     const onAbort = () => fail(new Error('DeepSeek Harness startup was cancelled'))
     const onClose = (code: number | null, signal: NodeJS.Signals | null) =>
       fail(new Error(`DeepSeek Harness exited before it was ready (code ${String(code)}, signal ${String(signal)})`))
-    const timeout = setTimeout(() => fail(new Error('DeepSeek Harness startup timed out')), START_TIMEOUT_MS)
+    const timeout = createTimeout(START_TIMEOUT_MS, () => fail(new Error('DeepSeek Harness startup timed out')))
 
     child.stdout?.on('data', onStdout)
     child.stderr?.on('data', onStderr)
     child.once('error', onError)
     child.once('exit', onClose)
     child.once('close', onClose)
-    signal.addEventListener('abort', onAbort, { once: true })
-    if (signal.aborted) onAbort()
+    disposeAbort = subscribeToAbort(signal, onAbort)
   })
 }

@@ -8,6 +8,7 @@ import {
   type ImageAttachment,
   MAX_FILE_SIZE_BYTES
 } from '@main/utils/downloadAsBase64'
+import { delay as sleep } from '@shared/utils/async'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
@@ -370,13 +371,13 @@ class DiscordAdapter extends ChannelAdapter {
         const resumable = payload.d === true
         if (resumable && this.sessionId) {
           // Wait 1-5s as per Discord docs then resume
-          await new Promise((r) => setTimeout(r, 1000 + Math.random() * 4000))
+          await sleep(1000 + Math.random() * 4000)
           this.sendResume()
         } else {
           this.sessionId = null
           this.lastSeq = null
           this.resumeGatewayUrl = null
-          await new Promise((r) => setTimeout(r, 1000 + Math.random() * 4000))
+          await sleep(1000 + Math.random() * 4000)
           this.sendIdentify()
         }
         break
@@ -693,7 +694,7 @@ class DiscordAdapter extends ChannelAdapter {
       })
 
       if (i < chunks.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100))
+        await sleep(100)
       }
     }
   }

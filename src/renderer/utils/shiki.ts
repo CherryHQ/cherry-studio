@@ -3,8 +3,7 @@ import type { ThemedToken } from 'shiki/core'
 import { getTokenStyleObject, type HighlighterGeneric } from 'shiki/core'
 
 import { loggerService } from '@logger'
-
-import { AsyncInitializer } from './asyncInitializer'
+import { AsyncInitializer } from '@shared/utils/async'
 
 export const DEFAULT_LANGUAGES = ['text', 'javascript', 'typescript', 'python', 'java', 'markdown', 'json']
 export const DEFAULT_THEMES = ['one-light', 'material-theme-darker']

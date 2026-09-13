@@ -9,10 +9,10 @@
  * synchronously, not a durable background job. Honors the user's configured
  * `image_to_text` processor (local Tesseract/System, or a remote OCR).
  */
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { FileHandle } from '@shared/data/types/file'
+import { delay } from '@shared/utils/async'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
@@ -22,19 +22,6 @@ const logger = loggerService.withContext('FileProcessing:ocrImageToText')
 const REMOTE_POLL_INTERVAL_MS = 2_000
 const REMOTE_POLL_TIMEOUT_MS = 120_000
 const CACHE_TTL_MS = 30 * 60 * 1000
-
-const delay = (ms: number, signal?: AbortSignal): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const onAbort = () => {
-      clearTimeout(timer)
-      reject(signal?.reason ?? new Error('Aborted'))
-    }
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    signal?.addEventListener('abort', onAbort, { once: true })
-  })
 
 /**
  * OCR an image referenced by `file` into plain text using the configured

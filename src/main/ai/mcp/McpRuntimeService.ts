@@ -25,6 +25,7 @@ import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
+import { raceCancellation } from '@shared/utils/async'
 import { redactDeep, redactServerKey } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
 
@@ -1084,17 +1085,7 @@ export class McpRuntimeService extends BaseService {
         // The listener is removed once the race settles: `once` only cleans up after an
         // abort fires, and the composed signal is retained by the long-lived stream signal —
         // leaving it installed would accumulate a closure per tool call.
-        let handleAbort: (() => void) | undefined
-        const client = await Promise.race([
-          this.getOrCreateClient(server),
-          new Promise<never>((_, reject) => {
-            handleAbort = (): void => reject(getAbortReason(effectiveSignal))
-            if (effectiveSignal.aborted) return handleAbort()
-            effectiveSignal.addEventListener('abort', handleAbort, { once: true })
-          })
-        ]).finally(() => {
-          if (handleAbort) effectiveSignal.removeEventListener('abort', handleAbort)
-        })
+        const client = await raceCancellation(this.getOrCreateClient(server), effectiveSignal, getAbortReason)
         const result = await client.callTool({ name, arguments: args }, undefined, {
           onprogress: (process) => {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {

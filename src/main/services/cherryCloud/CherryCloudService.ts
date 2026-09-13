@@ -17,6 +17,7 @@ import {
   parseUniqueModelId
 } from '@shared/data/types/model'
 import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+import { timeoutSignal } from '@shared/utils/async'
 
 import { cherryAccountCredentialStore } from './CherryAccountCredentialStore'
 import { CherryCloudLoopbackCallback } from './CherryCloudLoopbackCallback'
@@ -542,7 +543,7 @@ export class CherryCloudService extends BaseService {
     if (this.modelSyncPromise?.generation === generation) return this.modelSyncPromise.promise
 
     const controller = new AbortController()
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)])
+    const signal = timeoutSignal(CLOUD_CONTROL_REQUEST_TIMEOUT_MS, controller.signal)
     const sync = this.syncEntitledModelsOnce(generation, signal)
       .then((result) => {
         if (this.sessionGeneration === generation) {
@@ -1017,13 +1018,13 @@ export class CherryCloudService extends BaseService {
     })
     let response: Response
     try {
-      const timeoutSignal = AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
+      const requestSignal = timeoutSignal(CLOUD_CONTROL_REQUEST_TIMEOUT_MS, signal)
       response = await net.fetch(`${resolveApiOrigin()}${path}`, {
         method: 'POST',
         redirect: 'error',
         headers: { 'Content-Type': 'application/json', ...signature },
         body: bodyString,
-        signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+        signal: requestSignal
       })
     } catch (error) {
       if (signal?.aborted) throw error

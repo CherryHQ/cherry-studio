@@ -8,6 +8,7 @@ import type { AgentChannelEntity as ChannelRow, AgentChannelType } from '@shared
 import type { ChannelConfig } from '@shared/data/types/channel'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
+import { createTimeout } from '@shared/utils/async'
 
 import type { ChannelAdapter } from './ChannelAdapter'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
@@ -60,7 +61,7 @@ export class ChannelManager extends BaseService {
   private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
   private readonly qrWaiters = new Map<
     string,
-    { resolve: (url: string) => void; timer: ReturnType<typeof setTimeout> }
+    { resolve: (url: string) => void; timer: ReturnType<typeof createTimeout<void>> }
   >()
   private readonly channelLogs = new ChannelLogBuffer()
 
@@ -142,10 +143,10 @@ export class ChannelManager extends BaseService {
   waitForQrUrl(agentId: string, channelId: string, timeoutMs = 30_000): Promise<string> {
     const key = `${agentId}:${channelId}`
     return new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const timer = createTimeout(timeoutMs, () => {
         this.qrWaiters.delete(key)
         reject(new Error('Timed out waiting for QR code'))
-      }, timeoutMs)
+      })
       this.qrWaiters.set(key, { resolve, timer })
     })
   }
@@ -368,7 +369,7 @@ export class ChannelManager extends BaseService {
         const waiterKey = `${agentId}:${row.id}`
         const waiter = this.qrWaiters.get(waiterKey)
         if (waiter) {
-          clearTimeout(waiter.timer)
+          waiter.timer.dispose()
           this.qrWaiters.delete(waiterKey)
           waiter.resolve(url)
         }

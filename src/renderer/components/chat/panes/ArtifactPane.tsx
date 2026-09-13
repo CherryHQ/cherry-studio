@@ -30,6 +30,7 @@ import { getFileExtension } from '@renderer/utils/file'
 import { joinPath } from '@renderer/utils/path'
 import { isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { raceTimeout } from '@shared/utils/async'
 
 import {
   type ArtifactPaneFileSelection,
@@ -507,13 +508,11 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     let openTargetItems: readonly CommandContextMenuExtraItem[] = []
     try {
       const targetPath = getArtifactPaneSelectionPath(overlaySelection)
-      const timeoutPromise = new Promise<readonly CommandContextMenuExtraItem[]>((resolve) =>
-        setTimeout(() => resolve([]), OPEN_TARGET_LOOKUP_TIMEOUT_MS)
-      )
-      openTargetItems = await Promise.race([
+      openTargetItems = await raceTimeout(
         loadOpenTargetMenuItems({ targetPath, pathKind: 'file', t }),
-        timeoutPromise
-      ])
+        OPEN_TARGET_LOOKUP_TIMEOUT_MS,
+        () => []
+      )
     } catch (error) {
       logger.warn('Failed to resolve open targets for the opened-file header menu', error as Error)
     }

@@ -1,6 +1,6 @@
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 
-import { isAbortError } from '@main/utils/error'
+import { isAbortError } from '@shared/utils/async'
 
 /**
  * True when `error` is the cancellation outcome of `signal` aborting, not a genuine

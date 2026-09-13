@@ -3,6 +3,8 @@ import { lookup } from 'node:dns/promises'
 
 import * as ipaddr from 'ipaddr.js'
 
+import { raceCancellation } from '@shared/utils/async'
+
 export type RemoteFetchAddress = {
   readonly address: string
   readonly family: 4 | 6
@@ -216,40 +218,6 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
   }
 }
 
-function raceWithAbort<T>(operation: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
-  if (!signal) {
-    return operation
-  }
-
-  const abortSignal = signal
-
-  throwIfAborted(abortSignal)
-
-  return new Promise((resolve, reject) => {
-    function cleanup(): void {
-      abortSignal.removeEventListener('abort', onAbort)
-    }
-
-    function onAbort(): void {
-      cleanup()
-      reject(getAbortError(abortSignal))
-    }
-
-    abortSignal.addEventListener('abort', onAbort, { once: true })
-
-    operation.then(
-      (value) => {
-        cleanup()
-        resolve(value)
-      },
-      (error) => {
-        cleanup()
-        reject(error)
-      }
-    )
-  })
-}
-
 /**
  * SSRF guard for direct main-process fetches. Combines literal URL validation
  * with DNS-level rejection for hostnames that resolve to private/local addresses.
@@ -285,7 +253,11 @@ async function resolveRemoteFetchAddress(
     return toRemoteFetchAddress(literalAddress)
   }
 
-  const addresses = await raceWithAbort(lookup(normalizeHostname(parsedUrl.hostname), { all: true }), signal)
+  const addresses = await raceCancellation(
+    lookup(normalizeHostname(parsedUrl.hostname), { all: true }),
+    signal,
+    getAbortError
+  )
 
   // The connection is pinned to the address returned here, so a rejected answer only has to be
   // skipped rather than fail the whole hostname.

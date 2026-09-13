@@ -1,4 +1,4 @@
-import { debounce } from 'es-toolkit/compat'
+import { debounce } from '@shared/utils/async'
 
 type SelectionChangeHandler = (selection: Selection | null) => void
 

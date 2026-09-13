@@ -1,3 +1,5 @@
+import { setImmediate } from 'node:timers/promises'
+
 import { loggerService } from '@logger'
 import {
   extractFtsTokens,
@@ -267,7 +269,7 @@ export class KnowledgeIndexStore {
         tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId])
       })
       if (performance.now() - lastYieldAt >= DELETE_YIELD_BUDGET_MS) {
-        await new Promise<void>((resolve) => setImmediate(resolve))
+        await setImmediate()
         lastYieldAt = performance.now()
       }
     }

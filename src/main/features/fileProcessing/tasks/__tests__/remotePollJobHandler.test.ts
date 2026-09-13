@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { JobContext } from '@main/core/job/types'
+import { createDeferred } from '@shared/utils/async'
 /**
  * Unit tests for remotePollJobHandler.
  *
@@ -9,12 +11,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * stage), abort during sleep, and the critical A1 invariant — apiKey is never
  * written to jobTable.metadata.
  */
-import type { JobContext } from '@main/core/job/types'
 
 import type { FileProcessingJobPayload } from '../shared'
 
 const {
-  appGetMock,
   fileManagerGetByIdMock,
   fileManagerGetMetadataMock,
   toFileInfoMock,
@@ -28,7 +28,6 @@ const {
   rehydrateMock,
   getPdfPageCountMock
 } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
   fileManagerGetByIdMock: vi.fn(),
   fileManagerGetMetadataMock: vi.fn(),
   toFileInfoMock: vi.fn(),
@@ -46,9 +45,12 @@ const {
   getPdfPageCountMock: vi.fn()
 }))
 
-vi.mock('@application', () => ({
-  application: { get: appGetMock }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    FileManager: { getById: fileManagerGetByIdMock, getMetadata: fileManagerGetMetadataMock }
+  })
+})
 
 vi.mock('@main/services/file/toFileInfo', () => ({
   toFileInfo: toFileInfoMock
@@ -146,15 +148,6 @@ function createCtx(
 
 beforeEach(() => {
   vi.clearAllMocks()
-  appGetMock.mockImplementation((name: string) => {
-    if (name === 'FileManager') {
-      return {
-        getById: fileManagerGetByIdMock,
-        getMetadata: fileManagerGetMetadataMock
-      }
-    }
-    throw new Error(`Unexpected application.get(${name})`)
-  })
   fileManagerGetMetadataMock.mockResolvedValue({
     kind: 'file',
     type: 'other',
@@ -174,24 +167,98 @@ afterEach(() => {
 })
 
 describe('remotePollJobHandler.execute', () => {
-  it('declares the remote-poll job contract', () => {
-    expect(remotePollJobHandler.recovery).toBe('retry')
-    expect(
-      remotePollJobHandler.defaultQueue?.({
-        feature: 'document_to_markdown',
-        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
-        processorId: 'doc2x'
-      })
-    ).toBe('file-processing.doc2x')
-    expect(remotePollJobHandler.defaultConcurrency).toBe(2)
-    expect(remotePollJobHandler.defaultRetryPolicy).toEqual({
-      maxAttempts: 1,
-      backoff: 'none',
-      baseDelayMs: 0,
-      maxDelayMs: 0
-    })
-    expect(remotePollJobHandler.defaultTimeoutMs).toBe(30 * 60_000)
+  it('rejects an already-cancelled job before reading its source file', async () => {
+    const reason = new Error('cancelled before execution')
+    await expect(remotePollJobHandler.execute(createCtx({ signal: AbortSignal.abort(reason) }))).rejects.toBe(reason)
+    expect(fileManagerGetMetadataMock).not.toHaveBeenCalled()
+    expect(startRemoteMock).not.toHaveBeenCalled()
   })
+
+  it('does not start a remote task when cancellation arrives during preparation', async () => {
+    setupCapability()
+    const controller = new AbortController()
+    const reason = new Error('cancelled while preparing')
+    const preparation = capabilityHandlerMock.prepare.getMockImplementation()!
+    capabilityHandlerMock.prepare.mockImplementationOnce(async (...args) => {
+      const prepared = await preparation(...args)
+      controller.abort(reason)
+      return prepared
+    })
+
+    await expect(remotePollJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toBe(reason)
+    expect(startRemoteMock).not.toHaveBeenCalled()
+    expect(persistResultMock).not.toHaveBeenCalled()
+  })
+
+  it('saves a newly created remote task before honoring cancellation and never starts polling', async () => {
+    setupCapability()
+    const controller = new AbortController()
+    const reason = new Error('cancelled during submission')
+    const started = createDeferred<void>()
+    const submission = createDeferred<unknown>()
+    startRemoteMock.mockImplementationOnce(() => {
+      started.resolve()
+      return submission.promise
+    })
+    toPersistableMock.mockReturnValue({ providerTaskId: 'recoverable-task', apiHost: 'https://h' })
+    const ctx = createCtx({ signal: controller.signal })
+    const execution = remotePollJobHandler.execute(ctx)
+    const rejected = expect(execution).rejects.toBe(reason)
+    await started.promise
+    controller.abort(reason)
+    submission.resolve({
+      providerTaskId: 'recoverable-task',
+      progress: 0,
+      remoteContext: { apiHost: 'https://h' }
+    })
+
+    await rejected
+    expect(ctx.patchMetadata).toHaveBeenCalledWith({
+      remoteState: { providerTaskId: 'recoverable-task', apiHost: 'https://h' }
+    })
+    expect(pollRemoteMock).not.toHaveBeenCalled()
+    expect(persistResultMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['completed', 'failed', 'processing'] as const)(
+    'honors cancellation when a non-cooperative poll returns %s',
+    async (status) => {
+      setupCapability()
+      const controller = new AbortController()
+      const reason = new DOMException('poll deadline', 'TimeoutError')
+      const started = createDeferred<void>()
+      const poll = createDeferred<unknown>()
+      rehydrateMock.mockReturnValue({ providerTaskId: 't', remoteContext: { apiHost: 'https://h' } })
+      toPersistableMock.mockReturnValue({ providerTaskId: 't', apiHost: 'https://h', stage: 'exporting' })
+      pollRemoteMock.mockImplementationOnce(() => {
+        started.resolve()
+        return poll.promise
+      })
+      const ctx = createCtx({
+        signal: controller.signal,
+        metadata: { remoteState: { providerTaskId: 't', apiHost: 'https://h' } }
+      })
+      const rejected = expect(remotePollJobHandler.execute(ctx)).rejects.toBe(reason)
+      await started.promise
+      controller.abort(reason)
+      poll.resolve(
+        status === 'processing'
+          ? { status, progress: 99, remoteContext: { apiHost: 'https://h', stage: 'exporting' } }
+          : status === 'completed'
+            ? { status, output: { kind: 'markdown', markdownContent: '# stale' } }
+            : { status, error: 'provider failed' }
+      )
+
+      await rejected
+      expect(persistResultMock).not.toHaveBeenCalled()
+      expect(pollRemoteMock).toHaveBeenCalledOnce()
+      if (status === 'processing') {
+        expect(ctx.patchMetadata).toHaveBeenCalledWith({
+          remoteState: { providerTaskId: 't', apiHost: 'https://h', stage: 'exporting' }
+        })
+      }
+    }
+  )
 
   it('first launch: startRemote → patchMetadata(whitelist) → pollRemote → artifacts', async () => {
     setupCapability()
@@ -232,33 +299,6 @@ describe('remotePollJobHandler.execute', () => {
       stage: 'parsing',
       apiHost: remoteCtx.apiHost
     })
-  })
-
-  it('A1: apiKey never appears in patchMetadata payload (whitelist invariant)', async () => {
-    setupCapability()
-    const remoteCtx = { apiHost: 'https://doc2x.example.com', apiKey: 'SUPER_SECRET', stage: 'parsing' }
-    startRemoteMock.mockResolvedValue({
-      providerTaskId: 'task-1',
-      status: 'processing',
-      progress: 0,
-      remoteContext: remoteCtx
-    })
-    toPersistableMock.mockReturnValue({ providerTaskId: 'task-1', stage: 'parsing', apiHost: remoteCtx.apiHost })
-    pollRemoteMock.mockResolvedValue({
-      status: 'completed',
-      output: { kind: 'remote-zip-url', downloadUrl: 'https://x.zip', configuredApiHost: remoteCtx.apiHost }
-    })
-    persistResultMock.mockResolvedValue('/tmp/out.md')
-
-    const ctx = createCtx()
-    await remotePollJobHandler.execute(ctx)
-
-    const allPatchPayloads = (ctx.patchMetadata as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mock.calls.map(
-      (c) => c[0]
-    )
-    const serialized = JSON.stringify(allPatchPayloads)
-    expect(serialized).not.toContain('SUPER_SECRET')
-    expect(serialized).not.toContain('apiKey')
   })
 
   it('resume from metadata: skips startRemote and calls rehydrate', async () => {

@@ -1,4 +1,3 @@
-import { debounce } from 'es-toolkit/compat'
 import {
   BadgeQuestionMark,
   Briefcase,
@@ -47,6 +46,7 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { debounce } from '@shared/utils/async'
 
 import DiagnosticBundleDialog from './DiagnosticBundleDialog'
 

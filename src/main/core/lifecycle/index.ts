@@ -2,7 +2,7 @@ export { BaseService } from './BaseService'
 export { allOf, anyOf, not, onArch, onCpuVendor, onEnvVar, onPlatform, when } from './conditions'
 export { SERVICE_STOP_TIMEOUT_MS, SHUTDOWN_TIMEOUT_MS } from './constants'
 export { Conditional, DependsOn, ErrorHandling, Injectable, Priority, ServicePhase } from './decorators'
-export { type Disposable, Emitter, type Event, toDisposable } from './event'
+export { Emitter, type Event, toDisposable } from './event'
 export { LifecycleManager } from './LifecycleManager'
 export { ServiceContainer } from './ServiceContainer'
 export { Signal } from './signal'
@@ -26,3 +26,4 @@ export {
   type ServiceProvider,
   type ServiceToken
 } from './types'
+export type { Disposable } from '@shared/types/disposable'

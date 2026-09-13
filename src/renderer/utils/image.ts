@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
+import { raceTimeout } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
 
@@ -196,10 +197,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
       // computed width/height, so text re-laid-out with fallback font metrics
       // would overflow those frozen boxes and get clipped by overflow
       // containers (table cells are the common victim).
-      await Promise.race([
-        document.fonts?.ready ?? Promise.resolve(),
-        new Promise((resolve) => setTimeout(resolve, 1000))
-      ])
+      await raceTimeout(document.fonts?.ready ?? Promise.resolve(), 1000, () => undefined)
 
       // calculate the size of the element
       const totalWidth = el.scrollWidth
@@ -399,10 +397,7 @@ async function captureNativeDataUrl(el: HTMLElement): Promise<string | undefined
     // Webfonts are already rendered by the live page, but capture-only CSS may
     // reveal content that has not loaded fonts/images yet — keep the same
     // bounded wait the clone path uses.
-    await Promise.race([
-      document.fonts?.ready ?? Promise.resolve(),
-      new Promise((resolve) => setTimeout(resolve, 1000))
-    ])
+    await raceTimeout(document.fonts?.ready ?? Promise.resolve(), 1000, () => undefined)
 
     return await withExpandedForCapture(el, async () => {
       const clip = computeCaptureClip(el)
@@ -647,10 +642,7 @@ export async function captureScrollableIframe(
     }
 
     // 等待字体就绪，避免序列化时回退到系统字体
-    await Promise.race([
-      (doc as any).fonts?.ready ?? Promise.resolve(),
-      new Promise((resolve) => setTimeout(resolve, 1000))
-    ])
+    await raceTimeout((doc as any).fonts?.ready ?? Promise.resolve(), 1000, () => undefined)
 
     // 计算尺寸
     const { documentElement: de, body: b } = doc

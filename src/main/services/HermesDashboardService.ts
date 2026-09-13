@@ -3,8 +3,6 @@ import { realpath } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import path from 'node:path'
 
-import { Mutex } from 'async-mutex'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -14,6 +12,7 @@ import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@m
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { HermesDashboardStartFailureReason, HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { createTimeout, Mutex, onAbort as subscribeToAbort } from '@shared/utils/async'
 import { redactSecretText } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('HermesDashboardService')
@@ -328,17 +327,18 @@ function waitForReady(
     let stdout = ''
     let stderr = ''
     let settled = false
+    let disposeAbort = () => {}
     let checkingHealth = false
 
     const cleanup = () => {
-      clearTimeout(timeout)
+      timeout.dispose()
       clearInterval(healthInterval)
       child.stdout?.off('data', onStdout)
       child.stderr?.off('data', onStderr)
       child.off('error', onError)
       child.off('exit', onClose)
       child.off('close', onClose)
-      signal.removeEventListener('abort', onAbort)
+      disposeAbort()
       child.stdout?.resume()
       child.stderr?.resume()
     }
@@ -391,7 +391,7 @@ function waitForReady(
       fail(
         new Error(`Hermes Dashboard exited before it was ready (code ${String(code)}, signal ${String(childSignal)})`)
       )
-    const timeout = setTimeout(() => fail(new Error('Hermes Dashboard startup timed out')), START_TIMEOUT_MS)
+    const timeout = createTimeout(START_TIMEOUT_MS, () => fail(new Error('Hermes Dashboard startup timed out')))
     const healthInterval = setInterval(checkHealth, HEALTH_PROBE_INTERVAL_MS)
 
     child.stdout?.on('data', onStdout)
@@ -399,8 +399,7 @@ function waitForReady(
     child.once('error', onError)
     child.once('exit', onClose)
     child.once('close', onClose)
-    signal.addEventListener('abort', onAbort, { once: true })
-    if (signal.aborted) onAbort()
-    else checkHealth()
+    disposeAbort = subscribeToAbort(signal, onAbort)
+    if (!signal.aborted) checkHealth()
   })
 }

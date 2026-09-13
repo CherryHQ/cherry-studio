@@ -4,6 +4,7 @@ import type { Server } from 'elysia/universal/server'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { raceTimeout } from '@shared/utils/async'
 
 import { type ApiGatewayApp, buildApp } from './app'
 import { McpSessionStore } from './McpSessionStore'
@@ -29,18 +30,6 @@ type NodeServerInfo = Server & {
     // srvx `NodeServer`: `ready()` resolves once listening (rejects on EADDRINUSE etc.).
     ready?: () => Promise<unknown>
   }
-}
-
-/** Resolves `true` if `promise` settled within `ms`, `false` on timeout — the promise keeps running. */
-function settledWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), ms)
-    timer.unref?.()
-    void promise.then(() => {
-      clearTimeout(timer)
-      resolve(true)
-    })
-  })
 }
 
 export class ApiGateway {
@@ -156,12 +145,25 @@ export class ApiGateway {
     const closed = Promise.resolve(this.serverInfo?.stop?.()).catch((error: unknown) =>
       logger.warn('API server close failed', error as Error)
     )
-    if (await settledWithin(closed, SHUTDOWN_GRACE_MS)) return
+    if (
+      await raceTimeout(
+        closed.then(() => true),
+        SHUTDOWN_GRACE_MS,
+        () => false,
+        { ref: false }
+      )
+    )
+      return
 
     logger.warn('API server still has open connections after the grace period; destroying them')
     http?.closeAllConnections?.()
     // Stop waiting either way — the port is already released, whatever the remaining sockets do.
-    await settledWithin(closed, SHUTDOWN_GRACE_MS)
+    await raceTimeout(
+      closed.then(() => true),
+      SHUTDOWN_GRACE_MS,
+      () => false,
+      { ref: false }
+    )
   }
 
   isRunning(): boolean {

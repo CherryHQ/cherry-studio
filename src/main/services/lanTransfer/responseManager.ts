@@ -1,3 +1,6 @@
+import { createTimeout, onAbort as subscribeToAbort } from '@shared/utils/async'
+
+import { getAbortError } from './handlers'
 import type { PendingResponse } from './types'
 
 /**
@@ -43,12 +46,12 @@ export class ResponseManager {
     // Clear any existing response with the same key
     this.clearPendingResponse(responseKey)
 
-    const timeoutHandle = setTimeout(() => {
+    const timeoutHandle = createTimeout(timeoutMs, () => {
       this.clearPendingResponse(responseKey)
       const error = new Error(`Timeout waiting for ${type}`)
       reject(error)
       this.onTimeout?.()
-    }, timeoutMs)
+    })
 
     const pending: PendingResponse = {
       type,
@@ -56,20 +59,16 @@ export class ResponseManager {
       chunkIndex,
       resolve,
       reject,
-      timeoutHandle,
-      abortSignal
-    }
-
-    if (abortSignal) {
-      const abortListener = () => {
-        this.clearPendingResponse(responseKey)
-        reject(this.getAbortError(abortSignal, `Aborted while waiting for ${type}`))
-      }
-      pending.abortListener = abortListener
-      abortSignal.addEventListener('abort', abortListener, { once: true })
+      timeoutHandle
     }
 
     this.pendingResponses.set(responseKey, pending)
+    if (abortSignal) {
+      pending.disposeAbort = subscribeToAbort(abortSignal, () => {
+        this.clearPendingResponse(responseKey)
+        reject(getAbortError(abortSignal, `Aborted while waiting for ${type}`))
+      })
+    }
   }
 
   /**
@@ -97,21 +96,17 @@ export class ResponseManager {
     if (key) {
       const pending = this.pendingResponses.get(key)
       if (pending?.timeoutHandle) {
-        clearTimeout(pending.timeoutHandle)
+        pending.timeoutHandle.dispose()
       }
-      if (pending?.abortSignal && pending.abortListener) {
-        pending.abortSignal.removeEventListener('abort', pending.abortListener)
-      }
+      pending?.disposeAbort?.()
       this.pendingResponses.delete(key)
     } else {
       // Clear all pending responses
       for (const pending of this.pendingResponses.values()) {
         if (pending.timeoutHandle) {
-          clearTimeout(pending.timeoutHandle)
+          pending.timeoutHandle.dispose()
         }
-        if (pending.abortSignal && pending.abortListener) {
-          pending.abortSignal.removeEventListener('abort', pending.abortListener)
-        }
+        pending.disposeAbort?.()
       }
       this.pendingResponses.clear()
     }
@@ -126,19 +121,5 @@ export class ResponseManager {
       this.clearPendingResponse(key)
       pending?.reject(error)
     }
-  }
-
-  /**
-   * Get the abort error from an abort signal, or create a fallback error.
-   */
-  getAbortError(signal: AbortSignal, fallbackMessage: string): Error {
-    const reason = (signal as AbortSignal & { reason?: unknown }).reason
-    if (reason instanceof Error) {
-      return reason
-    }
-    if (typeof reason === 'string' && reason.length > 0) {
-      return new Error(reason)
-    }
-    return new Error(fallbackMessage)
   }
 }

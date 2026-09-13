@@ -3,6 +3,7 @@ import { Document, FileReader as VectorStoreFileReader } from '@vectorstores/cor
 import { getFileExt } from '@main/utils/legacyFile'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { AsyncInitializer } from '@shared/utils/async'
 
 import { toMaterialRelativePath } from '../../items'
 import { getKnowledgeBaseFilePath } from '../../pathStorage'
@@ -10,19 +11,20 @@ import { AnydocReader } from './files/AnydocReader'
 import { DraftsExportReader } from './files/DraftsExportReader'
 
 class LazyFileReader extends VectorStoreFileReader<Document> {
-  private readerPromise: Promise<VectorStoreFileReader<Document>> | undefined
+  private readonly reader: AsyncInitializer<VectorStoreFileReader<Document>>
 
-  constructor(private readonly loadReader: () => Promise<VectorStoreFileReader<Document>>) {
+  constructor(loadReader: () => Promise<VectorStoreFileReader<Document>>) {
     super()
+    this.reader = new AsyncInitializer(loadReader)
   }
 
   override async loadData(filePath: string): Promise<Document[]> {
-    const reader = await (this.readerPromise ??= this.loadReader())
+    const reader = await this.reader.get()
     return reader.loadData(filePath)
   }
 
   async loadDataAsContent(fileContent: Uint8Array, filename?: string): Promise<Document[]> {
-    const reader = await (this.readerPromise ??= this.loadReader())
+    const reader = await this.reader.get()
     return reader.loadDataAsContent(fileContent, filename)
   }
 }

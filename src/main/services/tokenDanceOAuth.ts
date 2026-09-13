@@ -7,6 +7,7 @@ import * as z from 'zod'
 import { loggerService } from '@logger'
 import { TOKEN_DANCE_APP_URL } from '@main/ai/provider/constants'
 import { t } from '@main/i18n'
+import { createTimeout } from '@shared/utils/async'
 
 const logger = loggerService.withContext('TokenDanceOAuth')
 
@@ -94,13 +95,8 @@ function listen(server: Server): Promise<number> {
 
 async function startCallbackServer(state: string): Promise<TokenDanceCallbackServer> {
   let settled = false
-  let resolveCode!: (callback: TokenDanceCallback) => void
-  let rejectCode!: (error: unknown) => void
 
-  const waitForCode = new Promise<TokenDanceCallback>((resolve, reject) => {
-    resolveCode = resolve
-    rejectCode = reject
-  })
+  const { promise: waitForCode, resolve: resolveCode, reject: rejectCode } = Promise.withResolvers<TokenDanceCallback>()
   const settleReject = (error: unknown) => {
     if (settled) return
     settled = true
@@ -140,9 +136,8 @@ async function startCallbackServer(state: string): Promise<TokenDanceCallbackSer
   const port = await listen(server)
   const callbackUrl = new URL(`http://127.0.0.1:${port}${TOKEN_DANCE_CONFIG.callbackPath}`)
   callbackUrl.searchParams.set('state', state)
-  const timeoutId = setTimeout(
-    () => settleReject(new Error('TokenDance authorization timed out')),
-    TOKEN_DANCE_CONFIG.authorizationTimeoutMs
+  const timeoutId = createTimeout(TOKEN_DANCE_CONFIG.authorizationTimeoutMs, () =>
+    settleReject(new Error('TokenDance authorization timed out'))
   )
 
   return {
@@ -150,7 +145,7 @@ async function startCallbackServer(state: string): Promise<TokenDanceCallbackSer
     waitForCode,
     fail: settleReject,
     close: () => {
-      clearTimeout(timeoutId)
+      timeoutId.dispose()
       if (!server.listening) return Promise.resolve()
       return new Promise<void>((resolve) => {
         server.close(() => resolve())

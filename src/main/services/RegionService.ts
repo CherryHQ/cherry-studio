@@ -2,6 +2,7 @@ import { net } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { createTimeout } from '@shared/utils/async'
 
 const logger = loggerService.withContext('RegionService')
 
@@ -91,7 +92,7 @@ class RegionService {
 
   private async fetchCountry(): Promise<string> {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+    const deadline = createTimeout(REQUEST_TIMEOUT, () => controller.abort())
 
     try {
       const response = await net.fetch('https://api.ipinfo.io/lite/me?token=5aa4105b40adbc', {
@@ -111,7 +112,7 @@ class RegionService {
       logger.info(`Detected user IP address country: ${country}`)
       return country
     } finally {
-      clearTimeout(timeoutId)
+      deadline.dispose()
     }
   }
 }

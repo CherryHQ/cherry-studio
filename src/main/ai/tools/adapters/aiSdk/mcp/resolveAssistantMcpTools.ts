@@ -2,7 +2,6 @@
  * Resolve MCP tool IDs an assistant can use. Called when a request
  * doesn't carry explicit `mcpToolIds`.
  */
-
 import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
@@ -10,6 +9,7 @@ import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolDisabledBySource, isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import { type Assistant, DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { raceTimeout } from '@shared/utils/async'
 
 const logger = loggerService.withContext('resolveAssistantMcpTools')
 
@@ -30,20 +30,14 @@ const WARM_TOOLS_TIMEOUT_MS = 10_000
  * cache-only `listTools` currently holds.
  */
 async function warmToolsCacheWithTimeout(serverId: string): Promise<boolean> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([
-      application
-        .get('McpCatalogService')
-        .warmToolsCache(serverId)
-        .then(() => true),
-      new Promise<boolean>((resolve) => {
-        timer = setTimeout(() => resolve(false), WARM_TOOLS_TIMEOUT_MS)
-      })
-    ])
-  } finally {
-    clearTimeout(timer)
-  }
+  return raceTimeout(
+    application
+      .get('McpCatalogService')
+      .warmToolsCache(serverId)
+      .then(() => true),
+    WARM_TOOLS_TIMEOUT_MS,
+    () => false
+  )
 }
 
 /** `settings.mcpMode` if set; else the shared default ('manual' — only linked

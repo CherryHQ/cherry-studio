@@ -2,9 +2,9 @@ import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { type Disposable } from '@shared/types/disposable'
 
 import { BaseService } from '../../lifecycle/BaseService'
-import { type Disposable } from '../../lifecycle/event'
 
 /**
  * Directed main→renderer window events (reused / maximized_changed / fullscreen_changed) now

@@ -1,10 +1,11 @@
 import path from 'node:path'
 
-import { mainExternalModules } from '../../electron.vite.config'
+import { mainExternalModules, mainResolveAlias } from '../../electron.vite.config'
 import { smokeAppDir } from './appDir'
 
 export default {
   main: {
+    resolve: { alias: mainResolveAlias },
     build: {
       externalizeDeps: { include: mainExternalModules },
       emptyOutDir: true,

@@ -1,4 +1,6 @@
+import { getEventListeners } from 'node:events'
 import type { Server } from 'node:http'
+import { setImmediate } from 'node:timers/promises'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
@@ -33,6 +35,22 @@ describe('LoopbackCallbackTransport', () => {
     transport.close()
   })
 
+  // A timeout during OAuth discovery must not open callback servers or wait for another abort event.
+  it('rejects a pre-aborted callback wait before opening servers', async () => {
+    transport.tryAcquire()
+    const outcome = transport.waitForAuthorizationCode('expected', AbortSignal.abort()).then(
+      (code) => ({ status: 'resolved', code }),
+      (error) => ({ status: 'rejected', error })
+    )
+
+    expect(await Promise.race([outcome, setImmediate().then(() => ({ status: 'pending' }))])).toMatchObject({
+      status: 'rejected',
+      error: { message: 'Sign-in timed out' }
+    })
+    expect(transport.isActive).toBe(false)
+    expect((transport as unknown as { activeServers: Server[] }).activeServers).toHaveLength(0)
+  })
+
   // Guards W2: a second sign-in must not slip past while one is in progress.
   // tryAcquire is the *synchronous* reservation the service does before its
   // first await, closing the check-then-await race that let a double-click kill
@@ -51,12 +69,15 @@ describe('LoopbackCallbackTransport', () => {
   })
 
   it('resolves with the authorization code when the callback state matches', async () => {
-    const promise = transport.waitForAuthorizationCode('expected', AbortSignal.timeout(5000))
+    const signal = AbortSignal.timeout(5000)
+    const promise = transport.waitForAuthorizationCode('expected', signal)
     const port = await activePort(transport)
 
     const res = await fetch(`http://127.0.0.1:${port}/callback?code=the-code&state=expected`)
     expect(res.status).toBe(200)
     await expect(promise).resolves.toBe('the-code')
+    // The timeout outlives a successful sign-in and must not retain its transport callback.
+    expect(getEventListeners(signal, 'abort')).toHaveLength(0)
   })
 
   it('ignores callbacks for another flow without settling the current flow', async () => {
@@ -80,12 +101,14 @@ describe('LoopbackCallbackTransport', () => {
   })
 
   it('rejects when the provider returns an error', async () => {
-    const promise = transport.waitForAuthorizationCode('expected', AbortSignal.timeout(5000))
+    const signal = AbortSignal.timeout(5000)
+    const promise = transport.waitForAuthorizationCode('expected', signal)
     const port = await activePort(transport)
 
     const rejection = expect(promise).rejects.toThrow(/access_denied/)
     await fetch(`http://127.0.0.1:${port}/callback?error=access_denied&state=expected`)
     await rejection
+    expect(getEventListeners(signal, 'abort')).toHaveLength(0)
   })
 
   it('returns 404 for an unknown path without settling', async () => {

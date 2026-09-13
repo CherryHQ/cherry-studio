@@ -22,8 +22,8 @@ import {
   saveAttachmentInputSchema,
   saveAttachmentToWorkspace
 } from '@main/ai/tools/saveAttachment'
-import { isAbortError } from '@main/utils/error'
 import { READ_FILE_TOOL_NAME, readFileInputSchema } from '@shared/ai/builtinTools'
+import { isAbortError } from '@shared/utils/async'
 
 const logger = loggerService.withContext('McpServer:AssistantFileTools')
 

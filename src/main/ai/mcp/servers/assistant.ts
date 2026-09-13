@@ -17,6 +17,7 @@ import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/t
 import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import { createTimeout } from '@shared/utils/async'
 import {
   DIAGNOSTIC_DESCRIPTION_MAX_BYTES,
   diagnosticDescriptionByteLength,
@@ -730,11 +731,11 @@ class AssistantServer {
       // Simple connectivity test — try to reach the API host
       const startTime = Date.now()
       const host = redactUrlToOrigin(apiHost)
-      let timeout: ReturnType<typeof setTimeout> | undefined
+      let deadline: ReturnType<typeof createTimeout> | undefined
       try {
         const testUrl = apiHost.startsWith('http') ? apiHost : `https://${apiHost}`
         const controller = new AbortController()
-        timeout = setTimeout(() => controller.abort(), 10000)
+        deadline = createTimeout(10000, () => controller.abort())
         const response = await fetch(testUrl, {
           method: 'HEAD',
           signal: controller.signal
@@ -785,7 +786,7 @@ class AssistantServer {
         cacheService.set(healthCacheKey(providerId), result, HEALTH_CACHE_TTL)
         return result
       } finally {
-        if (timeout !== undefined) clearTimeout(timeout)
+        deadline?.dispose()
       }
     } catch (error) {
       return {

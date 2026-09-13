@@ -8,6 +8,7 @@ import { generateDiagnosticUploadHeaders } from '@main/ai/provider/cherryai'
 import { openReadableFileSnapshot, type ReadableFileSnapshot } from '@main/utils/file'
 import type { DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { createTimeout } from '@shared/utils/async'
 import { normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
 
 const DIAGNOSTIC_UPLOAD_URL = 'https://api.cherry-ai.com/diagnostics'
@@ -190,7 +191,7 @@ export class CherryDiagnosticUploadClient {
       form.append('file', file, input.fileName)
 
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+      const deadline = createTimeout(REQUEST_TIMEOUT_MS, () => controller.abort())
       try {
         let response: Response
         try {
@@ -219,7 +220,7 @@ export class CherryDiagnosticUploadClient {
             : rejected('submission_rejected', fileSha256)
         }
       } finally {
-        clearTimeout(timeout)
+        deadline.dispose()
       }
     } finally {
       await snapshot?.close().catch(() => undefined)
