@@ -48,6 +48,33 @@ export function CommandHint({ command, className }: { command: CommandId; classN
   )
 }
 
+/**
+ * Label paired with its keycap, for tooltip content.
+ *
+ * The keycap stays `aria-hidden` and rides on the tooltip's text styles instead of the muted chip
+ * styling `CommandShortcut` uses; the `sr-only` copy beside it keeps the shortcut announceable
+ * through the trigger's `aria-describedby` description.
+ */
+export function TooltipLabelWithShortcut({
+  label,
+  shortcutLabel
+}: {
+  label: React.ReactNode
+  shortcutLabel: string
+}): React.ReactNode {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span>{label}</span>
+      <Kbd
+        aria-hidden="true"
+        className="h-auto min-w-0 rounded-none bg-transparent p-0 text-inherit shadow-none [font:inherit] [[data-slot=tooltip-content]_&]:bg-transparent [[data-slot=tooltip-content]_&]:text-inherit">
+        {shortcutLabel}
+      </Kbd>
+      <span className="sr-only">{shortcutLabel}</span>
+    </span>
+  )
+}
+
 export function CommandTooltip({
   command,
   children,
@@ -61,14 +88,7 @@ export function CommandTooltip({
   const resolved = useResolvedCommand(command)
   const tooltipLabel = label ?? resolved.label
   const content = resolved.shortcutLabel ? (
-    <span className="inline-flex items-center gap-1.5">
-      <span>{tooltipLabel}</span>
-      <Kbd
-        aria-hidden="true"
-        className="h-auto min-w-0 rounded-none bg-transparent p-0 text-inherit shadow-none [font:inherit] [[data-slot=tooltip-content]_&]:bg-transparent [[data-slot=tooltip-content]_&]:text-inherit">
-        {resolved.shortcutLabel}
-      </Kbd>
-    </span>
+    <TooltipLabelWithShortcut label={tooltipLabel} shortcutLabel={resolved.shortcutLabel} />
   ) : (
     tooltipLabel
   )

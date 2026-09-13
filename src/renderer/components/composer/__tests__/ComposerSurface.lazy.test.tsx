@@ -26,13 +26,15 @@ vi.mock('@renderer/components/SendMessageButton', () => ({
   default: ({
     disabled,
     onDisabledClick,
-    sendMessage
+    sendMessage,
+    shortcutLabel
   }: {
     disabled?: boolean
     onDisabledClick?: () => void
     sendMessage: () => void
+    shortcutLabel?: string
   }) => (
-    <button type="button" onClick={disabled ? onDisabledClick : sendMessage}>
+    <button type="button" data-shortcut-label={shortcutLabel} onClick={disabled ? onDisabledClick : sendMessage}>
       Send
     </button>
   )
@@ -353,6 +355,12 @@ describe('deferred ComposerSurface', () => {
     render(<Harness isExpanded />)
 
     expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
+  it('labels the fallback send control with the resolved send shortcut', () => {
+    render(<Harness sendMessageShortcut={['Enter']} />)
+
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('data-shortcut-label', 'Enter')
   })
 
   it('follows the send-shortcut preference when the caller does not pass one', () => {
