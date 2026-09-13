@@ -1463,7 +1463,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByText(completionReceipt)).toBeInTheDocument()
   })
 
-  it('keeps a detached subagent spinning while it remains in the background task snapshot', () => {
+  it('keeps a detached subagent running and stoppable while it remains in the background task snapshot', () => {
     const taskEvent = {
       event: 'started' as const,
       taskId: 'subagent-1',
@@ -1488,8 +1488,9 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
-    const taskButton = screen.getByRole('button', { name: /Run a detached subagent/ })
-    expect(taskButton.querySelector('svg')).toHaveClass('motion-safe:animate-spin')
+    const running = screen.getByRole('region', { name: 'agent.right_pane.status.running' })
+    expect(within(running).getByRole('button', { name: /Run a detached subagent/ })).toBeInTheDocument()
+    expect(within(running).getByRole('button', { name: 'agent.right_pane.status.stop_run_task' })).toBeEnabled()
   })
 
   it('returns from a subagent flow to the status panel', async () => {
@@ -1818,6 +1819,13 @@ describe('AgentRightPane', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
       expect(vi.getTimerCount()).toBe(0)
+
+      act(() => {
+        vi.advanceTimersByTime(5000)
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+      expect(screen.getByText('17s')).toBeInTheDocument()
+      expect(screen.getByText('8s')).toBeInTheDocument()
     } finally {
       vi.useRealTimers()
     }

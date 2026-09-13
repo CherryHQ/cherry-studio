@@ -30,6 +30,7 @@ import { type DeferredToolOutput, isDeferredToolOutput } from '@shared/ai/transp
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
+import { isEqual } from 'es-toolkit/compat'
 
 export type AgentRightPaneTab = 'files' | 'status' | `flow:${string}`
 
@@ -605,19 +606,42 @@ function getPathBasename(path: string): string {
   return segments.at(-1) ?? path
 }
 
-export function buildAgentRightPaneStatus(
-  messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>,
-  /**
-   * Latest per-task lifecycle edge for the current CLI process. Applied last by task id so a
-   * background task's completion settles the row the transcript parts built.
-   */
-  lateTaskEvents: AgentSessionTaskEvents = {},
-  /** Authoritative membership snapshot for tasks currently detached from their spawning turn. */
-  backgroundTasks: AgentSessionBackgroundTasks = [],
-  /** Omitted means "trust the events" — production always passes it. */
-  liveness?: AgentRunLiveness
-): AgentRightPaneStatus {
+interface AgentStatusMessageParts {
+  messageId: string
+  source: CherryMessagePart[]
+  parts: Array<{ part: CherryMessagePart; partIndex: number }>
+}
+
+const STATUS_TOOL_NAMES = new Set<string>([
+  AgentToolsType.TaskCreate,
+  AgentToolsType.TaskUpdate,
+  AgentToolsType.TaskList,
+  AgentToolsType.Bash
+])
+const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
+const EMPTY_TASK_EVENTS: AgentSessionTaskEvents = {}
+const EMPTY_BACKGROUND_TASKS: AgentSessionBackgroundTasks = []
+
+function getStatusMessageParts(messageId: string, source: CherryMessagePart[]): AgentStatusMessageParts {
+  const parts: AgentStatusMessageParts['parts'] = []
+  source.forEach((part, partIndex) => {
+    if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
+      parts.push({ part, partIndex })
+    } else if (isToolUIPart(part)) {
+      const toolName = getToolNameFromPart(part)
+      if (
+        STATUS_TOOL_NAMES.has(toolName ?? '') ||
+        isReportArtifactsTool(toolName) ||
+        getCanonicalToolName(part) === AgentToolsType.TodoWrite
+      ) {
+        parts.push({ part, partIndex })
+      }
+    }
+  })
+  return { messageId, source, parts }
+}
+
+function buildAgentStatusTranscript(messages: AgentStatusMessageParts[]) {
   const taskPlanState: TaskPlanProjectionState = { tasks: new Map() }
   const taskMap = taskPlanState.tasks
   let todoSnapshotTasks: AgentStatusTask[] | undefined
@@ -627,16 +651,15 @@ export function buildAgentRightPaneStatus(
   const artifactByPath = new Map<string, AgentArtifactFile>()
   const toolPartByCallId = new Map<string, CherryMessagePart>()
 
-  for (const message of messages) {
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
-    parts.forEach((part, partIndex) => {
+  for (const { messageId, parts } of messages) {
+    parts.forEach(({ part, partIndex }) => {
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
-        applyAgentTaskEvent(runTaskMap, taskEventMap, part.data, message.id, runTaskOriginMessageIds)
+        applyAgentTaskEvent(runTaskMap, taskEventMap, part.data, messageId, runTaskOriginMessageIds)
       }
 
       if (!isToolUIPart(part)) return
       const toolName = getToolNameFromPart(part)
-      const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
+      const fallbackId = getToolCallId(part) ?? `${messageId}-${partIndex}`
       if (fallbackId) toolPartByCallId.set(fallbackId, part)
       // The plan has two writers — the incremental task ledger and full-list todo snapshots —
       // and the most recent writer owns it: a later ledger write invalidates an earlier snapshot.
@@ -661,6 +684,46 @@ export function buildAgentRightPaneStatus(
       }
     })
   }
+
+  return {
+    taskMap,
+    todoSnapshotTasks,
+    runTaskMap,
+    taskEventMap,
+    runTaskOriginMessageIds,
+    toolPartByCallId,
+    artifacts: Array.from(artifactByPath.values())
+  }
+}
+
+type BashTaskOutput = Pick<AgentRunTask, 'command' | 'output' | 'deferredOutput'>
+
+function getBashTaskOutput(part: CherryMessagePart): BashTaskOutput {
+  const input = getToolPartInput(part)
+  const command = isRecord(input) && typeof input.command === 'string' ? input.command.trim() || undefined : undefined
+  const toolOutput = getToolPartOutput(part)
+  const outputValue =
+    toolOutput === undefined && getToolPartState(part) === 'output-error' ? getToolPartErrorText(part) : toolOutput
+  const deferredOutput = isDeferredToolOutput(outputValue) ? outputValue : undefined
+  const output = deferredOutput ? undefined : getBashOutputText(outputValue)
+  return {
+    ...(command ? { command } : {}),
+    ...(output ? { output } : {}),
+    ...(deferredOutput ? { deferredOutput } : {})
+  }
+}
+
+function projectAgentRightPaneStatus(
+  transcript: ReturnType<typeof buildAgentStatusTranscript>,
+  lateTaskEvents: AgentSessionTaskEvents,
+  backgroundTasks: AgentSessionBackgroundTasks,
+  liveness?: AgentRunLiveness,
+  shellOutputs = new WeakMap<CherryMessagePart, BashTaskOutput>()
+): AgentRightPaneStatus {
+  const { todoSnapshotTasks, runTaskOriginMessageIds, toolPartByCallId, artifacts } = transcript
+  const taskMap = new Map(transcript.taskMap)
+  const runTaskMap = new Map(transcript.runTaskMap)
+  const taskEventMap = new Map(transcript.taskEventMap)
 
   const aggregateTaskIds = new Set<string>()
   for (const task of backgroundTasks) {
@@ -704,7 +767,7 @@ export function buildAgentRightPaneStatus(
       const isDetached = taskEventMap.get(id)?.isBackgrounded === true
       const isLive = aggregateIsLive || (!isDetached && originIsLive)
       if (isLive) continue
-      const anotherMessageIsLive = [...liveness.activeMessageIds].some((messageId) => messageId !== originMessageId)
+      const anotherMessageIsLive = liveness.activeMessageIds.size > (originIsLive ? 1 : 0)
       if (!isDetached && !anotherMessageIsLive) {
         runTaskMap.set(id, { ...task, status: 'pending', activeText: undefined })
         continue
@@ -723,23 +786,12 @@ export function buildAgentRightPaneStatus(
     if (!task.toolUseId) continue
     const toolPart = toolPartByCallId.get(task.toolUseId)
     if (!toolPart || getToolNameFromPart(toolPart) !== AgentToolsType.Bash) continue
-    const input = getToolPartInput(toolPart)
-    const command = isRecord(input) && typeof input.command === 'string' ? input.command.trim() || undefined : undefined
-    const toolOutput = getToolPartOutput(toolPart)
-    const outputValue =
-      toolOutput === undefined && getToolPartState(toolPart) === 'output-error'
-        ? getToolPartErrorText(toolPart)
-        : toolOutput
-    const deferredOutput = isDeferredToolOutput(outputValue) ? outputValue : undefined
-    const output = deferredOutput ? undefined : getBashOutputText(outputValue)
-    if (command || output || deferredOutput) {
-      runTaskMap.set(id, {
-        ...task,
-        ...(command ? { command } : {}),
-        ...(output ? { output } : {}),
-        ...(deferredOutput ? { deferredOutput } : {})
-      })
+    let output = shellOutputs.get(toolPart)
+    if (!output) {
+      output = getBashTaskOutput(toolPart)
+      shellOutputs.set(toolPart, output)
     }
+    if (output.command || output.output || output.deferredOutput) runTaskMap.set(id, { ...task, ...output })
   }
 
   // The SDK's task tools share one id space with spawned runs, so `TaskList` output can echo a
@@ -757,6 +809,100 @@ export function buildAgentRightPaneStatus(
     completedTaskCount,
     totalTaskCount: tasks.length,
     runTasks: Array.from(runTaskMap.values()),
-    artifacts: Array.from(artifactByPath.values())
+    artifacts
+  }
+}
+
+export function buildAgentRightPaneStatus(
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>,
+  lateTaskEvents: AgentSessionTaskEvents = EMPTY_TASK_EVENTS,
+  backgroundTasks: AgentSessionBackgroundTasks = EMPTY_BACKGROUND_TASKS,
+  liveness?: AgentRunLiveness
+): AgentRightPaneStatus {
+  const sources = messages.map((message) =>
+    getStatusMessageParts(message.id, partsByMessageId[message.id] ?? message.parts ?? EMPTY_MESSAGE_PARTS)
+  )
+  return projectAgentRightPaneStatus(buildAgentStatusTranscript(sources), lateTaskEvents, backgroundTasks, liveness)
+}
+
+/** Keeps immutable transcript inputs separate from the latest runtime edges, scoped to one session. */
+export function createAgentRightPaneStatusProjector(): typeof buildAgentRightPaneStatus {
+  const shellOutputs = new WeakMap<CherryMessagePart, BashTaskOutput>()
+  let sources: AgentStatusMessageParts[] = []
+  let transcript = buildAgentStatusTranscript(sources)
+  let previousStatus: AgentRightPaneStatus | undefined
+  let previousEvents: AgentSessionTaskEvents | undefined
+  let previousBackgroundTasks: AgentSessionBackgroundTasks | undefined
+  let previousLiveness: AgentRunLiveness | undefined
+
+  return (
+    messages,
+    partsByMessageId,
+    lateTaskEvents = EMPTY_TASK_EVENTS,
+    backgroundTasks = EMPTY_BACKGROUND_TASKS,
+    liveness
+  ) => {
+    const previousById = new Map(sources.map((source) => [source.messageId, source]))
+    let transcriptChanged = sources.length !== messages.length
+    const nextSources = messages.map((message, index) => {
+      const parts = partsByMessageId[message.id] ?? message.parts ?? EMPTY_MESSAGE_PARTS
+      const previous = previousById.get(message.id)
+      const next = previous?.source === parts ? previous : getStatusMessageParts(message.id, parts)
+      if (
+        previous &&
+        next !== previous &&
+        next.parts.length === previous.parts.length &&
+        next.parts.every(
+          (entry, i) => entry.part === previous.parts[i].part && entry.partIndex === previous.parts[i].partIndex
+        )
+      ) {
+        next.parts = previous.parts
+      }
+      transcriptChanged ||= sources[index]?.messageId !== message.id || sources[index]?.parts !== next.parts
+      return next
+    })
+    sources = nextSources
+    if (
+      previousStatus &&
+      !transcriptChanged &&
+      previousEvents === lateTaskEvents &&
+      previousBackgroundTasks === backgroundTasks &&
+      isEqual(previousLiveness, liveness)
+    ) {
+      return previousStatus
+    }
+    if (transcriptChanged) transcript = buildAgentStatusTranscript(sources)
+
+    const status = projectAgentRightPaneStatus(transcript, lateTaskEvents, backgroundTasks, liveness, shellOutputs)
+    if (previousStatus) {
+      const previousRunTasks = previousStatus.runTasks
+      const previousTasks = new Map(previousRunTasks.map((task) => [task.id, task]))
+      status.runTasks = status.runTasks.map((task) => {
+        const previous = previousTasks.get(task.id)
+        if (!previous) return task
+        if (isEqual(previous, task)) return previous
+        if (task.workflow && isEqual(previous.workflow, task.workflow)) return { ...task, workflow: previous.workflow }
+        return task
+      })
+      if (isEqual(previousStatus.tasks, status.tasks)) status.tasks = previousStatus.tasks
+      if (isEqual(previousStatus.artifacts, status.artifacts)) status.artifacts = previousStatus.artifacts
+      if (
+        status.runTasks.length === previousRunTasks.length &&
+        status.runTasks.every((task, i) => task === previousRunTasks[i])
+      ) {
+        status.runTasks = previousRunTasks
+      }
+    }
+    previousEvents = lateTaskEvents
+    previousBackgroundTasks = backgroundTasks
+    previousLiveness = liveness
+    previousStatus =
+      previousStatus?.tasks === status.tasks &&
+      previousStatus.runTasks === status.runTasks &&
+      previousStatus.artifacts === status.artifacts
+        ? previousStatus
+        : status
+    return previousStatus
   }
 }

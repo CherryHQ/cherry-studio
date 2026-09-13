@@ -98,7 +98,8 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  useSyncExternalStore
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -110,8 +111,8 @@ import {
   type AgentRunTask,
   type AgentStatusTask,
   type AgentToolFlowOpenInput,
-  buildAgentRightPaneStatus,
   buildAgentToolFlowProjection,
+  createAgentRightPaneStatusProjector,
   getBashOutputText
 } from './agentRightPaneProjection'
 
@@ -270,6 +271,11 @@ interface AgentRightPaneScopeProps
 
 const AgentRightPaneMetaContext = createContext<AgentRightPaneMeta | null>(null)
 const AgentRightPaneRuntimeContext = createContext<AgentRightPaneRuntime | null>(null)
+const AgentRightPaneStatusContext = createContext<{
+  status: AgentRightPaneStatus
+  hasActiveAssistantRun: boolean
+} | null>(null)
+const AgentRightPaneDurationClockContext = createContext<ReturnType<typeof createLiveDurationClock> | null>(null)
 const AgentRightPaneFileStateContext = createContext<AgentRightPaneFileState | null>(null)
 const AgentRightPaneActionsContext = createContext<AgentRightPaneActions | null>(null)
 const AgentFileNavigationContext = createContext<AgentFileNavigationRequest | null>(null)
@@ -646,42 +652,44 @@ function AgentRightPaneStateProvider({
       <AgentRightPaneMetaContext value={meta}>
         <AgentRightPaneFileStateContext value={fileState}>
           <AgentRightPaneRuntimeContext value={runtime}>
-            <RightPanelProvider
-              capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
-              scope={scope}
-              defaultPanelId={RESOURCE_PANE_TAB}
-              defaultOpen={defaultOpen}
-              onOpenChange={onOpenChange}
-              userOpenIntentSeq={userOpenIntentSeq}
-              present={present}>
-              <ResourcePaneLocateOpener revealRequest={revealRequest} />
-              <AgentRightPaneActionsProvider
-                backgroundTaskFlows={backgroundTaskFlows}
-                conversationState={conversationState}
-                sessionId={sessionId}
-                workspacePath={workspacePath}
-                replaceFlowTab={replaceFlowTab}
-                closeFilePreview={closeFilePreview}
-                requestFileSelection={requestFileSelection}
-                selectFile={selectFile}
-                setFileEditMode={requestFileEditMode}
-                setFileTreeExpandedIds={setFileTreeExpandedIds}
-                setFileTreeSearchKeyword={setFileTreeSearchKeyword}
-                workspaceCurrent={fileWorkspace.key === workspaceKey}>
-                {children}
-              </AgentRightPaneActionsProvider>
-              <ConfirmDialog
-                open={showDirtyLeaveConfirmation}
-                onOpenChange={handleDirtyLeaveConfirmationChange}
-                title={t('agent.preview_pane.edit.leave.title')}
-                description={t('agent.preview_pane.edit.leave.description')}
-                confirmText={t('agent.preview_pane.edit.leave.discard_and_continue')}
-                cancelText={t('common.cancel')}
-                destructive
-                confirmLoading={fileSession.isSaving}
-                onConfirm={handleDiscardAndContinue}
-              />
-            </RightPanelProvider>
+            <AgentRightPaneStatusProvider>
+              <RightPanelProvider
+                capabilities={AGENT_RIGHT_PANEL_CAPABILITIES}
+                scope={scope}
+                defaultPanelId={RESOURCE_PANE_TAB}
+                defaultOpen={defaultOpen}
+                onOpenChange={onOpenChange}
+                userOpenIntentSeq={userOpenIntentSeq}
+                present={present}>
+                <ResourcePaneLocateOpener revealRequest={revealRequest} />
+                <AgentRightPaneActionsProvider
+                  backgroundTaskFlows={backgroundTaskFlows}
+                  conversationState={conversationState}
+                  sessionId={sessionId}
+                  workspacePath={workspacePath}
+                  replaceFlowTab={replaceFlowTab}
+                  closeFilePreview={closeFilePreview}
+                  requestFileSelection={requestFileSelection}
+                  selectFile={selectFile}
+                  setFileEditMode={requestFileEditMode}
+                  setFileTreeExpandedIds={setFileTreeExpandedIds}
+                  setFileTreeSearchKeyword={setFileTreeSearchKeyword}
+                  workspaceCurrent={fileWorkspace.key === workspaceKey}>
+                  {children}
+                </AgentRightPaneActionsProvider>
+                <ConfirmDialog
+                  open={showDirtyLeaveConfirmation}
+                  onOpenChange={handleDirtyLeaveConfirmationChange}
+                  title={t('agent.preview_pane.edit.leave.title')}
+                  description={t('agent.preview_pane.edit.leave.description')}
+                  confirmText={t('agent.preview_pane.edit.leave.discard_and_continue')}
+                  cancelText={t('common.cancel')}
+                  destructive
+                  confirmLoading={fileSession.isSaving}
+                  onConfirm={handleDiscardAndContinue}
+                />
+              </RightPanelProvider>
+            </AgentRightPaneStatusProvider>
           </AgentRightPaneRuntimeContext>
         </AgentRightPaneFileStateContext>
       </AgentRightPaneMetaContext>
@@ -1023,8 +1031,7 @@ interface WorkflowPhaseView {
   agents: AgentWorkflowAgentProgress[]
 }
 
-function buildWorkflowPhaseViews(task: AgentRunTask): WorkflowPhaseView[] {
-  const snapshot = task.workflow
+function buildWorkflowPhaseViews(snapshot: AgentRunTask['workflow']): WorkflowPhaseView[] {
   if (!snapshot) return []
 
   const phases = new Map<number, WorkflowPhaseView>()
@@ -1094,7 +1101,7 @@ function WorkflowAgentStatusSquare({
   )
 }
 
-function WorkflowPhaseAccordion({
+const WorkflowPhaseAccordion = memo(function WorkflowPhaseAccordion({
   phases,
   durationFormatter
 }: {
@@ -1196,6 +1203,32 @@ function WorkflowPhaseAccordion({
       ))}
     </Accordion>
   )
+})
+
+function createLiveDurationClock() {
+  let nowMs = Date.now()
+  let intervalId: number | undefined
+  const listeners = new Set<() => void>()
+  return {
+    getSnapshot: () => nowMs,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener)
+      if (intervalId === undefined) {
+        nowMs = Date.now()
+        intervalId = window.setInterval(() => {
+          nowMs = Date.now()
+          for (const notify of listeners) notify()
+        }, 1000)
+      }
+      return () => {
+        listeners.delete(listener)
+        if (listeners.size === 0) {
+          window.clearInterval(intervalId)
+          intervalId = undefined
+        }
+      }
+    }
+  }
 }
 
 function LiveDuration({
@@ -1209,11 +1242,9 @@ function LiveDuration({
   durationFormatter: DurationFormatter
   className?: string
 }) {
-  const [nowMs, setNowMs] = useState(() => Date.now())
-  useEffect(() => {
-    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000)
-    return () => window.clearInterval(intervalId)
-  }, [])
+  const clock = use(AgentRightPaneDurationClockContext)
+  if (!clock) throw new Error('LiveDuration must be used within <AgentRightPane.Scope>')
+  const nowMs = useSyncExternalStore(clock.subscribe, clock.getSnapshot)
 
   const durationMs = Math.floor(Math.max(reportedDurationMs ?? 0, nowMs - startedAtMs) / 1000) * 1000
   return <span className={className}>{durationFormatter(durationMs)}</span>
@@ -1423,8 +1454,11 @@ function ShellRunTaskCard({
   const { output: resolvedOutput } = useToolResult(shouldResolveDeferredOutput ? deferredResultRef : undefined, {
     refreshToken: deferredResultVersion
   })
-  const resolvedOutputText = getBashOutputText(resolvedOutput)
-  const excerptText = excerpt ? [excerpt.head, '…', excerpt.tail].filter(Boolean).join('\n') : undefined
+  const resolvedOutputText = useMemo(() => getBashOutputText(resolvedOutput), [resolvedOutput])
+  const excerptText = useMemo(
+    () => (excerpt ? [excerpt.head, '…', excerpt.tail].filter(Boolean).join('\n') : undefined),
+    [excerpt]
+  )
   const output = resolvedOutputText ?? task.output ?? excerptText
   const title = task.description?.trim() || task.title
   const command = `> ${task.command ?? task.title}`
@@ -1502,8 +1536,8 @@ function WorkflowRunTaskCard({
   durationFormatter: DurationFormatter
 }) {
   const { t } = useTranslation()
-  const phases = buildWorkflowPhaseViews(task)
   const snapshot = task.workflow
+  const phases = useMemo(() => buildWorkflowPhaseViews(snapshot), [snapshot])
   const reportedDurationMs = snapshot?.durationMs ?? task.usage?.durationMs
   const totalCumulativeTokens = snapshot?.totalCumulativeTokens
   const totalContextTokens = snapshot?.totalTokens ?? task.usage?.contextTokens
@@ -1622,7 +1656,13 @@ const AgentRunActivitySection = memo(function AgentRunActivitySection({
   )
 })
 
-function AgentRunActivitySections({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: string }) {
+const AgentRunActivitySections = memo(function AgentRunActivitySections({
+  tasks,
+  sessionId
+}: {
+  tasks: AgentRunTask[]
+  sessionId?: string
+}) {
   const { t, i18n } = useTranslation()
   const language = i18n.resolvedLanguage ?? i18n.language
   const durationFormatter = useMemo(() => createDurationFormatter(language), [language])
@@ -1655,7 +1695,7 @@ function AgentRunActivitySections({ tasks, sessionId }: { tasks: AgentRunTask[];
       ) : null}
     </Accordion>
   )
-}
+})
 
 function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentRunTask['status'] }) {
   let icon: ReactNode
@@ -1665,7 +1705,7 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentR
       icon = <CheckCircle size={14} className="text-success" />
       break
     case 'in_progress':
-      icon = <Loader2 size={14} className="text-info motion-safe:animate-spin" />
+      icon = <Loader2 size={14} className="text-info" />
       break
     case 'error':
       icon = <Circle size={14} className="text-destructive" />
@@ -1678,7 +1718,15 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentR
       icon = <Circle size={14} className="text-muted-foreground" />
   }
 
-  return <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
+  return (
+    <span
+      className={cn(
+        'flex size-5 shrink-0 items-center justify-center',
+        status === 'in_progress' && 'motion-safe:animate-spin'
+      )}>
+      {icon}
+    </span>
+  )
 }
 
 /** Foreground runs belong to one assistant row; detached runs use authoritative runtime membership. */
@@ -1693,44 +1741,56 @@ function useAgentRunLiveness(messages: CherryUIMessage[]): AgentRunLiveness {
   }, [messages])
 }
 
-function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
+function AgentRightPaneStatusProvider({ children }: { children: ReactNode }) {
   const runtime = useAgentRightPaneRuntime()
   const meta = useAgentRightPaneMeta()
-  const backgroundTaskSessionId = meta.backgroundTaskFlows ? meta.sessionId : undefined
+  const { sessionId, projectStatus, clock } = useMemo(
+    () => ({
+      sessionId: meta.sessionId,
+      projectStatus: createAgentRightPaneStatusProjector(),
+      clock: createLiveDurationClock()
+    }),
+    [meta.sessionId]
+  )
+  const backgroundTaskSessionId = meta.backgroundTaskFlows ? sessionId : undefined
   // Current-process per-task lifecycle edges.
   const lateTaskEvents = useAgentSessionTaskEvents(backgroundTaskSessionId)
   const backgroundTasks = useAgentSessionBackgroundTasks(backgroundTaskSessionId)
   const liveness = useAgentRunLiveness(runtime.messages)
-  const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
   const status = useMemo(
-    () =>
-      !active && retainedStatusRef.current
-        ? retainedStatusRef.current
-        : buildAgentRightPaneStatus(
-            runtime.messages,
-            runtime.partsByMessageId,
-            lateTaskEvents,
-            backgroundTasks,
-            liveness
-          ),
-    [active, runtime.messages, runtime.partsByMessageId, lateTaskEvents, backgroundTasks, liveness]
+    () => projectStatus(runtime.messages, runtime.partsByMessageId, lateTaskEvents, backgroundTasks, liveness),
+    [projectStatus, runtime.messages, runtime.partsByMessageId, lateTaskEvents, backgroundTasks, liveness]
   )
+  const hasActiveAssistantRun = liveness.activeMessageIds.size > 0
+  const value = useMemo(() => ({ status, hasActiveAssistantRun }), [status, hasActiveAssistantRun])
+  return (
+    <AgentRightPaneDurationClockContext value={clock}>
+      <AgentRightPaneStatusContext value={value}>{children}</AgentRightPaneStatusContext>
+    </AgentRightPaneDurationClockContext>
+  )
+}
+
+function useAgentRightPaneStatusState() {
+  const value = use(AgentRightPaneStatusContext)
+  if (!value) throw new Error('useAgentRightPaneStatus must be used within <AgentRightPane.Scope>')
+  return value
+}
+
+function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
+  const { status } = useAgentRightPaneStatusState()
+  const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
   useLayoutEffect(() => {
     if (active) retainedStatusRef.current = status
   }, [active, status])
-  return status
+  return !active && retainedStatusRef.current ? retainedStatusRef.current : status
 }
 
 export function AgentTaskProgressCapsule() {
   const { t } = useTranslation()
-  const runtime = useAgentRightPaneRuntime()
-  const status = useAgentRightPaneStatus()
+  const { status, hasActiveAssistantRun } = useAgentRightPaneStatusState()
 
   if (status.totalTaskCount === 0 || status.completedTaskCount === status.totalTaskCount) return null
 
-  const hasActiveAssistantRun = runtime.messages.some(
-    (message) => message.role === 'assistant' && message.metadata?.status === 'pending'
-  )
   const explicitActiveTaskIndex = status.tasks.findIndex((task) => task.status === 'in_progress')
   const inferredActiveTaskIndex =
     hasActiveAssistantRun && explicitActiveTaskIndex < 0
