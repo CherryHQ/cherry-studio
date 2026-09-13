@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { ClaimHeadFollowupQueueResult } from '@shared/data/api/schemas/followupQueues'
 import { FOLLOWUP_QUEUE_LIMIT, type FollowupQueueItem as FollowupQueueRow } from '@shared/data/types/followupQueue'
 
@@ -19,6 +20,12 @@ export interface FollowupQueueItem {
   status: FollowupQueueRow['status']
   /** Last update timestamp (ISO string) — bounds the live-claim freshness check. */
   updatedAt: string
+}
+
+// A resolve write that fails with NOT_FOUND needs no retry: the row is
+// already gone, so the dequeue already took effect.
+function isAlreadyResolved(error: unknown): boolean {
+  return error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
 }
 
 // Main stores draft/payload as opaque JSON and never interprets them; only the
@@ -167,6 +174,10 @@ export function useFollowupQueue({
   const mountedRef = useRef(true)
   // Ids with a claim held by this window (drain or steer in flight).
   const activeIdsRef = useRef(new Set<string>())
+  // At most one drain cycle runs at a time: a head change (e.g. a concurrent
+  // reorder landing mid-claim) re-fires the effect, and without this guard the
+  // second cycle could claim and send another row on the same edge.
+  const drainBusyRef = useRef(false)
   // Background resolve retries that outlive the drain that scheduled them.
   const pendingResolveRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   // Background claim retries, unlike resolve retries, belong to the live edge:
@@ -333,7 +344,11 @@ export function useFollowupQueue({
           if (sent) await removeTrigger({ params: { id } })
           else await markFailedTrigger({ params: { id } })
           if (mountedRef.current) void refetch()
-        } catch {
+        } catch (error) {
+          if (isAlreadyResolved(error)) {
+            if (mountedRef.current) void refetch()
+            return
+          }
           scheduleResolveRetryRef.current(id, sent)
         }
       })()
@@ -350,7 +365,10 @@ export function useFollowupQueue({
           if (sent) await removeTrigger({ params: { id } })
           else await markFailedTrigger({ params: { id } })
           return true
-        } catch {
+        } catch (error) {
+          // The row is already gone: resolving a deletion against it would
+          // retry a terminal outcome forever.
+          if (isAlreadyResolved(error)) return true
           // Transient IPC/DB failure — retry before giving up.
         }
       }
@@ -430,7 +448,8 @@ export function useFollowupQueue({
   const drainHeadRef = useRef<(head: FollowupQueueItem) => Promise<void>>(() => Promise.resolve())
   drainHeadRef.current = async (head: FollowupQueueItem) => {
     const scope = scopeKeyRef.current
-    if (activeIdsRef.current.has(head.id)) return
+    if (drainBusyRef.current || activeIdsRef.current.has(head.id)) return
+    drainBusyRef.current = true
     activeIdsRef.current.add(head.id)
     try {
       let won: ClaimHeadFollowupQueueResult | undefined
@@ -483,6 +502,7 @@ export function useFollowupQueue({
       }
       if (!sent) onDrainFailedRef.current?.()
     } finally {
+      drainBusyRef.current = false
       activeIdsRef.current.delete(head.id)
     }
   }

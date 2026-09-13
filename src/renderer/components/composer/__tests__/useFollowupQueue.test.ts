@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -752,6 +753,76 @@ describe('useFollowupQueue', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('treats a missing row as resolved instead of retrying forever', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, deleteTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
+    deleteTrigger.mockRejectedValue(new DataApiError(ErrorCode.NOT_FOUND, 'gone', 404))
+    const onDrain = vi.fn(async () => true)
+
+    const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
+      initialProps: { isFulfilled: false }
+    })
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    expect(onDrain).toHaveBeenCalledOnce()
+    expect(deleteTrigger).toHaveBeenCalledTimes(1)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('sends only once when the head changes mid-claim', async () => {
+    const first = row('x', 'first')
+    const second = row('y', 'second')
+    const refetch = vi.fn()
+    const queryImpl = (rows: FollowupQueueRow[]) => (path: string) => {
+      if (path === '/followup-queues') {
+        return { data: rows, isLoading: false, isRefreshing: false, error: undefined, refetch, mutate: vi.fn() }
+      }
+      return {
+        data: { scopeKey: SCOPE, paused: false, createdAt: '', updatedAt: '' },
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn(),
+        mutate: vi.fn()
+      }
+    }
+    mockUseQuery.mockImplementation(queryImpl([first, second]))
+    const { claimHeadTrigger, deleteTrigger } = wireMutations()
+    let resolveClaim!: (value: unknown) => void
+    claimHeadTrigger.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveClaim = resolve as (value: unknown) => void))
+    )
+    const onDrain = vi.fn(async () => true)
+    const markSeen = vi.fn()
+
+    const { rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    // A concurrent reorder swaps the head while the first claim is in flight.
+    mockUseQuery.mockImplementation(queryImpl([second, first]))
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    await act(async () => {
+      resolveClaim({ claimed: true, id: 'x' })
+    })
+
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    expect(onDrain).toHaveBeenCalledWith(first.payload)
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'x' } })
+    expect(markSeen).toHaveBeenCalledOnce()
   })
 
   it('keeps retrying the claim while the edge stays unacked', async () => {
