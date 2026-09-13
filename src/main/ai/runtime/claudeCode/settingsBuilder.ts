@@ -60,7 +60,7 @@ import {
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { Model } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -147,6 +147,13 @@ export interface ClaudeCodeSessionOptions {
    * Covered by route facts for staleness (branch + per-slot providers/windows).
    */
   gatewayModelSlots?: ClaudeCodeGatewayModelSlot[]
+  /**
+   * Primary model id (`providerId::modelId`) for model-aware trust: the budget follows
+   * the endpoint that actually serves the primary model rather than the provider-wide
+   * default. Unresolvable ids degrade to provider-wide trust. Covered by route facts
+   * for staleness (primary trust verdict).
+   */
+  primaryModelId?: UniqueModelId
 }
 
 /** A routed model slot the process-wide compaction budget must cover. */
@@ -318,6 +325,17 @@ export async function buildClaudeCodeSessionSettings(
   // or unknown sub-model pulls the shared budget down rather than riding the
   // primary's. Direct sessions budget the primary alone (unknown primary window
   // omits the budget, as before).
+  // Trust follows the endpoint that actually serves the primary model rather than
+  // the provider-wide default; an unresolvable id degrades to provider-wide trust.
+  let primaryModel: Model | null = null
+  try {
+    if (options?.primaryModelId !== undefined) {
+      const { providerId, modelId } = parseUniqueModelId(options.primaryModelId)
+      primaryModel = modelService.getByKey(providerId, modelId) ?? null
+    }
+  } catch {
+    primaryModel = null
+  }
   const budgetSlots: Array<{
     contextWindow?: number
     output: number
@@ -329,7 +347,7 @@ export async function buildClaudeCodeSessionSettings(
       contextWindow: declaredContextWindow,
       output: requestedOutputTokens,
       provider,
-      model: undefined,
+      model: primaryModel,
       isGatewaySlot: false
     }
   ]

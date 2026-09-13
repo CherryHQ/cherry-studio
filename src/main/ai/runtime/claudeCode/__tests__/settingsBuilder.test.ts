@@ -870,6 +870,43 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
   })
 
+  // The primary slot follows the same rule: a model reaching the official endpoint
+  // through a non-Anthropic provider default keeps the full budget, while a model
+  // served through another dialect on the same provider does not.
+  it('trusts the primary model on its materialized endpoint, not the provider default', async () => {
+    const mixedProvider = {
+      id: 'mixed',
+      presetProviderId: 'mixed',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'anthropic-messages': { baseUrl: 'https://api.anthropic.com' },
+        'openai-chat-completions': { baseUrl: 'https://mix.example.com' }
+      }
+    } as never
+    mocks.modelGetByKey.mockImplementation((_providerId: string, modelId: string) =>
+      modelId === 'claude-via-relay'
+        ? { endpointTypes: ['openai-chat-completions'] }
+        : { endpointTypes: ['anthropic-messages'] }
+    )
+    const settings = (modelId: string) =>
+      buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        mixedProvider,
+        { contextWindow: 256_000, maxOutputTokens: 32_000, primaryModelId: `mixed::${modelId}` as never }
+      )
+
+    expect((await settings('claude-via-official')).settings as { autoCompactWindow?: number }).toMatchObject({
+      autoCompactWindow: 219_520
+    })
+    expect((await settings('claude-via-relay')).settings as { autoCompactWindow?: number }).toMatchObject({
+      autoCompactWindow: 119_168
+    })
+  })
+
   // All-trusted gateway slots keep full budgets with no blanket derate: Vertex
   // primary plus Bedrock sonnet resolves to the weaker declared window.
   it('keeps full budgets for all-trusted gateway slots without a blanket margin', async () => {
