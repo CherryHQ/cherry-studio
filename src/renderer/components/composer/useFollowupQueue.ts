@@ -331,10 +331,11 @@ export function useFollowupQueue({
   const failHeadRef = useRef(failHead)
   failHeadRef.current = failHead
 
-  // Manual-steer claim (id + the scope it was taken in): the composer awaits the
-  // send itself, so a scope switch mid-send must not strand the dequeue or the
-  // claim release in the wrong scope. Read by removeId/releaseSend below.
-  const manualClaimRef = useRef<{ id: string; scope: string } | null>(null)
+  // Manual-steer claims by head id (id -> the scope each claim was taken in). Per-send
+  // records (not one shared slot): a second steer after a scope switch must not
+  // strand the first claim's scope, or its cleanup dequeues from the wrong entry.
+  // Read by removeId/releaseSend below.
+  const manualClaimsRef = useRef(new Map<string, string>())
 
   const removeIdRef = useRef<(id: string) => void>(() => {})
 
@@ -574,12 +575,12 @@ export function useFollowupQueue({
         return
       }
       // A manual steer success landing after a scope switch: the item lives in the
-      // scope the claim was taken in, not the current one. Dequeue it there (surgical
-      // entry op, no live-state touch); otherwise the sent item stays queued and is
-      // delivered again when the original scope is revisited.
-      const claim = manualClaimRef.current
-      if (claim && claim.id === id && claim.scope !== scopeKeyRef.current) {
-        removeIdFromScope(claim.scope, id)
+      // scope its own claim was taken in, not necessarily the current one. Dequeue
+      // it there (surgical entry op, no live-state touch); otherwise the sent item
+      // stays queued and is delivered again when the original scope is revisited.
+      const claimScope = manualClaimsRef.current.get(id)
+      if (claimScope !== undefined && claimScope !== scopeKeyRef.current) {
+        removeIdFromScope(claimScope, id)
         return
       }
       const wasFailed = failedItemIdRef.current === id
@@ -656,7 +657,7 @@ export function useFollowupQueue({
       // Durably claim the steered head too: a remount or scope switch while the
       // manual send is pending must not auto-send the same payload again.
       pendingDrainIdRef.current = id
-      manualClaimRef.current = { id, scope: claimScope }
+      manualClaimsRef.current.set(id, claimScope)
       liveSends.add(id)
       persist(stateRef.current)
       return true
@@ -667,14 +668,14 @@ export function useFollowupQueue({
     (id: string) => {
       if (drainingIdRef.current === id) setDraining(null)
       liveSends.delete(id)
-      const claim = manualClaimRef.current
-      manualClaimRef.current = null
+      const claimScope = manualClaimsRef.current.get(id)
+      manualClaimsRef.current.delete(id)
       // Scrub the durable claim from the scope it was taken in (which may differ
       // from the current scope after a switch); id-guarded so a newer send's
       // claim is never touched.
-      if (claim && claim.id === id) {
+      if (claimScope !== undefined) {
         if (pendingDrainIdRef.current === id) pendingDrainIdRef.current = null
-        clearPendingInScope(claim.scope, id)
+        clearPendingInScope(claimScope, id)
       } else if (pendingDrainIdRef.current === id) {
         pendingDrainIdRef.current = null
       }
