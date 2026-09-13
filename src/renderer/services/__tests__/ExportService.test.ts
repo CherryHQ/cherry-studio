@@ -1494,7 +1494,7 @@ describe('ExportService image capture serialization', () => {
         firstCanvasStarted.resolve()
         await releaseFirstCanvas.promise
       } else {
-        capturedNoteSurface = element as HTMLElement
+        capturedNoteSurface = element
       }
       return canvasStub('data:image/png;base64,note')
     })
