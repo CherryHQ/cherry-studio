@@ -50,6 +50,52 @@ export function redactDeep(value: unknown): unknown {
   return redact(value, new WeakSet())
 }
 
+// 5 reaches the part objects inside `messages[].content[]` — which part type failed is
+// the whole point of shaping a chat request.
+const MAX_SHAPE_DEPTH = 5
+const MAX_SHAPE_ARRAY_ITEMS = 8
+const MAX_SHAPE_STRING = 60
+
+/**
+ * Structure-only view of a payload (LLM request/response bodies, tool inputs):
+ * keys, scalars and short strings survive; anything longer collapses to
+ * `<string:N>`, so the shape of a failing request can be logged without its
+ * content. Depth and array caps bound the output — deep or wide payloads are
+ * summarized, never fully expanded.
+ */
+export function redactToShape(value: unknown): unknown {
+  const shape = (val: unknown, depth: number): unknown => {
+    if (val === null || val === undefined) return null
+    if (typeof val === 'string') {
+      return val.length <= MAX_SHAPE_STRING ? redactSecretText(val) : `<string:${val.length}>`
+    }
+    if (typeof val === 'bigint') return val.toString()
+    if (typeof val !== 'object') return typeof val === 'function' ? '<function>' : val
+    if (depth >= MAX_SHAPE_DEPTH) return Array.isArray(val) ? `<array:${val.length}>` : '<object>'
+    if (Array.isArray(val)) {
+      const item = (entry: unknown) => shape(entry, depth + 1)
+      if (val.length <= MAX_SHAPE_ARRAY_ITEMS) return val.map(item)
+      // Head *and* tail: a rejected request usually fails on its newest message, which a
+      // head-only sample would drop.
+      const half = MAX_SHAPE_ARRAY_ITEMS / 2
+      return [
+        ...val.slice(0, half).map(item),
+        `<${val.length - MAX_SHAPE_ARRAY_ITEMS} more items>`,
+        ...val.slice(-half).map(item)
+      ]
+    }
+    const out: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(val)) {
+      // A number or boolean cannot be a secret, and the `TOKEN` stem otherwise eats
+      // `max_tokens` — the one request field a context-length failure turns on.
+      const keepNumeric = typeof entry === 'number' || typeof entry === 'boolean'
+      out[key] = isSensitiveKey(key) && !keepNumeric ? REDACTED : shape(entry, depth + 1)
+    }
+    return out
+  }
+  return shape(value, 0)
+}
+
 /**
  * Redact secrets from a serialized serverKey (JSON of an MCP server config);
  * a parse failure yields a placeholder instead of the raw string.

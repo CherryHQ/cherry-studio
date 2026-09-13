@@ -3373,7 +3373,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'error' } })
     expect(mockMainLoggerService.error).toHaveBeenCalledWith(
       'Claude Code query loop failed',
-      expect.objectContaining({ sessionId: 'session-1', modelId: 'sonnet-sdk', error: expect.any(Error) })
+      expect.objectContaining({
+        sessionId: 'session-1',
+        modelId: 'sonnet-sdk',
+        err: expect.objectContaining({ errorMessage: expect.any(String) })
+      })
     )
     void connection.close()
   })

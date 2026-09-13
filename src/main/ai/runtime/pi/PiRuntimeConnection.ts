@@ -25,6 +25,7 @@ import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
@@ -666,7 +667,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       } else {
         failure = new Error(this.lastAgentError ?? 'pi agent turn failed')
       }
-      logger.error('pi prompt failed', failure)
+      logger.error('pi prompt failed', chatErrorContext(failure))
       this.eventQueue.push({ type: 'error', error: failure })
     } else {
       this.emitContextUsage()

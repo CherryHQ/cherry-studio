@@ -982,9 +982,9 @@ describe('Agent', () => {
     expect(onError).toHaveBeenCalledTimes(1)
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
       'agentLoop onError returned retry; retry not implemented — aborting',
-      err
+      expect.objectContaining({ errorMessage: 'stream blew up' })
     )
     // The retry branch must not also log an error for the same outcome.
-    expect(mockMainLoggerService.error).not.toHaveBeenCalledWith('agentLoop error', err)
+    expect(mockMainLoggerService.error).not.toHaveBeenCalledWith('agentLoop error', expect.anything())
   })
 })
