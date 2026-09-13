@@ -25,7 +25,12 @@ function apiCallError(statusCode: number, message: string, responseBody?: string
   })
 }
 
-const zhipuInputError = () => apiCallError(400, 'Bad Request', JSON.stringify({ error: { code: '1214' } }))
+const zhipuInputError = () =>
+  apiCallError(
+    400,
+    'Bad Request',
+    JSON.stringify({ error: { code: '1214', message: 'query and documents length exceeds the provider limit' } })
+  )
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -350,6 +355,26 @@ describe('knowledge rerank runtime', () => {
   it.each([400, 401, 429])('does not recursively split an ordinary Zhipu HTTP %i error', async (statusCode) => {
     const searchResults = createSearchResults(['alpha', 'beta'])
     mocks.aiRerankMock.mockRejectedValueOnce(apiCallError(statusCode, 'Provider error'))
+
+    const result = await rerankKnowledgeSearchResults(
+      createKnowledgeBase({ rerankModelId: 'zhipu::rerank' }),
+      'query',
+      searchResults
+    )
+
+    expect(mocks.aiRerankMock).toHaveBeenCalledTimes(1)
+    expect(result.every((item) => item.warning?.reason === 'provider_error')).toBe(true)
+  })
+
+  it('does not split a non-size-related Zhipu 400/1214 error', async () => {
+    const searchResults = createSearchResults(['alpha', 'beta'])
+    mocks.aiRerankMock.mockRejectedValueOnce(
+      apiCallError(
+        400,
+        'Bad Request',
+        JSON.stringify({ error: { code: '1214', message: 'model 参数非法。请检查文档' } })
+      )
+    )
 
     const result = await rerankKnowledgeSearchResults(
       createKnowledgeBase({ rerankModelId: 'zhipu::rerank' }),

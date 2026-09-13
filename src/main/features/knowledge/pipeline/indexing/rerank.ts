@@ -53,28 +53,48 @@ function withRerankWarning(
   return searchResults.map((result) => ({ ...result, warning }))
 }
 
-function readZhipuErrorCode(value: unknown): string | undefined {
+function readZhipuErrorDetails(value: unknown): { code?: string; message?: string } {
   let payload = value
   if (typeof payload === 'string') {
     try {
       payload = JSON.parse(payload)
     } catch {
-      return undefined
+      return {}
     }
   }
-  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return {}
 
   const record = payload as Record<string, unknown>
-  if (typeof record.code === 'string' || typeof record.code === 'number') return String(record.code)
-  return readZhipuErrorCode(record.error)
+  if (record.error !== undefined) return readZhipuErrorDetails(record.error)
+
+  return {
+    code: typeof record.code === 'string' || typeof record.code === 'number' ? String(record.code) : undefined,
+    message:
+      typeof record.message === 'string'
+        ? record.message
+        : typeof record.msg === 'string'
+          ? record.msg
+          : typeof record.detail === 'string'
+            ? record.detail
+            : undefined
+  }
+}
+
+function isZhipuSizeLimitMessage(message: string | undefined): boolean {
+  return (
+    message !== undefined &&
+    /query|documents?|文本|文档/i.test(message) &&
+    /length|too\s+long|exceed|maximum|max\b|limit|characters?|chars?|长度|过长|超长|超过|超出|上限|限制/i.test(message)
+  )
 }
 
 function isZhipuInputTooLargeError(error: unknown): boolean {
-  return (
-    APICallError.isInstance(error) &&
-    error.statusCode === 400 &&
-    (readZhipuErrorCode(error.responseBody) === '1214' || readZhipuErrorCode(error.data) === '1214')
-  )
+  if (!APICallError.isInstance(error) || error.statusCode !== 400) return false
+
+  return [error.responseBody, error.data].some((payload) => {
+    const details = readZhipuErrorDetails(payload)
+    return details.code === '1214' && isZhipuSizeLimitMessage(details.message)
+  })
 }
 
 function splitNearHalfByCharacters(
