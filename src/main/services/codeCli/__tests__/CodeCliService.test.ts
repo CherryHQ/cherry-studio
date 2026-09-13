@@ -150,9 +150,14 @@ async function loadModules() {
 }
 
 describe('CodeCliService', () => {
+  // Each resetModules reload re-registers launchScript's exit handler; track
+  // the count so afterEach can drop only what this case added.
+  let exitListenerBaseline = 0
+
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    exitListenerBaseline = process.listeners('exit').length
     platformMock.isMac = true
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
@@ -185,6 +190,13 @@ describe('CodeCliService', () => {
       geminiDir: '/mock/antigravity data',
       model: 'gemini-2.5-pro'
     })
+  })
+
+  afterEach(() => {
+    // Drop the exit handlers this case's fresh launchScript import registered.
+    for (const handler of process.listeners('exit').slice(exitListenerBaseline)) {
+      process.off('exit', handler)
+    }
   })
 
   it('should extend BaseService', async () => {
@@ -721,14 +733,14 @@ describe('CodeCliService', () => {
       })
 
       expect(result.success).toBe(true)
-      expect(scriptPath).toMatch(/launch_claude-code_\d+\.sh$/)
+      expect(scriptPath).toMatch(/launch_claude-code_\d+_[0-9a-f]{8}\.sh$/)
       expect(body).toMatch(/^#!\/bin\/sh\n/)
       expect(vi.mocked(fs.chmodSync)).toHaveBeenCalledWith(scriptPath, 0o600)
       // The command typed into the terminal must stay far below the AppleEvent
       // text-injection truncation zone that swallowed the old 2KB inline command.
       const typed = launchArgs.match(/do script "(.+?)" in front window/)?.[1] ?? ''
       expect(typed.startsWith("sh '\\''/mock/binary-data/launch_claude-code_")).toBe(true)
-      expect(typed).toMatch(/\d+\.sh'\\''$/) // timestamped name, then the closing quote sequence
+      expect(typed).toMatch(/\d+_[0-9a-f]{8}\.sh'\\''$/) // timestamped+random name, then the closing quote sequence
       expect(typed.length).toBeLessThan(200)
     })
 
@@ -916,7 +928,7 @@ describe('CodeCliService', () => {
         const writeCall = vi.mocked(fs.writeFileSync).mock.calls.at(-1)
         expect(writeCall).toBeDefined()
         const [batPath, batContent] = writeCall! as unknown as [string, string]
-        expect(batPath).toMatch(/launch_claude-code_\d+\.bat$/)
+        expect(batPath).toMatch(/launch_claude-code_\d+_[0-9a-f]{8}\.bat$/)
         // CMD expands %…% even inside double quotes, so the bat writer must double them.
         expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj" goto :dir_missing')
         expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj"')
