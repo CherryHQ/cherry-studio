@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,6 +31,10 @@ const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),
   queryResult: undefined as EntitySearchResponse | undefined,
   messageQueryResult: undefined as { items: TopicMessageContentSearchItem[]; nextCursor?: string } | undefined,
+  messageQueryResultsByCursor: new Map<
+    string | undefined,
+    { items: TopicMessageContentSearchItem[]; nextCursor?: string }
+  >(),
   sessionMessageQueryResult: undefined as { items: SessionMessageContentSearchItem[]; nextCursor?: string } | undefined,
   keepStaleContentSearchData: false,
   recentItems: [] as GlobalSearchRecentEntry[],
@@ -60,6 +65,7 @@ const mocks = vi.hoisted(() => ({
   dataApiGet: vi.fn(),
   dataApiPut: vi.fn(),
   invalidateCache: vi.fn(),
+  refetchContentSearch: vi.fn(),
   eventEmit: vi.fn(),
   emitResourceListReveal: vi.fn(),
   virtualListScrollToIndex: vi.fn(),
@@ -298,11 +304,15 @@ vi.mock('@data/hooks/useCache', () => ({
   ]
 }))
 
-vi.mock('@data/hooks/useDataApi', () => ({
-  useInvalidateCache: () => mocks.invalidateCache,
-  useInfiniteFlatItems: (pages: any[] = []) => pages.flatMap((page) => page.items),
-  useQuery: (...args: unknown[]) => mocks.useQuery(...args)
-}))
+vi.mock('@data/hooks/useDataApi', async () => {
+  const { MockUseDataApi } = await import('@test-mocks/renderer/useDataApi')
+  return {
+    ...MockUseDataApi,
+    useInvalidateCache: () => mocks.invalidateCache,
+    useInfiniteFlatItems: (pages: any[] = []) => pages.flatMap((page) => page.items),
+    useQuery: (...args: unknown[]) => mocks.useQuery(...args)
+  }
+})
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => [mocks.preferenceValues[key], vi.fn()],
@@ -566,6 +576,7 @@ afterEach(() => {
 
 describe('GlobalSearchPanel', () => {
   beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
     mocks.casualCache.clear()
     // Conversation tabs open on the conversation's own URL (`/app/chat?topicId=…`), so match the
     // route prefix rather than the bare path.
@@ -587,6 +598,7 @@ describe('GlobalSearchPanel', () => {
     mocks.tabs = []
     mocks.queryResult = undefined
     mocks.messageQueryResult = undefined
+    mocks.messageQueryResultsByCursor.clear()
     mocks.sessionMessageQueryResult = undefined
     mocks.preferenceValues = {
       'app.user.name': 'JD',
@@ -613,7 +625,11 @@ describe('GlobalSearchPanel', () => {
       (
         path: string,
         options?: {
-          query?: { q?: string; sources?: string[] }
+          query?: {
+            q?: string
+            sources?: string[]
+            cursors?: Partial<Record<'topic-message' | 'session-message', string>>
+          }
           swrOptions?: { keepPreviousData?: boolean }
         }
       ) => {
@@ -628,17 +644,20 @@ describe('GlobalSearchPanel', () => {
 
         if (path === '/search/contents') {
           const sources = options?.query?.sources ?? ['topic-message', 'session-message']
+          const topicMessageQueryResult =
+            mocks.messageQueryResultsByCursor.get(options?.query?.cursors?.['topic-message']) ??
+            mocks.messageQueryResult
           const effectiveSources =
             mocks.keepStaleContentSearchData && options?.swrOptions?.keepPreviousData !== false
               ? ['topic-message', 'session-message']
               : sources
           const groups = [
-            ...(effectiveSources.includes('topic-message') && mocks.messageQueryResult
+            ...(effectiveSources.includes('topic-message') && topicMessageQueryResult
               ? [
                   {
                     sourceType: 'topic-message' as const,
-                    items: mocks.messageQueryResult.items,
-                    nextCursor: mocks.messageQueryResult.nextCursor
+                    items: topicMessageQueryResult.items,
+                    nextCursor: topicMessageQueryResult.nextCursor
                   }
                 ]
               : []),
@@ -660,7 +679,8 @@ describe('GlobalSearchPanel', () => {
             },
             isLoading: false,
             isRefreshing: false,
-            error: undefined
+            error: undefined,
+            refetch: mocks.refetchContentSearch
           }
         }
 
@@ -1496,6 +1516,102 @@ describe('GlobalSearchPanel', () => {
       expect(screen.queryByRole('option', { name: /needle session reply/ })).not.toBeInTheDocument()
       expect(screen.queryByText('Session A')).not.toBeInTheDocument()
     })
+  })
+
+  it('removes deleted task messages when another window clears their Agent session', async () => {
+    const user = userEvent.setup()
+    mocks.sessionMessageQueryResult = {
+      items: [
+        {
+          messageId: 'session-message-1',
+          sessionId: 'session-1',
+          sessionName: 'Session A',
+          snippet: 'needle session reply',
+          createdAt: '2026-01-01T00:00:01.000Z'
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.type(
+      screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'),
+      'needle'
+    )
+    expect(await screen.findByRole('option', { name: /needle session reply/ })).toBeInTheDocument()
+
+    mocks.sessionMessageQueryResult = { items: [] }
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/search/contents', entityIds: ['session-message-1'] }])
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('option', { name: /needle session reply/ })).not.toBeInTheDocument()
+      expect(mocks.refetchContentSearch).toHaveBeenCalledOnce()
+    })
+  })
+
+  it('restarts message pagination after another window deletes a result from the first page', async () => {
+    const user = userEvent.setup()
+    const createMessage = (
+      messageId: string,
+      snippet: string,
+      createdAt: string,
+      role: TopicMessageContentSearchItem['role'] = 'assistant'
+    ): TopicMessageContentSearchItem => ({
+      messageId,
+      topicId: 'topic-1',
+      topicName: 'Topic A',
+      topicCreatedAt: '2026-01-01T00:00:00.000Z',
+      topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+      role,
+      snippet,
+      createdAt
+    })
+    mocks.messageQueryResultsByCursor.set(undefined, {
+      items: [createMessage('message-page-1-deleted', 'needle deleted first page', '2026-01-01T00:00:04.000Z', 'user')],
+      nextCursor: 'cursor-1'
+    })
+    mocks.messageQueryResultsByCursor.set('cursor-1', {
+      items: [createMessage('message-page-2-stale', 'needle stale second page', '2026-01-01T00:00:02.000Z')]
+    })
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.type(
+      screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'),
+      'needle'
+    )
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    await user.click(screen.getByRole('button', { name: 'Message source: Conversation messages' }))
+    expect(await screen.findByRole('option', { name: /needle deleted first page/ })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('option', { name: 'Show 50 more' }))
+    expect(await screen.findByRole('option', { name: /needle stale second page/ })).toBeInTheDocument()
+
+    const replacementFirstPage = {
+      items: [createMessage('message-page-1-replacement', 'needle replacement first page', '2026-01-01T00:00:01.000Z')]
+    }
+    const firstPageRefresh = createDeferred<void>()
+    mocks.refetchContentSearch.mockImplementationOnce(async () => {
+      await firstPageRefresh.promise
+      mocks.messageQueryResultsByCursor.set(undefined, replacementFirstPage)
+    })
+    mocks.useQuery.mockClear()
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/search/contents', entityIds: ['message-page-1-deleted'] }])
+    })
+
+    await waitFor(() => expect(mocks.refetchContentSearch).toHaveBeenCalledOnce())
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /needle deleted first page/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /needle stale second page/ })).not.toBeInTheDocument()
+
+    firstPageRefresh.resolve()
+    expect(await screen.findByRole('option', { name: /needle replacement first page/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /needle deleted first page/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /needle stale second page/ })).not.toBeInTheDocument()
+
+    const latestContentSearchCall = mocks.useQuery.mock.calls.findLast(([path]) => path === '/search/contents')
+    expect(latestContentSearchCall?.[1]?.query).not.toHaveProperty('cursors')
   })
 
   it('clears the active message source filter when clicking it again', async () => {

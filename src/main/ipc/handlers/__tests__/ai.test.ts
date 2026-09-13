@@ -15,7 +15,7 @@ const {
   createBuiltinSupportSession
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  agentSessionMessageService: { getSessionMessage: vi.fn() },
+  agentSessionMessageService: { getSessionMessage: vi.fn(), clearSessionMessages: vi.fn() },
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn(),
@@ -65,6 +65,7 @@ const fileManager = { read: vi.fn() }
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
 const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn() }
 const agentSessionDeliveryService = {
+  clearSessionMessages: vi.fn(),
   deleteSessions: vi.fn(),
   reuseOrCreateSession: vi.fn(),
   deleteAgent: vi.fn(),
@@ -443,11 +444,23 @@ describe('aiHandlers — streaming', () => {
     await Promise.resolve()
 
     expect(settled).toBe(false)
-    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledWith('t', 'user-requested')
+    expect(aiStreamManager.abortAndDrain).toHaveBeenCalledExactlyOnceWith('t', 'user-requested')
     expect(windowManager.getWindow).not.toHaveBeenCalled()
 
     finishDrain()
     await expect(aborting).resolves.toBeUndefined()
+  })
+
+  it('delegates Agent Session message clearing to the delivery owner', async () => {
+    agentSessionDeliveryService.clearSessionMessages.mockResolvedValue({ deletedIds: ['m1', 'm2'] })
+
+    await expect(
+      aiHandlers['ai.agent.session.messages.clear']({ sessionId: 's1' }, { senderId: null })
+    ).resolves.toEqual({
+      deletedIds: ['m1', 'm2']
+    })
+
+    expect(agentSessionDeliveryService.clearSessionMessages).toHaveBeenCalledExactlyOnceWith('s1')
   })
 
   it('get_tool_result prefers the active stream over the persisted copy', async () => {

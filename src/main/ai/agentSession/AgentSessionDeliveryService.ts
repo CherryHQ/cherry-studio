@@ -1,6 +1,10 @@
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
-import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import {
+  AGENT_SESSION_DELIVERY_ERROR_CODES,
+  AgentSessionDeliveryRoutingError,
+  agentSessionMessageService
+} from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
@@ -65,6 +69,7 @@ export class AgentSessionDeliveryService extends BaseService {
   private readonly pendingKicks = new Set<string>()
   private readonly inFlight = new Map<Promise<void>, string>()
   private readonly suppressedSessionIds = new Set<string>()
+  private readonly clearingSessionIds = new Set<string>()
   private isShuttingDown = false
 
   protected override onInit(): void {
@@ -89,6 +94,12 @@ export class AgentSessionDeliveryService extends BaseService {
 
   accept(input: AcceptSessionDeliveryInput): AgentSessionMessageEntity {
     this.assertWritesAvailable()
+    if (this.clearingSessionIds.has(input.receiverSessionId)) {
+      throw new AgentSessionDeliveryRoutingError(
+        AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_CLEARED,
+        'Target Session messages are being cleared'
+      )
+    }
     const message = agentSessionMessageService.acceptSessionDelivery(input)
     this.kick(message.sessionId)
     return message
@@ -109,6 +120,16 @@ export class AgentSessionDeliveryService extends BaseService {
     const work = this.deleteSessionsInternal(uniqueIds)
     this.track(
       `delete:${uniqueIds.join(',')}`,
+      work.then(() => undefined)
+    )
+    return work
+  }
+
+  clearSessionMessages(sessionId: string): Promise<{ deletedIds: string[] }> {
+    this.assertWritesAvailable()
+    const work = this.clearSessionMessagesInternal(sessionId)
+    this.track(
+      `clear:${sessionId}`,
       work.then(() => undefined)
     )
     return work
@@ -246,6 +267,25 @@ export class AgentSessionDeliveryService extends BaseService {
     const result = agentSessionService.deleteByIdsForDelivery(ids)
     await this.finishDeletion(result.deletedIds, result.deliveryResults)
     return { deletedIds: result.deletedIds }
+  }
+
+  private async clearSessionMessagesInternal(sessionId: string): Promise<{ deletedIds: string[] }> {
+    let result: { deletedIds: string[]; deliveryResults: AgentSessionMessageEntity[] } = {
+      deletedIds: [],
+      deliveryResults: []
+    }
+    this.clearingSessionIds.add(sessionId)
+    try {
+      await application
+        .get('AiStreamManager')
+        .abortAndDrain(buildAgentSessionTopicId(sessionId), 'user-requested', () => {
+          result = agentSessionMessageService.clearSessionMessages(sessionId)
+        })
+      for (const deliveryResult of result.deliveryResults) this.kick(deliveryResult.sessionId)
+      return { deletedIds: result.deletedIds }
+    } finally {
+      this.clearingSessionIds.delete(sessionId)
+    }
   }
 
   private async reuseOrCreateSessionInternal(

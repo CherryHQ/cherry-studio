@@ -115,6 +115,7 @@ export interface AgentChatRuntimeState {
   selectAllPagination?: MessageListSelectAllPagination
   isPending: boolean
   stop: () => Promise<void>
+  clearMessages: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
@@ -155,6 +156,10 @@ export function useAgentChatRuntimeState({
   }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
 
   const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const clearMessages = useCallback(async () => {
+    const { deletedIds } = await ipcApi.request('ai.agent.session.messages.clear', { sessionId })
+    invalidateCachedMessageUiStates(deletedIds)
+  }, [sessionId])
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
@@ -314,6 +319,7 @@ export function useAgentChatRuntimeState({
     selectAllPagination,
     isPending,
     stop,
+    clearMessages,
     sendMessage,
     deleteMessage,
     respondToolApproval,

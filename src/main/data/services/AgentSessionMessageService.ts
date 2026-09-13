@@ -51,7 +51,7 @@ import {
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
-import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import {
   AGENT_SESSION_MESSAGE_SEARCH_ROLES,
   type CherryMessagePart,
@@ -181,7 +181,9 @@ export const AGENT_SESSION_DELIVERY_ERROR_CODES = {
   DELIVERY_TURN_DELETED: 'DELIVERY_TURN_DELETED',
   CANCELLED: 'CANCELLED',
   TARGET_SESSION_DELETED: 'TARGET_SESSION_DELETED',
-  CALLER_SESSION_DELETED: 'CALLER_SESSION_DELETED'
+  TARGET_SESSION_CLEARED: 'TARGET_SESSION_CLEARED',
+  CALLER_SESSION_DELETED: 'CALLER_SESSION_DELETED',
+  CALLER_SESSION_CLEARED: 'CALLER_SESSION_CLEARED'
 } as const
 
 export type AgentSessionDeliveryErrorCode =
@@ -611,6 +613,73 @@ export class AgentSessionMessageService {
     }
   }
 
+  clearSessionMessages(sessionId: string): {
+    deletedIds: string[]
+    deliveryResults: AgentSessionMessageEntity[]
+  } {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const [session] = tx
+        .select({ id: sessionTable.id })
+        .from(sessionTable)
+        .where(eq(sessionTable.id, sessionId))
+        .limit(1)
+        .all()
+      if (!session) return { deletedIds: [], inboundResults: [], outboundFailed: [] }
+
+      const inboundResults = this.prepareSessionDeletionTx(tx, [sessionId], {
+        code: AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_CLEARED,
+        message: 'Target Session messages were cleared'
+      })
+      const outboundFailed = this.prepareCallerSessionClearedTx(tx, sessionId)
+      const rows = tx
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(eq(sessionMessagesTable.sessionId, sessionId))
+        .all()
+      const deletedIds = rows.map((row) => row.id)
+      if (deletedIds.length === 0) return { deletedIds, inboundResults, outboundFailed }
+
+      tx.delete(sessionMessagesTable).where(eq(sessionMessagesTable.sessionId, sessionId)).run()
+      return { deletedIds, inboundResults, outboundFailed }
+    })
+
+    const dataChangeEffects: DataApiDataChangeEffect[] = [
+      ...(result.deletedIds.length > 0
+        ? [
+            {
+              endpoint: '/agent-sessions/:sessionId/messages' as const,
+              kind: 'membership' as const,
+              routeParams: { sessionId },
+              entityIds: result.deletedIds
+            },
+            {
+              endpoint: '/search/contents' as const,
+              entityIds: [...result.deletedIds, ...result.inboundResults.map((message) => message.id)]
+            }
+          ]
+        : []),
+      ...agentSessionReadModelEffects(
+        result.inboundResults.map((message) => message.sessionId),
+        'projection'
+      ),
+      ...result.inboundResults.map((message) => ({
+        endpoint: '/agent-sessions/:sessionId/messages' as const,
+        kind: 'membership' as const,
+        routeParams: { sessionId: message.sessionId },
+        entityIds: [message.id]
+      })),
+      ...result.outboundFailed.map((message) => ({
+        endpoint: '/agent-sessions/:sessionId/messages' as const,
+        kind: 'projection' as const,
+        routeParams: { sessionId: message.sessionId },
+        entityIds: [message.id]
+      }))
+    ]
+    if (dataChangeEffects.length > 0) notifyDataApiDataChange(dataChangeEffects)
+
+    return { deletedIds: result.deletedIds, deliveryResults: result.inboundResults }
+  }
+
   getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
     const database = application.get('DbService').getDb()
     const row = this.findExistingMessageRow(database, sessionId, messageId)
@@ -930,14 +999,11 @@ export class AgentSessionMessageService {
     return result
   }
 
-  saveMessage(
+  private publishSavedMessage(
     params: SaveAgentSessionMessageParams,
-    options: SaveAgentSessionMessageOptions = {}
-  ): AgentSessionMessageEntity {
-    const { db, publishDataChange } = options
-    const timestampMs = Date.now()
-    if (db) return this.saveMessageTx(db, params, timestampMs).entity
-    const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    result: SavedAgentSessionMessage,
+    publishDataChange: boolean | undefined
+  ): void {
     if (result.entity.role === 'assistant') {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
@@ -955,6 +1021,36 @@ export class AgentSessionMessageService {
         }
       ])
     }
+  }
+
+  saveMessage(
+    params: SaveAgentSessionMessageParams,
+    options: SaveAgentSessionMessageOptions = {}
+  ): AgentSessionMessageEntity {
+    const { db, publishDataChange } = options
+    const timestampMs = Date.now()
+    if (db) return this.saveMessageTx(db, params, timestampMs).entity
+    const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    this.publishSavedMessage(params, result, publishDataChange)
+    return result.entity
+  }
+
+  /** Update an existing assistant placeholder; no-op if the row was cleared. */
+  persistExistingAssistantMessage(
+    params: SaveAgentSessionMessageParams,
+    options: { publishDataChange?: boolean } = {}
+  ): AgentSessionMessageEntity | null {
+    const { publishDataChange } = options
+    const timestampMs = Date.now()
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const messageId = params.message.id
+      if (!messageId) return null
+      const existing = this.findExistingMessageRow(tx, params.sessionId, messageId)
+      if (!existing) return null
+      return this.saveMessageTx(tx, params, timestampMs)
+    })
+    if (!result) return null
+    this.publishSavedMessage(params, result, publishDataChange)
     return result.entity
   }
 
@@ -1496,6 +1592,9 @@ export class AgentSessionMessageService {
     const failed = application.get('DbService').withWriteTx((tx) => {
       const request = this.findExistingMessageRow(tx, message.sessionId, message.id)
       if (!request?.delivery || !request.deliveryStatus) return { requestId: null, result: null }
+      if (request.deliveryStatus !== 'accepted' && request.deliveryStatus !== 'delivering') {
+        return { requestId: null, result: null }
+      }
       const now = new Date().toISOString()
       let result: AgentSessionMessageEntity | null = null
       if (request.delivery.replyPolicy === 'completion') {
@@ -1566,7 +1665,14 @@ export class AgentSessionMessageService {
     return failed.result
   }
 
-  prepareSessionDeletionTx(tx: DbOrTx, sessionIds: readonly string[]): AgentSessionMessageEntity[] {
+  prepareSessionDeletionTx(
+    tx: DbOrTx,
+    sessionIds: readonly string[],
+    error: AgentSessionDeliveryError = {
+      code: AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_DELETED,
+      message: 'Target Session was deleted'
+    }
+  ): AgentSessionMessageEntity[] {
     const deleting = [...new Set(sessionIds)]
     if (deleting.length === 0) return []
     const requests = tx
@@ -1609,7 +1715,7 @@ export class AgentSessionMessageService {
             id: uuidv7(),
             role: 'user',
             status: 'success',
-            data: { parts: [{ type: 'text', text: 'Target Session was deleted before completing the request.' }] },
+            data: { parts: [{ type: 'text', text: `${error.message} before completing the request.` }] },
             delivery: {
               version: 1,
               sender: request.delivery.receiver,
@@ -1619,7 +1725,7 @@ export class AgentSessionMessageService {
               replyPolicy: 'none',
               sourceMessageId: null,
               outcome: 'failed',
-              error: { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' },
+              error,
               statusAt: now
             },
             deliveryStatus: 'accepted',
@@ -1630,6 +1736,47 @@ export class AgentSessionMessageService {
       )
     }
     return results
+  }
+
+  /** Fail outbound completion requests without writing a result into the cleared sender. */
+  private prepareCallerSessionClearedTx(tx: DbOrTx, sessionId: string): AgentSessionMessageEntity[] {
+    const requests = tx
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.deliverySenderSessionId, sessionId),
+          inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+        )
+      )
+      .all()
+    const changes: AgentSessionMessageEntity[] = []
+    const now = new Date().toISOString()
+    const error = {
+      code: AGENT_SESSION_DELIVERY_ERROR_CODES.CALLER_SESSION_CLEARED,
+      message: 'Caller Session messages were cleared'
+    }
+    for (const request of requests) {
+      if (!request.delivery || request.delivery.replyPolicy !== 'completion' || request.sessionId === sessionId)
+        continue
+      const failedRequest = tx
+        .update(sessionMessagesTable)
+        .set({
+          deliveryStatus: 'failed',
+          deliveryTurnRef: null,
+          delivery: { ...request.delivery, outcome: 'failed', error, statusAt: now }
+        })
+        .where(
+          and(
+            eq(sessionMessagesTable.id, request.id),
+            inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+          )
+        )
+        .returning()
+        .get()
+      if (failedRequest) changes.push(this.rowToEntity(failedRequest))
+    }
+    return changes
   }
 
   /** Fail active requests before their target Agent is removed while the Session rows are retained. */

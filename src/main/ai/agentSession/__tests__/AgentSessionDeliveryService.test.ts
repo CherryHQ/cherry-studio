@@ -6,6 +6,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 const mocks = vi.hoisted(() => ({
   accept: vi.fn(),
   acceptWithNewSession: vi.fn(),
+  clearMessages: vi.fn(),
   claim: vi.fn(),
   fail: vi.fn(),
   finalize: vi.fn(),
@@ -36,6 +37,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
+  AGENT_SESSION_DELIVERY_ERROR_CODES: { TARGET_SESSION_CLEARED: 'TARGET_SESSION_CLEARED' },
   AgentSessionDeliveryRoutingError: class extends Error {
     constructor(
       readonly code: string,
@@ -47,6 +49,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     acceptSessionDelivery: mocks.accept,
     createSessionWithDelivery: mocks.acceptWithNewSession,
+    clearSessionMessages: mocks.clearMessages,
     claimSessionDeliveryTx: mocks.claim,
     failSessionDelivery: mocks.fail,
     finalizeSessionDelivery: mocks.finalize,
@@ -100,6 +103,7 @@ const runtime = {
 }
 const manager = {
   isWriteQuiesced: false,
+  abortAndDrain: vi.fn(),
   withDispatchLock: (_topicId: string, fn: () => Promise<void>) => fn(),
   hasLiveStream: mocks.hasLiveStream,
   pauseRuntimeTurn: mocks.pauseRuntimeTurn,
@@ -161,6 +165,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.whenTerminalDispatchSettled.mockResolvedValue(undefined)
     mocks.runtimeBusy.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
+    mocks.clearMessages.mockReturnValue({ deletedIds: [], deliveryResults: [] })
     mocks.getMessage.mockReturnValue(accepted)
     mocks.markTerminalError.mockReset()
     mocks.validateDispatch.mockResolvedValue({
@@ -647,6 +652,56 @@ describe('AgentSessionDeliveryService', () => {
     await flush()
 
     expect(order).toEqual(['commit', 'close', 'kick-result'])
+  })
+
+  it('rejects a delivery after its target clear commits and before the drain releases', async () => {
+    let releaseDrain!: () => void
+    manager.abortAndDrain.mockImplementationOnce(async (_topicId: string, _reason: string, afterDrain: () => void) => {
+      afterDrain()
+      await new Promise<void>((resolve) => {
+        releaseDrain = resolve
+      })
+    })
+    mocks.clearMessages.mockReturnValue({ deletedIds: ['message-1'], deliveryResults: [] })
+    const service = new AgentSessionDeliveryService()
+
+    const clearing = service.clearSessionMessages('target')
+    await vi.waitFor(() => expect(mocks.clearMessages).toHaveBeenCalledWith('target'))
+
+    expect(() =>
+      service.accept({
+        senderAgentId: 'sender-agent',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'late delivery'
+      })
+    ).toThrow('Target Session messages are being cleared')
+    expect(mocks.accept).not.toHaveBeenCalled()
+
+    releaseDrain()
+    await expect(clearing).resolves.toEqual({ deletedIds: ['message-1'] })
+  })
+
+  it('schedules completion failure results created while target messages are cleared', async () => {
+    const result = { ...accepted, id: 'result-1', sessionId: 'sender' }
+    const order: string[] = []
+    manager.abortAndDrain.mockImplementationOnce(async (_topicId: string, _reason: string, afterDrain: () => void) => {
+      afterDrain()
+    })
+    mocks.clearMessages.mockImplementation(() => {
+      order.push('commit')
+      return { deletedIds: ['message-1'], deliveryResults: [result] }
+    })
+    mocks.listAccepted.mockImplementation((sessionId?: string) => {
+      if (sessionId === 'sender') order.push('kick-result')
+      return []
+    })
+    const service = new AgentSessionDeliveryService()
+
+    await service.clearSessionMessages('target')
+    await service.drainInFlight({ timeoutMs: 100 })
+
+    expect(order).toEqual(['commit', 'kick-result'])
   })
 
   it('closes duplicate placeholder runtimes through the delivery owner', async () => {

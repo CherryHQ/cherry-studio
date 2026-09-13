@@ -1,9 +1,10 @@
 import dayjs from 'dayjs'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
-import { useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import type { GroupedVirtualListGroup } from '@renderer/components/VirtualList'
 import type { ContentSearchGroup, ContentSearchSourceType } from '@shared/data/api/schemas/search'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
 
 import {
@@ -30,6 +31,7 @@ type ContentSearchCursorMap = Partial<Record<ContentSearchSourceType, string>>
 type ContentSearchState = {
   baseKey: string
   items: GlobalMessageSearchResult[]
+  needsFirstPageRefresh: boolean
   requestedCursors: ContentSearchCursorMap
   nextCursors: ContentSearchCursorMap
 }
@@ -38,6 +40,7 @@ function createContentSearchState(baseKey: string): ContentSearchState {
   return {
     baseKey,
     items: [],
+    needsFirstPageRefresh: false,
     requestedCursors: {},
     nextCursors: {}
   }
@@ -224,6 +227,11 @@ export function useGlobalSearchPanelData({
       ? contentSearchState
       : createContentSearchState(contentSearchStateKey)
   const requestedContentSearchCursors = activeContentSearchState.requestedCursors
+  const isContentSearchPageRequested = Object.keys(requestedContentSearchCursors).length > 0
+  const isContentSearchPageRequestedRef = useRef(isContentSearchPageRequested)
+  useLayoutEffect(() => {
+    isContentSearchPageRequestedRef.current = isContentSearchPageRequested
+  }, [isContentSearchPageRequested])
   const requestedContentSearchSources = useMemo(() => {
     const cursorSources = contentSearchSources.filter((source) => requestedContentSearchCursors[source])
     return cursorSources.length > 0 ? cursorSources : contentSearchSources
@@ -257,7 +265,8 @@ export function useGlobalSearchPanelData({
     data: contentSearchData,
     isLoading: isContentSearchLoading,
     isRefreshing: isContentSearchRefreshing,
-    error: contentSearchError
+    error: contentSearchError,
+    refetch: refetchContentSearch
   } = useQuery('/search/contents', {
     enabled: hasQuery && contentSearchSources.length > 0,
     query: contentSearchQuery,
@@ -266,12 +275,59 @@ export function useGlobalSearchPanelData({
     }
   })
 
+  const handleContentSearchDataChange = useCallback(
+    (effects: DataApiDataChangeEffect[]) => {
+      const shouldRestartPagination = isContentSearchPageRequestedRef.current
+      const changedMessageIds = new Set(effects.flatMap((effect) => effect.entityIds ?? []))
+      setContentSearchState((state) => {
+        if (shouldRestartPagination) {
+          return { ...createContentSearchState(state.baseKey), needsFirstPageRefresh: true }
+        }
+        if (effects.some((effect) => !effect.entityIds)) {
+          return createContentSearchState(state.baseKey)
+        }
+        const items = state.items.filter((item) => !changedMessageIds.has(item.messageId))
+        return items.length === state.items.length ? state : { ...state, items }
+      })
+      if (!shouldRestartPagination) void refetchContentSearch()
+    },
+    [refetchContentSearch]
+  )
+  useDataChange('/search/contents', handleContentSearchDataChange)
+
   useEffect(() => {
-    if (!contentSearchData || contentSearchData.query !== deferredQuery) return
+    if (!activeContentSearchState.needsFirstPageRefresh) return
+
+    let cancelled = false
+    const finishRefresh = () => {
+      if (cancelled) return
+      setContentSearchState((state) =>
+        state.baseKey === contentSearchStateKey && state.needsFirstPageRefresh
+          ? { ...state, needsFirstPageRefresh: false }
+          : state
+      )
+    }
+    void refetchContentSearch().then(finishRefresh, finishRefresh)
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeContentSearchState.needsFirstPageRefresh, contentSearchStateKey, refetchContentSearch])
+
+  useEffect(() => {
+    if (
+      !contentSearchData ||
+      contentSearchData.query !== deferredQuery ||
+      contentSearchError ||
+      activeContentSearchState.needsFirstPageRefresh
+    ) {
+      return
+    }
 
     setContentSearchState((state) => {
       const current = state.baseKey === contentSearchStateKey ? state : createContentSearchState(contentSearchStateKey)
-      const itemsById = new Map(current.items.map((item) => [getMessageSearchResultId(item), item] as const))
+      const retainedItems = isContentSearchPageRequested ? current.items : []
+      const itemsById = new Map(retainedItems.map((item) => [getMessageSearchResultId(item), item] as const))
 
       for (const group of contentSearchData.groups) {
         for (const item of mapContentSearchGroup(group)) {
@@ -295,14 +351,24 @@ export function useGlobalSearchPanelData({
         nextCursors
       }
     })
-  }, [contentSearchData, contentSearchStateKey, deferredQuery])
+  }, [
+    activeContentSearchState.needsFirstPageRefresh,
+    contentSearchData,
+    contentSearchError,
+    contentSearchStateKey,
+    deferredQuery,
+    isContentSearchPageRequested
+  ])
 
   const hasMoreMessageResults = isMessageSearchMode && Object.keys(activeContentSearchState.nextCursors).length > 0
   const isLoadingMoreMessageResults =
     isMessageSearchMode &&
     Object.keys(activeContentSearchState.requestedCursors).length > 0 &&
     isContentSearchRefreshing
-  const isMessageLoading = isMessageSearchMode && activeContentSearchState.items.length === 0 && isContentSearchLoading
+  const isMessageLoading =
+    isMessageSearchMode &&
+    activeContentSearchState.items.length === 0 &&
+    (isContentSearchLoading || activeContentSearchState.needsFirstPageRefresh)
   const messageError = contentSearchError
   const messageLoadMoreCount = Object.keys(activeContentSearchState.nextCursors).length * messageSearchLimit
   const loadMoreMessageResults = useCallback(() => {

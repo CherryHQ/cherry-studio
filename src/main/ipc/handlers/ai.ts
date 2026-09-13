@@ -231,6 +231,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
+  'ai.agent.session.messages.clear': ({ sessionId }) =>
+    application.get('AgentSessionDeliveryService').clearSessionMessages(sessionId),
   'ai.agent.session.delete': ({ sessionIds }) =>
     application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
   'ai.agent.session.reuse_or_create': (input) =>
