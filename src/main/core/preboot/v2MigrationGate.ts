@@ -18,7 +18,9 @@ import {
   evaluateCandidateVersion,
   getAllMigrators,
   getBlockMessage,
+  isMigrationStorageError,
   isSchemaOutOfSyncError,
+  type MigrationPaths,
   migrationEngine,
   migrationWindowManager,
   pinUserDataPath,
@@ -30,6 +32,7 @@ import {
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import { resolveSystemLanguage, t } from '@main/i18n'
 
 const logger = loggerService.withContext('V2MigrationGate')
 
@@ -65,6 +68,42 @@ async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGat
   )
   application.quit()
   return 'handled'
+}
+
+async function checkMigrationStatus(paths: MigrationPaths, legacyDataConfirmed: boolean): Promise<boolean | null> {
+  while (true) {
+    try {
+      logger.info('Checking if data migration v2 is needed')
+      migrationEngine.initialize(paths, legacyDataConfirmed)
+      migrationEngine.registerMigrators(getAllMigrators())
+      const needsMigration = await migrationEngine.needsMigration()
+      logger.info('Migration status check result', { needsMigration })
+      return needsMigration
+    } catch (error) {
+      if (isDev || !isMigrationStorageError(error)) throw error
+
+      logger.error('Migration database unavailable', error as Error)
+      migrationEngine.close()
+      await app.whenReady()
+      const language = resolveSystemLanguage(app.getLocale())
+      const { response } = await dialog.showMessageBox({
+        type: 'error',
+        title: t('dialog.migration_database_unavailable.title', undefined, language),
+        message: t('dialog.migration_database_unavailable.message', undefined, language),
+        detail: t('dialog.migration_database_unavailable.detail', undefined, language),
+        buttons: [
+          t('dialog.migration_database_unavailable.retry', undefined, language),
+          t('dialog.migration_database_unavailable.quit', undefined, language)
+        ],
+        defaultId: 0,
+        cancelId: 1
+      })
+      if (response === 0) continue
+
+      application.quit()
+      return null
+    }
+  }
 }
 
 /**
@@ -148,11 +187,9 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   let needsMigration = false
 
   try {
-    logger.info('Checking if data migration v2 is needed')
-    migrationEngine.initialize(paths, legacyDataConfirmed)
-    migrationEngine.registerMigrators(getAllMigrators())
-    needsMigration = await migrationEngine.needsMigration()
-    logger.info('Migration status check result', { needsMigration })
+    const result = await checkMigrationStatus(paths, legacyDataConfirmed)
+    if (result === null) return 'handled'
+    needsMigration = result
   } catch (error) {
     logger.error('Migration status check failed', error as Error)
     await app.whenReady()
