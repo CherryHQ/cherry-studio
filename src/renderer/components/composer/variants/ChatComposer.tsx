@@ -1517,7 +1517,8 @@ const ChatComposerInner = ({
     removeId: removeFollowup,
     reorder: reorderFollowups,
     paused: followupPaused,
-    setPaused: setFollowupPaused
+    setPaused: setFollowupPaused,
+    steer: steerFollowup
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
     isFulfilled,
@@ -1926,12 +1927,10 @@ const ChatComposerInner = ({
                 paused={followupPaused}
                 onTogglePause={() => setFollowupPaused(!followupPaused)}
                 onSteer={async (id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  // Only drop the item once the send actually succeeds; a failed manual
-                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
-                  if (sent) removeFollowup(id)
+                  // Claim-guarded send: only the window whose claim wins sends,
+                  // so a manual steer racing another window's auto-drain cannot
+                  // deliver the same queued message twice.
+                  await steerFollowup(id, sendQueuedPayload)
                 }}
                 onEdit={(id) => {
                   const item = queuedFollowups.find((entry) => entry.id === id)
