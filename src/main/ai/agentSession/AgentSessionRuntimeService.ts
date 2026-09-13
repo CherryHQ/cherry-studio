@@ -291,7 +291,7 @@ type AgentSessionRuntimeEntry = {
   /** Assistant rows already committed by PersistenceListener and safe to use as accumulator seeds. */
   persistedFlowMessageIds?: Set<string>
   /** Detached chunks that raced PersistenceListener at the turn boundary. */
-  pendingBackgroundFlowChunks?: Map<string, UIMessageChunk[]>
+  pendingBackgroundFlowChunks?: Map<string, Array<{ chunk: UIMessageChunk; rootToolCallId: string }>>
   /** One continuation accumulator per persisted assistant row receiving detached flow chunks. */
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
   /** Single-flight finalization of the current detached flow batch. */
@@ -2058,15 +2058,16 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     if (!entry.persistedFlowMessageIds?.has(messageId)) {
-      const pending = entry.pendingBackgroundFlowChunks ?? new Map<string, UIMessageChunk[]>()
+      const pending =
+        entry.pendingBackgroundFlowChunks ?? new Map<string, Array<{ chunk: UIMessageChunk; rootToolCallId: string }>>()
       entry.pendingBackgroundFlowChunks = pending
       const chunks = pending.get(messageId) ?? []
-      chunks.push(chunk)
+      chunks.push({ chunk, rootToolCallId })
       pending.set(messageId, chunks)
       return
     }
 
-    this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
+    this.enqueueBackgroundFlowChunk(entry, messageId, chunk, rootToolCallId)
   }
 
   private markFlowMessagePersisted(entry: AgentSessionRuntimeEntry, messageId: string): void {
@@ -2075,11 +2076,17 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!pending?.length) return
 
     entry.pendingBackgroundFlowChunks?.delete(messageId)
-    for (const chunk of pending) this.enqueueBackgroundFlowChunk(entry, messageId, chunk)
+    for (const { chunk, rootToolCallId } of pending)
+      this.enqueueBackgroundFlowChunk(entry, messageId, chunk, rootToolCallId)
     if (!hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)) void this.finishBackgroundFlows(entry)
   }
 
-  private enqueueBackgroundFlowChunk(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
+  private enqueueBackgroundFlowChunk(
+    entry: AgentSessionRuntimeEntry,
+    messageId: string,
+    chunk: UIMessageChunk,
+    rootToolCallId: string
+  ): void {
     let accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
     accumulator.openParts ??= new Set()
     accumulator.openTools ??= new Map()
@@ -2117,8 +2124,15 @@ export class AgentSessionRuntimeService extends BaseService {
         if (!accumulator.openParts.has(key)) {
           // Same split as `buildCompactReplay`: the seed keeps the persisted
           // prefix and the continuation streams as a new part. No text is lost.
+          // Deltas never carry the start's parent linkage, so reattach it here —
+          // otherwise the continued part cannot be associated with its subagent.
           accumulator.openParts.add(key)
-          queue.push(kind === 'text' ? { type: 'text-start', id: chunk.id } : { type: 'reasoning-start', id: chunk.id })
+          const startType = kind === 'text' ? 'text-start' : 'reasoning-start'
+          queue.push({
+            type: startType,
+            id: chunk.id,
+            providerMetadata: chunk.providerMetadata ?? { cherry: { parentToolCallId: rootToolCallId } }
+          })
         }
         queue.push(chunk)
         break
@@ -2192,14 +2206,17 @@ export class AgentSessionRuntimeService extends BaseService {
   private completeSeedStreamingPart(accumulator: BackgroundFlowAccumulator, kind: 'text' | 'reasoning'): boolean {
     const parts = accumulator.latest?.parts
     if (!parts) return false
-    for (let index = parts.length - 1; index >= 0; index--) {
-      const part = parts[index]
-      if (part.type === kind && part.state === 'streaming') {
-        parts[index] = { ...part, state: 'done' as const }
-        return true
-      }
-    }
-    return false
+    // Several detached flows can share one row while seed parts carry no stream id,
+    // so the last match may belong to another flow. Close in place only when the
+    // kind is unambiguous; the terminal flush closes whatever remains.
+    const matches = parts.filter(
+      (part): part is Extract<CherryMessagePart, { type: 'text' | 'reasoning' }> =>
+        part.type === kind && part.state === 'streaming'
+    )
+    if (matches.length !== 1) return false
+    const match = matches[0]
+    parts[parts.indexOf(match)] = { ...match, state: 'done' as const }
+    return true
   }
 
   private closeStreamingFlowParts(parts: CherryMessagePart[]): CherryMessagePart[] {

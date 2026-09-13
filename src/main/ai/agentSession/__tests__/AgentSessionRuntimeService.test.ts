@@ -2539,6 +2539,131 @@ describe('AgentSessionRuntimeService', () => {
       })
     })
 
+    it('keeps the subagent association on orphan detached deltas that arrive without a start chunk', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      // The text-start raced persistence, so only the bare delta arrives. The
+      // synthesized start must reattach the parent linkage or the continued
+      // part can no longer be associated with its subagent.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-delta', id: 'orphan-text', delta: 'Continued insight' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-end', id: 'orphan-text' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'text',
+              text: 'Continued insight',
+              providerMetadata: expect.objectContaining({
+                cherry: expect.objectContaining({ parentToolCallId: 'task-root' })
+              })
+            })
+          ])
+        )
+      })
+    })
+
+    it('leaves ambiguous seed parts streaming when an orphan end cannot identify its part', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      // Two detached flows share this row, so the seed holds two streaming text
+      // parts with no stream id. An orphan end for one flow must not close the
+      // other flow's part in place; the terminal flush converges both instead.
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'tool-Agent',
+              toolCallId: 'task-root',
+              state: 'input-available',
+              input: { prompt: 'Audit the codebase' }
+            },
+            { type: 'text', text: 'first answer', state: 'streaming' },
+            { type: 'text', text: 'second answer', state: 'streaming' }
+          ]
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-end', id: 'ghost-text' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({ type: 'text', text: 'first answer', state: 'done' }),
+            expect.objectContaining({ type: 'text', text: 'second answer', state: 'done' })
+          ])
+        )
+      })
+      // The live overlay (two-arg writes) must never converge a single part while
+      // its sibling is still streaming — that would end the wrong flow's part.
+      const overlayWrites = mocks.cacheSetShared.mock.calls.filter(
+        (call) => call[0] === 'agent.session.flow_parts.session-1.assistant-1' && call.length === 2
+      )
+      for (const [, parts] of overlayWrites) {
+        const textStates = (parts as Array<{ type?: string; state?: string }>)
+          .filter((part) => part.type === 'text')
+          .map((part) => part.state)
+        expect(textStates).not.toContain('done')
+      }
+    })
+
     it('publishes detached flow overlays under independent message keys', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
