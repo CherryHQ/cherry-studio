@@ -825,6 +825,69 @@ describe('useFollowupQueue', () => {
     expect(markSeen).toHaveBeenCalledOnce()
   })
 
+  it('drains the new scope while the previous scope drain is in flight', async () => {
+    const headA = row('a', 'A')
+    const headB = { ...row('b', 'B'), scopeKey: 's2' }
+    const refetch = vi.fn()
+    mockUseQuery.mockImplementation((path: string, options?: { query?: { scopeKey?: string } }) => {
+      if (path === '/followup-queues') {
+        return {
+          data: [headA, headB],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch,
+          mutate: vi.fn()
+        }
+      }
+      return {
+        data: { scopeKey: options?.query?.scopeKey ?? SCOPE, paused: false, createdAt: '', updatedAt: '' },
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn(),
+        mutate: vi.fn()
+      }
+    })
+    const { claimHeadTrigger, deleteTrigger, failTrigger } = wireMutations()
+    const pending: Array<(value: unknown) => void> = []
+    claimHeadTrigger.mockImplementation(
+      () => new Promise((resolve) => pending.push(resolve as (value: unknown) => void))
+    )
+    const onDrain = vi.fn(async () => true)
+    const markSeen = vi.fn()
+
+    const { rerender } = renderHook(
+      ({ scopeKey, isFulfilled }: { scopeKey: string; isFulfilled: boolean }) =>
+        useFollowupQueue(baseProps({ scopeKey, isFulfilled, markSeen, onDrain })),
+      { initialProps: { scopeKey: SCOPE, isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ scopeKey: SCOPE, isFulfilled: true })
+    })
+    expect(pending).toHaveLength(1)
+
+    // Switch conversations while scope A's drain is still in flight: scope B
+    // must start its own drain instead of stalling on the shared guard, while
+    // A's cycle releases its claim without sending into the new scope.
+    await act(async () => {
+      rerender({ scopeKey: 's2', isFulfilled: true })
+    })
+    expect(pending).toHaveLength(2)
+
+    await act(async () => {
+      pending[0]({ claimed: true, id: 'a' })
+      pending[1]({ claimed: true, id: 'b' })
+    })
+
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    expect(onDrain).toHaveBeenCalledWith(headB.payload)
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'a' } })
+    expect(markSeen).toHaveBeenCalledOnce()
+  })
+
   it('keeps retrying the claim while the edge stays unacked', async () => {
     vi.useFakeTimers()
     try {
