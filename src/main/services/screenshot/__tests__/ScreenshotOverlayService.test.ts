@@ -617,6 +617,27 @@ describe('ScreenshotOverlayService', () => {
       expect(container.openCalls.map((c) => c.id)).toEqual(['overlay-0-0', 'overlay-1920-0'])
     })
 
+    it('matches a mixed-DPI secondary display left of the Windows primary', async () => {
+      platform.isMac = false
+      platform.isWin = true
+      electron.displays = [makeDisplay(100, 0, 0, 1920, 1080, 1.5), makeDisplay(101, -1920, 0, 1920, 1080, 1.25)]
+      electron.cursorDisplay = electron.displays[0]
+      capture.captureAllMonitors.mockReturnValue(
+        new Map([
+          [10, makeCapture(2880, 1620)],
+          [11, makeCapture(2400, 1350)]
+        ])
+      )
+      capture.listMonitors.mockReturnValue([
+        { id: 10, name: 'M1', x: 0, y: 0, width: 2880, height: 1620, scaleFactor: 1.5, isPrimary: true },
+        { id: 11, name: 'M2', x: -2400, y: 0, width: 2400, height: 1350, scaleFactor: 1.25, isPrimary: false }
+      ])
+
+      await service.startCapture()
+
+      expect(container.openCalls.map((c) => c.id)).toEqual(['overlay-0-0', 'overlay--1920-0'])
+    })
+
     it('takes the reference scale factor from the primary display, not from a display at the origin', async () => {
       // Under DPI scaling Electron reports fractional bounds, so no display sits exactly
       // at (0,0); guessing then silently falls back to 1 and tier 3 stops matching.
