@@ -114,6 +114,14 @@ export type TranslatingState =
       abortKey: null
     }
 
+export type CacheTranslateLastHistoryRestore = { revision: number; input: string; output: string }
+export type CacheTranslateHistoryRestorePending = { intentRevision: number; barrier: Promise<boolean> }
+export type CacheTranslateRestoredPdf = {
+  file: { name: string; path: AbsoluteFilePath }
+  output: { outputPath: AbsoluteFilePath; fileName: string }
+  key: string
+}
+
 export type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
 /**

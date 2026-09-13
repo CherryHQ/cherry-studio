@@ -168,6 +168,14 @@ export type UseCacheSchema = {
   'translate.output': string
   /** Whether detecting source language or not */
   'translate.detecting': boolean
+  /** Revision of the latest user intent that may change translated content */
+  'translate.content_intent_revision': number
+  'translate.last_history_restore': CacheValueTypes.CacheTranslateLastHistoryRestore | null
+  'translate.history_restore_pending': CacheValueTypes.CacheTranslateHistoryRestorePending | null
+  'translate.exchange_pending': symbol | null
+  'translate.restored_pdf': CacheValueTypes.CacheTranslateRestoredPdf | null
+  /** Revision that invalidates asynchronous translated-content producers */
+  'translate.content_operation_revision': number
   /** Whether translating input text */
   'translate.translating': CacheValueTypes.TranslatingState
 
@@ -259,6 +267,12 @@ export const DefaultUseCache: UseCacheSchema = {
   'translate.input': '',
   'translate.output': '',
   'translate.detecting': false,
+  'translate.content_intent_revision': 0,
+  'translate.last_history_restore': null,
+  'translate.history_restore_pending': null,
+  'translate.exchange_pending': null,
+  'translate.restored_pdf': null,
+  'translate.content_operation_revision': 0,
   'translate.translating': {
     isTranslating: false,
     abortKey: null

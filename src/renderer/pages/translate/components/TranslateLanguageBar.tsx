@@ -23,6 +23,7 @@ type Props = {
   detectedLanguage: TranslateLangCode | null
   isBidirectional: boolean
   showSourceControls: boolean
+  languageControlsDisabled: boolean
   bidirectionalPair: TranslateBidirectionalPair
   couldExchange: boolean
   onExchange: () => void
@@ -48,6 +49,7 @@ const TranslateLanguageBar: FC<Props> = ({
   detectedLanguage,
   isBidirectional,
   showSourceControls,
+  languageControlsDisabled,
   bidirectionalPair,
   couldExchange,
   onExchange
@@ -156,6 +158,7 @@ const TranslateLanguageBar: FC<Props> = ({
             size="default"
             options={sourceOptions}
             value={sourceLanguage}
+            disabled={languageControlsDisabled}
             onChange={(value) => handleSourceSelect(Array.isArray(value) ? value[0] : value)}
             placeholder={t('translate.source_language')}
             searchable={false}
@@ -173,19 +176,21 @@ const TranslateLanguageBar: FC<Props> = ({
               )
             }}
           />
-
-          <Tooltip content={t('translate.exchange.label')} placement="bottom">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onExchange}
-              disabled={!couldExchange}
-              aria-label={t('translate.exchange.label')}
-              className="h-8 w-8 shrink-0 rounded-full text-muted-foreground shadow-none transition-all hover:bg-accent hover:text-foreground active:scale-90">
-              <ArrowLeftRight size={14} />
-            </Button>
-          </Tooltip>
         </>
+      )}
+
+      {!isBidirectional && !showSourceControls && couldExchange && (
+        <Tooltip content={t('translate.exchange.label')} placement="bottom">
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={languageControlsDisabled}
+            onClick={onExchange}
+            aria-label={t('translate.exchange.label')}
+            className="h-8 w-8 shrink-0 rounded-full text-muted-foreground shadow-none transition-all hover:bg-accent hover:text-foreground active:scale-90">
+            <ArrowLeftRight size={14} />
+          </Button>
+        </Tooltip>
       )}
 
       {isBidirectional ? (
@@ -218,6 +223,7 @@ const TranslateLanguageBar: FC<Props> = ({
             size="default"
             options={targetOptions}
             value={targetLanguage}
+            disabled={languageControlsDisabled}
             onChange={(value) => handleTargetSelect(Array.isArray(value) ? value[0] : value)}
             placeholder={t('translate.target_language')}
             searchable={false}
