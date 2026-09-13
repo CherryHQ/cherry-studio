@@ -1,5 +1,8 @@
+import { MockUseDataApiUtils, mockUseInfiniteQuery, mockUseWriteInfiniteCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import type { Cache } from 'swr'
+import { createElement, type ReactNode, startTransition, Suspense } from 'react'
+import type * as SWRModule from 'swr'
+import type { Cache, ScopedMutator } from 'swr'
 import useSWR, { unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 import useSWRInfinite, { unstable_serialize as unstable_serialize_infinite } from 'swr/infinite'
@@ -7,7 +10,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
 import type * as RendererConstantModule from '@renderer/utils/platform'
+import type { ResponseForPath } from '@shared/data/api/paths'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
+import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
 
 import { createSWRTestWrapper as makeWrapper } from './testUtils'
@@ -15,6 +20,21 @@ import { createSWRTestWrapper as makeWrapper } from './testUtils'
 // Tests exercise the real implementation; the global renderer setup otherwise
 // replaces this module with a mock for consuming components.
 vi.unmock('@data/hooks/useDataApi')
+
+const scopedMutateWrapper = vi.hoisted(() => ({
+  current: undefined as ((mutate: ScopedMutator) => ScopedMutator) | undefined
+}))
+
+vi.mock('swr', async (importOriginal) => {
+  const actual = await importOriginal<typeof SWRModule>()
+  return {
+    ...actual,
+    useSWRConfig: () => {
+      const config = actual.useSWRConfig()
+      return { ...config, mutate: scopedMutateWrapper.current?.(config.mutate) ?? config.mutate }
+    }
+  }
+})
 
 // `isDev` reads `window.electron.process.env.NODE_ENV`, which isn't populated
 // in the Vitest environment. Force it to true so the dev-only pattern
@@ -33,7 +53,8 @@ import {
   usePaginatedQuery,
   useQuery,
   useReadCache,
-  useWriteCache
+  useWriteCache,
+  useWriteInfiniteCache
 } from '../useDataApi'
 
 const {
@@ -593,6 +614,16 @@ describe('useInfiniteQuery / useInfiniteFlatItems type contracts', () => {
     }
   })
 
+  it('rejects parallel loading for cursor-paginated queries', () => {
+    if ((false as boolean) === true) {
+      void useInfiniteQuery('/topics/:topicId/messages', {
+        params: { topicId: '' },
+        // @ts-expect-error - each page key depends on the previous page cursor
+        swrOptions: { parallel: true }
+      })
+    }
+  })
+
   it('useInfiniteFlatItems infers the page item type', () => {
     if ((false as boolean) === true) {
       const r = useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: '' } })
@@ -658,6 +689,129 @@ describe('useInfiniteFlatItems behavior', () => {
   })
 })
 
+describe('unified useInfiniteQuery mock parity', () => {
+  const path = '/agent-sessions/:sessionId/messages' as const
+  const options = (sessionId: string, deferToolOutputs: boolean, limit: number) => ({
+    params: { sessionId },
+    query: { deferToolOutputs },
+    limit
+  })
+  const pages = (id: string): ResponseForPath<typeof path, 'GET'>[] => [
+    {
+      items: [
+        {
+          id,
+          sessionId: 'session-1',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: id }] },
+          searchableText: id,
+          status: 'success',
+          modelId: null,
+          messageSnapshot: null,
+          stats: null,
+          runtimeResumeToken: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z'
+        } satisfies AgentSessionMessageEntity
+      ],
+      nextCursor: undefined
+    }
+  ]
+
+  afterEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.restoreAllMocks()
+  })
+
+  it('isolates the same route by resolved params, query, and effective limit like the real hook', async () => {
+    const cases = [
+      { id: 'session-1-deferred-10', options: options('session-1', true, 10) },
+      { id: 'session-2-deferred-10', options: options('session-2', true, 10) },
+      { id: 'session-1-full-10', options: options('session-1', false, 10) },
+      { id: 'session-1-deferred-25', options: options('session-1', true, 25) }
+    ]
+
+    const productionKeys = cases.map(({ options: queryOptions }) =>
+      infKey(resolveTemplate(path, queryOptions.params), { ...queryOptions.query, limit: queryOptions.limit })
+    )
+    expect(new Set(productionKeys).size).toBe(cases.length)
+
+    vi.spyOn(dataApiService, 'get').mockImplementation((async (resolvedPath: string, request = {}) => {
+      const query = (request as { query?: { deferToolOutputs?: boolean; limit?: number } }).query
+      const sessionId = resolvedPath.split('/')[2]
+      const id = `${sessionId}-${query?.deferToolOutputs ? 'deferred' : 'full'}-${query?.limit}`
+      return pages(id)[0]
+    }) as never)
+    const { Wrapper } = makeWrapper()
+    const real = renderHook(({ queryOptions }) => useInfiniteQuery(path, queryOptions), {
+      initialProps: { queryOptions: cases[0].options },
+      wrapper: Wrapper
+    })
+    for (const { id, options: queryOptions } of cases) {
+      real.rerender({ queryOptions })
+      await waitFor(() => expect(real.result.current.pages[0]?.items[0]?.id).toBe(id))
+    }
+
+    for (const { id, options: queryOptions } of cases) {
+      MockUseDataApiUtils.seedInfiniteQuery(path, pages(id), queryOptions)
+    }
+
+    const results = cases.map(({ options: queryOptions }) =>
+      renderHook(() => mockUseInfiniteQuery<typeof path>(path, queryOptions))
+    )
+    expect(results.map(({ result }) => result.current.pages[0]?.items[0]?.id)).toEqual(cases.map(({ id }) => id))
+  })
+
+  it('matches functional mutate and mounted-subscriber behavior', async () => {
+    const queryOptions = options('session-1', true, 50)
+    const initialPages = pages('before')
+    const updatedPages = pages('after')
+    MockUseDataApiUtils.seedInfiniteQuery(path, initialPages, queryOptions)
+
+    const { result, rerender } = renderHook(() => mockUseInfiniteQuery<typeof path>(path, queryOptions))
+    const mutate = result.current.mutate
+    await act(async () => {
+      await mutate(
+        (current: typeof initialPages) => {
+          expect(current).toEqual(initialPages)
+          return updatedPages
+        },
+        { revalidate: false }
+      )
+    })
+
+    expect(result.current.pages).toEqual(updatedPages)
+    rerender()
+    expect(result.current.mutate).toBe(mutate)
+  })
+
+  it('clears cached pages when either functional mutation returns undefined', async () => {
+    const queryOptions = options('session-1', true, 50)
+    const initialPages = pages('before')
+    MockUseDataApiUtils.seedInfiniteQuery(path, initialPages, queryOptions)
+
+    const { result } = renderHook(() => ({
+      query: mockUseInfiniteQuery<typeof path>(path, queryOptions),
+      writeCache: mockUseWriteInfiniteCache<typeof path>(path, queryOptions)
+    }))
+
+    await act(async () => {
+      await result.current.query.mutate(() => undefined)
+    })
+    expect(result.current.query.pages).toEqual([])
+    expect(MockUseDataApiUtils.getInfiniteQueryPages(path, queryOptions)).toBeUndefined()
+
+    act(() => {
+      MockUseDataApiUtils.setInfiniteQueryPages(path, initialPages, queryOptions)
+    })
+    await act(async () => {
+      await result.current.writeCache(() => undefined)
+    })
+    expect(result.current.query.pages).toEqual([])
+    expect(MockUseDataApiUtils.getInfiniteQueryPages(path, queryOptions)).toBeUndefined()
+  })
+})
+
 describe('useInfiniteQuery integration', () => {
   // Spy `dataApiService.get` per test. The default `mockResolvedValue` keeps the
   // hook from falling back to the IPC-backed real implementation if SWR fires
@@ -670,6 +824,7 @@ describe('useInfiniteQuery integration', () => {
   }
 
   afterEach(() => {
+    scopedMutateWrapper.current = undefined
     vi.restoreAllMocks()
   })
 
@@ -756,6 +911,415 @@ describe('useInfiniteQuery integration', () => {
     })
 
     expect(result.current.pages[0]?.activeNodeId).toBe('overridden')
+  })
+
+  it('keeps a cache-only writer stable across equivalent inline query options', () => {
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(
+      () =>
+        useWriteInfiniteCache('/topics/:topicId/messages', {
+          params: { topicId: 't1' },
+          query: { includeSiblings: true },
+          limit: 37
+        }),
+      { wrapper: Wrapper }
+    )
+    const writer = result.current
+
+    rerender()
+
+    expect(result.current).toBe(writer)
+  })
+
+  it('keeps a cache-only writer stable after an alternate-key render is suspended', () => {
+    const neverSettles = new Promise<never>(() => {})
+    const { Wrapper } = makeWrapper()
+    const SuspenseWrapper = ({ children }: { children: ReactNode }) =>
+      createElement(Wrapper, null, createElement(Suspense, { fallback: null }, children))
+    const { result, rerender } = renderHook(
+      ({ shouldSuspend, topicId }) => {
+        const writer = useWriteInfiniteCache('/topics/:topicId/messages', {
+          params: { topicId },
+          query: { includeSiblings: true },
+          limit: 37
+        })
+        if (shouldSuspend) throw neverSettles
+        return writer
+      },
+      { wrapper: SuspenseWrapper, initialProps: { shouldSuspend: false, topicId: 't1' } }
+    )
+    const writer = result.current
+
+    startTransition(() => rerender({ shouldSuspend: true, topicId: 't2' }))
+    rerender({ shouldSuspend: false, topicId: 't1' })
+
+    expect(result.current).toBe(writer)
+  })
+
+  it('keeps a captured cache-only writer scoped to the reader key and synchronizes page caches', async () => {
+    spyGet().mockImplementation((async (path: string, opts: { query?: { cursor?: string } } = {}) => {
+      const topicId = path.includes('/t1/') ? 't1' : 't2'
+      const isOlderPage = opts.query?.cursor === 'older-page'
+      return {
+        items: [],
+        nextCursor: topicId === 't1' && !isOlderPage ? 'older-page' : undefined,
+        activeNodeId: `${topicId}-${isOlderPage ? 'older' : 'newest'}`
+      }
+    }) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result, rerender } = renderHook(
+      ({ topicId }) => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', {
+          params: { topicId },
+          query: { includeSiblings: true },
+          limit: 37
+        }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', {
+          params: { topicId },
+          query: { includeSiblings: true },
+          limit: 37
+        })
+      }),
+      { wrapper: Wrapper, initialProps: { topicId: 't1' } }
+    )
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    await act(async () => result.current.query.loadNext())
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+    const writeTopicOneCache = result.current.writeCache
+
+    rerender({ topicId: 't2' })
+    await waitFor(() => expect(result.current.query.pages[0]?.activeNodeId).toBe('t2-newest'))
+    await act(async () => {
+      await writeTopicOneCache((pages) =>
+        pages?.map((page) => (page.activeNodeId === 't1-older' ? { ...page, activeNodeId: 't1-updated' } : page))
+      )
+    })
+
+    expect(result.current.query.pages[0]?.activeNodeId).toBe('t2-newest')
+    const topicOneOlderPageKey = unstable_serialize([
+      '/topics/t1/messages',
+      { includeSiblings: true, limit: 37, cursor: 'older-page' }
+    ])
+    expect((cache.get(topicOneOlderPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe(
+      't1-updated'
+    )
+
+    rerender({ topicId: 't1' })
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+    expect(result.current.query.pages.map((page) => page.activeNodeId)).toEqual(['t1-newest', 't1-updated'])
+  })
+
+  it('reconciles page size and stale cursor keys after a functional cache write', async () => {
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => ({
+      items: [],
+      nextCursor: opts.query?.cursor ? undefined : 'old-page',
+      activeNodeId: opts.query?.cursor ?? 'newest'
+    })) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    await act(async () => result.current.query.loadNext())
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+
+    const infiniteKey = infKey('/topics/t1/messages', { limit: 10 })
+    const oldSecondPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'old-page' }])
+    expect(cache.get(infiniteKey)).toMatchObject({ _l: 2 })
+    expect(cache.has(oldSecondPageKey)).toBe(true)
+
+    await act(async () => {
+      await result.current.writeCache((pages) =>
+        pages?.length ? [{ ...pages[0], nextCursor: 'replacement-page' }] : pages
+      )
+    })
+
+    expect(cache.get(infiniteKey)).toMatchObject({
+      data: [{ items: [], nextCursor: 'replacement-page', activeNodeId: 'newest' }],
+      _l: 1
+    })
+    expect(cache.has(oldSecondPageKey)).toBe(false)
+  })
+
+  it('clears infinite metadata and page keys when a functional cache write returns undefined', async () => {
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => ({
+      items: [],
+      nextCursor: opts.query?.cursor ? undefined : 'old-page',
+      activeNodeId: opts.query?.cursor ?? 'newest'
+    })) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    await act(async () => result.current.query.loadNext())
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+
+    const infiniteKey = infKey('/topics/t1/messages', { limit: 10 })
+    const firstPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10 }])
+    const secondPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'old-page' }])
+    expect(cache.get(infiniteKey)).toMatchObject({ _l: 2 })
+    expect(cache.has(firstPageKey)).toBe(true)
+    expect(cache.has(secondPageKey)).toBe(true)
+
+    await act(async () => {
+      await result.current.writeCache(() => undefined)
+    })
+
+    expect(result.current.query.pages).toEqual([])
+    expect(cache.get(infiniteKey)).not.toHaveProperty('_l')
+    expect(cache.has(firstPageKey)).toBe(false)
+    expect(cache.has(secondPageKey)).toBe(false)
+  })
+
+  it('keeps page zero refreshable after writing an empty page array', async () => {
+    let refreshed = false
+    const getSpy = spyGet().mockImplementation((async () => ({
+      items: [],
+      nextCursor: undefined,
+      activeNodeId: refreshed ? 'recovered' : 'initial'
+    })) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages[0]?.activeNodeId).toBe('initial'))
+
+    await act(async () => {
+      await result.current.writeCache([])
+    })
+
+    const infiniteKey = infKey('/topics/t1/messages', { limit: 10 })
+    expect(result.current.query.pages).toEqual([])
+    expect(cache.get(infiniteKey)).toMatchObject({ data: [], _l: 1 })
+
+    refreshed = true
+    await act(async () => {
+      await result.current.query.refresh()
+    })
+
+    await waitFor(() => expect(result.current.query.pages[0]?.activeNodeId).toBe('recovered'))
+    expect(getSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('skips page cache writes and rerenders when a functional writer returns the current pages', async () => {
+    spyGet().mockResolvedValue({ items: [], nextCursor: undefined, activeNodeId: 'unchanged' })
+
+    const mutationKeys: unknown[] = []
+    scopedMutateWrapper.current = (mutate) => {
+      const invoke = mutate as unknown as (...args: unknown[]) => Promise<unknown>
+      return (async (...args: unknown[]) => {
+        mutationKeys.push(args[0])
+        return invoke(...args)
+      }) as ScopedMutator
+    }
+
+    const { Wrapper } = makeWrapper()
+    let renderCount = 0
+    const { result } = renderHook(
+      () => {
+        renderCount++
+        return {
+          query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+          writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+        }
+      },
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    mutationKeys.length = 0
+    const settledRenderCount = renderCount
+
+    await act(async () => {
+      await result.current.writeCache((pages) => pages)
+    })
+
+    expect(mutationKeys).toEqual([infKey('/topics/t1/messages', { limit: 10 })])
+    expect(renderCount).toBe(settledRenderCount)
+  })
+
+  it('does not synchronize page caches from an async write superseded by a newer write', async () => {
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => ({
+      items: [],
+      nextCursor: opts.query?.cursor ? undefined : 'old-page',
+      activeNodeId: opts.query?.cursor ?? 'newest'
+    })) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    await act(async () => result.current.query.loadNext())
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+
+    let resolveStaleWrite!: (pages: BranchMessagesResponse[]) => void
+    const stalePages = result.current.query.pages.map((page, index) => ({
+      ...page,
+      ...(index === 0 && { nextCursor: 'stale-page' }),
+      activeNodeId: index === 0 ? 'stale-newest' : 'stale-older'
+    }))
+    const latestPages = result.current.query.pages.map((page, index) => ({
+      ...page,
+      ...(index === 0 && { nextCursor: 'latest-page' }),
+      activeNodeId: index === 0 ? 'latest-newest' : 'latest-older'
+    }))
+    const staleWriteValue = new Promise<BranchMessagesResponse[]>((resolve) => {
+      resolveStaleWrite = resolve
+    })
+
+    let staleWrite!: Promise<BranchMessagesResponse[] | undefined>
+    act(() => {
+      staleWrite = result.current.writeCache(staleWriteValue)
+    })
+    await act(async () => {
+      await result.current.writeCache(latestPages)
+    })
+    await act(async () => {
+      resolveStaleWrite(stalePages)
+      await staleWrite
+    })
+
+    const infiniteKey = infKey('/topics/t1/messages', { limit: 10 })
+    const latestSecondPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'latest-page' }])
+    const staleSecondPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'stale-page' }])
+    expect(cache.get(infiniteKey)?.data).toBe(latestPages)
+    expect((cache.get(latestSecondPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe(
+      'latest-older'
+    )
+    expect(cache.has(staleSecondPageKey)).toBe(false)
+  })
+
+  it('preserves a newer commit while an older undefined write reconciles page caches', async () => {
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => ({
+      items: [],
+      nextCursor: opts.query?.cursor ? undefined : 'old-page',
+      activeNodeId: opts.query?.cursor ?? 'newest'
+    })) as never)
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    await act(async () => result.current.query.loadNext())
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+
+    const latestPages = result.current.query.pages.map((page, index) => ({
+      ...page,
+      ...(index === 0 && { nextCursor: 'latest-page' }),
+      activeNodeId: index === 0 ? 'latest-newest' : 'latest-older'
+    }))
+
+    let olderWrite!: Promise<BranchMessagesResponse[] | undefined>
+    let newerWrite!: Promise<BranchMessagesResponse[] | undefined>
+    act(() => {
+      olderWrite = result.current.writeCache(() => undefined)
+      newerWrite = result.current.writeCache(latestPages)
+    })
+    await act(async () => {
+      await Promise.all([olderWrite, newerWrite])
+    })
+
+    const infiniteKey = infKey('/topics/t1/messages', { limit: 10 })
+    const latestSecondPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'latest-page' }])
+    expect(cache.get(infiniteKey)).toMatchObject({ data: latestPages, _l: 2 })
+    expect((cache.get(latestSecondPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe(
+      'latest-older'
+    )
+  })
+
+  it('does not let older undefined cleanup remove page caches from a newer commit', async () => {
+    spyGet().mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => ({
+      items: [],
+      nextCursor: opts.query?.cursor ? undefined : 'old-page',
+      activeNodeId: opts.query?.cursor ?? 'newest'
+    })) as never)
+
+    const firstPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10 }])
+    let releaseOlderCleanup!: () => void
+    const olderCleanupRelease = new Promise<void>((resolve) => {
+      releaseOlderCleanup = resolve
+    })
+    let noteOlderCleanupStarted!: () => void
+    const olderCleanupStarted = new Promise<void>((resolve) => {
+      noteOlderCleanupStarted = resolve
+    })
+    let deferNextFirstPageMutation = false
+    scopedMutateWrapper.current = (mutate) => {
+      const invoke = mutate as unknown as (...args: unknown[]) => Promise<unknown>
+      return (async (...args: unknown[]) => {
+        if (deferNextFirstPageMutation && Array.isArray(args[0]) && unstable_serialize(args[0]) === firstPageKey) {
+          deferNextFirstPageMutation = false
+          noteOlderCleanupStarted()
+          await olderCleanupRelease
+        }
+        return invoke(...args)
+      }) as ScopedMutator
+    }
+
+    const { Wrapper, cache } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        query: useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+        writeCache: useWriteInfiniteCache('/topics/:topicId/messages', { params: { topicId: 't1' } })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(1))
+    await act(async () => result.current.query.loadNext())
+    await waitFor(() => expect(result.current.query.pages).toHaveLength(2))
+
+    const latestPages = result.current.query.pages.map((page, index) => ({
+      ...page,
+      ...(index === 0 && { nextCursor: 'latest-page' }),
+      activeNodeId: index === 0 ? 'latest-newest' : 'latest-older'
+    }))
+    let olderWrite!: Promise<BranchMessagesResponse[] | undefined>
+    act(() => {
+      deferNextFirstPageMutation = true
+      olderWrite = result.current.writeCache(() => undefined)
+    })
+    await olderCleanupStarted
+    await act(async () => {
+      await result.current.writeCache(latestPages)
+    })
+    releaseOlderCleanup()
+    await act(async () => {
+      await olderWrite
+    })
+
+    const infiniteKey = infKey('/topics/t1/messages', { limit: 10 })
+    const latestSecondPageKey = unstable_serialize(['/topics/t1/messages', { limit: 10, cursor: 'latest-page' }])
+    expect(cache.get(infiniteKey)).toMatchObject({ data: latestPages, _l: 2 })
+    expect((cache.get(firstPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe('latest-newest')
+    expect((cache.get(latestSecondPageKey)?.data as BranchMessagesResponse | undefined)?.activeNodeId).toBe(
+      'latest-older'
+    )
   })
 
   it('bound mutate revalidates every loaded page without revalidateAll', async () => {
@@ -1013,6 +1577,95 @@ describe('useMutation trigger identity & option freshness', () => {
     expect(firstRefresh).not.toHaveBeenCalled()
   })
 
+  it('rolls back optimistic data and preserves the request error when onError throws', async () => {
+    const requestError = new Error('provider update failed')
+    const callbackError = new Error('onError failed')
+    const provider = { id: 'provider-1', name: 'Provider One' }
+    const optimisticProvider = { ...provider, name: 'Updating' }
+    let rejectRequest!: (error: Error) => void
+    vi.spyOn(dataApiService, 'patch').mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectRequest = reject
+        }) as never
+    )
+    const onError = vi.fn(() => {
+      throw callbackError
+    })
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        provider: useSWR(['/providers/provider-1'], async () => provider),
+        mutation: useMutation('PATCH', '/providers/:providerId', {
+          optimisticData: optimisticProvider as never,
+          onError
+        })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.provider.data).toEqual(provider))
+
+    let update!: Promise<unknown>
+    act(() => {
+      update = result.current.mutation.trigger({
+        params: { providerId: 'provider-1' },
+        body: { name: 'Updated' }
+      })
+    })
+    await waitFor(() => expect(result.current.provider.data).toEqual(optimisticProvider))
+
+    await act(async () => {
+      rejectRequest(requestError)
+      await expect(update).rejects.toBe(requestError)
+    })
+
+    expect(onError).toHaveBeenCalledOnce()
+    expect(onError).toHaveBeenCalledWith(requestError)
+    expect(result.current.provider.data).toEqual(provider)
+  })
+
+  it('preserves success and revalidation when onSuccess throws', async () => {
+    const callbackError = new Error('onSuccess failed')
+    const provider = { id: 'provider-1', name: 'Provider One' }
+    const updatedProvider = { ...provider, name: 'Updated' }
+    let persistedProvider = provider
+    vi.spyOn(dataApiService, 'patch').mockImplementation(async () => {
+      persistedProvider = updatedProvider
+      return updatedProvider as never
+    })
+    const onSuccess = vi.fn(() => {
+      throw callbackError
+    })
+    const onError = vi.fn()
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        provider: useSWR(['/providers/provider-1'], async () => persistedProvider),
+        mutation: useMutation('PATCH', '/providers/:providerId', {
+          optimisticData: { ...provider, name: 'Updating' } as never,
+          onSuccess,
+          onError
+        })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.provider.data).toEqual(provider))
+
+    await act(async () => {
+      await expect(
+        result.current.mutation.trigger({
+          params: { providerId: 'provider-1' },
+          body: { name: 'Updated' }
+        })
+      ).resolves.toEqual(updatedProvider)
+    })
+
+    expect(onSuccess).toHaveBeenCalledOnce()
+    expect(onSuccess).toHaveBeenCalledWith(updatedProvider)
+    expect(onError).not.toHaveBeenCalled()
+    expect(result.current.provider.data).toEqual(updatedProvider)
+  })
+
   it('keeps trigger identity on template paths with function-form refresh (crash-site shape)', () => {
     const { Wrapper } = makeWrapper()
     // Mirrors useUpdateAgent (useAgent.ts), the consumer that crashed in
@@ -1028,6 +1681,135 @@ describe('useMutation trigger identity & option freshness', () => {
     rerender()
     rerender()
     expect(result.current.trigger).toBe(first)
+  })
+
+  it('keeps each concurrent template mutation bound to its own request outcome', async () => {
+    const firstError = new Error('session-1 delete failed')
+    const onError = vi.fn()
+    let rejectSessionOne!: (error: Error) => void
+    let resolveSessionTwo!: (value: unknown) => void
+    vi.spyOn(dataApiService, 'delete').mockImplementation((path) => {
+      if (path === '/agent-sessions/session-1/messages/message-1') {
+        return new Promise((_, reject) => {
+          rejectSessionOne = reject
+        }) as never
+      }
+      if (path === '/agent-sessions/session-2/messages/message-2') {
+        return new Promise((resolve) => {
+          resolveSessionTwo = resolve
+        }) as never
+      }
+      throw new Error(`Unexpected DELETE path: ${path}`)
+    })
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(
+      () => useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', { onError }),
+      { wrapper: Wrapper }
+    )
+
+    let sessionOneDelete!: Promise<unknown>
+    let sessionTwoDelete!: Promise<unknown>
+    act(() => {
+      sessionOneDelete = result.current.trigger({ params: { sessionId: 'session-1', messageId: 'message-1' } })
+      sessionTwoDelete = result.current.trigger({ params: { sessionId: 'session-2', messageId: 'message-2' } })
+    })
+
+    await act(async () => {
+      resolveSessionTwo(undefined)
+      await sessionTwoDelete
+    })
+    let outcomes!: PromiseSettledResult<unknown>[]
+    await act(async () => {
+      rejectSessionOne(firstError)
+      outcomes = await Promise.allSettled([sessionOneDelete, sessionTwoDelete])
+    })
+
+    expect(outcomes).toEqual([
+      { status: 'rejected', reason: firstError },
+      { status: 'fulfilled', value: undefined }
+    ])
+    expect(onError).toHaveBeenCalledOnce()
+    expect(onError).toHaveBeenCalledWith(firstError)
+  })
+
+  it('keeps concurrent optimistic rollback and success side effects scoped to each request', async () => {
+    const firstError = new Error('provider-1 update failed')
+    const providerOne = { id: 'provider-1', name: 'Provider One' }
+    const providerTwo = { id: 'provider-2', name: 'Provider Two' }
+    const updatedProviderTwo = { ...providerTwo, name: 'Provider Two Updated' }
+    const optimisticProvider = { id: 'optimistic', name: 'Updating' }
+    let rejectProviderOne!: (error: Error) => void
+    let resolveProviderTwo!: (value: unknown) => void
+    vi.spyOn(dataApiService, 'patch').mockImplementation((path) => {
+      if (path === '/providers/provider-1') {
+        return new Promise((_, reject) => {
+          rejectProviderOne = reject
+        }) as never
+      }
+      if (path === '/providers/provider-2') {
+        return new Promise((resolve) => {
+          resolveProviderTwo = resolve
+        }) as never
+      }
+      throw new Error(`Unexpected PATCH path: ${path}`)
+    })
+    const refresh = vi.fn(() => [])
+    const onSuccess = vi.fn()
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        providerOne: useSWR(['/providers/provider-1'], async () => providerOne),
+        providerTwo: useSWR(['/providers/provider-2'], async () => updatedProviderTwo),
+        mutation: useMutation('PATCH', '/providers/:providerId', {
+          optimisticData: optimisticProvider as never,
+          refresh,
+          onSuccess
+        })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => {
+      expect(result.current.providerOne.data).toEqual(providerOne)
+      expect(result.current.providerTwo.data).toEqual(updatedProviderTwo)
+    })
+
+    let providerOneUpdate!: Promise<unknown>
+    let providerTwoUpdate!: Promise<unknown>
+    act(() => {
+      providerOneUpdate = result.current.mutation.trigger({
+        params: { providerId: 'provider-1' },
+        body: { name: 'Provider One Updated' }
+      })
+      providerTwoUpdate = result.current.mutation.trigger({
+        params: { providerId: 'provider-2' },
+        body: { name: 'Provider Two Updated' }
+      })
+    })
+    await waitFor(() => expect(dataApiService.patch).toHaveBeenCalledTimes(2))
+    expect(result.current.providerOne.data).toEqual(optimisticProvider)
+    expect(result.current.providerTwo.data).toEqual(optimisticProvider)
+
+    await act(async () => {
+      resolveProviderTwo(updatedProviderTwo)
+      await providerTwoUpdate
+    })
+    await act(async () => {
+      rejectProviderOne(firstError)
+      await expect(providerOneUpdate).rejects.toBe(firstError)
+    })
+
+    expect(result.current.providerOne.data).toEqual(providerOne)
+    expect(result.current.providerTwo.data).toEqual(updatedProviderTwo)
+    expect(refresh).toHaveBeenCalledOnce()
+    expect(refresh).toHaveBeenCalledWith({
+      args: {
+        params: { providerId: 'provider-2' },
+        body: { name: 'Provider Two Updated' }
+      },
+      result: updatedProviderTwo
+    })
+    expect(onSuccess).toHaveBeenCalledOnce()
+    expect(onSuccess).toHaveBeenCalledWith(updatedProviderTwo)
   })
 })
 
