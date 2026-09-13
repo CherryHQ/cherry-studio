@@ -49,6 +49,7 @@ import p_poe from './poe'
 import p_ppio from './ppio'
 import p_qiniu from './qiniu'
 import p_radeon_cloud from './radeon-cloud'
+import p_requesty from './requesty'
 import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
@@ -85,6 +86,7 @@ export const PROVIDERS: Provider[] = [
   p_ollama,
   p_radeon_cloud,
   p_tokendance,
+  p_requesty,
   p_new_api,
   p_lmstudio,
   p_anthropic,

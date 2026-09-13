@@ -3022,6 +3022,7 @@
   "provider.qiniu": "Qiniu AI",
   "provider.qwenlm": "QwenLM",
   "provider.radeon-cloud": "AMD GPU Cloud",
+  "provider.requesty": "Requesty",
   "provider.silicon": "SiliconFlow",
   "provider.sophnet": "SophNet",
   "provider.stepfun": "StepFun",
