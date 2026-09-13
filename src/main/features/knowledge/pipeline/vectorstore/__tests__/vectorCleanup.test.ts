@@ -76,17 +76,20 @@ describe('deleteKnowledgeItemVectors', () => {
   })
 
   it('deletes all deduplicated item ids in a single batch call', async () => {
-    // The whole folder's ids go to deleteMaterials in ONE call (one transaction, one GC
-    // pass) — not one call per id, which was the O(N × table) folder-delete freeze.
+    // The whole folder's ids go to deleteMaterials in one call, not one call per id.
     await deleteKnowledgeItemVectors(createBase(), ['note-1', 'note-1', 'note-2'])
 
     expect(deleteMaterialsMock).toHaveBeenCalledTimes(1)
     expect(deleteMaterialsMock).toHaveBeenCalledWith(['note-1', 'note-2'])
   })
 
+  it('forwards partial-material progress only for a caller with durable recovery', async () => {
+    await deleteKnowledgeItemVectors(createBase(), ['note-1'], { allowPartialMaterialProgress: true })
+
+    expect(deleteMaterialsMock).toHaveBeenCalledWith(['note-1'], { allowPartialMaterialProgress: true })
+  })
+
   it('propagates the error when the batch delete fails', async () => {
-    // The batch is atomic: a failure rolls the whole transaction back and throws its root
-    // cause, so a retry re-discovers every affected id. No per-item aggregation to do.
     deleteMaterialsMock.mockRejectedValueOnce(new Error('batch delete failed'))
 
     await expect(deleteKnowledgeItemVectors(createBase(), ['note-1', 'note-2'])).rejects.toThrow('batch delete failed')

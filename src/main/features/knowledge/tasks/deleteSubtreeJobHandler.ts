@@ -55,7 +55,12 @@ export function createDeleteSubtreeJobHandler(
         const subtreeItems = knowledgeItemService
           .getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
           .filter((item) => item.status === 'deleting')
-        await purgeKnowledgeSubtreeWithinLock(base, subtreeItems, { baseId, jobId: ctx.jobId })
+        await purgeKnowledgeSubtreeWithinLock(
+          base,
+          subtreeItems,
+          { baseId, jobId: ctx.jobId },
+          { allowPartialMaterialProgress: true }
+        )
         // Return the freed pages to the OS (best-effort, large deletes only). Inside the
         // lock so the VACUUM never races an indexer write on this base's index.
         await reclaimKnowledgeIndexSpace(base)
