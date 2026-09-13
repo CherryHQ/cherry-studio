@@ -61,6 +61,7 @@ const mocks = vi.hoisted(() => ({
   toolLaunchers: [] as any[],
   toolLaunchersVersion: 0,
   registeredFooterActions: new Map<string, ComposerToolFooterAction[]>(),
+  casualCache: new Map<string, unknown>(),
   dispatchLauncher: vi.fn(),
   unifiedPanelOpen: vi.fn(),
   unifiedPanelAvailable: true,
@@ -652,6 +653,7 @@ const StartEditingButton = ({ message, parts }: { message: any; parts: any }) =>
 describe('ChatComposer', () => {
   beforeEach(() => {
     mocks.registeredFooterActions.clear()
+    mocks.casualCache.clear()
     MockCacheUtils.resetMocks()
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
@@ -680,9 +682,14 @@ describe('ChatComposer', () => {
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.get).mockReturnValue(undefined)
     vi.mocked(cacheService.set).mockReset()
+    // Map-backed by default so the follow-up queue's entry checks read back what
+    // the hook persisted (the production casual-cache contract).
     vi.mocked(cacheService.getCasual).mockReset()
-    vi.mocked(cacheService.getCasual).mockReturnValue(undefined)
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) => mocks.casualCache.get(key))
     vi.mocked(cacheService.setCasual).mockReset()
+    vi.mocked(cacheService.setCasual).mockImplementation((key: string, value: unknown) => {
+      mocks.casualCache.set(key, value)
+    })
     mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
     mocks.setModel.mockReset()

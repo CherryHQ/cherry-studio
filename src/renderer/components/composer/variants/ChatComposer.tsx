@@ -75,7 +75,7 @@ import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } f
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
-import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { type FollowupQueueItem, QUEUE_LIMIT, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
@@ -574,6 +574,7 @@ const ChatComposerInner = ({
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
+  const steeringIdsRef = useRef<Set<string>>(new Set())
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
@@ -1515,8 +1516,15 @@ const ChatComposerInner = ({
     enqueue: enqueueFollowup,
     removeId: removeFollowup,
     reorder: reorderFollowups,
+    clear: clearFollowups,
     paused: followupPaused,
-    setPaused: setFollowupPaused
+    setPaused: setFollowupPaused,
+    failedItemId: failedFollowupId,
+    retryFailed: retryFailedFollowup,
+    skipFailed: skipFailedFollowup,
+    drainingId: drainingFollowupId,
+    tryClaimSend: tryClaimFollowupSend,
+    releaseSend: releaseFollowupSend
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
     isFulfilled,
@@ -1527,8 +1535,10 @@ const ChatComposerInner = ({
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
   const isQueuedFollowupSteerDisabled = useCallback(
-    (item: FollowupQueueItem) => (isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch',
-    [awaitingApproval, isPending]
+    (item: FollowupQueueItem) =>
+      item.id === drainingFollowupId ||
+      ((isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch'),
+    [awaitingApproval, drainingFollowupId, isPending]
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
@@ -1738,7 +1748,11 @@ const ChatComposerInner = ({
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
-        enqueueFollowup(draft, payload)
+        const followupResult = enqueueFollowup(draft, payload)
+        if (followupResult !== 'ok') {
+          toast.error(t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT }))
+          return
+        }
         clearCurrentDraft()
         return
       }
@@ -1925,12 +1939,22 @@ const ChatComposerInner = ({
                 paused={followupPaused}
                 onTogglePause={() => setFollowupPaused(!followupPaused)}
                 onSteer={async (id) => {
+                  if (steeringIdsRef.current.has(id)) return
                   const item = queuedFollowups.find((entry) => entry.id === id)
                   if (!item) return
-                  // Only drop the item once the send actually succeeds; a failed manual
-                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
-                  if (sent) removeFollowup(id)
+                  // Claim the queue's shared send slot so a concurrent auto-drain
+                  // cannot submit the same payload twice.
+                  if (!tryClaimFollowupSend(id)) return
+                  steeringIdsRef.current.add(id)
+                  try {
+                    // Only drop the item once the send actually succeeds; a failed manual
+                    // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                    const sent = await sendQueuedPayload(item.payload)
+                    if (sent) removeFollowup(id)
+                  } finally {
+                    releaseFollowupSend(id)
+                    steeringIdsRef.current.delete(id)
+                  }
                 }}
                 onEdit={(id) => {
                   const item = queuedFollowups.find((entry) => entry.id === id)
@@ -1940,6 +1964,11 @@ const ChatComposerInner = ({
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
+                onClearAll={clearFollowups}
+                failedItemId={failedFollowupId}
+                onRetryFailed={retryFailedFollowup}
+                onSkipFailed={skipFailedFollowup}
+                onAbortQueue={clearFollowups}
                 isSteerDisabled={isQueuedFollowupSteerDisabled}
               />
             ) : undefined
