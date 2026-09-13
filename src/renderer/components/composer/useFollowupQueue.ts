@@ -56,8 +56,18 @@ function loadState(scopeKey: string): FollowupQueueState {
             return false
           // Null token elements throw on `.kind` access in the dock filter, and the
           // edit-restore path maps `mentionedModels` / reads message parts — non-array
-          // shapes there throw or corrupt the restore, so reject them as well.
-          if (draft.tokens.some((token) => token == null || typeof token !== 'object' || Array.isArray(token)))
+          // shapes there throw or corrupt the restore, so reject them as well. Token
+          // objects additionally need a string id: the skill restore reads
+          // `token.id.startsWith`, and React uses it as the chip key.
+          if (
+            draft.tokens.some(
+              (token) =>
+                token == null ||
+                typeof token !== 'object' ||
+                Array.isArray(token) ||
+                typeof (token as { id?: unknown }).id !== 'string'
+            )
+          )
             return false
           const queuePayload = candidate.payload as {
             text?: unknown
