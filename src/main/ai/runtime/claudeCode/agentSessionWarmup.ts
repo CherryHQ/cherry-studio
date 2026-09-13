@@ -100,6 +100,13 @@ interface ClaudeCodeRouteFacts {
   toolSearchCompatible: boolean
   /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
   usageModels: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels']
+  /**
+   * Per-slot budget inputs for gateway sessions (sonnet/haiku refs): provider identity
+   * plus declared windows. The settings builder budgets the weakest usable slot; the
+   * projection is JSON-safe so rebuild facts fingerprint it. Empty unless gateway —
+   * direct sessions budget the primary alone.
+   */
+  budgetSlots: Array<{ providerId: string; contextWindow?: number; maxOutputTokens?: number }>
 }
 
 interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
@@ -540,7 +547,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
         effectiveLanguage,
-        usesGatewayRoute: route.branch === 'gateway'
+        gatewayModelSlots: route.branch === 'gateway' ? route.budgetSlots : undefined
       },
       agent
     ),
@@ -694,6 +701,7 @@ function deriveRouteFacts(
       credentialsFingerprint: 'external-cli',
       toolSearchCompatible,
       modelIds,
+      budgetSlots: [],
       usageModels: buildUsageModels([
         { sdkModelId: modelIds.primary, ref: externalRefs.primary },
         { sdkModelId: modelIds.opus, ref: externalRefs.opus },
@@ -726,6 +734,11 @@ function deriveRouteFacts(
         sonnet: toGatewayModelId(sonnetRef),
         haiku: toGatewayModelId(haikuRef)
       },
+      budgetSlots: [sonnetRef, haikuRef].map((ref) => ({
+        providerId: ref.providerId,
+        contextWindow: ref.contextWindow,
+        maxOutputTokens: ref.model?.maxOutputTokens
+      })),
       usageModels: []
     }
   }
@@ -758,6 +771,7 @@ function deriveRouteFacts(
     ]),
     toolSearchCompatible,
     modelIds,
+    budgetSlots: [],
     usageModels: buildUsageModels([
       { sdkModelId: modelIds.primary, ref: primaryRef },
       { sdkModelId: modelIds.opus, ref: opusRef },
@@ -845,6 +859,7 @@ function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteF
     credentialsFingerprint: route.credentialsFingerprint,
     toolSearchCompatible: route.toolSearchCompatible,
     modelIds: route.modelIds,
+    budgetSlots: route.budgetSlots,
     usageModels: route.usageModels
   }
 }
