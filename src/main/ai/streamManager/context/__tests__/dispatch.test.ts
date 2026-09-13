@@ -63,6 +63,7 @@ function makeSubscriber(): StreamListener {
 function makeManager(live: boolean): AiStreamManager {
   return {
     hasLiveStream: vi.fn(() => live),
+    whenTerminalDispatchSettled: vi.fn(() => undefined),
     inspect: vi.fn(() => undefined),
     enqueuePendingSteer: vi.fn(() => order.push('enqueuePendingSteer')),
     send: vi.fn(() => {
@@ -208,6 +209,42 @@ describe('dispatchStreamRequest — steer', () => {
 
     await expect(dispatchStreamRequest(manager, makeSubscriber(), chatReq('agent-session:s1'))).rejects.toThrow('boom')
     expect(manager.send).not.toHaveBeenCalled()
+  })
+
+  it('waits for a terminal dispatch that starts while preparation is yielding', async () => {
+    let resolvePreparation!: (value: unknown) => void
+    mocks.persistentPrepare.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePreparation = resolve
+      })
+    )
+    const manager = makeManager(false)
+    let releaseTerminal!: () => void
+    let terminalDispatch: Promise<void> | undefined
+    vi.mocked(manager.whenTerminalDispatchSettled).mockImplementation(() => terminalDispatch)
+
+    const dispatch = dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-race'))
+    await Promise.resolve()
+    expect(manager.send).not.toHaveBeenCalled()
+
+    // The terminal callback starts while provider preparation is suspended. The final handoff
+    // must observe and await it, otherwise send() can evict the prior stream before cleanup.
+    terminalDispatch = new Promise<void>((resolve) => {
+      releaseTerminal = resolve
+    })
+    resolvePreparation({
+      topicId: 'topic-race',
+      models: [{ modelId: 'p::m', request: {} }],
+      listeners: [] as StreamListener[]
+    })
+
+    await vi.waitFor(() => expect(manager.whenTerminalDispatchSettled).toHaveBeenCalledWith('topic-race'))
+    expect(manager.send).not.toHaveBeenCalled()
+
+    releaseTerminal()
+    terminalDispatch = undefined
+    await dispatch
+    expect(manager.send).toHaveBeenCalledTimes(1)
   })
 
   it('validates multi-model placeholders before sending', async () => {

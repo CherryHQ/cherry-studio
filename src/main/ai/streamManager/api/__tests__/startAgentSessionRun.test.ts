@@ -175,7 +175,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
   it('waits for the previous terminal dispatch to settle before checking liveness', async () => {
     const manager = managerHolder.current as ManagerInstance
     let releaseTerminal!: () => void
-    vi.spyOn(manager, 'whenTerminalDispatchSettled').mockReturnValue(
+    const terminalDispatchSpy = vi.spyOn(manager, 'whenTerminalDispatchSettled').mockReturnValue(
       new Promise<void>((resolve) => {
         releaseTerminal = resolve
       })
@@ -194,9 +194,33 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     expect(events).toEqual([])
 
     releaseTerminal()
+    terminalDispatchSpy.mockReturnValue(undefined)
     await flush()
     expect(events).toEqual(['prepare:agent-session:s:0'])
     prepareResolvers[0]()
+    await expect(run).resolves.toEqual({ mode: 'started' })
+    expect(events).toEqual(['prepare:agent-session:s:0', 'send:agent-session:s'])
+  })
+
+  it('waits for a terminal dispatch that starts while preparation is yielding', async () => {
+    const manager = managerHolder.current as ManagerInstance
+    let releaseTerminal!: () => void
+    let terminalDispatch: Promise<void> | undefined
+    vi.spyOn(manager, 'whenTerminalDispatchSettled').mockImplementation(() => terminalDispatch)
+
+    const run = startAgentSessionRun({ sessionId: 's', userParts: [text('queued')], listeners: [listener('task')] })
+    await flush()
+    expect(events).toEqual(['prepare:agent-session:s:0'])
+
+    terminalDispatch = new Promise<void>((resolve) => {
+      releaseTerminal = resolve
+    })
+    prepareResolvers[0]()
+    await flush()
+    expect(sendSpy).not.toHaveBeenCalled()
+
+    releaseTerminal()
+    terminalDispatch = undefined
     await expect(run).resolves.toEqual({ mode: 'started' })
     expect(events).toEqual(['prepare:agent-session:s:0', 'send:agent-session:s'])
   })

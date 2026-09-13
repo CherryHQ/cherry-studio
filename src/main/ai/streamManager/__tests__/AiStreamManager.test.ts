@@ -1460,7 +1460,9 @@ describe('AiStreamManager', () => {
       await aDone
 
       let settled = false
-      const settledPromise = mgr.whenTerminalDispatchSettled('a').then(() => {
+      const terminalDispatch = mgr.whenTerminalDispatchSettled('a')
+      if (!terminalDispatch) throw new Error('expected terminal dispatch gate')
+      const settledPromise = terminalDispatch.then(() => {
         settled = true
       })
       await vi.advanceTimersByTimeAsync(0)
@@ -1505,7 +1507,9 @@ describe('AiStreamManager', () => {
       expect(conversationCompletedEvents).toHaveLength(1)
 
       let settled = false
-      const settledPromise = mgr.whenTerminalDispatchSettled(topicId).then(() => {
+      const terminalDispatch = mgr.whenTerminalDispatchSettled(topicId)
+      if (!terminalDispatch) throw new Error('expected terminal dispatch gate')
+      const settledPromise = terminalDispatch.then(() => {
         settled = true
       })
       await vi.advanceTimersByTimeAsync(0)
@@ -1541,11 +1545,11 @@ describe('AiStreamManager', () => {
       await aDone
 
       const next = new FakeListener('wc:next:a')
-      const followUp = mgr
-        .whenTerminalDispatchSettled('a')
-        .then(() =>
-          startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [next] })
-        )
+      const terminalDispatch = mgr.whenTerminalDispatchSettled('a')
+      if (!terminalDispatch) throw new Error('expected terminal dispatch gate')
+      const followUp = terminalDispatch.then(() =>
+        startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [next] })
+      )
       releaseB()
       await followUp
       await terminal

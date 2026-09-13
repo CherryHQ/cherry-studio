@@ -119,6 +119,27 @@ describe('AiStreamManager.dispatch — per-topic serialization', () => {
     await settleDispatch(1)
     await Promise.all([pa, pb])
   })
+
+  it('does not yield after checking that no terminal dispatch is in flight', async () => {
+    const events: string[] = []
+    vi.spyOn(mgr, 'whenTerminalDispatchSettled').mockImplementation(() => {
+      // Model a terminal callback that starts in the microtask opened by an unconditional await.
+      queueMicrotask(() => events.push('terminal-started'))
+      return undefined
+    })
+    mockDispatchStreamRequest.mockImplementationOnce(async () => {
+      events.push('dispatch-handoff')
+      return { mode: 'started' }
+    })
+
+    await mgr.dispatch(fakeSubscriber, openReq('t'))
+
+    // The handoff is synchronous after a no-gate check, so a terminal callback cannot register
+    // after the check but before dispatch starts. This is the check-then-act race from #18535.
+    expect(events[0]).toBe('dispatch-handoff')
+    await Promise.resolve()
+    expect(events).toEqual(['dispatch-handoff', 'terminal-started'])
+  })
 })
 
 // Request-shape validation (non-string topicId, missing trigger / userMessageParts /

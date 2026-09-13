@@ -191,6 +191,14 @@ export async function dispatchStreamRequest(
           }
         : undefined
 
+  // Preparation may yield while the previous turn enters terminal dispatch. Re-check at the
+  // synchronous handoff so send() cannot evict that stream before its terminal lifecycle settles.
+  for (;;) {
+    const terminalDispatch = manager.whenTerminalDispatchSettled(req.topicId)
+    if (!terminalDispatch) break
+    await terminalDispatch
+  }
+
   const result = manager.send({
     topicId: prepared.topicId,
     models: prepared.models,
