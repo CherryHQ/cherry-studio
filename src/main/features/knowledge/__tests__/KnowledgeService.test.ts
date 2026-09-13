@@ -408,7 +408,7 @@ describe('KnowledgeService', () => {
     aiEmbedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => ({
       results,
-      rerankFailed: false
+      hasRerankFailed: false
     }))
   })
 
@@ -2656,7 +2656,7 @@ describe('KnowledgeService', () => {
         { ...results[1], score: 0.9, scoreKind: 'relevance', rank: 1 },
         { ...results[0], score: 0.2, scoreKind: 'relevance', rank: 2 }
       ],
-      rerankFailed: false
+      hasRerankFailed: false
     }))
 
     await expect(service.search('kb-1', 'hello')).resolves.toEqual([

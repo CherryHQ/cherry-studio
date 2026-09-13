@@ -10,12 +10,12 @@ import { formatRecallPercent, formatRecallScore } from './utils'
 const RecallResultSummary = () => {
   const { t } = useTranslation()
   const {
-    state: { results, duration, topScore, scoreKind, rerankFailed }
+    state: { results, duration, topScore, scoreKind, hasRerankFailed }
   } = useRecallResult()
 
   return (
     <div className="border-b border-border-subtle px-4 py-3 text-xs leading-4 text-foreground-tertiary">
-      {rerankFailed ? (
+      {hasRerankFailed ? (
         <div role="status" className="mb-2 flex items-start gap-1.5 text-warning-subtle-foreground">
           <TriangleAlert className="mt-0.5 size-3 shrink-0" />
           <span>{t('knowledge.recall.rerank_failed')}</span>

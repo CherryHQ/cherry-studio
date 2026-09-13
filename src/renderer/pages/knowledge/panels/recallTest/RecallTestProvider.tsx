@@ -50,7 +50,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [results, setResults] = useState<RecallResultItem[]>([])
-  const [rerankFailed, setRerankFailed] = useState(false)
+  const [hasRerankFailed, setHasRerankFailed] = useState(false)
   const [duration, setDuration] = useState(0)
   const [isSearching, setIsSearching] = useState(false)
 
@@ -60,7 +60,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
     setIsHistoryOpen(false)
     setHasSearched(false)
     setResults([])
-    setRerankFailed(false)
+    setHasRerankFailed(false)
     setDuration(0)
     setIsSearching(false)
 
@@ -93,7 +93,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
 
     setIsSearching(true)
     setResults([])
-    setRerankFailed(false)
+    setHasRerankFailed(false)
     const startTime = performance.now()
 
     try {
@@ -102,13 +102,13 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
         baseId: searchBaseId,
         query: trimmedQuery,
         results: searchResult.results,
-        rerankFailed: searchResult.rerankFailed
+        hasRerankFailed: searchResult.hasRerankFailed
       })
       if (!isCurrentSearch()) {
         return
       }
       setResults(searchResult.results.map(mapRecallResult))
-      setRerankFailed(searchResult.rerankFailed)
+      setHasRerankFailed(searchResult.hasRerankFailed)
     } catch (error) {
       const normalizedError = normalizeKnowledgeError(error)
       logger.error('Knowledge recall search IPC failed', normalizedError, { baseId: searchBaseId, query: trimmedQuery })
@@ -164,10 +164,10 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
         duration,
         topScore,
         scoreKind,
-        rerankFailed
+        hasRerankFailed
       }
     }),
-    [duration, hasSearched, isSearching, results, rerankFailed, scoreKind, topScore]
+    [duration, hasRerankFailed, hasSearched, isSearching, results, scoreKind, topScore]
   )
 
   return (

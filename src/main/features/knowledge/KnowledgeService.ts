@@ -139,7 +139,7 @@ export class KnowledgeService extends BaseService {
   async searchWithStatus(
     baseId: string,
     query: string
-  ): Promise<{ results: KnowledgeSearchResult[]; rerankFailed: boolean }> {
+  ): Promise<{ results: KnowledgeSearchResult[]; hasRerankFailed: boolean }> {
     return await this.queryService.searchWithStatus(baseId, query)
   }
 

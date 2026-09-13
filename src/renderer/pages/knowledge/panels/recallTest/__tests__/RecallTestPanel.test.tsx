@@ -166,7 +166,7 @@ describe('RecallTestPanel', () => {
       'base-2': ['其他知识库查询']
     }
     mockPerformanceNow.mockReturnValue(100)
-    mockIpcRequest.mockResolvedValue({ results: realSearchResults, rerankFailed: false })
+    mockIpcRequest.mockResolvedValue({ results: realSearchResults, hasRerankFailed: false })
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -253,7 +253,7 @@ describe('RecallTestPanel', () => {
   it('calls runtime IPC, logs the returned data, and renders real result cards after searching', async () => {
     mockIpcRequest.mockImplementation(async () => {
       mockPerformanceNow.mockReturnValue(223)
-      return { results: realSearchResults, rerankFailed: false }
+      return { results: realSearchResults, hasRerankFailed: false }
     })
 
     render(<RecallTestPanel baseId="base-1" />)
@@ -273,7 +273,7 @@ describe('RecallTestPanel', () => {
       baseId: 'base-1',
       query: 'RAG 检索增强生成原理',
       results: realSearchResults,
-      rerankFailed: false
+      hasRerankFailed: false
     })
     expect(screen.getByText('2 个结果')).toBeInTheDocument()
     expect(screen.getByText('123ms')).toBeInTheDocument()
@@ -334,7 +334,8 @@ describe('RecallTestPanel', () => {
   })
 
   it('shows a searching state while runtime IPC is pending', async () => {
-    let resolveSearch: (value: { results: typeof realSearchResults; rerankFailed: boolean }) => void = () => undefined
+    let resolveSearch: (value: { results: typeof realSearchResults; hasRerankFailed: boolean }) => void = () =>
+      undefined
     mockIpcRequest.mockReturnValue(
       new Promise((resolve) => {
         resolveSearch = resolve
@@ -352,7 +353,7 @@ describe('RecallTestPanel', () => {
     expect(screen.getByRole('button', { name: '检索' })).toBeDisabled()
 
     mockPerformanceNow.mockReturnValue(223)
-    resolveSearch({ results: realSearchResults, rerankFailed: false })
+    resolveSearch({ results: realSearchResults, hasRerankFailed: false })
 
     await waitFor(() => {
       expect(screen.queryByText('正在检索...')).not.toBeInTheDocument()
@@ -361,7 +362,8 @@ describe('RecallTestPanel', () => {
   })
 
   it('does not apply pending search results after switching selected bases', async () => {
-    let resolveSearch: (value: { results: typeof realSearchResults; rerankFailed: boolean }) => void = () => undefined
+    let resolveSearch: (value: { results: typeof realSearchResults; hasRerankFailed: boolean }) => void = () =>
+      undefined
     mockIpcRequest.mockReturnValue(
       new Promise((resolve) => {
         resolveSearch = resolve
@@ -389,14 +391,14 @@ describe('RecallTestPanel', () => {
     expect(screen.queryByText('RAG 检索增强生成原理')).not.toBeInTheDocument()
 
     mockPerformanceNow.mockReturnValue(223)
-    resolveSearch({ results: realSearchResults, rerankFailed: false })
+    resolveSearch({ results: realSearchResults, hasRerankFailed: false })
 
     await waitFor(() => {
       expect(mockLogger.info).toHaveBeenCalledWith('Knowledge recall search IPC result', {
         baseId: 'base-1',
         query: 'RAG 检索增强生成原理',
         results: realSearchResults,
-        rerankFailed: false
+        hasRerankFailed: false
       })
     })
     expect(screen.queryByText('2 个结果')).not.toBeInTheDocument()
@@ -496,7 +498,7 @@ describe('RecallTestPanel', () => {
           rank: 2
         }
       ],
-      rerankFailed: false
+      hasRerankFailed: false
     })
 
     render(<RecallTestPanel baseId="base-1" />)
@@ -515,8 +517,8 @@ describe('RecallTestPanel', () => {
   })
 
   it('identifies unreranked fallback results and clears the warning after a successful search', async () => {
-    mockIpcRequest.mockResolvedValueOnce({ results: realSearchResults, rerankFailed: true })
-    mockIpcRequest.mockResolvedValueOnce({ results: realSearchResults, rerankFailed: false })
+    mockIpcRequest.mockResolvedValueOnce({ results: realSearchResults, hasRerankFailed: true })
+    mockIpcRequest.mockResolvedValueOnce({ results: realSearchResults, hasRerankFailed: false })
     render(<RecallTestPanel baseId="base-1" />)
 
     const input = screen.getByPlaceholderText('输入测试 Query...')

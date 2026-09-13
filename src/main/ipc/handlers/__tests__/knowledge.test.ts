@@ -113,12 +113,12 @@ describe('knowledgeHandlers', () => {
 
   it('search forwards baseId and query and returns the matches', async () => {
     const matches = [{ chunkId: 'c1' }]
-    knowledgeService.searchWithStatus.mockResolvedValue({ results: matches, rerankFailed: true })
+    knowledgeService.searchWithStatus.mockResolvedValue({ results: matches, hasRerankFailed: true })
 
     const result = await knowledgeHandlers['knowledge.search']({ baseId: 'base-1', query: 'hello' }, ctx)
 
     expect(knowledgeService.searchWithStatus).toHaveBeenCalledWith('base-1', 'hello')
-    expect(result).toEqual({ results: matches, rerankFailed: true })
+    expect(result).toEqual({ results: matches, hasRerankFailed: true })
   })
 
   it('get_file_path forwards itemId and returns the managed file path', async () => {
