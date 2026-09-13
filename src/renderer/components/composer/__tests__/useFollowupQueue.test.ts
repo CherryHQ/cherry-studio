@@ -1285,6 +1285,50 @@ describe('useFollowupQueue', () => {
     expect(onDrain).not.toHaveBeenCalled()
   })
 
+  it('overlapping manual steers across a scope switch clean up in their own scopes', () => {
+    const onDrain = vi.fn()
+    // One seed call: setInitialState resets the whole memory map.
+    MockCacheUtils.setInitialState({
+      memory: [
+        [keyFor('sA'), { items: [item('x', 'ex')], paused: false }],
+        [keyFor('sB'), { items: [item('y', 'why')], paused: false }]
+      ]
+    })
+    const { result, rerender } = renderHook(
+      ({ scopeKey }) => useFollowupQueue({ scopeKey, isFulfilled: false, markSeen: vi.fn(), onDrain }),
+      { initialProps: { scopeKey: 'sA' } }
+    )
+    const xId = result.current.items[0].id
+    act(() => {
+      expect(result.current.tryClaimSend(xId)).toBe(true)
+    })
+
+    // Second steer after a scope switch: the first claim's scope must survive it.
+    act(() => {
+      rerender({ scopeKey: 'sB' })
+    })
+    const yId = result.current.items[0].id
+    act(() => {
+      expect(result.current.tryClaimSend(yId)).toBe(true)
+    })
+
+    // First send succeeds: dequeued from its own scope, second claim intact.
+    act(() => {
+      result.current.removeId(xId)
+      result.current.releaseSend(xId)
+    })
+    expect(persistedTexts('sA')).toEqual([])
+    expect(persistedTexts('sB')).toEqual(['why'])
+
+    // Second send succeeds: dequeued normally, no auto-send ever fired.
+    act(() => {
+      result.current.removeId(yId)
+      result.current.releaseSend(yId)
+    })
+    expect(persistedTexts('sB')).toEqual([])
+    expect(onDrain).not.toHaveBeenCalled()
+  })
+
   it('tryClaimSend fails while an auto-drain is in flight', async () => {
     let resolveDrain!: (sent: boolean) => void
     const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
