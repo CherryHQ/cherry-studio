@@ -41,12 +41,9 @@ export class PreferenceService {
       originalValue: any
       timestamp: number
       requestId: string
-      sequence: number
       isFirst: boolean
     }
   >()
-
-  private optimisticSequence = 0
 
   private writeTails = new Map<UnifiedPreferenceKeyType, Promise<void>>()
 
@@ -154,8 +151,7 @@ export class PreferenceService {
   ): Promise<void> {
     if (options.optimistic) {
       const requestId = this.generateRequestId()
-      const sequence = ++this.optimisticSequence
-      this.applyOptimisticUpdate(key, value, requestId, sequence)
+      this.applyOptimisticUpdate(key, value, requestId)
       return this.enqueueWrite([key], () => this.persistOptimistic(key, value, requestId))
     }
 
@@ -171,8 +167,7 @@ export class PreferenceService {
   private applyOptimisticUpdate<K extends UnifiedPreferenceKeyType>(
     key: K,
     value: UnifiedPreferenceType[K],
-    requestId: string,
-    sequence: number
+    requestId: string
   ): void {
     const existingState = this.optimisticValues.get(key)
     const isFirst = !existingState
@@ -185,7 +180,6 @@ export class PreferenceService {
       originalValue,
       timestamp: Date.now(),
       requestId,
-      sequence,
       isFirst
     })
 
@@ -348,7 +342,6 @@ export class PreferenceService {
    */
   private async setMultipleOptimistic(updates: Partial<UnifiedPreferenceType>): Promise<void> {
     const batchRequestId = this.generateRequestId()
-    const sequence = ++this.optimisticSequence
     const originalValues: Record<string, any> = {}
     const keysToUpdate = Object.keys(updates) as UnifiedPreferenceKeyType[]
 
@@ -376,7 +369,6 @@ export class PreferenceService {
         originalValue: originalValues[key], // Use protected original value
         timestamp,
         requestId: `${batchRequestId}_${key}`, // Unique ID per key in batch
-        sequence,
         isFirst
       })
     })
@@ -674,7 +666,6 @@ export class PreferenceService {
 
     // Clear all optimistic states and write queues
     this.optimisticValues.clear()
-    this.optimisticSequence = 0
     this.writeTails.clear()
 
     this.clearCache()
