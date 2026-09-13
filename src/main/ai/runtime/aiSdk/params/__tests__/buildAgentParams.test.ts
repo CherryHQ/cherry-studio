@@ -772,6 +772,47 @@ describe('buildAgentParams standard model parameters', () => {
     expect(body).not.toHaveProperty('top_p')
   })
 
+  // Terminal gate: a provider-namespaced JSON custom parameter re-introduces sampling via
+  // the providerOptions merge — the final-surface strip must catch it regardless of path.
+  it('strips namespaced sampling custom params at the terminal gate', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' } }
+    })
+    const model = makeModel({
+      id: 'dashscope::kimi-k3',
+      providerId: 'dashscope',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        customParameters: [{ name: 'dashscope', type: 'json', value: JSON.stringify({ top_p: 0.9, foo: 'bar' }) }]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(JSON.stringify(result.options.providerOptions ?? {})).not.toContain('top_p')
+    expect(JSON.stringify(result.options.providerOptions ?? {})).toContain('foo')
+  })
+
   it('subtracts the effective API Gateway thinking override from the caller total-token cap', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 

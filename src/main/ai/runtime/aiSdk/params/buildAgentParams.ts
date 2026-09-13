@@ -54,7 +54,8 @@ import {
   filterStandardParams,
   getTemperature,
   getTopP,
-  modelAcceptsSamplingParam
+  modelAcceptsSamplingParam,
+  stripRejectedSamplingParams
 } from '../../../utils/modelParameters'
 import {
   applyFastModeToProviderOptions,
@@ -634,11 +635,14 @@ function buildAgentOptions(
   // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
-  standardParams = overridden.standardParams
+  // Terminal gate: whatever path injected them, strip rejected sampling keys at the final
+  // surfaces — covers assistant settings, flat/namespaced custom params, and overrides alike.
+  const sanitized = stripRejectedSamplingParams(overridden.standardParams, overridden.providerOptions, model)
+  standardParams = sanitized.standardParams
   const effectiveProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
-    overridden.providerOptions,
+    sanitized.providerOptions,
     request.fastMode === true
   )
   // A namespace that ended up empty carries nothing; emitting it would ship a bare
