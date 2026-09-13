@@ -15,6 +15,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSkillUpdateDto } from '@shared/data/api/schemas/agents'
 import {
@@ -22,6 +23,8 @@ import {
   type ListSkillsQuery,
   SKILL_LIST_MEMBERSHIP_DIMENSIONS
 } from '@shared/data/api/schemas/skills'
+
+const logger = loggerService.withContext('AgentGlobalSkillService')
 
 /**
  * DataApi service for the `agent_global_skill` and `agent_skill` join tables.
@@ -98,8 +101,51 @@ export class AgentGlobalSkillService {
 
   /** Every row from `agent_global_skill`, ordered by createdAt. Used to seed new agents with builtins. */
   listAll(): InstalledSkill[] {
-    const rows = this.db.select().from(agentGlobalSkillTable).orderBy(asc(agentGlobalSkillTable.createdAt)).all()
-    return rows.map((row) => this.rowToInstalledSkill(row))
+    try {
+      const rows = this.db.select().from(agentGlobalSkillTable).orderBy(asc(agentGlobalSkillTable.createdAt)).all()
+      return rows.map((row) => this.rowToInstalledSkill(row))
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error
+
+      logger.warn('Quarantining malformed skill catalog rows during listAll', { error: error.message })
+      const rows = this.db.all(
+        sql.raw(
+          'SELECT id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at FROM agent_global_skill ORDER BY created_at ASC'
+        )
+      ) as Array<Record<string, unknown>>
+      const skills: InstalledSkill[] = []
+      for (const row of rows) {
+        try {
+          const tags = JSON.parse(String(row.tags))
+          if (!Array.isArray(tags) || tags.some((tag) => typeof tag !== 'string')) throw new SyntaxError('invalid tags')
+          skills.push(
+            this.rowToInstalledSkill({
+              id: String(row.id),
+              name: String(row.name),
+              description: (row.description as string | null) ?? null,
+              folderName: String(row.folder_name),
+              source: String(row.source),
+              sourceUrl: (row.source_url as string | null) ?? null,
+              namespace: (row.namespace as string | null) ?? null,
+              author: (row.author as string | null) ?? null,
+              version: (row.version as string | null) ?? null,
+              tags,
+              contentHash: String(row.content_hash),
+              isEnabled: Boolean(row.is_enabled),
+              createdAt: Number(row.created_at),
+              updatedAt: Number(row.updated_at)
+            })
+          )
+        } catch (rowError) {
+          logger.warn('Quarantined malformed skill catalog row', {
+            skillId: String(row.id ?? 'unknown'),
+            folderName: String(row.folder_name ?? 'unknown'),
+            error: rowError instanceof Error ? rowError.message : String(rowError)
+          })
+        }
+      }
+      return skills
+    }
   }
 
   insert(values: InsertAgentGlobalSkillRow): AgentGlobalSkillRow {

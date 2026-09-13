@@ -1817,6 +1817,31 @@ describe('SkillService', () => {
       } as unknown as Awaited<ReturnType<typeof parseSkillMetadata>>
     }
 
+    it('isolates a malformed catalog JSON row while reconciling valid skills', async () => {
+      await writeLibrarySkill('valid-skill')
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('valid-skill'))
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'valid-skill',
+        folderName: 'valid-skill',
+        source: 'marketplace',
+        tags: ['valid'],
+        contentHash: 'valid-hash'
+      })
+      dbh.sqlite
+        .prepare(
+          `INSERT INTO agent_global_skill
+            (id, name, folder_name, source, tags, content_hash, is_enabled, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(SKILL_ID_2, 'broken-skill', 'broken-skill', 'marketplace', '{"unterminated":', 'broken-hash', 1, 2, 2)
+
+      expect(agentGlobalSkillService.listAll()).toEqual([
+        expect.objectContaining({ id: SKILL_ID_1, name: 'valid-skill', sourceTags: ['valid'] })
+      ])
+      await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
+    })
+
     it('reconcileSkills heals mirrors, prunes non-builtin skills whose files are gone, keeps builtins', async () => {
       vi.mocked(parseSkillMetadata).mockReset()
       // skill-one: files present → mirrored, kept. gone: no files, marketplace → pruned.
