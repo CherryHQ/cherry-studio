@@ -55,6 +55,26 @@ describe('AgentLanguageField', () => {
     expect(onChange).toHaveBeenCalledWith('Thai')
   })
 
+  it('shows a persisted custom language as the selected preset control value', () => {
+    render(<AgentLanguageField value="Klingon" onChange={() => {}} {...props} />)
+
+    expect(screen.getByRole('button', { name: 'Reply language preset' })).toHaveTextContent('Klingon')
+  })
+
+  it('associates the validation error with the custom input', async () => {
+    const user = userEvent.setup()
+    render(<AgentLanguageField value={null} onChange={() => {}} {...props} />)
+
+    const input = screen.getByRole('textbox', { name: 'Custom reply language' })
+    await user.type(input, 'a'.repeat(51))
+    await user.tab()
+
+    const error = screen.getByRole('alert')
+    expect(error).toHaveTextContent('settings.agent.language.error.too_long')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(input).toHaveAttribute('aria-describedby', error.id)
+  })
+
   it('shows an inline error and withholds onChange for an overlong label', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Combobox, Input } from '@cherrystudio/ui'
@@ -26,13 +26,15 @@ export function AgentLanguageField({
   const { t } = useTranslation()
   const [draft, setDraft] = useState(value ?? '')
   const [errorKey, setErrorKey] = useState<string | null>(null)
+  const errorId = useId()
 
   useEffect(() => {
     setDraft(value ?? '')
     setErrorKey(null)
   }, [value])
 
-  const comboValue = value === null ? FOLLOW_VALUE : AGENT_LANGUAGE_PRESETS.includes(value) ? value : ''
+  const customOption = value !== null && !AGENT_LANGUAGE_PRESETS.includes(value) ? [{ value, label: value }] : []
+  const comboValue = value === null ? FOLLOW_VALUE : value
 
   const handleComboChange = (next: string | string[]) => {
     if (Array.isArray(next)) return
@@ -67,7 +69,8 @@ export function AgentLanguageField({
       <Combobox
         options={[
           { value: FOLLOW_VALUE, label: nullOptionLabel },
-          ...AGENT_LANGUAGE_PRESETS.map((preset) => ({ value: preset, label: preset }))
+          ...AGENT_LANGUAGE_PRESETS.map((preset) => ({ value: preset, label: preset })),
+          ...customOption
         ]}
         value={comboValue}
         onChange={handleComboChange}
@@ -85,9 +88,15 @@ export function AgentLanguageField({
         onBlur={handleInputBlur}
         placeholder={customPlaceholder}
         aria-label={inputLabel}
+        aria-invalid={errorKey ? true : undefined}
+        aria-describedby={errorKey ? errorId : undefined}
         spellCheck={false}
       />
-      {errorKey ? <p className="text-destructive text-xs">{t(errorKey)}</p> : null}
+      {errorKey ? (
+        <p id={errorId} role="alert" className="text-destructive text-xs">
+          {t(errorKey)}
+        </p>
+      ) : null}
     </div>
   )
 }
