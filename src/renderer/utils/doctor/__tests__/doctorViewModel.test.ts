@@ -57,6 +57,7 @@ describe('buildDoctorViewModel', () => {
       runId: 'run-1',
       tier: 'live',
       startedAt: '2026-09-04T08:59:00.000Z',
+      activeCheckIds: ['permission-accessibility', 'network-online'],
       results: [result('permission-screen-capture', 'fail'), result('install-version-channel', 'pass')]
     }
 
@@ -67,6 +68,7 @@ describe('buildDoctorViewModel', () => {
     expect(viewModel.rows[0]).toMatchObject({ id: 'install-architecture-match', status: 'pending' })
     expect(viewModel.rows[1]).toMatchObject({ id: 'install-version-channel', status: 'pass' })
     expect(viewModel.rows[2]).toMatchObject({ id: 'install-update-available', status: 'pending' })
+    expect(viewModel.activeCheckIds).toEqual(['permission-accessibility', 'network-online'])
     expect(viewModel.groups.find((group) => group.domain === 'permission')?.status).toBe('fail')
   })
 
@@ -76,6 +78,7 @@ describe('buildDoctorViewModel', () => {
       runId: 'run-1',
       tier: 'quick',
       startedAt: '2026-09-04T08:59:00.000Z',
+      activeCheckIds: [],
       results: []
     }
 
@@ -93,6 +96,7 @@ describe('buildDoctorViewModel', () => {
       runId: 'run-1',
       tier: 'live',
       startedAt: '2026-09-04T08:59:00.000Z',
+      activeCheckIds: [],
       results: []
     }
 

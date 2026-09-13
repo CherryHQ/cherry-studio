@@ -23,14 +23,7 @@ import {
 } from '@cherrystudio/ui'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import {
-  defaultExpandedDoctorDomains,
-  DOCTOR_DOMAIN_LABEL_KEYS,
-  DOCTOR_NAVIGATION_LABEL_KEYS,
-  DOCTOR_STATUS_LABEL_KEYS,
-  isDoctorRowExpandedByDefault,
-  resolveDoctorFixLabel
-} from '@renderer/utils/doctor'
+import { DOCTOR_NAVIGATION_LABEL_KEYS, DOCTOR_STATUS_LABEL_KEYS, resolveDoctorFixLabel } from '@renderer/utils/doctor'
 import { type DoctorAction, type DoctorCheckId, type DoctorCheckResult } from '@shared/types/doctor'
 import { doctorCheckDetailKey, doctorCheckTitleKey } from '@shared/utils/doctor'
 
@@ -44,79 +37,40 @@ function useDoctorFixTargetName(): DoctorFixTargetNameResolver {
   return useCallback((target) => mcpServers.find((server) => server.id === target)?.name, [mcpServers])
 }
 
-export function DoctorCheckResults({ controller }: { readonly controller: DoctorController }) {
-  const { t } = useTranslation()
-  const { viewModel } = controller
-  const defaultExpandedDomains = defaultExpandedDoctorDomains(viewModel.groups)
-  const resolveFixTargetName = useDoctorFixTargetName()
-
-  return (
-    <Accordion
-      key={viewModel.report?.runId ?? `${viewModel.status}-${viewModel.tier ?? 'none'}`}
-      type="multiple"
-      defaultValue={[...defaultExpandedDomains]}
-      className="rounded-xl border border-border px-4 [&>[data-slot=accordion-item]:first-child]:border-t-0">
-      {viewModel.groups.map((group) => {
-        const defaultRow = group.rows.find(isDoctorRowExpandedByDefault)
-
-        return (
-          <AccordionItem key={group.domain} value={group.domain}>
-            <AccordionTrigger className="py-3">
-              <span className="flex min-w-0 items-center gap-2">
-                <StatusIcon status={group.status} />
-                <span>{t(DOCTOR_DOMAIN_LABEL_KEYS[group.domain])}</span>
-                <span className="sr-only">
-                  {t(
-                    group.status === 'running'
-                      ? DOCTOR_STATUS_LABEL_KEYS.pending
-                      : group.status === 'neutral'
-                        ? DOCTOR_STATUS_LABEL_KEYS.skip
-                        : DOCTOR_STATUS_LABEL_KEYS[group.status]
-                  )}
-                </span>
-                <Badge variant="outline" className="font-normal text-xs">
-                  {group.rows.length}
-                </Badge>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="pb-3">
-              <Accordion
-                type="single"
-                collapsible
-                defaultValue={`doctor-${defaultRow?.id ?? group.rows[0]?.id}`}
-                className="rounded-lg border border-border px-2 [&>[data-slot=accordion-item]:first-child]:border-t-0">
-                <DoctorCheckListItems
-                  controller={controller}
-                  rows={group.rows}
-                  resolveFixTargetName={resolveFixTargetName}
-                />
-              </Accordion>
-            </AccordionContent>
-          </AccordionItem>
-        )
-      })}
-    </Accordion>
-  )
-}
-
 /** Renders check items inside an existing Accordion root owned by the host. */
 export function DoctorCheckAccordionItems({
+  compact = false,
   controller,
+  defaultLocalDetailsExpanded = false,
   rows = controller.viewModel.rows
 }: {
+  readonly compact?: boolean
   readonly controller: DoctorController
+  readonly defaultLocalDetailsExpanded?: boolean
   readonly rows?: DoctorController['viewModel']['rows']
 }) {
   const resolveFixTargetName = useDoctorFixTargetName()
-  return <DoctorCheckListItems controller={controller} rows={rows} resolveFixTargetName={resolveFixTargetName} />
+  return (
+    <DoctorCheckListItems
+      compact={compact}
+      controller={controller}
+      defaultLocalDetailsExpanded={defaultLocalDetailsExpanded}
+      rows={rows}
+      resolveFixTargetName={resolveFixTargetName}
+    />
+  )
 }
 
 function DoctorCheckListItems({
+  compact = false,
   controller,
+  defaultLocalDetailsExpanded = false,
   resolveFixTargetName,
   rows
 }: {
+  readonly compact?: boolean
   readonly controller: DoctorController
+  readonly defaultLocalDetailsExpanded?: boolean
   readonly resolveFixTargetName: DoctorFixTargetNameResolver
   readonly rows: DoctorController['viewModel']['rows']
 }) {
@@ -125,7 +79,9 @@ function DoctorCheckListItems({
       {rows.map((row) => (
         <DoctorCheckListItem
           key={row.id}
+          compact={compact}
           controller={controller}
+          defaultLocalDetailsExpanded={defaultLocalDetailsExpanded}
           resolveFixTargetName={resolveFixTargetName}
           row={row}
         />
@@ -135,21 +91,27 @@ function DoctorCheckListItems({
 }
 
 function DoctorCheckListItem({
+  compact,
   controller,
+  defaultLocalDetailsExpanded,
   resolveFixTargetName,
   row
 }: {
+  readonly compact: boolean
   readonly controller: DoctorController
+  readonly defaultLocalDetailsExpanded: boolean
   readonly resolveFixTargetName: DoctorFixTargetNameResolver
   readonly row: DoctorController['viewModel']['rows'][number]
 }) {
   const { t } = useTranslation()
   return (
-    <AccordionItem value={`doctor-${row.id}`} className="px-2">
+    <AccordionItem value={`doctor-${row.id}`} className={compact ? 'px-4' : 'px-2'}>
       <AccordionTrigger className="py-3 font-normal">
         <span className="flex min-w-0 items-center gap-2">
           <StatusIcon status={row.status} />
-          <span className="min-w-0 truncate font-medium text-sm">{t(doctorCheckTitleKey(row.id))}</span>
+          <span className={compact ? 'min-w-0 truncate font-medium text-xs' : 'min-w-0 truncate font-medium text-sm'}>
+            {t(doctorCheckTitleKey(row.id))}
+          </span>
           <Badge variant="outline" className="shrink-0 font-normal text-xs">
             {t(DOCTOR_STATUS_LABEL_KEYS[row.status])}
           </Badge>
@@ -157,7 +119,11 @@ function DoctorCheckListItem({
       </AccordionTrigger>
       <AccordionContent className="space-y-2 pb-3 pl-6">
         <CheckDescription result={row.result} />
-        <DoctorCheckEvidence controller={controller} row={row} />
+        <DoctorCheckEvidence
+          controller={controller}
+          defaultLocalDetailsExpanded={defaultLocalDetailsExpanded}
+          row={row}
+        />
         <DoctorCheckActions
           controller={controller}
           resolveFixTargetName={resolveFixTargetName}
@@ -171,9 +137,11 @@ function DoctorCheckListItem({
 
 function DoctorCheckEvidence({
   controller,
+  defaultLocalDetailsExpanded,
   row
 }: {
   readonly controller: DoctorController
+  readonly defaultLocalDetailsExpanded: boolean
   readonly row: DoctorController['viewModel']['rows'][number]
 }) {
   const { t } = useTranslation()
@@ -186,7 +154,7 @@ function DoctorCheckEvidence({
   const sensitiveEvidence = result?.evidence?.filter((item) => item.dataClass === 'consent_required') ?? []
   const sensitiveEvidenceRef = useRef<HTMLDListElement>(null)
   const evidenceItemValue = `doctor-evidence-${row.id}`
-  const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(isEvidenceRevealed)
+  const [isEvidenceExpanded, setIsEvidenceExpanded] = useState(isEvidenceRevealed || defaultLocalDetailsExpanded)
   const isConfirming =
     controller.session.interaction.kind === 'confirm-evidence' && controller.session.interaction.checkId === row.id
 
@@ -296,7 +264,6 @@ function DoctorCheckActions({
         resolveFixTargetName={resolveFixTargetName}
         row={row}
         action={primaryAction}
-        primary
         runId={runId}
       />
       {row.actions.length > 1 ? (
@@ -326,14 +293,12 @@ function DoctorCheckActions({
 function DoctorActionButton({
   action,
   controller,
-  primary,
   resolveFixTargetName,
   row,
   runId
 }: {
   readonly action: DoctorAction
   readonly controller: DoctorController
-  readonly primary?: boolean
   readonly resolveFixTargetName: DoctorFixTargetNameResolver
   readonly row: DoctorController['viewModel']['rows'][number]
   readonly runId?: string
@@ -345,7 +310,7 @@ function DoctorActionButton({
     (controller.session.interaction.kind === 'action' && controller.session.interaction.checkId === row.id)
   return (
     <Button
-      variant={primary ? 'emphasis' : 'outline'}
+      variant="outline"
       size="sm"
       loading={loading}
       disabled={disabled}

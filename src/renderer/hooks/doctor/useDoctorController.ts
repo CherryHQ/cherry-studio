@@ -66,6 +66,7 @@ export function useDoctorController({
     createDoctorSession
   )
   const [now, setNow] = useState(Date.now)
+  const [isAutoRunPending, setIsAutoRunPending] = useState(doctorState.status === 'idle')
   const autoRunRequestedRef = useRef(false)
 
   useEffect(() => {
@@ -115,11 +116,15 @@ export function useDoctorController({
     if (!sharedCacheReady || autoRunRequestedRef.current) return
     if (doctorState.status === 'running') {
       autoRunRequestedRef.current = true
+      setIsAutoRunPending(false)
       return
     }
-    if (doctorState.status !== 'idle') return
+    if (doctorState.status !== 'idle') {
+      setIsAutoRunPending(false)
+      return
+    }
     autoRunRequestedRef.current = true
-    void run('quick')
+    void run('quick').finally(() => setIsAutoRunPending(false))
   }, [doctorState.status, run, sharedCacheReady])
 
   const cancel = useCallback(async () => {
@@ -161,9 +166,11 @@ export function useDoctorController({
         const result = await ipcApi.request('diagnostics.doctor.fix', request)
         switch (result.status) {
           case 'fixed':
+            dispatch({ type: 'mark-check-fixed', checkId: request.checkId })
             toast.success(t('settings.doctor.messages.fix_completed'))
             break
           case 'requires_relaunch':
+            dispatch({ type: 'mark-check-fixed', checkId: request.checkId })
             dispatch({ type: 'mark-relaunch-required' })
             toast.success(t('settings.doctor.messages.relaunch_required'))
             break
@@ -317,6 +324,7 @@ export function useDoctorController({
     cancelConfirmation: () => dispatch({ type: 'cancel-confirmation' }),
     confirmEvidence,
     executeAction,
+    isAutoRunPending,
     isInteracting,
     isCloseBlocked,
     openLogsPath,

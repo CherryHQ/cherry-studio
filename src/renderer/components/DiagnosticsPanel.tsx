@@ -7,6 +7,7 @@ export interface DiagnosticsPanelProps extends Omit<ComponentProps<'section'>, '
   readonly description?: ReactNode
   readonly actions?: ReactNode
   readonly bodyClassName?: string
+  readonly variant?: 'default' | 'sectioned'
 }
 
 export function DiagnosticsPanel({
@@ -16,6 +17,7 @@ export function DiagnosticsPanel({
   bodyClassName,
   className,
   children,
+  variant = 'default',
   'aria-labelledby': ariaLabelledBy,
   ...props
 }: DiagnosticsPanelProps) {
@@ -24,9 +26,18 @@ export function DiagnosticsPanel({
   return (
     <section
       aria-labelledby={ariaLabelledBy ?? titleId}
-      className={cn('min-w-0 overflow-hidden rounded-xl border border-border bg-background-subtle', className)}
+      className={cn(
+        'min-w-0 overflow-hidden rounded-xl border border-border',
+        variant === 'sectioned' ? 'bg-background' : 'bg-background-subtle',
+        className
+      )}
+      data-variant={variant}
       {...props}>
-      <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+      <div
+        className={cn(
+          'flex flex-wrap items-center justify-between gap-3 px-4 py-2',
+          variant === 'sectioned' && 'border-border border-b bg-background-subtle'
+        )}>
         <div className="min-w-0">
           <h2 id={titleId} className="font-medium text-sm">
             {title}
@@ -35,7 +46,9 @@ export function DiagnosticsPanel({
         </div>
         {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
-      {children ? <div className={cn(bodyClassName)}>{children}</div> : null}
+      {children ? (
+        <div className={cn(variant === 'sectioned' && 'bg-background', bodyClassName)}>{children}</div>
+      ) : null}
     </section>
   )
 }

@@ -5,7 +5,7 @@ import type { ChangeEvent } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { popupService } from '@renderer/services/popup'
-import type { DoctorCheckResult, DoctorState } from '@shared/types/doctor'
+import { DOCTOR_CHECK_CATALOG, DOCTOR_CHECK_IDS, type DoctorCheckResult, type DoctorState } from '@shared/types/doctor'
 
 vi.unmock('@cherrystudio/ui')
 
@@ -13,6 +13,12 @@ const mocks = vi.hoisted(() => ({
   doctorState: { status: 'canceled', runId: 'run-1' } as DoctorState,
   request: vi.fn(),
   translations: {
+    'error.diagnostics.checking_progress': 'Checking: {{check}} · {{completed}}/{{total}}',
+    'settings.doctor.checks.provider-api-key-present.title': 'Default provider API key',
+    'settings.doctor.summary.fixed': 'Fixed: {{count}}',
+    'settings.doctor.summary.needs_attention': 'Needs attention: {{count}}',
+    'settings.doctor.summary.problems': '{{count}} items need attention',
+    'settings.doctor.summary.progress': '{{completed}} of {{total}} completed',
     'settings.doctor.summary.running_basic': 'Running quick basic checks…',
     'settings.doctor.summary.running_full': 'Running full checks, including network and services…'
   } as Record<string, string>
@@ -78,7 +84,11 @@ vi.mock('@renderer/components/feedback/DiagnosticBundlePanel', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => mocks.translations[key] ?? key
+    t: (key: string, values?: Record<string, number | string>) =>
+      Object.entries(values ?? {}).reduce(
+        (translation, [name, value]) => translation.replace(`{{${name}}}`, String(value)),
+        mocks.translations[key] ?? key
+      )
   })
 }))
 
@@ -118,27 +128,6 @@ function completedDoctorState(
   }
 }
 
-function reportableDoctorState(): DoctorState {
-  const state = completedDoctorState([
-    {
-      id: 'logs-recent-findings',
-      status: 'warn',
-      durationMs: 1,
-      attribution: 'app-bug',
-      detail: { variant: 'findings' },
-      actions: [{ kind: 'report' }]
-    }
-  ])
-  if (state.status !== 'completed') throw new Error('Expected a completed Doctor state')
-  return {
-    ...state,
-    report: {
-      ...state.report,
-      summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
-    }
-  }
-}
-
 afterEach(async () => {
   cleanup()
   vi.useFakeTimers()
@@ -166,6 +155,25 @@ describe('DoctorPopup', () => {
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveClass('max-h-[calc(100vh-2rem)]')
     expect(dialog).not.toHaveClass('h-[min(760px,calc(100vh-2rem))]')
+    expect(dialog).toHaveAccessibleDescription('settings.doctor.panel_descriptions.report')
+    // Secondary panels retain the header divider that separates their explanatory copy.
+    expect(dialog.querySelector('[data-slot="dialog-header"]')).toHaveClass('border-b')
+  })
+
+  it('removes the description and dividers only from the checks panel', async () => {
+    mocks.doctorState = completedDoctorState()
+    render(<PopupHost />)
+
+    act(() => {
+      void DoctorPopup.show({ initialPanel: 'checks' })
+    })
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).not.toHaveAccessibleDescription()
+    expect(screen.queryByText('settings.doctor.panel_descriptions.checks')).not.toBeInTheDocument()
+    // The checks layout intentionally joins its header, scrolling body, and footer without dividers.
+    expect(dialog.querySelector('[data-slot="dialog-header"]')).not.toHaveClass('border-b')
+    expect(dialog.querySelector('[data-slot="dialog-footer"]')).not.toHaveClass('border-t')
   })
 
   it('treats a directly opened report as a standalone problem report', async () => {
@@ -184,23 +192,6 @@ describe('DoctorPopup', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('exposes advanced tools as a collapsed accordion', async () => {
-    const user = userEvent.setup()
-    render(<PopupHost />)
-
-    act(() => {
-      void DoctorPopup.show({ initialPanel: 'checks' })
-    })
-
-    const trigger = await screen.findByRole('button', { name: 'settings.doctor.advanced.title' })
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
-
-    await user.click(trigger)
-
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: 'settings.about.debug.title' })).toBeVisible()
-  })
-
   it('hides the quick basic action while a result is current', async () => {
     mocks.doctorState = completedDoctorState()
     render(<PopupHost />)
@@ -211,6 +202,11 @@ describe('DoctorPopup', () => {
 
     expect(await screen.findByRole('button', { name: 'settings.doctor.actions.run_network' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'settings.doctor.actions.run_basic' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'error.diagnostics.action_required' })).not.toBeInTheDocument()
+    const fixed = screen.getByText('Fixed: 0')
+    expect(fixed).toBeVisible()
+    expect(screen.getByText('Needs attention: 0')).toBeVisible()
+    expect(within(fixed.parentElement as HTMLElement).getByText('settings.doctor.summary.basic_healthy')).toBeVisible()
   })
 
   it('runs quick checks from the expired-result alert', async () => {
@@ -264,6 +260,7 @@ describe('DoctorPopup', () => {
       runId: `running-${tier}`,
       tier,
       startedAt: new Date().toISOString(),
+      activeCheckIds: [],
       results: []
     }
     render(<PopupHost />)
@@ -277,54 +274,6 @@ describe('DoctorPopup', () => {
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: `running-${tier}` })
   })
 
-  it('keeps the editable report draft while navigating panels', async () => {
-    const user = userEvent.setup()
-    mocks.doctorState = reportableDoctorState()
-    render(<PopupHost />)
-
-    act(() => {
-      void DoctorPopup.show({ initialPanel: 'checks', initialDescription: 'safe first draft' })
-    })
-
-    expect(await screen.findByRole('dialog')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.report_problem' }))
-    expect(
-      await screen.findByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' })
-    ).toHaveValue('safe first draft')
-
-    await user.type(
-      screen.getByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' }),
-      ' reviewed'
-    )
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.back_to_checks' }))
-    await waitFor(() =>
-      expect(screen.getByText('settings.doctor.panel_descriptions.checks').parentElement).toHaveFocus()
-    )
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.report_problem' }))
-
-    expect(screen.getByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' })).toHaveValue(
-      'safe first draft reviewed'
-    )
-  })
-
-  it('returns to system diagnostics when an internally opened report closes', async () => {
-    const user = userEvent.setup()
-    mocks.doctorState = reportableDoctorState()
-    render(<PopupHost />)
-
-    act(() => {
-      void DoctorPopup.show({ initialPanel: 'checks' })
-    })
-
-    await user.click(await screen.findByRole('button', { name: 'settings.doctor.actions.report_problem' }))
-    expect(screen.getByRole('heading', { name: 'settings.doctor.panels.report' })).toBeVisible()
-
-    await user.click(screen.getByRole('button', { name: 'Close report panel' }))
-
-    expect(screen.getByRole('dialog')).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'settings.doctor.title' })).toBeVisible()
-  })
-
   it('uses the export title and keeps generic problem reporting out of the checks menu', async () => {
     const user = userEvent.setup()
     mocks.doctorState = completedDoctorState()
@@ -336,21 +285,26 @@ describe('DoctorPopup', () => {
 
     expect(await screen.findByRole('heading', { name: 'settings.doctor.title' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.more' }))
+    expect(screen.getByRole('menu')).toHaveAttribute('data-side', 'top')
     expect(screen.queryByRole('menuitem', { name: 'settings.doctor.actions.report_problem' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'settings.doctor.actions.copy' })).toBeVisible()
     await user.click(screen.getByRole('menuitem', { name: 'settings.doctor.panels.export' }))
 
     expect(screen.getByRole('heading', { name: 'settings.doctor.panels.export' })).toBeVisible()
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription('settings.doctor.panel_descriptions.export')
+    expect(screen.getByRole('dialog').querySelector('[data-slot="dialog-header"]')).toHaveClass('border-b')
     await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.back_to_checks' }))
     expect(screen.getByRole('heading', { name: 'settings.doctor.title' })).toBeVisible()
   })
 
-  it('announces whether quick basic checks or full checks are running', async () => {
+  it('shows one active-check progress line without rendering check rows while running', async () => {
     mocks.doctorState = {
       status: 'running',
       runId: 'quick-run',
       tier: 'quick',
       startedAt: new Date().toISOString(),
-      results: []
+      activeCheckIds: ['provider-api-key-present'],
+      results: [{ id: 'install-version-channel', status: 'pass', durationMs: 1 }]
     }
     const view = render(<PopupHost />)
 
@@ -358,15 +312,31 @@ describe('DoctorPopup', () => {
       void DoctorPopup.show({ initialPanel: 'checks' })
     })
 
-    expect(await screen.findByText('Running quick basic checks…')).toBeVisible()
+    const quickCheckCount = DOCTOR_CHECK_IDS.filter((id) => DOCTOR_CHECK_CATALOG[id].tier === 'quick').length
+    const activeProgress = `Checking: Default provider API key · 1/${quickCheckCount}`
 
-    mocks.doctorState = { ...mocks.doctorState, runId: 'full-run', tier: 'live' }
+    expect(await screen.findByText(activeProgress)).toBeVisible()
+    expect(screen.getAllByText(activeProgress)).toHaveLength(1)
+    expect(screen.queryByText('Running quick basic checks…')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings\.doctor\.checks\.install-version-channel\.title/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings\.doctor\.checks\.provider-api-key-present\.title/ })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.doctor.advanced.title' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'settings.doctor.actions.cancel_run' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'settings.doctor.actions.more' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'settings.doctor.actions.run_network' })).toBeDisabled()
+
+    mocks.doctorState = { ...mocks.doctorState, activeCheckIds: [], results: [] }
     view.rerender(<PopupHost />)
 
-    expect(await screen.findByText('Running full checks, including network and services…')).toBeVisible()
+    expect(await screen.findByText(`0 of ${quickCheckCount} completed`)).toBeVisible()
+    expect(screen.queryByText(activeProgress)).not.toBeInTheDocument()
   })
 
-  it('renders backend findings safely and keeps standalone checks grouped by domain', async () => {
+  it('shows only user-fixable findings in the completed diagnostics body', async () => {
     const user = userEvent.setup()
     mocks.doctorState = {
       status: 'completed',
@@ -396,6 +366,15 @@ describe('DoctorPopup', () => {
             durationMs: 1
           },
           {
+            id: 'permission-accessibility',
+            status: 'warn',
+            durationMs: 1,
+            attribution: 'user-fixable',
+            detail: { variant: 'denied' },
+            evidence: [{ key: 'permission', value: 'denied', dataClass: 'local_only' }],
+            actions: [{ kind: 'fix', fixId: 'request' }]
+          },
+          {
             id: 'storage-disk-space',
             status: 'fail',
             durationMs: 1,
@@ -411,18 +390,29 @@ describe('DoctorPopup', () => {
             evidence: [
               { key: 'reclaimableBytes', value: 300 * 1024 * 1024, dataClass: 'public' },
               { key: 'normalCacheBytes', value: 80 * 1024 * 1024, dataClass: 'public' },
-              { key: 'diagnosticDataBytes', value: 220 * 1024 * 1024, dataClass: 'public' }
+              { key: 'diagnosticDataBytes', value: 220 * 1024 * 1024, dataClass: 'public' },
+              { key: 'cachePath', value: '/private/cache', dataClass: 'local_only' }
             ],
             actions: []
           },
           {
             id: 'logs-recent-findings',
-            status: 'error',
+            status: 'warn',
             durationMs: 1,
-            message: 'secret backend failure'
+            attribution: 'app-bug',
+            detail: { variant: 'findings' },
+            actions: [{ kind: 'report' }]
+          },
+          {
+            id: 'network-online',
+            status: 'warn',
+            durationMs: 1,
+            attribution: 'transient',
+            detail: { variant: 'offline' },
+            actions: []
           }
         ],
-        summary: { pass: 1, warn: 0, fail: 1, skip: 0, error: 1 }
+        summary: { pass: 1, warn: 3, fail: 1, skip: 0, error: 0 }
       }
     }
     render(<PopupHost />)
@@ -431,28 +421,87 @@ describe('DoctorPopup', () => {
       void DoctorPopup.show({ initialPanel: 'checks' })
     })
 
-    const storageGroup = await screen.findByRole('button', {
-      name: /settings\.doctor\.domains\.storage.*settings\.doctor\.status\.fail/
+    const diagnosticSections = await screen.findAllByRole('region', {
+      name: /^error\.diagnostics\.(result|action_required)$/
     })
-    const installGroup = screen.getByRole('button', {
-      name: /settings\.doctor\.domains\.install.*settings\.doctor\.status\.pass/
-    })
-    expect(storageGroup).toHaveAttribute('aria-expanded', 'true')
-    expect(installGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(diagnosticSections).toHaveLength(2)
+    expect(screen.getByRole('region', { name: 'error.diagnostics.result' })).toBeVisible()
+    const actionRequired = screen.getByRole('region', { name: 'error.diagnostics.action_required' })
+    expect(screen.getByText('Needs attention: 2')).toBeVisible()
+    expect(screen.getByText('2 items need attention')).toBeVisible()
 
-    const failingCheck = screen.getByRole('button', {
+    expect(
+      screen.queryByRole('button', { name: /settings\.doctor\.checks\.install-version-channel\.title/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings\.doctor\.checks\.logs-recent-findings\.title/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings\.doctor\.checks\.network-online\.title/ })
+    ).not.toBeInTheDocument()
+    const advancedTools = screen.getByRole('button', { name: 'settings.doctor.advanced.title' })
+    expect(advancedTools).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('2.0.0')).not.toBeInTheDocument()
+    expect(screen.queryByText('/Users/local/CherryStudio')).not.toBeInTheDocument()
+
+    await user.click(advancedTools)
+
+    expect(screen.getByRole('button', { name: 'settings.about.debug.title' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'settings.about.diagnostics.sources.logs.title' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'settings.doctor.basics.data_path' })).toBeVisible()
+
+    const firstCheck = within(actionRequired).getByRole('button', {
+      name: /settings\.doctor\.checks\.permission-accessibility\.title.*settings\.doctor\.status\.warn/
+    })
+    const failingCheck = within(actionRequired).getByRole('button', {
       name: /settings\.doctor\.checks\.storage-disk-space\.title.*settings\.doctor\.status\.fail/
     })
+    expect(firstCheck).toHaveAttribute('aria-expanded', 'true')
+    expect(failingCheck).toHaveAttribute('aria-expanded', 'false')
+    expect(
+      within(actionRequired).getByRole('button', { name: 'settings.doctor.evidence.local_details' })
+    ).toHaveAttribute('aria-expanded', 'true')
+
+    await user.click(failingCheck)
+
     expect(failingCheck).toHaveAttribute('aria-expanded', 'true')
+    expect(firstCheck).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('reclaimableBytes')).toBeVisible()
+  })
 
-    await user.click(installGroup)
+  it('updates the semantic result counts after a successful fix', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = completedDoctorState([
+      {
+        id: 'permission-accessibility',
+        status: 'warn',
+        durationMs: 1,
+        attribution: 'user-fixable',
+        detail: { variant: 'denied' },
+        actions: [{ kind: 'fix', fixId: 'request' }]
+      }
+    ])
+    mocks.request.mockResolvedValue({ status: 'fixed' })
+    render(<PopupHost />)
 
-    const healthyCheck = screen.getByRole('button', {
-      name: /settings\.doctor\.checks\.install-version-channel\.title.*settings\.doctor\.status\.pass/
+    act(() => {
+      void DoctorPopup.show({ initialPanel: 'checks' })
     })
-    expect(healthyCheck).toHaveAttribute('aria-expanded', 'true')
 
-    expect(screen.queryByText('secret backend failure')).not.toBeInTheDocument()
+    const fixed = await screen.findByText('Fixed: 0')
+    const attention = screen.getByText('Needs attention: 1')
+    // Semantic foreground colors distinguish completed fixes from outstanding attention.
+    expect(fixed).toHaveClass('text-success')
+    expect(attention).toHaveClass('text-warning')
+
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.fixes.request_accessibility' }))
+
+    expect(await screen.findByText('Fixed: 1')).toHaveClass('text-success')
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.fix', {
+      runId: 'completed-quick',
+      checkId: 'permission-accessibility',
+      fixId: 'request'
+    })
   })
 
   it('blocks every dismiss path while the report panel is busy', async () => {

@@ -28,7 +28,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { DoctorCheckAccordionItems, DoctorCheckResults } from '../DoctorCheckResults'
+import { DoctorCheckAccordionItems } from '../DoctorCheckResults'
 import { DoctorChecksPanel } from '../DoctorChecksPanel'
 
 type ControllerOverrides = {
@@ -56,6 +56,7 @@ function createController(overrides: ControllerOverrides = {}) {
     cancelConfirmation: vi.fn<DoctorController['cancelConfirmation']>(),
     confirmEvidence: vi.fn<DoctorController['confirmEvidence']>(),
     executeAction: vi.fn<DoctorController['executeAction']>(),
+    isAutoRunPending: false,
     isInteracting: false,
     isCloseBlocked: false,
     openLogsPath: vi.fn<DoctorController['openLogsPath']>(),
@@ -65,6 +66,7 @@ function createController(overrides: ControllerOverrides = {}) {
     session: {
       activePanel: 'checks',
       descriptionDraft: '',
+      fixedCheckIds: [],
       interaction: { kind: 'idle' },
       relaunchRequired: false
     },
@@ -73,6 +75,7 @@ function createController(overrides: ControllerOverrides = {}) {
     setPanelInteraction: vi.fn<DoctorController['setPanelInteraction']>(),
     toggleDevTools: vi.fn<DoctorController['toggleDevTools']>(),
     viewModel: {
+      activeCheckIds: [],
       canCancel: false,
       groups: [],
       isStale: false,
@@ -230,33 +233,13 @@ describe('DoctorCheckAccordionItems interactions', () => {
     expectTypeOf<keyof ReturnType<typeof createController>>().toEqualTypeOf<keyof DoctorController>()
   })
 
-  it('keeps standalone results grouped while each check remains a disclosure', async () => {
-    const user = userEvent.setup()
-    const controller = createCompletedPanelController()
-    const groupedController = createController({
-      viewModel: {
-        ...controller.viewModel,
-        groups: [{ domain: 'runtime', status: 'warn', rows: controller.viewModel.rows }]
-      }
-    })
+  it('uses the sectioned surface for Doctor summary panels', () => {
+    render(<DoctorChecksPanel controller={createCompletedPanelController()} />)
 
-    render(<DoctorCheckResults controller={groupedController} />)
-
-    const group = screen.getByRole('button', {
-      name: /settings\.doctor\.domains\.runtime.*settings\.doctor\.status\.warn/
-    })
-    expect(group).toHaveAttribute('aria-expanded', 'true')
-
-    await user.click(group)
-    expect(group).toHaveAttribute('aria-expanded', 'false')
-
-    await user.click(group)
-
-    expect(
-      screen.getByRole('button', {
-        name: /settings\.doctor\.checks\.runtime-claude-login\.title.*settings\.doctor\.status\.warn/
-      })
-    ).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('region', { name: 'error.diagnostics.result' })).toHaveAttribute(
+      'data-variant',
+      'sectioned'
+    )
   })
 
   it('exposes local evidence through an accessible accordion trigger', async () => {
@@ -410,7 +393,7 @@ describe('DoctorCheckAccordionItems interactions', () => {
     })
     if (checkTrigger.getAttribute('aria-expanded') === 'false') await user.click(checkTrigger)
     const localDetails = screen.getByRole('button', { name: 'settings.doctor.evidence.local_details' })
-    await user.click(localDetails)
+    expect(localDetails).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('••••••')).toBeInTheDocument()
     const showDetails = screen.getByRole('button', { name: 'settings.doctor.actions.show_details' })
     await user.click(showDetails)
@@ -440,7 +423,7 @@ describe('DoctorCheckAccordionItems interactions', () => {
     })
     if (checkTrigger.getAttribute('aria-expanded') === 'false') await user.click(checkTrigger)
     const localDetails = screen.getByRole('button', { name: 'settings.doctor.evidence.local_details' })
-    await user.click(localDetails)
+    expect(localDetails).toHaveAttribute('aria-expanded', 'true')
     await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.show_details' }))
 
     const confirmation = await screen.findByRole('dialog', { name: 'settings.doctor.confirm_evidence.title' })

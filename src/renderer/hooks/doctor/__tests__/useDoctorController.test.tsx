@@ -163,6 +163,7 @@ describe('useDoctorController', () => {
       runId: 'shared-live',
       tier: 'live',
       startedAt: new Date().toISOString(),
+      activeCheckIds: [],
       results: []
     }
 
@@ -289,6 +290,7 @@ describe('useDoctorController', () => {
       checkId: 'permission-screen-capture',
       fixId: 'request'
     })
+    expect(result.current.session.fixedCheckIds).toEqual(['permission-screen-capture'])
     expect(result.current.viewModel.rows[0]).toMatchObject({ id: 'permission-screen-capture', status: 'warn' })
     expect(mocks.toastSuccess).toHaveBeenCalledWith('settings.doctor.messages.fix_completed')
 
@@ -305,12 +307,39 @@ describe('useDoctorController', () => {
     expect(result.current.viewModel.rows[0]).toMatchObject({ id: 'permission-screen-capture', status: 'pass' })
   })
 
+  it.each(['failed', 'stale'] as const)('does not count a %s fix response as repaired', async (status) => {
+    const completed = completedDoctorState()
+    if (completed.status !== 'completed') throw new Error('Expected a completed Doctor state')
+    mocks.doctorState = completed
+    mocks.request.mockResolvedValue(
+      status === 'failed'
+        ? {
+            status,
+            message: 'repair failed',
+            result: { id: 'config-boot-config-valid', status: 'fail', durationMs: 1 }
+          }
+        : {
+            status,
+            reason: 'finding_changed',
+            result: { id: 'config-boot-config-valid', status: 'pass', durationMs: 1 }
+          }
+    )
+    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+
+    await act(async () =>
+      result.current.executeAction('config-boot-config-valid', { kind: 'fix', fixId: 'repair' }, completed.report.runId)
+    )
+
+    expect(result.current.session.fixedCheckIds).toEqual([])
+  })
+
   it.each(['quick', 'live'] as const)('cancels an active %s run', async (tier) => {
     mocks.doctorState = {
       status: 'running',
       runId: 'run-1',
       tier,
       startedAt: '2026-09-04T08:59:00.000Z',
+      activeCheckIds: [],
       results: []
     }
     const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
