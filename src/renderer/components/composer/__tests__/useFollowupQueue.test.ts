@@ -797,6 +797,7 @@ describe('useFollowupQueue', () => {
       { id: 'bad-text', draft: { text: 42, tokens: [] }, payload: payload('x') },
       { id: 'bad-tokens', draft: { text: 'x', tokens: 'nope' }, payload: payload('x') },
       { id: 'bad-token-element', draft: { text: 'x', tokens: [null] }, payload: payload('x') },
+      { id: 'bad-token-id', draft: { text: 'x', tokens: [{ kind: 'skill', label: 'pdf' }] }, payload: payload('x') },
       { id: 'bad-draft', draft: null, payload: payload('x') },
       { id: 'bad-payload', draft: draft('x'), payload: 'nope' },
       { id: 'bad-models', draft: draft('x'), payload: { ...validPayload, mentionedModels: 'nope' } },
