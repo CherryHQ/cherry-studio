@@ -808,6 +808,7 @@ const TranslatePage: FC = () => {
 
           advanceContentOperationRevision()
           markContentChanged()
+          setRestoredPdfHandoff(null)
           translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
           setTranslateInput(history.sourceText)
           setTranslateOutput(history.targetText)
@@ -1031,6 +1032,7 @@ const TranslatePage: FC = () => {
         await processFile(file, contentOperationRevision)
       }
     } catch (error) {
+      if (!isContentOperationCurrent(contentOperationRevision)) return
       logger.error('Unknown error when selecting file.', error as Error)
       toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
     } finally {
@@ -1070,6 +1072,7 @@ const TranslatePage: FC = () => {
       setIsProcessing(true)
       try {
         const data = await getTextFromDropEvent(e).catch((error) => {
+          if (!isContentOperationCurrent(contentOperationRevision)) return null
           logger.error('getTextFromDropEvent', error as Error)
           toast.error(t('translate.files.error.unknown'))
           return null
@@ -1081,6 +1084,7 @@ const TranslatePage: FC = () => {
         }
 
         const droppedFiles = await getFilesFromDropEvent(e).catch((error) => {
+          if (!isContentOperationCurrent(contentOperationRevision)) return null
           logger.error('handleDrop:', error as Error)
           toast.error(t('translate.files.error.unknown'))
           return null
@@ -1095,6 +1099,7 @@ const TranslatePage: FC = () => {
           }
         }
       } catch (error) {
+        if (!isContentOperationCurrent(contentOperationRevision)) return
         logger.error('Drop processing failed', error as Error)
         toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
       } finally {
@@ -1156,6 +1161,7 @@ const TranslatePage: FC = () => {
         markContentChanged()
         await processFile(selectedFile, contentOperationRevision)
       } catch (error) {
+        if (!isContentOperationCurrent(contentOperationRevision)) return
         logger.error('onPaste:', error as Error)
         toast.error(t('chat.input.file_error'))
       } finally {

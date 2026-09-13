@@ -1703,6 +1703,49 @@ describe('TranslatePage', () => {
     expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('history input')
   })
 
+  it.each(['picker', 'drop text', 'drop files', 'paste'])(
+    'does not show a superseded %s ingestion error after history restores the input',
+    async (source) => {
+      let rejectIngestion!: (error: Error) => void
+      const pendingFailure = new Promise((_resolve, reject) => {
+        rejectIngestion = reject
+      })
+      if (source === 'picker') fileMock.onSelectFile.mockReturnValue(pendingFailure)
+      if (source === 'drop text') dropMock.getTextFromDropEvent.mockReturnValue(pendingFailure)
+      if (source === 'drop files') dropMock.getFilesFromDropEvent.mockReturnValue(pendingFailure)
+      if (source === 'paste') {
+        fileMock.getPathForFile.mockReturnValue('/tmp/pasted.png')
+        fileMock.get.mockReturnValue(pendingFailure)
+      }
+
+      render(<TranslatePage />)
+      if (source === 'picker') {
+        fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+        await waitFor(() => expect(fileMock.onSelectFile).toHaveBeenCalledTimes(1))
+      } else if (source === 'paste') {
+        fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+          clipboardData: { getData: () => '', files: [{ name: 'pasted.png', type: 'image/png' }] }
+        })
+        await waitFor(() => expect(fileMock.get).toHaveBeenCalledTimes(1))
+      } else {
+        fireEvent.drop(screen.getByTestId('translate-input-pane'))
+        await waitFor(() =>
+          expect(
+            source === 'drop text' ? dropMock.getTextFromDropEvent : dropMock.getFilesFromDropEvent
+          ).toHaveBeenCalled()
+        )
+      }
+
+      fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+      fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+      await waitFor(() => expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('history input'))
+
+      await act(async () => rejectIngestion(new Error('superseded ingestion failure')))
+      expect(toast.error).not.toHaveBeenCalled()
+      expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('history input')
+    }
+  )
+
   it('ignores empty text data when handling drops', async () => {
     dropMock.getTextFromDropEvent.mockResolvedValue('')
 
@@ -3211,7 +3254,7 @@ describe('TranslatePage', () => {
     )
   })
 
-  it('keeps a later text restore aligned when a remounted PDF restore completes first', async () => {
+  it('does not reopen an earlier PDF after two unmounted history restores settle', async () => {
     const pending: Array<() => void> = []
     const persistLanguages = vi.fn(
       (values: { sourceLanguage?: string; targetLanguage?: string }) =>
@@ -3252,10 +3295,11 @@ describe('TranslatePage', () => {
         fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
         fireEvent.click(screen.getByRole('button', { name: 'reuse-other-text-history' }))
         await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(2))
+        secondPage.unmount()
 
         await act(async () => pending[0]())
         await act(async () => pending[1]())
-        secondPage.rerender(<TranslatePage />)
+        render(<TranslatePage />)
 
         expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('zh-cn')
         expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('ja-jp')
