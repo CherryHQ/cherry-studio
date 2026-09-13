@@ -5,6 +5,7 @@ import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/t
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
 import type { ConversationAppId } from '@renderer/types/conversation'
+import { findConversationTab } from '@renderer/utils/conversationNavigation'
 import { getSidebarApp } from '@renderer/utils/sidebar'
 
 export interface ConversationNavigation {
@@ -14,7 +15,7 @@ export interface ConversationNavigation {
    */
   openConversationTab: (key: string, title?: string, options?: { forceNew?: boolean }) => string | undefined
   /**
-   * Open conversation `key` in the current tabs context when available; otherwise
+   * Focus conversation `key` if already open, or create a tab; otherwise
    * open it in a detached window. Detached host windows always open elsewhere.
    */
   openConversation: (key: string, title?: string) => string | undefined
@@ -67,7 +68,17 @@ export function useConversationNavigation(appId: ConversationAppId): Conversatio
       openConversationTab: (key, title) =>
         isDetachedWindowFrame ? undefined : openConversationTabImpl(tabs, appId, key, title),
       openConversation: (key, title) => {
-        if (tabs && !isDetachedWindowFrame) return openConversationTabImpl(tabs, appId, key, title)
+        if (tabs && !isDetachedWindowFrame) {
+          const existing = findConversationTab(tabs.tabs, {
+            conversationType: appId === 'agents' ? 'agent' : 'assistant',
+            conversationId: key
+          })
+          if (existing) {
+            tabs.setActiveTab(existing.id)
+            return existing.id
+          }
+          return openConversationTabImpl(tabs, appId, key, title)
+        }
         openConversationWindowImpl(appId, key, title)
         return undefined
       },

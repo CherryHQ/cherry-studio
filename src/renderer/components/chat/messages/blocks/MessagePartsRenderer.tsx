@@ -23,6 +23,7 @@ import { loggerService } from '@logger'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { Citation } from '@renderer/types/message'
+import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import {
   isCitationSourcePart,
@@ -69,6 +70,7 @@ import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
+import HandoffBlock from './HandoffBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import {
@@ -262,6 +264,7 @@ function getVideoFilePath(part: CherryMessagePart): string | undefined {
 type GroupedEntry = PartEntry | PartEntry[]
 
 interface RenderGroupedEntryOptions {
+  handoffContext?: string
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   enableAnimation?: boolean
   expandedTextPartIds?: ReadonlySet<string>
@@ -537,7 +540,9 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
     return !!toolResponse && (canRenderMessageTool(toolResponse) || isReportArtifactsToolResponse(toolResponse))
   }
   if (partType === 'file') return !!(part as { url?: string }).url
-  if (partType === 'data-video' || partType === 'data-error') return 'data' in part && !!part.data
+  if (partType === 'data-video' || partType === 'data-error' || partType === 'data-handoff') {
+    return 'data' in part && !!part.data
+  }
   return true
 }
 
@@ -654,6 +659,7 @@ function renderPart(
     }
 
     case 'text': {
+      if (options?.handoffContext !== undefined) return null
       const cherryMeta = getCherryMeta(part)
       const references = cherryMeta?.references as ContentReference[] | undefined
       let converted = references ? referenceCitationsCache.get(references) : undefined
@@ -710,6 +716,19 @@ function renderPart(
       const errorPart = part
       if (!errorPart.data) return null
       return <ErrorPartView key={partId} partId={partId} part={errorPart} message={message} />
+    }
+
+    case 'data-handoff': {
+      const handoffData = 'data' in part ? part.data : undefined
+      if (!handoffData) return null
+      return (
+        <HandoffBlock
+          key={partId}
+          data={handoffData}
+          context={options?.handoffContext}
+          conversationId={extractAgentSessionIdFromTopicId(message.topicId)}
+        />
+      )
     }
 
     case 'data-video': {
@@ -1544,8 +1563,20 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     )
     return new Map(textParts.map((part, index) => [part, projections[index]]))
   }, [message.role, messageCitations, messageParts])
+  // Keep the complete Agent prompt available without repeating it above the handoff card.
+  const handoffContext = useMemo(
+    () =>
+      message.role === 'user' && messageParts.some((part) => part.type === 'data-handoff' && part.data)
+        ? messageParts
+            .filter((part) => part.type === 'text')
+            .map((part) => part.text)
+            .join('\n\n')
+        : undefined,
+    [message.role, messageParts]
+  )
   const renderOptions = useMemo(
     () => ({
+      handoffContext,
       citationProjectionByPart,
       expandedTextPartIds,
       messageCitations,
@@ -1557,6 +1588,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     }),
     [
       canRemoveTranslation,
+      handoffContext,
       expandedTextPartIds,
       citationProjectionByPart,
       handleTextPartExpandedChange,

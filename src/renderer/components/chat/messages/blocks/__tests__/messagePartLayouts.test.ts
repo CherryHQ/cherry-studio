@@ -17,6 +17,17 @@ function indexes(items: readonly PartEntry[]): number[] {
   return items.map((entry) => entry.index)
 }
 
+it('keeps handoff navigation beside the confirmed task after the target finishes', () => {
+  const parts = entries([
+    { type: 'text', text: 'Continue the reviewed task' },
+    { type: 'data-handoff', data: { handoffId: 'handoff-1' } }
+  ])
+  const layout = projectCompletedMessageParts(parts)
+  expect(layout.resultEntries).toEqual(parts)
+  expect(layout.historyEntries).toEqual([])
+  expect(projectCompletedMessageParts(parts.slice(1)).resultEntries).toEqual(parts.slice(1))
+})
+
 const GENERATED_IMAGE_RESULTS: ReadonlyArray<[string, string, unknown]> = [
   ['Home image output', 'generate_image', [{ id: 'file-1', name: 'sunset.png' }]],
   [
