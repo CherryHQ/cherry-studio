@@ -680,6 +680,9 @@ Browser MCP tools with unambiguous logical method names are also callable as
 both original MCP wire tools remain available through `tools.invoke`. Nested MCP
 image parts are forwarded as `tool_exec` image content; nested calls without an
 output schema omit those image parts from their returned value.
+Each `tool_exec` execution allows at most 32 images and 64 MiB of base64 data
+across forwarded results and explicit `emitImage` calls; exceeding either limit
+fails the whole execution instead of returning partial images.
 
 This executor is an orchestration boundary, not a security sandbox:
 `worker_threads` isolates scheduling but retains the app's Node.js authority.
