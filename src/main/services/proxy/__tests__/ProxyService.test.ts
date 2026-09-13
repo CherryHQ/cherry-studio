@@ -7,6 +7,7 @@ const {
   sessionSetProxyMock,
   webviewSetProxyMock,
   proxyTestSetProxyMock,
+  proxyTestCloseAllConnectionsMock,
   proxyTestResolveProxyMock,
   proxyTestFetchMock,
   appSetProxyMock,
@@ -23,6 +24,7 @@ const {
     sessionSetProxyMock: vi.fn().mockResolvedValue(undefined),
     webviewSetProxyMock: vi.fn().mockResolvedValue(undefined),
     proxyTestSetProxyMock: vi.fn().mockResolvedValue(undefined),
+    proxyTestCloseAllConnectionsMock: vi.fn().mockResolvedValue(undefined),
     proxyTestResolveProxyMock: vi.fn().mockResolvedValue('PROXY proxy.example:8080'),
     proxyTestFetchMock: vi.fn().mockResolvedValue({ ok: true, status: 204 }),
     appSetProxyMock: vi.fn().mockResolvedValue(undefined),
@@ -79,6 +81,7 @@ vi.mock('electron', () => ({
       partition === 'proxy-connection-test'
         ? {
             setProxy: proxyTestSetProxyMock,
+            closeAllConnections: proxyTestCloseAllConnectionsMock,
             resolveProxy: proxyTestResolveProxyMock,
             fetch: proxyTestFetchMock
           }
@@ -130,6 +133,7 @@ describe('ProxyService — preference wiring', () => {
     MockMainPreferenceServiceUtils.resetMocks()
     intervalRegistrations.length = 0
     proxyTestSetProxyMock.mockResolvedValue(undefined)
+    proxyTestCloseAllConnectionsMock.mockResolvedValue(undefined)
     proxyTestResolveProxyMock.mockResolvedValue('PROXY proxy.example:8080')
     proxyTestFetchMock.mockResolvedValue({ ok: true, status: 204 })
     getSystemProxyMock.mockResolvedValue({ proxyUrl: 'http://system:1080', noProxy: ['localhost'] })
@@ -278,6 +282,7 @@ describe('ProxyService — connection test', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     proxyTestSetProxyMock.mockResolvedValue(undefined)
+    proxyTestCloseAllConnectionsMock.mockResolvedValue(undefined)
     proxyTestResolveProxyMock.mockResolvedValue('PROXY proxy.example:8080')
     proxyTestFetchMock.mockResolvedValue({ ok: true, status: 204 })
   })
@@ -294,12 +299,52 @@ describe('ProxyService — connection test', () => {
       proxyRules: 'http://proxy.example:8080',
       proxyBypassRules: 'localhost'
     })
+    expect(proxyTestCloseAllConnectionsMock).toHaveBeenCalledOnce()
+    expect(proxyTestSetProxyMock.mock.invocationCallOrder[0]).toBeLessThan(
+      proxyTestCloseAllConnectionsMock.mock.invocationCallOrder[0]
+    )
+    expect(proxyTestCloseAllConnectionsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      proxyTestFetchMock.mock.invocationCallOrder[0]
+    )
     expect(proxyTestFetchMock).toHaveBeenCalledWith(
       PROXY_TEST_TARGET,
       expect.objectContaining({ method: 'GET', signal: expect.any(AbortSignal) })
     )
     expect(sessionSetProxyMock).not.toHaveBeenCalled()
     expect(appSetProxyMock).not.toHaveBeenCalled()
+  })
+
+  it('does not reuse a pooled connection after switching between HTTP and SOCKS proxies', async () => {
+    let configuredProxy = ''
+    let pooledProxy = ''
+    proxyTestSetProxyMock.mockImplementation(async (config) => {
+      configuredProxy = config.proxyRules ?? ''
+    })
+    proxyTestCloseAllConnectionsMock.mockImplementation(async () => {
+      pooledProxy = ''
+    })
+    proxyTestFetchMock.mockImplementation(async () => {
+      pooledProxy ||= configuredProxy
+      if (pooledProxy === 'socks5://proxy-two.example:1080') {
+        throw new Error('net::ERR_PROXY_CONNECTION_FAILED')
+      }
+      return { ok: true, status: 204 }
+    })
+
+    const manager = new ProxyService()
+    await expect(
+      manager.testConnection({ mode: 'custom', url: 'http://proxy-one.example:8080', bypassRules: '' })
+    ).resolves.toEqual({ target: PROXY_TEST_TARGET, route: 'proxy', success: true })
+    await expect(
+      manager.testConnection({ mode: 'custom', url: 'socks5://proxy-two.example:1080', bypassRules: '' })
+    ).resolves.toEqual({
+      target: PROXY_TEST_TARGET,
+      route: 'proxy',
+      success: false,
+      error: 'unreachable'
+    })
+
+    expect(proxyTestCloseAllConnectionsMock).toHaveBeenCalledTimes(2)
   })
 
   it('reports when the configured bypass rules select a direct route', async () => {

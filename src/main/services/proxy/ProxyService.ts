@@ -149,6 +149,7 @@ export class ProxyService extends BaseService {
 
     try {
       await testSession.setProxy(config)
+      await testSession.closeAllConnections()
       const resolvedRoute = await testSession.resolveProxy(PROXY_TEST_TARGET)
       if (resolvedRoute.trim().toUpperCase() === 'DIRECT') {
         route = mode === 'custom' ? 'bypassed' : 'direct'
