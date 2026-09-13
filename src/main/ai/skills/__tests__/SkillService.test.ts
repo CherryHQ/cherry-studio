@@ -952,7 +952,7 @@ describe('SkillService', () => {
       expect(installSpy).toHaveBeenCalledWith(
         expect.any(String),
         'marketplace',
-        `https://github.com/owner/repo/tree/${wanted}/skills/demo`
+        `https://github.com/owner/repo/tree/${wanted}/skills/demo?ref=refs%2Fheads%2Ffeature%2Ffoo`
       )
     })
 
@@ -1261,6 +1261,42 @@ describe('SkillService', () => {
         expect(second.id).toBe(first.id)
         expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
         await expect(fs.promises.access(path.join(dataSkillsRoot, 'Demo', 'SKILL.md'))).resolves.toBeUndefined()
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('does not alias fetched skills from different slash-bearing refs', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
+      const firstDir = path.join(workDir, 'first')
+      const secondDir = path.join(workDir, 'second')
+      const firstUrl = `https://github.com/owner/repo/tree/${'a'.repeat(40)}/skills/demo?ref=refs%2Fheads%2Ffeature%2Ffoo`
+      const secondUrl = `https://github.com/owner/repo/tree/${'b'.repeat(40)}/skills/demo?ref=refs%2Fheads%2Fother%2Ffoo`
+
+      try {
+        await Promise.all(
+          [firstDir, secondDir].map(async (directory) => {
+            await fs.promises.mkdir(directory, { recursive: true })
+            await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# skill')
+          })
+        )
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Demo', declaredName: 'Demo' }) as never
+        )
+
+        const first = await skillService['installSkillDir'](firstDir, 'marketplace', firstUrl, {
+          folderNameFallback: 'repo'
+        })
+
+        await expect(
+          skillService['installSkillDir'](secondDir, 'marketplace', secondUrl, { folderNameFallback: 'repo' })
+        ).rejects.toThrow('refusing to overwrite')
+
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+        await expect(
+          fs.promises.access(path.join(dataSkillsRoot, first.folderName, 'SKILL.md'))
+        ).resolves.toBeUndefined()
       } finally {
         restoreGetPath()
         vi.mocked(parseSkillMetadata).mockReset()

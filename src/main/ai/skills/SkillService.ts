@@ -70,6 +70,7 @@ function normalizeGithubSourceUrl(sourceUrl: string): string[] | null {
     const url = new URL(sourceUrl)
     const host = url.hostname.toLowerCase().replace(/^www\./, '')
     const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+    const sourceRef = url.searchParams.get('ref')
     const owner = parts.shift()
     const repo = parts.shift()?.replace(/\.git$/i, '')
     if (!owner || !repo) return null
@@ -98,7 +99,17 @@ function normalizeGithubSourceUrl(sourceUrl: string): string[] | null {
       const skillPath = refAndPath.slice(1)
       if (skillPath.at(-1)?.toLowerCase() === 'skill.md') skillPath.pop()
       const encodedPath = skillPath.map((part) => encodeURIComponent(part)).join('/')
-      return [`github:${owner.toLowerCase()}/${repo.toLowerCase()}${encodedPath ? `/${encodedPath}` : ''}`]
+      const pathIdentity = `github:${owner.toLowerCase()}/${repo.toLowerCase()}${encodedPath ? `/${encodedPath}` : ''}`
+      const refMatch = sourceRef?.match(/^refs\/(heads|tags)\/(.+)$/)
+      if (refMatch) {
+        return [
+          `github-ref-path:${owner.toLowerCase()}/${repo.toLowerCase()}/${refMatch[1]}/${encodeURIComponent(refMatch[2])}${
+            encodedPath ? `/${encodedPath}` : ''
+          }`,
+          pathIdentity
+        ]
+      }
+      return [pathIdentity]
     }
 
     // Generated source URLs put the ref (branch, tag, or commit) before the skill path. Branches
@@ -128,6 +139,13 @@ function normalizeGithubSourceUrl(sourceUrl: string): string[] | null {
       // slash-bearing legacy ref this preserves root re-installs without aliasing nested skills.
       if (skillPath.length === 0 && maxSplit > 2) continue
       const encodedPath = skillPath.map((part) => encodeURIComponent(part)).join('/')
+      if (explicitRefNamespace) {
+        identities.push(
+          `github-ref-path:${owner.toLowerCase()}/${repo.toLowerCase()}/${explicitRefNamespace}/${encodeURIComponent(
+            refAndPath.slice(0, split).join('/')
+          )}${encodedPath ? `/${encodedPath}` : ''}`
+        )
+      }
       identities.push(`github:${owner.toLowerCase()}/${repo.toLowerCase()}${encodedPath ? `/${encodedPath}` : ''}`)
     }
     return identities
@@ -142,6 +160,12 @@ function normalizeSkillSourceUrl(source: string, sourceUrl: string | null): stri
 }
 
 function sameSkillSourceUrl(left: string[], right: string[]): boolean {
+  const leftRefPath = left.filter((identity) => identity.startsWith('github-ref-path:'))
+  const rightRefPath = right.filter((identity) => identity.startsWith('github-ref-path:'))
+  if (leftRefPath.length > 0 && rightRefPath.length > 0) {
+    return leftRefPath.some((identity) => rightRefPath.includes(identity))
+  }
+
   const leftUrlIdentity = left.filter((identity) => identity.startsWith('github-url:'))
   const rightUrlIdentity = right.filter((identity) => identity.startsWith('github-url:'))
 
@@ -165,11 +189,17 @@ function sameSkillSourceUrl(left: string[], right: string[]): boolean {
   const isRepositoryIdentity = (identity: string) => /^github:[^/]+\/[^/]+$/.test(identity)
   const leftSpecific = left.filter(
     (identity) =>
-      !identity.startsWith('github-url:') && !identity.startsWith('github-ref:') && !isRepositoryIdentity(identity)
+      !identity.startsWith('github-url:') &&
+      !identity.startsWith('github-ref:') &&
+      !identity.startsWith('github-ref-path:') &&
+      !isRepositoryIdentity(identity)
   )
   const rightSpecific = right.filter(
     (identity) =>
-      !identity.startsWith('github-url:') && !identity.startsWith('github-ref:') && !isRepositoryIdentity(identity)
+      !identity.startsWith('github-url:') &&
+      !identity.startsWith('github-ref:') &&
+      !identity.startsWith('github-ref-path:') &&
+      !isRepositoryIdentity(identity)
   )
 
   if (leftSpecific.length > 0 || rightSpecific.length > 0)

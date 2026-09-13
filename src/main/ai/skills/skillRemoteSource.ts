@@ -187,7 +187,9 @@ async function fetchFromGithub(
   const sourceUrl =
     namespace && !ref.includes('/')
       ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
-      : `${repoUrl}/tree/${encodeGithubPath(target.kind === 'root' ? oid : `${oid}/${target.path}`)}`
+      : `${repoUrl}/tree/${encodeGithubPath(target.kind === 'root' ? oid : `${oid}/${target.path}`)}${
+          namespace && ref.includes('/') ? `?ref=${encodeURIComponent(`refs/${namespace}/${ref}`)}` : ''
+        }`
 
   const tempDir = await openTempDir()
   const { contentDir, skillDir } = await materializeGithubTarget(repoUrl, oid, target, descriptorFileName, tempDir)
