@@ -372,22 +372,22 @@ export function useFollowupQueue({
         if (liveHasHead) {
           // Back on (or never left) the sent scope with the same head live:
           // dequeue it so the sent payload can never be redelivered.
-          if (drainingIdRef.current === head.id) setDraining(null)
+          if (mountedRef.current && drainingIdRef.current === head.id) setDraining(null)
           removeIdRef.current(head.id)
         } else {
           removeIdFromScope(drainScope, head.id)
-          if (drainingIdRef.current === head.id) setDraining(null)
+          if (mountedRef.current && drainingIdRef.current === head.id) setDraining(null)
         }
       } else if (liveHasHead) {
         // Nothing was sent and the head is still live: record the honest failure.
-        if (drainingIdRef.current === head.id) setDraining(null)
+        if (mountedRef.current && drainingIdRef.current === head.id) setDraining(null)
         failHeadRef.current(head.id)
       } else {
         // Nothing was sent and the head isn't live here: a queued head gets an
         // honest persisted failure (subscribers reload the banner instead of
         // stalling silently); a removed head just releases its durable claim.
         writeFailureToScope(drainScope, head.id)
-        if (drainingIdRef.current === head.id) setDraining(null)
+        if (mountedRef.current && drainingIdRef.current === head.id) setDraining(null)
       }
     },
     [setDraining]
@@ -415,14 +415,16 @@ export function useFollowupQueue({
       if (marker) clearPendingInScope(liveScope, marker)
       setDraining(head.id)
       // Durably claim the head so a remounted instance won't send it concurrently.
+      // Register liveness before persisting the marker (matching tryClaimSend), so
+      // subscriber notifications observing the entry mid-claim see a live owner.
       pendingDrainIdRef.current = head.id
+      liveSends.add(head.id)
       persist(stateRef.current)
       const epoch = drainEpochRef.current
       const drainScope = scopeKeyRef.current
       const seq = (drainSeqRef.current += 1)
       lastDrainRef.current = { id: head.id, seq }
       inflightRef.current.set(head.id, seq)
-      liveSends.add(head.id)
       const settleInflight = () => {
         if (inflightRef.current.get(head.id) === seq) inflightRef.current.delete(head.id)
         liveSends.delete(head.id)
