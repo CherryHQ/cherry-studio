@@ -142,6 +142,53 @@ describe('FollowupQueueService', () => {
     })
   })
 
+  describe('claimHead', () => {
+    it('should atomically claim the oldest pending row and skip nothing', () => {
+      const first = enqueueIn(SCOPE_A, 'a')
+      const second = enqueueIn(SCOPE_A, 'b')
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(followupQueueService.claimHead(SCOPE_A)).toEqual({ claimed: true, id: first.id })
+
+      // The head is now owned: a second claim finds it unclaimable instead of
+      // handing out the next row (one drain per arbitration round).
+      expect(followupQueueService.claimHead(SCOPE_A)).toEqual({ claimed: false })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/followup-queues', kind: 'projection', entityIds: [first.id] }
+      ])
+      expect(followupQueueService.listByScope(SCOPE_A).find((item) => item.id === second.id)).toMatchObject({
+        status: 'pending'
+      })
+    })
+
+    it('should ignore other scopes and empty queues', () => {
+      enqueueIn(SCOPE_A, 'a')
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(followupQueueService.claimHead(SCOPE_B)).toEqual({ claimed: false })
+      expect(followupQueueService.claimHead('missing:scope')).toEqual({ claimed: false })
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
+    it('should reclaim a stale sending head', async () => {
+      const staleId = '11111111-1111-7111-8111-111111111111'
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: staleId,
+          scopeKey: SCOPE_A,
+          draft: draft('stale'),
+          payload: payload('stale'),
+          status: 'sending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: Date.now() - 31 * 60 * 1000
+        }
+      ])
+
+      expect(followupQueueService.claimHead(SCOPE_A)).toEqual({ claimed: true, id: staleId })
+    })
+  })
+
   describe('markFailed', () => {
     it('should park a sending row as failed while ignoring rows that are not sending', () => {
       const sending = enqueueIn(SCOPE_A, 'a')

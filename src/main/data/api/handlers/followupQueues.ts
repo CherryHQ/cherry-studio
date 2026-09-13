@@ -9,6 +9,7 @@
 import { followupQueueService } from '@data/services/FollowupQueueService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
+  ClaimFollowupQueueHeadSchema,
   CreateFollowupQueueSchema,
   FollowupQueueScopeQuerySchema,
   SetFollowupQueueStateSchema,
@@ -46,6 +47,13 @@ export const followupQueueHandlers: HandlersFor<FollowupQueueSchemas> = {
     POST: async ({ params }) => {
       followupQueueService.markFailed(params.id)
       return undefined
+    }
+  },
+
+  '/followup-queues/claim:head': {
+    POST: async ({ body }) => {
+      const parsed = ClaimFollowupQueueHeadSchema.parse(body)
+      return followupQueueService.claimHead(parsed.scopeKey)
     }
   },
 

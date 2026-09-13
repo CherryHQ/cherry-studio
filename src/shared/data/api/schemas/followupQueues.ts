@@ -14,6 +14,7 @@ import * as z from 'zod'
 
 import {
   FollowupQueueDraftSchema,
+  FollowupQueueIdSchema,
   FollowupQueuePayloadSchema,
   type FollowupQueueItem,
   type FollowupQueueState,
@@ -51,6 +52,19 @@ export const ClaimFollowupQueueSchema = z.strictObject({
   claimed: z.boolean()
 })
 export type ClaimFollowupQueueResult = z.infer<typeof ClaimFollowupQueueSchema>
+
+/** Body for `POST /followup-queues/claim:head` (atomic oldest-row claim). */
+export const ClaimFollowupQueueHeadSchema = z.strictObject({
+  scopeKey: FollowupQueueScopeKeySchema
+})
+export type ClaimFollowupQueueHeadDto = z.infer<typeof ClaimFollowupQueueHeadSchema>
+
+/** Response for `POST /followup-queues/claim:head` — a won claim carries the row id. */
+export const ClaimHeadFollowupQueueSchema = z.union([
+  z.strictObject({ claimed: z.literal(true), id: FollowupQueueIdSchema }),
+  z.strictObject({ claimed: z.literal(false) })
+])
+export type ClaimHeadFollowupQueueResult = z.infer<typeof ClaimHeadFollowupQueueSchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -108,6 +122,20 @@ export type FollowupQueueSchemas = {
     POST: {
       params: { id: string }
       response: void
+    }
+  }
+
+  /**
+   * Head-claim endpoint — atomically claims the oldest claimable row in a
+   * scope. Auto-drain uses this (instead of claiming the mirrored head by id)
+   * so a concurrent reorder cannot slip a different head in between. A won
+   * claim carries the row id.
+   * @example POST /followup-queues/claim:head { "scopeKey": "topicId:assistantId" }
+   */
+  '/followup-queues/claim:head': {
+    POST: {
+      body: ClaimFollowupQueueHeadDto
+      response: ClaimHeadFollowupQueueResult
     }
   }
 
