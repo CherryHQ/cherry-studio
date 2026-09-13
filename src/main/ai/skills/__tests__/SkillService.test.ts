@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import AdmZip from 'adm-zip'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -2166,6 +2166,23 @@ describe('SkillService', () => {
       expect(rows.some((row) => row.folderName === 'gone')).toBe(false)
       await expect(fs.promises.access(path.join(mirrorRoot, 'Foo'))).rejects.toThrow()
       await expect(fs.promises.access(path.join(mirrorRoot, 'foo'))).rejects.toThrow()
+    })
+
+    it('reconcileSkills skips a malformed catalog row without duplicating its folder', async () => {
+      await writeLibrarySkill('broken-skill', '# valid library copy')
+      await dbh.db.run(
+        sql.raw(
+          `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
+           VALUES ('broken-row', 'Broken', NULL, 'broken-skill', 'local', NULL, NULL, NULL, NULL, 'not-json', 'old', 1, 1, 1)`
+        )
+      )
+
+      await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
+
+      const rawRows = dbh.db.all(sql.raw("SELECT id, folder_name, tags FROM agent_global_skill WHERE folder_name = 'broken-skill'"))
+      expect(rawRows).toHaveLength(1)
+      expect(rawRows[0]).toMatchObject({ id: 'broken-row', folder_name: 'broken-skill', tags: 'not-json' })
+      await expect(fs.promises.access(path.join(mirrorRoot, 'broken-skill'))).resolves.toBeUndefined()
     })
 
     it('copies complete builtin content and quarantines later modifications', async () => {

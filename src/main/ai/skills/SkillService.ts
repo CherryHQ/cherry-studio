@@ -817,6 +817,7 @@ export class SkillService {
     }
 
     const dbSkills = agentGlobalSkillService.listAll()
+    const catalogFolderKeys = new Set(agentGlobalSkillService.listFolderNames().map(normalizeFolderKey))
     const dbGroups = new Map<string, InstalledSkill[]>()
     for (const skill of dbSkills) {
       const key = normalizeFolderKey(skill.folderName)
@@ -905,6 +906,10 @@ export class SkillService {
         continue
       }
       if (existing && existing.contentHash === contentHash) continue
+      if (!existing && catalogFolderKeys.has(folderKey)) {
+        logger.warn('Skipped adopting skill with quarantined catalog row', { folderName })
+        continue
+      }
 
       let metadata: Awaited<ReturnType<typeof parseSkillMetadata>>
       try {
@@ -977,7 +982,10 @@ export class SkillService {
    */
   private async reconcileMirror(): Promise<void> {
     const all = agentGlobalSkillService.listAll()
-    const known = new Set(all.map((s) => normalizeFolderKey(s.folderName)))
+    const quarantinedFolders = agentGlobalSkillService
+      .listFolderNames()
+      .filter((folderName) => !all.some((skill) => normalizeFolderKey(skill.folderName) === normalizeFolderKey(folderName)))
+    const known = new Set([...all.map((s) => s.folderName), ...quarantinedFolders].map(normalizeFolderKey))
     const groups = new Map<string, InstalledSkill[]>()
     for (const skill of all) {
       const key = normalizeFolderKey(skill.folderName)
@@ -999,6 +1007,7 @@ export class SkillService {
       }
       await this.linkMirror(group[0].folderName)
     }
+    for (const folderName of quarantinedFolders) await this.linkMirror(folderName)
 
     const root = this.getMirrorRoot()
     let entries: fs.Dirent[]

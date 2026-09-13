@@ -148,6 +148,12 @@ export class AgentGlobalSkillService {
     }
   }
 
+  /** Folder names read without decoding JSON columns, including quarantined rows. */
+  listFolderNames(): string[] {
+    const rows = this.db.all(sql.raw('SELECT folder_name FROM agent_global_skill')) as Array<{ folder_name: unknown }>
+    return rows.map((row) => String(row.folder_name))
+  }
+
   insert(values: InsertAgentGlobalSkillRow): AgentGlobalSkillRow {
     return this.insertTx(application.get('DbService').getDb(), values)
   }
