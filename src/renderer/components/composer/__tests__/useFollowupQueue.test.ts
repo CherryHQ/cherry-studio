@@ -806,6 +806,7 @@ describe('useFollowupQueue', () => {
       { id: 'bad-part-type', draft: draft('x'), payload: { ...validPayload, userMessageParts: [{}] } },
       { id: 'bad-part-text', draft: draft('x'), payload: { ...validPayload, userMessageParts: [{ type: 'text' }] } },
       { id: 'bad-payload-text', draft: draft('x'), payload: { ...validPayload, text: undefined } },
+      { id: 'bad-no-parts', draft: draft('x'), payload: { text: 'x' } },
       { id: '', draft: draft('x'), payload: payload('x') }
     ])
     const { result } = renderHook(() =>
@@ -1252,6 +1253,36 @@ describe('useFollowupQueue', () => {
       s2Writer.result.current.enqueue(draft('b'), payload('b'))
     })
     expect(result.current.items.map((i) => i.draft.text)).toEqual(['b'])
+  })
+
+  it('a manual-steer success landing after unmount preserves newer queued work', async () => {
+    const onDrain = vi.fn().mockResolvedValue(true)
+    seedQueue('s1', [item('h1', 'first')])
+
+    const first = renderHook(() => useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain }))
+    const headId = first.result.current.items[0].id
+    act(() => {
+      expect(first.result.current.tryClaimSend(headId)).toBe(true)
+    })
+    first.unmount()
+
+    // Same-scope remount queues newer work while the manual send is pending.
+    const second = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain })
+    )
+    act(() => {
+      second.result.current.enqueue(draft('new'), payload('new'))
+    })
+
+    // The dead instance's success continuation must dequeue surgically — the
+    // frozen snapshot write would drop the newer item.
+    act(() => {
+      first.result.current.removeId(headId)
+      first.result.current.releaseSend(headId)
+    })
+    expect(persistedTexts('s1')).toEqual(['new'])
+    expect(second.result.current.items.map((i) => i.draft.text)).toEqual(['new'])
+    expect(onDrain).not.toHaveBeenCalled()
   })
 
   it('tryClaimSend fails while an auto-drain is in flight', async () => {
