@@ -254,3 +254,60 @@ describe('diffAgentUpdate', () => {
     })
   })
 })
+
+describe('agent reply language tri-state', () => {
+  it('maps persisted language values onto mode + draft', () => {
+    expect(buildInitialAgentFormState(createAgent())).toMatchObject({ languageMode: 'inherit', languageCustom: '' })
+    expect(buildInitialAgentFormState(createAgent({ configuration: { language: null } }))).toMatchObject({
+      languageMode: 'off',
+      languageCustom: ''
+    })
+    expect(buildInitialAgentFormState(createAgent({ configuration: { language: '  Thai ' } }))).toMatchObject({
+      languageMode: 'custom',
+      languageCustom: 'Thai'
+    })
+  })
+
+  it('keeps an invalid persisted label as a raw draft instead of silently dropping it', () => {
+    const state = buildInitialAgentFormState(createAgent({ configuration: { language: 'a\nb' } }))
+
+    expect(state).toMatchObject({ languageMode: 'custom', languageCustom: 'a\nb' })
+  })
+
+  it('emits the override string when switching inherit to custom', () => {
+    const baseline = buildInitialAgentFormState(createAgent())
+    const next = { ...baseline, languageMode: 'custom' as const, languageCustom: '日本語' }
+
+    expect(diffAgentUpdate(baseline, next)?.dto.configuration).toMatchObject({ language: '日本語' })
+  })
+
+  it('emits null when switching to no constraint so the opt-out persists', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ configuration: { language: 'English' } }))
+    const next = { ...baseline, languageMode: 'off' as const }
+
+    expect(diffAgentUpdate(baseline, next)?.dto.configuration).toMatchObject({ language: null })
+  })
+
+  it('emits an explicit undefined key removal when switching back to inherit', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ configuration: { language: null } }))
+    const next = { ...baseline, languageMode: 'inherit' as const }
+
+    const configuration = diffAgentUpdate(baseline, next)?.dto.configuration
+    expect(configuration && 'language' in configuration).toBe(true)
+    expect(configuration?.language).toBeUndefined()
+  })
+
+  it('emits nothing for an empty custom draft so invalid input never persists', () => {
+    const baseline = buildInitialAgentFormState(createAgent())
+    const next = { ...baseline, languageMode: 'custom' as const, languageCustom: '   ' }
+
+    expect(diffAgentUpdate(baseline, next)).toBeNull()
+  })
+
+  it('treats whitespace-equivalent custom drafts as unchanged', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ configuration: { language: 'English' } }))
+    const next = { ...baseline, languageCustom: '  English  ' }
+
+    expect(diffAgentUpdate(baseline, next)).toBeNull()
+  })
+})
