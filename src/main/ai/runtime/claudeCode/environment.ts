@@ -13,15 +13,16 @@ import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
+import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import {
+  applyUserMiseContract,
   getMiseEnvEntries,
   getRawShellEnv,
-  getShellEnv,
   hasUserMiseEnv,
-  refreshShellEnv,
-  removePathEntry
+  refreshRawShellEnv,
+  withCherryShellEnv
 } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -137,43 +138,24 @@ export function resolveClaudeExecutablePath(): string {
 export async function getClaudeCodeLoginShellEnvironment(
   currentProxyEnvironment: Environment
 ): Promise<Record<string, string | undefined>> {
-  let loginShellEnv = await getShellEnv()
+  // MISE ownership and PATH come from one shell snapshot: separate augmented
+  // and raw reads can straddle a cache refresh and mix ownership from one
+  // capture with PATH from another.
+  let rawShellEnv = await getRawShellEnv()
+  let loginShellEnv = withCherryShellEnv(rawShellEnv)
   if (hasStaleCherryProxyMarkers(loginShellEnv, currentProxyEnvironment)) {
-    loginShellEnv = await refreshShellEnv()
+    rawShellEnv = await refreshRawShellEnv()
+    loginShellEnv = withCherryShellEnv(rawShellEnv)
   }
   const stripped = stripInheritedCherryProxyMarkers(loginShellEnv)
   // Restore the user's MISE_* contract over Cherry's isolated values so
   // system mise shims (e.g. pnpx) inside the agent bash don't get
   // redirected to Cherry's data dir (#19738). A user mise installation
   // may be visible only as a shims directory in PATH without MISE_* vars.
-  const rawShellEnv = await getRawShellEnv()
   const rawMiseEntries = getMiseEnvEntries(rawShellEnv)
   const hasUserMise = hasUserMiseEnv(rawShellEnv)
   if (hasUserMise) {
-    // User has mise activated — replace the contract wholesale: drop
-    // Cherry-only MISE keys, then restore the user's values.
-    const { getBinaryExecutionEnv, getBinaryShimsDir } = await import('@main/utils/binaryEnv')
-    const cherryMiseEnv = getBinaryExecutionEnv()
-    const isWindows = isWin
-    const rawMiseKeysNormalized = new Set(rawMiseEntries.map(([k]) => (isWindows ? k.toUpperCase() : k)))
-    for (const key of Object.keys(cherryMiseEnv)) {
-      const normalizedKey = isWindows ? key.toUpperCase() : key
-      if (!rawMiseKeysNormalized.has(normalizedKey)) {
-        const existingKey = Object.keys(stripped).find((k) =>
-          isWindows ? k.toUpperCase() === key.toUpperCase() : k === key
-        )
-        if (existingKey) delete stripped[existingKey]
-      }
-    }
-    for (const [key, value] of rawMiseEntries) {
-      if (isWindows) {
-        const existingKey = Object.keys(stripped).find((k) => k.toLowerCase() === key.toLowerCase() && k !== key)
-        if (existingKey) delete stripped[existingKey]
-      }
-      stripped[key] = value
-    }
-    const shimsDir = getBinaryShimsDir()
-    removePathEntry(stripped, shimsDir)
+    applyUserMiseContract(stripped, Object.fromEntries(rawMiseEntries), getBinaryExecutionEnv())
   }
   // A login shell can drop the desktop-session bus inherited by packaged Electron.
   if (isLinux && process.env.DBUS_SESSION_BUS_ADDRESS) {

@@ -53,15 +53,18 @@ vi.mock('../bundledGit', () => ({
 import { getBinaryShimsDir } from '../binaryEnv'
 import { getBundledGitDir } from '../bundledGit'
 import {
+  applyUserMiseContract,
   getMiseEnvEntries,
   getPathFromEnvironment,
   getRawShellEnv,
   getShellEnv,
   hasMiseInPath,
   hasUserMiseEnv,
+  refreshRawShellEnv,
   refreshShellEnv,
   removePathEntry,
-  resolveCherryPathTailDirs
+  resolveCherryPathTailDirs,
+  withCherryShellEnv
 } from '../shellEnv'
 
 // ---------------------------------------------------------------------------
@@ -333,6 +336,14 @@ describe('mise environment ownership', () => {
     expect(getMiseEnvEntries({ MISE_DATA_DIR: 'x', Path: 'C:\\Windows' })).toEqual([['MISE_DATA_DIR', 'x']])
   })
 
+  it('does not mistake Cherry’s own shims dir for a user mise installation', () => {
+    // Cherry's data dir is `.../Toolchain/mise`, so its managed shims dir matches
+    // the mise/shims pattern. A login PATH already carrying Cherry tails must not
+    // read as user-owned, or no-mise users lose Cherry's MISE contract and shims.
+    expect(hasMiseInPath(`${getBinaryShimsDir()};C:\\Windows`)).toBe(false)
+    expect(hasUserMiseEnv({ Path: `${getBinaryShimsDir()};C:\\Windows` })).toBe(false)
+  })
+
   it('removes one directory from PATH case-insensitively', () => {
     const env: Record<string, string | undefined> = {
       Path: 'C:\\cherry\\shims;C:\\Windows;C:\\cherry\\SHIMS'
@@ -372,5 +383,94 @@ describe('mise ownership on POSIX', () => {
     expect(posixShellEnv.hasUserMiseEnv({ path: '/home/user/.local/share/mise/shims:/usr/bin' })).toBe(false)
     expect(posixShellEnv.hasUserMiseEnv({ PATH: '/home/user/.local/share/mise/shims:/usr/bin' })).toBe(true)
     expect(posixShellEnv.hasUserMiseEnv({ PATH: '/usr/bin', path: '/home/user/.local/share/mise/shims' })).toBe(false)
+  })
+
+  it('ignores Cherry’s own shims dir when classifying mise ownership', async () => {
+    vi.resetModules()
+    vi.doMock('@main/core/platform', () => ({
+      isWin: false,
+      isMac: false,
+      isLinux: true,
+      isDev: false,
+      isPortable: false
+    }))
+    vi.doMock('@application', () => ({
+      application: {
+        getPath: (key: string) => {
+          if (key === 'feature.binary.data') return '/home/user/.cherry-studio/Toolchain/mise'
+          if (key === 'cherry.bin') return '/home/user/.cherry-studio/bin'
+          return `/mock/${key}`
+        }
+      }
+    }))
+    const posixShellEnv = await import('../shellEnv')
+    expect(posixShellEnv.hasMiseInPath('/home/user/.cherry-studio/Toolchain/mise/shims:/usr/bin')).toBe(false)
+    expect(posixShellEnv.hasUserMiseEnv({ PATH: '/home/user/.cherry-studio/Toolchain/mise/shims:/usr/bin' })).toBe(
+      false
+    )
+    expect(posixShellEnv.hasUserMiseEnv({ PATH: '/home/user/.local/share/mise/shims:/usr/bin' })).toBe(true)
+  })
+})
+
+describe('single-snapshot shell env derivation', () => {
+  it('derives the augmented env from one raw snapshot without mutating it', () => {
+    const raw = { PATH: 'C:\\Windows', CUSTOM: 'kept' }
+    const augmented = withCherryShellEnv(raw)
+
+    expect(raw).toEqual({ PATH: 'C:\\Windows', CUSTOM: 'kept' })
+    expect(augmented.PATH?.split(';')[0]).toBe(getBinaryShimsDir())
+    expect(augmented.PATH).toContain('C:\\Windows')
+    expect(augmented.MISE_DATA_DIR).toBe('C:\\Users\\test\\AppData\\Roaming\\CherryStudio\\Toolchain\\mise')
+    expect(augmented.CUSTOM).toBe('kept')
+  })
+
+  it('refreshes the raw snapshot without layering Cherry’s contract on top', async () => {
+    mockRegistryPaths({ system: 'C:\\Windows' })
+    vi.stubEnv('MISE_DATA_DIR', '')
+    try {
+      const raw = await refreshRawShellEnv()
+
+      // Whatever PATH casing the host env uses, the raw capture carries the
+      // registry value with no Cherry tails or MISE injection.
+      const pathKey = Object.keys(raw).find((k) => k.toLowerCase() === 'path')
+      expect(pathKey).toBeDefined()
+      expect(raw[pathKey as string]).toBe('C:\\Windows')
+      expect(raw[pathKey as string]).not.toContain('shims')
+      expect(raw.MISE_DATA_DIR).toBe('')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+})
+
+describe('applyUserMiseContract', () => {
+  it('replaces Cherry’s MISE contract with the user’s and drops Cherry shims from PATH', () => {
+    const target: Record<string, string | undefined> = {
+      Path: `${getBinaryShimsDir()};C:\\Windows`,
+      MISE_DATA_DIR: 'C:\\cherry\\mise',
+      MISE_RUSTUP_HOME: 'C:\\cherry\\rustup',
+      MISE_YES: '1'
+    }
+    applyUserMiseContract(
+      target,
+      { MISE_DATA_DIR: 'C:\\user\\mise' },
+      { MISE_DATA_DIR: 'C:\\cherry\\mise', MISE_RUSTUP_HOME: 'C:\\cherry\\rustup', MISE_YES: '1' }
+    )
+
+    expect(target.MISE_DATA_DIR).toBe('C:\\user\\mise')
+    expect(target.MISE_RUSTUP_HOME).toBeUndefined()
+    expect(target.MISE_YES).toBeUndefined()
+    expect(target.Path).toBe('C:\\Windows')
+  })
+
+  it('drops Cherry shims and vars for a PATH-only user mise install', () => {
+    const target: Record<string, string | undefined> = {
+      Path: `${getBinaryShimsDir()};C:\\Windows`,
+      MISE_DATA_DIR: 'C:\\cherry\\mise'
+    }
+    applyUserMiseContract(target, {}, { MISE_DATA_DIR: 'C:\\cherry\\mise' })
+
+    expect(target.MISE_DATA_DIR).toBeUndefined()
+    expect(target.Path).toBe('C:\\Windows')
   })
 })

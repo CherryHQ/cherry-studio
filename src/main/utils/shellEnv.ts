@@ -20,13 +20,25 @@ export function getPathFromEnvironment(env: Record<string, string | undefined>):
   return pathKey ? env[pathKey] : undefined
 }
 
-/** Whether a PATH string contains a mise-owned directory (`mise/shims`, `mise/installs`). */
+/** Whether a PATH string contains a user mise-owned directory (`mise/shims`, `mise/installs`). */
 export function hasMiseInPath(pathValue: string | undefined): boolean {
   if (!pathValue) return false
   const delimiter = isWin ? ';' : ':'
+  // Cherry's own data dir is `.../Toolchain/mise`, so its managed shims dir
+  // (`.../mise/shims`) matches the pattern below. Never count it as user mise:
+  // a login PATH already carrying Cherry tails (e.g. Pi's bash-hook layering)
+  // would otherwise read as user-owned for users without mise.
+  const normalizeDir = (value: string) => value.trim().replace(/\\/g, '/').replace(/\/+$/, '')
+  const cherryShimsDir = normalizeDir(getBinaryShimsDir())
+  const isCherryShimsDir = (segment: string) => {
+    const cleaned = normalizeDir(segment)
+    return isWin ? cleaned.toLowerCase() === cherryShimsDir.toLowerCase() : cleaned === cherryShimsDir
+  }
   return pathValue
     .split(delimiter)
-    .some((segment) => /(^|[\\/])\.?mise[\\/](shims|installs)([\\/]|$)/i.test(segment.trim()))
+    .map((segment) => segment.trim())
+    .filter((segment) => segment && !isCherryShimsDir(segment))
+    .some((segment) => /(^|[\\/])\.?mise[\\/](shims|installs)([\\/]|$)/i.test(segment))
 }
 
 export function isMiseEnvVar(key: string): boolean {
@@ -82,6 +94,38 @@ export function removePathEntry(env: Record<string, string | undefined>, dir: st
 }
 
 /**
+ * Replace Cherry's isolated MISE contract in `target` with the user's mise env:
+ * drop Cherry-only MISE keys, then restore the user's values. A PATH-only user
+ * mise install leaves `userMiseEnv` empty — the merge that ran before may then
+ * have prepended Cherry's shims, so they are dropped too.
+ */
+export function applyUserMiseContract(
+  target: Record<string, string | undefined>,
+  userMiseEnv: Record<string, string>,
+  cherryMiseEnv: Record<string, string>
+): void {
+  const isWindows = isWin
+  const userMiseKeysNormalized = new Set(Object.keys(userMiseEnv).map((k) => (isWindows ? k.toUpperCase() : k)))
+  for (const key of Object.keys(cherryMiseEnv)) {
+    const normalizedKey = isWindows ? key.toUpperCase() : key
+    if (!userMiseKeysNormalized.has(normalizedKey)) {
+      const existingKey = Object.keys(target).find((k) =>
+        isWindows ? k.toUpperCase() === key.toUpperCase() : k === key
+      )
+      if (existingKey) delete target[existingKey]
+    }
+  }
+  if (isWindows) {
+    for (const key of Object.keys(userMiseEnv)) {
+      const existingKey = Object.keys(target).find((k) => k.toLowerCase() === key.toLowerCase() && k !== key)
+      if (existingKey) delete target[existingKey]
+    }
+  }
+  Object.assign(target, userMiseEnv)
+  removePathEntry(target, getBinaryShimsDir())
+}
+
+/**
  * Ensures Cherry-managed tool directories are appended to the user's PATH while
  * preserving the original key casing and avoiding duplicate segments.
  */
@@ -93,7 +137,11 @@ const appendCherryToolDirsToPath = (env: Record<string, string>) => {
   // bare `git` with no system git — while system/mise/PATH git always win ahead.
   const bundledGitDir = getBundledGitDir()
   const tailDirs = bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
-  const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+  // POSIX env keys are case-sensitive: only the exact `PATH` feeds the append,
+  // so an unrelated lowercase `path` variable is left alone.
+  const pathKeys = isWin
+    ? Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+    : Object.keys(env).filter((key) => key === 'PATH')
   const canonicalPathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
   const existingPathValue = env[canonicalPathKey] || env.PATH || ''
 
@@ -404,11 +452,39 @@ export async function getRawShellEnv(): Promise<Record<string, string>> {
   return { ...env }
 }
 
-export async function getShellEnv(): Promise<Record<string, string>> {
-  const env = await getRawShellEnv()
+/**
+ * Layer Cherry's managed-binary contract onto one raw shell snapshot: PATH
+ * tails first, then the isolated MISE execution env. Deriving both the
+ * ownership decision and the launch env from the same snapshot keeps MISE
+ * ownership and PATH from mixing across cache refreshes — prefer this over
+ * separate getShellEnv()/getRawShellEnv() reads for that.
+ */
+export function withCherryShellEnv(rawEnv: Record<string, string>): Record<string, string> {
+  const env = { ...rawEnv }
   appendCherryToolDirsToPath(env)
   applyBinaryExecutionEnv(env)
   return env
+}
+
+export async function getShellEnv(): Promise<Record<string, string>> {
+  return withCherryShellEnv(await getRawShellEnv())
+}
+
+/**
+ * Invalidate the shell env cache and re-fetch the raw snapshot, without
+ * layering Cherry's contract on top. Pair with withCherryShellEnv() when the
+ * caller needs both the raw and the augmented view of one capture.
+ */
+export async function refreshRawShellEnv(): Promise<Record<string, string>> {
+  if (inflight) {
+    // Reusing a capture that started before the event prompting this refresh
+    // (e.g. a tool install completing mid-flight). Acceptable because downstream
+    // lookups hit the filesystem live; logged so the reuse is observable.
+    logger.debug('refreshRawShellEnv reusing in-flight shell capture instead of re-spawning')
+    return { ...(await inflight) }
+  }
+  cachedEnv = null
+  return getRawShellEnv()
 }
 
 /**
@@ -424,16 +500,5 @@ export async function getShellEnv(): Promise<Record<string, string>> {
  * multiplies the cost when the user's profile is slow.
  */
 export async function refreshShellEnv(): Promise<Record<string, string>> {
-  if (inflight) {
-    // Reusing a capture that started before the event prompting this refresh
-    // (e.g. a tool install completing mid-flight). Acceptable because downstream
-    // lookups hit the filesystem live; logged so the reuse is observable.
-    logger.debug('refreshShellEnv reusing in-flight shell capture instead of re-spawning')
-    const env = { ...(await inflight) }
-    appendCherryToolDirsToPath(env)
-    applyBinaryExecutionEnv(env)
-    return env
-  }
-  cachedEnv = null
-  return getShellEnv()
+  return withCherryShellEnv(await refreshRawShellEnv())
 }

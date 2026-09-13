@@ -60,6 +60,8 @@ const mocks = vi.hoisted(() => ({
   getShellEnv: vi.fn(),
   getRawShellEnv: vi.fn().mockResolvedValue({}),
   refreshShellEnv: vi.fn(),
+  refreshRawShellEnv: vi.fn(),
+  withCherryShellEnv: vi.fn((rawEnv: Record<string, string>) => ({ ...rawEnv })),
   getBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
@@ -251,7 +253,9 @@ vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
   ...(await importOriginal<typeof ShellEnvModule>()),
   getShellEnv: mocks.getShellEnv,
   getRawShellEnv: mocks.getRawShellEnv,
-  refreshShellEnv: mocks.refreshShellEnv
+  refreshShellEnv: mocks.refreshShellEnv,
+  refreshRawShellEnv: mocks.refreshRawShellEnv,
+  withCherryShellEnv: mocks.withCherryShellEnv
 }))
 
 vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({
@@ -360,8 +364,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
     mocks.platform.isLinux = false
     mocks.platform.isMac = false
-    mocks.getShellEnv.mockResolvedValue({})
-    mocks.refreshShellEnv.mockResolvedValue({})
+    mocks.getRawShellEnv.mockResolvedValue({})
+    mocks.refreshRawShellEnv.mockResolvedValue({})
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
@@ -379,7 +383,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('preserves managed CLI paths from the login-shell environment', async () => {
-    mocks.getShellEnv.mockResolvedValue({
+    mocks.getRawShellEnv.mockResolvedValue({
       PATH: '/managed/shims:/usr/bin',
       MISE_DATA_DIR: '/managed',
       MISE_CONFIG_DIR: '/managed/config',
@@ -409,7 +413,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   it('preserves the running Linux desktop session bus when the login shell omits it', async () => {
     mocks.platform.isLinux = true
-    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    mocks.getRawShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
     vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/flatpak/session-bus')
 
     const settings = await buildClaudeCodeSessionSettings(
@@ -426,7 +430,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   it('does not invent a Linux desktop session bus when neither environment provides one', async () => {
     mocks.platform.isLinux = true
-    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    mocks.getRawShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
     vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
 
     const settings = await buildClaudeCodeSessionSettings(
@@ -938,7 +942,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   it('refreshes a cached Cherry proxy after the current proxy is disabled', async () => {
     const staleProxyUrl = 'http://stale-cherry-proxy.example:7890'
-    mocks.getShellEnv.mockResolvedValue({
+    mocks.getRawShellEnv.mockResolvedValue({
       CHERRY_STUDIO_NODE_PROXY_RULES: staleProxyUrl,
       CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal',
       HTTP_PROXY: staleProxyUrl,
@@ -968,19 +972,19 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).not.toHaveProperty('HTTPS_PROXY')
     expect(settings.env).not.toHaveProperty('NO_PROXY')
     expect(settings.env).not.toHaveProperty('no_proxy')
-    expect(mocks.refreshShellEnv).toHaveBeenCalledOnce()
+    expect(mocks.refreshRawShellEnv).toHaveBeenCalledOnce()
   })
 
   it('preserves an equal user-owned proxy value produced by the refreshed login shell', async () => {
     const proxyUrl = 'http://stale-cherry-proxy.example:7890'
-    mocks.getShellEnv.mockResolvedValue({
+    mocks.getRawShellEnv.mockResolvedValue({
       CHERRY_STUDIO_NODE_PROXY_RULES: proxyUrl,
       CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'stale.internal',
       HTTP_PROXY: proxyUrl,
       HTTPS_PROXY: proxyUrl,
       NO_PROXY: 'stale.internal'
     })
-    mocks.refreshShellEnv.mockResolvedValue({
+    mocks.refreshRawShellEnv.mockResolvedValue({
       HTTP_PROXY: proxyUrl,
       NO_PROXY: 'stale.internal'
     })
@@ -1003,7 +1007,34 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).not.toHaveProperty('HTTPS_PROXY')
     expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_RULES')
     expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES')
-    expect(mocks.refreshShellEnv).toHaveBeenCalledOnce()
+    expect(mocks.refreshRawShellEnv).toHaveBeenCalledOnce()
+  })
+
+  it('takes MISE ownership from the refreshed snapshot, not the stale one', async () => {
+    // The stale snapshot carries both Cherry proxy markers and a user mise
+    // contract; the refresh drops both. Ownership must be read from the
+    // refreshed capture — the stale MISE values must not leak through.
+    mocks.getRawShellEnv.mockResolvedValue({
+      CHERRY_STUDIO_NODE_PROXY_RULES: 'http://stale-cherry-proxy.example:7890',
+      HTTP_PROXY: 'http://stale-cherry-proxy.example:7890',
+      MISE_DATA_DIR: '/stale-user/mise',
+      PATH: '/usr/bin'
+    })
+    mocks.refreshRawShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    mocks.getProxyEnvironment.mockReturnValue({})
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(mocks.refreshRawShellEnv).toHaveBeenCalledOnce()
+    expect(settings.env).not.toHaveProperty('MISE_DATA_DIR')
+    expect(settings.env).not.toHaveProperty('HTTP_PROXY')
   })
 
   it('does not refresh when cached Cherry markers match the current proxy', async () => {
@@ -1013,7 +1044,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: '',
       HTTP_PROXY: proxyUrl
     }
-    mocks.getShellEnv.mockResolvedValue(currentProxyEnvironment)
+    mocks.getRawShellEnv.mockResolvedValue(currentProxyEnvironment)
     mocks.getProxyEnvironment.mockReturnValue(currentProxyEnvironment)
 
     await buildClaudeCodeSessionSettings(
@@ -1025,7 +1056,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       {} as never
     )
 
-    expect(mocks.refreshShellEnv).not.toHaveBeenCalled()
+    expect(mocks.refreshRawShellEnv).not.toHaveBeenCalled()
   })
 
   it('denies a disabled tool via a PreToolUse hook so the gate fires in all permission modes', async () => {
@@ -3256,7 +3287,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
 
     it('strips every inherited Anthropic credential channel and points CLAUDE_CONFIG_DIR at the shell config dir', async () => {
-      mocks.getShellEnv.mockResolvedValue({
+      mocks.getRawShellEnv.mockResolvedValue({
         ANTHROPIC_API_KEY: 'sk-shell',
         ANTHROPIC_AUTH_TOKEN: 'tok-shell',
         ANTHROPIC_BASE_URL: 'https://shell.example',
@@ -3284,7 +3315,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
 
     it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell does not set it', async () => {
-      mocks.getShellEnv.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
+      mocks.getRawShellEnv.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
 
       const settings = await buildClaudeCodeSessionSettings(
         session as never,
@@ -3299,7 +3330,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell exports it empty', async () => {
       // An empty CLAUDE_CONFIG_DIR must not pass through (it would point the SDK at /.credentials.json);
       // the fallback uses || so it matches CodeCliService's login probe rather than diverging from it.
-      mocks.getShellEnv.mockResolvedValue({ CLAUDE_CONFIG_DIR: '' })
+      mocks.getRawShellEnv.mockResolvedValue({ CLAUDE_CONFIG_DIR: '' })
 
       const settings = await buildClaudeCodeSessionSettings(
         session as never,
@@ -3311,7 +3342,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     it('leaves CLAUDE_CONFIG_DIR unset on macOS so the Agent SDK can read the Keychain login', async () => {
       mocks.platform.isMac = true
-      mocks.getShellEnv.mockResolvedValue({ CLAUDE_CONFIG_DIR: '/Users/me/.claude' })
+      mocks.getRawShellEnv.mockResolvedValue({ CLAUDE_CONFIG_DIR: '/Users/me/.claude' })
 
       const settings = await buildClaudeCodeSessionSettings(
         session as never,
@@ -3327,7 +3358,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       // env_vars come from the *agent* config, not the provider. CLAUDE_CODE_USE_VERTEX
       // is a runtime-forced routing flag (like CLAUDE_CODE_USE_BEDROCK) an agent must not
       // flip on; a non-reserved key must still pass through.
-      mocks.getShellEnv.mockResolvedValue({})
+      mocks.getRawShellEnv.mockResolvedValue({})
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
         type: 'claude-code',
@@ -3350,7 +3381,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
 
     it('leaves inherited Anthropic credentials intact for a non-login provider', async () => {
-      mocks.getShellEnv.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
+      mocks.getRawShellEnv.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
 
       const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'anthropic' } as never)
 
@@ -3483,7 +3514,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       const build = buildClaudeCodeSessionSettings(session as never, {} as never)
       await vi.waitFor(() => {
         expect(mocks.warmToolsCache).toHaveBeenCalledOnce()
-        expect(mocks.getShellEnv).toHaveBeenCalledOnce()
+        expect(mocks.getRawShellEnv).toHaveBeenCalledOnce()
       })
 
       resolveWarm()

@@ -811,6 +811,44 @@ describe('PiRuntimeConnection', () => {
     }
   })
 
+  it('keeps Cherry’s MISE contract when the login PATH carries Cherry’s own shims dir', async () => {
+    // Production getShellEnv() prepends Cherry tails, so the login PATH layered
+    // into bash spawns contains Cherry's own `.../Toolchain/mise/shims`. That dir
+    // matches the mise/shims pattern but is not a user mise install — it must not
+    // flip the spawn into the user-mise branch that drops Cherry's MISE env.
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    try {
+      const cherryShims = path.join('/cherry/Toolchain/mise', 'shims')
+      mocks.getRawShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+      mocks.getShellEnv.mockResolvedValue({
+        PATH: [cherryShims, '/cherry/bin', '/usr/bin'].join(path.delimiter),
+        MISE_DATA_DIR: '/cherry/Toolchain/mise',
+        MISE_SHIMS_DIR: cherryShims
+      })
+      await new PiRuntimeConnection(input).start()
+
+      const spawnHook = (
+        mocks.bashToolOptions as {
+          spawnHook: (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => {
+            command: string
+            cwd: string
+            env: NodeJS.ProcessEnv
+          }
+        }
+      ).spawnHook
+      const result = spawnHook({
+        command: 'node --version',
+        cwd: WORKSPACE,
+        env: { PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter) }
+      })
+
+      expect(result.env.MISE_DATA_DIR).toBe('/cherry/Toolchain/mise')
+      expect(result.env.PATH?.split(path.delimiter)).toContain(cherryShims)
+    } finally {
+      platformSpy.mockRestore()
+    }
+  })
+
   it('merges snapshot and live MISE vars with live values winning', () => {
     expect(
       mergeMiseEnvEntries({ MISE_DATA_DIR: '/snapshot', MISE_SHIMS_DIR: '/snapshot/shims' }, { MISE_DATA_DIR: '/live' })

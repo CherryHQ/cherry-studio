@@ -36,12 +36,12 @@ import {
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
 import {
+  applyUserMiseContract,
   getMiseEnvEntries,
   getPathFromEnvironment,
   getRawShellEnv,
   getShellEnv,
   hasUserMiseEnv,
-  removePathEntry,
   resolveCherryPathTailDirs
 } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -432,29 +432,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           const contextMiseEnvForBash = Object.fromEntries(getMiseEnvEntries(context.env))
           const userMiseEnvForBash = mergeMiseEnvEntries(rawMiseEnvForBash, contextMiseEnvForBash)
           if (hasUserMiseForBash || hasUserMiseEnv(context.env)) {
-            const isWindows = process.platform === 'win32'
-            const userMiseKeysNormalized = new Set(
-              Object.keys(userMiseEnvForBash).map((k) => (isWindows ? k.toUpperCase() : k))
-            )
-            for (const key of Object.keys(cherryMiseEnvForBash)) {
-              const normalizedKey = isWindows ? key.toUpperCase() : key
-              if (!userMiseKeysNormalized.has(normalizedKey)) {
-                const existingKey = Object.keys(merged).find((k) =>
-                  isWindows ? k.toUpperCase() === key.toUpperCase() : k === key
-                )
-                if (existingKey) delete merged[existingKey]
-              }
-            }
-            if (isWindows) {
-              for (const key of Object.keys(userMiseEnvForBash)) {
-                const existingKey = Object.keys(merged).find((k) => k.toLowerCase() === key.toLowerCase() && k !== key)
-                if (existingKey) delete merged[existingKey]
-              }
-            }
-            Object.assign(merged, userMiseEnvForBash)
             // A PATH-only mise install leaves userMiseEnvForBash empty, and the
-            // merge above may have prepended Cherry's shims — drop them.
-            removePathEntry(merged, getBinaryShimsDir())
+            // merge above may have prepended Cherry's shims — the restore drops
+            // Cherry-only MISE keys and the shims dir together.
+            applyUserMiseContract(merged, userMiseEnvForBash, cherryMiseEnvForBash)
           }
           return { ...context, env: merged }
         }
