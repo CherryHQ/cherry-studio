@@ -5,6 +5,7 @@ const {
   enqueueMock,
   removeMock,
   claimMock,
+  claimHeadMock,
   markFailedMock,
   reorderMock,
   reorderBatchMock,
@@ -15,6 +16,7 @@ const {
   enqueueMock: vi.fn(),
   removeMock: vi.fn(),
   claimMock: vi.fn(),
+  claimHeadMock: vi.fn(),
   markFailedMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
@@ -28,6 +30,7 @@ vi.mock('@data/services/FollowupQueueService', () => ({
     enqueue: enqueueMock,
     remove: removeMock,
     claim: claimMock,
+    claimHead: claimHeadMock,
     markFailed: markFailedMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
@@ -111,6 +114,19 @@ describe('followupQueueHandlers', () => {
 
       expect(claimMock).toHaveBeenCalledWith(ITEM_ID)
       expect(result).toEqual({ claimed: true })
+    })
+  })
+
+  describe('/followup-queues/claim:head', () => {
+    it('should delegate POST to claimHead and return the verdict', async () => {
+      claimHeadMock.mockReturnValueOnce({ claimed: true, id: ITEM_ID })
+
+      const result = await followupQueueHandlers['/followup-queues/claim:head'].POST({
+        body: { scopeKey: SCOPE }
+      })
+
+      expect(claimHeadMock).toHaveBeenCalledWith(SCOPE)
+      expect(result).toEqual({ claimed: true, id: ITEM_ID })
     })
   })
 

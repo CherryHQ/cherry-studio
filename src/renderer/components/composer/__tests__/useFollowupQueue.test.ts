@@ -60,6 +60,7 @@ function wireMutations() {
   const deleteTrigger = vi.fn(async (): Promise<any> => undefined)
   const reorderTrigger = vi.fn(async (): Promise<any> => undefined)
   const claimTrigger = vi.fn(async (): Promise<any> => undefined)
+  const claimHeadTrigger = vi.fn(async (): Promise<any> => undefined)
   const failTrigger = vi.fn(async (): Promise<any> => undefined)
   const setPausedTrigger = vi.fn(async (): Promise<any> => undefined)
   mockUseMutation.mockImplementation((method: string, path: string) => {
@@ -71,13 +72,15 @@ function wireMutations() {
       return { trigger: reorderTrigger, isLoading: false, error: undefined }
     if (method === 'POST' && path === '/followup-queues/:id/claim')
       return { trigger: claimTrigger, isLoading: false, error: undefined }
+    if (method === 'POST' && path === '/followup-queues/claim:head')
+      return { trigger: claimHeadTrigger, isLoading: false, error: undefined }
     if (method === 'POST' && path === '/followup-queues/:id/fail')
       return { trigger: failTrigger, isLoading: false, error: undefined }
     if (method === 'PUT' && path === '/followup-queue-states')
       return { trigger: setPausedTrigger, isLoading: false, error: undefined }
     throw new Error(`unexpected mutation ${method} ${path}`)
   })
-  return { postTrigger, deleteTrigger, reorderTrigger, claimTrigger, failTrigger, setPausedTrigger }
+  return { postTrigger, deleteTrigger, reorderTrigger, claimTrigger, claimHeadTrigger, failTrigger, setPausedTrigger }
 }
 
 function baseProps(overrides: Record<string, unknown> = {}) {
@@ -159,8 +162,8 @@ describe('useFollowupQueue', () => {
   it('drains the head through claim → send → delete on the idle edge', async () => {
     const head = row('h', 'head')
     wireQuery([head, row('t', 'tail')])
-    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
-    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const { claimHeadTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
     const markSeen = vi.fn()
 
@@ -176,7 +179,7 @@ describe('useFollowupQueue', () => {
     })
 
     expect(markSeen).toHaveBeenCalled()
-    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
     expect(onDrain).toHaveBeenCalledWith(head.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
     expect(failTrigger).not.toHaveBeenCalled()
@@ -184,8 +187,8 @@ describe('useFollowupQueue', () => {
 
   it('marks the head failed and reports when the send fails', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
-    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const { claimHeadTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => false)
     const onDrainFailed = vi.fn()
 
@@ -215,8 +218,8 @@ describe('useFollowupQueue', () => {
       refetch: path === '/followup-queues' ? refetch : refetchState,
       mutate: vi.fn()
     }))
-    const { claimTrigger } = wireMutations()
-    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const { claimHeadTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
     const markSeen = vi.fn()
 
@@ -226,7 +229,7 @@ describe('useFollowupQueue', () => {
     )
 
     await act(async () => {})
-    expect(claimTrigger).not.toHaveBeenCalled()
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
     expect(markSeen).not.toHaveBeenCalled()
 
     mockUseQuery.mockImplementation((path: string) => {
@@ -247,16 +250,16 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
     expect(markSeen).toHaveBeenCalled()
     expect(onDrain).toHaveBeenCalledWith(head.payload)
   })
 
   it('retries the claim once after a transient failure', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger } = wireMutations()
-    claimTrigger.mockRejectedValueOnce(new Error('ipc down'))
-    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const { claimHeadTrigger, deleteTrigger } = wireMutations()
+    claimHeadTrigger.mockRejectedValueOnce(new Error('ipc down'))
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
     const markSeen = vi.fn()
     const onDrainFailed = vi.fn()
@@ -270,7 +273,7 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(claimTrigger).toHaveBeenCalledTimes(2)
+    expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
     expect(markSeen).toHaveBeenCalledOnce()
     expect(onDrain).toHaveBeenCalledOnce()
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
@@ -279,8 +282,8 @@ describe('useFollowupQueue', () => {
 
   it('leaves the completion edge unacked when the claim keeps failing', async () => {
     const { refetch } = wireQuery([row('h', 'head')])
-    const { claimTrigger } = wireMutations()
-    claimTrigger.mockRejectedValue(new Error('ipc down'))
+    const { claimHeadTrigger } = wireMutations()
+    claimHeadTrigger.mockRejectedValue(new Error('ipc down'))
     const onDrain = vi.fn(async () => true)
     const markSeen = vi.fn()
     const onDrainFailed = vi.fn()
@@ -294,7 +297,7 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(claimTrigger).toHaveBeenCalledTimes(2)
+    expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
     expect(markSeen).not.toHaveBeenCalled()
     expect(onDrain).not.toHaveBeenCalled()
     expect(onDrainFailed).toHaveBeenCalledOnce()
@@ -303,8 +306,8 @@ describe('useFollowupQueue', () => {
 
   it('retries the dequeue write after a successful send instead of replaying it', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
-    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const { claimHeadTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     deleteTrigger.mockRejectedValueOnce(new Error('db busy'))
     const onDrain = vi.fn(async () => true)
 
@@ -324,8 +327,8 @@ describe('useFollowupQueue', () => {
 
   it('toasts when the dequeue write keeps failing after a successful send', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger } = wireMutations()
-    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const { claimHeadTrigger, deleteTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     deleteTrigger.mockRejectedValue(new Error('db down'))
     const onDrain = vi.fn(async () => true)
     const onDrainFailed = vi.fn()
@@ -457,8 +460,8 @@ describe('useFollowupQueue', () => {
       }
     }
     mockUseQuery.mockImplementation(queryImpl([]))
-    const { claimTrigger, deleteTrigger } = wireMutations()
-    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const { claimHeadTrigger, deleteTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
     const markSeen = vi.fn()
 
@@ -468,7 +471,7 @@ describe('useFollowupQueue', () => {
     )
 
     await act(async () => {})
-    expect(claimTrigger).not.toHaveBeenCalled()
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
     expect(markSeen).not.toHaveBeenCalled()
 
     mockUseQuery.mockImplementation(queryImpl([head]))
@@ -476,7 +479,7 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
     expect(markSeen).toHaveBeenCalled()
     expect(onDrain).toHaveBeenCalledWith(head.payload)
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
@@ -623,7 +626,7 @@ describe('useFollowupQueue', () => {
         mutate: vi.fn()
       }
     })
-    const { claimTrigger } = wireMutations()
+    const { claimHeadTrigger } = wireMutations()
     const markSeen = vi.fn()
 
     const { result, rerender } = renderHook(
@@ -633,21 +636,21 @@ describe('useFollowupQueue', () => {
 
     await act(async () => {})
     expect(result.current.items.map((item) => item.draft.text)).toEqual(['head'])
-    expect(claimTrigger).not.toHaveBeenCalled()
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
     expect(markSeen).not.toHaveBeenCalled()
 
     await act(async () => {
       rerender({ isFulfilled: true })
     })
-    expect(claimTrigger).not.toHaveBeenCalled()
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
   })
 
   it('retries the claim in the background while the edge stays unacked', async () => {
     vi.useFakeTimers()
     try {
       wireQuery([row('h', 'head')])
-      const { claimTrigger, deleteTrigger } = wireMutations()
-      claimTrigger.mockRejectedValue(new Error('ipc down'))
+      const { claimHeadTrigger, deleteTrigger } = wireMutations()
+      claimHeadTrigger.mockRejectedValue(new Error('ipc down'))
       const onDrain = vi.fn(async () => true)
       const markSeen = vi.fn()
       const onDrainFailed = vi.fn()
@@ -661,11 +664,11 @@ describe('useFollowupQueue', () => {
         rerender({ isFulfilled: true })
       })
 
-      expect(claimTrigger).toHaveBeenCalledTimes(2)
+      expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
       expect(markSeen).not.toHaveBeenCalled()
       expect(onDrainFailed).toHaveBeenCalledOnce()
 
-      claimTrigger.mockResolvedValue({ claimed: true })
+      claimHeadTrigger.mockResolvedValue({ claimed: true, id: 'h' })
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5000)
       })
@@ -682,8 +685,8 @@ describe('useFollowupQueue', () => {
     vi.useFakeTimers()
     try {
       wireQuery([row('h', 'head')])
-      const { claimTrigger, deleteTrigger } = wireMutations()
-      claimTrigger.mockResolvedValueOnce({ claimed: true })
+      const { claimHeadTrigger, deleteTrigger } = wireMutations()
+      claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
       deleteTrigger.mockRejectedValue(new Error('db down'))
       const onDrain = vi.fn(async () => true)
 
@@ -715,8 +718,8 @@ describe('useFollowupQueue', () => {
     vi.useFakeTimers()
     try {
       wireQuery([row('h', 'head')])
-      const { claimTrigger, deleteTrigger } = wireMutations()
-      claimTrigger.mockResolvedValueOnce({ claimed: true })
+      const { claimHeadTrigger, deleteTrigger } = wireMutations()
+      claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
       deleteTrigger.mockRejectedValue(new Error('db down'))
       const onDrain = vi.fn(async () => true)
 
@@ -755,8 +758,8 @@ describe('useFollowupQueue', () => {
     vi.useFakeTimers()
     try {
       wireQuery([row('h', 'head')])
-      const { claimTrigger } = wireMutations()
-      claimTrigger.mockRejectedValue(new Error('ipc down'))
+      const { claimHeadTrigger } = wireMutations()
+      claimHeadTrigger.mockRejectedValue(new Error('ipc down'))
       const markSeen = vi.fn()
 
       const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen })), {
@@ -767,14 +770,14 @@ describe('useFollowupQueue', () => {
         rerender({ isFulfilled: true })
       })
 
-      expect(claimTrigger).toHaveBeenCalledTimes(2)
+      expect(claimHeadTrigger).toHaveBeenCalledTimes(2)
       for (let tick = 0; tick < 3; tick++) {
         await act(async () => {
           await vi.advanceTimersByTimeAsync(5000)
         })
       }
 
-      expect(claimTrigger).toHaveBeenCalledTimes(8)
+      expect(claimHeadTrigger).toHaveBeenCalledTimes(8)
       expect(markSeen).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
@@ -806,8 +809,8 @@ describe('useFollowupQueue', () => {
       }
     }
     mockUseQuery.mockImplementation(queryImpl(true))
-    const { claimTrigger } = wireMutations()
-    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const { claimHeadTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
     const onDrain = vi.fn(async () => true)
     const markSeen = vi.fn()
 
@@ -817,7 +820,7 @@ describe('useFollowupQueue', () => {
     )
 
     await act(async () => {})
-    expect(claimTrigger).not.toHaveBeenCalled()
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
     expect(markSeen).not.toHaveBeenCalled()
 
     mockUseQuery.mockImplementation(queryImpl(false))
@@ -825,7 +828,7 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
 
-    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
     expect(markSeen).toHaveBeenCalled()
     expect(onDrain).toHaveBeenCalledWith(head.payload)
   })
@@ -834,8 +837,8 @@ describe('useFollowupQueue', () => {
     vi.useFakeTimers()
     try {
       wireQuery([row('h', 'head')])
-      const { claimTrigger, deleteTrigger } = wireMutations()
-      claimTrigger.mockResolvedValueOnce({ claimed: true })
+      const { claimHeadTrigger, deleteTrigger } = wireMutations()
+      claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
       deleteTrigger.mockRejectedValue(new Error('db down'))
       const onDrain = vi.fn(async () => true)
 
@@ -865,8 +868,8 @@ describe('useFollowupQueue', () => {
 
   it('skips the send silently when another window wins the claim', async () => {
     wireQuery([row('h', 'head')])
-    const { claimTrigger, deleteTrigger } = wireMutations()
-    claimTrigger.mockResolvedValueOnce({ claimed: false })
+    const { claimHeadTrigger, deleteTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: false })
     const onDrain = vi.fn(async () => true)
     const onDrainFailed = vi.fn()
 
@@ -882,6 +885,69 @@ describe('useFollowupQueue', () => {
     expect(onDrain).not.toHaveBeenCalled()
     expect(onDrainFailed).not.toHaveBeenCalled()
     expect(deleteTrigger).not.toHaveBeenCalled()
+  })
+
+  it('sends the true head when a reorder lands mid-drain', async () => {
+    const first = row('x', 'stale-head')
+    const second = row('y', 'true-head')
+    wireQuery([first, second])
+    const { claimHeadTrigger, deleteTrigger } = wireMutations()
+    // A concurrent reorder moved the mirrored head aside: the atomic claim
+    // wins the true head, and the drain sends its payload — not the mirror's.
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'y' })
+    const onDrain = vi.fn(async () => true)
+    const markSeen = vi.fn()
+
+    const { rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    expect(claimHeadTrigger).toHaveBeenCalledWith({ body: { scopeKey: SCOPE } })
+    expect(markSeen).toHaveBeenCalled()
+    expect(onDrain).toHaveBeenCalledWith(second.payload)
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'y' } })
+  })
+
+  it('does not drain while the queue read errors', async () => {
+    const refetch = vi.fn()
+    mockUseQuery.mockImplementation((path: string) => {
+      if (path === '/followup-queues') {
+        return {
+          data: [row('h', 'head')],
+          isLoading: false,
+          isRefreshing: false,
+          error: new Error('db down'),
+          refetch,
+          mutate: vi.fn()
+        }
+      }
+      return {
+        data: { scopeKey: SCOPE, paused: false, createdAt: '', updatedAt: '' },
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn(),
+        mutate: vi.fn()
+      }
+    })
+    const { claimHeadTrigger } = wireMutations()
+    const markSeen = vi.fn()
+
+    const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen })), {
+      initialProps: { isFulfilled: false }
+    })
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
+    expect(markSeen).not.toHaveBeenCalled()
   })
 
   it('does not drain while paused and toggles pause through the API', async () => {
