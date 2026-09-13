@@ -554,7 +554,17 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const enqueueTopicImageCaptureAction = useCallback((action: TopicImageRuntimeAction) => {
     return new Promise<void>((resolve, reject) => {
       const scrollContainer = scrollContainerRef.current
-      const captureWidth = scrollContainer?.clientWidth || scrollContainer?.getBoundingClientRect().width || undefined
+      // The clone re-renders through NarrowLayout, which caps its column at
+      // 800px + px-6. Feed it the page's rendered column width — the scroll
+      // container's clientWidth is smaller (scrollbar + rail gutter) and
+      // squeezes the clone into a narrower, denser layout than the live page
+      // (truncated header names being the visible symptom).
+      const narrowWidth = scrollContainer?.querySelector<HTMLElement>('.narrow-mode')?.getBoundingClientRect().width
+      const captureWidth =
+        (narrowWidth && Math.ceil(narrowWidth)) ||
+        scrollContainer?.clientWidth ||
+        scrollContainer?.getBoundingClientRect().width ||
+        undefined
       const captureAction = { action, captureWidth, reject, resolve }
       setTopicImageCaptureActions((current) => {
         const nextActions = [...current, captureAction]
