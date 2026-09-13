@@ -567,20 +567,21 @@ export function useFollowupQueue({
 
   const removeId = useCallback(
     (id: string) => {
+      // A manual-steer success routes by its own claim scope first: after a scope
+      // switch, an unmount, or both, the live ref scope is stale, but the per-send
+      // claim record still names the scope the item was sent from. Dequeue it there
+      // (surgical entry op); otherwise the sent item stays queued and is delivered
+      // again when the original scope is revisited.
+      const claimScope = manualClaimsRef.current.get(id)
+      if (claimScope !== undefined && claimScope !== scopeKeyRef.current) {
+        removeIdFromScope(claimScope, id)
+        return
+      }
       // Unmounted (e.g. a composer steer-success continuation landing after a
       // remount): live refs are a frozen snapshot — persisting from them would
       // wipe work queued since. Dequeue surgically from the entry instead.
       if (!mountedRef.current) {
         removeIdFromScope(scopeKeyRef.current, id)
-        return
-      }
-      // A manual steer success landing after a scope switch: the item lives in the
-      // scope its own claim was taken in, not necessarily the current one. Dequeue
-      // it there (surgical entry op, no live-state touch); otherwise the sent item
-      // stays queued and is delivered again when the original scope is revisited.
-      const claimScope = manualClaimsRef.current.get(id)
-      if (claimScope !== undefined && claimScope !== scopeKeyRef.current) {
-        removeIdFromScope(claimScope, id)
         return
       }
       const wasFailed = failedItemIdRef.current === id
