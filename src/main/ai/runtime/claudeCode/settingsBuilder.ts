@@ -70,7 +70,6 @@ import {
   MIN_AUTO_COMPACT_WINDOW,
   resolveAutoCompactWindow,
   resolveClaudeExecutablePath,
-  resolveEffectiveClaudeContextWindow,
   resolveRequestedOutputTokens
 } from './environment'
 import {
@@ -302,15 +301,8 @@ export async function buildClaudeCodeSessionSettings(
   }
   // Undocumented, and the only way to declare a third-party model's window — without it every
   // non-`claude-*` model is treated as 200K. The budget belongs in `autoCompactWindow`.
-  // When the budget is omitted (untrusted large-output corner) the CLI falls back to its
-  // own default compaction derived from this pin, so declare the safety-adjusted window
-  // rather than the overstated one — otherwise the default lands above the real limit.
   if (hasUsableContextWindow && env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined) {
-    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(
-      autoCompactWindow === undefined
-        ? resolveEffectiveClaudeContextWindow(declaredContextWindow, requestedOutputTokens, provider)
-        : declaredContextWindow
-    )
+    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(declaredContextWindow)
   }
   // Unconditional: unlike the window, a trigger percentage is meaningful even for models that
   // declare no usable context window. An explicit agent `env_vars` entry still wins.

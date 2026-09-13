@@ -20,7 +20,7 @@ import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isAnthropicProvider, isExternalCliProvider } from '@shared/utils/provider'
+import { isExternalCliProvider } from '@shared/utils/provider'
 
 import {
   type Environment,
@@ -28,6 +28,7 @@ import {
   mergeAgentLoopbackProxyBypass,
   stripInheritedCherryProxyMarkers
 } from './agentProxyEnvironment'
+import { isAnthropicOfficialHost } from './contextWindowSuffix'
 
 const logger = loggerService.withContext('ClaudeCodeEnvironment')
 
@@ -69,47 +70,41 @@ const require_ = createRequire(import.meta.url)
 // (e.g. #18894: 256K declared / 128K real), causing auto-compaction to trigger too late.
 // Apply the conservative safety margin only to untrusted providers; Anthropic-official
 // channels report accurate windows and must not lose half their context to a blanket 0.6.
-const ANTHROPIC_PRESET_BASE_URL = 'https://api.anthropic.com'
-/**
- * Whether a stored baseUrl still points at the official Anthropic API. Compares
- * origins (scheme + host + port) so a channel keeping the official endpoint stays
- * trusted with a `/v1` suffix or full route path, while lookalike hosts mismatch.
- */
-function isOfficialAnthropicBaseUrl(rawBaseUrl: unknown): boolean {
-  if (typeof rawBaseUrl !== 'string' || !rawBaseUrl.trim()) return false
-  try {
-    return new URL(rawBaseUrl.trim()).origin.toLowerCase() === new URL(ANTHROPIC_PRESET_BASE_URL).origin.toLowerCase()
-  } catch {
-    return false
-  }
-}
-
 // Trust any channel that resolves to the official Anthropic endpoint — a custom
 // provider cloned from the preset (or inheriting its endpoint type) reports an
 // accurate window when it keeps the official baseUrl. Only a custom baseUrl
 // proves an untrusted relay that can overstate the window (e.g. #18894).
 // `claude-code` (external-cli) is the second official channel and is trusted alike.
 function isTrustedClaudeChannel(provider?: Provider | null): boolean {
+  if (provider == null) return false
   // A custom baseUrl confirms an untrusted channel that can overstate the
   // window (e.g. #18894). The preset itself defines `https://api.anthropic.com`,
   // which is merged into every provider's runtime endpointConfigs, so the check
   // must compare against that value rather than merely testing for existence.
-  const rawBaseUrl = provider?.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
-  const hasCustomAnthropicBaseUrl =
-    typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== '' && !isOfficialAnthropicBaseUrl(rawBaseUrl)
+  // "Official" reuses the shared host predicate from contextWindowSuffix so
+  // suffix selection and compaction safety cannot disagree on the endpoint.
+  const rawBaseUrl = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
+  if (typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== '' && !isAnthropicOfficialHost(rawBaseUrl.trim())) {
+    return false
+  }
+  if (isExternalCliProvider(provider)) return true
+  if (provider.presetProviderId === 'anthropic' || provider.id === 'anthropic') return true
+  // Speaking the Anthropic protocol does not prove the official endpoint: a relay
+  // with no endpoint configuration cannot show where its traffic goes, so an
+  // absent anthropic-messages entry fails closed to untrusted. Entries without a
+  // baseUrl (Bedrock-style SigV4 transport) stay trusted — nothing to spoof.
   return (
-    provider != null && (isAnthropicProvider(provider) || isExternalCliProvider(provider)) && !hasCustomAnthropicBaseUrl
+    provider.defaultChatEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+    Object.prototype.hasOwnProperty.call(provider.endpointConfigs ?? {}, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
   )
 }
 
 /**
  * The context window the Claude Code runtime budgets against: the declared
  * window for trusted channels, the conservative 0.6-margined window for
- * untrusted relays that may overstate it (#18894). Exported so the settings
- * builder can pin the same derated window when the auto-compact budget itself
- * is omitted and the CLI falls back to its own default compaction.
+ * untrusted relays that may overstate it (#18894).
  */
-export function resolveEffectiveClaudeContextWindow(
+function resolveEffectiveClaudeContextWindow(
   contextWindow: number,
   requestedOutput: number,
   provider?: Provider | null
@@ -167,14 +162,11 @@ export function resolveAutoCompactWindow(
   // #18894); large windows stay capped to their safety-adjusted room.
   const capped = Math.min(clamped, Math.max(inputRoom, 0))
   if (capped < MIN_AUTO_COMPACT_WINDOW) {
-    // A large output cap can outrun the safety-adjusted room even at the trigger
-    // point (trigger fires at 80% of the window) — pinning MIN would oversize the
-    // budget, so omit the window and fall back to the CLI defaults instead.
-    // Default-size outputs keep the intentional SDK-floor compromise for tiny windows.
-    const triggerTotal = (MIN_AUTO_COMPACT_WINDOW * AUTO_COMPACT_TRIGGER_PCT) / 100 + requestedOutput
-    if (requestedOutput > DEFAULT_REQUESTED_OUTPUT_TOKENS && triggerTotal > effectiveContextWindow) {
-      return undefined
-    }
+    // The safety-adjusted room cannot satisfy the SDK floor (>= 100K), so a
+    // bounded window below MIN is SDK-invalid. Emit the MIN floor instead of
+    // omitting the window: with the trigger knob fixed at 80% this compacts at
+    // 80K input — earlier than any CLI default derived from a >= 100K context
+    // pin — so history folds before an overstated provider limit is reached.
     return MIN_AUTO_COMPACT_WINDOW
   }
   return capped

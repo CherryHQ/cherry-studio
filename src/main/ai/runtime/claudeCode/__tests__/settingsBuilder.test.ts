@@ -741,9 +741,11 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   // A large output cap cannot fit alongside the SDK floor inside the
-  // safety-adjusted room — pinning 100K would oversize the budget, so the
-  // budget is omitted while the usable window still pins the request.
-  it('omits the auto-compact window for a large output cap that outruns the margined room', async () => {
+  // safety-adjusted room, so the resolver emits the bounded SDK floor (100K)
+  // instead of omitting the window: with the trigger fixed at 80% this compacts
+  // at 80K input — earlier than any CLI default derived from a >= 100K pin —
+  // while the usable window still pins the catalog output cap and window.
+  it('emits the bounded SDK floor for a large output cap that outruns the margined room', async () => {
     const untrustedProvider = {
       id: 'openrouter',
       presetProviderId: 'openrouter',
@@ -759,15 +761,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 256_000, maxOutputTokens: 128_000 }
     )
 
-    expect(settings.settings).not.toHaveProperty('autoCompactWindow')
-    // The budget is omitted but the usable window still pins the request, so the CLI
-    // keeps the catalog output cap instead of its own defaults — and the window pin
-    // carries the safety-adjusted 153_600 (floor(256K * 0.6)) rather than the
-    // overstated declaration, so the CLI's default compaction lands inside the
-    // real limit instead of above it.
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
     expect(settings.env).toMatchObject({
       CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000',
-      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '153600'
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '256000'
     })
   })
 
@@ -841,6 +838,51 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
+  })
+
+  // A relay speaking the Anthropic protocol with no endpoint configuration cannot
+  // show where its traffic goes, so the absent entry fails closed to untrusted.
+  it('distrusts an Anthropic-protocol relay with an absent endpoint configuration', async () => {
+    const absentConfigRelay = {
+      id: 'my-anthropic-relay',
+      presetProviderId: 'my-anthropic-relay',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      absentConfigRelay,
+      { contextWindow: 256_000, maxOutputTokens: 32_000 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
+  })
+
+  // A first-party channel whose endpoint entry carries no baseUrl (Bedrock-style
+  // SigV4 transport) has nothing to spoof, so the present entry stays trusted.
+  it('trusts an Anthropic-protocol channel whose present endpoint entry has no baseUrl', async () => {
+    const bedrockShaped = {
+      id: 'aws-bedrock',
+      presetProviderId: 'aws-bedrock',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'bedrock' }
+      }
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      bedrockShaped,
+      { contextWindow: 256_000, maxOutputTokens: 32_000 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
   })
 
   it.each([undefined, 64_000, 99_999])(
