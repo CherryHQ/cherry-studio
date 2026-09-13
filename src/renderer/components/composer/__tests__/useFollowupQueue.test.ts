@@ -502,7 +502,7 @@ describe('useFollowupQueue', () => {
       .fn()
       .mockResolvedValueOnce(false) // auto-drain fails
       .mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveRetry = resolve)))
-      .mockResolvedValueOnce(true) // next head sends after the retried head succeeds
+      .mockResolvedValueOnce(true) // next head sends on the following completion edge
     const markSeen = vi.fn()
     seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
 
@@ -531,13 +531,26 @@ describe('useFollowupQueue', () => {
     expect(onDrain).toHaveBeenCalledTimes(2)
     expect(result.current.items.map((i) => i.draft.text)).toEqual(['first', 'second'])
 
-    // The retried head succeeds → dequeued; like Skip, the queue continues
-    // with the next message immediately instead of stalling.
+    // The retried head succeeds → dequeued and failure cleared, but the next
+    // message must NOT send immediately: the retried send opened a new turn, so
+    // the next head waits for that turn's completion edge (one drain per completion).
     await act(async () => {
       resolveRetry(true)
     })
-    expect(onDrain).toHaveBeenCalledTimes(3)
+    expect(onDrain).toHaveBeenCalledTimes(2)
     expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
+    expect(result.current.items.map((i) => i.draft.text)).toEqual(['second'])
+
+    // The following completion edge drains the next head (no stall, no overlap).
+    await act(async () => {
+      rerender({ isFulfilled: false })
+    })
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(3)
+    expect(onDrain).toHaveBeenLastCalledWith(payload('second'))
     expect(result.current.items).toEqual([])
   })
 
@@ -651,6 +664,116 @@ describe('useFollowupQueue', () => {
       rerender({ isFulfilled: true })
     })
     expect(onDrain).toHaveBeenCalledTimes(3)
+    expect(result.current.items).toEqual([])
+  })
+
+  it('a failed retry for a head another instance removed does not pause the queue', async () => {
+    let resolveRetry!: (sent: boolean) => void
+    const onDrain = vi
+      .fn()
+      .mockResolvedValueOnce(false) // auto-drain fails
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveRetry = resolve)))
+      .mockResolvedValue(true) // next head sends on the following completion edge
+    // Stable like the production markSeen (useTopicStreamStatus): the drain effect
+    // only re-fires on a new completion edge, not on every re-render.
+    const markSeen = vi.fn()
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const first = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+    await act(async () => {
+      first.rerender({ isFulfilled: true })
+    })
+    expect(first.result.current.failedItemId).toBe('h1')
+
+    // Production acknowledges the edge after the failed drain; the user retries
+    // with no edge outstanding.
+    await act(async () => {
+      first.rerender({ isFulfilled: false })
+    })
+    await act(async () => {
+      first.result.current.retryFailed()
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+
+    // A second instance on the same conversation drops the failed head mid-retry.
+    const second = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain })
+    )
+    act(() => {
+      second.result.current.removeId('h1')
+    })
+    expect(first.result.current.failedItemId).toBeNull()
+    expect(first.result.current.paused).toBe(false)
+    expect(first.result.current.items.map((i) => i.draft.text)).toEqual(['second'])
+
+    // The invalidated retry fails: no ghost pause, no banner for a removed item.
+    // The next head stays queued until a fresh completion edge (no stall).
+    await act(async () => {
+      resolveRetry(false)
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+    expect(first.result.current.failedItemId).toBeNull()
+    expect(first.result.current.paused).toBe(false)
+    expect(first.result.current.items.map((i) => i.draft.text)).toEqual(['second'])
+    expect(second.result.current.failedItemId).toBeNull()
+    expect(second.result.current.paused).toBe(false)
+
+    await act(async () => {
+      first.rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(3)
+    expect(onDrain).toHaveBeenLastCalledWith(payload('second'))
+    expect(first.result.current.items).toEqual([])
+  })
+
+  it('retry sends the failed item even after it was reordered behind another item', async () => {
+    const onDrain = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+    // Stable like the production markSeen (useTopicStreamStatus): the drain effect
+    // only re-fires on a new completion edge, not on every re-render.
+    const markSeen = vi.fn()
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(result.current.failedItemId).toBe('h1')
+
+    // The user drags the failed item behind the next one: the failure stays with
+    // the item and the queue stays paused.
+    act(() => {
+      const [first, second] = result.current.items
+      result.current.reorder([second, first])
+    })
+    expect(result.current.items.map((i) => i.draft.text)).toEqual(['second', 'first'])
+    expect(result.current.failedItemId).toBe('h1')
+    expect(result.current.paused).toBe(true)
+
+    // Retry targets the failed item — not the head — and on success the next head
+    // waits for the retried turn's completion edge instead of chaining immediately.
+    await act(async () => {
+      result.current.retryFailed()
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+    expect(onDrain).toHaveBeenLastCalledWith(payload('first'))
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
+    expect(result.current.items.map((i) => i.draft.text)).toEqual(['second'])
+
+    await act(async () => {
+      rerender({ isFulfilled: false })
+    })
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(3)
+    expect(onDrain).toHaveBeenLastCalledWith(payload('second'))
     expect(result.current.items).toEqual([])
   })
 
