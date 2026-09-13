@@ -78,14 +78,18 @@ function loadState(scopeKey: string): FollowupQueueState {
           // Null elements throw on property access downstream (`part.type` in the
           // knowledge-base extractor, `attachment.path` in file-part building), and
           // a text part without string text throws in history-text extraction.
-          // Attachments additionally need a string path: the send path throws for
-          // pathless attachments before the first IPC, so such an entry could never
-          // send and would only fail visibly on every drain.
+          // Attachments additionally need a non-empty string path: the send path
+          // throws for missing or empty paths before the first IPC, so such an
+          // entry could never send and would only fail visibly on every drain.
           const isObjectList = (value: unknown): value is object[] =>
             Array.isArray(value) &&
             value.every((element) => element !== null && typeof element === 'object' && !Array.isArray(element))
           const isAttachmentList = (value: unknown): value is object[] =>
-            isObjectList(value) && value.every((element) => typeof (element as { path?: unknown }).path === 'string')
+            isObjectList(value) &&
+            value.every((element) => {
+              const path = (element as { path?: unknown }).path
+              return typeof path === 'string' && path.length > 0
+            })
           const isPartList = (value: unknown): value is object[] =>
             isObjectList(value) &&
             value.every((element) => {

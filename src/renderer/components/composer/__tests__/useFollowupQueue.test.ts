@@ -804,6 +804,7 @@ describe('useFollowupQueue', () => {
       { id: 'bad-attachments', draft: draft('x'), payload: { ...validPayload, attachments: {} } },
       { id: 'bad-attachment-element', draft: draft('x'), payload: { ...validPayload, attachments: [null] } },
       { id: 'bad-attachment-path', draft: draft('x'), payload: { ...validPayload, attachments: [{}] } },
+      { id: 'bad-attachment-empty-path', draft: draft('x'), payload: { ...validPayload, attachments: [{ path: '' }] } },
       { id: 'bad-part-element', draft: draft('x'), payload: { ...validPayload, userMessageParts: [null] } },
       { id: 'bad-part-type', draft: draft('x'), payload: { ...validPayload, userMessageParts: [{}] } },
       { id: 'bad-part-text', draft: draft('x'), payload: { ...validPayload, userMessageParts: [{ type: 'text' }] } },
