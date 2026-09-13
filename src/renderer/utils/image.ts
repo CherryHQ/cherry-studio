@@ -174,10 +174,9 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
 }
 
 /**
- * 捕获可滚动元素的完整内容图像（html-to-image 克隆管线）。
- * 仅作为原生合成器截图不可用时的回退路径；产品入口应优先走
- * {@link captureScrollableImage}。
- * @param elRef 可滚动元素的引用
+ * 用 html-to-image 克隆管线栅格化可滚动元素，是 {@link captureScrollableImage}
+ * 的内部实现：标记 capture-only CSS、内联本地图片与打包字体后克隆栅格化。
+ * @param el 目标元素
  * @returns Promise<HTMLCanvasElement | undefined> 捕获的画布对象，如果失败则返回 undefined
  */
 async function captureScrollableElement(el: HTMLElement | null) {
@@ -475,15 +474,18 @@ export async function waitForCaptureAssets(root: HTMLElement | null, timeoutMs =
       img.addEventListener('error', () => resolve(), { once: true })
     })
 
+  let idle = false
   while (Date.now() < deadline) {
     const pending = collectPending()
     if (pending.length === 0) {
-      // Nothing in flight right now — give late mounters one more window
-      // before concluding the clone has settled.
+      if (idle) return
+      // Nothing in flight right now — give late mounters one recheck
+      // window before concluding the clone has settled.
+      idle = true
       await sleep(CAPTURE_SETTLE_RECHECK_MS)
-      if (collectPending().length === 0) return
       continue
     }
+    idle = false
     await Promise.race([Promise.all(pending.map(waitForImage)), sleep(Math.max(0, deadline - Date.now()))])
   }
 }

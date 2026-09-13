@@ -601,42 +601,59 @@ describe('utils/image', () => {
 
     it('waits for in-flight images to fire load', async () => {
       const root = document.createElement('div')
+      const order: string[] = []
       const img = makeImage(false)
       root.appendChild(img)
 
       const settled = waitForCaptureAssets(root)
-      setTimeout(() => img.dispatchEvent(new Event('load')), 10)
+      void settled.then(() => order.push('settled'))
+      setTimeout(() => {
+        img.dispatchEvent(new Event('load'))
+        order.push('load')
+      }, 10)
       await settled
 
-      expect(true).toBe(true)
+      expect(order).toEqual(['load', 'settled'])
     })
 
     it('treats image error as settled', async () => {
       const root = document.createElement('div')
+      const order: string[] = []
       const img = makeImage(false)
       root.appendChild(img)
 
       const settled = waitForCaptureAssets(root)
-      setTimeout(() => img.dispatchEvent(new Event('error')), 10)
+      void settled.then(() => order.push('settled'))
+      setTimeout(() => {
+        img.dispatchEvent(new Event('error'))
+        order.push('error')
+      }, 10)
       await settled
 
-      expect(true).toBe(true)
+      expect(order).toEqual(['error', 'settled'])
     })
 
     it('waits for images mounted after the first scan (late favicon waves)', async () => {
       const root = document.createElement('div')
       const lateImage = makeImage(false)
+      const order: string[] = []
 
       const settled = waitForCaptureAssets(root)
+      void settled.then(() => order.push('settled'))
       // FallbackFavicon swaps its placeholder span for an <img> only after
-      // its source probe resolves — simulate that late mount.
+      // its source probe resolves — mount late and let the load land well
+      // past the recheck window, so a premature settle fails the ordering.
       setTimeout(() => {
         root.appendChild(lateImage)
-        setTimeout(() => lateImage.dispatchEvent(new Event('load')), 50)
-      }, 300)
+        order.push('mount')
+      }, 100)
+      setTimeout(() => {
+        lateImage.dispatchEvent(new Event('load'))
+        order.push('load')
+      }, 700)
       await settled
 
-      expect(lateImage.complete).toBe(false)
+      expect(order).toEqual(['mount', 'load', 'settled'])
     })
 
     it('resolves via the deadline when an image never settles', async () => {
