@@ -136,6 +136,13 @@ export class KnowledgeService extends BaseService {
     return await this.queryService.search(baseId, query)
   }
 
+  async searchWithStatus(
+    baseId: string,
+    query: string
+  ): Promise<{ results: KnowledgeSearchResult[]; rerankFailed: boolean }> {
+    return await this.queryService.searchWithStatus(baseId, query)
+  }
+
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
     return await this.queryService.listItemChunks(baseId, itemId)
   }

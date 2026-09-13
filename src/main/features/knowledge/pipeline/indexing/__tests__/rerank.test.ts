@@ -110,7 +110,7 @@ describe('knowledge rerank runtime', () => {
 
     await expect(
       rerankKnowledgeSearchResults(createKnowledgeBase({ rerankModelId: null }), 'hello', searchResults)
-    ).resolves.toBe(searchResults)
+    ).resolves.toEqual({ results: searchResults, rerankFailed: false })
     expect(mocks.aiRerankMock).not.toHaveBeenCalled()
   })
 
@@ -131,7 +131,7 @@ describe('knowledge rerank runtime', () => {
       topN: 2
     })
     expect(
-      result.map((item) => ({
+      result.results.map((item) => ({
         chunkId: item.chunkId,
         score: item.score,
         scoreKind: item.scoreKind,
@@ -154,7 +154,7 @@ describe('knowledge rerank runtime', () => {
     const result = await rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', createSearchResults())
 
     expect(
-      result.map((item) => ({
+      result.results.map((item) => ({
         chunkId: item.chunkId,
         score: item.score,
         scoreKind: item.scoreKind,
@@ -173,7 +173,7 @@ describe('knowledge rerank runtime', () => {
 
     const result = await rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', createSearchResults())
 
-    expect(result.map((item) => item.chunkId)).toEqual(['chunk-2'])
+    expect(result.results.map((item) => item.chunkId)).toEqual(['chunk-2'])
   })
 
   it('uses the default document count as rerank topN when the base has no document count', async () => {
@@ -193,7 +193,7 @@ describe('knowledge rerank runtime', () => {
 
     await expect(
       rerankKnowledgeSearchResults(createKnowledgeBase({ rerankModelId: 'invalid-model' }), 'hello', searchResults)
-    ).resolves.toBe(searchResults)
+    ).resolves.toEqual({ results: searchResults, rerankFailed: true })
     expect(mocks.aiRerankMock).not.toHaveBeenCalled()
     expect(mocks.errorMock).toHaveBeenCalledWith('Skipping knowledge rerank because rerank model id is invalid', {
       baseId: '11111111-1111-4111-8111-111111111111',
@@ -205,9 +205,10 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(new Error('upstream unavailable'))
 
-    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
-      searchResults
-    )
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toEqual({
+      results: searchResults,
+      rerankFailed: true
+    })
     // The Error instance itself is logged (stack/cause preserved), with the
     // structured context alongside.
     expect(mocks.warnMock).toHaveBeenCalledWith(
@@ -227,11 +228,30 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(apiCallError(503, 'Service Unavailable'))
 
-    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
-      searchResults
-    )
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toEqual({
+      results: searchResults,
+      rerankFailed: true
+    })
     expect(mocks.warnMock).toHaveBeenCalledTimes(1)
     expect(mocks.errorMock).not.toHaveBeenCalled()
+  })
+
+  it('marks an oversized rerank rejection as fallback while preserving retrieval results', async () => {
+    const result = createSearchResults()[0]
+    const searchResults = Array.from({ length: 100 }, (_, index) => ({
+      ...result,
+      chunkId: `chunk-${index}`,
+      pageContent: 'x'.repeat(index < 75 ? 1364 : 1363)
+    }))
+    mocks.aiRerankMock.mockRejectedValueOnce(apiCallError(400, '1214: query plus documents too long'))
+
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toEqual({
+      results: searchResults,
+      rerankFailed: true
+    })
+    const documents = mocks.aiRerankMock.mock.calls[0][0].documents as string[]
+    expect(documents).toHaveLength(100)
+    expect(documents.join('')).toHaveLength(136375)
   })
 
   it.each([
@@ -242,9 +262,10 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(apiCallError(statusCode, message))
 
-    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
-      searchResults
-    )
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toEqual({
+      results: searchResults,
+      rerankFailed: true
+    })
     expect(mocks.errorMock).toHaveBeenCalledWith(
       'Knowledge rerank failed, returning vector search results',
       expect.objectContaining({ message }),

@@ -50,6 +50,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [results, setResults] = useState<RecallResultItem[]>([])
+  const [rerankFailed, setRerankFailed] = useState(false)
   const [duration, setDuration] = useState(0)
   const [isSearching, setIsSearching] = useState(false)
 
@@ -59,6 +60,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
     setIsHistoryOpen(false)
     setHasSearched(false)
     setResults([])
+    setRerankFailed(false)
     setDuration(0)
     setIsSearching(false)
 
@@ -91,19 +93,22 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
 
     setIsSearching(true)
     setResults([])
+    setRerankFailed(false)
     const startTime = performance.now()
 
     try {
-      const searchResults = await ipcApi.request('knowledge.search', { baseId: searchBaseId, query: trimmedQuery })
+      const searchResult = await ipcApi.request('knowledge.search', { baseId: searchBaseId, query: trimmedQuery })
       logger.info('Knowledge recall search IPC result', {
         baseId: searchBaseId,
         query: trimmedQuery,
-        results: searchResults
+        results: searchResult.results,
+        rerankFailed: searchResult.rerankFailed
       })
       if (!isCurrentSearch()) {
         return
       }
-      setResults(searchResults.map(mapRecallResult))
+      setResults(searchResult.results.map(mapRecallResult))
+      setRerankFailed(searchResult.rerankFailed)
     } catch (error) {
       const normalizedError = normalizeKnowledgeError(error)
       logger.error('Knowledge recall search IPC failed', normalizedError, { baseId: searchBaseId, query: trimmedQuery })
@@ -158,10 +163,11 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
         results,
         duration,
         topScore,
-        scoreKind
+        scoreKind,
+        rerankFailed
       }
     }),
-    [duration, hasSearched, isSearching, results, scoreKind, topScore]
+    [duration, hasSearched, isSearching, results, rerankFailed, scoreKind, topScore]
   )
 
   return (

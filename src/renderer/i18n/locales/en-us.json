@@ -1724,6 +1724,7 @@
   "knowledge.recall.history_title": "Search History",
   "knowledge.recall.placeholder": "Enter test query...",
   "knowledge.recall.ranking_only": "Ordered results",
+  "knowledge.recall.rerank_failed": "Reranking failed; showing original search results. Check the model limits or try fewer, smaller chunks.",
   "knowledge.recall.result_count": "{{count}} results",
   "knowledge.recall.result_rank": "Rank #{{rank}}",
   "knowledge.recall.result_relevance": "Relevance {{score}}",

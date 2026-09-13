@@ -18,6 +18,7 @@ const knowledgeService = {
   reindexItems: vi.fn(),
   enableEmbeddingModel: vi.fn(),
   search: vi.fn(),
+  searchWithStatus: vi.fn(),
   getFilePath: vi.fn(),
   listItemChunks: vi.fn()
 }
@@ -112,12 +113,12 @@ describe('knowledgeHandlers', () => {
 
   it('search forwards baseId and query and returns the matches', async () => {
     const matches = [{ chunkId: 'c1' }]
-    knowledgeService.search.mockResolvedValue(matches)
+    knowledgeService.searchWithStatus.mockResolvedValue({ results: matches, rerankFailed: true })
 
     const result = await knowledgeHandlers['knowledge.search']({ baseId: 'base-1', query: 'hello' }, ctx)
 
-    expect(knowledgeService.search).toHaveBeenCalledWith('base-1', 'hello')
-    expect(result).toBe(matches)
+    expect(knowledgeService.searchWithStatus).toHaveBeenCalledWith('base-1', 'hello')
+    expect(result).toEqual({ results: matches, rerankFailed: true })
   })
 
   it('get_file_path forwards itemId and returns the managed file path', async () => {

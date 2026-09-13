@@ -1724,6 +1724,7 @@
   "knowledge.recall.history_title": "История поиска",
   "knowledge.recall.placeholder": "Введите тестовый запрос...",
   "knowledge.recall.ranking_only": "Упорядоченные результаты",
+  "knowledge.recall.rerank_failed": "Повторное ранжирование не удалось; показаны исходные результаты поиска. Проверьте ограничения модели или уменьшите число и размер фрагментов.",
   "knowledge.recall.result_count": "{{count}} результатов",
   "knowledge.recall.result_rank": "Ранг #{{rank}}",
   "knowledge.recall.result_relevance": "Релевантность {{score}}",

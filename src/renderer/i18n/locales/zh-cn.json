@@ -1724,6 +1724,7 @@
   "knowledge.recall.history_title": "搜索历史",
   "knowledge.recall.placeholder": "输入测试 Query...",
   "knowledge.recall.ranking_only": "按排序返回",
+  "knowledge.recall.rerank_failed": "重排序失败，显示原始检索结果。请检查模型限制，或减少结果数和分块大小。",
   "knowledge.recall.result_count": "{{count}} 个结果",
   "knowledge.recall.result_rank": "排序 #{{rank}}",
   "knowledge.recall.result_relevance": "相关度 {{score}}",

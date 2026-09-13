@@ -1724,6 +1724,7 @@
   "knowledge.recall.history_title": "Suchverlauf",
   "knowledge.recall.placeholder": "Testabfrage eingeben...",
   "knowledge.recall.ranking_only": "Geordnete Ergebnisse",
+  "knowledge.recall.rerank_failed": "Die Neusortierung ist fehlgeschlagen; die ursprünglichen Suchergebnisse werden angezeigt. Prüfen Sie die Modellgrenzen oder verwenden Sie weniger und kleinere Textabschnitte.",
   "knowledge.recall.result_count": "{{count}} Ergebnisse",
   "knowledge.recall.result_rank": "Rang #{{rank}}",
   "knowledge.recall.result_relevance": "Relevanz {{score}}",

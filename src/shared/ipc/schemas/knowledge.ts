@@ -74,7 +74,7 @@ export const knowledgeRequestSchemas = {
   }),
   'knowledge.search': defineRoute({
     input: z.strictObject({ baseId: baseIdSchema, query: z.string().trim().min(1).max(1000) }),
-    output: z.array(KnowledgeSearchResultSchema)
+    output: z.strictObject({ results: z.array(KnowledgeSearchResultSchema), rerankFailed: z.boolean() })
   }),
   // Resolve only the knowledge-managed raw copy or captured URL snapshot. `itemId` is the ownership
   // authority; accepting a separate baseId would make mismatched item/base pairs representable.
