@@ -46,6 +46,14 @@ function sanitizeFolderCandidate(candidate: unknown): string {
   return sanitizeFolderName(trimmed)
 }
 
+function sanitizeFolderValue(candidate: unknown): string {
+  if (typeof candidate !== 'string') return ''
+  const trimmed = candidate.trim()
+  if (!trimmed) return ''
+  const sanitized = sanitizeFolderName(trimmed)
+  return isSingleFolderName(sanitized) ? sanitized : ''
+}
+
 function isSingleFolderName(folderName: string): boolean {
   return (
     Boolean(folderName) &&
@@ -694,7 +702,7 @@ export class SkillService {
         ? ([metadata.declaredName, metadata.slug, provenance.folderNameFallback]
             .map(sanitizeFolderCandidate)
             .find(Boolean) ?? '')
-        : sanitizeFolderCandidate(metadata.filename)
+        : sanitizeFolderValue(metadata.filename)
 
     const existingByFolderName = this.findCatalogSkillCaseInsensitive(folderName)
     const existingBySourceUrl =
