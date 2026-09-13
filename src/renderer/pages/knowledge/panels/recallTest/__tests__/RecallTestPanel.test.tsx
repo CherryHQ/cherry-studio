@@ -147,7 +147,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.recall.result_rank': `排序 #${options?.rank ?? 0}`,
           'knowledge.recall.result_relevance': `相关度 ${options?.score ?? 0}`,
           'knowledge.recall.ranking_only': '按排序返回',
-          'knowledge.recall.rerank_failed': '重排序失败，显示原始检索结果。请检查模型限制，或减少结果数和分块大小。',
+          'knowledge.recall.rerank_failed': '重排序失败，显示原始检索结果。请检查重排序模型配置后重试。',
           'knowledge.recall.search_failed': '召回测试检索失败',
           'knowledge.recall.searching': '正在检索...',
           'knowledge.recall.submit': '检索',
@@ -523,18 +523,14 @@ describe('RecallTestPanel', () => {
     fireEvent.change(input, { target: { value: 'large query' } })
     fireEvent.click(screen.getByRole('button', { name: '检索' }))
 
-    expect(
-      await screen.findByText('重排序失败，显示原始检索结果。请检查模型限制，或减少结果数和分块大小。')
-    ).toBeInTheDocument()
+    expect(await screen.findByText('重排序失败，显示原始检索结果。请检查重排序模型配置后重试。')).toBeInTheDocument()
     expect(screen.getByText('2 个结果')).toBeInTheDocument()
 
     fireEvent.change(input, { target: { value: 'smaller query' } })
     fireEvent.click(screen.getByRole('button', { name: '检索' }))
 
     await waitFor(() => {
-      expect(
-        screen.queryByText('重排序失败，显示原始检索结果。请检查模型限制，或减少结果数和分块大小。')
-      ).not.toBeInTheDocument()
+      expect(screen.queryByText('重排序失败，显示原始检索结果。请检查重排序模型配置后重试。')).not.toBeInTheDocument()
     })
     expect(screen.getByText('2 个结果')).toBeInTheDocument()
   })

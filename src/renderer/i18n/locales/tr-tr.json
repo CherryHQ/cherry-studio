@@ -1724,7 +1724,7 @@
   "knowledge.recall.history_title": "Arama Geçmişi",
   "knowledge.recall.placeholder": "Test sorgusunu girin...",
   "knowledge.recall.ranking_only": "Sıralanmış sonuçlar",
-  "knowledge.recall.rerank_failed": "Yeniden sıralama başarısız oldu; özgün arama sonuçları gösteriliyor. Model sınırlarını kontrol edin veya daha az ve daha küçük parça deneyin.",
+  "knowledge.recall.rerank_failed": "Yeniden sıralama başarısız oldu; özgün arama sonuçları gösteriliyor. Yeniden sıralama modelinin yapılandırmasını kontrol edip tekrar deneyin.",
   "knowledge.recall.result_count": "{{count}} sonuç",
   "knowledge.recall.result_rank": "Sıra #{{rank}}",
   "knowledge.recall.result_relevance": "İlgi {{score}}",

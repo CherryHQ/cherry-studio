@@ -1724,7 +1724,7 @@
   "knowledge.recall.history_title": "検索履歴",
   "knowledge.recall.placeholder": "テストクエリを入力してください...",
   "knowledge.recall.ranking_only": "順序付けられた結果",
-  "knowledge.recall.rerank_failed": "再ランキングに失敗したため、元の検索結果を表示しています。モデルの制限を確認するか、チャンクの数とサイズを減らしてください。",
+  "knowledge.recall.rerank_failed": "再ランキングに失敗したため、元の検索結果を表示しています。再ランキングモデルの設定を確認して、もう一度お試しください。",
   "knowledge.recall.result_count": "{{count}}件の結果",
   "knowledge.recall.result_rank": "ランク #{{rank}}",
   "knowledge.recall.result_relevance": "関連性 {{score}}",

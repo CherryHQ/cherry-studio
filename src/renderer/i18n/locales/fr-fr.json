@@ -1724,7 +1724,7 @@
   "knowledge.recall.history_title": "Historique de recherche",
   "knowledge.recall.placeholder": "Entrez la requête de test...",
   "knowledge.recall.ranking_only": "Résultats ordonnés",
-  "knowledge.recall.rerank_failed": "Le reclassement a échoué ; les résultats initiaux sont affichés. Vérifiez les limites du modèle ou essayez avec moins de segments, plus courts.",
+  "knowledge.recall.rerank_failed": "Le reclassement a échoué ; les résultats initiaux sont affichés. Vérifiez la configuration du modèle de reclassement et réessayez.",
   "knowledge.recall.result_count": "{{count}} résultats",
   "knowledge.recall.result_rank": "Rang n°{{rank}}",
   "knowledge.recall.result_relevance": "Pertinence {{score}}",

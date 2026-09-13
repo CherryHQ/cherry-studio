@@ -1724,7 +1724,7 @@
   "knowledge.recall.history_title": "Istoric căutări",
   "knowledge.recall.placeholder": "Introdu interogarea de test...",
   "knowledge.recall.ranking_only": "Rezultate ordonate",
-  "knowledge.recall.rerank_failed": "Rerangarea a eșuat; sunt afișate rezultatele inițiale. Verificați limitele modelului sau încercați mai puține fragmente, mai mici.",
+  "knowledge.recall.rerank_failed": "Rerangarea a eșuat; sunt afișate rezultatele inițiale. Verificați configurația modelului de rerangare și încercați din nou.",
   "knowledge.recall.result_count": "{{count}} rezultate",
   "knowledge.recall.result_rank": "Rang #{{rank}}",
   "knowledge.recall.result_relevance": "Relevanță {{score}}",
