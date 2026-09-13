@@ -746,6 +746,32 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
   })
 
+  // A mid-size cap that fits the derated room (80K + 64K = 144K <= 153.6K) still
+  // outruns the 128K-real limit, so in the SDK-floor branch the trigger-point
+  // request fits the emitted window instead: 80K + 32K = 112K.
+  it('shrinks a mid-size output cap to the emitted window in the SDK-floor branch', async () => {
+    const untrustedProvider = {
+      id: 'openrouter',
+      presetProviderId: 'openrouter',
+      defaultChatEndpoint: 'openai-chat-completions'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      untrustedProvider,
+      { contextWindow: 256_000, maxOutputTokens: 64_000 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
+    expect(settings.env).toMatchObject({
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000',
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '256000'
+    })
+  })
+
   it.each([undefined, 64_000, 99_999])(
     'omits a model context window below Claude Code limits (%s)',
     async (contextWindow) => {
