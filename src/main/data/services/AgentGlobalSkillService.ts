@@ -26,6 +26,12 @@ import {
 
 const logger = loggerService.withContext('AgentGlobalSkillService')
 
+export type AgentGlobalSkillFolderRecord = {
+  folderName: string
+  source: string
+  contentHash: string
+}
+
 /**
  * DataApi service for the `agent_global_skill` and `agent_skill` join tables.
  *
@@ -148,10 +154,21 @@ export class AgentGlobalSkillService {
     }
   }
 
+  /** Scalar folder metadata read without decoding JSON columns, including quarantined rows. */
+  listFolderRecords(): AgentGlobalSkillFolderRecord[] {
+    const rows = this.db.all(
+      sql.raw('SELECT folder_name, source, content_hash FROM agent_global_skill')
+    ) as Array<{ folder_name: unknown; source: unknown; content_hash: unknown }>
+    return rows.map((row) => ({
+      folderName: String(row.folder_name),
+      source: String(row.source),
+      contentHash: String(row.content_hash)
+    }))
+  }
+
   /** Folder names read without decoding JSON columns, including quarantined rows. */
   listFolderNames(): string[] {
-    const rows = this.db.all(sql.raw('SELECT folder_name FROM agent_global_skill')) as Array<{ folder_name: unknown }>
-    return rows.map((row) => String(row.folder_name))
+    return this.listFolderRecords().map((row) => row.folderName)
   }
 
   insert(values: InsertAgentGlobalSkillRow): AgentGlobalSkillRow {

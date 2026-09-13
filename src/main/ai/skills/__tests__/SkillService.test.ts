@@ -2211,11 +2211,12 @@ describe('SkillService', () => {
     })
 
     it('copies a quarantined builtin mirror instead of creating a POSIX symlink', async () => {
-      await writeLibrarySkill('broken-builtin', '# trusted builtin')
+      const builtinDir = await writeLibrarySkill('broken-builtin', '# trusted builtin')
+      const trustedHash = await skillService['computeBuiltinDirectoryHash'](builtinDir)
       dbh.db.run(
         sql.raw(
           `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
-           VALUES ('broken-builtin-row', 'Broken Builtin', NULL, 'broken-builtin', 'builtin', NULL, NULL, NULL, NULL, 'not-json', 'trusted', 1, 1, 1)`
+           VALUES ('broken-builtin-row', 'Broken Builtin', NULL, 'broken-builtin', 'builtin', NULL, NULL, NULL, NULL, 'not-json', '${trustedHash}', 1, 1, 1)`
         )
       )
 
@@ -2226,6 +2227,20 @@ describe('SkillService', () => {
       await expect(fs.promises.readFile(path.join(mirrorRoot, 'broken-builtin', 'SKILL.md'), 'utf-8')).resolves.toBe(
         '# trusted builtin'
       )
+    })
+
+    it('does not mirror quarantined builtin content when its trusted hash does not match', async () => {
+      await writeLibrarySkill('tampered-builtin', '# tampered builtin')
+      dbh.db.run(
+        sql.raw(
+          `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
+           VALUES ('tampered-builtin-row', 'Tampered Builtin', NULL, 'tampered-builtin', 'builtin', NULL, NULL, NULL, NULL, 'not-json', '${'0'.repeat(64)}', 1, 1, 1)`
+        )
+      )
+
+      await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
+
+      await expect(fs.promises.access(path.join(mirrorRoot, 'tampered-builtin'))).rejects.toThrow()
     })
 
     it('mirrors a quarantined row when a healthy row differs only by case', async () => {
