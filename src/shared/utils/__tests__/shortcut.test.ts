@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   convertAcceleratorToHotkey,
+  formatShortcutDisplay,
   isValidShortcut,
   normalizeShortcutBinding,
   normalizeShortcutToken,
@@ -173,5 +174,18 @@ describe('convertAcceleratorToHotkey', () => {
 
   it('returns an empty string for an empty accelerator', () => {
     expect(convertAcceleratorToHotkey([])).toBe('')
+  })
+})
+
+describe('formatShortcutDisplay', () => {
+  it('labels Enter as Return on macOS and Enter elsewhere', () => {
+    expect(formatShortcutDisplay(['Enter'], true)).toBe('Return')
+    expect(formatShortcutDisplay(['Enter'], false)).toBe('Enter')
+  })
+
+  it('keeps platform modifier glyphs around the Return label on macOS', () => {
+    expect(formatShortcutDisplay(['Shift', 'Enter'], true)).toBe('⇧Return')
+    expect(formatShortcutDisplay(['CommandOrControl', 'Enter'], true)).toBe('⌘Return')
+    expect(formatShortcutDisplay(['CommandOrControl', 'Enter'], false)).toBe('Ctrl+Enter')
   })
 })
