@@ -139,6 +139,35 @@ export const TogetherModelsResponseSchema = z.array(
   })
 )
 
+// === LM Studio (/api/v0/models) ===
+
+/**
+ * `GET /api/v0/models` (LM Studio 0.3.6+) always lists loaded *and* downloaded models, while the
+ * OpenAI-compatible `/v1/models` only includes the downloaded ones when JIT loading is enabled.
+ */
+export const LMStudioModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      type: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined),
+      publisher: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined),
+      max_context_length: z
+        .number()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined)
+    })
+  )
+})
+
 // === NewAPI (extends OpenAI with endpoint types) ===
 
 export const NewApiModelsResponseSchema = z.object({

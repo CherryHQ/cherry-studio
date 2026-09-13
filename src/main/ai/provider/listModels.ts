@@ -51,6 +51,7 @@ import {
   AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
+  LMStudioModelsResponseSchema,
   NewApiModelsResponseSchema,
   OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
@@ -787,22 +788,74 @@ const openAIFetcher: ModelFetcher = {
   }
 }
 
+async function listOpenAICompatibleModels(
+  provider: Provider,
+  baseUrl: string,
+  signal?: AbortSignal
+): Promise<Partial<Model>[]> {
+  const response = await getFromApi({
+    url: `${baseUrl}/models`,
+    headers: defaultHeaders(provider),
+    responseSchema: OpenAIModelsResponseSchema,
+    abortSignal: signal
+  })
+  return dedup(response.data, (m) => m.id).map((m) =>
+    toModel(m.id, provider, {
+      name: m.name || m.id,
+      ownedBy: m.owned_by
+    })
+  )
+}
+
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
+  fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
+}
+
+/**
+ * LM Studio's `/v1/models` only lists downloaded models while JIT loading is on; with it off a pull
+ * silently returns just the loaded ones. `/api/v0/models` always lists everything and carries the
+ * model type and context window, which that endpoint has no room for.
+ */
+const lmStudioFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.lmstudio),
   fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(getBaseUrl(provider))
-    const response = await getFromApi({
-      url: `${baseUrl}/models`,
-      headers: defaultHeaders(provider),
-      responseSchema: OpenAIModelsResponseSchema,
-      abortSignal: signal
-    })
-    return dedup(response.data, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
-        name: m.name || m.id,
-        ownedBy: m.owned_by
+    // Reduce whatever the user configured — a trailing `#` sentinel, a pinned `/v1` or `/api/v0`
+    // — to the server root, so the fallback cannot be sent back to the path that just failed.
+    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false).replace(/\/api\/v0$/, ''))
+    let response: z.infer<typeof LMStudioModelsResponseSchema>
+    try {
+      response = await getFromApi({
+        url: `${root}/api/v0/models`,
+        headers: defaultHeaders(provider),
+        responseSchema: LMStudioModelsResponseSchema,
+        abortSignal: signal
       })
-    )
+    } catch (error) {
+      // LM Studio below 0.3.6 has no /api/v0 — fall back to the endpoint every version serves.
+      // A genuine failure (auth, server down) surfaces from the fallback call instead.
+      logger.warn('LM Studio /api/v0/models failed; falling back to /v1/models', {
+        providerId: provider.id,
+        errorType: getErrorType(error)
+      })
+      return listOpenAICompatibleModels(provider, formatApiHost(root), signal)
+    }
+
+    return dedup(response.data, (m) => m.id).map((m) => {
+      const type = m.type?.toLowerCase()
+      // `embeddings` on /api/v0, `embedding` on the 0.4 v1 API.
+      const endpointTypes = type?.startsWith('embedding') ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : undefined
+      const capability =
+        endpointImpliedCapability(endpointTypes?.[0]) ??
+        (type === 'vlm' ? MODEL_CAPABILITY.IMAGE_RECOGNITION : undefined)
+
+      return toModel(m.id, provider, {
+        ownedBy: m.publisher,
+        ...(endpointTypes ? { endpointTypes } : {}),
+        ...(capability ? { capabilities: [capability] } : {}),
+        ...(m.max_context_length ? { contextWindow: m.max_context_length } : {})
+      })
+    })
   }
 }
 
@@ -840,6 +893,7 @@ export async function probeOllamaModel(
 const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
+  lmStudioFetcher,
   geminiFetcher,
   vertexFetcher,
   copilotFetcher,
