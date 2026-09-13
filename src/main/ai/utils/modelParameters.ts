@@ -27,6 +27,53 @@ const logger = loggerService.withContext('modelParameters')
 /** The two sampling fields these gates read; `maxTokens` has no gate of its own. */
 export type GatedSampling = Pick<SamplingSettings, 'temperature' | 'enableTemperature' | 'topP' | 'enableTopP'>
 
+/**
+ * Whether the model accepts this sampling parameter on the wire at all — false means any
+ * explicit value (from assistant settings, custom parameters, or gateway overrides) gets a
+ * provider-side 400: the fixed-sampling families (Gemini 3.x / Claude 4.7) and registry
+ * `parameterSupport: supported: false` declarations both lock sampling server-side.
+ */
+export function modelAcceptsSamplingParam(model: Model, key: 'temperature' | 'topP'): boolean {
+  if (isGemini3Model(model) || isClaude47SeriesModel(model)) return false
+  return key === 'temperature' ? isSupportTemperatureModel(model) : isSupportTopPModel(model)
+}
+
+/**
+ * Terminal sampling sanitize — the single choke point at the request's final surfaces.
+ * Whatever injected the values (assistant settings, custom parameters flat or namespaced,
+ * gateway overrides), strip the sampling keys the model rejects from the standard params
+ * and every providerOptions namespace before they reach the wire.
+ */
+export function stripRejectedSamplingParams(
+  standardParams: Record<string, any>,
+  providerOptions: Record<string, Record<string, any>>,
+  model: Model
+): { standardParams: Record<string, any>; providerOptions: Record<string, Record<string, any>> } {
+  const acceptsTemperature = modelAcceptsSamplingParam(model, 'temperature')
+  const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
+  if (acceptsTemperature && acceptsTopP) return { standardParams, providerOptions }
+
+  const nextStandard = { ...standardParams }
+  if (!acceptsTemperature && 'temperature' in nextStandard) delete nextStandard.temperature
+  if (!acceptsTopP && 'topP' in nextStandard) delete nextStandard.topP
+
+  let nextOptions = providerOptions
+  for (const [namespace, options] of Object.entries(providerOptions)) {
+    if (!options) continue
+    const carriesRejected =
+      (!acceptsTemperature && 'temperature' in options) || (!acceptsTopP && ('top_p' in options || 'topP' in options))
+    if (!carriesRejected) continue
+    const cleaned = { ...options }
+    if (!acceptsTemperature) delete cleaned.temperature
+    if (!acceptsTopP) {
+      delete cleaned.top_p
+      delete cleaned.topP
+    }
+    nextOptions = { ...nextOptions, [namespace]: cleaned }
+  }
+  return { standardParams: nextStandard, providerOptions: nextOptions }
+}
+
 /** `undefined` falls back to the provider default. */
 export function getTemperature(
   settings: GatedSampling,

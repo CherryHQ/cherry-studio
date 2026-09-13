@@ -651,6 +651,168 @@ describe('buildAgentParams standard model parameters', () => {
     expect(result.options.maxOutputTokens).toBe(32_000)
   })
 
+  // A custom parameter is the assistant-side escape hatch: it must not smuggle sampling
+  // past the accept-gates a fixed-sampling model would 400 on.
+  it('drops a custom temperature parameter for a model that rejects sampling', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' } }
+    })
+    const model = makeModel({
+      id: 'dashscope::kimi-k3',
+      providerId: 'dashscope',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        customParameters: [
+          { name: 'temperature', type: 'number', value: 0.7 },
+          { name: 'maxOutputTokens', type: 'number', value: 8000 }
+        ]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.options.temperature).toBeUndefined()
+    expect(result.options.maxOutputTokens).toBe(8000)
+  })
+
+  it('keeps a custom temperature parameter for a model that accepts sampling', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    const assistant = makeAssistant({
+      settings: { customParameters: [{ name: 'temperature', type: 'number', value: 0.3 }] }
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.options.temperature).toBe(0.3)
+  })
+
+  // The wire-named form (`top_p`) never enters the camelCase standard params — it rides the
+  // provider-params paths (body passthrough + providerOptions merge), so gate it there too.
+  it('drops a wire-named top_p custom parameter for a model that rejects sampling', async () => {
+    const bodies: string[] = []
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai-compatible',
+        providerSettings: {
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            bodies.push(String(init?.body))
+            return Response.json({})
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' } }
+    })
+    const model = makeModel({
+      id: 'dashscope::kimi-k3',
+      providerId: 'dashscope',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        customParameters: [
+          { name: 'top_p', type: 'number', value: 0.9 },
+          { name: 'user', type: 'string', value: 'probe-user' }
+        ]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(JSON.stringify(result.options.providerOptions ?? {})).not.toContain('top_p')
+    await result.sdkConfig.providerSettings.fetch!('http://mock.test/v1/chat', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'kimi-k3', messages: [] })
+    })
+    expect(bodies).toHaveLength(1)
+    const body = JSON.parse(bodies[0])
+    expect(body.user).toBe('probe-user')
+    expect(body).not.toHaveProperty('top_p')
+  })
+
+  // Terminal gate: a provider-namespaced JSON custom parameter re-introduces sampling via
+  // the providerOptions merge — the final-surface strip must catch it regardless of path.
+  it('strips namespaced sampling custom params at the terminal gate', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' } }
+    })
+    const model = makeModel({
+      id: 'dashscope::kimi-k3',
+      providerId: 'dashscope',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        customParameters: [{ name: 'dashscope', type: 'json', value: JSON.stringify({ top_p: 0.9, foo: 'bar' }) }]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(JSON.stringify(result.options.providerOptions ?? {})).not.toContain('top_p')
+    expect(JSON.stringify(result.options.providerOptions ?? {})).toContain('foo')
+  })
+
   it('subtracts the effective API Gateway thinking override from the caller total-token cap', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 
@@ -1657,7 +1819,8 @@ describe('buildAgentParams — Responses instructions delivery', () => {
 /**
  * Covers the first-class per-request override merge that replaced the old
  * `createGatewayOverrideFeature` plugin: assistant-less precedence, capability
- * gating via `filterStandardParams`, and per-provider providerOptions merging.
+ * gating via `filterStandardParams`, the fixed-sampling family gates, and
+ * per-provider providerOptions merging.
  */
 describe('applyCallOverrides', () => {
   const base = () => ({
@@ -1686,10 +1849,43 @@ describe('applyCallOverrides', () => {
     })
   })
 
-  it('drops topK for Gemini 3.x via filterStandardParams', () => {
+  it('drops temperature and topK overrides for Gemini 3.x', () => {
     const result = applyCallOverrides(base(), { topK: 40, temperature: 0.5 }, makeModel({ id: 'gemini::gemini-3-pro' }))
-    expect(result.standardParams.temperature).toBe(0.5)
+    expect(result.standardParams).not.toHaveProperty('temperature')
     expect(result.standardParams).not.toHaveProperty('topK')
+  })
+
+  // Claude 4.7 rejects sampling params outright — same family gate the assistant
+  // path applies in getTemperature/getTopP.
+  it('drops temperature/topP overrides for Claude 4.7', () => {
+    const result = applyCallOverrides(
+      base(),
+      { temperature: 0.7, topP: 0.9, maxOutputTokens: 100 },
+      makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
+    )
+    expect(result.standardParams).not.toHaveProperty('temperature')
+    expect(result.standardParams).not.toHaveProperty('topP')
+    expect(result.standardParams.maxOutputTokens).toBe(100)
+  })
+
+  // A caller (API Gateway) supplying explicit sampling for a fixed-sampling model would
+  // surface the upstream 400 (e.g. Kimi K2.5+/K3 through a passthrough provider).
+  it('drops temperature/topP overrides for a model that marks them unsupported', () => {
+    const model = makeModel({
+      id: 'dashscope::kimi-k3',
+      providerId: 'dashscope',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+    const result = applyCallOverrides(base(), { temperature: 0.7, topP: 1, maxOutputTokens: 100 }, model)
+    expect(result.standardParams).not.toHaveProperty('temperature')
+    expect(result.standardParams).not.toHaveProperty('topP')
+    expect(result.standardParams.maxOutputTokens).toBe(100)
   })
 
   it('keeps topK for models that support it', () => {

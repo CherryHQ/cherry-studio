@@ -87,6 +87,25 @@ describe('getTemperature', () => {
     expect(getTemperature(a, model, OMIT_REASONING)).toBeUndefined()
   })
 
+  // DashScope forwards to Moonshot's backend, so its registry override now carries the
+  // same fixed-sampling declaration and the enriched model omits the parameter (issue #19601).
+  it('omits temperature for a dashscope-enriched kimi-k3', () => {
+    const a = makeSampling({ temperature: 0.7 })
+    const model = makeModel({
+      id: 'dashscope::kimi-k3',
+      providerId: 'dashscope',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+
+    expect(getTemperature(a, model, OMIT_REASONING)).toBeUndefined()
+  })
+
   it.each(['kimi-k2.5', 'kimi-k2.7-code', 'kimi-k3'])(
     'does not infer Moonshot temperature constraints for a third-party %s model',
     (id) => {
@@ -125,6 +144,25 @@ describe('getTopP', () => {
       id: 'moonshot::kimi-k3',
       providerId: 'moonshot',
       parameterSupport: {
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+
+    expect(getTopP(a, model, OMIT_REASONING)).toBeUndefined()
+  })
+
+  // DashScope forwards to Moonshot's backend; its override now declares the fixed
+  // sampling lock, so the enriched model omits topP as well (issue #19601).
+  it('omits topP for a dashscope-enriched kimi-k3', () => {
+    const a = makeSampling({ enableTopP: true, topP: 1 })
+    const model = makeModel({
+      id: 'dashscope::kimi-k3',
+      providerId: 'dashscope',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
         topP: { supported: false, min: 0, max: 1 },
         maxTokens: true,
         stopSequences: true,
