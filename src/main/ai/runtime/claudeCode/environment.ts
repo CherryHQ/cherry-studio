@@ -10,6 +10,8 @@ import path from 'node:path'
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
+import { COMPACTION_CLAUDE_SAFETY_MARGIN } from '@main/ai/constants'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
@@ -17,8 +19,8 @@ import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import { parseUniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import { ENDPOINT_TYPE, type EndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
 import {
@@ -27,10 +29,11 @@ import {
   mergeAgentLoopbackProxyBypass,
   stripInheritedCherryProxyMarkers
 } from './agentProxyEnvironment'
+import { isAnthropicOfficialHost } from './contextWindowSuffix'
 
 const logger = loggerService.withContext('ClaudeCodeEnvironment')
 
-const MIN_AUTO_COMPACT_WINDOW = 100_000
+export const MIN_AUTO_COMPACT_WINDOW = 100_000
 const MAX_AUTO_COMPACT_WINDOW = 1_000_000
 /**
  * Slack between the SDK's local token estimate and the provider's own count.
@@ -41,7 +44,7 @@ const AUTO_COMPACT_ESTIMATE_MARGIN = 0.02
 // `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is unset. Both measured against the bundled CLI and undocumented,
 // so re-measure them on SDK upgrades.
 const MAX_REQUESTED_OUTPUT_TOKENS = 128_000
-const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
+export const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
 /**
  * Percentage of the auto-compact window at which compaction triggers, passed
  * through `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (integer 1-100, not a 0-1 fraction).
@@ -64,9 +67,124 @@ const require_ = createRequire(import.meta.url)
 
 // Providers bill `input + max_tokens` against the context limit, so history can only occupy
 // `contextWindow - requestedOutput`; the floor over-promises models whose real budget is smaller.
+// Third-party channels may report a contextWindow larger than the provider's actual limit
+// (e.g. #18894: 256K declared / 128K real), causing auto-compaction to trigger too late.
+// Apply the conservative safety margin only to untrusted providers; Anthropic-official
+// channels report accurate windows and must not lose half their context to a blanket 0.6.
+/**
+ * Whether a Claude Code channel reports accurate context windows. Decided by the
+ * endpoint that actually serves the model — not the provider-wide default: a model
+ * materializing to another dialect on an otherwise-Anthropic provider is untrusted,
+ * while a model reaching the official endpoint through a non-Anthropic default is
+ * trusted. Without a model record (primary path) the provider default stands in.
+ */
+export function isTrustedClaudeSlot(provider?: Provider | null, model?: Model | null): boolean {
+  if (provider == null) return false
+  if (model == null) return isTrustedClaudeChannel(provider)
+  const endpoint = resolveEffectiveEndpoint(provider, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType
+  return isTrustedClaudeEndpoint(
+    provider,
+    endpoint,
+    endpoint !== undefined ? provider.endpointConfigs?.[endpoint] : undefined
+  )
+}
+
+export function isTrustedClaudeChannel(provider?: Provider | null): boolean {
+  if (provider == null) return false
+  return isTrustedClaudeEndpoint(
+    provider,
+    provider.defaultChatEndpoint,
+    provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+  )
+}
+
+function isTrustedClaudeEndpoint(
+  provider: Provider,
+  endpoint: EndpointType | undefined,
+  entry: EndpointConfig | undefined
+): boolean {
+  const rawBaseUrl = entry?.baseUrl
+  // A custom baseUrl confirms an untrusted channel that can overstate the
+  // window (e.g. #18894). The preset itself defines `https://api.anthropic.com`,
+  // which is merged into every provider's runtime endpointConfigs, so the check
+  // must compare against that value rather than merely testing for existence.
+  // "Official" reuses the shared host predicate from contextWindowSuffix so
+  // suffix selection and compaction safety cannot disagree on the endpoint.
+  if (typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== '' && !isAnthropicOfficialHost(rawBaseUrl.trim())) {
+    return false
+  }
+  if (isExternalCliProvider(provider)) return true
+  if (provider.presetProviderId === 'anthropic' || provider.id === 'anthropic') {
+    // An empty-string entry URL is falsy at runtime (getBaseUrl cascade and the
+    // warmup `|| baseUrl` fallback), so traffic can still reach a relay — preset
+    // trust needs an absent or explicitly official entry. Non-empty here means
+    // official, since a custom baseUrl already returned false above.
+    if (entry === undefined) {
+      return true
+    }
+    return typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== ''
+  }
+  // A URL-less entry still resolves through the getBaseUrl cascade to another
+  // entry's host — so only cloud-SDK transports with no URL at all (Bedrock /
+  // Vertex) stay trusted without a baseUrl. First-party transports serve accurate
+  // windows regardless of which endpoint is the provider default.
+  const hasEntryBaseUrl = typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== ''
+  if (entry !== undefined && !hasEntryBaseUrl) {
+    const adapterFamily = entry?.adapterFamily
+    if (adapterFamily === 'bedrock' || adapterFamily === 'google-vertex-anthropic') return true
+  }
+  if (endpoint !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return false
+  if (entry === undefined) return false
+  if (hasEntryBaseUrl) return true
+  return false
+}
+
+/**
+ * The context window the Claude Code runtime budgets against: the declared
+ * window for trusted channels, the conservative 0.6-margined window for
+ * untrusted relays that may overstate it (#18894).
+ */
+function resolveEffectiveClaudeContextWindow(
+  contextWindow: number,
+  requestedOutput: number,
+  provider?: Provider | null,
+  model?: Model | null,
+  trustedOverride?: boolean
+): number {
+  if (trustedOverride ?? isTrustedClaudeSlot(provider, model)) {
+    return contextWindow
+  }
+  // For tiny windows the 0.6 margin would make the MIN floor even more
+  // provider-unsafe (e.g. 100K * 0.6 = 60K - 32K = 28K room vs 68K raw room,
+  // both capped to 100K). Skip the margin when the margined room falls below
+  // MIN so the overflow magnitude is minimized; large windows where the
+  // 256K/128K overstatement is plausible keep the conservative margin.
+  const margined = Math.floor(contextWindow * COMPACTION_CLAUDE_SAFETY_MARGIN)
+  const marginedRoom = margined - requestedOutput
+  const rawRoom = contextWindow - requestedOutput
+  // Only skip the conservative margin when BOTH rooms would be below
+  // the SDK floor. For a 200K declared window the margined room is 88K
+  // (<100K) but the raw room is 168K (>100K): the margin must stay to keep
+  // the budget inside a 128K-real provider (100K vs 164K overflow). For a
+  // tiny 100K window both rooms are below the floor and the SDK requires
+  // 100K either way, so we pick the raw window to minimize overflow
+  // magnitude (32K vs 72K). Large windows where the 256K/128K overstatement
+  // is plausible keep the margin.
+  const shouldSkipMargin = marginedRoom < MIN_AUTO_COMPACT_WINDOW && rawRoom < MIN_AUTO_COMPACT_WINDOW
+  return shouldSkipMargin ? contextWindow : margined
+}
+
+/**
+ * The SDK's auto-compact window for a catalog window and output reservation.
+ * `trustedOverride` pins the channel verdict from route facts so callers
+ * budgeting materialized routes don't re-read provider/model rows mid-build.
+ */
 export function resolveAutoCompactWindow(
   contextWindow: number | undefined,
-  requestedOutput: number
+  requestedOutput: number,
+  provider?: Provider | null,
+  model?: Model | null,
+  trustedOverride?: boolean
 ): number | undefined {
   if (
     typeof contextWindow !== 'number' ||
@@ -75,8 +193,78 @@ export function resolveAutoCompactWindow(
   ) {
     return undefined
   }
-  const budget = Math.floor((contextWindow - requestedOutput) * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
-  return Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
+  const isTrustedAnthropic = trustedOverride ?? isTrustedClaudeSlot(provider, model)
+  const effectiveContextWindow = resolveEffectiveClaudeContextWindow(
+    contextWindow,
+    requestedOutput,
+    provider,
+    model,
+    trustedOverride
+  )
+  const inputRoom = effectiveContextWindow - requestedOutput
+  const budget = Math.floor(inputRoom * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
+  const clamped = Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
+  if (isTrustedAnthropic) {
+    return clamped
+  }
+  // For untrusted relays the MIN floor must not raise the budget above the
+  // safety-adjusted input room (e.g. 100K/60K effective + 32K leaves 28K;
+  // returning 100K would overflow the provider). The SDK requires
+  // autoCompactWindow >= 100K, so a safety-adjusted room below MIN cannot
+  // satisfy both constraints — the SDK floor wins and the margin is partially
+  // undone for that tiny window. This only affects windows near the 100K
+  // minimum (rare and unlikely to carry the 256K/128K overstatement from
+  // #18894); large windows stay capped to their safety-adjusted room.
+  const capped = Math.min(clamped, Math.max(inputRoom, 0))
+  if (capped < MIN_AUTO_COMPACT_WINDOW) {
+    // The safety-adjusted room cannot satisfy the SDK floor (>= 100K), so a
+    // bounded window below MIN is SDK-invalid. Emit the MIN floor instead of
+    // omitting the window: with the trigger knob fixed at 80% this compacts at
+    // 80K input — earlier than any CLI default derived from a >= 100K context
+    // pin — so history folds before an overstated provider limit is reached.
+    return MIN_AUTO_COMPACT_WINDOW
+  }
+  return capped
+}
+
+/**
+ * The per-request output cap the CLI may reserve alongside compacted history.
+ * Providers bill input + max_tokens against the limit, so a large output cap on
+ * an untrusted channel can outrun the safety-adjusted room even at the trigger
+ * point (e.g. 80K trigger history + 128K output against a 153.6K room — and past
+ * the 128K real limit from #18894). Shrink the cap so the trigger-point request
+ * fits the emitted window itself: the CLI accounts compaction off that window,
+ * and the emitted window sits at/below the derated room, so the request lands
+ * inside both (80K + 32K = 112K against the 128K real limit). Never below the
+ * CLI's own default, which early-turn requests can still use. Trusted channels
+ * and default-size caps already fit by construction and pass through untouched.
+ */
+export function resolveClaudeOutputCap(
+  contextWindow: number | undefined,
+  requestedOutput: number,
+  provider: Provider | null | undefined,
+  autoCompactWindow: number | undefined,
+  model?: Model | null,
+  trustedOverride?: boolean
+): number {
+  if (
+    typeof contextWindow !== 'number' ||
+    !Number.isInteger(contextWindow) ||
+    autoCompactWindow === undefined ||
+    (trustedOverride ?? isTrustedClaudeSlot(provider, model)) ||
+    requestedOutput <= DEFAULT_REQUESTED_OUTPUT_TOKENS
+  ) {
+    return requestedOutput
+  }
+  const triggerRoom = Math.floor((autoCompactWindow * AUTO_COMPACT_TRIGGER_PCT) / 100)
+  // The emitted window is the tighter proxy for the unknown real limit in every
+  // branch: a cap that fits only the derated room can still outrun the budget the
+  // CLI compacts off (e.g. an 80K trigger plus a mid-size cap on a non-floor
+  // window) and reach the provider before compaction.
+  if (triggerRoom + requestedOutput <= autoCompactWindow) {
+    return requestedOutput
+  }
+  return Math.max(autoCompactWindow - triggerRoom, DEFAULT_REQUESTED_OUTPUT_TOKENS)
 }
 
 // The CLI has no table for third-party models — it would request a generic 32,000 and cap them at
