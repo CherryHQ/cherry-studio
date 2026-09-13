@@ -351,6 +351,10 @@ export class AgentSessionDeliveryService extends BaseService {
     let outcome: 'blocked' | 'started' | 'settled' | 'revalidate' | 'stale' = 'stale'
 
     await manager.withDispatchLock(topicId, async () => {
+      // The idle kick lands mid-dispatch; admitting before it settles evicts the stream and skips
+      // its terminal lifecycle (see startAgentSessionRun).
+      await manager.whenTerminalDispatchSettled(topicId)
+
       if (this.isShuttingDown || this.isWriteQuiesced || manager.isWriteQuiesced) {
         this.suppressedSessionIds.add(message.sessionId)
         outcome = 'blocked'
