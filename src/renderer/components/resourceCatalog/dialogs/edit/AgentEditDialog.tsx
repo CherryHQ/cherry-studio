@@ -832,6 +832,7 @@ function AgentLanguageOverrideField({ form }: { form: UseFormReturn<AgentEditFor
               size="sm"
               value={field.value}
               onValueChange={(value) => field.onChange(value)}
+              aria-label={t('library.config.agent.field.language.label')}
               options={[
                 { value: 'inherit', label: t('library.config.agent.field.language.mode.inherit') },
                 { value: 'off', label: t('library.config.agent.field.language.mode.off') },

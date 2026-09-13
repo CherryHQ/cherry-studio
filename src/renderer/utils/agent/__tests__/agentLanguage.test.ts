@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
+
 import {
   AGENT_LANGUAGE_MAX_LENGTH,
   AGENT_LANGUAGE_PRESETS,
@@ -77,5 +79,31 @@ describe('AGENT_LANGUAGE_PRESETS', () => {
   // Guards the preset list against schema drift: every preset must survive validation.
   it.each(AGENT_LANGUAGE_PRESETS)('preset %s validates', (preset) => {
     expect(validateAgentLanguageInput(preset)).toEqual({ ok: true, value: preset })
+  })
+})
+
+describe('AgentLanguageSchema parity', () => {
+  // The renderer keeps validation dependency-free, so this pins the manual
+  // checks to the shared contract — schema drift fails here, not in prod.
+  it.each([
+    'English',
+    '  ไทย  ',
+    '日本語',
+    '',
+    '   ',
+    'a'.repeat(AGENT_LANGUAGE_MAX_LENGTH),
+    'a'.repeat(AGENT_LANGUAGE_MAX_LENGTH + 1),
+    'a\nb',
+    'a\rb',
+    'a\u2028b',
+    'a\u2029b',
+    null,
+    undefined,
+    42
+  ])('agrees with AgentLanguageSchema for %j', (raw) => {
+    const manual = validateAgentLanguageInput(raw)
+    const parsed = AgentLanguageSchema.safeParse(raw)
+    expect(manual.ok).toBe(parsed.success)
+    if (manual.ok && parsed.success) expect(manual.value).toBe(parsed.data)
   })
 })
