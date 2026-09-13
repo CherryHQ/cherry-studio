@@ -30,7 +30,7 @@ import {
   rollbackDeepSeekHarnessConfig,
   writeDeepSeekHarnessConfig
 } from './config'
-import { checkDshHomeHealth } from './storageHealth'
+import { checkDshHomeHealth, type DshHomeHealth } from './storageHealth'
 
 const logger = loggerService.withContext('DeepSeekHarnessService')
 
@@ -159,7 +159,7 @@ export class DeepSeekHarnessService extends BaseService {
             return {
               success: false,
               message: sanitizeDiagnostic(
-                `DeepSeek Harness home looks upgraded-incompatible (${homeHealth.detail}). Back it up, delete storages/session_projcache.json and storages/workspace.json inside it, then retry. [dsh-home-${homeHealth.reason}]`
+                `DeepSeek Harness home looks upgraded-incompatible (${homeHealth.detail}). Back it up, delete ${repairTargetForReason(homeHealth.reason)} inside it, then retry. [dsh-home-${homeHealth.reason}]`
               )
             }
           }
@@ -366,6 +366,10 @@ function appendBounded(current: string, chunk: Buffer | string): string {
 
 function sanitizeDiagnostic(value: string, secret?: string): string {
   return redactSecretText(redactLiteral(value, secret)).slice(0, DIAGNOSTIC_LIMIT)
+}
+
+function repairTargetForReason(reason: Extract<DshHomeHealth, { healthy: false }>['reason']): string {
+  return reason.startsWith('projcache') ? 'storages/session_projcache.json' : 'storages/workspace.json'
 }
 
 function stripManagedCredentialEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {

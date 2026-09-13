@@ -384,6 +384,10 @@ describe('DeepSeekHarnessService', () => {
     const result = await service.start(startInput)
 
     expect(result).toEqual({ success: false, message: expect.stringContaining('[dsh-home-workspace-inconsistent]') })
+    expect(result).toEqual({
+      success: false,
+      message: expect.stringContaining('delete storages/workspace.json inside it')
+    })
     expect(mocks.checkHomeHealth).toHaveBeenCalledWith('/mock/home/.dsh/storages')
     expect(mocks.spawn).not.toHaveBeenCalled()
     expect(mocks.writeConfig).not.toHaveBeenCalled()
@@ -404,6 +408,10 @@ describe('DeepSeekHarnessService', () => {
       expect(result).toEqual({
         success: false,
         message: expect.stringContaining('[dsh-home-projcache-unreadable]')
+      })
+      expect(result).toEqual({
+        success: false,
+        message: expect.stringContaining('delete storages/session_projcache.json inside it')
       })
       expect(mocks.execFile).toHaveBeenCalledOnce()
       const options = mocks.execFile.mock.calls[0][2] as { env: NodeJS.ProcessEnv }
