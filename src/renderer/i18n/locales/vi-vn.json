@@ -1724,6 +1724,7 @@
   "knowledge.recall.history_title": "Lịch sử tìm kiếm",
   "knowledge.recall.placeholder": "Nhập truy vấn kiểm tra...",
   "knowledge.recall.ranking_only": "Kết quả đã được sắp xếp",
+  "knowledge.recall.rerank_failed": "Không thể xếp hạng lại; đang hiển thị kết quả tìm kiếm ban đầu. Hãy kiểm tra cấu hình mô hình xếp hạng lại và thử lại.",
   "knowledge.recall.result_count": "{{count}} kết quả",
   "knowledge.recall.result_rank": "Hạng #{{rank}}",
   "knowledge.recall.result_relevance": "Liên quan {{score}}",

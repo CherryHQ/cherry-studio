@@ -1724,6 +1724,7 @@
   "knowledge.recall.history_title": "Histórico de Pesquisa",
   "knowledge.recall.placeholder": "Introduza consulta de teste...",
   "knowledge.recall.ranking_only": "Resultados ordenados",
+  "knowledge.recall.rerank_failed": "A reordenação falhou; são apresentados os resultados originais. Verifique a configuração do modelo de reordenação e tente novamente.",
   "knowledge.recall.result_count": "{{count}} resultados",
   "knowledge.recall.result_rank": "Posição nº{{rank}}",
   "knowledge.recall.result_relevance": "Relevância {{score}}",

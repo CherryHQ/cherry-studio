@@ -1724,6 +1724,7 @@
   "knowledge.recall.history_title": "Ιστορικό Αναζήτησης",
   "knowledge.recall.placeholder": "Εισαγωγή ερωτήματος δοκιμής...",
   "knowledge.recall.ranking_only": "Ταξινομημένα αποτελέσματα",
+  "knowledge.recall.rerank_failed": "Η ανακατάταξη απέτυχε· εμφανίζονται τα αρχικά αποτελέσματα αναζήτησης. Ελέγξτε τη διαμόρφωση του μοντέλου ανακατάταξης και δοκιμάστε ξανά.",
   "knowledge.recall.result_count": "{{count}} αποτελέσματα",
   "knowledge.recall.result_rank": "Κατάταξη #{{rank}}",
   "knowledge.recall.result_relevance": "Σχετικότητα {{score}}",

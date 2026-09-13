@@ -1724,6 +1724,7 @@
   "knowledge.recall.history_title": "搜尋記錄",
   "knowledge.recall.placeholder": "輸入測試查詢…",
   "knowledge.recall.ranking_only": "依順序傳回結果",
+  "knowledge.recall.rerank_failed": "重新排序失敗，顯示原始搜尋結果。請檢查重新排序模型設定後再試。",
   "knowledge.recall.result_count": "{{count}} 個結果",
   "knowledge.recall.result_rank": "排序 #{{rank}}",
   "knowledge.recall.result_relevance": "相關度 {{score}}",

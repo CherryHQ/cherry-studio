@@ -1724,6 +1724,7 @@
   "knowledge.recall.history_title": "Historial de búsqueda",
   "knowledge.recall.placeholder": "Introduce la consulta de prueba...",
   "knowledge.recall.ranking_only": "Resultados ordenados",
+  "knowledge.recall.rerank_failed": "La reclasificación falló; se muestran los resultados originales. Revisa la configuración del modelo de reclasificación e inténtalo de nuevo.",
   "knowledge.recall.result_count": "{{count}} resultados",
   "knowledge.recall.result_rank": "Rango #{{rank}}",
   "knowledge.recall.result_relevance": "Relevancia {{score}}",

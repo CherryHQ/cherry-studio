@@ -406,7 +406,10 @@ describe('KnowledgeService', () => {
     readMaterialContentMock.mockResolvedValue(null)
     knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([])
     aiEmbedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
-    rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
+    rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => ({
+      results,
+      hasRerankFailed: false
+    }))
   })
 
   it('uses WhenReady phase and depends on same-phase runtime services', () => {
@@ -2648,10 +2651,13 @@ describe('KnowledgeService', () => {
       { unitId: 'chunk-1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'vector high rerank low', score: 0.8 },
       { unitId: 'chunk-2', materialId: NOTE_ITEM_ID, unitIndex: 1, text: 'vector low rerank high', score: 0.2 }
     ])
-    rerankKnowledgeSearchResultsMock.mockImplementationOnce(async (_base, _query, results) => [
-      { ...results[1], score: 0.9, scoreKind: 'relevance', rank: 1 },
-      { ...results[0], score: 0.2, scoreKind: 'relevance', rank: 2 }
-    ])
+    rerankKnowledgeSearchResultsMock.mockImplementationOnce(async (_base, _query, results) => ({
+      results: [
+        { ...results[1], score: 0.9, scoreKind: 'relevance', rank: 1 },
+        { ...results[0], score: 0.2, scoreKind: 'relevance', rank: 2 }
+      ],
+      hasRerankFailed: false
+    }))
 
     await expect(service.search('kb-1', 'hello')).resolves.toEqual([
       expect.objectContaining({ chunkId: 'chunk-2', rank: 1, score: 0.9 }),

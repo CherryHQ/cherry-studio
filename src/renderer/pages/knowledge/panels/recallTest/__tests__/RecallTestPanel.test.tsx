@@ -147,6 +147,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.recall.result_rank': `排序 #${options?.rank ?? 0}`,
           'knowledge.recall.result_relevance': `相关度 ${options?.score ?? 0}`,
           'knowledge.recall.ranking_only': '按排序返回',
+          'knowledge.recall.rerank_failed': '重排序失败，显示原始检索结果。请检查重排序模型配置后重试。',
           'knowledge.recall.search_failed': '召回测试检索失败',
           'knowledge.recall.searching': '正在检索...',
           'knowledge.recall.submit': '检索',
@@ -165,7 +166,7 @@ describe('RecallTestPanel', () => {
       'base-2': ['其他知识库查询']
     }
     mockPerformanceNow.mockReturnValue(100)
-    mockIpcRequest.mockResolvedValue(realSearchResults)
+    mockIpcRequest.mockResolvedValue({ results: realSearchResults, hasRerankFailed: false })
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -252,7 +253,7 @@ describe('RecallTestPanel', () => {
   it('calls runtime IPC, logs the returned data, and renders real result cards after searching', async () => {
     mockIpcRequest.mockImplementation(async () => {
       mockPerformanceNow.mockReturnValue(223)
-      return realSearchResults
+      return { results: realSearchResults, hasRerankFailed: false }
     })
 
     render(<RecallTestPanel baseId="base-1" />)
@@ -271,7 +272,8 @@ describe('RecallTestPanel', () => {
     expect(mockLogger.info).toHaveBeenCalledWith('Knowledge recall search IPC result', {
       baseId: 'base-1',
       query: 'RAG 检索增强生成原理',
-      results: realSearchResults
+      results: realSearchResults,
+      hasRerankFailed: false
     })
     expect(screen.getByText('2 个结果')).toBeInTheDocument()
     expect(screen.getByText('123ms')).toBeInTheDocument()
@@ -332,7 +334,8 @@ describe('RecallTestPanel', () => {
   })
 
   it('shows a searching state while runtime IPC is pending', async () => {
-    let resolveSearch: (value: typeof realSearchResults) => void = () => undefined
+    let resolveSearch: (value: { results: typeof realSearchResults; hasRerankFailed: boolean }) => void = () =>
+      undefined
     mockIpcRequest.mockReturnValue(
       new Promise((resolve) => {
         resolveSearch = resolve
@@ -350,7 +353,7 @@ describe('RecallTestPanel', () => {
     expect(screen.getByRole('button', { name: '检索' })).toBeDisabled()
 
     mockPerformanceNow.mockReturnValue(223)
-    resolveSearch(realSearchResults)
+    resolveSearch({ results: realSearchResults, hasRerankFailed: false })
 
     await waitFor(() => {
       expect(screen.queryByText('正在检索...')).not.toBeInTheDocument()
@@ -359,7 +362,8 @@ describe('RecallTestPanel', () => {
   })
 
   it('does not apply pending search results after switching selected bases', async () => {
-    let resolveSearch: (value: typeof realSearchResults) => void = () => undefined
+    let resolveSearch: (value: { results: typeof realSearchResults; hasRerankFailed: boolean }) => void = () =>
+      undefined
     mockIpcRequest.mockReturnValue(
       new Promise((resolve) => {
         resolveSearch = resolve
@@ -387,13 +391,14 @@ describe('RecallTestPanel', () => {
     expect(screen.queryByText('RAG 检索增强生成原理')).not.toBeInTheDocument()
 
     mockPerformanceNow.mockReturnValue(223)
-    resolveSearch(realSearchResults)
+    resolveSearch({ results: realSearchResults, hasRerankFailed: false })
 
     await waitFor(() => {
       expect(mockLogger.info).toHaveBeenCalledWith('Knowledge recall search IPC result', {
         baseId: 'base-1',
         query: 'RAG 检索增强生成原理',
-        results: realSearchResults
+        results: realSearchResults,
+        hasRerankFailed: false
       })
     })
     expect(screen.queryByText('2 个结果')).not.toBeInTheDocument()
@@ -478,20 +483,23 @@ describe('RecallTestPanel', () => {
   })
 
   it('renders ranking-only recall results without percentage scores', async () => {
-    mockIpcRequest.mockResolvedValueOnce([
-      {
-        ...realSearchResults[0],
-        score: 12.345,
-        scoreKind: 'ranking',
-        rank: 1
-      },
-      {
-        ...realSearchResults[1],
-        score: 3.21,
-        scoreKind: 'ranking',
-        rank: 2
-      }
-    ])
+    mockIpcRequest.mockResolvedValueOnce({
+      results: [
+        {
+          ...realSearchResults[0],
+          score: 12.345,
+          scoreKind: 'ranking',
+          rank: 1
+        },
+        {
+          ...realSearchResults[1],
+          score: 3.21,
+          scoreKind: 'ranking',
+          rank: 2
+        }
+      ],
+      hasRerankFailed: false
+    })
 
     render(<RecallTestPanel baseId="base-1" />)
 
@@ -506,5 +514,26 @@ describe('RecallTestPanel', () => {
     expect(screen.getByText('排序 #1')).toBeInTheDocument()
     expect(screen.getByText('排序 #2')).toBeInTheDocument()
     expect(screen.queryByText('相关度 1235%')).not.toBeInTheDocument()
+  })
+
+  it('identifies unreranked fallback results and clears the warning after a successful search', async () => {
+    mockIpcRequest.mockResolvedValueOnce({ results: realSearchResults, hasRerankFailed: true })
+    mockIpcRequest.mockResolvedValueOnce({ results: realSearchResults, hasRerankFailed: false })
+    render(<RecallTestPanel baseId="base-1" />)
+
+    const input = screen.getByPlaceholderText('输入测试 Query...')
+    fireEvent.change(input, { target: { value: 'large query' } })
+    fireEvent.click(screen.getByRole('button', { name: '检索' }))
+
+    expect(await screen.findByText('重排序失败，显示原始检索结果。请检查重排序模型配置后重试。')).toBeInTheDocument()
+    expect(screen.getByText('2 个结果')).toBeInTheDocument()
+
+    fireEvent.change(input, { target: { value: 'smaller query' } })
+    fireEvent.click(screen.getByRole('button', { name: '检索' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('重排序失败，显示原始检索结果。请检查重排序模型配置后重试。')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('2 个结果')).toBeInTheDocument()
   })
 })
