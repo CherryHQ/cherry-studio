@@ -1477,6 +1477,18 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
   })
 
+  it.each(['/Users/me/analysis.R', '/Users/me/.bashrc'])(
+    'accepts app-classified text files with normalized or dotfile extensions: %s',
+    async (filePath) => {
+      const service = new KnowledgeService()
+      knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+
+      await service.addItems('kb-1', [{ type: 'file', data: { source: filePath, path: filePath as AbsoluteFilePath } }])
+
+      expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith('kb-1', filePath, filePath.split('/').at(-1))
+    }
+  )
+
   it('drops the stale processed artifact when a reindexed file will not be reprocessed', async () => {
     const service = new KnowledgeService()
     // The base's document processor was removed after this PDF was processed, so nothing will
