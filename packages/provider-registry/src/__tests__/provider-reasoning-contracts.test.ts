@@ -275,6 +275,14 @@ describe('provider reasoning contracts', () => {
     ).toEqual([{ target: 'extra_body.thinking_budget', value: { source: 'budget' } }])
   })
 
+  it('encodes Hubris thinking as reasoning.effort, with none as the explicit off', () => {
+    const wire = provider('hubris').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
+    expect(wire?.off?.operations).toEqual([{ target: 'reasoning.effort', value: { source: 'literal', value: 'none' } }])
+    expect(wire?.auto?.operations).toEqual([{ target: 'reasoning.effort', value: { source: 'effort' } }])
+    expect(wire?.auto?.effortMap).toEqual({ auto: 'medium' })
+    expect(wire?.effort?.operations).toEqual([{ target: 'reasoning.effort', value: { source: 'effort' } }])
+  })
+
   it.each(['qwen3-coder', 'qwen3-coder-next'])('does not declare a DashScope reasoning contract for %s', (modelId) => {
     expect(
       provider('dashscope').overrides?.some((entry) => entry.modelId === modelId && entry.reasoningContracts)

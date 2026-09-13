@@ -69,6 +69,7 @@ import { meta as gpustackMeta } from './gpustack/meta'
 import { meta as grokMeta } from './grok/meta'
 import { meta as groqMeta } from './groq/meta'
 import { meta as higressMeta } from './higress/meta'
+import { meta as hubrisMeta } from './hubris/meta'
 import { meta as huggingfaceMeta } from './huggingface/meta'
 import { meta as hyperbolicMeta } from './hyperbolic/meta'
 import { meta as ideogramMeta } from './ideogram/meta'
@@ -231,6 +232,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   grok: grokMeta,
   groq: groqMeta,
   higress: higressMeta,
+  hubris: hubrisMeta,
   huggingface: huggingfaceMeta,
   hyperbolic: hyperbolicMeta,
   ideogram: ideogramMeta,

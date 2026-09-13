@@ -2986,6 +2986,7 @@
   "provider.grok": "Grok",
   "provider.grok-cli": "Grok CLI",
   "provider.groq": "Groq",
+  "provider.hubris": "Hubris",
   "provider.huggingface": "Hugging Face",
   "provider.hunyuan": "Tencent Hunyuan",
   "provider.hyperbolic": "Hyperbolic",
