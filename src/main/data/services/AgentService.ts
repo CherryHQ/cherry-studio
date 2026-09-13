@@ -14,6 +14,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { followupQueueService } from '@data/services/FollowupQueueService'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { promptService } from '@data/services/PromptService'
@@ -935,6 +936,8 @@ export class AgentService {
     this.notifyReadModelChange([id], 'membership')
     promptService.notifyTargetBindingsChanged()
     pinService.notifyPurged()
+    if (impact.deletedSessionIds !== undefined && impact.deletedSessionIds.length > 0)
+      followupQueueService.notifyPurged()
   }
 
   deleteAgentTx(tx: DbOrTx, id: string): { rowsAffected: number } {
