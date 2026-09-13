@@ -4,11 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
-import {
-  FOLLOWUP_QUEUE_LIMIT,
-  STALE_SENDING_CLAIM_MS,
-  type FollowupQueueItem as FollowupQueueRow
-} from '@shared/data/types/followupQueue'
+import { FOLLOWUP_QUEUE_LIMIT, type FollowupQueueItem as FollowupQueueRow } from '@shared/data/types/followupQueue'
 
 import type { ComposerSerializedDraft } from './tokens'
 
@@ -87,10 +83,16 @@ export function useFollowupQueue({
 }: UseFollowupQueueParams): FollowupQueueController {
   const { t } = useTranslation()
 
-  const { data: rows, isLoading: queuesLoading, refetch } = useQuery('/followup-queues', { query: { scopeKey } })
+  const {
+    data: rows,
+    isLoading: queuesLoading,
+    isRefreshing: queuesRefreshing,
+    refetch
+  } = useQuery('/followup-queues', { query: { scopeKey } })
   const {
     data: queueState,
     isLoading: stateLoading,
+    isRefreshing: stateRefreshing,
     error: stateError,
     refetch: refetchState
   } = useQuery('/followup-queue-states', {
@@ -132,9 +134,11 @@ export function useFollowupQueue({
   // scoped elsewhere, or errored, the drain stays parked instead of sending
   // into a possibly-paused conversation.
   const pauseKnown = queueState?.scopeKey === scopeKey && !stateError
-  // The drain must wait for both reads: firing on the completion edge against
-  // an unloaded mirror would ack the turn while seeing an empty queue.
-  const queriesReady = !queuesLoading && !stateLoading
+  // The drain must wait for settled reads: firing on the completion edge
+  // against an unloaded mirror would ack the turn while seeing an empty
+  // queue, and firing mid-revalidation could send a stale head or ignore a
+  // just-toggled pause.
+  const queriesReady = !queuesLoading && !queuesRefreshing && !stateLoading && !stateRefreshing
   // Re-fire the drain when the head arrives after the edge: queue data landing
   // late must not strand an unacknowledged completion.
   const headId = items[0]?.id
@@ -153,37 +157,23 @@ export function useFollowupQueue({
   const isFulfilledRef = useRef(isFulfilled)
   isFulfilledRef.current = isFulfilled
   const mountedRef = useRef(true)
-  // Ids with a claim held by this window (drain or steer in flight). User
-  // actions refuse these so an edit/remove can never race a send.
+  // Ids with a claim held by this window (drain or steer in flight).
   const activeIdsRef = useRef(new Set<string>())
-  // User actions must refuse an item owned by an in-flight drain of this
-  // window, or freshly claimed (`sending`) by another — removing or editing
-  // it would race the send. Crash-orphaned claims (older than the reclaim
-  // lease) stay removable.
-  const canRemoveRef = useRef<(id: string) => boolean>(() => true)
-  canRemoveRef.current = (id: string) => {
-    if (activeIdsRef.current.has(id)) return false
-    const target = itemsRef.current.find((entry) => entry.id === id)
-    return !(target?.status === 'sending' && Date.now() - Date.parse(target.updatedAt) < STALE_SENDING_CLAIM_MS)
-  }
   // Background resolve retries that outlive the drain that scheduled them.
   const pendingResolveRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   // Background claim retries, unlike resolve retries, belong to the live edge:
   // they stop when the hook unmounts.
   const pendingClaimRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
-  const claimAttemptsRef = useRef(new Map<string, number>())
 
   // Track mount state for background timers. Resolve retries intentionally
   // survive unmount (a sent row must still be dequeued); claim retries stop.
   useEffect(() => {
     mountedRef.current = true
     const pendingClaim = pendingClaimRef.current
-    const claimAttempts = claimAttemptsRef.current
     return () => {
       mountedRef.current = false
       for (const timer of pendingClaim.values()) clearTimeout(timer)
       pendingClaim.clear()
-      claimAttempts.clear()
     }
   }, [])
 
@@ -204,19 +194,6 @@ export function useFollowupQueue({
     [enqueueTrigger, t]
   )
 
-  const removeId = useCallback(
-    (id: string) => {
-      if (!canRemoveRef.current(id)) {
-        toast.error(t('message.error.operation_unavailable'))
-        return
-      }
-      void removeTrigger({ params: { id } }).catch(() => {
-        toast.error(t('message.error.operation_unavailable'))
-      })
-    },
-    [removeTrigger, t]
-  )
-
   // Conditional pending/failed → sending transition with one retry. Resolves
   // undefined when the request itself keeps failing (no window owns the item).
   const claimItem = useCallback(
@@ -231,6 +208,32 @@ export function useFollowupQueue({
       return undefined
     },
     [claimTrigger]
+  )
+
+  const removeId = useCallback(
+    (id: string) => {
+      // Claim before deleting so the remove arbitrates with in-flight sends:
+      // a lost claim means another window owns (and is sending) the item, so
+      // deleting would race its send. Crash orphans are reclaimable, so they
+      // stay removable.
+      void (async () => {
+        const claim = await claimItem(id)
+        if (!claim) {
+          toast.error(t('message.error.operation_unavailable'))
+          return
+        }
+        if (!claim.claimed) {
+          toast.error(t('message.error.operation_unavailable'))
+          return
+        }
+        try {
+          await removeTrigger({ params: { id } })
+        } catch {
+          toast.error(t('message.error.operation_unavailable'))
+        }
+      })()
+    },
+    [claimItem, removeTrigger, t]
   )
 
   const takeForEdit = useCallback(
@@ -294,13 +297,14 @@ export function useFollowupQueue({
   scheduleResolveRetryRef.current = (id: string, sent: boolean, attempt = 0) => {
     if (pendingResolveRef.current.has(id) || attempt >= MAX_RESOLVE_RETRIES) return
     const tick = () => {
+      // Release the slot before attempting: the chained schedule on failure
+      // would otherwise see the pending entry and stop the chain after one
+      // background attempt.
+      pendingResolveRef.current.delete(id)
       void (async () => {
         try {
           if (sent) await removeTrigger({ params: { id } })
           else await markFailedTrigger({ params: { id } })
-          const timer = pendingResolveRef.current.get(id)
-          if (timer) clearTimeout(timer)
-          pendingResolveRef.current.delete(id)
           if (mountedRef.current) void refetch()
         } catch {
           scheduleResolveRetryRef.current(id, sent, attempt + 1)
@@ -373,25 +377,16 @@ export function useFollowupQueue({
   // Background claim retry while the completion edge stays unacked: a claim
   // request that keeps failing must not strand the queued head until the next
   // turn. Each retry re-reads the current head; the attempt that wins the
-  // claim drains immediately. Bounded per row and stopped on unmount.
-  const MAX_CLAIM_RETRIES = 12
+  // claim drains immediately. Unbounded by count but self-terminating: ticks
+  // stop when the hook unmounts, the edge is acked, or the head is gone.
   const scheduleClaimRetryRef = useRef<(id: string) => void>(() => {})
   scheduleClaimRetryRef.current = (id: string) => {
     if (!mountedRef.current || pendingClaimRef.current.has(id)) return
-    const attempts = claimAttemptsRef.current.get(id) ?? 0
-    if (attempts >= MAX_CLAIM_RETRIES) {
-      claimAttemptsRef.current.delete(id)
-      return
-    }
-    claimAttemptsRef.current.set(id, attempts + 1)
     const tick = () => {
       pendingClaimRef.current.delete(id)
       if (!mountedRef.current) return
       const head = itemsRef.current.find((entry) => entry.id === id)
-      if (!isFulfilledRef.current || !head) {
-        claimAttemptsRef.current.delete(id)
-        return
-      }
+      if (!isFulfilledRef.current || !head) return
       void drainHeadRef.current(head)
     }
     pendingClaimRef.current.set(id, setTimeout(tick, 5000))
@@ -412,7 +407,6 @@ export function useFollowupQueue({
         scheduleClaimRetryRef.current(head.id)
         return
       }
-      claimAttemptsRef.current.delete(head.id)
       // Scope switched mid-flight: release the claim without sending or
       // acking — the head belongs to the previous scope's conversation.
       if (scopeKeyRef.current !== scope) {
