@@ -13,6 +13,7 @@ import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
 import { deepSeekHarnessHandlers } from './deepSeekHarness'
 import { diagnosticsHandlers } from './diagnostics'
+import { doctorHandlers } from './doctor'
 import { exportHandlers } from './export'
 import { externalAppHandlers } from './externalApp'
 import { fileHandlers } from './file'
@@ -63,6 +64,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...codeCliHandlers,
   ...deepSeekHarnessHandlers,
   ...diagnosticsHandlers,
+  ...doctorHandlers,
   ...exportHandlers,
   ...externalAppHandlers,
   ...fileHandlers,
