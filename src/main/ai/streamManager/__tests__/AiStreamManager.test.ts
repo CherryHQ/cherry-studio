@@ -3054,13 +3054,13 @@ describe('AiStreamManager', () => {
       }
     )
 
-    it('does not treat an undefined stream rejection as successful completion', async () => {
+    it.each([undefined, null])('does not treat a %s stream rejection as successful completion', async (error) => {
       vi.useRealTimers()
 
       mockStreamText.mockResolvedValueOnce(
         new ReadableStream({
           start(controller) {
-            controller.error(undefined)
+            controller.error(error)
           }
         })
       )
@@ -3075,7 +3075,8 @@ describe('AiStreamManager', () => {
 
       await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-      expect(listener.errorResults[0].error).toMatchObject({ message: 'undefined' })
+      expect(listener.errorResults[0].error).toMatchObject({ message: 'Unknown error' })
+      expect(listener.errorResults[0].status).toBe('error')
       expect(mgr.inspect('a')!.status).toBe('error')
     })
 

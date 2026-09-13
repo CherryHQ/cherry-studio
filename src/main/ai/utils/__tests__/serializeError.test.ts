@@ -4,6 +4,16 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
+  it('normalizes non-Error throws without leaking object coercions', () => {
+    expect(serializeError(null).message).toBe('Unknown error')
+    expect(serializeError(undefined).message).toBe('Unknown error')
+    expect(serializeError({ error: { message: 'request was rate limited' } }).message).toBe('request was rate limited')
+    expect(serializeError({ error: { message: 'Authorization: Bearer provider-secret' } }).message).toBe(
+      'Authorization: "<redacted>"'
+    )
+    expect(serializeError({ privatePrompt: 'do not expose me' }).message).toBe('Unknown error')
+  })
+
   it('retains quota diagnosis in serialized retry errors without retaining the payload', () => {
     const error = new APICallError({
       message: 'Rate limit exceeded',
