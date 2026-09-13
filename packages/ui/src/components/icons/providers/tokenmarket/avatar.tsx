@@ -2,17 +2,17 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
-import { TokenMarketDark } from './dark'
-import { TokenMarketLight } from './light'
+import { TokenmarketDark } from './dark'
+import { TokenmarketLight } from './light'
 
-export function TokenMarketAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
+export function TokenmarketAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
   return (
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <TokenMarketLight className="dark:hidden" style={{ width: size, height: size }} />
-        <TokenMarketDark className="hidden dark:block" style={{ width: size, height: size }} />
+        <TokenmarketLight className="dark:hidden" style={{ width: size, height: size }} />
+        <TokenmarketDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

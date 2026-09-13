@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
-const TokenMarketLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
+const TokenmarketLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="#111" viewBox="0 0 480 480" width="1em" height="1em" {...props}>
     <path
       fillRule="evenodd"
@@ -10,5 +10,5 @@ const TokenMarketLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     />
   </svg>
 )
-export { TokenMarketLight }
-export default TokenMarketLight
+export { TokenmarketLight }
+export default TokenmarketLight
