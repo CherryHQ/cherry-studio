@@ -1,21 +1,16 @@
+import { EditorContent } from '@tiptap/react'
 import type { WebviewTag } from 'electron'
 import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
 import type { RefObject } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  Badge,
-  Button,
-  ConfirmDialog,
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  Textarea,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Badge, Button, ConfirmDialog, Popover, PopoverAnchor, PopoverContent, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
+import { createComposerDraftContent, serializeComposerDocument } from '@renderer/components/composer/composerDraft'
+import { createComposerEditorPreset } from '@renderer/components/composer/composerPreset'
+import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -25,7 +20,7 @@ import {
   type WebviewAnnotationTarget
 } from '@shared/types/webviewAnnotation'
 
-import { useWebviewAnnotationSession } from './useWebviewAnnotationSession'
+import { useWebviewAnnotationSession, type WebviewAnnotationSavedPayload } from './useWebviewAnnotationSession'
 
 const logger = loggerService.withContext('WebviewAnnotationControls')
 
@@ -35,6 +30,7 @@ interface Props {
   isWebviewReady: boolean
   isHostActive: boolean
   target: WebviewAnnotationTarget
+  onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
 }
 
 export function WebviewAnnotationControls({
@@ -42,7 +38,8 @@ export function WebviewAnnotationControls({
   webviewRevision,
   isWebviewReady,
   isHostActive,
-  target
+  target,
+  onAnnotationSaved
 }: Props) {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -74,7 +71,8 @@ export function WebviewAnnotationControls({
     isHostActive,
     target,
     locale,
-    theme: theme === ThemeMode.dark ? 'dark' : 'light'
+    theme: theme === ThemeMode.dark ? 'dark' : 'light',
+    onAnnotationSaved
   })
 
   const handleCopy = async () => {
@@ -180,50 +178,57 @@ export function WebviewAnnotationControls({
 
         {editor && (
           <PopoverContent
+            key={editor.requestId}
             side="bottom"
             align="center"
             sideOffset={8}
             collisionPadding={8}
-            className="w-80 space-y-3 p-3">
-            <Textarea.Input
-              autoFocus
-              value={editor.draft}
-              onValueChange={setEditorDraft}
-              maxLength={WEBVIEW_ANNOTATION_LIMITS.comment}
-              aria-label={t('webview.annotation.placeholder')}
-              placeholder={t('webview.annotation.placeholder')}
-              className="min-h-24 px-3 py-2 text-sm"
-              onKeyDown={(event) => {
-                if (!editorUnavailable && event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                  event.preventDefault()
-                  void saveEditor()
-                }
-              }}
-            />
-            {editor.error === 'element_unavailable' && (
+            className="flex max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-1rem)] flex-col gap-3 overflow-y-auto rounded-xl border-border-strong p-3 shadow-lg">
+            <div className="min-h-0 min-w-0 overflow-y-auto">
+              <AnnotationCommentEditor
+                initialComment={editor.draft}
+                placeholder={t('webview.annotation.placeholder')}
+                onChange={setEditorDraft}
+                onSubmit={() => {
+                  if (!editorUnavailable) void saveEditor()
+                }}
+                onCancel={() => void cancelEditor()}
+              />
+            </div>
+            {editorUnavailable && (
               <p role="alert" className="text-error text-xs">
                 {t('webview.annotation.element_unavailable')}
               </p>
             )}
-            <div className="flex justify-end gap-2">
+            <div className="flex shrink-0 items-center justify-end gap-2">
               {editor.canDelete && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  className="mr-auto"
-                  onClick={() => void deleteEditor()}>
-                  {t('webview.annotation.delete')}
-                </Button>
+                <Tooltip content={t('webview.annotation.delete')} placement="bottom">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => void deleteEditor()}
+                    aria-label={t('webview.annotation.delete')}
+                    className="me-auto shrink-0 text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive">
+                    <Trash2 size={14} />
+                  </Button>
+                </Tooltip>
               )}
-              <Button type="button" variant="outline" size="sm" onClick={() => void cancelEditor()}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => void cancelEditor()}
+                className="shrink-0 text-muted-foreground shadow-none hover:text-foreground">
                 {t('webview.annotation.cancel')}
               </Button>
               <Button
                 type="button"
                 size="sm"
                 disabled={editorUnavailable || !editor.draft.trim()}
-                onClick={() => void saveEditor()}>
+                onClick={() => void saveEditor()}
+                aria-label={t('webview.annotation.save')}
+                className="shrink-0">
                 {t('webview.annotation.save')}
               </Button>
             </div>
@@ -243,6 +248,57 @@ export function WebviewAnnotationControls({
       />
     </>
   )
+}
+
+interface AnnotationCommentEditorProps {
+  initialComment: string
+  placeholder: string
+  onChange: (draft: string) => void
+  onSubmit: () => void
+  onCancel: () => void
+}
+
+/**
+ * Comment input built on the composer's editor kernel and schema preset, so the
+ * annotation editor types, wraps, and serializes exactly like the chat composer.
+ */
+function AnnotationCommentEditor({
+  initialComment,
+  placeholder,
+  onChange,
+  onSubmit,
+  onCancel
+}: AnnotationCommentEditorProps) {
+  // Captured once: the parent remounts this component per editor request.
+  const [initialContent] = useState(() => createComposerDraftContent({ text: initialComment, tokens: [] }))
+  const extensions = useMemo(() => createComposerEditorPreset({ placeholder }), [placeholder])
+  const editor = useRichTextEditorKernel({
+    extensions,
+    content: initialContent,
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        'aria-label': placeholder,
+        class: 'max-h-40 overflow-y-auto text-sm text-foreground outline-none [--editor-min-height:3rem]'
+      },
+      handleKeyDown: (_view, event) => {
+        if (event.key === 'Escape') {
+          onCancel()
+          return true
+        }
+        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+          onSubmit()
+          return true
+        }
+        return false
+      }
+    },
+    onCreate: ({ editor: created }) => created.commands.focus('end'),
+    onUpdate: ({ editor: updated }) =>
+      onChange(serializeComposerDocument(updated).text.slice(0, WEBVIEW_ANNOTATION_LIMITS.comment))
+  })
+
+  return <EditorContent editor={editor} />
 }
 
 const controlButtonClassName = (active = false) =>

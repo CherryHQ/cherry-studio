@@ -10,6 +10,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
+import { WebviewAnnotationControls } from '@renderer/components/WebviewAnnotationControls'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -18,8 +19,6 @@ import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
-
-import { WebviewAnnotationControls } from './WebviewAnnotationControls'
 
 const logger = loggerService.withContext('MinimalToolbar')
 

@@ -31,7 +31,14 @@ describe('composerTokenPolicy', () => {
   })
 
   it('derives private clipboard prompt restoration from the same capability table', () => {
-    expect(COMPOSER_CLIPBOARD_PROMPT_TOKEN_KINDS).toEqual(['link', 'folder', 'reference', 'quote', 'promptVariable'])
+    expect(COMPOSER_CLIPBOARD_PROMPT_TOKEN_KINDS).toEqual([
+      'link',
+      'folder',
+      'reference',
+      'quote',
+      'webviewAnnotation',
+      'promptVariable'
+    ])
     expect(COMPOSER_CLIPBOARD_PROMPT_TOKEN_KINDS.every(isComposerClipboardTokenKind)).toBe(true)
     expect(isComposerClipboardPromptTokenKind('skill')).toBe(false)
     expect(isComposerClipboardPromptTokenKind('file')).toBe(false)

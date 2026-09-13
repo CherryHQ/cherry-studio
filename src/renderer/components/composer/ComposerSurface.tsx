@@ -158,10 +158,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       removeToken: (tokenId) => updateTokens((props.draftTokens ?? []).filter((token) => token.id !== tokenId)),
       // A token needs its prompt text woven into the document at the caret, which only the rich
       // editor can do; the whole range travels along so the runtime still replaces a selection.
-      insertToken: (token) => {
+      insertToken: (token, updateOnly) => {
         const input = textareaRef.current
         intentRef.current.insertToken = {
           token,
+          updateOnly,
           selection: {
             start: input?.selectionStart ?? props.text.length,
             end: input?.selectionEnd ?? props.text.length
