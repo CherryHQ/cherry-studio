@@ -658,7 +658,7 @@ export class SkillService {
   }
 
   /** Mirror `Data/Skills/<folderName>` into CLAUDE_CONFIG_DIR/skills. Idempotent. */
-  async linkMirror(folderName: string): Promise<void> {
+  async linkMirror(folderName: string, options: { forceCopy?: boolean } = {}): Promise<void> {
     const sourceDir = this.getSkillStoragePath(folderName)
     const rootDir = path.resolve(this.getMirrorRoot())
     const targetDir = path.resolve(rootDir, folderName)
@@ -719,7 +719,7 @@ export class SkillService {
 
       // Builtins are copied even on POSIX. A symlink would expose direct writes to the canonical
       // authoring root immediately to every other agent before reconcile can reject the change.
-      if (!isWin && !isBuiltin) {
+      if (!isWin && !isBuiltin && !options.forceCopy) {
         const stat = await fs.promises.lstat(targetDir).catch(() => null)
         if (stat?.isSymbolicLink()) {
           const [targetRealPath, sourceRealPath] = await Promise.all([
@@ -731,7 +731,7 @@ export class SkillService {
       }
 
       await fs.promises.rm(targetDir, { recursive: true, force: true })
-      if (isWin || isBuiltin) {
+      if (isWin || isBuiltin || options.forceCopy) {
         // Windows avoids symlink/junction privilege quirks; builtins use a verified copy so
         // out-of-band writes to the authoring root cannot change another agent's loaded instructions.
         await fs.promises.cp(sourceDir, targetDir, { recursive: true, force: true })
@@ -1009,7 +1009,7 @@ export class SkillService {
       }
       await this.linkMirror(group[0].folderName)
     }
-    for (const folderName of quarantinedFolders) await this.linkMirror(folderName)
+    for (const folderName of quarantinedFolders) await this.linkMirror(folderName, { forceCopy: true })
 
     const root = this.getMirrorRoot()
     let entries: fs.Dirent[]
@@ -1135,6 +1135,16 @@ export class SkillService {
   ): Promise<boolean> {
     return this.mutationLock.runExclusive(async () => {
       const existing = this.findCatalogSkillCaseInsensitive(folderName)
+      const hasQuarantinedRow =
+        !existing &&
+        agentGlobalSkillService
+          .listFolderNames()
+          .some((candidate) => normalizeFolderKey(candidate) === normalizeFolderKey(folderName))
+      if (hasQuarantinedRow) {
+        throw new Error(
+          `Folder name "${folderName}" has a malformed catalog row; refusing to insert a duplicate builtin.`
+        )
+      }
       if (existing && existing.source !== 'builtin') {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; refusing to overwrite it with a builtin.`

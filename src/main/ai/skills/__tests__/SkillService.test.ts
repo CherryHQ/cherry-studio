@@ -1525,6 +1525,28 @@ describe('SkillService', () => {
       expect(parseSkillMetadata).not.toHaveBeenCalled()
     })
 
+    it('refuses to insert a duplicate when a malformed builtin row owns the folder', async () => {
+      const skillService = new SkillService()
+      const contentHash = await skillService['computeBuiltinDirectoryHash'](sourcePath)
+      await fs.promises.mkdir(destPath, { recursive: true })
+      await fs.promises.writeFile(path.join(destPath, 'SKILL.md'), '# Builtin')
+      await fs.promises.writeFile(path.join(destPath, '.version'), APP_VERSION)
+      dbh.db.run(
+        sql.raw(
+          `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
+           VALUES ('broken-builtin', 'Broken Builtin', NULL, '${FOLDER_NAME}', 'builtin', NULL, NULL, NULL, NULL, 'not-json', '${contentHash}', 1, 1, 1)`
+        )
+      )
+
+      await expect(skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION)).rejects.toThrow(
+        /malformed catalog row/
+      )
+
+      const rows = dbh.db.all(sql.raw(`SELECT id FROM agent_global_skill WHERE folder_name = '${FOLDER_NAME}'`))
+      expect(rows).toEqual([{ id: 'broken-builtin' }])
+      expect(parseSkillMetadata).not.toHaveBeenCalled()
+    })
+
     it('never writes agent_skill rows, leaving per-agent enablement to the read-time builtin default', async () => {
       const skillService = new SkillService()
       await fs.promises.mkdir(destPath, { recursive: true })
@@ -2185,6 +2207,25 @@ describe('SkillService', () => {
       expect(rawRows).toHaveLength(1)
       expect(rawRows[0]).toMatchObject({ id: 'broken-row', folder_name: 'broken-skill', tags: 'not-json' })
       await expect(fs.promises.access(path.join(mirrorRoot, 'broken-skill'))).resolves.toBeUndefined()
+      expect((await fs.promises.lstat(path.join(mirrorRoot, 'broken-skill'))).isSymbolicLink()).toBe(false)
+    })
+
+    it('copies a quarantined builtin mirror instead of creating a POSIX symlink', async () => {
+      await writeLibrarySkill('broken-builtin', '# trusted builtin')
+      dbh.db.run(
+        sql.raw(
+          `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
+           VALUES ('broken-builtin-row', 'Broken Builtin', NULL, 'broken-builtin', 'builtin', NULL, NULL, NULL, NULL, 'not-json', 'trusted', 1, 1, 1)`
+        )
+      )
+
+      await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
+
+      const mirrored = await fs.promises.lstat(path.join(mirrorRoot, 'broken-builtin'))
+      expect(mirrored.isSymbolicLink()).toBe(false)
+      await expect(fs.promises.readFile(path.join(mirrorRoot, 'broken-builtin', 'SKILL.md'), 'utf-8')).resolves.toBe(
+        '# trusted builtin'
+      )
     })
 
     it('copies complete builtin content and quarantines later modifications', async () => {
