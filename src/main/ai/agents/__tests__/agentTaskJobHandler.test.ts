@@ -15,9 +15,19 @@ vi.mock('@data/services/JobService', () => ({
   }
 }))
 
-vi.mock('@data/services/AgentTaskService', () => ({
-  agentTaskService: {
-    notifyReadModelChange: vi.fn()
+vi.mock('@data/services/AgentTaskService', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    agentTaskService: {
+      notifyReadModelChange: vi.fn()
+    }
+  }
+})
+
+vi.mock('@data/services/JobScheduleService', () => ({
+  jobScheduleService: {
+    getByIdTx: vi.fn()
   }
 }))
 
@@ -27,6 +37,7 @@ vi.mock('../runAgentTask', () => ({
 
 import { application } from '@application'
 import { agentTaskService } from '@data/services/AgentTaskService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 
 import { agentTaskJobHandler } from '../agentTaskJobHandler'
@@ -84,15 +95,20 @@ function makeSettled(overrides: Partial<JobSettledEvent<AgentTaskInput>>): JobSe
 }
 
 describe('AgentTaskJobHandler', () => {
-  const pauseSpy = vi.fn()
+  const updateTxSpy = vi.fn()
+  const syncTimerSpy = vi.fn()
 
   beforeEach(() => {
     vi.mocked(application.get).mockImplementation((name: string) => {
-      if (name === 'JobManager') return { pauseJobScheduleById: pauseSpy } as never
+      if (name === 'JobManager')
+        return { updateJobScheduleTx: updateTxSpy, syncJobScheduleTimerById: syncTimerSpy } as never
+      if (name === 'DbService') return { withWriteTx: (fn: (tx: unknown) => unknown) => fn({}) } as never
       throw new Error(`Unexpected application.get('${name}')`)
     })
-    pauseSpy.mockReset()
-    pauseSpy.mockResolvedValue(true)
+    updateTxSpy.mockReset()
+    syncTimerSpy.mockReset()
+    vi.mocked(jobScheduleService.getByIdTx).mockReset()
+    vi.mocked(jobScheduleService.getByIdTx).mockReturnValue({ metadata: {} } as never)
     vi.mocked(jobService.listRecentTerminalByScheduleId).mockReset()
     vi.mocked(jobService.getById).mockReset()
     vi.mocked(agentTaskService.notifyReadModelChange).mockReset()
@@ -171,7 +187,12 @@ describe('AgentTaskJobHandler', () => {
       await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'failed' }))
 
       expect(jobService.listRecentTerminalByScheduleId).toHaveBeenCalledWith('s1', 3)
-      expect(pauseSpy).toHaveBeenCalledWith('s1')
+      // Pause and marker commit atomically so heartbeat sync cannot re-arm in between.
+      expect(updateTxSpy).toHaveBeenCalledWith(expect.anything(), 's1', {
+        enabled: false,
+        metadata: { circuitBreakerPaused: true }
+      })
+      expect(syncTimerSpy).toHaveBeenCalledWith('s1')
     })
 
     it('does not pause when the latest is failed but a recent one is completed', async () => {
@@ -183,7 +204,7 @@ describe('AgentTaskJobHandler', () => {
 
       await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'failed' }))
 
-      expect(pauseSpy).not.toHaveBeenCalled()
+      expect(updateTxSpy).not.toHaveBeenCalled()
     })
 
     it('does not pause when the recent-terminal window is not yet full', async () => {
@@ -194,7 +215,7 @@ describe('AgentTaskJobHandler', () => {
 
       await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'failed' }))
 
-      expect(pauseSpy).not.toHaveBeenCalled()
+      expect(updateTxSpy).not.toHaveBeenCalled()
     })
 
     it('does not act on non-failed terminal events', async () => {
@@ -202,7 +223,7 @@ describe('AgentTaskJobHandler', () => {
       await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'cancelled' }))
 
       expect(jobService.listRecentTerminalByScheduleId).not.toHaveBeenCalled()
-      expect(pauseSpy).not.toHaveBeenCalled()
+      expect(updateTxSpy).not.toHaveBeenCalled()
     })
 
     it('publishes the run-state change on every terminal status, not just failures', async () => {
@@ -216,16 +237,18 @@ describe('AgentTaskJobHandler', () => {
       await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'failed', scheduleId: null }))
 
       expect(jobService.listRecentTerminalByScheduleId).not.toHaveBeenCalled()
-      expect(pauseSpy).not.toHaveBeenCalled()
+      expect(updateTxSpy).not.toHaveBeenCalled()
     })
 
-    it('swallows pauseJobScheduleById errors so onSettled cannot throw', async () => {
+    it('swallows pause-write errors so onSettled cannot throw', async () => {
       vi.mocked(jobService.listRecentTerminalByScheduleId).mockReturnValueOnce([
         makeTerminal('failed', 'a'),
         makeTerminal('failed', 'b'),
         makeTerminal('failed', 'c')
       ])
-      pauseSpy.mockRejectedValueOnce(new Error('db lost'))
+      updateTxSpy.mockImplementationOnce(() => {
+        throw new Error('db lost')
+      })
 
       await expect(agentTaskJobHandler.onSettled?.(makeSettled({ status: 'failed' }))).resolves.not.toThrow()
     })

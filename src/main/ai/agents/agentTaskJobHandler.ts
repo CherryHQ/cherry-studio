@@ -3,14 +3,16 @@
  *
  * Thin metadata + execute wrapper; business logic lives in `./runAgentTask`.
  * Failure backstop: after three consecutive failed terminal jobs on the same
- * schedule, pauses the schedule via `JobManager.pauseJobScheduleById`. The
+ * schedule, pauses the schedule (atomic `enabled=false` + circuit-breaker
+ * marker, then a post-commit timer sync). The
  * `jobTable` rows are the single source of truth — no in-memory counter
  * (the legacy `SchedulerService.consecutiveErrors` map reset on every process
  * restart, making the breaker effectively unreachable in practice).
  */
 
 import { application } from '@application'
-import { agentTaskService } from '@data/services/AgentTaskService'
+import { agentTaskService, writeCircuitBreakerPaused } from '@data/services/AgentTaskService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
@@ -63,20 +65,33 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
   async onSettled(event) {
     if (event.scheduleId) agentTaskService.notifyReadModelChange([event.scheduleId])
     if (event.status !== 'failed' || !event.scheduleId) return
+    // Captured once — closure capture would lose the narrowing above.
+    const scheduleId = event.scheduleId
 
-    const recent = jobService.listRecentTerminalByScheduleId(event.scheduleId, RECENT_TERMINAL_WINDOW)
+    const recent = jobService.listRecentTerminalByScheduleId(scheduleId, RECENT_TERMINAL_WINDOW)
     if (recent.length < RECENT_TERMINAL_WINDOW) return
     if (!recent.every((j) => j.status === 'failed')) return
 
     logger.warn('Agent task schedule failed in last N terminal runs — pausing', {
-      scheduleId: event.scheduleId,
+      scheduleId,
       window: RECENT_TERMINAL_WINDOW
     })
     try {
-      await application.get('JobManager').pauseJobScheduleById(event.scheduleId)
+      // Pause and mark in one transaction: a heartbeat sync landing between a
+      // separate pause commit and marker write would re-arm the schedule. The
+      // post-commit timer sync disposes the armed timer (same two-step pattern
+      // as the other schedule mutations).
+      application.get('DbService').withWriteTx((tx) => {
+        const snapshot = jobScheduleService.getByIdTx(tx, scheduleId)
+        application.get('JobManager').updateJobScheduleTx(tx, scheduleId, {
+          enabled: false,
+          metadata: writeCircuitBreakerPaused(snapshot?.metadata, true)
+        })
+      })
+      application.get('JobManager').syncJobScheduleTimerById(scheduleId)
     } catch (err) {
       logger.error('Failed to pause schedule after consecutive failures', err as Error, {
-        scheduleId: event.scheduleId
+        scheduleId
       })
     }
   }

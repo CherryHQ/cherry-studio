@@ -37,10 +37,13 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
+import { assertAgentStoragePath } from '@main/ai/agents/agentDataDirectory'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
+import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -158,9 +161,20 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   let effectivePrompt = prompt
 
   if (isHeartbeat) {
-    if (config.heartbeat_enabled === false) {
+    if (!isHeartbeatEnabled(config)) {
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
       return { result: 'Skipped (disabled)' }
+    }
+    // Capability gate on the run side: a runtime-type change does not travel
+    // through the heartbeat config keys, so without this a row armed before
+    // the change would keep firing model calls for a runtime (e.g. dsh) that
+    // no longer supports heartbeats. `in` would walk the prototype chain.
+    const capabilities = Object.hasOwn(AGENT_RUNTIME_CAPABILITIES, agent.type)
+      ? AGENT_RUNTIME_CAPABILITIES[agent.type]
+      : undefined
+    if (capabilities?.heartbeat !== true) {
+      logger.debug('Heartbeat skipped (runtime lacks the capability)', { agentId, scheduleId, type: agent.type })
+      return { result: 'Skipped (capability)' }
     }
     switch (workspace.type) {
       case AGENT_WORKSPACE_TYPE.SYSTEM:
@@ -178,6 +192,37 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       workspaceRow = agentWorkspaceService.getById(workspace.workspaceId)
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        // Stop tick-and-skip cycles after the user deletes the heartbeat workspace;
+        // the next heartbeat sync re-provisions the workspace and re-arms the row.
+        // The pause is guarded by the LIVE schedule template: this job's workspace
+        // came from the enqueue-time snapshot, and the schedule may since have been
+        // repaired onto a new workspace row or repurposed into an ordinary task —
+        // pausing then would disable a healthy schedule.
+        const liveTemplate = scheduleSnapshot?.jobInputTemplate as {
+          agentId?: unknown
+          prompt?: unknown
+          workspace?: { type?: unknown; workspaceId?: unknown } | null
+        } | null
+        const stillTargetsDeletedWorkspace =
+          scheduleSnapshot?.type === 'agent.task' &&
+          liveTemplate?.agentId === agentId &&
+          liveTemplate?.prompt === HEARTBEAT_PROMPT_SENTINEL &&
+          liveTemplate?.workspace?.type === AGENT_WORKSPACE_TYPE.USER &&
+          liveTemplate?.workspace?.workspaceId === workspace.workspaceId
+        if (scheduleId && stillTargetsDeletedWorkspace) {
+          try {
+            application.get('DbService').withWriteTx((tx) => {
+              application.get('JobManager').updateJobScheduleTx(tx, scheduleId, { enabled: false })
+            })
+            application.get('JobManager').syncJobScheduleTimerById(scheduleId)
+          } catch (pauseError) {
+            logger.warn('Failed to pause heartbeat schedule after workspace deletion', {
+              agentId,
+              scheduleId,
+              error: pauseError
+            })
+          }
+        }
         logger.debug('Heartbeat skipped (workspace deleted)', {
           agentId,
           scheduleId,
@@ -191,6 +236,21 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       throw new Error(`Heartbeat workspace must be user-owned: ${workspace.workspaceId}`)
     }
     const workspacePath = workspaceRow.path
+    // The provisioning-time storage check is not enough: a parent directory
+    // swapped for a symlink afterwards would make the heartbeat.md read escape
+    // managed storage (readHeartbeat only lstats the file itself). Re-validate
+    // the full chain on every fire and skip the tick when it no longer holds.
+    try {
+      await assertAgentStoragePath(application.getPath('feature.agents.data'), workspacePath)
+    } catch (error) {
+      logger.warn('Heartbeat workspace failed the storage check; skipping tick', {
+        agentId,
+        scheduleId,
+        workspacePath,
+        error
+      })
+      return { result: 'Skipped (untrusted workspace path)' }
+    }
     const content = await readHeartbeat(workspacePath)
     if (!content) {
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })

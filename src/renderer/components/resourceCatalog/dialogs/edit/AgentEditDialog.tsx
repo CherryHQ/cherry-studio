@@ -41,6 +41,7 @@ import {
   diffAgentSaveIntent,
   RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
 } from '@renderer/utils/resourceCatalog'
+import { MAX_HEARTBEAT_INTERVAL_MINUTES, MIN_HEARTBEAT_INTERVAL_MINUTES } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
 import {
   CLAUDE_KNOWLEDGE_TOOL_NAMES,
@@ -834,8 +835,8 @@ function HeartbeatSettingsField({
               </FormLabel>
               <FormControl>
                 <InputNumber
-                  min={1}
-                  max={1440}
+                  min={MIN_HEARTBEAT_INTERVAL_MINUTES}
+                  max={MAX_HEARTBEAT_INTERVAL_MINUTES}
                   step={1}
                   className="h-9 w-full"
                   value={field.value || null}
