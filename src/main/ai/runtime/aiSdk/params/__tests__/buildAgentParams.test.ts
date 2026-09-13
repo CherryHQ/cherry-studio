@@ -1657,7 +1657,8 @@ describe('buildAgentParams — Responses instructions delivery', () => {
 /**
  * Covers the first-class per-request override merge that replaced the old
  * `createGatewayOverrideFeature` plugin: assistant-less precedence, capability
- * gating via `filterStandardParams`, and per-provider providerOptions merging.
+ * gating via `filterStandardParams`, the fixed-sampling family gates, and
+ * per-provider providerOptions merging.
  */
 describe('applyCallOverrides', () => {
   const base = () => ({
@@ -1686,10 +1687,23 @@ describe('applyCallOverrides', () => {
     })
   })
 
-  it('drops topK for Gemini 3.x via filterStandardParams', () => {
+  it('drops temperature and topK overrides for Gemini 3.x', () => {
     const result = applyCallOverrides(base(), { topK: 40, temperature: 0.5 }, makeModel({ id: 'gemini::gemini-3-pro' }))
-    expect(result.standardParams.temperature).toBe(0.5)
+    expect(result.standardParams).not.toHaveProperty('temperature')
     expect(result.standardParams).not.toHaveProperty('topK')
+  })
+
+  // Claude 4.7 rejects sampling params outright — same family gate the assistant
+  // path applies in getTemperature/getTopP.
+  it('drops temperature/topP overrides for Claude 4.7', () => {
+    const result = applyCallOverrides(
+      base(),
+      { temperature: 0.7, topP: 0.9, maxOutputTokens: 100 },
+      makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
+    )
+    expect(result.standardParams).not.toHaveProperty('temperature')
+    expect(result.standardParams).not.toHaveProperty('topP')
+    expect(result.standardParams.maxOutputTokens).toBe(100)
   })
 
   // A caller (API Gateway) supplying explicit sampling for a fixed-sampling model would
