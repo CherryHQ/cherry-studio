@@ -340,6 +340,100 @@ describe('useFollowupQueue', () => {
     expect(onDrainFailed).not.toHaveBeenCalled()
   })
 
+  it('steers through claim → send → delete', async () => {
+    const head = row('h', 'head')
+    wireQuery([head])
+    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const send = vi.fn(async () => true)
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let steered = false
+    await act(async () => {
+      steered = await result.current.steer('h', send)
+    })
+
+    expect(steered).toBe(true)
+    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(send).toHaveBeenCalledWith(head.payload)
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(failTrigger).not.toHaveBeenCalled()
+  })
+
+  it('marks the steered item failed when its send fails', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const send = vi.fn(async () => false)
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let steered = true
+    await act(async () => {
+      steered = await result.current.steer('h', send)
+    })
+
+    expect(steered).toBe(false)
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(deleteTrigger).not.toHaveBeenCalled()
+  })
+
+  it('does not send a steer when another window wins the claim', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: false })
+    const send = vi.fn(async () => true)
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let steered = true
+    await act(async () => {
+      steered = await result.current.steer('h', send)
+    })
+
+    expect(steered).toBe(false)
+    expect(send).not.toHaveBeenCalled()
+    expect(deleteTrigger).not.toHaveBeenCalled()
+    expect(failTrigger).not.toHaveBeenCalled()
+  })
+
+  it('returns false without sending a steer for an unknown id', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger } = wireMutations()
+    const send = vi.fn(async () => true)
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let steered = true
+    await act(async () => {
+      steered = await result.current.steer('missing', send)
+    })
+
+    expect(steered).toBe(false)
+    expect(claimTrigger).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('toasts when the steer claim request keeps failing', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger } = wireMutations()
+    claimTrigger.mockRejectedValue(new Error('ipc down'))
+    const send = vi.fn(async () => true)
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let steered = true
+    await act(async () => {
+      steered = await result.current.steer('h', send)
+    })
+
+    expect(steered).toBe(false)
+    expect(claimTrigger).toHaveBeenCalledTimes(2)
+    expect(send).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
   it('skips the send silently when another window wins the claim', async () => {
     wireQuery([row('h', 'head')])
     const { claimTrigger, deleteTrigger } = wireMutations()

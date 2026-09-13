@@ -42,6 +42,12 @@ export interface FollowupQueueController {
   reorder: (nextItems: FollowupQueueItem[]) => void
   paused: boolean
   setPaused: (paused: boolean) => void
+  /**
+   * Manual steer through the same claim arbitration as auto-drain. Resolves
+   * true when the send succeeded (item dequeued), false otherwise — a lost
+   * claim means another window owns the item.
+   */
+  steer: (id: string, send: (payload: ComposerQueuedMessagePayload) => Promise<boolean>) => Promise<boolean>
 }
 
 /**
@@ -155,6 +161,69 @@ export function useFollowupQueue({
     [setPausedTrigger, t]
   )
 
+  // Conditional pending/failed → sending transition with one retry. Resolves
+  // undefined when the request itself keeps failing (no window owns the item).
+  const claimItem = useCallback(
+    async (id: string) => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          return await claimTrigger({ params: { id } })
+        } catch {
+          // Transient IPC/DB failure — retry once.
+        }
+      }
+      return undefined
+    },
+    [claimTrigger]
+  )
+
+  // Resolve a won claim: dequeue on success, mark failed otherwise. Retried so
+  // a successful send is not replayed after a lost dequeue write.
+  const settleItem = useCallback(
+    async (id: string, sent: boolean) => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          if (sent) await removeTrigger({ params: { id } })
+          else await markFailedTrigger({ params: { id } })
+          return true
+        } catch {
+          // Transient IPC/DB failure — retry before giving up.
+        }
+      }
+      return false
+    },
+    [removeTrigger, markFailedTrigger]
+  )
+
+  // Manual steer through the same claim arbitration as auto-drain: only the
+  // window whose claim wins sends. A lost claim means another window owns the
+  // item (our mirror converges through the change notification); a failed
+  // send keeps the item queued as failed for the next turn.
+  const steer = useCallback(
+    async (id: string, send: (payload: ComposerQueuedMessagePayload) => Promise<boolean>) => {
+      const item = itemsRef.current.find((entry) => entry.id === id)
+      if (!item) return false
+      const claim = await claimItem(id)
+      if (!claim) {
+        toast.error(t('message.error.operation_unavailable'))
+        return false
+      }
+      if (!claim.claimed) return false
+      let sent = false
+      try {
+        sent = await send(item.payload)
+      } catch {
+        sent = false
+      }
+      const settled = await settleItem(id, sent)
+      if (!settled && sent) {
+        toast.error(t('message.error.operation_unavailable'))
+      }
+      return sent
+    },
+    [claimItem, settleItem, t]
+  )
+
   // Drain one message per completion: on the live→idle edge, claim the head
   // (only the winning window sends) and resolve the claim — dequeue on
   // success, mark failed otherwise. The edge is acked only once the claim
@@ -168,14 +237,7 @@ export function useFollowupQueue({
     if (!head) return
     const reportDrainFailure = () => onDrainFailedRef.current?.()
     void (async () => {
-      let claim: { claimed: boolean } | undefined
-      for (let attempt = 0; attempt < 2 && !claim; attempt++) {
-        try {
-          claim = await claimTrigger({ params: { id: head.id } })
-        } catch {
-          // Transient IPC/DB failure — retry once below.
-        }
-      }
+      const claim = await claimItem(head.id)
       if (!claim) {
         reportDrainFailure()
         void refetch()
@@ -189,22 +251,13 @@ export function useFollowupQueue({
       } catch {
         sent = false
       }
-      let settled = false
-      for (let attempt = 0; attempt < 3 && !settled; attempt++) {
-        try {
-          if (sent) await removeTrigger({ params: { id: head.id } })
-          else await markFailedTrigger({ params: { id: head.id } })
-          settled = true
-        } catch {
-          // Transient IPC/DB failure — retry before giving up.
-        }
-      }
+      const settled = await settleItem(head.id, sent)
       if (!settled && sent) {
         toast.error(t('message.error.operation_unavailable'))
       }
       if (!sent) reportDrainFailure()
     })()
-  }, [isFulfilled, paused, queriesReady, markSeen, claimTrigger, removeTrigger, markFailedTrigger, refetch, t])
+  }, [isFulfilled, paused, queriesReady, markSeen, claimItem, settleItem, refetch, t])
 
-  return { items, enqueue, removeId, reorder, paused, setPaused }
+  return { items, enqueue, removeId, reorder, paused, setPaused, steer }
 }
