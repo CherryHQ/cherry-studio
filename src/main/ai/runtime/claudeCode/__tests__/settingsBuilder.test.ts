@@ -716,7 +716,26 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect((trusted.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
   })
 
-  // A large output cap cannot fit alongside the SDK floor inside the
+  // A gateway route fans out per-model slots to providers the builder never sees,
+  // so even a trusted primary derives the budget as untrusted (weakest slot wins).
+  it('derives the budget as untrusted for a gateway route on a trusted primary', async () => {
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      trustedProvider,
+      { contextWindow: 256_000, maxOutputTokens: 32_000, usesGatewayRoute: true }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
+  })
   // safety-adjusted room, so the resolver emits the bounded SDK floor (100K)
   // instead of omitting the window: with the trigger fixed at 80% this compacts
   // at 80K input — earlier than any CLI default derived from a >= 100K pin —

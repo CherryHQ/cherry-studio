@@ -136,6 +136,13 @@ export interface ClaudeCodeSessionOptions {
   }
   /** Claude Code SDK-native Fast mode. */
   fastMode?: boolean
+  /**
+   * Whether the materialized session route fans out through the gateway. The gateway
+   * serves per-model providers this builder never sees, so the single process-wide
+   * compaction budget cannot rely on the primary provider's trust — it derives as
+   * untrusted. Covered by route facts for staleness (the branch is fingerprinted).
+   */
+  usesGatewayRoute?: boolean
 }
 
 export type { LinkedChannelSnapshot, McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
@@ -290,7 +297,10 @@ export async function buildClaudeCodeSessionSettings(
     options?.maxOutputTokens,
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
   )
-  const autoCompactWindow = resolveAutoCompactWindow(declaredContextWindow, requestedOutputTokens, provider)
+  // Gateway routes fan out per-model slots to providers this builder never sees; the
+  // process-wide budget must protect the weakest slot, so it derives as untrusted.
+  const budgetProvider = options?.usesGatewayRoute ? null : provider
+  const autoCompactWindow = resolveAutoCompactWindow(declaredContextWindow, requestedOutputTokens, budgetProvider)
   // Pin the request whenever the catalog window is usable, even when the budget is omitted
   // (untrusted large-output corner): otherwise the CLI silently falls back to its own defaults.
   const hasUsableContextWindow =
@@ -299,7 +309,7 @@ export async function buildClaudeCodeSessionSettings(
     declaredContextWindow >= MIN_AUTO_COMPACT_WINDOW
   if (hasUsableContextWindow && env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined) {
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(
-      resolveClaudeOutputCap(declaredContextWindow, requestedOutputTokens, provider, autoCompactWindow)
+      resolveClaudeOutputCap(declaredContextWindow, requestedOutputTokens, budgetProvider, autoCompactWindow)
     )
   }
   // Undocumented, and the only way to declare a third-party model's window — without it every
