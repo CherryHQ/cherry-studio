@@ -72,18 +72,24 @@ function rowToState(row: FollowupQueueStateRow): FollowupQueueState {
   }
 }
 
-function notifyQueueChange(kind: 'membership' | 'order', scopeKey: string, ids: readonly string[]): void {
+function notifyQueueChange(
+  kind: 'membership' | 'order' | 'projection',
+  scopeKey: string,
+  ids: readonly string[]
+): void {
   if (ids.length === 0) return
   const uniqueIds = [...new Set(ids)]
   const effects: DataApiDataChangeEffect[] = [
-    kind === 'membership'
-      ? {
-          endpoint: '/followup-queues',
-          kind: 'membership',
-          dimension: FOLLOWUP_QUEUE_SCOPE_DIMENSION,
-          entityIds: uniqueIds
-        }
-      : { endpoint: '/followup-queues', kind: 'order', dimension: 'orderKey', entityIds: uniqueIds }
+    kind === 'order'
+      ? { endpoint: '/followup-queues', kind: 'order', dimension: 'orderKey', entityIds: uniqueIds }
+      : kind === 'projection'
+        ? { endpoint: '/followup-queues', kind: 'projection', entityIds: uniqueIds }
+        : {
+            endpoint: '/followup-queues',
+            kind: 'membership',
+            dimension: FOLLOWUP_QUEUE_SCOPE_DIMENSION,
+            entityIds: uniqueIds
+          }
   ]
   notifyDataApiDataChange(effects)
   logger.info('Notified followup queue change', { kind, scopeKey, count: uniqueIds.length })
@@ -212,7 +218,7 @@ export class FollowupQueueService {
 
     if (!row) return { claimed: false }
 
-    notifyQueueChange('membership', row.scopeKey, [row.id])
+    notifyQueueChange('projection', row.scopeKey, [row.id])
     return { claimed: true }
   }
 
@@ -226,7 +232,7 @@ export class FollowupQueueService {
       .all()
 
     if (!row) return
-    notifyQueueChange('membership', row.scopeKey, [row.id])
+    notifyQueueChange('projection', row.scopeKey, [row.id])
     logger.info('Marked followup failed', { id })
   }
 
