@@ -2309,6 +2309,150 @@ describe('AgentSessionRuntimeService', () => {
       )
     })
 
+    it('restores a tool input start for deltas that arrive after persistence', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      // The accumulator seeds lazily from the persisted row: the tool input started
+      // pre-persist, so the seed still holds its partial input-streaming part.
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'tool-Agent',
+              toolCallId: 'task-root',
+              state: 'input-available',
+              input: { prompt: 'Audit the codebase' }
+            },
+            {
+              type: 'tool-Bash',
+              toolCallId: 'sub-tool-1',
+              state: 'input-streaming',
+              input: { command: 'echo' }
+            }
+          ]
+        }
+      })
+      // The tool-input-start went to the pre-persist stream; only the delta reaches the accumulator.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'tool-input-delta', toolCallId: 'sub-tool-1', inputTextDelta: '{"command":"echo hi"}' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'tool-Bash',
+              toolCallId: 'sub-tool-1',
+              input: { command: 'echo hi' }
+            })
+          ])
+        )
+      })
+      expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith(
+        'Detached subagent flow accumulator failed',
+        expect.anything()
+      )
+      expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith(
+        'Failed to enqueue detached subagent flow chunk',
+        expect.anything()
+      )
+    })
+
+    it('closes persisted streaming parts when only their end arrives after persistence', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      // The accumulator seeds lazily from the persisted row: the starts raced
+      // persistence, so the seed still holds both parts as streaming.
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'tool-Agent',
+              toolCallId: 'task-root',
+              state: 'input-available',
+              input: { prompt: 'Audit the codebase' }
+            },
+            { type: 'text', text: 'partial answer', state: 'streaming' },
+            { type: 'reasoning', text: 'partial thought', state: 'streaming' }
+          ]
+        }
+      })
+      // The starts raced persistence, so the ends arrive with no open part to match.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-end', id: 'ghost-text' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'reasoning-end', id: 'ghost-reasoning' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({ type: 'text', text: 'partial answer', state: 'done' }),
+            expect.objectContaining({ type: 'reasoning', text: 'partial thought', state: 'done' })
+          ])
+        )
+      })
+      expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith(
+        'Detached subagent flow accumulator failed',
+        expect.anything()
+      )
+    })
+
     it('publishes detached flow overlays under independent message keys', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
