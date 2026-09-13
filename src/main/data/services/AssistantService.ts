@@ -28,6 +28,7 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import { followupQueueService } from './FollowupQueueService'
 import { groupService } from './GroupService'
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
@@ -661,6 +662,7 @@ export class AssistantDataService {
     topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership', { deleted: true })
     this.notifyReadModelChange([id], 'membership')
     pinService.notifyPurged()
+    if (deletedTopicIds && deletedTopicIds.length > 0) followupQueueService.notifyPurged()
 
     logger.info(options.permanent === true ? 'Permanently deleted assistant' : 'Moved assistant to Recycle Bin', {
       id,

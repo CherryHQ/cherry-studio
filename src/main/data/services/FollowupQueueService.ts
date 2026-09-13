@@ -38,6 +38,7 @@ import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import {
   FOLLOWUP_QUEUE_LIMIT,
   FOLLOWUP_QUEUE_SCOPE_DIMENSION,
+  STALE_SENDING_CLAIM_MS,
   type FollowupQueueItem,
   type FollowupQueueState
 } from '@shared/data/types/followupQueue'
@@ -46,9 +47,6 @@ import { applyScopedMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:FollowupQueueService')
-
-/** A `sending` row older than this is treated as crash-orphaned and reclaimable. */
-const STALE_SENDING_CLAIM_MS = 30 * 60 * 1000
 
 function rowToItem(row: FollowupQueueRow): FollowupQueueItem {
   return {
