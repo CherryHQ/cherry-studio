@@ -761,7 +761,7 @@ const TranslatePage: FC = () => {
       })
       historyRestoreBarrierRef.current = historyRestoreBarrier
       historyRestorePendingRef.current = true
-      const restoreToken = Symbol('translate history restore')
+      const restoreToken = { intentRevision: contentIntentRevisionBeforePersist, barrier: historyRestoreBarrier }
       setPendingHistoryRestore(restoreToken)
       try {
         const persisted = await safePersist(
@@ -897,6 +897,7 @@ const TranslatePage: FC = () => {
 
   const readFile = useCallback(
     async (file: FileMetadata, contentOperationRevision: number) => {
+      const readIntentRevision = getContentIntentRevision()
       const closeStaleToast = () => {
         if (loadingToastKey) toast.closeToast(loadingToastKey)
       }
@@ -940,6 +941,11 @@ const TranslatePage: FC = () => {
           const result = isDocument
             ? await window.api.file.readExternal(file.path, true)
             : await window.api.fs.readText(file.path)
+          let pendingHistory = cacheService.get('translate.history_restore_pending')
+          while (!isMountedRef.current && pendingHistory && readIntentRevision <= pendingHistory.intentRevision) {
+            await pendingHistory.barrier
+            pendingHistory = cacheService.get('translate.history_restore_pending')
+          }
           if (contentOperationRevision !== getContentOperationRevision()) {
             closeStaleToast()
             return

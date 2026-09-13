@@ -171,7 +171,7 @@ export type UseCacheSchema = {
   /** Revision of the latest user intent that may change translated content */
   'translate.content_intent_revision': number
   'translate.last_history_restore': { revision: number; input: string; output: string } | null
-  'translate.history_restore_pending': symbol | null
+  'translate.history_restore_pending': { intentRevision: number; barrier: Promise<boolean> } | null
   'translate.exchange_pending': symbol | null
   'translate.restored_pdf': {
     file: { name: string; path: AbsoluteFilePath }

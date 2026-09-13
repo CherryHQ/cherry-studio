@@ -31,6 +31,7 @@ const fileMock = vi.hoisted(() => ({
 }))
 
 const useJobMock = vi.hoisted(() => vi.fn())
+const cacheHookMode = vi.hoisted(() => ({ realContent: false }))
 const smoothStreamMock = vi.hoisted(() => ({
   deferUpdates: false,
   pendingUpdates: [] as Array<() => void>
@@ -115,7 +116,8 @@ vi.mock('@data/hooks/useCache', async (importOriginal) => {
     useCache: ((key, initValue) =>
       key === 'translate.restored_pdf' ||
       key === 'translate.history_restore_pending' ||
-      key === 'translate.exchange_pending'
+      key === 'translate.exchange_pending' ||
+      (cacheHookMode.realContent && (key === 'translate.input' || key === 'translate.output'))
         ? actual.useCache(key, initValue)
         : MockUseCache.useCache(key, initValue)) as typeof actual.useCache
   }
@@ -558,6 +560,7 @@ import TranslatePage from '../TranslatePage'
 
 describe('TranslatePage', () => {
   beforeEach(() => {
+    cacheHookMode.realContent = false
     MockCacheUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
@@ -766,6 +769,142 @@ describe('TranslatePage', () => {
     currentPage.rerender(<TranslatePage />)
 
     expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('prefix file content')
+  })
+
+  it('keeps a remounted history restore ahead of an older file read while persistence is pending', async () => {
+    cacheHookMode.realContent = true
+    let resolveRead!: (value: string) => void
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/input.txt', size: 10 }])
+    fileMock.readText.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveRead = resolve
+      })
+    )
+    MockCacheUtils.setInitialState({
+      memory: [
+        ['translate.input', 'current input'],
+        ['translate.output', 'current output']
+      ]
+    })
+    const { persistLanguages, resolvePersist } = createDeferredLanguagePersist()
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const filePage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+        await waitFor(() => expect(fileMock.readText).toHaveBeenCalledWith('/tmp/input.txt'))
+        filePage.unmount()
+
+        const historyPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+        historyPage.unmount()
+
+        const currentPage = render(<TranslatePage />)
+        await act(async () => resolveRead('older file content'))
+        await act(async () => resolvePersist())
+        currentPage.rerender(<TranslatePage />)
+
+        expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('history input')
+        expect(screen.getByTestId('translate-output-content')).toHaveTextContent('history output')
+      }
+    )
+  })
+
+  it('releases an older file read after a remounted history restore fails', async () => {
+    cacheHookMode.realContent = true
+    let resolveRead!: (value: string) => void
+    let rejectPersist!: () => void
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/input.txt', size: 10 }])
+    fileMock.readText.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveRead = resolve
+      })
+    )
+    MockCacheUtils.setInitialState({ memory: [['translate.input', 'current input']] })
+    const persistLanguages = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPersist = () => reject(new Error('save failed'))
+        })
+    )
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const filePage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+        await waitFor(() => expect(fileMock.readText).toHaveBeenCalledWith('/tmp/input.txt'))
+        filePage.unmount()
+
+        const historyPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+        historyPage.unmount()
+
+        const currentPage = render(<TranslatePage />)
+        await act(async () => resolveRead('file content'))
+        expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('current input')
+
+        await act(async () => rejectPersist())
+        currentPage.rerender(<TranslatePage />)
+        expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('current inputfile content')
+      }
+    )
+  })
+
+  it('lets a newer file selection win over a pending remounted history restore', async () => {
+    cacheHookMode.realContent = true
+    let resolveRead!: (value: string) => void
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/input.txt', size: 10 }])
+    fileMock.readText.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveRead = resolve
+      })
+    )
+    MockCacheUtils.setInitialState({ memory: [['translate.input', 'current input']] })
+    const { persistLanguages, resolvePersist } = createDeferredLanguagePersist()
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const historyPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+
+        fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+        await waitFor(() => expect(fileMock.readText).toHaveBeenCalledWith('/tmp/input.txt'))
+        historyPage.unmount()
+
+        const currentPage = render(<TranslatePage />)
+        await act(async () => resolveRead('newer file content'))
+        currentPage.rerender(<TranslatePage />)
+        expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('current inputnewer file content')
+
+        await act(async () => resolvePersist())
+        currentPage.rerender(<TranslatePage />)
+        expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('current inputnewer file content')
+      }
+    )
   })
 
   it('starts a File Processing image_to_text job and appends recognized text from the job snapshot', async () => {
