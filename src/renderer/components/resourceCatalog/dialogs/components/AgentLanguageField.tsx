@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { Combobox, Input } from '@cherrystudio/ui'
 import { AGENT_LANGUAGE_PRESETS, validateAgentLanguageInput } from '@renderer/utils/agent/agentLanguage'
 
-const FOLLOW_VALUE = '__follow__'
+// Exceeds AGENT_LANGUAGE_MAX_LENGTH, so it can never equal a valid language.
+const FOLLOW_VALUE = '__follow_conversation_language_sentinel__[too-long-to-be-a-language]'
 
 type AgentLanguageFieldProps = {
   value: string | null
