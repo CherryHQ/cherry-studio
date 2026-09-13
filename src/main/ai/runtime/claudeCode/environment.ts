@@ -88,7 +88,16 @@ function isTrustedClaudeChannel(provider?: Provider | null): boolean {
     return false
   }
   if (isExternalCliProvider(provider)) return true
-  if (provider.presetProviderId === 'anthropic' || provider.id === 'anthropic') return true
+  if (provider.presetProviderId === 'anthropic' || provider.id === 'anthropic') {
+    // An empty-string entry URL is falsy at runtime (getBaseUrl cascade and the
+    // warmup `|| baseUrl` fallback), so traffic can still reach a relay — preset
+    // trust needs an absent or explicitly official entry. Non-empty here means
+    // official, since a custom baseUrl already returned false above.
+    if (!Object.prototype.hasOwnProperty.call(provider.endpointConfigs ?? {}, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)) {
+      return true
+    }
+    return typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== ''
+  }
   // Speaking the Anthropic protocol does not prove the official endpoint: an
   // absent entry fails closed, and a URL-less entry still resolves through the
   // getBaseUrl cascade to another entry's host — so only cloud-SDK transports
@@ -173,6 +182,38 @@ export function resolveAutoCompactWindow(
     return MIN_AUTO_COMPACT_WINDOW
   }
   return capped
+}
+
+/**
+ * The per-request output cap the CLI may reserve alongside compacted history.
+ * Providers bill input + max_tokens against the limit, so a large output cap on
+ * an untrusted channel can outrun the safety-adjusted room even at the trigger
+ * point (e.g. 80K trigger history + 128K output against a 153.6K room). Shrink
+ * the cap to what fits beside trigger-point history; never below the CLI's own
+ * default, which early-turn requests can still use. Trusted channels and
+ * default-size caps already fit by construction and pass through untouched.
+ */
+export function resolveClaudeOutputCap(
+  contextWindow: number | undefined,
+  requestedOutput: number,
+  provider: Provider | null | undefined,
+  autoCompactWindow: number | undefined
+): number {
+  if (
+    typeof contextWindow !== 'number' ||
+    !Number.isInteger(contextWindow) ||
+    autoCompactWindow === undefined ||
+    isTrustedClaudeChannel(provider) ||
+    requestedOutput <= DEFAULT_REQUESTED_OUTPUT_TOKENS
+  ) {
+    return requestedOutput
+  }
+  const effectiveContextWindow = resolveEffectiveClaudeContextWindow(contextWindow, requestedOutput, provider)
+  const triggerRoom = Math.floor((autoCompactWindow * AUTO_COMPACT_TRIGGER_PCT) / 100)
+  if (triggerRoom + requestedOutput <= effectiveContextWindow) {
+    return requestedOutput
+  }
+  return Math.max(effectiveContextWindow - triggerRoom, DEFAULT_REQUESTED_OUTPUT_TOKENS)
 }
 
 // The CLI has no table for third-party models — it would request a generic 32,000 and cap them at

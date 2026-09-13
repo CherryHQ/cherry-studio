@@ -762,8 +762,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
+    // 80K trigger history + 128K output would outrun the 153_600 derated room,
+    // so the output pin shrinks to what fits beside it (153_600 - 80_000).
     expect(settings.env).toMatchObject({
-      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000',
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '73600',
       CLAUDE_CODE_MAX_CONTEXT_TOKENS: '256000'
     })
   })
@@ -926,6 +928,32 @@ describe('buildClaudeCodeSessionSettings', () => {
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       httpAnthropic,
+      { contextWindow: 256_000, maxOutputTokens: 32_000 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
+  })
+
+  // A preset-Anthropic provider with an empty-string entry URL is untrusted:
+  // empty is falsy at runtime (getBaseUrl cascade, warmup `|| baseUrl`), so
+  // traffic can still reach a relay. Only an absent or explicitly official
+  // entry keeps the preset trust.
+  it('distrusts a preset-Anthropic provider with an empty entry URL', async () => {
+    const emptyUrlAnthropic = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: '' }
+      }
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      emptyUrlAnthropic,
       { contextWindow: 256_000, maxOutputTokens: 32_000 }
     )
 
