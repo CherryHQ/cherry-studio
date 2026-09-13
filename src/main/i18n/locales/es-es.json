@@ -1,6 +1,7 @@
 {
   "agent.builtin.cherry_assistant.description": "Asesor integrado de Cherry Studio. Diagnostica problemas, guía las operaciones, recopila preguntas frecuentes, envía errores o solicitudes de funciones y busca o crea habilidades",
   "agent.builtin.cherry_support.description": "Agente de soporte oficial de Cherry Studio para configuración, diagnóstico, preguntas frecuentes y comentarios",
+  "agent.session.background_bash.output_truncated": "[salida truncada: se omitieron {{omittedBytes}} bytes]",
   "agent.session.new": "Nueva tarea",
   "agent.session.run_status.busy": "La sesión del Agent está ocupada. Inténtalo de nuevo en breve.",
   "agent.session.run_status.unavailable": "La sesión del Agent ya no está disponible.",

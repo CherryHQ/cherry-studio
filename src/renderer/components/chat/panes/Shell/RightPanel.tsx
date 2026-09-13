@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2 } from 'lucide-react'
+import { ArrowLeft, Maximize2, Minimize2 } from 'lucide-react'
 import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react'
 import { Activity, createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +15,9 @@ import { getRightPaneWidthPolicy, type RightPaneWidthPolicy, type RightPaneWidth
 import { PersistentRightPaneHost, type RightPaneLayoutMode } from '../../shell/RightPaneHost'
 
 export type RightPanelReadiness = 'ready' | 'pending' | 'unavailable'
+export type RightPanelTransition = 'forward' | 'backward' | 'replace'
+
+const PANEL_TRANSITION_FALLBACK_MS = 250
 
 export interface RightPanelComponentProps<TScope> {
   /** Effective presentation state for this concrete instance. */
@@ -33,6 +36,8 @@ export interface RightPanelInstance {
   headerMode?: 'shell' | 'content'
   /** Whether this panel may enter maximized presentation. */
   canMaximize?: boolean
+  /** Optional panel presented by the shared header's back action. */
+  backPanelId?: string
 }
 
 /** Resolves one panel slot from domain-owned scope; null means the slot has no identity. */
@@ -78,6 +83,8 @@ export interface RightPanelState {
   paneResizing: boolean
   /** Increments when a user-initiated action opens the panel from closed. */
   userOpenSeq: number
+  /** Spatial relationship used when presenting the selected panel. */
+  panelTransition: RightPanelTransition
   pdfLayoutPending: boolean
   pdfLayoutRefreshKey: number
   isActive: (panelId: string) => boolean
@@ -86,6 +93,8 @@ export interface RightPanelState {
 export interface RightPanelOpenOptions {
   /** Marks a direct user action on a panel-open entry point (button/shortcut). */
   userInitiated?: boolean
+  /** Explains the spatial relationship between the current and requested panel. */
+  transition?: RightPanelTransition
 }
 
 export interface RightPanelActions {
@@ -100,6 +109,7 @@ export interface RightPanelActions {
 
 interface RightPanelControllerActions extends RightPanelActions {
   completeLayoutAnimation: (mode: RightPaneLayoutMode) => void
+  completePanelTransition: (transition: RightPanelTransition) => void
   toggleMaximized: () => void
   reportFullWidthPhase: (active: boolean) => void
   reportPaneResizing: (active: boolean) => void
@@ -210,6 +220,7 @@ export function RightPanelProvider<TScope>({
   const [fullWidthActive, setFullWidthActive] = useState(false)
   const [paneResizing, setPaneResizing] = useState(false)
   const [userOpenSeq, setUserOpenSeq] = useState(0)
+  const [panelTransition, setPanelTransition] = useState<RightPanelTransition>('replace')
   const [pdfLayoutPending, setPdfLayoutPending] = useState(false)
   const [pdfLayoutRefreshKey, setPdfLayoutRefreshKey] = useState(0)
   const [mountedInstances, setMountedInstances] = useState<ReadonlyMap<string, string>>(() => new Map())
@@ -235,6 +246,7 @@ export function RightPanelProvider<TScope>({
 
     openRef.current = defaultOpen
     setOpen(defaultOpen)
+    setPanelTransition('replace')
     if (defaultOpen) {
       if (userIntent) setUserOpenSeq((seq) => seq + 1)
       setRequestedPanelId(defaultPanelId)
@@ -285,6 +297,7 @@ export function RightPanelProvider<TScope>({
   const requestOpen = useCallback((panelId: string, options?: RightPanelOpenOptions) => {
     const wasOpen = openRef.current
     openRef.current = true
+    setPanelTransition(options?.transition ?? 'replace')
     setRequestedPanelId(panelId)
     setOpen(true)
     if (!wasOpen) {
@@ -305,6 +318,7 @@ export function RightPanelProvider<TScope>({
     if (!openRef.current) return
     openRef.current = false
     setOpen(false)
+    setPanelTransition('replace')
     setMaximized(false)
     setPdfLayoutPending(false)
     onOpenChangeRef.current?.(false)
@@ -325,6 +339,9 @@ export function RightPanelProvider<TScope>({
     setPdfLayoutPending(false)
     setPdfLayoutRefreshKey((key) => key + 1)
   }, [])
+  const completePanelTransition = useCallback((transition: RightPanelTransition) => {
+    setPanelTransition((current) => (current === transition ? 'replace' : current))
+  }, [])
   const reportFullWidthPhase = useCallback((active: boolean) => setFullWidthActive(active), [])
   const reportPaneResizing = useCallback((active: boolean) => setPaneResizing(active), [])
 
@@ -341,6 +358,7 @@ export function RightPanelProvider<TScope>({
       fullWidthActive,
       paneResizing,
       userOpenSeq,
+      panelTransition,
       pdfLayoutPending,
       pdfLayoutRefreshKey,
       isActive
@@ -353,6 +371,7 @@ export function RightPanelProvider<TScope>({
       isActive,
       layoutAnimationPending,
       maximized,
+      panelTransition,
       paneResizing,
       pdfLayoutPending,
       pdfLayoutRefreshKey,
@@ -370,6 +389,7 @@ export function RightPanelProvider<TScope>({
       close,
       minimize,
       completeLayoutAnimation,
+      completePanelTransition,
       toggleMaximized,
       reportFullWidthPhase,
       reportPaneResizing
@@ -378,6 +398,7 @@ export function RightPanelProvider<TScope>({
       canOpen,
       close,
       completeLayoutAnimation,
+      completePanelTransition,
       minimize,
       reportFullWidthPhase,
       reportPaneResizing,
@@ -472,8 +493,19 @@ export function RightPanelHeaderControls({ canMaximize = false }: { canMaximize?
   )
 }
 
-function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolean; title?: ReactNode }) {
+function RightPanelHeader({
+  backPanelId,
+  canMaximize = false,
+  title
+}: {
+  backPanelId?: string
+  canMaximize?: boolean
+  title?: ReactNode
+}) {
   const state = useRightPanelState()
+  const actions = useRightPanelActions()
+  const { t } = useTranslation()
+  const backLabel = t('common.back')
 
   return (
     <div
@@ -482,10 +514,23 @@ function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolea
         'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-2 [-webkit-app-region:no-drag]',
         state.presentationMaximized && 'bg-card'
       )}>
-      <div
-        data-testid="shell-tab-title"
-        className="min-w-0 flex-1 truncate px-1 text-sm font-medium text-foreground select-none">
-        {title}
+      <div className="flex min-w-0 flex-1 items-center gap-0.5">
+        {backPanelId ? (
+          <Tooltip content={backLabel} delay={800}>
+            <NavbarIcon
+              tone="conversation"
+              className="shrink-0 [&_svg]:!size-3.5"
+              aria-label={backLabel}
+              onClick={() => actions.tryOpen(backPanelId, { userInitiated: true, transition: 'backward' })}>
+              <ArrowLeft />
+            </NavbarIcon>
+          </Tooltip>
+        ) : null}
+        <div
+          data-testid="shell-tab-title"
+          className="min-w-0 flex-1 overflow-hidden px-1 text-sm font-medium text-foreground select-none">
+          {title}
+        </div>
       </div>
       <RightPanelHeaderControls canMaximize={canMaximize} />
     </div>
@@ -495,19 +540,44 @@ function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolea
 function RightPanelEntry({
   active,
   entry,
-  scope
+  onTransitionComplete,
+  scope,
+  transition
 }: {
   active: boolean
   entry: ResolvedRightPanelEntry
+  onTransitionComplete: (transition: RightPanelTransition) => void
   scope: unknown
+  transition: RightPanelTransition
 }) {
   const [renderFailed, setRenderFailed] = useState(false)
   const Panel = entry.component
   const showFallbackHeader = renderFailed && entry.headerMode === 'content'
+  const directionalTransition = active && transition !== 'replace'
+
+  useEffect(() => {
+    if (!directionalTransition) return
+    const timeoutId = window.setTimeout(() => onTransitionComplete(transition), PANEL_TRANSITION_FALLBACK_MS)
+    return () => window.clearTimeout(timeoutId)
+  }, [directionalTransition, onTransitionComplete, transition])
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      {showFallbackHeader ? <RightPanelHeader canMaximize={entry.canMaximize} title={entry.title} /> : null}
+    <div
+      data-panel-transition={transition}
+      onAnimationEnd={(event) => {
+        if (!directionalTransition || event.target !== event.currentTarget) return
+        onTransitionComplete(transition)
+      }}
+      className={cn(
+        'flex h-full min-h-0 flex-col overflow-hidden motion-reduce:animate-none',
+        directionalTransition &&
+          'motion-safe:fade-in-0 motion-safe:animate-in motion-safe:duration-200 motion-safe:ease-out motion-safe:will-change-transform [&_[data-slot=accordion-content]]:[animation-duration:0ms]!',
+        active && transition === 'forward' && 'motion-safe:slide-in-from-right-6',
+        active && transition === 'backward' && 'motion-safe:slide-in-from-left-6'
+      )}>
+      {showFallbackHeader ? (
+        <RightPanelHeader backPanelId={entry.backPanelId} canMaximize={entry.canMaximize} title={entry.title} />
+      ) : null}
       <div className="min-h-0 flex-1 overflow-hidden">
         <ErrorBoundary onError={() => setRenderFailed(true)}>
           <Panel active={active} panelId={entry.id} scope={scope} />
@@ -526,6 +596,7 @@ export function RightPanel() {
   const context = use(RightPanelRenderContext)
   if (!context) throw new Error('RightPanel must be used within <RightPanelProvider>')
   const state = useRightPanelState()
+  const actions = useRightPanelControllerActions()
   const mountedEntries = context.entries.filter(
     (entry) => context.mountedInstances.get(entry.id) === entry.instanceKey && entry.readiness !== 'unavailable'
   )
@@ -534,14 +605,24 @@ export function RightPanel() {
   return (
     <div className="flex h-full flex-col gap-0 overflow-hidden text-card-foreground">
       {activeEntry?.headerMode === 'content' ? null : (
-        <RightPanelHeader canMaximize={activeEntry?.canMaximize} title={activeEntry?.title} />
+        <RightPanelHeader
+          backPanelId={activeEntry?.backPanelId}
+          canMaximize={activeEntry?.canMaximize}
+          title={activeEntry?.title}
+        />
       )}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {mountedEntries.map((entry) => {
           const active = state.isActive(entry.id)
           return (
             <Activity key={`${entry.id}:${entry.instanceKey}`} mode={active ? 'visible' : 'hidden'}>
-              <RightPanelEntry active={active} entry={entry} scope={context.scope} />
+              <RightPanelEntry
+                active={active}
+                entry={entry}
+                onTransitionComplete={actions.completePanelTransition}
+                scope={context.scope}
+                transition={active ? state.panelTransition : 'replace'}
+              />
             </Activity>
           )
         })}

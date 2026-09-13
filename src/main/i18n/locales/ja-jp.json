@@ -1,6 +1,7 @@
 {
   "agent.builtin.cherry_assistant.description": "Cherry Studio 内蔵のアドバイザーです。問題の診断、操作案内、FAQ の収集、バグや機能リクエストの送信、スキルの検索と作成を行います。",
   "agent.builtin.cherry_support.description": "設定案内、トラブル診断、FAQ、フィードバックに対応する Cherry Studio 公式サポート Agent",
+  "agent.session.background_bash.output_truncated": "[出力を省略しました: {{omittedBytes}} バイト省略]",
   "agent.session.new": "新しいタスク",
   "agent.session.run_status.busy": "Agent セッションは処理中です。しばらくしてからもう一度お試しください。",
   "agent.session.run_status.unavailable": "Agent セッションは利用できなくなりました。",

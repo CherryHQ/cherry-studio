@@ -1,6 +1,7 @@
 {
   "agent.builtin.cherry_assistant.description": "Cherry Studio 内置使用顾问。诊断问题、引导操作、收录 FAQ、提交 Bug/需求、搜索和创建 Skills",
   "agent.builtin.cherry_support.description": "Cherry Studio 问题反馈 Agent，提供答疑解惑、使用帮助、问题排查和反馈提交",
+  "agent.session.background_bash.output_truncated": "[输出已截断：已省略 {{omittedBytes}} 字节]",
   "agent.session.new": "新任务",
   "agent.session.run_status.busy": "Agent 会话正忙，请稍后重试。",
   "agent.session.run_status.unavailable": "Agent 会话已不可用。",
