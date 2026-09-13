@@ -84,8 +84,6 @@ export default defineCreator({
     { pattern: '(\\w+-)?deepseek-v3(?:\\.\\d|-\\d)(?:(\\.|-)(?!speciale$)\\w+)?$' },
     { pattern: 'deepseek-chat' },
     { pattern: 'deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?(?:-[\\w]+)*(?=$|[:/])' },
-    { pattern: 'deepseek-v3\\.2-speciale' },
-    // models.dev lists the rolling V4.1 Flash alias as a bare `deepseek-flash` SKU.
-    { pattern: '^deepseek-flash$' }
+    { pattern: 'deepseek-v3\\.2-speciale' }
   ]
 })
