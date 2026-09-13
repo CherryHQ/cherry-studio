@@ -4962,6 +4962,7 @@
   "settings.tool.websearch.provider_description.parallel": "API de căutare web pentru agenți AI, care returnează linkuri clasificate și extrase dense în informații.",
   "settings.tool.websearch.provider_description.querit": "Serviciu de căutare pentru aplicații AI cu rezultate de recuperare web.",
   "settings.tool.websearch.provider_description.searxng": "Motor de metacăutare gratuit pe internet, auto-găzduibil, care caută în multe surse.",
+  "settings.tool.websearch.provider_description.serply": "API de căutare Serply care returnează rezultatele Google ca JSON structurat pentru aplicații AI.",
   "settings.tool.websearch.provider_description.tavily": "Motor de căutare optimizat pentru LLM-uri.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Căutare Web pentru recuperare în timp real și informații actualizate.",
   "settings.tool.websearch.search_max_result.label": "Număr de rezultate căutare",
