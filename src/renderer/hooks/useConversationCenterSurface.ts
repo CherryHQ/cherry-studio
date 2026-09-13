@@ -7,7 +7,6 @@ export type ConversationCenterSurface<TResourceKind extends string> =
       type: 'resource'
     }
   | {
-      conversationKey: string
       type: 'history'
     }
 
@@ -28,7 +27,10 @@ export function useConversationCenterSurface<TResourceKind extends string>({
     active?.type === 'resource'
       ? resourceKinds.some((resourceKind) => resourceKind === active.kind)
       : active?.type === 'history'
-  const activeSurface = !disabled && active?.conversationKey === conversationKey && activeResourceExists ? active : null
+  const activeSurface =
+    !disabled && activeResourceExists && (active?.type === 'history' || active?.conversationKey === conversationKey)
+      ? active
+      : null
   const activeResourceKind = activeSurface?.type === 'resource' ? activeSurface.kind : null
   const historyActive = activeSurface?.type === 'history'
 
@@ -44,7 +46,7 @@ export function useConversationCenterSurface<TResourceKind extends string>({
       }
 
       setActive((current) =>
-        current?.conversationKey === conversationKey && current.type === 'resource' && current.kind === kind
+        current?.type === 'resource' && current.conversationKey === conversationKey && current.kind === kind
           ? null
           : { conversationKey, kind, type: 'resource' }
       )
@@ -58,20 +60,17 @@ export function useConversationCenterSurface<TResourceKind extends string>({
       return
     }
 
-    setActive((current) =>
-      current?.conversationKey === conversationKey && current.type === 'history'
-        ? null
-        : { conversationKey, type: 'history' }
-    )
-  }, [conversationKey, disabled])
+    setActive((current) => (current?.type === 'history' ? null : { type: 'history' }))
+  }, [disabled])
 
   useEffect(() => {
     if (!active) return
 
     const activeStillValid =
       !disabled &&
-      active.conversationKey === conversationKey &&
-      (active.type === 'history' || resourceKinds.some((resourceKind) => resourceKind === active.kind))
+      (active.type === 'history' ||
+        (active.conversationKey === conversationKey &&
+          resourceKinds.some((resourceKind) => resourceKind === active.kind)))
 
     if (activeStillValid) return
     setActive(null)

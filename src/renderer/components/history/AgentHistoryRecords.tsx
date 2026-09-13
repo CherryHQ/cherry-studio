@@ -34,11 +34,18 @@ import { useHistoryRecordsController } from './useHistoryRecordsController'
 interface AgentHistoryRecordsProps {
   activeRecordId?: string | null
   onClose: () => void
-  onRecordSelect?: (sessionId: string | null) => void
+  onRecordSelect?: (sessionId: string) => void
+  onActiveRecordChange?: (sessionId: string | null) => void
   toolbarLeading?: ReactNode
 }
 
-const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarLeading }: AgentHistoryRecordsProps) => {
+const AgentHistoryRecords = ({
+  activeRecordId,
+  onClose,
+  onRecordSelect,
+  onActiveRecordChange: onActiveSessionChange,
+  toolbarLeading
+}: AgentHistoryRecordsProps) => {
   const { t } = useTranslation()
   const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('agents')
@@ -117,10 +124,10 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
           id,
           (session) => session.id
         )
-        onRecordSelect?.(nextSession?.id ?? null)
+        onActiveSessionChange?.(nextSession?.id ?? null)
       }
     },
-    [activeRecordId, deleteSession, isSessionPinned, onRecordSelect, timeSortedSessions]
+    [activeRecordId, deleteSession, isSessionPinned, onActiveSessionChange, timeSortedSessions]
   )
 
   const handleBulkDeleteSessions = useCallback(
@@ -185,8 +192,8 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     [agentById]
   )
   const onActiveRecordChange = useCallback(
-    (session: SessionListItem | null) => onRecordSelect?.(session?.id ?? null),
-    [onRecordSelect]
+    (session: SessionListItem | null) => onActiveSessionChange?.(session?.id ?? null),
+    [onActiveSessionChange]
   )
   const rowDescriptor = useMemo(
     () => ({
