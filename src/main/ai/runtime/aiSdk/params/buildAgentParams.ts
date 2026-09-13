@@ -592,10 +592,16 @@ function buildAgentOptions(
     }
 
     if (Object.keys(customParameters.providerParams).length > 0) {
-      const customBodyParams = selectCustomBodyParameters(customParameters.providerParams, providerOptions, provider.id)
+      // Wire-named sampling (`top_p`) bypasses the camelCase standard params — gate it before
+      // it reaches either the body passthrough or the providerOptions merge.
+      const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
+      const providerParams = acceptsTopP
+        ? customParameters.providerParams
+        : Object.fromEntries(Object.entries(customParameters.providerParams).filter(([k]) => k !== 'top_p'))
+      const customBodyParams = selectCustomBodyParameters(providerParams, providerOptions, provider.id)
       providerOptions = mergeCustomProviderParameters(
         providerOptions,
-        customParameters.providerParams,
+        providerParams,
         provider.id,
         sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )

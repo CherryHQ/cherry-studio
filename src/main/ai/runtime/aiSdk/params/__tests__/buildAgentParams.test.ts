@@ -712,6 +712,66 @@ describe('buildAgentParams standard model parameters', () => {
     expect(result.options.temperature).toBe(0.3)
   })
 
+  // The wire-named form (`top_p`) never enters the camelCase standard params — it rides the
+  // provider-params paths (body passthrough + providerOptions merge), so gate it there too.
+  it('drops a wire-named top_p custom parameter for a model that rejects sampling', async () => {
+    const bodies: string[] = []
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai-compatible',
+        providerSettings: {
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            bodies.push(String(init?.body))
+            return Response.json({})
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' } }
+    })
+    const model = makeModel({
+      id: 'dashscope::kimi-k3',
+      providerId: 'dashscope',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        customParameters: [
+          { name: 'top_p', type: 'number', value: 0.9 },
+          { name: 'user', type: 'string', value: 'probe-user' }
+        ]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(JSON.stringify(result.options.providerOptions ?? {})).not.toContain('top_p')
+    await result.sdkConfig.providerSettings.fetch!('http://mock.test/v1/chat', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'kimi-k3', messages: [] })
+    })
+    expect(bodies).toHaveLength(1)
+    const body = JSON.parse(bodies[0])
+    expect(body.user).toBe('probe-user')
+    expect(body).not.toHaveProperty('top_p')
+  })
+
   it('subtracts the effective API Gateway thinking override from the caller total-token cap', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 
