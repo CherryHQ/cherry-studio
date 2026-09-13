@@ -64,9 +64,14 @@ function loadState(scopeKey: string): FollowupQueueState {
             userMessageParts?: unknown
             mentionedModels?: unknown
           }
+          // Null elements throw on property access downstream (`part.type` in the
+          // knowledge-base extractor, `attachment.path` in file-part building).
+          const isObjectList = (value: unknown): value is object[] =>
+            Array.isArray(value) &&
+            value.every((element) => element !== null && typeof element === 'object' && !Array.isArray(element))
           return (
-            (queuePayload.attachments == null || Array.isArray(queuePayload.attachments)) &&
-            (queuePayload.userMessageParts == null || Array.isArray(queuePayload.userMessageParts)) &&
+            (queuePayload.attachments == null || isObjectList(queuePayload.attachments)) &&
+            (queuePayload.userMessageParts == null || isObjectList(queuePayload.userMessageParts)) &&
             (queuePayload.mentionedModels == null || Array.isArray(queuePayload.mentionedModels))
           )
         })
@@ -76,13 +81,10 @@ function loadState(scopeKey: string): FollowupQueueState {
       items.some((entry) => (entry as { id?: unknown }).id === cached.failedItemId)
         ? cached.failedItemId
         : undefined
-    // A pending claim for an absent item is inert (a previous instance's leftover) —
-    // read-time validation keeps a resurrected marker from ever blocking a drain.
-    const pendingDrainId =
-      typeof cached.pendingDrainId === 'string' &&
-      items.some((entry) => (entry as { id?: unknown }).id === cached.pendingDrainId)
-        ? cached.pendingDrainId
-        : undefined
+    // A claim is meaningful only while its send is live (see liveSends); a dangling
+    // marker names no queued item but still blocks other heads until the removed
+    // send settles, so it is kept here and validated at each drain decision.
+    const pendingDrainId = typeof cached.pendingDrainId === 'string' ? cached.pendingDrainId : undefined
     return {
       items: items as unknown as FollowupQueueItem[],
       paused: cached.paused === true,
@@ -91,6 +93,33 @@ function loadState(scopeKey: string): FollowupQueueState {
     }
   } catch {
     return { items: [], paused: false }
+  }
+}
+
+/** Sends with a promise still pending anywhere in this page, by head id. Module-level
+ * so remounted hook instances can see another instance's live send; dies on restart,
+ * which is exactly when pending sends die too. */
+const liveSends = new Set<string>()
+
+type ScopeListener = () => void
+const scopeListeners = new Map<string, Set<ScopeListener>>()
+
+function notifyScope(scopeKey: string): void {
+  const listeners = scopeListeners.get(scopeKey)
+  if (!listeners) return
+  for (const listener of [...listeners]) listener()
+}
+
+function subscribeScope(scopeKey: string, listener: ScopeListener): () => void {
+  let set = scopeListeners.get(scopeKey)
+  if (!set) {
+    set = new Set()
+    scopeListeners.set(scopeKey, set)
+  }
+  set.add(listener)
+  return () => {
+    set.delete(listener)
+    if (set.size === 0) scopeListeners.delete(scopeKey)
   }
 }
 
@@ -108,6 +137,7 @@ function persistState(
     ...(pendingDrainId ? { pendingDrainId } : {})
   }
   cacheService.setCasual(keyFor(scopeKey), next, QUEUE_TTL)
+  notifyScope(scopeKey)
 }
 
 /**
@@ -118,9 +148,9 @@ function persistState(
  */ function removeIdFromScope(targetScope: string, id: string): void {
   const entry = loadState(targetScope)
   const hasId = entry.items.some((item) => item.id === id)
-  // A claim for the removed head must go with it, or a remounted hook would treat
-  // the id as still owned and skip draining it forever.
-  const clearsMarker = entry.pendingDrainId === id
+  // A claim for the removed head goes with it — unless it is live, in which case
+  // a newer send owns it and only its settle may release it.
+  const clearsMarker = entry.pendingDrainId === id && !liveSends.has(id)
   if (!hasId && !clearsMarker && entry.failedItemId !== id) return
   const failedResolved = entry.failedItemId === id
   persistState(
@@ -133,15 +163,30 @@ function persistState(
 }
 
 /**
- * Release one scope's durable send-claim without dequeuing anything. Used when a
- * stale send fails: nothing was transmitted so the head must stay queued, but the
- * marker has to go — otherwise returning to the scope later would treat the head
- * as still owned and skip draining it forever.
+ * Release one scope's durable send-claim without dequeuing anything. Never touches
+ * a live marker: that claim belongs to a newer send whose settle owns the outcome.
  */
 function clearPendingInScope(targetScope: string, id: string): void {
   const entry = loadState(targetScope)
-  if (entry.pendingDrainId !== id) return
+  if (entry.pendingDrainId !== id || liveSends.has(id)) return
   persistState(targetScope, entry.items, entry.paused, entry.failedItemId ?? null, null)
+}
+
+/**
+ * Record an honest failure for a head whose send settled after its hook moved on.
+ * Only applies when the head is still queued in that scope (a removed head stays
+ * removed); subscribers reload the banner instead of stalling silently.
+ */
+function writeFailureToScope(targetScope: string, id: string): void {
+  const entry = loadState(targetScope)
+  // A live marker means a newer send for this head is still pending: it owns the
+  // outcome, so a stale failure must not pause the queue or steal its claim.
+  if (entry.pendingDrainId === id && liveSends.has(id)) return
+  if (!entry.items.some((item) => item.id === id)) {
+    clearPendingInScope(targetScope, id)
+    return
+  }
+  persistState(targetScope, entry.items, true, id, null)
 }
 
 interface UseFollowupQueueParams {
@@ -247,14 +292,14 @@ export function useFollowupQueue({
 
   const persist = useCallback((next: FollowupQueueState, failedId?: string | null) => {
     const fid = failedId !== undefined ? failedId : failedItemIdRef.current
-    const pending = pendingDrainIdRef.current
-    persistState(
-      scopeKeyRef.current,
-      next.items,
-      next.paused,
-      fid,
-      pending && next.items.some((item) => item.id === pending) ? pending : null
-    )
+    // The durable claim survives even when its head left the queue (removed head's
+    // send still pending): drains stay serialized until that send settles and the
+    // stale path releases the marker. Prefer this instance's own claim, but never
+    // drop another instance's live claim with an unrelated write.
+    const own = pendingDrainIdRef.current
+    const liveMarker = loadState(scopeKeyRef.current).pendingDrainId ?? null
+    const pending = own ?? (liveMarker && liveSends.has(liveMarker) ? liveMarker : null)
+    persistState(scopeKeyRef.current, next.items, next.paused, fid, pending)
   }, [])
 
   // Mark the head as failed and auto-pause; the user resolves it via the dock (Skip/Retry/Abort).
@@ -281,6 +326,8 @@ export function useFollowupQueue({
       const last = lastDrainRef.current
       // A replacement send for the same head started after us: it owns the claim
       // and the entry — its own settle applies the outcome, so leave both alone.
+      // (A newer send for a *different* head changes nothing about ours: entry
+      // helpers below stay scoped to our id, and the live-claim guards are too.)
       if (last !== null && last.id === head.id && last.seq !== seq) return
       const liveHasHead =
         mountedRef.current &&
@@ -301,9 +348,10 @@ export function useFollowupQueue({
         if (drainingIdRef.current === head.id) setDraining(null)
         failHeadRef.current(head.id)
       } else {
-        // Nothing was sent and the head isn't live here either: leave the queue
-        // alone, but release the durable claim so the scope can drain on return.
-        clearPendingInScope(drainScope, head.id)
+        // Nothing was sent and the head isn't live here: a queued head gets an
+        // honest persisted failure (subscribers reload the banner instead of
+        // stalling silently); a removed head just releases its durable claim.
+        writeFailureToScope(drainScope, head.id)
         if (drainingIdRef.current === head.id) setDraining(null)
       }
     },
@@ -323,9 +371,13 @@ export function useFollowupQueue({
         removeIdRef.current(head.id)
         return
       }
-      // Another instance's send owns this head until it settles (and dequeues it):
-      // starting our own would submit the payload twice.
-      if (entry.pendingDrainId === head.id) return
+      const marker = entry.pendingDrainId ?? null
+      // A live claim — ours tracked above, another instance's here — owns this head
+      // until it settles; starting our own would submit the payload twice. A live
+      // claim for a removed head likewise blocks the next item until that send
+      // settles, keeping one send in flight per queue.
+      if (marker && liveSends.has(marker)) return
+      if (marker) clearPendingInScope(liveScope, marker)
       setDraining(head.id)
       // Durably claim the head so a remounted instance won't send it concurrently.
       pendingDrainIdRef.current = head.id
@@ -335,14 +387,20 @@ export function useFollowupQueue({
       const seq = (drainSeqRef.current += 1)
       lastDrainRef.current = { id: head.id, seq }
       inflightRef.current.set(head.id, seq)
+      liveSends.add(head.id)
       const settleInflight = () => {
         if (inflightRef.current.get(head.id) === seq) inflightRef.current.delete(head.id)
+        liveSends.delete(head.id)
+      }
+      // Only this send may release the ref mirror: a newer send for another scope
+      // reuses the same ref, and a blind clear would drop its durable claim.
+      const releasePendingRef = () => {
+        if (pendingDrainIdRef.current === head.id) pendingDrainIdRef.current = null
       }
       void onDrainRef.current(head.payload).then(
         (sent) => {
           settleInflight()
-          // Release the durable claim first so every persist below drops the marker.
-          pendingDrainIdRef.current = null
+          releasePendingRef()
           if (drainEpochRef.current !== epoch) {
             settleStale(head, drainScope, seq, sent ? 'sent' : 'unsent')
             return
@@ -353,7 +411,7 @@ export function useFollowupQueue({
         },
         () => {
           settleInflight()
-          pendingDrainIdRef.current = null
+          releasePendingRef()
           if (drainEpochRef.current !== epoch) {
             settleStale(head, drainScope, seq, 'unsent')
             return
@@ -365,6 +423,34 @@ export function useFollowupQueue({
     },
     [persist, setDraining, settleStale]
   )
+
+  // Reload live state from the persisted entry (cross-instance sync). The entry is
+  // the source of truth — every mutation persists synchronously — so converging
+  // to it can only drop state another instance already settled. Never touches the
+  // live send claim, which belongs to this instance's in-flight sends.
+  const syncFromEntry = useCallback(() => {
+    const scope = scopeKeyRef.current
+    const next = loadState(scope)
+    stateRef.current = { items: next.items, paused: next.paused }
+    failedItemIdRef.current = next.failedItemId ?? null
+    pendingDrainIdRef.current = next.pendingDrainId ?? null
+    setFailedItemId(next.failedItemId ?? null)
+    setState({ items: next.items, paused: next.paused })
+  }, [])
+
+  // Cross-instance sync + dead-claim reconcile for the active scope. A marker whose
+  // send is no longer live anywhere in this page (crashed owner) would otherwise
+  // block the head forever — and there is nothing left that could clear it.
+  useEffect(() => {
+    const scope = scopeKeyRef.current
+    const entry = loadState(scope)
+    if (entry.pendingDrainId && !liveSends.has(entry.pendingDrainId)) {
+      clearPendingInScope(scope, entry.pendingDrainId)
+    }
+    return subscribeScope(scope, () => {
+      if (mountedRef.current) syncFromEntry()
+    })
+  }, [scopeKey, syncFromEntry])
 
   // A late-settling send must not apply to whatever a remounted hook loads next.
   useEffect(() => {
@@ -399,6 +485,7 @@ export function useFollowupQueue({
       // drain a stale head through the new conversation's completion edge.
       const targetScope = scopeKey
       queueMicrotask(() => {
+        if (!mountedRef.current) return
         if (scopeKeyRef.current !== targetScope) return
         if (!isFulfilledRef.current) return
         if (failedItemIdRef.current || drainingIdRef.current !== null) return
@@ -517,24 +604,44 @@ export function useFollowupQueue({
 
   // Shared exclusive claim between the auto-drain paths and manual steers: only one
   // send may be in flight per queue, whichever path started it.
+  const manualClaimRef = useRef<{ id: string; scope: string } | null>(null)
   const tryClaimSend = useCallback(
     (id: string) => {
       // A pending auto-drain for the same payload blocks a manual steer of it, as does
       // a head the persisted entry no longer holds (settled + dequeued by a previous
-      // hook instance after unmount — steering it would resend an already-sent payload)
-      // or one another instance's send still owns (durable claim).
+      // hook instance after unmount — steering it would resend an already-sent payload).
       if (drainingIdRef.current !== null || inflightRef.current.has(id)) return false
-      const entry = loadState(scopeKeyRef.current)
+      const claimScope = scopeKeyRef.current
+      const entry = loadState(claimScope)
       if (!entry.items.some((item) => item.id === id)) return false
-      if (entry.pendingDrainId === id) return false
+      const marker = entry.pendingDrainId ?? null
+      if (marker && liveSends.has(marker)) return false
       setDraining(id)
+      // Durably claim the steered head too: a remount or scope switch while the
+      // manual send is pending must not auto-send the same payload again.
+      pendingDrainIdRef.current = id
+      manualClaimRef.current = { id, scope: claimScope }
+      liveSends.add(id)
+      persist(stateRef.current)
       return true
     },
-    [setDraining]
+    [persist, setDraining]
   )
   const releaseSend = useCallback(
     (id: string) => {
       if (drainingIdRef.current === id) setDraining(null)
+      liveSends.delete(id)
+      const claim = manualClaimRef.current
+      manualClaimRef.current = null
+      // Scrub the durable claim from the scope it was taken in (which may differ
+      // from the current scope after a switch); id-guarded so a newer send's
+      // claim is never touched.
+      if (claim && claim.id === id) {
+        if (pendingDrainIdRef.current === id) pendingDrainIdRef.current = null
+        clearPendingInScope(claim.scope, id)
+      } else if (pendingDrainIdRef.current === id) {
+        pendingDrainIdRef.current = null
+      }
     },
     [setDraining]
   )
