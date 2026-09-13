@@ -1,10 +1,11 @@
 import { bearer } from '@elysia/bearer'
+import { Elysia } from 'elysia'
+
 import {
   formatGatewayModelId,
   parseAntigravityGatewayModelPath,
   parseGeminiGatewayModelId
 } from '@shared/utils/apiGateway'
-import { Elysia } from 'elysia'
 
 import { googleEnvelope } from '../errors'
 import { authorizeApiRequest } from '../middleware/auth'
@@ -98,7 +99,7 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
           }
         }
         return {
-          totalTokens: await estimateGeminiRequestTokens(body as InputParamsMap['gemini'], countModel, request.signal)
+          totalTokens: await estimateGeminiRequestTokens(body, countModel, request.signal)
         }
       }
 

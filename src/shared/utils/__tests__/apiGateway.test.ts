@@ -67,7 +67,11 @@ describe('formatGatewayModelId', () => {
 
   it('rejects a malformed reserved tag instead of falling back to legacy parsing', () => {
     expect(() => parseGeminiGatewayModelId('cherry-gw-v1.not-base64@cherry')).toThrow(/Invalid Gemini gateway model/)
+    expect(() => parseGeminiGatewayModelId('cherry-gw-v2.future@cherry')).toThrow(/Invalid Gemini gateway model/)
     expect(() => parseAntigravityGatewayModelPath('cherry-gw-v1/models/not-base64')).toThrow(
+      /Invalid Antigravity gateway model/
+    )
+    expect(() => parseAntigravityGatewayModelPath('cherry-gw-v2/models/foo')).toThrow(
       /Invalid Antigravity gateway model/
     )
   })

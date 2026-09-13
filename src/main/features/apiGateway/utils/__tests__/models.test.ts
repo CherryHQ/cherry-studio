@@ -176,14 +176,31 @@ describe('api gateway model listing', () => {
     expect(() => resolveGeminiGatewayModelAddress('team/models/west:model')).toThrow(
       /Ambiguous legacy gateway model address/
     )
+  })
 
-    catalog.clear()
-    catalog.set('cherry-gw-v1', ['gemini-2.5-pro'])
-    expect(resolveGeminiGatewayModelAddress('cherry-gw-v1/models/gemini-2.5-pro')).toBe('cherry-gw-v1:gemini-2.5-pro')
+  it.each([
+    ['cherry-gw-v1/models/not-base64', 'cherry-gw-v1', 'not-base64'],
+    ['cherry-gw-v2/models/foo', 'cherry-gw-v2', 'foo'],
+    ['cherry-gw-v1.foo/models/bar@cherry', 'cherry-gw-v1.foo', 'bar@cherry'],
+    ['cherry-gw-v2.foo/models/bar@cherry', 'cherry-gw-v2.foo', 'bar@cherry']
+  ])('rejects reserved address %s even when its legacy interpretation exists', (address, providerId, apiModelId) => {
+    mocks.getProvider.mockImplementation((id: string) => {
+      if (id !== providerId) throw new Error('Provider not found')
+      return { id, name: id, isEnabled: true }
+    })
+    mocks.listModels.mockImplementation(({ providerId: id }: { providerId: string }) =>
+      id === providerId
+        ? [{ id: `${id}::${apiModelId}`, providerId: id, apiModelId, capabilities: [], isEnabled: true }]
+        : []
+    )
 
-    catalog.clear()
-    catalog.set('cherry-gw-v2', ['future-model'])
-    expect(resolveGeminiGatewayModelAddress('cherry-gw-v2/models/future-model')).toBe('cherry-gw-v2:future-model')
+    expect(() => resolveGeminiGatewayModelAddress(address)).toThrow(
+      /Invalid (Gemini|Antigravity) gateway model address/
+    )
+    expect(resolveGeminiGatewayModelAddress(`${providerId}:${apiModelId}`)).toBe(`${providerId}:${apiModelId}`)
+    expect(resolveGeminiGatewayModelAddress(formatAntigravityGatewayModelPath(providerId, apiModelId))).toBe(
+      `${providerId}:${apiModelId}`
+    )
   })
 
   // The listing shares isGatewayRoutableModel with the renderer's gateway picker: it must never

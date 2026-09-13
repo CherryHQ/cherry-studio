@@ -1,5 +1,6 @@
-import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { Base64 } from 'js-base64'
+
+import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 
 export interface GatewayModelAddress {
   readonly providerId: string
@@ -99,17 +100,19 @@ export function formatGeminiGatewayModelId(providerId: string, apiModelId: strin
   return `${GEMINI_GATEWAY_MODEL_PREFIX}${encodeGatewayModelAddress(providerId, apiModelId)}${GEMINI_GATEWAY_MODEL_SUFFIX}`
 }
 
-/** Parse the v1 gemini-cli form, or return `undefined` when the value uses another grammar. */
+/**
+ * Parse the v1 gemini-cli form, or return `undefined` for another grammar.
+ * @throws If a recognized versioned address is malformed or uses an unsupported version.
+ */
 export function parseGeminiGatewayModelId(value: string): GatewayModelAddress | undefined {
   const versionedPrefix = value.match(VERSIONED_GEMINI_GATEWAY_PREFIX)?.[0]
   if (!versionedPrefix || !value.endsWith(GEMINI_GATEWAY_MODEL_SUFFIX)) return undefined
   const candidatePayload = value.slice(versionedPrefix.length, -GEMINI_GATEWAY_MODEL_SUFFIX.length)
   if (candidatePayload.includes(':')) return undefined
-  if (!value.startsWith(GEMINI_GATEWAY_MODEL_PREFIX) || !value.endsWith(GEMINI_GATEWAY_MODEL_SUFFIX)) {
+  if (!value.startsWith(GEMINI_GATEWAY_MODEL_PREFIX)) {
     throw new Error('Invalid Gemini gateway model address')
   }
-  const payload = value.slice(GEMINI_GATEWAY_MODEL_PREFIX.length, -GEMINI_GATEWAY_MODEL_SUFFIX.length)
-  return decodeGatewayModelAddress(payload, 'Gemini')
+  return decodeGatewayModelAddress(candidatePayload, 'Gemini')
 }
 
 /** Encode the model path portion used inside Antigravity's `gemini-api://` selector. */
@@ -117,15 +120,19 @@ export function formatAntigravityGatewayModelPath(providerId: string, apiModelId
   return `${ANTIGRAVITY_GATEWAY_MODEL_PREFIX}${encodeGatewayModelAddress(providerId, apiModelId)}`
 }
 
-/** Parse the v1 Antigravity path, or return `undefined` when the value uses another grammar. */
+/**
+ * Parse the v1 Antigravity path, or return `undefined` for another grammar.
+ * @throws If a recognized versioned address is malformed or uses an unsupported version.
+ */
 export function parseAntigravityGatewayModelPath(value: string): GatewayModelAddress | undefined {
   const versionedPrefix = value.match(VERSIONED_ANTIGRAVITY_GATEWAY_PREFIX)?.[0]
   if (!versionedPrefix) return undefined
-  if (value.slice(versionedPrefix.length).includes(':')) return undefined
+  const candidatePayload = value.slice(versionedPrefix.length)
+  if (candidatePayload.includes(':')) return undefined
   if (!value.startsWith(ANTIGRAVITY_GATEWAY_MODEL_PREFIX)) {
     throw new Error('Invalid Antigravity gateway model address')
   }
-  return decodeGatewayModelAddress(value.slice(ANTIGRAVITY_GATEWAY_MODEL_PREFIX.length), 'Antigravity')
+  return decodeGatewayModelAddress(candidatePayload, 'Antigravity')
 }
 
 /** Parse the old suffix wrapper as one compatibility candidate. */

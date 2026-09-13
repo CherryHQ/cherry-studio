@@ -1,5 +1,6 @@
-import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 
 /**
  * Integration tests that drive the real Elysia app via `app.handle(Request)`.
