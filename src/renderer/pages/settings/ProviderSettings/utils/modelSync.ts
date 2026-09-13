@@ -55,12 +55,17 @@ export function toCreateModelDto(
 ): CreateModelDto {
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
+  // Unmatched models (no presetModelId) never gain capabilities from the registry read
+  // path, so the provider's own report is the only source — persist it. Matched rows
+  // stay empty and derive capabilities from the registry on every read.
+  const capabilities = !model.presetModelId && model.capabilities?.length ? model.capabilities : undefined
 
   return {
     providerId,
     modelId,
     name: model.name,
     group: model.group,
+    ...(capabilities ? { capabilities: [...capabilities] } : {}),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered rather than registry-supplied for local providers — Ollama's window comes from
     // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
