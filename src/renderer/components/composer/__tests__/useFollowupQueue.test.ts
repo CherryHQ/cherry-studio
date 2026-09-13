@@ -14,7 +14,12 @@ import { useFollowupQueue } from '../useFollowupQueue'
 
 const SCOPE = 's1'
 
-const row = (id: string, text: string, status: FollowupQueueRow['status'] = 'pending'): FollowupQueueRow => ({
+const row = (
+  id: string,
+  text: string,
+  status: FollowupQueueRow['status'] = 'pending',
+  updatedAt = '2026-01-01T00:00:00.000Z'
+): FollowupQueueRow => ({
   id,
   scopeKey: SCOPE,
   draft: { text, tokens: [] },
@@ -22,7 +27,7 @@ const row = (id: string, text: string, status: FollowupQueueRow['status'] = 'pen
   status,
   orderKey: id,
   createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z'
+  updatedAt
 })
 
 const draft = (text: string) => ({ text, tokens: [] }) as never
@@ -432,6 +437,156 @@ describe('useFollowupQueue', () => {
     expect(claimTrigger).toHaveBeenCalledTimes(2)
     expect(send).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
+  it('drains the head that arrives after the completion edge', async () => {
+    const head = row('h', 'head')
+    const refetch = vi.fn()
+    const refetchState = vi.fn()
+    const queryImpl = (rows: FollowupQueueRow[]) => (path: string) => {
+      if (path === '/followup-queues') {
+        return { data: rows, isLoading: false, isRefreshing: false, error: undefined, refetch, mutate: vi.fn() }
+      }
+      return {
+        data: { scopeKey: SCOPE, paused: false, createdAt: '', updatedAt: '' },
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: refetchState,
+        mutate: vi.fn()
+      }
+    }
+    mockUseQuery.mockImplementation(queryImpl([]))
+    const { claimTrigger, deleteTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const onDrain = vi.fn(async () => true)
+    const markSeen = vi.fn()
+
+    const { rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
+      { initialProps: { isFulfilled: true } }
+    )
+
+    await act(async () => {})
+    expect(claimTrigger).not.toHaveBeenCalled()
+    expect(markSeen).not.toHaveBeenCalled()
+
+    mockUseQuery.mockImplementation(queryImpl([head]))
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(markSeen).toHaveBeenCalled()
+    expect(onDrain).toHaveBeenCalledWith(head.payload)
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+  })
+
+  it('ignores rows from other scopes', async () => {
+    const foreign = { ...row('h', 'head'), scopeKey: 'other-topic:other-assistant' }
+    wireQuery([foreign])
+    wireMutations()
+    const markSeen = vi.fn()
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen })),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    expect(result.current.items).toEqual([])
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    expect(markSeen).not.toHaveBeenCalled()
+  })
+
+  it('refuses to remove a freshly claimed item', () => {
+    wireQuery([row('h', 'head', 'sending', new Date().toISOString())])
+    const { deleteTrigger } = wireMutations()
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    act(() => result.current.removeId('h'))
+
+    expect(deleteTrigger).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
+  it('removes a crash-orphaned sending item', () => {
+    wireQuery([row('h', 'head', 'sending', '2026-01-01T00:00:00.000Z')])
+    const { deleteTrigger } = wireMutations()
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    act(() => result.current.removeId('h'))
+
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+  })
+
+  it('takes an item for edit and drops it from the queue', () => {
+    wireQuery([row('h', 'head')])
+    const { deleteTrigger } = wireMutations()
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let taken: unknown
+    act(() => {
+      taken = result.current.takeForEdit('h')
+    })
+
+    expect((taken as { draft: { text: string } }).draft.text).toBe('head')
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+  })
+
+  it('refuses the edit take for a freshly claimed item', () => {
+    wireQuery([row('h', 'head', 'sending', new Date().toISOString())])
+    const { deleteTrigger } = wireMutations()
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let taken: unknown = 'unset'
+    act(() => {
+      taken = result.current.takeForEdit('h')
+    })
+
+    expect(taken).toBeUndefined()
+    expect(deleteTrigger).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
+  it('keeps retrying the dequeue in the background after a successful send', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimTrigger, deleteTrigger } = wireMutations()
+      claimTrigger.mockResolvedValueOnce({ claimed: true })
+      deleteTrigger.mockRejectedValue(new Error('db down'))
+      const onDrain = vi.fn(async () => true)
+
+      const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
+        initialProps: { isFulfilled: false }
+      })
+
+      await act(async () => {
+        rerender({ isFulfilled: true })
+      })
+
+      expect(onDrain).toHaveBeenCalledOnce()
+      expect(deleteTrigger).toHaveBeenCalledTimes(3)
+      expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+
+      deleteTrigger.mockResolvedValueOnce(undefined)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+
+      expect(deleteTrigger).toHaveBeenCalledTimes(4)
+      expect(onDrain).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('skips the send silently when another window wins the claim', async () => {
