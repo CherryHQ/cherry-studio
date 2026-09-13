@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import i18n, { initI18n } from '@renderer/i18n/resolver'
+import { DOCTOR_CHECK_CATALOG, DOCTOR_CHECK_IDS } from '@shared/types/doctor'
+import { doctorCheckDetailKey, doctorCheckTitleKey } from '@shared/utils/doctor'
 
 // The global renderer setup already calls initI18n(); these tests assert the
 // lazy-load contract (on-demand pack loading, fallback, idempotency) explicitly.
@@ -54,6 +56,20 @@ describe('renderer i18n lazy init', () => {
 
     expect(i18n.t('settings.doctor.summary.problems', { count: 1 })).toBe('1 item needs attention')
     expect(i18n.t('settings.doctor.summary.problems', { count: 2 })).toBe('2 items need attention')
+  })
+
+  it('defines English labels for every Doctor check and declared detail', async () => {
+    await i18n.changeLanguage('en-US')
+
+    for (const checkId of DOCTOR_CHECK_IDS) {
+      const titleKey = doctorCheckTitleKey(checkId)
+      expect(i18n.exists(titleKey), `Missing Doctor title: ${titleKey}`).toBe(true)
+
+      for (const variant of DOCTOR_CHECK_CATALOG[checkId].details) {
+        const detailKey = doctorCheckDetailKey(checkId, variant)
+        expect(i18n.exists(detailKey), `Missing Doctor detail: ${detailKey}`).toBe(true)
+      }
+    }
   })
 
   it('distinguishes quick basic checks from full checks in English and Simplified Chinese', async () => {

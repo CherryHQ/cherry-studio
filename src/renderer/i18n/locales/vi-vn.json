@@ -3984,6 +3984,8 @@
   "settings.doctor.checks.config-hardware-acceleration.detail.disabled_without_recent_crash": "Tăng tốc phần cứng đang bị tắt dù không phát hiện sự cố đồ họa nào gần đây.",
   "settings.doctor.checks.config-hardware-acceleration.title": "Tăng tốc phần cứng",
   "settings.doctor.checks.error": "Không thể hoàn tất mục kiểm tra này. Hãy thử chạy lại các mục kiểm tra.",
+  "settings.doctor.checks.install-architecture-match.detail.translated": "Bản dựng {{arch}} đang chạy qua lớp dịch ARM64. Hãy cài đặt bản dựng ARM64 gốc để có hiệu suất và khả năng tương thích tốt hơn.",
+  "settings.doctor.checks.install-architecture-match.title": "Kiến trúc cài đặt",
   "settings.doctor.checks.install-native-modules.detail.unavailable": "Một thành phần gốc bắt buộc không khả dụng.",
   "settings.doctor.checks.install-native-modules.title": "Thành phần gốc",
   "settings.doctor.checks.install-update-available.detail.available": "Hiện có phiên bản Cherry Studio mới hơn.",
