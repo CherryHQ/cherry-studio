@@ -133,6 +133,7 @@ interface TestScope {
   firstKey: string
   firstReadiness: RightPanelReadiness
   firstHeaderMode?: 'shell' | 'content'
+  firstKeepsComposerWhenMaximized?: boolean
   firstShouldThrow?: boolean
   secondReadiness: RightPanelReadiness
 }
@@ -160,7 +161,8 @@ const capabilities = [
       title: 'First',
       readiness: scope.firstReadiness,
       headerMode: scope.firstHeaderMode,
-      canMaximize: true
+      canMaximize: true,
+      keepsComposerWhenMaximized: scope.firstKeepsComposerWhenMaximized
     })
   },
   {
@@ -407,6 +409,35 @@ describe('RightPanel', () => {
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'false')
     expect(screen.getByTestId('presentation-maximized')).toHaveTextContent('false')
     expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+  })
+
+  it('drops the composer elevation for a maximized panel that owns the whole area', () => {
+    render(
+      <Harness defaultOpen scope={{ ...readyScope, firstKeepsComposerWhenMaximized: false }}>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('presentation-maximized')).toHaveTextContent('true')
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('false')
+  })
+
+  it('keeps the composer elevated above a maximized panel by default', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('true')
   })
 
   it('lets a content-composed panel replace the shell header', () => {
