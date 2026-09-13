@@ -199,7 +199,7 @@ patchedDependencies:
   '@tiptap/extension-drag-handle@3.26.1': 2f5c32153f059725f94906803079b90be2a4cf602befe45cd4f2e96652099096
   '@tiptap/extension-list@3.26.1': 584483147536f57383bef48109cf67a7798ae4c965a97009c61003a9c509898f
   '@tiptap/markdown@3.26.1': 4b825bfd4fccf96d565836b1e72fdd2526302248d66c68f43d9f6edf42b85540
-  ai@6.0.185: 61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711
+  ai@6.0.185: 1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982
   app-builder-lib@26.15.6: 0c97462468a75262cf0a035c308cc8fdf186541f4dfc637e87952fb2a2850181
   atomically@1.7.0: 657b68ae90d71dfa6230dbf3431a1c2d952f87572cd8e00e635c4f5739f7b671
   electron-updater@6.7.0: 845dead3509897d7a5aed99b4d271a244449c544b840c21bf149ff6fc907cc85
@@ -581,7 +581,7 @@ importers:
         version: 2.3.0(encoding@0.1.13)
       '@openrouter/ai-sdk-provider':
         specifier: ^2.10.0
-        version: 2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4))(zod@4.3.4)
+        version: 2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4))(zod@4.3.4)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -848,10 +848,10 @@ importers:
         version: 0.4.16
       ai:
         specifier: 6.0.185
-        version: 6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4)
+        version: 6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4)
       ai-retry:
         specifier: ^1.11.0
-        version: 1.11.1(@ai-sdk/provider-utils@4.0.50(zod@4.3.4))(@ai-sdk/provider@3.0.15)(@opentelemetry/api@1.9.0)(ai@6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4))(zod@4.3.4)
+        version: 1.11.1(@ai-sdk/provider-utils@4.0.50(zod@4.3.4))(@ai-sdk/provider@3.0.15)(@opentelemetry/api@1.9.0)(ai@6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4))(zod@4.3.4)
       ansi-to-react:
         specifier: ^6.2.6
         version: 6.2.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1154,7 +1154,7 @@ importers:
         version: 0.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       ollama-ai-provider-v2:
         specifier: 3.3.1
-        version: 3.3.1(patch_hash=d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b)(ai@6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4))(zod@4.3.4)
+        version: 3.3.1(patch_hash=d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b)(ai@6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4))(zod@4.3.4)
       open:
         specifier: ^8.4.2
         version: 8.4.2
@@ -1630,10 +1630,10 @@ importers:
         version: link:../ai-sdk-provider
       '@openrouter/ai-sdk-provider':
         specifier: ^2.10.0
-        version: 2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4))(zod@4.3.4)
+        version: 2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4))(zod@4.3.4)
       ai:
         specifier: 6.0.185
-        version: 6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4)
+        version: 6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4)
       quick-lru:
         specifier: ^5.1.1
         version: 5.1.1
@@ -16638,7 +16638,7 @@ snapshots:
   '@ai-sdk/react@3.0.187(patch_hash=8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230)(react@19.2.3)(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider-utils': 4.0.50(zod@4.3.4)
-      ai: 6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4)
+      ai: 6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4)
       react: 19.2.3
       swr: 2.3.8(react@19.2.3)
       throttleit: 2.1.0
@@ -20615,9 +20615,9 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
-  '@openrouter/ai-sdk-provider@2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4))(zod@4.3.4)':
+  '@openrouter/ai-sdk-provider@2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4))(zod@4.3.4)':
     dependencies:
-      ai: 6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4)
+      ai: 6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4)
       zod: 4.3.4
 
   '@opentelemetry/api-logs@0.200.0':
@@ -24544,16 +24544,16 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  ai-retry@1.11.1(@ai-sdk/provider-utils@4.0.50(zod@4.3.4))(@ai-sdk/provider@3.0.15)(@opentelemetry/api@1.9.0)(ai@6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4))(zod@4.3.4):
+  ai-retry@1.11.1(@ai-sdk/provider-utils@4.0.50(zod@4.3.4))(@ai-sdk/provider@3.0.15)(@opentelemetry/api@1.9.0)(ai@6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4))(zod@4.3.4):
     dependencies:
       '@ai-sdk/provider': 3.0.15
       '@ai-sdk/provider-utils': 4.0.50(zod@4.3.4)
-      ai: 6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4)
+      ai: 6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4)
       zod: 4.3.4
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
 
-  ai@6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4):
+  ai@6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4):
     dependencies:
       '@ai-sdk/gateway': 3.0.116(zod@4.3.4)
       '@ai-sdk/provider': 3.0.15
@@ -29421,11 +29421,11 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  ollama-ai-provider-v2@3.3.1(patch_hash=d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b)(ai@6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4))(zod@4.3.4):
+  ollama-ai-provider-v2@3.3.1(patch_hash=d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b)(ai@6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4))(zod@4.3.4):
     dependencies:
       '@ai-sdk/provider': 3.0.15
       '@ai-sdk/provider-utils': 4.0.50(zod@4.3.4)
-      ai: 6.0.185(patch_hash=61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711)(zod@4.3.4)
+      ai: 6.0.185(patch_hash=1c79e73171411f5127303afa4f4656345827a3c813bcb4b8558aa6e1bed7c982)(zod@4.3.4)
       zod: 4.3.4
 
   on-finished@2.4.1:

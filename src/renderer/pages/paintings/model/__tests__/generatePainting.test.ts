@@ -78,6 +78,37 @@ describe('generatePainting', () => {
     expect(payload).not.toHaveProperty('size')
   })
 
+  it.each([
+    {
+      validation: { receivedCount: 0, rejected: [] },
+      expectedCode: 'IMAGE_OUTPUT_EMPTY'
+    },
+    {
+      validation: { receivedCount: 1, rejected: [{ index: 0, reason: 'invalid_image_data' }] },
+      expectedCode: 'IMAGE_OUTPUT_INVALID'
+    },
+    {
+      validation: {
+        receivedCount: 2,
+        rejected: [
+          { index: 0, reason: 'invalid_image_data' },
+          { index: 1, reason: 'unsupported_media_type' }
+        ]
+      },
+      expectedCode: 'IMAGE_OUTPUT_UNSUPPORTED'
+    }
+  ] as const)('surfaces $expectedCode without issuing another paid request', async ({ validation, expectedCode }) => {
+    ipcRequestMock.mockImplementation(async (route: string) =>
+      route === 'ai.image.generate' ? { files: [], validation } : undefined
+    )
+
+    await expect(generatePainting(makeOptions())).rejects.toMatchObject({
+      name: 'PaintingGenerateError',
+      code: expectedCode
+    })
+    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'ai.image.generate')).toHaveLength(1)
+  })
+
   // The pipeline awaits model-support prefetch, provider checks and input-image reads before
   // reaching generatePainting. An abort during those must not fire the billable request.
   it('never requests ai.image.generate when the signal is already aborted', async () => {

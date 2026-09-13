@@ -5,6 +5,7 @@ import {
   isToolUIPart,
   type LanguageModelUsage,
   type ModelMessage,
+  NoImageGeneratedError,
   type UIMessageChunk
 } from 'ai'
 
@@ -40,10 +41,11 @@ import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
-import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
+import type { CleanupPolicy } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { OutputFor } from '@shared/ipc/types'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
 import { isOllamaProvider } from '@shared/utils/provider'
@@ -87,6 +89,7 @@ import type {
   ListModelsRequest
 } from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
+import { validateGeneratedImage } from './utils/generatedImage'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
 
@@ -101,7 +104,6 @@ const logger = loggerService.withContext('AiService')
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
 const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
-
 /** 64x64 white PNG — edit-mode health-check input so the probe needs no user image. */
 const PROBE_INPUT_IMAGE_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAXklEQVR4nO3PMQ0AMAzAsPInvYLYYVWKESTzjhsd8KsBrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BbQHKU9LC7/CP1AAAAABJRU5ErkJggg=='
@@ -301,9 +303,7 @@ export interface AiImageRequest extends AiRequest {
 }
 
 /** Image generation result — persisted file entries (main writes the bytes). */
-export interface AiImageResult {
-  files: FileEntry[]
-}
+export type AiImageResult = OutputFor<'ai.image.generate'>
 
 /**
  * Map a painting input-image / mask string to FileManager create params. Preserves
@@ -937,6 +937,18 @@ export class AiService extends BaseService {
     // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
     // (the WireProfile engine), which the image models read; passing them here is
     // dropped by `generateImage`, so they're omitted.
+    const imageUsageContext = createCaptureContext({
+      provider,
+      model,
+      sdkModelId: sdkConfig.modelId,
+      credentialReceipt,
+      source,
+      messageRef: null
+    })
+    const recordProviderCall = createProviderCallHandler(imageUsageContext)
+    let providerImageCount = 0
+    const remoteDownloadOutcomes = new Map<number, boolean>()
+    let nextRemoteDownloadFallbackIndex = 0
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
@@ -949,60 +961,154 @@ export class AiService extends BaseService {
       ...(signal ? { abortSignal: signal } : {}),
       experimental_download: async (downloads) => {
         return Promise.all(
-          downloads.map(async ({ url }) => {
+          downloads.map(async ({ url, originalIndex }) => {
+            const candidateIndex = originalIndex ?? nextRemoteDownloadFallbackIndex
+            nextRemoteDownloadFallbackIndex = Math.max(nextRemoteDownloadFallbackIndex, candidateIndex + 1)
             if (signal?.aborted) return null
-            const downloaded = await downloadImageAsBase64(url.toString())
-            if (signal?.aborted) return null
-            if (!downloaded) return null
-            return {
-              data: Buffer.from(downloaded.data, 'base64'),
-              mediaType: downloaded.media_type
+            try {
+              const downloaded = await downloadImageAsBase64(url.toString())
+              if (signal?.aborted) return null
+              if (!downloaded) {
+                remoteDownloadOutcomes.set(candidateIndex, true)
+                return null
+              }
+              remoteDownloadOutcomes.set(candidateIndex, false)
+              return {
+                data: Buffer.from(downloaded.data, 'base64'),
+                mediaType: downloaded.media_type
+              }
+            } catch {
+              remoteDownloadOutcomes.set(candidateIndex, true)
+              return null
             }
           })
         )
       }
     }
 
-    const imageUsageContext = createCaptureContext({
-      provider,
-      model,
-      sdkModelId: sdkConfig.modelId,
-      credentialReceipt,
-      source,
-      messageRef: null
-    })
-    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-      ...imageParams,
-      onProviderCall: createProviderCallHandler(imageUsageContext)
-    })
-
-    const dataUrls: Base64String[] = []
-    let filteredCount = 0
-    for (const image of result.images ?? []) {
-      if (image.base64) {
-        dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
-        continue
+    let result: Awaited<ReturnType<typeof aiCoreGenerateImage>>
+    try {
+      result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+        ...imageParams,
+        onProviderCall: (event) => {
+          if (event.modality === 'image') providerImageCount += event.imageCount
+          recordProviderCall(event)
+        }
+      })
+    } catch (error) {
+      if (signal?.aborted) {
+        throw signal.reason ?? new DOMException('Image generation aborted', 'AbortError')
       }
-
-      filteredCount += 1
+      const noImageError = NoImageGeneratedError.isInstance(error)
+        ? error
+        : error instanceof Error && NoImageGeneratedError.isInstance(error.cause)
+          ? error.cause
+          : undefined
+      if (noImageError) {
+        const remoteDownloadFailures = [...remoteDownloadOutcomes.values()].filter(Boolean).length
+        if (
+          remoteDownloadOutcomes.size > 0 &&
+          remoteDownloadFailures === remoteDownloadOutcomes.size &&
+          providerImageCount <= remoteDownloadOutcomes.size
+        ) {
+          throw new Error(`Image generation produced ${remoteDownloadOutcomes.size} URL(s) but all downloads failed`, {
+            cause: error
+          })
+        }
+        if (providerImageCount > 0) {
+          const receivedCount = Math.max(
+            providerImageCount,
+            ...[...remoteDownloadOutcomes.keys()].map((index) => index + 1)
+          )
+          const rejected = Array.from({ length: receivedCount }, (_, index) => ({
+            index,
+            reason: remoteDownloadOutcomes.get(index) ? ('download_failed' as const) : ('invalid_image_data' as const)
+          }))
+          return { files: [], validation: { receivedCount, rejected } }
+        }
+        return { files: [], validation: { receivedCount: 0, rejected: [] } }
+      }
+      throw error
+    }
+    if (signal?.aborted) {
+      throw signal.reason ?? new DOMException('Image generation aborted', 'AbortError')
     }
 
-    if (filteredCount > 0) {
+    const images = result.images ?? []
+    const dataUrls: Base64String[] = []
+    const rejected: NonNullable<AiImageResult['validation']>['rejected'] = []
+    const failedDownloadIndexes = [...remoteDownloadOutcomes.entries()]
+      .filter(([, failed]) => failed)
+      .map(([index]) => index)
+      .sort((a, b) => a - b)
+    const failedDownloadIndexSet = new Set(failedDownloadIndexes)
+    const droppedImageCount = Math.max(failedDownloadIndexes.length, providerImageCount - images.length)
+    const highestDownloadIndex = Math.max(-1, ...remoteDownloadOutcomes.keys())
+    const highestImageIndex = Math.max(-1, ...images.map((image) => image.originalIndex ?? -1))
+    const receivedCount = Math.max(images.length + droppedImageCount, highestDownloadIndex + 1, highestImageIndex + 1)
+    const explicitImageIndexes = new Set(
+      images.map((image) => image.originalIndex).filter((index): index is number => index !== undefined)
+    )
+    const fallbackImageIndexes = Array.from({ length: receivedCount }, (_, index) => index).filter(
+      (index) => !failedDownloadIndexSet.has(index) && !explicitImageIndexes.has(index)
+    )
+    let nextFallbackImageIndex = 0
+    const imageIndexes = images.map(
+      (image, index) => image.originalIndex ?? fallbackImageIndexes[nextFallbackImageIndex++] ?? index
+    )
+    for (const [index, image] of images.entries()) {
+      const validated = await validateGeneratedImage(image)
+      if (validated.reason) rejected.push({ index: imageIndexes[index] ?? index, reason: validated.reason })
+      else dataUrls.push(validated.data)
+    }
+    signal?.throwIfAborted()
+
+    rejected.push(...failedDownloadIndexes.map((index) => ({ index, reason: 'download_failed' as const })))
+    const assignedIndexes = new Set([...imageIndexes, ...failedDownloadIndexes])
+    const unknownDroppedIndexes = Array.from({ length: receivedCount }, (_, index) => index)
+      .filter((index) => !assignedIndexes.has(index))
+      .slice(0, droppedImageCount - failedDownloadIndexes.length)
+    rejected.push(...unknownDroppedIndexes.map((index) => ({ index, reason: 'invalid_image_data' as const })))
+    rejected.sort((a, b) => a.index - b.index)
+
+    const validation = receivedCount === 0 || rejected.length > 0 ? { receivedCount, rejected } : undefined
+    if (validation) {
       logger.warn('Filtered invalid generated images', {
         uniqueModelId: request.uniqueModelId,
         providerId: sdkConfig.providerId,
         modelId: sdkConfig.modelId,
-        filteredCount
+        validation
       })
     }
     const fileManager = application.get('FileManager')
-    const files = await Promise.all(
-      dataUrls.map((data) =>
-        fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+    const files: AiImageResult['files'] = []
+    const deleteCreatedFiles = async () => {
+      await Promise.all(
+        files.map((file) =>
+          fileManager.permanentDelete(file.id).catch((cleanupError) => {
+            logger.error(`Failed to delete generated image ${file.id} after generation failure`, cleanupError as Error)
+          })
+        )
       )
-    )
+    }
+    try {
+      for (const data of dataUrls) {
+        signal?.throwIfAborted()
+        files.push(
+          await fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+        )
+      }
+    } catch (error) {
+      await deleteCreatedFiles()
+      if (signal?.aborted) throw signal.reason ?? new DOMException('Image generation aborted', 'AbortError')
+      throw error
+    }
+    if (signal?.aborted) {
+      await deleteCreatedFiles()
+      throw signal.reason ?? new DOMException('Image generation aborted', 'AbortError')
+    }
 
-    return { files }
+    return { files, ...(validation && { validation }) }
   }
 
   /**
@@ -1110,7 +1216,7 @@ export class AiService extends BaseService {
 
     if (snapshot.status === 'completed') {
       const output = snapshot.output as ImageGenerationJobOutput | null
-      return { files: output?.files ?? [] }
+      return { files: output?.files ?? [], ...(output?.validation && { validation: output.validation }) }
     }
     if (snapshot.status === 'cancelled') {
       throw new DOMException('Image generation aborted', 'AbortError')

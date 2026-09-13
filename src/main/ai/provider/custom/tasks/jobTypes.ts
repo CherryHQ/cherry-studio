@@ -1,6 +1,7 @@
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
-import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
+import type { CleanupPolicy } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { OutputFor } from '@shared/ipc/types'
 
 import type { ImageTransportDescriptor } from '../imageGenerationModel'
 
@@ -40,10 +41,8 @@ export interface ImageGenerationJobPayload {
   cleanupPolicy: CleanupPolicy
 }
 
-/** Job output — the persisted result FileEntries the IPC layer returns verbatim. */
-export interface ImageGenerationJobOutput {
-  files: FileEntry[]
-}
+/** Job output returned through AiService to the IPC layer. */
+export type ImageGenerationJobOutput = OutputFor<'ai.image.generate'>
 
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
