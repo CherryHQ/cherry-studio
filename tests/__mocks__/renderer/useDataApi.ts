@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { KeyedMutator } from 'swr'
-import { unstable_serialize as serializeInfiniteKey } from 'swr/infinite'
+import { unstable_serialize as serializeInfiniteKey, type SWRInfiniteConfiguration } from 'swr/infinite'
 import { type Mock, vi } from 'vitest'
 
 import type {
@@ -262,10 +262,10 @@ export const mockUsePaginatedQuery = vi.fn(
 )
 
 type MockInfiniteQueryOptions<TPath extends ApiPath> = ParamsOption<TPath, 'GET'> & {
-  query?: Record<string, unknown>
+  query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
   limit?: number
   enabled?: boolean
-  swrOptions?: any
+  swrOptions?: Omit<SWRInfiniteConfiguration, 'parallel'>
 }
 
 type MockInfinitePages<T> = CursorPaginationResponse<T>[]
