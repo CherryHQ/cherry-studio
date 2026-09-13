@@ -26,39 +26,42 @@ Migrates MCP server configurations from Redux to SQLite.
 
 ## Field Mappings
 
-All McpServer fields are mapped 1:1 at the Drizzle ORM level (camelCase property names). The underlying SQLite columns use snake_case (e.g., `baseUrl` → `base_url`), handled automatically by Drizzle:
+All McpServer fields are mapped 1:1 at the Drizzle ORM level (camelCase property names). The underlying SQLite columns use snake_case (e.g., `baseUrl` → `base_url`), handled automatically by Drizzle.
+
+Scalar columns are **coerced**, not passed through: legacy records are unvalidated, so a value of the wrong shape or range would otherwise break the insert or the later read. The Transform column names the rule; [Legacy Value Coercion](#legacy-value-coercion-and-row-level-recovery) below states what each one does.
 
 | Source Field | Target Column | Transform |
 |---|---|---|
 | `id` | `id` | Direct (PK) |
-| `name` | `name` | Uses source `name`; falls back to the generated `id` when missing/empty/whitespace-only |
-| `type` | `type` | Nullable passthrough |
-| `description` | `description` | Nullable passthrough |
-| `baseUrl` / `url` | `baseUrl` | Falls back from `url` if `baseUrl` is absent (legacy SSE servers) |
-| `command` | `command` | Nullable passthrough |
-| `registryUrl` | `registryUrl` | Nullable passthrough |
-| `args` | `args` | JSON array |
-| `env` | `env` | JSON object |
-| `headers` | `headers` | JSON object |
-| `provider` | `provider` | Nullable passthrough |
-| `providerUrl` | `providerUrl` | Nullable passthrough |
-| `logoUrl` | `logoUrl` | Nullable passthrough |
-| `tags` | `tags` | JSON array |
-| `longRunning` | `longRunning` | Nullable boolean |
-| `timeout` | `timeout` | Nullable integer |
-| `dxtVersion` | `dxtVersion` | Nullable passthrough |
-| `dxtPath` | `dxtPath` | Nullable passthrough |
-| `reference` | `reference` | Nullable passthrough |
-| `searchKey` | `searchKey` | Nullable passthrough |
-| `configSample` | `configSample` | JSON object |
-| `disabledTools` | `disabledTools` | JSON array |
-| `disabledAutoApproveTools` | `disabledAutoApproveTools` | JSON array |
-| `shouldConfig` | `shouldConfig` | Nullable boolean |
-| `isActive` | `isActive` | Boolean (NOT NULL, default false) |
-| `installSource` | `installSource` | Nullable passthrough |
-| `isTrusted` | `isTrusted` | Nullable boolean |
-| `trustedAt` | `trustedAt` | Nullable integer (timestamp) |
-| `installedAt` | `installedAt` | Nullable integer (timestamp) |
+| `name` | `name` | `toRequiredString` — falls back to the generated `id` when missing/empty/whitespace-only |
+| `type` | `type` | `toMcpServerType` |
+| `description` | `description` | `toNullableString` |
+| `baseUrl` / `url` | `baseUrl` | `toNullableString`, falling back from `url` when `baseUrl` is absent (legacy SSE servers) |
+| `command` | `command` | `toNullableString` |
+| `registryUrl` | `registryUrl` | `toNullableString` |
+| `args` | `args` | JSON array via `toNullable` |
+| `env` | `env` | JSON object via `toNullable` |
+| `headers` | `headers` | JSON object via `toNullable` |
+| `provider` | `provider` | `toNullableString` |
+| `providerUrl` | `providerUrl` | `toNullableString` |
+| `logoUrl` | `logoUrl` | `toNullableString` |
+| `tags` | `tags` | JSON array via `toNullable` |
+| `longRunning` | `longRunning` | `toNullableBoolean` |
+| `timeout` | `timeout` | `toNullableInteger` — an unsafe integer becomes `null` |
+| `dxtVersion` | `dxtVersion` | `toNullableString` |
+| `dxtPath` | `dxtPath` | `toNullableString` |
+| `reference` | `reference` | `toNullableString` |
+| `searchKey` | `searchKey` | `toNullableString` |
+| `configSample` | `configSample` | JSON object via `toNullable` |
+| `disabledTools` | `disabledTools` | JSON array via `toNullable` |
+| `disabledAutoApproveTools` | `disabledAutoApproveTools` | JSON array via `toNullable` |
+| `shouldConfig` | `shouldConfig` | `toNullableBoolean` |
+| `isActive` | `isActive` | `toNullableBoolean`, falling back to `false` (NOT NULL) |
+| `installSource` | `installSource` | `toInstallSource` — a known source passes through, anything else becomes `null` |
+| `isTrusted` | `isTrusted` | `toNullableBoolean` |
+| `trustedAt` | `trustedAt` | `toNullableInteger` (timestamp) — an unsafe integer becomes `null` |
+| `installedAt` | `installedAt` | `toNullableInteger` (timestamp) — an unsafe integer becomes `null` |
+| — | `sortOrder` | The record's index in the source `mcp.servers` array (source order is preserved) |
 
 ## Edge Cases
 
