@@ -63,4 +63,74 @@ describe('tool_exec model output', () => {
       ]
     })
   })
+
+  it('omits forwarded images from composed model text without changing the worker result', async () => {
+    const registry = new ToolRegistry()
+    registry.register({
+      name: 'mcp__s1__screenshot',
+      namespace: 'mcp:s1',
+      description: 'Capture a screenshot',
+      defer: 'auto',
+      tool: {
+        type: 'function',
+        inputSchema: jsonSchema({ type: 'object' }),
+        execute: async () => ({
+          content: [
+            { type: 'text', text: 'captured' },
+            { type: 'image', data: 'base64-png', mimeType: 'image/png' }
+          ]
+        })
+      }
+    })
+    const tool = createToolExecTool(registry)
+    if (!tool.execute) throw new Error('tool_exec must be executable')
+
+    const input = {
+      code: "const screenshot = await tools.invoke('mcp__s1__screenshot', {}); if (screenshot.content[1].data !== 'base64-png') throw new Error('image missing in worker'); return { captures: [{ screenshot }], other: { content: [{ type: 'image', data: 'not-forwarded', mimeType: 'image/png' }, { type: 'image', data: null, mimeType: 'image/png' }] } }"
+    }
+    const output = await tool.execute(input, { toolCallId: 'outer-1', messages: [] })
+    const modelOutput = tool.toModelOutput?.({ toolCallId: 'outer-1', input, output })
+
+    expect(output).toEqual({
+      result: {
+        captures: [
+          {
+            screenshot: {
+              content: [
+                { type: 'text', text: 'captured' },
+                { type: 'image', data: 'base64-png', mimeType: 'image/png' }
+              ]
+            }
+          }
+        ],
+        other: {
+          content: [
+            { type: 'image', data: 'not-forwarded', mimeType: 'image/png' },
+            { type: 'image', data: null, mimeType: 'image/png' }
+          ]
+        }
+      },
+      images: [{ data: 'base64-png', mimeType: 'image/png' }]
+    })
+    expect(modelOutput).toEqual({
+      type: 'content',
+      value: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            result: {
+              captures: [{ screenshot: { content: [{ type: 'text', text: 'captured' }] } }],
+              other: {
+                content: [
+                  { type: 'image', data: 'not-forwarded', mimeType: 'image/png' },
+                  { type: 'image', data: null, mimeType: 'image/png' }
+                ]
+              }
+            }
+          })
+        },
+        { type: 'image-data', data: 'base64-png', mediaType: 'image/png' }
+      ]
+    })
+  })
 })
