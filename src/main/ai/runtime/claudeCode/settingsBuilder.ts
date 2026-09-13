@@ -59,6 +59,7 @@ import {
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { InstalledSkill } from '@shared/data/api/schemas/skills'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -279,10 +280,11 @@ export async function buildClaudeCodeSessionSettings(
 
   // 9. Skills — prepare managed mirrors once before initial SDK settings materialization,
   // then build the read-only whitelist also reused by live connection reconciliation.
-  if (resolveAgentCapabilities(agent).environment !== 'sealed') {
-    await skillService.refreshMirrorsForSession(agent.id)
-  }
-  const skills = await buildSkillWhitelist(agent, cwd)
+  const refreshedSkills =
+    resolveAgentCapabilities(agent).environment !== 'sealed'
+      ? await skillService.refreshMirrorsForSession(agent.id)
+      : undefined
+  const skills = await buildSkillWhitelist(agent, cwd, refreshedSkills)
 
   // 10. Build settings
   const declaredContextWindow = options?.contextWindow
@@ -386,7 +388,8 @@ export { buildMcpServers } from './mcpCatalog'
  */
 export async function buildSkillWhitelist(
   agent: Pick<AgentEntity, 'id' | 'configuration'>,
-  cwd: string
+  cwd: string,
+  installedSkillsSnapshot?: readonly InstalledSkill[]
 ): Promise<string[]> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const bundledNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
@@ -394,10 +397,8 @@ export async function buildSkillWhitelist(
     return bundledNames.map((skill) => `${BUILTIN_AGENT_PLUGIN_NAME}:${skill}`)
   }
 
-  const [installedSkills, workspaceNames] = await Promise.all([
-    skillService.list({ agentId: agent.id }),
-    skillService.listLocalFolderNames(cwd)
-  ])
+  const installedSkills = installedSkillsSnapshot ?? (await skillService.list({ agentId: agent.id }))
+  const workspaceNames = await skillService.listLocalFolderNames(cwd)
   const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
 
   return Array.from(new Set([...enabledNames, ...workspaceNames, ...bundledNames]))

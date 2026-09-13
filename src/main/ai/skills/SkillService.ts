@@ -83,12 +83,13 @@ export class SkillService {
   }
 
   /** Refresh an agent's enabled Claude mirror entries before its session starts. */
-  async refreshMirrorsForSession(agentId: string): Promise<void> {
-    await this.mutationLock.runExclusive(async () => {
+  async refreshMirrorsForSession(agentId: string): Promise<InstalledSkill[]> {
+    return this.mutationLock.runExclusive(async () => {
       const skills = await this.list({ agentId })
       for (const skill of skills) {
         if (skill.isEnabled) await this.linkMirror(skill.folderName)
       }
+      return skills
     })
   }
 

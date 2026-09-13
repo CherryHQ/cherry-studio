@@ -503,6 +503,26 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.forwardSubagentText).toBe(true)
   })
 
+  it('uses the mirror refresh snapshot for the SDK whitelist', async () => {
+    mocks.refreshSkillMirrorsForSession.mockResolvedValue([
+      { id: 'fresh', folderName: 'fresh', isEnabled: true } as never
+    ])
+    mocks.listSkills.mockResolvedValue([{ id: 'stale', folderName: 'stale', isEnabled: true }])
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.skills).toEqual(['fresh'])
+    expect(mocks.refreshSkillMirrorsForSession).toHaveBeenCalledWith('agent-1')
+    expect(mocks.listSkills).not.toHaveBeenCalled()
+  })
+
   it('rebuilds the SDK skill whitelist without refreshing managed mirrors', async () => {
     mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'pdf', isEnabled: true }])
 
