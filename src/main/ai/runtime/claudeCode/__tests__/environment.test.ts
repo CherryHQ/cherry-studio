@@ -137,6 +137,47 @@ describe('resolveAutoCompactWindow', () => {
     ).toBe(219_520)
   })
 
+  // Trust follows the endpoint that actually serves the model: a model reaching
+  // the official endpoint through a non-Anthropic provider default keeps the
+  // full budget.
+  it('trusts a model on its materialized endpoint, not the provider default', () => {
+    expect(
+      resolveAutoCompactWindow(
+        256_000,
+        32_000,
+        {
+          id: 'mixed',
+          presetProviderId: 'mixed',
+          defaultChatEndpoint: 'openai-chat-completions',
+          endpointConfigs: {
+            'anthropic-messages': { baseUrl: 'https://api.anthropic.com' },
+            'openai-chat-completions': { baseUrl: 'https://mix.example.com' }
+          }
+        } as never,
+        { endpointTypes: ['anthropic-messages'] } as never
+      )
+    ).toBe(219_520)
+  })
+
+  // The same provider is untrusted for a model it serves through another
+  // dialect: the materialized entry proves the relay.
+  it('distrusts a model served through a non-Anthropic materialized endpoint', () => {
+    const provider = {
+      id: 'mixed',
+      presetProviderId: 'mixed',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { baseUrl: 'https://api.anthropic.com' },
+        'openai-chat-completions': { baseUrl: 'https://mix.example.com' }
+      }
+    } as never
+    expect(
+      resolveAutoCompactWindow(256_000, 32_000, provider, { endpointTypes: ['openai-chat-completions'] } as never)
+    ).toBe(119_168)
+    // Without a model record the provider default stands in (primary path unchanged).
+    expect(resolveAutoCompactWindow(256_000, 32_000, provider)).toBe(219_520)
+  })
+
   // A preset-Anthropic provider with an empty-string entry URL is untrusted:
   // empty is falsy at runtime (getBaseUrl cascade, warmup `|| baseUrl`), so
   // traffic can still reach a relay. Only an absent or explicitly official
