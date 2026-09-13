@@ -19,7 +19,7 @@ import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
-import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import { buildAgentRuntimePrompt, buildAgentWorkspaceContext } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -295,6 +295,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         agentDataPath,
         agent,
         citationsGuidance,
+        customBaseContext: buildAgentWorkspaceContext(workspacePath),
         effectiveLanguage: initialSnapshot.effectiveLanguage
       })
       const approvalContext = {

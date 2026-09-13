@@ -56,7 +56,7 @@ export interface DshCompositionInput {
   permissionMode: BridgePermissionMode
   /** Cherry-materialized system prompt; empty string adds no persona beyond the optional harness identity. */
   persona: string
-  /** A workspace `system.md` replaced the native base — drop the dsh identity sentence. */
+  /** Native identity is replaced (workspace system.md or Cherry-owned standing identity). */
   customBase: boolean
   /** Canonical dirs of the agent's enabled Cherry-managed skills (composition customSkillDirs). */
   skillDirs: readonly string[]
@@ -109,8 +109,8 @@ function buildSystemPromptConfig(input: DshCompositionInput): Record<string, unk
     // dsh interpolates {{var}} strictly at render (unknown refs THROW); Cherry text
     // never uses dsh variables, so break every opener instead of crashing turns.
     ...(input.persona ? { persona: input.persona.replaceAll('{{', '{ {') } : {}),
-    // A workspace system.md replaces the persona base; drop only the dsh identity
-    // sentence — tool-guidance sections stay (mechanics, not persona).
+    // Replacing the native base drops only the dsh identity sentence — tool-guidance
+    // sections stay (mechanics, not persona).
     ...(input.customBase ? { includeHarnessIdentity: false } : {})
   }
 }

@@ -260,7 +260,6 @@ export type AsInProcessChat<T extends AiChatRequest> = AsInProcess<T> & {
 
 /** Non-streaming text generation request — pure transport data. */
 export interface AiGenerateRequest extends AiChatRequest {
-  system?: string
   prompt?: string
   messages?: ModelMessage[]
 }
