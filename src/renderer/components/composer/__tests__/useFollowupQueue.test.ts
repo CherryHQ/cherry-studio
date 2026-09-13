@@ -2,6 +2,7 @@ import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
@@ -97,6 +98,9 @@ function baseProps(overrides: Record<string, unknown> = {}) {
 describe('useFollowupQueue', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
+    // The sent-ids journal is profile-global in production; reset it per test
+    // so one test's successful send never leaks into another test's mirror.
+    cacheService.setPersist('followup.sent_ids', {})
   })
 
   it('surfaces the persisted rows as items', () => {
@@ -886,6 +890,107 @@ describe('useFollowupQueue', () => {
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'b' } })
     expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'a' } })
     expect(markSeen).toHaveBeenCalledOnce()
+  })
+
+  it('does not ack the new scope edge on a lost claim from the old scope', async () => {
+    const headA = row('a', 'A')
+    const headB = { ...row('b', 'B'), scopeKey: 's2' }
+    mockUseQuery.mockImplementation((path: string, options?: { query?: { scopeKey?: string } }) => {
+      if (path === '/followup-queues') {
+        return {
+          data: [headA, headB],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn(),
+          mutate: vi.fn()
+        }
+      }
+      return {
+        data: { scopeKey: options?.query?.scopeKey ?? SCOPE, paused: false, createdAt: '', updatedAt: '' },
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn(),
+        mutate: vi.fn()
+      }
+    })
+    const { claimHeadTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValue({ claimed: false })
+    let resolveClaim!: (value: unknown) => void
+    claimHeadTrigger.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveClaim = resolve as (value: unknown) => void))
+    )
+    const markSeen = vi.fn()
+
+    const { rerender } = renderHook(
+      ({ scopeKey, isFulfilled }: { scopeKey: string; isFulfilled: boolean }) =>
+        useFollowupQueue(baseProps({ scopeKey, isFulfilled, markSeen })),
+      { initialProps: { scopeKey: SCOPE, isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ scopeKey: SCOPE, isFulfilled: true })
+    })
+    // Switch scopes while A's claim is in flight, then lose it: only B's own
+    // cycle may ack, never A's stale one.
+    await act(async () => {
+      rerender({ scopeKey: 's2', isFulfilled: true })
+    })
+    await act(async () => {
+      resolveClaim({ claimed: false })
+    })
+
+    expect(markSeen).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips the send for a row this profile already sent', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, deleteTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
+    const onDrain = vi.fn(async () => true)
+    const markSeen = vi.fn()
+    cacheService.setPersist('followup.sent_ids', { h: Date.now() })
+    try {
+      const { rerender } = renderHook(
+        ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
+        { initialProps: { isFulfilled: false } }
+      )
+
+      await act(async () => {
+        rerender({ isFulfilled: true })
+      })
+
+      expect(onDrain).not.toHaveBeenCalled()
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+      expect(markSeen).toHaveBeenCalledOnce()
+      expect(cacheService.getPersist('followup.sent_ids')).toEqual({})
+    } finally {
+      cacheService.setPersist('followup.sent_ids', {})
+    }
+  })
+
+  it('records a sent row for crash recovery', async () => {
+    cacheService.setPersist('followup.sent_ids', {})
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, deleteTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
+    deleteTrigger.mockRejectedValue(new Error('db down'))
+    const onDrain = vi.fn(async () => true)
+    try {
+      const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
+        initialProps: { isFulfilled: false }
+      })
+
+      await act(async () => {
+        rerender({ isFulfilled: true })
+      })
+
+      expect(onDrain).toHaveBeenCalledOnce()
+      expect(cacheService.getPersist('followup.sent_ids')['h']).toBeDefined()
+    } finally {
+      cacheService.setPersist('followup.sent_ids', {})
+    }
   })
 
   it('keeps retrying the claim while the edge stays unacked', async () => {
