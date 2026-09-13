@@ -219,29 +219,34 @@ describe('McpRuntimeService stdio environment', () => {
     shellEnvMock.getRawShellEnv.mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
   })
 
-  it('canonicalizes a mixed-case Windows Path key to PATH before crossing the MCP SDK boundary', async () => {
-    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
-    const service = new McpRuntimeService()
-    const server = {
-      id: 'stdio-server',
-      name: 'stdio-server',
-      command: 'npx',
-      args: ['-y', 'example-mcp'],
-      isActive: true
-    } as McpServer
-    getByIdMock.mockReturnValue(server)
+  // Windows-only: mergePathSuffixes branches on the import-time isWin flag, which a
+  // process.platform spy cannot flip, so POSIX hosts cannot exercise this path.
+  it.skipIf(process.platform !== 'win32')(
+    'canonicalizes a mixed-case Windows Path key to PATH before crossing the MCP SDK boundary',
+    async () => {
+      const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+      const service = new McpRuntimeService()
+      const server = {
+        id: 'stdio-server',
+        name: 'stdio-server',
+        command: 'npx',
+        args: ['-y', 'example-mcp'],
+        isActive: true
+      } as McpServer
+      getByIdMock.mockReturnValue(server)
 
-    await service.withClient(server.id, async () => undefined)
+      await service.withClient(server.id, async () => undefined)
 
-    const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
-    expect(Object.keys(transportEnv ?? {}).filter((key) => key.toLowerCase() === 'path')).toEqual(['PATH'])
-    const winPath = (transportEnv?.PATH ?? '').replace(/\\/g, '/')
-    expect(winPath.indexOf('C:/Users/me/.cherrystudio/bin;C:/Windows')).toBe(0)
-    expect(winPath.toLowerCase().indexOf('c:/users/me/.cherrystudio/bin')).toBeLessThan(
-      winPath.toLowerCase().indexOf('/mock/feature.binary.data')
-    )
-    platformSpy.mockRestore()
-  })
+      const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
+      expect(Object.keys(transportEnv ?? {}).filter((key) => key.toLowerCase() === 'path')).toEqual(['PATH'])
+      const winPath = (transportEnv?.PATH ?? '').replace(/\\/g, '/')
+      expect(winPath.indexOf('C:/Users/me/.cherrystudio/bin;C:/Windows')).toBe(0)
+      expect(winPath.toLowerCase().indexOf('c:/users/me/.cherrystudio/bin')).toBeLessThan(
+        winPath.toLowerCase().indexOf('/mock/feature.binary.data')
+      )
+      platformSpy.mockRestore()
+    }
+  )
 
   it('preserves distinct PATH key casing on POSIX', async () => {
     const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
