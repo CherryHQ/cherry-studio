@@ -8,6 +8,12 @@ vi.mock('@main/utils/prompt', () => ({
   replacePromptVariables: vi.fn(async (input: string) => input.replace('{{date}}', '2026-04-20'))
 }))
 
+const readSkillMdByFolderName = vi.fn()
+vi.mock('@main/ai/skills/SkillService', () => ({
+  SKILL_FILE_PREVIEW_MAX_SIZE_BYTES: 2 * 1024 * 1024,
+  skillService: { readSkillMdByFolderName: (...args: unknown[]) => readSkillMdByFolderName(...args) }
+}))
+
 import { assembleSystemPrompt } from '../assembleSystemPrompt'
 
 function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
@@ -190,5 +196,80 @@ describe('assembleSystemPrompt', () => {
     })
 
     expect(out).toBe('base')
+  })
+
+  it('inlines every attached SKILL.md as an instruction section after the assistant prompt', async () => {
+    readSkillMdByFolderName.mockImplementation(async (folderName: string) =>
+      folderName === 'pdf-tools'
+        ? { status: 'found', content: 'Be concise with PDFs.\n' }
+        : { status: 'found', content: 'Use dark-mode mermaid themes.' }
+    )
+
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      skillFolderNames: ['pdf-tools', 'mermaid-style']
+    })
+
+    expect(out).toContain('base\n\n<attached-skills>')
+    expect(out).toContain('<skill name="pdf-tools">\nBe concise with PDFs.\n</skill>')
+    expect(out).toContain('<skill name="mermaid-style">\nUse dark-mode mermaid themes.\n</skill>')
+    // Attachment order is stable so multi-skill instructions read deterministically.
+    expect(out!.indexOf('pdf-tools')).toBeLessThan(out!.indexOf('mermaid-style'))
+  })
+
+  it('fails the turn when an attached skill SKILL.md is missing', async () => {
+    readSkillMdByFolderName.mockResolvedValue({ status: 'missing' })
+
+    await expect(
+      assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model, skillFolderNames: ['gone'] })
+    ).rejects.toThrow('Skill "gone" cannot be read (SKILL.md not found)')
+  })
+
+  it('fails the turn when an attached skill SKILL.md exists but cannot be read', async () => {
+    readSkillMdByFolderName.mockResolvedValue({ status: 'error' })
+
+    await expect(
+      assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model, skillFolderNames: ['locked'] })
+    ).rejects.toThrow('Skill "locked" cannot be read (SKILL.md unreadable)')
+  })
+
+  it('fails the turn when an attached skill SKILL.md exceeds the size limit', async () => {
+    readSkillMdByFolderName.mockResolvedValue({ status: 'error', reason: 'too-large' })
+
+    await expect(
+      assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model, skillFolderNames: ['huge'] })
+    ).rejects.toThrow('Skill "huge" cannot be read (SKILL.md exceeds the')
+  })
+
+  it('fails the turn when the combined attached skills exceed the size limit', async () => {
+    // Each descriptor alone fits; any two together exceed the 2 MiB cap.
+    const half = 'x'.repeat(1024 * 1024 + 1)
+    readSkillMdByFolderName.mockImplementation(async () => ({ status: 'found', content: half }))
+
+    await expect(
+      assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model, skillFolderNames: ['one', 'two'] })
+    ).rejects.toThrow('attached skills together exceed the')
+  })
+
+  it('escapes characters that would break the pseudo-XML skill wrapper', async () => {
+    readSkillMdByFolderName.mockResolvedValue({ status: 'found', content: 'instructions' })
+
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      skillFolderNames: ['weird"name<&>']
+    })
+
+    expect(out).toContain('<skill name="weird&#34;name&#60;&#38;&#62;">')
+  })
+
+  it('adds no skill section when no skill is attached', async () => {
+    readSkillMdByFolderName.mockResolvedValue({ status: 'found', content: 'unused' })
+
+    const out = await assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model })
+
+    expect(out).toBe('base')
+    expect(readSkillMdByFolderName).not.toHaveBeenCalled()
   })
 })

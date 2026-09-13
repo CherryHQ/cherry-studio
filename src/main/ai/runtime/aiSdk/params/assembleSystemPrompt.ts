@@ -8,6 +8,7 @@ import { replacePromptVariables } from '@main/utils/prompt'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 
+import { SKILL_FILE_PREVIEW_MAX_SIZE_BYTES, skillService } from '../../../skills/SkillService'
 import { TOOL_SEARCH_TOOL_NAME } from '../../../tools/adapters/aiSdk/meta/toolSearch'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { CITATIONS_SYSTEM_PROMPT } from '../prompts/citations'
@@ -24,6 +25,8 @@ export interface AssembleSystemPromptInput {
   hasCitableTools?: boolean
   /** Add a volatile local-date anchor when this request can execute web search. */
   webSearchEnabled?: boolean
+  /** Skills attached to the user turn, by mirror folder name. Each SKILL.md is inlined as instructions. */
+  skillFolderNames?: readonly string[]
   /** Injectable clock for deterministic tests. */
   now?: Date
 }
@@ -37,6 +40,10 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
   if (assistant?.prompt) {
     const resolved = await replacePromptVariables(assistant.prompt, model.name)
     if (resolved) sections.push(resolved)
+  }
+
+  if (input.skillFolderNames?.length) {
+    sections.push(await buildSkillInstructionsSection(input.skillFolderNames))
   }
 
   if (tools && TOOL_SEARCH_TOOL_NAME in tools) {
@@ -58,6 +65,44 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
 
   if (sections.length === 0) return undefined
   return sections.join('\n\n')
+}
+
+/**
+ * Inline the SKILL.md of every attached skill as a system-prompt instruction block. Chat topics
+ * have no runtime that loads skills by name (unlike agent topics), so the descriptor text itself
+ * must travel with the request (#19773). A missing or unreadable SKILL.md fails the turn instead
+ * of silently dropping the instructions — the error reaches the UI through the stream's
+ * pre-start error funnel.
+ */
+/** Folder names may contain characters meaningful to the pseudo-XML wrapper — escape them. */
+function escapeXmlAttribute(value: string): string {
+  return value.replace(/[<>&"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
+}
+
+async function buildSkillInstructionsSection(folderNames: readonly string[]): Promise<string> {
+  const blocks: string[] = []
+  let totalBytes = 0
+  for (const folderName of folderNames) {
+    const state = await skillService.readSkillMdByFolderName(folderName)
+    if (state.status !== 'found') {
+      const detail =
+        state.status === 'missing'
+          ? 'SKILL.md not found'
+          : state.reason === 'too-large'
+            ? `SKILL.md exceeds the ${SKILL_FILE_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)} MB limit`
+            : 'SKILL.md unreadable'
+      throw new Error(`Skill "${folderName}" cannot be read (${detail}). Remove it from the message or reinstall it.`)
+    }
+    // Each descriptor alone fits the limit; the combined section must fit it too.
+    totalBytes += Buffer.byteLength(state.content)
+    if (totalBytes > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) {
+      throw new Error(
+        `The attached skills together exceed the ${SKILL_FILE_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)} MB limit. Remove some of them.`
+      )
+    }
+    blocks.push(`<skill name="${escapeXmlAttribute(folderName)}">\n${state.content.trim()}\n</skill>`)
+  }
+  return `<attached-skills>\nThe user attached the following skills to this conversation. Follow the instructions inside each block.\n${blocks.join('\n')}\n</attached-skills>`
 }
 
 export function buildWebSearchDateContext(now: Date): string {

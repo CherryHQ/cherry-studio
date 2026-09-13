@@ -47,6 +47,10 @@ const mocks = vi.hoisted(() => ({
   selectedKnowledgeBases: undefined as KnowledgeBase[] | undefined,
   knowledgeBases: [] as KnowledgeBase[],
   knowledgeBasesLoading: false,
+  availableSkills: [] as { name: string; folderName: string; description: string | null }[],
+  availableSkillsLoading: false,
+  availableSkillsError: null as string | null,
+  availableSkillsRefresh: vi.fn(),
   assistant: undefined as any,
   model: undefined as Model | undefined,
   assistantLoading: false,
@@ -61,6 +65,7 @@ const mocks = vi.hoisted(() => ({
   toolLaunchers: [] as any[],
   toolLaunchersVersion: 0,
   registeredFooterActions: new Map<string, ComposerToolFooterAction[]>(),
+  registeredLaunchers: new Map<string, any[]>(),
   dispatchLauncher: vi.fn(),
   unifiedPanelOpen: vi.fn(),
   unifiedPanelAvailable: true,
@@ -267,7 +272,8 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     addNewTopic: vi.fn(),
     onTextChange: vi.fn(),
     toolsRegistry: {
-      registerLaunchers: vi.fn((key: string, _entries: unknown[], footerActions: ComposerToolFooterAction[] = []) => {
+      registerLaunchers: vi.fn((key: string, entries: unknown[], footerActions: ComposerToolFooterAction[] = []) => {
+        mocks.registeredLaunchers.set(key, entries)
         mocks.registeredFooterActions.set(key, footerActions)
         return vi.fn()
       })
@@ -516,6 +522,15 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   }
 }))
 
+vi.mock('@renderer/hooks/useSkills', () => ({
+  useInstalledSkills: () => ({
+    skills: mocks.availableSkills,
+    loading: mocks.availableSkillsLoading,
+    error: mocks.availableSkillsError,
+    refresh: mocks.availableSkillsRefresh
+  })
+}))
+
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ setDefaultModel: mocks.setDefaultModel }),
   useModelById: (modelId?: string) => ({ model: modelId ? { ...model, id: modelId, contextWindow: 100 } : undefined }),
@@ -598,6 +613,29 @@ const topic = {
   type: 'chat'
 } as any
 
+const pdfSkill = {
+  name: 'pdf',
+  description: 'Read and analyze PDFs',
+  folderName: 'pdf'
+}
+
+const pdfSkillDraftToken: ComposerSerializedToken = {
+  id: 'skill:pdf',
+  kind: 'skill',
+  label: 'pdf',
+  promptText: 'Use the pdf skill.',
+  index: 0,
+  textOffset: 0
+}
+
+// The chat skills launcher surfaces its items as root-panel search entries; read them straight
+// off the registered launcher without driving the quick panel.
+function getChatSkillsRootItems() {
+  const launcher = mocks.registeredLaunchers.get('chat-skills')?.[0]
+  if (!launcher) throw new Error('chat-skills launcher not registered')
+  return (launcher.rootSearchItems ?? []) as Array<{ id: string; label: string; action?: (args: any) => void }>
+}
+
 const unlinkedTopic = {
   id: 'topic-unlinked',
   assistantId: undefined,
@@ -652,6 +690,7 @@ const StartEditingButton = ({ message, parts }: { message: any; parts: any }) =>
 describe('ChatComposer', () => {
   beforeEach(() => {
     mocks.registeredFooterActions.clear()
+    mocks.registeredLaunchers.clear()
     MockCacheUtils.resetMocks()
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
@@ -752,6 +791,9 @@ describe('ChatComposer', () => {
     mocks.selectedKnowledgeBases = undefined
     mocks.files = undefined
     mocks.knowledgeBases = []
+    mocks.availableSkills = []
+    mocks.availableSkillsLoading = false
+    mocks.availableSkillsError = null
     mocks.knowledgeBasesLoading = false
     mocks.assistant = {
       id: 'assistant-1',
@@ -1330,10 +1372,160 @@ describe('ChatComposer', () => {
     }
   )
 
-  it('does not enable skill marker paste handling', () => {
+  it('enables skill marker paste handling for installed skills only', () => {
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.resolveSkillMarker).toBeInstanceOf(Function)
+    expect(mocks.surfaceProps?.resolveSkillMarker?.('not-installed')).toBeNull()
+
+    mocks.availableSkills = [{ name: 'PDF Tools', folderName: 'pdf-tools', description: null }]
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const token = mocks.surfaceProps?.resolveSkillMarker?.('pdf-tools')
+    expect(token).toMatchObject({ id: 'skill:pdf-tools', kind: 'skill', promptText: 'Use the pdf-tools skill.' })
+  })
+
+  it('exposes installed skills in the slash-menu launcher and inserts chips without duplicates', async () => {
+    mocks.availableSkills = [pdfSkill]
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
-    expect(mocks.surfaceProps?.resolveSkillMarker).toBeUndefined()
+    const skillItem = getChatSkillsRootItems()[0]
+    expect(skillItem).toMatchObject({ id: 'skill:pdf', label: 'pdf' })
+
+    const inputAdapter = { insertToken: vi.fn(), focus: vi.fn() }
+    await act(async () => {
+      skillItem?.action?.({ item: skillItem, inputAdapter })
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens).toContainEqual(
+        expect.objectContaining({ id: 'skill:pdf', kind: 'skill', label: 'pdf' })
+      )
+    })
+
+    inputAdapter.insertToken.mockClear()
+    getChatSkillsRootItems()[0]?.action?.({ item: skillItem, inputAdapter })
+    expect(inputAdapter.insertToken).not.toHaveBeenCalled()
+  })
+
+  it('sends a hidden skill scope part while keeping the visible text to the one-line anchor', async () => {
+    mocks.availableSkills = [pdfSkill]
+    const onSend = vi.fn()
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    const inputAdapter = { insertToken: vi.fn(), focus: vi.fn() }
+    const skillItem = getChatSkillsRootItems()[0]
+    await act(async () => {
+      skillItem?.action?.({ item: skillItem, inputAdapter })
+    })
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens.some((token) => token.id === 'skill:pdf')).toBe(true)
+    })
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'Use the pdf skill. summarize the attached spec',
+        tokens: [pdfSkillDraftToken]
+      })
+    })
+
+    expect(onSend).toHaveBeenCalledTimes(1)
+    const options = onSend.mock.calls[0][1]
+    expect(options.userMessageParts).toContainEqual({ type: 'data-skill-scope', data: { skills: ['pdf'] } })
+    const textPart = options.userMessageParts.find((part: { type: string }) => part.type === 'text')
+    // The visible message carries only the anchor sentence — the SKILL.md body travels in the
+    // system prompt on the main side, never in the transcript (#19773).
+    expect(textPart?.text).toBe('Use the pdf skill. summarize the attached spec')
+    expect(textPart?.text).not.toContain('Read and analyze PDFs')
+  })
+
+  it('keeps the skill scope part when the installed-skills query fails', async () => {
+    mocks.availableSkills = [pdfSkill]
+    const onSend = vi.fn()
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    const inputAdapter = { insertToken: vi.fn(), focus: vi.fn() }
+    const skillItem = getChatSkillsRootItems()[0]
+    await act(async () => {
+      skillItem?.action?.({ item: skillItem, inputAdapter })
+    })
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens.some((token) => token.id === 'skill:pdf')).toBe(true)
+    })
+
+    // The query refetch fails after the chip was selected: the send must not silently drop
+    // the attachment — main's read verdict decides the turn.
+    mocks.availableSkills = []
+    mocks.availableSkillsError = 'query failed'
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+    mocks.availableSkillsError = null
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'Use the pdf skill. summarize',
+        tokens: [pdfSkillDraftToken]
+      })
+    })
+
+    expect(onSend).toHaveBeenCalledTimes(1)
+    const options = onSend.mock.calls[0][1]
+    expect(options.userMessageParts).toContainEqual({ type: 'data-skill-scope', data: { skills: ['pdf'] } })
+  })
+
+  it('restores cached skill chips after a topic remount', () => {
+    mocks.availableSkills = [pdfSkill]
+    vi.mocked(cacheService.get).mockReturnValue({
+      text: 'Use the pdf skill. continue',
+      tokens: [pdfSkillDraftToken],
+      files: [],
+      knowledgeBaseIds: [],
+      mentionedModelIds: [],
+      modelMultiSelectMode: false
+    })
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.text).toBe('Use the pdf skill. continue')
+    expect(mocks.surfaceProps?.tokens).toContainEqual(
+      expect.objectContaining({ id: 'skill:pdf', kind: 'skill', label: 'pdf' })
+    )
+  })
+
+  it('prunes a cached skill chip whose skill is no longer installed', async () => {
+    mocks.availableSkills = []
+    vi.mocked(cacheService.get).mockReturnValue({
+      text: 'Use the pdf skill. continue',
+      tokens: [pdfSkillDraftToken],
+      files: [],
+      knowledgeBaseIds: [],
+      mentionedModelIds: [],
+      modelMultiSelectMode: false
+    })
+    mocks.getDraft.mockReturnValue({ text: 'Use the pdf skill. continue', tokens: [pdfSkillDraftToken] })
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens.some((token) => token.id === 'skill:pdf')).toBe(false)
+    })
+    // The promptText anchor leaves the draft with the rest of the sentence only.
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'continue', tokens: [] })
+  })
+
+  it('prunes a selected skill chip when the skill becomes unavailable mid-session', async () => {
+    mocks.availableSkills = [pdfSkill]
+    mocks.getDraft.mockReturnValue({ text: 'partial', tokens: [pdfSkillDraftToken] })
+
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    // The skill leaves the installed set (uninstalled or globally disabled) — the chip
+    // must not survive into a later send.
+    mocks.availableSkills = []
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens.some((token) => token.id === 'skill:pdf')).toBe(false)
+    })
   })
 
   it('focuses only the current topic composer from the focus event', async () => {
@@ -2617,6 +2809,9 @@ describe('ChatComposer', () => {
       index: 0,
       textOffset: 0
     }
+    // Keep pdf installed so the availability prune leaves the in-progress token alone —
+    // this case pins history navigation, not uninstalled-skill pruning.
+    mocks.availableSkills = [pdfSkill]
     mocks.getDraft.mockImplementation(() => ({
       text: 'partial @pdf',
       tokens: [inProgressSkillToken]
@@ -2942,7 +3137,7 @@ describe('ChatComposer', () => {
     })
     const view = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
-    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file'])
+    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'skill'])
     expect(mocks.selectedKnowledgeBases).toEqual([])
     expect(cacheService.set).not.toHaveBeenCalled()
 
@@ -2951,7 +3146,7 @@ describe('ChatComposer', () => {
     view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([base]))
-    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'knowledge'])
+    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'knowledge', 'skill'])
     expect(cacheService.set).not.toHaveBeenCalledWith(
       'chat.composer_draft.topic-1',
       expect.objectContaining({ knowledgeBaseIds: [] }),

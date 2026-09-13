@@ -236,4 +236,29 @@ describe('TemporaryChatContextProvider', () => {
 
     expect(prepared.models[0].request.knowledgeBaseIds).toEqual(['kb-1', 'kb-2'])
   })
+
+  it('carries composer-attached skills from the submitted user-message parts', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({
+        userMessageParts: [
+          { type: 'text', text: 'use my skills' },
+          { type: 'data-skill-scope', data: { skills: ['pdf-tools', 'pdf-tools', 'mermaid-style'] } }
+        ]
+      }),
+      { hasLiveStream: false }
+    )
+
+    expect(prepared.models[0].request.skillFolderNames).toEqual(['pdf-tools', 'mermaid-style'])
+  })
+
+  it('omits skillFolderNames when no skill scope part is submitted', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({ userMessageParts: [{ type: 'text', text: 'plain turn' }] }),
+      { hasLiveStream: false }
+    )
+
+    expect(prepared.models[0].request.skillFolderNames).toBeUndefined()
+  })
 })

@@ -1,4 +1,4 @@
-import { Eraser } from 'lucide-react'
+import { Eraser, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,7 +33,11 @@ import {
   resolveSupportedReasoningEffort,
   resolveSupportedServiceTier
 } from '@renderer/components/ModelSpeedControl'
-import { type QuickPanelListItem, useOptionalQuickPanel } from '@renderer/components/QuickPanel'
+import {
+  type QuickPanelInputAdapter,
+  type QuickPanelListItem,
+  useOptionalQuickPanel
+} from '@renderer/components/QuickPanel'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -44,6 +48,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -68,15 +73,23 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
+import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart, withSkillScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import type { LocalSkill } from '@shared/types/skill'
 
-import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
+import {
+  createComposerUserMessageParts,
+  excludeComposerDraftTokens,
+  trimComposerDraftBoundaryBlankLines
+} from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
+import type { ComposerToolLauncher } from '../toolLauncher'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
+import { getCachedSkillTokens, getSkillFromCachedToken } from './agent/agentDraftCache'
+import { agentComposerTokenId, agentSkillToComposerToken } from './agentComposerTokens'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
@@ -108,10 +121,12 @@ import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMent
 import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('ChatComposer')
-const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
+const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
-  'file'
+  'file',
+  'skill'
 ] as const satisfies readonly ComposerDraftToken['kind'][]
+const CHAT_SKILLS_LAUNCHER_ID = 'chat-skills'
 const CHAT_NEW_CONVERSATION_TOOL_ID = 'composer:new-conversation'
 const CHAT_CLEAR_CONTEXT_TOOL_ID = 'composer:clear-context'
 const EMPTY_MODELS: Model[] = []
@@ -195,6 +210,44 @@ interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 's
 }
 
 type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
+
+// Mirrors AgentComposer's module-level builder: chat and agent attach the same skill tokens
+// (agentSkillToComposerToken), so the two panels stay behaviorally identical (#19773, design D5).
+const createSkillQuickPanelItems = (
+  skills: readonly LocalSkill[],
+  options: {
+    skillLabel: string
+    onInsertSkill: (skill: LocalSkill, inputAdapter?: QuickPanelInputAdapter) => void
+  }
+): QuickPanelListItem[] => {
+  return skills.map((skill) => ({
+    id: agentComposerTokenId.skill(skill),
+    label: skill.name,
+    description: skill.description ?? undefined,
+    icon: <ToolCase size={16} />,
+    filterText: skill.name,
+    searchAliases: [options.skillLabel],
+    action: ({ inputAdapter }) => {
+      options.onInsertSkill(skill, inputAdapter)
+    }
+  }))
+}
+
+/** Folder names still attached as chips. Unknown availability (catalog loading or failed) defers
+ *  to main's read verdict instead of silently dropping the skill from the send. */
+function deriveAttachedSkillFolderNames(
+  selectedSkills: readonly LocalSkill[],
+  tokenIds: ReadonlySet<string>,
+  skillByFilename: ReadonlyMap<string, LocalSkill>,
+  availabilityKnown: boolean
+): string[] {
+  return selectedSkills
+    .filter(
+      (skill) =>
+        tokenIds.has(agentComposerTokenId.skill(skill)) && (!availabilityKnown || skillByFilename.has(skill.filename))
+    )
+    .map((skill) => skill.filename)
+}
 
 const isComposerEditableMessagePart = (part: CherryMessagePart) => part.type === 'text' || part.type === 'file'
 
@@ -580,6 +633,9 @@ const ChatComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )
+  const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
+    getCachedSkillTokens(initialDraft.tokens).map(getSkillFromCachedToken)
+  )
   const surfaceGetDraftRef = useRef<ComposerSurfaceActions['getDraft']>(emptyActions.getDraft)
   const [draftTokenRevision, setDraftTokenRevision] = useState(0)
   const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
@@ -615,6 +671,36 @@ const ChatComposerInner = ({
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
     enabled: knowledgeBasesDataEnabled
   })
+  const skillsPanelVisible = Boolean(quickPanel?.isVisible && quickPanel?.symbol === CHAT_SKILLS_LAUNCHER_ID)
+  const skillsDataEnabled =
+    selectedSkills.length > 0 ||
+    getComposerTokenIds(draftTokens ?? [], 'skill').size > 0 ||
+    rootPanelVisible ||
+    skillsPanelVisible
+  // Chat attaches by explicit user pick, so per-agent enablement is meaningless — the library-wide
+  // switch still applies. (`useAvailableSkills` is unusable: no agentId → isEnabled false → empty.)
+  const {
+    skills: installedSkills,
+    loading: isAvailableSkillsLoading,
+    refreshing: isAvailableSkillsRefreshing,
+    error: availableSkillsError,
+    refresh: refreshAvailableSkills
+  } = useInstalledSkills(undefined, { enabled: skillsDataEnabled })
+  const availableSkills = useMemo<LocalSkill[]>(
+    () =>
+      installedSkills
+        .filter((skill) => skill.isGlobalEnabled !== false)
+        .map((skill) => ({
+          name: skill.name,
+          description: skill.description ?? undefined,
+          filename: skill.folderName
+        })),
+    [installedSkills]
+  )
+  const skillByFilename = useMemo(
+    () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
+    [availableSkills]
+  )
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const mentionedModelsRef = useLatest(mentionedModels)
@@ -627,6 +713,9 @@ const ChatComposerInner = ({
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text)
       setDraftTokens(historyDraft.tokens.length ? historyDraft.tokens : undefined)
+      // Skills ride in the draft tokens: a recalled history entry (plain text) drops them,
+      // restoring a preview brings them back — same contract as AgentComposer.
+      setSelectedSkills(getCachedSkillTokens(historyDraft.tokens).map(getSkillFromCachedToken))
 
       if (options.source === 'history') {
         inputHistoryToolsRef.current ??= {
@@ -1149,6 +1238,7 @@ const ChatComposerInner = ({
       savedDraft.mentionedModelMultiSelectMode
     )
     setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
+    setSelectedSkills(getCachedSkillTokens(savedDraft.draftTokens).map(getSkillFromCachedToken))
   }, [
     actionsRef,
     exitInputHistoryPreview,
@@ -1184,6 +1274,7 @@ const ChatComposerInner = ({
     setDraftTokens(editableDraft.draftTokens)
     setFiles(editableDraft.files)
     setSelectedKnowledgeBases(getEditableKnowledgeBases(editableDraft.draftTokens, selectableKnowledgeBases))
+    setSelectedSkills(getCachedSkillTokens(editableDraft.draftTokens).map(getSkillFromCachedToken))
   })
 
   useEffect(() => {
@@ -1234,19 +1325,57 @@ const ChatComposerInner = ({
   const placeholderText = t('chat.input.placeholder', { key: getComposerShortcutLabel(sendMessageShortcut) })
 
   const tokens = useMemo(
-    () => [...files.map(fileToComposerToken), ...selectedKnowledgeBasesInScope.map(knowledgeBaseToComposerToken)],
-    [files, selectedKnowledgeBasesInScope]
+    () => [
+      ...files.map(fileToComposerToken),
+      ...selectedKnowledgeBasesInScope.map(knowledgeBaseToComposerToken),
+      ...selectedSkills.map(agentSkillToComposerToken)
+    ],
+    [files, selectedKnowledgeBasesInScope, selectedSkills]
+  )
+
+  const resolveSkillMarker = useCallback(
+    (marker: string): ComposerDraftToken | null => {
+      const skill = skillByFilename.get(marker)
+      return skill ? agentSkillToComposerToken(skill) : null
+    },
+    [skillByFilename]
   )
 
   // Editor→state reconciliation owned by the tools: attachmentTool prunes+dedupes files,
   // knowledgeBaseTool prunes+re-adds knowledge bases (against the injected selectableKnowledgeBases).
   const reconcileTokens = useComposerTokenReconcile({ scope, assistant: displayAssistant, model: runtimeModel })
   const handleTokensChange = useCallback(
-    (nextDraftTokens: readonly ComposerSerializedToken[]) => {
-      reconcileTokens(nextDraftTokens)
+    (draftTokens: readonly ComposerSerializedToken[]) => {
+      reconcileTokens(draftTokens)
       setDraftTokenRevision((revision) => revision + 1)
+
+      // Skill reconcile mirrors AgentComposer: token removals prune the selection, and tokens
+      // restored from cache/paste re-select the matching installed skill.
+      const skillTokenIds = getComposerTokenIds(draftTokens, 'skill')
+      const skillTokens = draftTokens.filter((token) => token.kind === 'skill')
+      setSelectedSkills((prev) => {
+        const next = prev.filter((skill) => skillTokenIds.has(agentComposerTokenId.skill(skill)))
+        const nextIds = new Set(next.map(agentComposerTokenId.skill))
+        let changed = next.length !== prev.length
+
+        for (const token of skillTokens) {
+          const skill = availableSkills.find((candidate) => {
+            const candidateId = agentComposerTokenId.skill(candidate)
+            return candidateId === token.id || candidate.name === token.label || candidate.filename === token.label
+          })
+          if (!skill) continue
+
+          const skillId = agentComposerTokenId.skill(skill)
+          if (nextIds.has(skillId)) continue
+          next.push(skill)
+          nextIds.add(skillId)
+          changed = true
+        }
+
+        return changed ? next : prev
+      })
     },
-    [reconcileTokens]
+    [availableSkills, reconcileTokens]
   )
 
   const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
@@ -1381,6 +1510,101 @@ const ChatComposerInner = ({
     })
     return items
   }, [chatWrite, clearContextDisabled, handleStartNewContext, pinnedToolIds, t])
+  const insertSkillToken = useCallback(
+    (skill: LocalSkill, inputAdapter?: QuickPanelInputAdapter) => {
+      if (!inputAdapter?.insertToken) return
+
+      const token = agentSkillToComposerToken(skill)
+      const exists = selectedSkills.some((selectedSkill) => agentComposerTokenId.skill(selectedSkill) === token.id)
+      if (!exists) {
+        inputAdapter.insertToken(token)
+        setSelectedSkills((prev) =>
+          prev.some((selectedSkill) => agentComposerTokenId.skill(selectedSkill) === token.id) ? prev : [...prev, skill]
+        )
+      }
+      inputAdapter.focus()
+    },
+    [selectedSkills]
+  )
+
+  const skillLabel = t('plugins.skills')
+  const skillItems = useMemo<QuickPanelListItem[]>(
+    () =>
+      createSkillQuickPanelItems(availableSkills, {
+        skillLabel,
+        onInsertSkill: insertSkillToken
+      }),
+    [availableSkills, insertSkillToken, skillLabel]
+  )
+  const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
+    return {
+      id: CHAT_SKILLS_LAUNCHER_ID,
+      kind: 'panel',
+      sources: ['root-panel'],
+      order: 40,
+      label: skillLabel,
+      icon: <ToolCase />,
+      searchAliases: [skillLabel],
+      panelSymbol: CHAT_SKILLS_LAUNCHER_ID,
+      rootSearchItems: skillItems.map((item) => ({ ...item, suffix: skillLabel })),
+      action: ({ parentPanel, queryAnchor, quickPanel }) => {
+        void refreshAvailableSkills().catch((error) => {
+          logger.warn('Failed to refresh available skills when opening the skills panel', { error })
+        })
+        quickPanel.open({
+          title: skillLabel,
+          list: skillItems,
+          symbol: CHAT_SKILLS_LAUNCHER_ID,
+          parentPanel,
+          queryAnchor,
+          triggerInfo: { type: 'button' },
+          trackInputQuery: true
+        })
+      }
+    }
+  }, [refreshAvailableSkills, skillItems, skillLabel])
+
+  useEffect(
+    () => toolsRegistry.registerLaunchers(CHAT_SKILLS_LAUNCHER_ID, [skillsLauncher]),
+    [skillsLauncher, toolsRegistry]
+  )
+
+  // Keep an already-open skills submenu in sync once a refresh resolves — its opening closure
+  // is stale, so external installs/removals would otherwise wait for the next open.
+  const updateQuickPanelList = quickPanel?.updateList
+  useEffect(() => {
+    if (!skillsPanelVisible || !updateQuickPanelList) return
+    updateQuickPanelList(skillItems)
+  }, [skillsPanelVisible, skillItems, updateQuickPanelList])
+
+  // A skill that becomes unavailable (uninstalled or globally disabled) while its chip sits in
+  // the composer must not survive into a later send: prune chips on every refresh of the
+  // installed-skills data, not only after a draft restore.
+  useEffect(() => {
+    if (isAvailableSkillsLoading || availableSkillsError) return
+
+    const stale = selectedSkills.filter((skill) => !skillByFilename.has(skill.filename))
+    if (stale.length === 0) return
+
+    const staleIds = new Set(stale.map((skill) => agentComposerTokenId.skill(skill)))
+    const draft = actionsRef.current.getDraft()
+    const pruned = excludeComposerDraftTokens(draft, (token) => token.kind === 'skill' && staleIds.has(token.id))
+    if (pruned !== draft) {
+      actionsRef.current.replaceDraft(pruned)
+      setText(pruned.text)
+      setDraftTokens(pruned.tokens.length ? pruned.tokens : undefined)
+    }
+    setSelectedSkills((prev) => prev.filter((skill) => skillByFilename.has(skill.filename)))
+  }, [
+    actionsRef,
+    availableSkillsError,
+    isAvailableSkillsLoading,
+    selectedSkills,
+    setSelectedSkills,
+    setText,
+    skillByFilename
+  ])
+
   useEffect(
     () => toolsRegistry.registerLaunchers('composer-toolbar-settings', [], [customizeFooterAction]),
     [customizeFooterAction, toolsRegistry]
@@ -1447,19 +1671,33 @@ const ChatComposerInner = ({
       const knowledgeBaseIds = selectedKnowledgeBasesInScope
         .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
         .map((base) => base.id)
+      const skillFolderNames = deriveAttachedSkillFolderNames(
+        selectedSkills,
+        tokenIds,
+        skillByFilename,
+        !isAvailableSkillsLoading && !isAvailableSkillsRefreshing && !availableSkillsError
+      )
       return {
         ...payload,
-        userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
+        userMessageParts: withSkillScopePart(
+          withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds),
+          skillFolderNames
+        )
       }
     },
     [
       assistantId,
+      availableSkillsError,
       chatTarget,
       fastMode,
       files,
+      isAvailableSkillsLoading,
+      isAvailableSkillsRefreshing,
       reasoningEffort,
-      serviceTier,
       selectedKnowledgeBasesInScope,
+      selectedSkills,
+      serviceTier,
+      skillByFilename,
       speedControlModel,
       submittedMentionedModels
     ]
@@ -1498,6 +1736,7 @@ const ChatComposerInner = ({
     setText('')
     setDraftTokens(undefined)
     setFiles([])
+    setSelectedSkills([])
     // Knowledge base selection belongs to the conversation scope, not the individual draft.
     // Clearing the composer must also drop the input-history nav state: a
     // recalled draft that gets sent/queued without further edits would otherwise
@@ -1544,6 +1783,7 @@ const ChatComposerInner = ({
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
+      setSelectedSkills(getCachedSkillTokens(item.draft.tokens).map(getSkillFromCachedToken))
       const queuedModels = (item.payload.mentionedModels ?? [])
         .map((modelId) => allModels.find((candidate) => candidate.id === modelId))
         .filter((candidate): candidate is Model => candidate !== undefined)
@@ -1605,9 +1845,23 @@ const ChatComposerInner = ({
       const knowledgeBaseIds = selectedKnowledgeBasesInScope
         .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
         .map((base) => base.id)
-      return withKnowledgeScopePart(messageParts, knowledgeBaseIds)
+      const skillFolderNames = deriveAttachedSkillFolderNames(
+        selectedSkills,
+        tokenIds,
+        skillByFilename,
+        !isAvailableSkillsLoading && !isAvailableSkillsRefreshing && !availableSkillsError
+      )
+      return withSkillScopePart(withKnowledgeScopePart(messageParts, knowledgeBaseIds), skillFolderNames)
     },
-    [files, selectedKnowledgeBasesInScope]
+    [
+      availableSkillsError,
+      files,
+      isAvailableSkillsLoading,
+      isAvailableSkillsRefreshing,
+      selectedKnowledgeBasesInScope,
+      selectedSkills,
+      skillByFilename
+    ]
   )
 
   /** `resend` = fork the user message and regenerate; otherwise save the edit in place. */
@@ -1882,6 +2136,7 @@ const ChatComposerInner = ({
           onTokensChange={handleTokensChange}
           suggestionSources={entityReferenceSources}
           resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
+          resolveSkillMarker={resolveSkillMarker}
           placeholder={searching ? t('chat.input.translating') : placeholderText}
           sendMessageShortcut={sendMessageShortcut}
           sendDisabled={

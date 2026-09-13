@@ -64,7 +64,7 @@ vi.mock('../skillArchive', async (importOriginal) => {
 // Namespaced so the local `createTempDir` test helper cannot shadow the module export.
 import * as skillArchive from '../skillArchive'
 import * as skillPaths from '../skillPaths'
-import { SkillService } from '../SkillService'
+import { SKILL_FILE_PREVIEW_MAX_SIZE_BYTES, SkillService } from '../SkillService'
 
 const AGENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const SKILL_ID_1 = '11111111-1111-4111-8111-111111111111'
@@ -2255,6 +2255,136 @@ describe('SkillService', () => {
 
       await skillArchive.extractZip(zipPath, destDir)
       await expect(fs.promises.readFile(path.join(destDir, 'SKILL.md'), 'utf-8')).resolves.toContain('name: x')
+    })
+  })
+
+  describe('readSkillMdByFolderName', () => {
+    let restoreGetPath: () => void
+    let mirrorRoot: string
+    let storageRoot: string
+
+    beforeEach(async () => {
+      const root = await createTempDir('skill-md-read-')
+      mirrorRoot = path.join(root, '.claude', 'skills')
+      storageRoot = path.join(root, 'Skills')
+      await fs.promises.mkdir(mirrorRoot, { recursive: true })
+      await fs.promises.mkdir(storageRoot, { recursive: true })
+      // The fallback keeps every other path key inside the temp root — SkillInstaller's
+      // constructor resolves one and would try to mkdir a non-existent /mock.
+      const spy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        if (key === 'feature.agents.claude.skills') return filename ? path.join(mirrorRoot, filename) : mirrorRoot
+        if (key === 'feature.agents.skills') return filename ? path.join(storageRoot, filename) : storageRoot
+        return path.join(root, 'mock', key, filename ?? '')
+      })
+      restoreGetPath = () => spy.mockRestore()
+    })
+
+    afterEach(() => {
+      restoreGetPath()
+    })
+
+    it('returns the descriptor content for a mirrored skill', async () => {
+      const skillDir = path.join(mirrorRoot, 'pdf-tools')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'Be concise with PDFs.')
+
+      await expect(new SkillService().readSkillMdByFolderName('pdf-tools')).resolves.toEqual({
+        status: 'found',
+        content: 'Be concise with PDFs.'
+      })
+    })
+
+    it('reports missing when the folder has no SKILL.md in either casing', async () => {
+      await fs.promises.mkdir(path.join(mirrorRoot, 'gone'), { recursive: true })
+
+      await expect(new SkillService().readSkillMdByFolderName('gone')).resolves.toEqual({ status: 'missing' })
+      await expect(new SkillService().readSkillMdByFolderName('never-installed')).resolves.toEqual({
+        status: 'missing'
+      })
+    })
+
+    it('contains the folder name so a tampered part cannot escape the mirror root', async () => {
+      // Decoy at the escape target: without containment, '../../outside' would resolve
+      // here and read this SKILL.md.
+      const escapeTarget = path.join(mirrorRoot, '..', '..', 'outside')
+      await fs.promises.mkdir(escapeTarget, { recursive: true })
+      await fs.promises.writeFile(path.join(escapeTarget, 'SKILL.md'), 'escaped secret')
+
+      await expect(new SkillService().readSkillMdByFolderName('../../outside')).resolves.toEqual({
+        status: 'missing'
+      })
+    })
+
+    it('reads adopt-path folder names the installer never sanitized', async () => {
+      const skillDir = path.join(mirrorRoot, 'pdf.tools')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'dots are legal')
+
+      await expect(new SkillService().readSkillMdByFolderName('pdf.tools')).resolves.toEqual({
+        status: 'found',
+        content: 'dots are legal'
+      })
+    })
+
+    it('fails the read before loading an oversized SKILL.md', async () => {
+      const skillDir = path.join(mirrorRoot, 'huge')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'x'.repeat(SKILL_FILE_PREVIEW_MAX_SIZE_BYTES + 1))
+
+      await expect(new SkillService().readSkillMdByFolderName('huge')).resolves.toEqual({
+        status: 'error',
+        reason: 'too-large'
+      })
+    })
+
+    it('still rejects a descriptor that grows past the limit between stat and read', async () => {
+      const skillDir = path.join(mirrorRoot, 'growing')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'x'.repeat(SKILL_FILE_PREVIEW_MAX_SIZE_BYTES + 1))
+      // Simulate the stat/read race: stat underreports while the real content is oversized.
+      const statSpy = vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1 } as unknown as fs.Stats)
+
+      try {
+        await expect(new SkillService().readSkillMdByFolderName('growing')).resolves.toEqual({
+          status: 'error',
+          reason: 'too-large'
+        })
+      } finally {
+        statSpy.mockRestore()
+      }
+    })
+
+    it('rejects a skill directory that resolves outside the mirror root', async () => {
+      const outsideDir = path.join(path.dirname(mirrorRoot), 'outside-skill')
+      await fs.promises.mkdir(outsideDir, { recursive: true })
+      await fs.promises.writeFile(path.join(outsideDir, 'SKILL.md'), 'exfiltrated')
+      await fs.promises.symlink(outsideDir, path.join(mirrorRoot, 'escaped'), 'junction')
+
+      await expect(new SkillService().readSkillMdByFolderName('escaped')).resolves.toEqual({ status: 'missing' })
+    })
+
+    it('reads through the intentional storage symlink used for non-builtin mirrors', async () => {
+      // POSIX mirrors non-builtin skills as symlinks into the skills storage root (see
+      // pathRegistry: "symlinks → feature.agents.skills") — attachment must read them fine.
+      const sourceDir = path.join(storageRoot, 'linked')
+      await fs.promises.mkdir(sourceDir, { recursive: true })
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), 'from storage')
+      await fs.promises.symlink(sourceDir, path.join(mirrorRoot, 'linked'), 'junction')
+
+      await expect(new SkillService().readSkillMdByFolderName('linked')).resolves.toEqual({
+        status: 'found',
+        content: 'from storage'
+      })
+    })
+
+    it('reports error when the descriptor exists but cannot be read', async () => {
+      const skillDir = path.join(mirrorRoot, 'locked')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      // A directory named SKILL.md makes readFile reject with a non-ENOENT error on every
+      // platform — chmod 000 is a no-op on NTFS, so it cannot fake unreadability on Windows.
+      await fs.promises.mkdir(path.join(skillDir, 'SKILL.md'))
+
+      await expect(new SkillService().readSkillMdByFolderName('locked')).resolves.toEqual({ status: 'error' })
     })
   })
 })

@@ -378,6 +378,52 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(regenerated.models[0].request.knowledgeBaseIds).toEqual(knowledgeBaseIds)
   })
 
+  it('carries composer-attached skills on the request and restores them when regenerating', async () => {
+    const skillFolderNames = ['pdf-tools', 'mermaid-style']
+    const submitted = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        userMessageParts: [
+          { type: 'text', text: 'use my attached skills' },
+          { type: 'data-skill-scope', data: { skills: skillFolderNames } }
+        ]
+      },
+      { hasLiveStream: false }
+    )
+    expect(submitted.models[0].request.skillFolderNames).toEqual(skillFolderNames)
+
+    const userMessageId = submitted.reservedMessages?.find((message) => message.role === 'user')?.id as string
+    const regenerated = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: userMessageId
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(regenerated.models[0].request.skillFolderNames).toEqual(skillFolderNames)
+  })
+
+  it('omits skillFolderNames when the user turn carries no skill scope part', async () => {
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        userMessageParts: [{ type: 'text', text: 'plain turn' }]
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(prepared.models[0].request.skillFolderNames).toBeUndefined()
+  })
+
   it('steer-continuation: opens an assistant turn under the steer user row with a reminder-wrapped prompt', async () => {
     // u1 → a1 → u2, where u2 is the steer the user sent mid-turn (child of the assistant row).
     await dbh.db.insert(messageTable).values({

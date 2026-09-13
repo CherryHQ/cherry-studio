@@ -35,7 +35,7 @@ import { buildSystemSkillSources } from './systemSkillSources'
 
 const logger = loggerService.withContext('SkillService')
 
-const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
+export const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
 
@@ -51,6 +51,12 @@ const BUILTIN_VERSION_FILE = '.version'
  * Skill library metadata lives in `agent_global_skill`. Per-agent enablement
  * state lives in the `agent_skill` join table.
  */
+/** Three-state SKILL.md read result: found / missing (no file) / error (exists but unreadable). */
+export type SkillMdReadState =
+  | { status: 'found'; content: string }
+  | { status: 'missing' }
+  | { status: 'error'; reason?: 'too-large' }
+
 export class SkillService {
   private readonly installer: SkillInstaller
   // Serializes every library mutation — install / uninstall / builtin sync / reconcile — so a
@@ -97,6 +103,49 @@ export class SkillService {
     const agentIds = agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
 
     logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
+  }
+
+  /**
+   * Read a skill's SKILL.md from the mirror root by folder name. Folder name (=
+   * `LocalSkill.filename`) is the storage identity the renderer attaches; unlike
+   * `readFile(skillId, …)` it needs no catalog row, so a chat turn whose skill was
+   * uninstalled mid-flight still gets the same found/missing/error verdict (#19773).
+   * Containment, not name rewriting: reconcile adopts agent-authored directories under
+   * their original (never install-sanitized) names, so a rename-style guard would turn
+   * legitimate attachments into guaranteed turn failures.
+   */
+  async readSkillMdByFolderName(folderName: string): Promise<SkillMdReadState> {
+    const root = path.resolve(this.getMirrorRoot())
+    const target = path.resolve(this.getMirrorPath(folderName))
+    if (target !== root && !target.startsWith(root + path.sep)) return { status: 'missing' }
+    // The descriptor is inlined into the system prompt, so guard the read itself: resolved paths
+    // must stay inside the mirror root or the skill storage root (non-builtin mirrors are
+    // intentionally symlinked to storage on POSIX), and an oversized SKILL.md fails the turn
+    // before it is ever loaded (limit shared with file previews).
+    try {
+      const [realRoot, realStorageRoot] = await Promise.all([
+        fs.promises.realpath(root),
+        fs.promises.realpath(path.resolve(application.getPath('feature.agents.skills')))
+      ])
+      const isAllowed = (realFile: string) =>
+        realFile.startsWith(realRoot + path.sep) || realFile.startsWith(realStorageRoot + path.sep)
+      for (const variant of ['SKILL.md', 'skill.md']) {
+        const realFile = await fs.promises.realpath(path.join(target, variant)).catch(() => null)
+        if (!realFile) continue
+        if (!isAllowed(realFile)) return { status: 'missing' }
+        const { size } = await fs.promises.stat(realFile)
+        if (size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return { status: 'error', reason: 'too-large' }
+      }
+    } catch {
+      // An unreadable mirror root falls through to the shared three-state read.
+    }
+    const state = await this.readSkillMdState(target)
+    // Re-check after the read: the file can grow between stat and readFile, and the
+    // content must never reach the system prompt over the limit.
+    if (state.status === 'found' && Buffer.byteLength(state.content) > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) {
+      return { status: 'error', reason: 'too-large' }
+    }
+    return state
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {
@@ -1024,9 +1073,7 @@ export class SkillService {
    * for deletion: `found` (content), `missing` (no SKILL.md at all — ENOENT for both casings), or
    * `error` (a descriptor exists but reading it threw — EACCES / EIO / atomic-replace window).
    */
-  private async readSkillMdState(
-    dir: string
-  ): Promise<{ status: 'found'; content: string } | { status: 'missing' } | { status: 'error' }> {
+  private async readSkillMdState(dir: string): Promise<SkillMdReadState> {
     let sawError = false
     for (const variant of ['SKILL.md', 'skill.md']) {
       try {
