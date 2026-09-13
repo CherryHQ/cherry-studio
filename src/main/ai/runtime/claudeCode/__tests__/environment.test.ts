@@ -121,6 +121,22 @@ describe('resolveAutoCompactWindow', () => {
     ).toBe(119_168)
   })
 
+  // Vertex serves Claude over its own transport with accurate windows even though
+  // Anthropic Messages is not the provider default — the URL-less Vertex entry
+  // stays trusted.
+  it('trusts the official Vertex Claude transport regardless of default endpoint', () => {
+    expect(
+      resolveAutoCompactWindow(256_000, 32_000, {
+        id: 'vertexai',
+        presetProviderId: 'vertexai',
+        defaultChatEndpoint: 'google-generate-content',
+        endpointConfigs: {
+          'anthropic-messages': { adapterFamily: 'google-vertex-anthropic' }
+        }
+      } as never)
+    ).toBe(219_520)
+  })
+
   // A preset-Anthropic provider with an empty-string entry URL is untrusted:
   // empty is falsy at runtime (getBaseUrl cascade, warmup `|| baseUrl`), so
   // traffic can still reach a relay. Only an absent or explicitly official
