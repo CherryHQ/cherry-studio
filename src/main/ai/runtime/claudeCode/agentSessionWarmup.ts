@@ -102,6 +102,12 @@ interface ClaudeCodeRouteFacts {
   /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
   usageModels: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels']
   /**
+   * Trust verdict for the primary model slot, decided by the endpoint that actually
+   * serves it. Fingerprinted so an endpoint edit that flips primary trust rebuilds
+   * the connection even when ids and windows are unchanged.
+   */
+  primaryTrusted: boolean
+  /**
    * Per-slot budget inputs for gateway sessions (sonnet/haiku refs): provider identity,
    * declared windows, and the trust verdict the budget derives from. The projection is
    * JSON-safe so rebuild facts fingerprint it — an endpoint edit that flips a slot's
@@ -555,6 +561,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         thinkingOptions,
         fastMode: fastModeTransport === 'claude-code',
         effectiveLanguage,
+        primaryModelId: uniqueModelId,
         gatewayModelSlots: route.branch === 'gateway' ? route.budgetSlots : undefined
       },
       agent
@@ -710,6 +717,7 @@ function deriveRouteFacts(
       toolSearchCompatible,
       modelIds,
       budgetSlots: [],
+      primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel),
       usageModels: buildUsageModels([
         { sdkModelId: modelIds.primary, ref: externalRefs.primary },
         { sdkModelId: modelIds.opus, ref: externalRefs.opus },
@@ -749,6 +757,7 @@ function deriveRouteFacts(
         maxOutputTokens: ref.model?.maxOutputTokens,
         trusted: isTrustedClaudeSlot(ref.provider ?? null, ref.model ?? null)
       })),
+      primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel),
       usageModels: []
     }
   }
@@ -782,6 +791,7 @@ function deriveRouteFacts(
     toolSearchCompatible,
     modelIds,
     budgetSlots: [],
+    primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel),
     usageModels: buildUsageModels([
       { sdkModelId: modelIds.primary, ref: primaryRef },
       { sdkModelId: modelIds.opus, ref: opusRef },
@@ -870,6 +880,7 @@ function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteF
     toolSearchCompatible: route.toolSearchCompatible,
     modelIds: route.modelIds,
     budgetSlots: route.budgetSlots,
+    primaryTrusted: route.primaryTrusted,
     usageModels: route.usageModels
   }
 }
