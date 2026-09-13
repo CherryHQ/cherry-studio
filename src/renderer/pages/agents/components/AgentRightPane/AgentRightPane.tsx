@@ -240,6 +240,9 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
   revealRequest?: ResourceListRevealRequest
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  hasOlder?: boolean
+  isLoading?: boolean
+  loadOlder?: () => void
 }
 
 const AgentRightPaneMetaContext = createContext<AgentRightPaneMeta | null>(null)
@@ -418,7 +421,10 @@ function AgentRightPaneStateProvider({
   onOpenChange,
   onFileNavigationRequestChange,
   userOpenIntentSeq,
-  revealRequest
+  revealRequest,
+  hasOlder,
+  isLoading,
+  loadOlder
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
@@ -636,6 +642,12 @@ function AgentRightPaneStateProvider({
               onOpenChange={onOpenChange}
               userOpenIntentSeq={userOpenIntentSeq}
               present={present}>
+              <AgentHistoryPrefetcher
+                sessionId={sessionId}
+                hasOlder={hasOlder}
+                isLoading={isLoading}
+                loadOlder={loadOlder}
+              />
               <ResourcePaneLocateOpener revealRequest={revealRequest} />
               <AgentRightPaneActionsProvider
                 artifactOpenRequestRef={artifactOpenRequestRef}
@@ -669,6 +681,36 @@ function AgentRightPaneStateProvider({
       </AgentRightPaneMetaContext>
     </AgentFileNavigationContext>
   )
+}
+
+interface AgentHistoryPrefetcherProps {
+  sessionId?: string
+  hasOlder?: boolean
+  isLoading?: boolean
+  loadOlder?: () => void
+}
+
+// The status projection replays task parts from the loaded transcript, so history
+// must outlive the 50-message first page once the status tab actually presents it.
+function AgentHistoryPrefetcher({ sessionId, hasOlder, isLoading, loadOlder }: AgentHistoryPrefetcherProps) {
+  const state = useRightPanelState()
+  const prefetchedSessionIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (
+      !state.presentationOpen ||
+      !state.isActive(STATUS_PANE_ID) ||
+      isLoading ||
+      !hasOlder ||
+      !loadOlder ||
+      !sessionId ||
+      prefetchedSessionIdRef.current === sessionId
+    ) {
+      return
+    }
+    prefetchedSessionIdRef.current = sessionId
+    loadOlder()
+  }, [hasOlder, isLoading, loadOlder, sessionId, state])
+  return null
 }
 
 function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
