@@ -562,7 +562,8 @@ function AssistantPromptField({
   const name = form.watch('name')
   const processedPrompt = usePromptProcessor({
     prompt,
-    modelName: modelName ?? resource.modelName ?? undefined
+    modelName: modelName ?? resource.modelName ?? undefined,
+    assistantName: name
   })
 
   const handlePromptChange = (nextPrompt: string) => {

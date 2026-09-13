@@ -110,7 +110,13 @@ beforeEach(() => {
   mockProvisionBuiltinAgent.mockReset()
   mockBuildMemoriesSection.mockReset().mockResolvedValue(undefined)
   mockBuildPrompt.mockReset().mockResolvedValue({ base: { kind: 'native' }, context: 'SOUL_PROMPT' })
-  mockReplacePromptVariables.mockReset().mockImplementation(async (prompt: string) => prompt)
+  mockReplacePromptVariables
+    .mockReset()
+    .mockImplementation(async (prompt: string, modelName?: string, agentName?: string) =>
+      prompt
+        .replace('{{model_name}}', modelName ?? '{{model_name}}')
+        .replace('{{assistant_name}}', agentName ?? '{{assistant_name}}')
+    )
   mockGetAppLanguage.mockReturnValue('en-US')
 })
 
@@ -225,6 +231,16 @@ describe('buildSystemPrompt — current workspace', () => {
   })
 })
 
+describe('buildSystemPrompt — assistant name variable', () => {
+  it('resolves {{assistant_name}} in the instructions to the agent own name', async () => {
+    const agent = makeAgent({ name: 'Release Manager', instructions: 'You are {{assistant_name}}.' })
+
+    const result = promptText(await buildSystemPrompt(agent, '/tmp/cwd'))
+
+    expect(result).toContain('You are Release Manager.')
+  })
+})
+
 describe('buildSystemPrompt — Agent System Prompt authority', () => {
   it.each([{ instructions: undefined }, { instructions: '' }, { instructions: '   ' }])(
     'keeps legacy persona role guidance when Agent System Prompt is blank: $instructions',
@@ -265,20 +281,14 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
   })
 
   it('resolves Agent System Prompt variables with the embedded Agent model name', async () => {
-    mockReplacePromptVariables.mockResolvedValueOnce('Address Alice while using Claude Sonnet 4.5.')
     const agent = makeAgent({
-      instructions: 'Address {{username}} while using {{model_name}}.',
+      instructions: 'You run on {{model_name}}.',
       modelName: 'Claude Sonnet 4.5'
     })
 
     const text = promptText(await buildSystemPrompt(agent, '/tmp/cwd'))
 
-    expect(mockReplacePromptVariables).toHaveBeenCalledWith(
-      'Address {{username}} while using {{model_name}}.',
-      'Claude Sonnet 4.5'
-    )
-    expect(text).toContain('Address Alice while using Claude Sonnet 4.5.')
-    expect(text).not.toContain('{{username}}')
+    expect(text).toContain('You run on Claude Sonnet 4.5.')
     expect(text).not.toContain('{{model_name}}')
   })
 })

@@ -1494,6 +1494,29 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['promptModelName'])
   })
 
+  it('changes only the prompt assistant name rebuild fact when the Agent is renamed', async () => {
+    const agent = {
+      id: 'agent-1',
+      name: 'Release Manager',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    const original = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({ ...agent, name: 'Ship Captain' })
+    const renamed = await deriveSignature()
+
+    expect(renamed.rebuildSignature).not.toBe(original.rebuildSignature)
+    expect(
+      Object.keys(original.rebuildFactFingerprints).filter(
+        (name) => original.rebuildFactFingerprints[name] !== renamed.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['promptAssistantName'])
+  })
+
   it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {
     mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: 'http://proxy-a.example.com:8080' })
     const first = await deriveSignature()

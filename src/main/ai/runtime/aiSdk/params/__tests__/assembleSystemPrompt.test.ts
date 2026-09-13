@@ -5,7 +5,9 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 vi.mock('@main/utils/prompt', () => ({
-  replacePromptVariables: vi.fn(async (input: string) => input.replace('{{date}}', '2026-04-20'))
+  replacePromptVariables: vi.fn(async (input: string, _modelName?: string, assistantName?: string) =>
+    input.replace('{{date}}', '2026-04-20').replace('{{assistant_name}}', assistantName ?? '{{assistant_name}}')
+  )
 }))
 
 import { assembleSystemPrompt } from '../assembleSystemPrompt'
@@ -58,6 +60,14 @@ describe('assembleSystemPrompt', () => {
       model
     })
     expect(out).toBe('Today is 2026-04-20')
+  })
+
+  it('resolves {{assistant_name}} to the assistant own name', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'You are {{assistant_name}}.', name: 'Translator' }),
+      model
+    })
+    expect(out).toBe('You are Translator.')
   })
 
   it('returns just the assistant prompt when no tool_search is present, regardless of mcpMode', async () => {

@@ -1945,6 +1945,7 @@
   "library.config.prompt.variables_example": "例：今日は{{variable}}で、現在の日付が使用されます。",
   "library.config.prompt.variables_title": "利用可能な変数",
   "library.config.prompt.vars.arch": "CPUアーキテクチャ",
+  "library.config.prompt.vars.assistant_name": "アシスタント / エージェント名",
   "library.config.prompt.vars.date": "日付",
   "library.config.prompt.vars.datetime": "日付と時刻",
   "library.config.prompt.vars.language": "言語",

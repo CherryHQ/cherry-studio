@@ -13,14 +13,20 @@ const supportedVariables = [
   '{{system}}',
   '{{language}}',
   '{{arch}}',
-  '{{model_name}}'
+  '{{model_name}}',
+  '{{assistant_name}}'
 ]
 
 export const containsSupportedVariables = (userSystemPrompt: string): boolean => {
   return supportedVariables.some((variable) => userSystemPrompt.includes(variable))
 }
 
-export const replacePromptVariables = async (userSystemPrompt: string, modelName?: string): Promise<string> => {
+export const replacePromptVariables = async (
+  userSystemPrompt: string,
+  modelName?: string,
+  /** Name of the assistant/agent owning this prompt; left unreplaced when the call site has none. */
+  assistantName?: string
+): Promise<string> => {
   if (typeof userSystemPrompt !== 'string') {
     logger.warn('User system prompt is not a string:', userSystemPrompt)
     return userSystemPrompt
@@ -97,6 +103,11 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (modelName && userSystemPrompt.includes('{{model_name}}')) {
     userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, modelName)
+  }
+
+  if (assistantName && userSystemPrompt.includes('{{assistant_name}}')) {
+    // Function replacer keeps `$&`-style tokens in user-chosen names literal.
+    userSystemPrompt = userSystemPrompt.replace(/{{assistant_name}}/g, () => assistantName)
   }
 
   return userSystemPrompt
