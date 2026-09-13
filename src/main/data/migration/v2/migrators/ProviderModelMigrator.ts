@@ -353,12 +353,17 @@ export class ProviderModelMigrator extends BaseMigrator {
     const presetModel: ProtoModelConfig | null =
       loader.findModel(registryOverride?.modelId ?? row.modelId) ??
       (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
-    if (!presetModel) return endpointTypes === row.endpointTypes ? row : { ...row, endpointTypes }
-
+    // Computed before the unmatched early-return too: an explicit v1 selection must pin
+    // the row even without a registry match, or a later registry pickup would heal over it.
     const hasExplicitCapabilitySelection =
       legacy.capabilities?.some(
         (capability) => capability.type !== 'web_search' && capability.isUserSelected !== undefined
       ) ?? false
+    if (!presetModel) {
+      const base = endpointTypes === row.endpointTypes ? row : { ...row, endpointTypes }
+      return { ...base, capabilitiesExplicit: hasExplicitCapabilitySelection }
+    }
+
     if (!presetProvider) {
       return {
         ...row,

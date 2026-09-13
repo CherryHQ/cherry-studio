@@ -1380,6 +1380,32 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.capabilitiesExplicit).toBe(false)
     })
 
+    it('pins an explicit v1 selection for models with no registry match', async () => {
+      registryFixtures.providers = [{ id: 'voyageai', name: 'Voyage AI', endpointConfigs: {} }]
+      // No models entry for 'private-model' — the unmatched early-return path.
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('voyageai', [
+              { id: 'private-model', capabilities: [{ type: 'rerank', isUserSelected: false }] }
+            ])
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'voyageai::private-model'))
+      expect(modelRow.capabilities).toEqual([])
+      // A later registry pickup must heal over only non-explicit rows.
+      expect(modelRow.capabilitiesExplicit).toBe(true)
+    })
+
     it('does not infer rerank from a secondary Jina endpoint', async () => {
       const migrationContext = createContext(dbh.db, {
         llm: {
