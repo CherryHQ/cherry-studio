@@ -141,7 +141,7 @@ describe('useNutstoreSso', () => {
     const pending = result.current()
 
     act(() => {
-      emitProtocolData('cherrystudio://?error=invalid_response')
+      emitProtocolData('cherrystudio://?s=')
     })
 
     await expect(pending).resolves.toEqual({ status: 'error', reason: 'invalid_callback' })
@@ -158,6 +158,30 @@ describe('useNutstoreSso', () => {
 
     act(() => {
       emitProtocolData('cherrystudio://?code=unrelated-oauth-code')
+    })
+
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    expect(mocks.activeListeners.size).toBe(1)
+
+    act(() => {
+      emitProtocolData('cherrystudio://?s=encrypted-token')
+    })
+
+    await expect(pending).resolves.toEqual({ status: 'success', token: 'encrypted-token' })
+    expect(mocks.activeListeners.size).toBe(0)
+  })
+
+  it('ignores an unrelated root OAuth error callback', async () => {
+    const { result } = renderHook(() => useNutstoreSso())
+    const pending = result.current()
+    let settled = false
+    void pending.then(() => {
+      settled = true
+    })
+
+    act(() => {
+      emitProtocolData('cherrystudio://?error=access_denied')
     })
 
     await Promise.resolve()

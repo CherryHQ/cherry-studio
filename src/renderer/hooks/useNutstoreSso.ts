@@ -63,9 +63,9 @@ export function useNutstoreSso() {
         const isSchemeRoot = url.hostname === '' && (url.pathname === '' || url.pathname === '/')
         if (url.protocol !== 'cherrystudio:' || !isSchemeRoot) return
 
+        if (!url.searchParams.has('s')) return
         const encryptedToken = url.searchParams.get('s')
         if (!encryptedToken) {
-          if (!url.searchParams.has('error')) return
           logger.warn('Nutstore SSO callback did not contain an authorization token')
           finish({ status: 'error', reason: 'invalid_callback' })
           return
