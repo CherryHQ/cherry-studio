@@ -136,6 +136,7 @@ describe('DeepSeekHarnessService', () => {
     children.length = 0
     mocks.appGetPath.mockImplementation((key: string) => {
       if (key === 'external.deepseek_harness.config') return '/mock/home/.dsh'
+      if (key === 'external.deepseek_harness.storages') return '/mock/home/.dsh/storages'
       if (key === 'feature.deepseek_harness.workspace') return '/mock/userData/Data/DeepSeekHarness/Workspace'
       throw new Error(`Unexpected application.getPath(${key})`)
     })
@@ -383,9 +384,35 @@ describe('DeepSeekHarnessService', () => {
     const result = await service.start(startInput)
 
     expect(result).toEqual({ success: false, message: expect.stringContaining('[dsh-home-workspace-inconsistent]') })
+    expect(mocks.checkHomeHealth).toHaveBeenCalledWith('/mock/home/.dsh/storages')
     expect(mocks.spawn).not.toHaveBeenCalled()
     expect(mocks.writeConfig).not.toHaveBeenCalled()
     expect(service.getStatus()).toEqual({ status: 'error' })
+  })
+
+  it('scrubs managed credential env from the diagnostic version probe', async () => {
+    process.env.CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY = 'probe-secret'
+    try {
+      mocks.checkHomeHealth.mockResolvedValue({
+        healthy: false,
+        reason: 'projcache-unreadable',
+        detail: 'storages/session_projcache.json is not valid JSON'
+      })
+
+      const result = await new DeepSeekHarnessService().start(startInput)
+
+      expect(result).toEqual({
+        success: false,
+        message: expect.stringContaining('[dsh-home-projcache-unreadable]')
+      })
+      expect(mocks.execFile).toHaveBeenCalledOnce()
+      const options = mocks.execFile.mock.calls[0][2] as { env: NodeJS.ProcessEnv }
+      expect(options.env).not.toHaveProperty('CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY')
+      expect(options.env).not.toHaveProperty('CHERRY_STUDIO_CODEMATE_481BD06FDD6C_API_KEY')
+      expect(mocks.spawn).not.toHaveBeenCalled()
+    } finally {
+      delete process.env.CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY
+    }
   })
 
   it('starts the global gateway and projects its current address, key, and gateway model id', async () => {

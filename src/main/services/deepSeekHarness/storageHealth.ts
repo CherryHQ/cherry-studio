@@ -18,8 +18,8 @@ function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT'
 }
 
-async function readStoreJson(dshHomeDir: AbsoluteFilePath, fileName: string): Promise<unknown | undefined> {
-  const filePath = path.join(dshHomeDir, 'storages', fileName)
+async function readStoreJson(storagesDir: AbsoluteFilePath, fileName: string): Promise<unknown | undefined> {
+  const filePath = path.join(storagesDir, fileName)
   let stat: { size: number }
   try {
     stat = await fs.stat(filePath)
@@ -31,6 +31,8 @@ async function readStoreJson(dshHomeDir: AbsoluteFilePath, fileName: string): Pr
   return JSON.parse(await fs.readFile(filePath, 'utf8')) as unknown
 }
 
+// Self-descriptive only: fires when the store's own version falls outside its own
+// compatibleVersions. Anything else fails open — no Cherry-side version constants.
 function checkProjcacheVersion(data: unknown): string | undefined {
   if (typeof data !== 'object' || data === null) return undefined
   const version = (data as { version?: unknown }).version
@@ -41,6 +43,8 @@ function checkProjcacheVersion(data: unknown): string | undefined {
   return `storages/session_projcache.json declares version ${version} outside its compatibleVersions [${compatible.join(', ')}]`
 }
 
+// Exact state from #20395: every workspace lost its sessionIds slots while the
+// archive still holds sessions, which the dsh registry would not produce itself.
 function checkWorkspaceConsistency(data: unknown): string | undefined {
   if (typeof data !== 'object' || data === null) return undefined
   const tables = (data as { tables?: unknown }).tables
@@ -71,13 +75,14 @@ function checkWorkspaceConsistency(data: unknown): string | undefined {
 
 /**
  * Read-only preflight for a pre-existing DSH home (`~/.dsh`, third-party owned).
+ * @param storagesDir the registered `external.deepseek_harness.storages` directory.
  * @returns healthy, or the first positive incompatibility signal. Fail-open:
  * unknown shapes and I/O surprises report healthy so launch is never blocked.
  */
-export async function checkDshHomeHealth(dshHomeDir: AbsoluteFilePath): Promise<DshHomeHealth> {
+export async function checkDshHomeHealth(storagesDir: AbsoluteFilePath): Promise<DshHomeHealth> {
   let projcache: unknown
   try {
-    projcache = await readStoreJson(dshHomeDir, 'session_projcache.json')
+    projcache = await readStoreJson(storagesDir, 'session_projcache.json')
   } catch (error) {
     if (error instanceof SyntaxError) {
       return {
@@ -95,7 +100,7 @@ export async function checkDshHomeHealth(dshHomeDir: AbsoluteFilePath): Promise<
 
   let workspace: unknown
   try {
-    workspace = await readStoreJson(dshHomeDir, 'workspace.json')
+    workspace = await readStoreJson(storagesDir, 'workspace.json')
   } catch (error) {
     if (error instanceof SyntaxError) {
       return { healthy: false, reason: 'workspace-unreadable', detail: 'storages/workspace.json is not valid JSON' }

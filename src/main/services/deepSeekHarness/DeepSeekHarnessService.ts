@@ -145,7 +145,7 @@ export class DeepSeekHarnessService extends BaseService {
             throw new Error('DeepSeek Harness startup was cancelled')
           }
           const homeHealth = await checkDshHomeHealth(
-            AbsoluteFilePathSchema.parse(application.getPath('external.deepseek_harness.config'))
+            AbsoluteFilePathSchema.parse(application.getPath('external.deepseek_harness.storages'))
           )
           if (!homeHealth.healthy) {
             const dshVersion = await readDshVersion(runtime.path)
@@ -299,14 +299,11 @@ export class DeepSeekHarnessService extends BaseService {
     permissionMode: DeepSeekHarnessPermissionMode,
     signal: AbortSignal
   ): Promise<string> {
-    const env = {
+    const env = stripManagedCredentialEnv({
       ...runtime.env,
       DSH_HOME: application.getPath('external.deepseek_harness.config'),
       DSH_PERMISSION_MODE: permissionMode
-    }
-    for (const name of Object.keys(env)) {
-      if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
-    }
+    })
 
     const child = crossPlatformSpawn(runtime.path, ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
       cwd: application.getPath('feature.deepseek_harness.workspace'),
@@ -371,9 +368,19 @@ function sanitizeDiagnostic(value: string, secret?: string): string {
   return redactSecretText(redactLiteral(value, secret)).slice(0, DIAGNOSTIC_LIMIT)
 }
 
+function stripManagedCredentialEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  for (const name of Object.keys(env)) {
+    if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
+  }
+  return env
+}
+
 async function readDshVersion(binaryPath: string): Promise<string | undefined> {
   try {
-    const { stdout } = await execFileAsync(binaryPath, ['--version'], { timeout: 3000 })
+    const { stdout } = await execFileAsync(binaryPath, ['--version'], {
+      timeout: 3000,
+      env: stripManagedCredentialEnv({ ...process.env })
+    })
     return stdout.split('\n', 1)[0]?.trim().slice(0, 80) || undefined
   } catch {
     return undefined
