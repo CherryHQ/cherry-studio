@@ -3,7 +3,7 @@ import { APICallError, RetryError } from 'ai'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
-import { isErrorCategory } from '@shared/utils/errorCategory'
+import { classifyErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
 
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
@@ -45,6 +45,20 @@ export function serializeError(error: unknown): SerializedError {
       message: isRetryError ? getSafeProviderErrorMessage({ message: error.message }) : error.message,
       stack: isRetryError ? null : (error.stack ?? null),
       cause: e.cause != null ? String(e.cause) : null
+    }
+
+    if (error.name === 'ClaudeCodeResultError') {
+      const status = typeof e.apiErrorStatus === 'number' ? e.apiErrorStatus : undefined
+      const details = Array.isArray(e.errors)
+        ? e.errors.filter((value): value is string => typeof value === 'string')
+        : []
+      serialized.providerErrorCategory = classifyErrorCategory({
+        text: [error.message, ...details, e.terminalReason]
+          .filter((value): value is string => typeof value === 'string')
+          .join('\n'),
+        status
+      })
+      if (status !== undefined) serialized.statusCode = status
     }
 
     if ('url' in e) serialized.url = String(e.url ?? '')
