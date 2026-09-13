@@ -1053,6 +1053,28 @@ describe('SkillService', () => {
       }
     })
 
+    it('skips whitespace and punctuation-only root metadata before using the repository fallback', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath } = await setupGithubRootInstall()
+
+      try {
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Root Skill', declaredName: '!!!', slug: '   ' }) as never
+        )
+
+        const installed = await skillService.install({
+          installSource: 'github:https://github.com/owner/punctuation-fallback/blob/main/SKILL.md'
+        })
+
+        expect(installed.folderName).toBe('punctuation-fallback')
+        await expect(
+          fs.promises.access(path.join(dataSkillsRoot, 'punctuation-fallback', 'SKILL.md'))
+        ).resolves.toBeUndefined()
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
     it('rejects installation before filesystem mutation when every folder candidate sanitizes empty', async () => {
       const root = await createTempDir('invalid-folder-skills-')
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')
@@ -1138,6 +1160,134 @@ describe('SkillService', () => {
         )
         await expect(fs.promises.access(path.join(dataSkillsRoot, 'Renamed_Skill'))).rejects.toThrow()
         await expect(fs.promises.access(path.join(mirrorRoot, 'Renamed_Skill'))).rejects.toThrow()
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('reinstalls a legacy root row when every newly derived folder candidate is empty', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath } = await setupGithubRootInstall()
+      const legacySkillId = 'legacy-empty-candidate'
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/empty-repo/refs/heads/main/SKILL.md'
+
+      try {
+        await dbh.db.insert(agentGlobalSkillTable).values({
+          id: legacySkillId,
+          name: 'Legacy Skill',
+          folderName: 'content',
+          source: 'marketplace',
+          sourceUrl,
+          contentHash: 'legacy-hash',
+          isEnabled: false
+        })
+        await fs.promises.mkdir(path.join(dataSkillsRoot, 'content'), { recursive: true })
+        await fs.promises.writeFile(path.join(dataSkillsRoot, 'content', 'SKILL.md'), '# legacy')
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: '\0', declaredName: '!!!', slug: '   ' }) as never
+        )
+
+        const reinstalled = await skillService.install({
+          installSource: 'github:https://github.com/owner/empty-repo/blob/main/SKILL.md'
+        })
+
+        expect(reinstalled).toMatchObject({ id: legacySkillId, folderName: 'content' })
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('normalizes a GitHub SHA source URL to the same repository skill as its branch URL', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
+      const branchUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/feature/foo/skills/demo/SKILL.md'
+      const shaUrl = `https://github.com/OWNER/REPO/tree/${'a'.repeat(40)}/skills/demo`
+
+      try {
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Demo', declaredName: 'Demo' }) as never
+        )
+        await fs.promises.mkdir(path.join(workDir, 'content'), { recursive: true })
+        await fs.promises.writeFile(path.join(workDir, 'content', 'SKILL.md'), '# skill')
+        const first = await skillService['installSkillDir'](path.join(workDir, 'content'), 'marketplace', branchUrl, {
+          folderNameFallback: 'repo'
+        })
+        const second = await skillService['installSkillDir'](path.join(workDir, 'content'), 'marketplace', shaUrl, {
+          folderNameFallback: 'repo'
+        })
+
+        expect(second.id).toBe(first.id)
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+        await expect(
+          fs.promises.access(path.join(dataSkillsRoot, first.folderName, 'SKILL.md'))
+        ).resolves.toBeUndefined()
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('selects a matching folder deterministically when restored rows share a source URL', async () => {
+      const { skillService, restoreGetPath } = await setupGithubRootInstall()
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/duplicate-repo/refs/heads/main/SKILL.md'
+
+      try {
+        await dbh.db.insert(agentGlobalSkillTable).values([
+          {
+            id: 'duplicate-source-a',
+            name: 'First',
+            folderName: 'first',
+            source: 'marketplace',
+            sourceUrl,
+            contentHash: 'a',
+            isEnabled: false
+          },
+          {
+            id: 'duplicate-source-b',
+            name: 'Second',
+            folderName: 'second',
+            source: 'marketplace',
+            sourceUrl,
+            contentHash: 'b',
+            isEnabled: false
+          }
+        ])
+
+        const selected = skillService['findCatalogSkillBySourceUrl']('marketplace', sourceUrl, 'second')
+        expect(selected?.id).toBe('duplicate-source-b')
+      } finally {
+        restoreGetPath()
+      }
+    })
+
+    it('rejects a derived-folder orphan when a legacy source URL row points elsewhere', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath } = await setupGithubRootInstall()
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/orphan-repo/refs/heads/main/SKILL.md'
+
+      try {
+        await dbh.db.insert(agentGlobalSkillTable).values({
+          id: 'legacy-orphan-source',
+          name: 'Legacy Skill',
+          folderName: 'content',
+          source: 'marketplace',
+          sourceUrl,
+          contentHash: 'legacy-hash',
+          isEnabled: false
+        })
+        await fs.promises.mkdir(path.join(dataSkillsRoot, 'content'), { recursive: true })
+        await fs.promises.mkdir(path.join(dataSkillsRoot, 'Derived_Skill'), { recursive: true })
+        await fs.promises.writeFile(path.join(dataSkillsRoot, 'Derived_Skill', 'keep.txt'), 'keep')
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Derived Skill', declaredName: 'Derived Skill' }) as never
+        )
+
+        await expect(
+          skillService.install({ installSource: 'github:https://github.com/owner/orphan-repo/blob/main/SKILL.md' })
+        ).rejects.toThrow(/derived folder.*already exists/)
+        await expect(
+          fs.promises.readFile(path.join(dataSkillsRoot, 'Derived_Skill', 'keep.txt'), 'utf-8')
+        ).resolves.toBe('keep')
       } finally {
         restoreGetPath()
         vi.mocked(parseSkillMetadata).mockReset()
@@ -2096,6 +2246,67 @@ describe('SkillService', () => {
       } finally {
         warnSpy.mockRestore()
       }
+    })
+
+    it('never removes a path outside the mirror root', async () => {
+      const outside = path.join(path.dirname(mirrorRoot), 'outside-mirror-sentinel')
+      await fs.promises.writeFile(outside, 'keep')
+
+      expect(() => skillService['getMirrorPath']('../outside-mirror-sentinel')).toThrow(
+        'Invalid skill mirror folder name'
+      )
+      await skillService.unlinkMirror('../outside-mirror-sentinel')
+
+      await expect(fs.promises.readFile(outside, 'utf-8')).resolves.toBe('keep')
+    })
+
+    it('uninstalls a catalog row with a malformed folder without touching outside files', async () => {
+      const outside = path.join(path.dirname(mirrorRoot), 'outside-uninstall-sentinel')
+      await fs.promises.writeFile(outside, 'keep')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: 'malformed-uninstall-skill',
+        name: 'Malformed',
+        folderName: '../outside-uninstall-sentinel',
+        source: 'local',
+        contentHash: 'bad',
+        isEnabled: false
+      })
+
+      await expect(skillService.uninstall('malformed-uninstall-skill')).resolves.toBeUndefined()
+      await expect(fs.promises.readFile(outside, 'utf-8')).resolves.toBe('keep')
+      await expect(skillService.getById('malformed-uninstall-skill')).resolves.toBeNull()
+    })
+
+    it('isolates malformed catalog paths while listing and reconciling later skills', async () => {
+      await writeLibrarySkill('healthy', '# healthy')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: 'malformed-catalog-skill',
+        name: 'Malformed',
+        folderName: '../outside-catalog-sentinel',
+        source: 'local',
+        contentHash: 'bad',
+        isEnabled: false
+      })
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: 'healthy-catalog-skill',
+        name: 'Healthy',
+        folderName: 'healthy',
+        source: 'local',
+        contentHash: 'different',
+        isEnabled: false
+      })
+
+      const catalog = await skillService.listCatalog()
+      expect(catalog).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'malformed-catalog-skill', scope: 'local' }),
+          expect.objectContaining({ id: 'healthy-catalog-skill', scope: 'system' })
+        ])
+      )
+
+      await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
+      await expect(fs.promises.access(path.join(mirrorRoot, 'healthy', 'SKILL.md'))).resolves.toBeUndefined()
+      await expect(skillService.getById('malformed-catalog-skill')).resolves.not.toBeNull()
     })
 
     it('uninstall removes the mirror entry', async () => {
