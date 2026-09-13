@@ -8,7 +8,7 @@ import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { dataUrlToBlob } from '@renderer/utils/image'
+import { dataUrlToBlob, waitForCaptureAssets } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -523,6 +523,12 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const executeTopicImageAction = useCallback(
     async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
       const { exportService } = await import('@renderer/services/ExportService')
+
+      // The capture clone mounts fresh, so its images start loading from
+      // scratch; wait for them to settle or the export freezes mid-load
+      // states (broken favicons, half-fetched previews) the live page never
+      // shows.
+      await waitForCaptureAssets(captureRef.current)
 
       if (action === 'copy') {
         const imageData = await exportService.captureScrollableAsDataUrl(captureRef)

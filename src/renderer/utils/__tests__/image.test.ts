@@ -20,7 +20,8 @@ import {
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
   prepareEntityImageBytes,
-  transformImageToPng
+  transformImageToPng,
+  waitForCaptureAssets
 } from '../image'
 
 // mock 依赖
@@ -546,6 +547,86 @@ describe('utils/image', () => {
       const func = vi.fn()
       await captureScrollableAsBlob(ref, func)
       expect(func).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('waitForCaptureAssets', () => {
+    const makeImage = (complete: boolean): HTMLImageElement => {
+      const img = document.createElement('img')
+      // jsdom never loads resources; drive `complete` explicitly per case.
+      Object.defineProperty(img, 'complete', { value: complete, configurable: true })
+      return img
+    }
+
+    it('returns undefined immediately for a null root', async () => {
+      await expect(waitForCaptureAssets(null)).resolves.toBeUndefined()
+    })
+
+    it('switches lazy images to eager so they can load offscreen', async () => {
+      const root = document.createElement('div')
+      const img = makeImage(true)
+      img.loading = 'lazy'
+      root.appendChild(img)
+
+      await waitForCaptureAssets(root)
+
+      expect(img.loading).toBe('eager')
+    })
+
+    it('waits for in-flight images to fire load', async () => {
+      const root = document.createElement('div')
+      const img = makeImage(false)
+      root.appendChild(img)
+
+      const settled = waitForCaptureAssets(root)
+      setTimeout(() => img.dispatchEvent(new Event('load')), 10)
+      await settled
+
+      expect(true).toBe(true)
+    })
+
+    it('treats image error as settled', async () => {
+      const root = document.createElement('div')
+      const img = makeImage(false)
+      root.appendChild(img)
+
+      const settled = waitForCaptureAssets(root)
+      setTimeout(() => img.dispatchEvent(new Event('error')), 10)
+      await settled
+
+      expect(true).toBe(true)
+    })
+
+    it('waits for images mounted after the first scan (late favicon waves)', async () => {
+      const root = document.createElement('div')
+      const lateImage = makeImage(false)
+
+      const settled = waitForCaptureAssets(root)
+      // FallbackFavicon swaps its placeholder span for an <img> only after
+      // its source probe resolves — simulate that late mount.
+      setTimeout(() => {
+        root.appendChild(lateImage)
+        setTimeout(() => lateImage.dispatchEvent(new Event('load')), 50)
+      }, 300)
+      await settled
+
+      expect(lateImage.complete).toBe(false)
+    })
+
+    it('resolves via the deadline when an image never settles', async () => {
+      const root = document.createElement('div')
+      root.appendChild(makeImage(false))
+
+      vi.useFakeTimers()
+      try {
+        const settled = waitForCaptureAssets(root, 1000)
+        const assertion = vi.fn()
+        void settled.then(assertion)
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(assertion).toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 
