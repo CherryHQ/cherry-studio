@@ -213,6 +213,95 @@ describe('remarkLatexMath', () => {
     expect(container.textContent).toContain('link')
   })
 
+  it('bounds a multiline display fence whose opening line contains math', () => {
+    const source = [
+      "$$f(2h)=f(0)+f'(0)(2h)+\\frac{f''(0)}{2}(2h)^2+o(h^2)",
+      "=f(0)+2f'(0)h+2f''(0)h^2+o(h^2)$$",
+      '',
+      'Text after the formula with $x$.',
+      '',
+      '$$',
+      '\\begin{cases}',
+      'x+y=1\\\\',
+      'x+2y=0',
+      '\\end{cases}',
+      '$$',
+      '',
+      '# Heading',
+      '',
+      '[link](https://example.com)',
+      '',
+      '| a | b |',
+      '| - | - |',
+      '| 1 | 2 |',
+      '',
+      '<span>html</span>'
+    ].join('\n')
+    const tree = parse(source)
+
+    expect(mathNodes(source)).toMatchObject([
+      {
+        type: 'math',
+        meta: null,
+        value: expect.stringContaining("=f(0)+2f'(0)h+2f''(0)h^2+o(h^2)")
+      },
+      { type: 'inlineMath', value: 'x' },
+      { type: 'math', value: expect.stringContaining('\\begin{cases}') }
+    ])
+    expect(tree.children.slice(0, 5).map((child) => child.type)).toEqual([
+      'math',
+      'paragraph',
+      'math',
+      'heading',
+      'paragraph'
+    ])
+    expect(tree.children[1]).toMatchObject({
+      type: 'paragraph',
+      children: [
+        { type: 'text', value: 'Text after the formula with ' },
+        { type: 'inlineMath', value: 'x' },
+        { type: 'text', value: '.' }
+      ]
+    })
+    expect(textValue(tree)).toContain('link')
+    expect(textValue(tree)).toContain('| a | b |')
+    expect(textValue(tree)).toContain('html')
+  })
+
+  it.each([
+    ['$$x$$', 'inlineMath', 'x'],
+    ['$$\nx\n$$', 'math', 'x'],
+    ['$$x\ny$$', 'math', 'x\ny'],
+    ['$$x\r\ny$$', 'math', 'x\r\ny']
+  ])('keeps dollar math bounded for %s', (source, type, value) => {
+    const tree = parse(`${source}\n\nAfter formula.`)
+
+    expect(mathNodes(source)).toMatchObject([{ type, value }])
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph' })
+    expect(textValue(tree)).toContain('After formula.')
+  })
+
+  it.each([
+    ['LF', '$$x$$\n\nText with $$y$$'],
+    ['CRLF', '$$x$$\r\n\r\nText with $$y$$'],
+    ['trailing spaces', '$$x$$  \n\nText with $$y$$']
+  ])('leaves a first-line closing fence to the existing parser (%s)', (_label, source) => {
+    const tree = parse(source)
+
+    expect(mathNodes(source)).toMatchObject([
+      { type: 'inlineMath', value: 'x' },
+      { type: 'inlineMath', value: 'y' }
+    ])
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'paragraph',
+      children: [
+        { type: 'text', value: 'Text with ' },
+        { type: 'inlineMath', value: 'y' }
+      ]
+    })
+  })
+
   it('preserves a leading tag in existing multiline display math', () => {
     const source = '$$\\tag{1}\nx=1\n$$'
 
