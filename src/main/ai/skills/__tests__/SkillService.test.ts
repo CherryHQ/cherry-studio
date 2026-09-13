@@ -1379,6 +1379,42 @@ describe('SkillService', () => {
       }
     })
 
+    it('does not let an ambiguous legacy slash-ref URL overwrite an explicit fetched skill', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
+      const existingDir = path.join(workDir, 'existing')
+      const incomingDir = path.join(workDir, 'incoming')
+      const explicitUrl = `https://github.com/owner/repo/tree/${'a'.repeat(40)}/skills/demo?ref=refs%2Fheads%2Ffeature%2Ffoo`
+      const ambiguousLegacyUrl = 'https://raw.githubusercontent.com/owner/repo/feature/foo/skills/demo/SKILL.md'
+
+      try {
+        await Promise.all(
+          [existingDir, incomingDir].map(async (directory) => {
+            await fs.promises.mkdir(directory, { recursive: true })
+            await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# skill')
+          })
+        )
+        vi.mocked(parseSkillMetadata).mockResolvedValue({
+          ...githubRootMetadata({ name: 'Demo', declaredName: 'Demo' }),
+          filename: 'Demo'
+        } as never)
+
+        const existing = await skillService['installSkillDir'](existingDir, 'marketplace', explicitUrl)
+        await fs.promises.writeFile(path.join(dataSkillsRoot, existing.folderName, 'SKILL.md'), '# retained explicit')
+
+        await expect(skillService['installSkillDir'](incomingDir, 'marketplace', ambiguousLegacyUrl)).rejects.toThrow(
+          /refusing to overwrite/
+        )
+
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+        await expect(
+          fs.promises.readFile(path.join(dataSkillsRoot, existing.folderName, 'SKILL.md'), 'utf-8')
+        ).resolves.toBe('# retained explicit')
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
     it('does not treat same-named branches and tags as the same skill origin', async () => {
       const { skillService, restoreGetPath, workDir } = await setupGithubRootInstall()
       const branchDir = path.join(workDir, 'branch')

@@ -169,6 +169,16 @@ function sameSkillSourceUrl(left: string[], right: string[]): boolean {
   const leftUrlIdentity = left.filter((identity) => identity.startsWith('github-url:'))
   const rightUrlIdentity = right.filter((identity) => identity.startsWith('github-url:'))
 
+  // A fetched URL with an explicit ref marker is authoritative. An unannotated legacy URL can
+  // split the same path at multiple ref boundaries, so its generic path identity must not alias a
+  // ref-bound row and overwrite the selected skill.
+  if (
+    (leftRefPath.length > 0 && rightUrlIdentity.length > 0) ||
+    (rightRefPath.length > 0 && leftUrlIdentity.length > 0)
+  ) {
+    return false
+  }
+
   // Complete URL identities retain the ref/path sequence, so two ambiguous legacy URLs must
   // match exactly. Explicit heads/tags namespaces share that identity for the same ref, but the
   // namespace marker still keeps a same-named branch and tag distinct.
