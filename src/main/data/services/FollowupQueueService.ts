@@ -220,6 +220,45 @@ export class FollowupQueueService {
     return { claimed: true }
   }
 
+  /**
+   * Atomically claim the oldest claimable row in a scope (FIFO). Select +
+   * conditional update run in one transaction, so a concurrent reorder cannot
+   * slip a different head in between — the winner always owns the true head.
+   * Returns the row id with a won claim.
+   */
+  claimHead(scopeKey: string): { claimed: true; id: string } | { claimed: false } {
+    const dbService = application.get('DbService')
+    const result = dbService.withWriteTx((tx) => {
+      const [head] = tx
+        .select({
+          id: followupQueueTable.id,
+          status: followupQueueTable.status,
+          updatedAt: followupQueueTable.updatedAt
+        })
+        .from(followupQueueTable)
+        .where(eq(followupQueueTable.scopeKey, scopeKey))
+        .orderBy(asc(followupQueueTable.orderKey))
+        .limit(1)
+        .all()
+      if (!head) return { claimed: false as const }
+      const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
+      const claimable =
+        head.status === 'pending' || head.status === 'failed' || (head.status === 'sending' && head.updatedAt < cutoff)
+      if (!claimable) return { claimed: false as const }
+      const [updated] = tx
+        .update(followupQueueTable)
+        .set({ status: 'sending' })
+        .where(and(eq(followupQueueTable.id, head.id), eq(followupQueueTable.status, head.status)))
+        .returning({ id: followupQueueTable.id })
+        .all()
+      if (!updated) return { claimed: false as const }
+      return { claimed: true as const, id: head.id }
+    })
+
+    if (result.claimed) notifyQueueChange('projection', scopeKey, [result.id])
+    return result
+  }
+
   /** `sending` → `failed` after a failed drain attempt; stays queued for retry. */
   markFailed(id: string): void {
     const [row] = this.db

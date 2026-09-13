@@ -126,6 +126,20 @@ export function installFakeFollowupQueueBackend() {
         })
       }
     }
+    if (method === 'POST' && path === '/followup-queues/claim:head') {
+      return {
+        ...shell,
+        trigger: vi.fn(async ({ body }: { body: { scopeKey: string } }) => {
+          const head = state.rows
+            .filter((candidate) => candidate.scopeKey === body.scopeKey)
+            .sort((a, b) => (a.orderKey < b.orderKey ? -1 : 1))
+            .find((candidate) => candidate.status === 'pending' || candidate.status === 'failed')
+          if (!head) return { claimed: false }
+          head.status = 'sending'
+          return { claimed: true, id: head.id }
+        })
+      }
+    }
     if (method === 'POST' && path === '/followup-queues/:id/fail') {
       return {
         ...shell,
