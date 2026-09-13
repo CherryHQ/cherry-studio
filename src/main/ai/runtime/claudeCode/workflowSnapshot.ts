@@ -406,6 +406,33 @@ function normalizeRuntimeWorkflowProgress(progress: unknown[]): unknown[] {
   })
 }
 
+interface AgentPositions {
+  first: number
+  positions: Set<number>
+}
+
+function addAgentPosition<Key>(lookup: Map<Key, AgentPositions>, key: Key, position: number): void {
+  const existing = lookup.get(key)
+  if (existing) {
+    existing.positions.add(position)
+    existing.first = Math.min(existing.first, position)
+  } else {
+    lookup.set(key, { first: position, positions: new Set([position]) })
+  }
+}
+
+function removeAgentPosition<Key>(lookup: Map<Key, AgentPositions>, key: Key, position: number): void {
+  const existing = lookup.get(key)
+  if (!existing) return
+  existing.positions.delete(position)
+  if (existing.positions.size === 0) {
+    lookup.delete(key)
+  } else if (existing.first === position) {
+    existing.first = Number.POSITIVE_INFINITY
+    for (const remaining of existing.positions) existing.first = Math.min(existing.first, remaining)
+  }
+}
+
 export function updateLocalWorkflowSnapshot(
   plan: LocalWorkflowPlan,
   launch: Pick<LocalWorkflowLaunch, 'taskId' | 'runId' | 'workflowName'>,
@@ -419,8 +446,11 @@ export function updateLocalWorkflowSnapshot(
   previous?: AgentWorkflowSnapshot
 ): AgentWorkflowSnapshot {
   const phases = [...plan.phases]
+  const phaseTitles = new Set(phases.map((phase) => phase.title))
   for (const phase of previous?.phases ?? []) {
-    if (!phases.some((candidate) => candidate.title === phase.title)) phases.push(phase)
+    if (phaseTitles.has(phase.title)) continue
+    phases.push(phase)
+    phaseTitles.add(phase.title)
   }
 
   const runtimeWorkflowProgress = Array.isArray(update.workflowProgress) ? update.workflowProgress : undefined
@@ -437,16 +467,16 @@ export function updateLocalWorkflowSnapshot(
       )
     : undefined
   for (const progress of runtimeWorkflow?.workflowProgress ?? []) {
-    if (progress.type === 'workflow_phase' && !phases.some((phase) => phase.title === progress.title)) {
+    if (progress.type === 'workflow_phase' && !phaseTitles.has(progress.title)) {
       phases.push({ title: progress.title })
+      phaseTitles.add(progress.title)
     }
   }
 
-  const previousAgents = new Map(
-    (previous?.workflowProgress ?? []).flatMap((progress) =>
-      progress.type === 'workflow_agent' ? [[progress.index, progress] as const] : []
-    )
-  )
+  const previousAgents = new Map<number, AgentWorkflowAgentProgress>()
+  for (const progress of previous?.workflowProgress ?? []) {
+    if (progress.type === 'workflow_agent') previousAgents.set(progress.index, progress)
+  }
   const agents: AgentWorkflowAgentProgress[] = plan.agents.map((agent, offset) => {
     const index = offset + 1
     const existing = previousAgents.get(index)
@@ -454,21 +484,46 @@ export function updateLocalWorkflowSnapshot(
       ? { ...existing, ...agent, index }
       : { type: 'workflow_agent', ...agent, index, state: 'pending' }
   })
+  const positionsByIndex = new Map<number, AgentPositions>()
+  const positionsByPhase = new Map<string, Map<string, AgentPositions>>()
+  const registerAgentPosition = (agent: AgentWorkflowAgentProgress, position: number) => {
+    addAgentPosition(positionsByIndex, agent.index, position)
+    let labels = positionsByPhase.get(agent.phaseTitle)
+    if (!labels) {
+      labels = new Map()
+      positionsByPhase.set(agent.phaseTitle, labels)
+    }
+    addAgentPosition(labels, agent.label, position)
+  }
+  agents.forEach(registerAgentPosition)
   for (const agent of previousAgents.values()) {
-    if (!agents.some((candidate) => candidate.index === agent.index)) agents.push({ ...agent })
+    if (positionsByIndex.has(agent.index)) continue
+    agents.push({ ...agent })
+    registerAgentPosition(agent, agents.length - 1)
   }
 
-  const runtimeAgents = (runtimeWorkflow?.workflowProgress ?? []).flatMap((progress) =>
-    progress.type === 'workflow_agent' ? [progress] : []
-  )
-  for (const runtimeAgent of runtimeAgents) {
-    const existingIndex = agents.findIndex(
-      (agent) =>
-        agent.index === runtimeAgent.index ||
-        (agent.label === runtimeAgent.label && agent.phaseTitle === runtimeAgent.phaseTitle)
+  for (const runtimeAgent of runtimeWorkflow?.workflowProgress ?? []) {
+    if (runtimeAgent.type !== 'workflow_agent') continue
+    // Keep the earliest match even when a label matches before the reported index.
+    const existingIndex = Math.min(
+      positionsByIndex.get(runtimeAgent.index)?.first ?? Number.POSITIVE_INFINITY,
+      positionsByPhase.get(runtimeAgent.phaseTitle)?.get(runtimeAgent.label)?.first ?? Number.POSITIVE_INFINITY
     )
-    if (existingIndex >= 0) agents[existingIndex] = { ...agents[existingIndex], ...runtimeAgent }
-    else agents.push(runtimeAgent)
+    if (existingIndex < agents.length) {
+      const existing = agents[existingIndex]
+      if (existing.index !== runtimeAgent.index) {
+        removeAgentPosition(positionsByIndex, existing.index, existingIndex)
+      }
+      if (existing.phaseTitle !== runtimeAgent.phaseTitle || existing.label !== runtimeAgent.label) {
+        const labels = positionsByPhase.get(existing.phaseTitle)
+        if (labels) removeAgentPosition(labels, existing.label, existingIndex)
+      }
+      agents[existingIndex] = { ...existing, ...runtimeAgent }
+      registerAgentPosition(agents[existingIndex], existingIndex)
+    } else {
+      agents.push(runtimeAgent)
+      registerAgentPosition(runtimeAgent, agents.length - 1)
+    }
   }
 
   const active = runtimeWorkflowProgress
@@ -511,11 +566,18 @@ export function updateLocalWorkflowSnapshot(
   }
 
   const usage = update.usage
-  const hasAgentTokens = agents.some((agent) => agent.tokens !== undefined)
-  const hasAgentToolCalls = agents.some((agent) => agent.toolCalls !== undefined)
-  const agentTotalTokens = agents.reduce((total, agent) => total + (agent.tokens ?? 0), 0)
-  const agentTotalCumulativeTokens = agents.reduce((total, agent) => total + (agent.cumulativeTokens ?? 0), 0)
-  const agentTotalToolCalls = agents.reduce((total, agent) => total + (agent.toolCalls ?? 0), 0)
+  let hasAgentTokens = false
+  let hasAgentToolCalls = false
+  let agentTotalTokens = 0
+  let agentTotalCumulativeTokens = 0
+  let agentTotalToolCalls = 0
+  for (const agent of agents) {
+    hasAgentTokens ||= agent.tokens !== undefined
+    hasAgentToolCalls ||= agent.toolCalls !== undefined
+    agentTotalTokens += agent.tokens ?? 0
+    agentTotalCumulativeTokens += agent.cumulativeTokens ?? 0
+    agentTotalToolCalls += agent.toolCalls ?? 0
+  }
   const totalTokens =
     update.status === 'in_progress' && hasAgentTokens
       ? agentTotalTokens

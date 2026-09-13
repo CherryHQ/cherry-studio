@@ -23,9 +23,13 @@ const agentWorkflowAgentProgressSchema = z.object({
   durationMs: optionalNonNegativeInteger
 })
 
-type AgentWorkflowPhaseProgress = z.infer<typeof agentWorkflowPhaseProgressSchema>
+const agentWorkflowProgressSchema = z.discriminatedUnion('type', [
+  agentWorkflowPhaseProgressSchema,
+  agentWorkflowAgentProgressSchema
+])
+
 export type AgentWorkflowAgentProgress = z.infer<typeof agentWorkflowAgentProgressSchema>
-type AgentWorkflowProgress = AgentWorkflowPhaseProgress | AgentWorkflowAgentProgress
+type AgentWorkflowProgress = z.infer<typeof agentWorkflowProgressSchema>
 
 interface AgentWorkflowPhase {
   title: string
@@ -88,13 +92,8 @@ export function parseAgentWorkflowSnapshot(
 
   const workflowProgress: AgentWorkflowProgress[] = []
   for (const item of parsed.data.workflowProgress ?? []) {
-    const phase = agentWorkflowPhaseProgressSchema.safeParse(item)
-    if (phase.success) {
-      workflowProgress.push(phase.data)
-      continue
-    }
-    const agent = agentWorkflowAgentProgressSchema.safeParse(item)
-    if (agent.success) workflowProgress.push(agent.data)
+    const progress = agentWorkflowProgressSchema.safeParse(item)
+    if (progress.success) workflowProgress.push(progress.data)
   }
 
   const phases = parsed.data.phases ?? []

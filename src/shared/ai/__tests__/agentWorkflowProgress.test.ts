@@ -85,6 +85,42 @@ describe('parseAgentWorkflowSnapshot', () => {
     ).toEqual({ runId: 'run-1', taskId: 'task-1', totalTokens: 0, phases: [], workflowProgress: [] })
   })
 
+  it('isolates invalid agent rows while preserving zero-valued statistics and phase rows', () => {
+    const agent = {
+      type: 'workflow_agent',
+      index: 0,
+      label: ' reviewer ',
+      phaseIndex: 0,
+      phaseTitle: ' Review ',
+      state: ' pending ',
+      startedAt: 0,
+      tokens: 0,
+      cumulativeTokens: 0,
+      toolCalls: 0,
+      durationMs: 0
+    }
+    const snapshot = parseAgentWorkflowSnapshot({
+      runId: 'run-1',
+      taskId: 'task-1',
+      workflowProgress: [
+        null,
+        1,
+        [],
+        'workflow_agent',
+        { ...agent, tokens: -1 },
+        { ...agent, state: '' },
+        { ...agent, phaseIndex: 1.5 },
+        { type: 'workflow_phase', index: 0, title: ' Review ' },
+        agent
+      ]
+    })
+
+    expect(snapshot?.workflowProgress).toEqual([
+      { type: 'workflow_phase', index: 0, title: 'Review' },
+      { ...agent, label: 'reviewer', phaseTitle: 'Review', state: 'pending' }
+    ])
+  })
+
   it('keeps a duration-only workflow snapshot', () => {
     expect(parseAgentWorkflowSnapshot({ runId: 'run-1', taskId: 'task-1', durationMs: 0 })).toEqual({
       runId: 'run-1',
