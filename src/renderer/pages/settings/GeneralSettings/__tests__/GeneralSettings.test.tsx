@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import GeneralSettings from '../GeneralSettings'
 
+const { ipcRequestMock } = vi.hoisted(() => ({ ipcRequestMock: vi.fn() }))
+
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({ t: (key: string) => key })
@@ -18,8 +20,31 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: vi.fn() })
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock }
+}))
+
 vi.mock('@renderer/components/Selector', () => ({
-  default: () => null
+  default: ({
+    value,
+    onChange,
+    options
+  }: {
+    value: string | null
+    onChange: (value: 'system' | 'custom' | 'none') => void
+    options: Array<{ value: 'system' | 'custom' | 'none'; label: string }>
+  }) => (
+    <select
+      aria-label="settings.proxy.mode.title"
+      value={value ?? ''}
+      onChange={(event) => onChange(event.target.value as 'system' | 'custom' | 'none')}>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  )
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
@@ -57,8 +82,8 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type="button" {...props}>
+  Button: ({ children, loading, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => (
+    <button type="button" data-loading={loading || undefined} {...props}>
       {children}
     </button>
   ),
@@ -97,6 +122,12 @@ describe('GeneralSettings', () => {
       'app.tray.on_close': true,
       'app.tray.on_launch': true,
       'feature.quick_assistant.click_tray_to_show': true
+    })
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockResolvedValue({
+      target: 'https://www.gstatic.com/generate_204',
+      route: 'proxy',
+      success: true
     })
   })
 
@@ -145,5 +176,60 @@ describe('GeneralSettings', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('app.tray.on_launch')).toBe(false)
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.click_tray_to_show')).toBe(false)
     })
+  })
+
+  it('tests the edited proxy values without persisting them first', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.proxy.mode': 'custom',
+      'app.proxy.url': 'http://saved.example:8080',
+      'app.proxy.bypass_rules': 'localhost'
+    })
+    render(<GeneralSettings />)
+
+    fireEvent.change(screen.getByDisplayValue('http://saved.example:8080'), {
+      target: { value: 'socks5://edited.example:1080' }
+    })
+    fireEvent.change(screen.getByDisplayValue('localhost'), { target: { value: 'www.gstatic.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.proxy.test.action' }))
+
+    await waitFor(() => {
+      expect(ipcRequestMock).toHaveBeenCalledWith('proxy.test_connection', {
+        mode: 'custom',
+        url: 'socks5://edited.example:1080',
+        bypassRules: 'www.gstatic.com'
+      })
+    })
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.proxy.url')).toBe('http://saved.example:8080')
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.proxy.bypass_rules')).toBe('localhost')
+  })
+
+  it('ignores a deferred result after the proxy input changes and clears results when the mode changes', async () => {
+    let resolveRequest: (result: { target: string; route: 'proxy'; success: true }) => void = () => undefined
+    const deferredRequest = new Promise<{ target: string; route: 'proxy'; success: true }>((resolve) => {
+      resolveRequest = resolve
+    })
+    ipcRequestMock.mockReturnValueOnce(deferredRequest)
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.proxy.mode': 'custom',
+      'app.proxy.url': 'http://old.example:8080',
+      'app.proxy.bypass_rules': 'localhost'
+    })
+    render(<GeneralSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.proxy.test.action' }))
+    fireEvent.change(screen.getByDisplayValue('http://old.example:8080'), {
+      target: { value: 'http://new.example:8080' }
+    })
+    resolveRequest({ target: 'https://www.gstatic.com/generate_204', route: 'proxy', success: true })
+
+    await waitFor(() => expect(screen.getByText('settings.proxy.test.description')).toBeInTheDocument())
+    expect(screen.queryByText('settings.proxy.test.success')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.proxy.test.action' }))
+    await waitFor(() => expect(screen.getByText('settings.proxy.test.success')).toBeInTheDocument())
+
+    fireEvent.change(screen.getByLabelText('settings.proxy.mode.title'), { target: { value: 'none' } })
+    expect(screen.getByText('settings.proxy.test.description')).toBeInTheDocument()
+    expect(screen.queryByText('settings.proxy.test.success')).not.toBeInTheDocument()
   })
 })
