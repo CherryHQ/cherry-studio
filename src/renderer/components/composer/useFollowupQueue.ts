@@ -33,24 +33,37 @@ function isAlreadyResolved(error: unknown): boolean {
 // successful send and checked on every claim win, so a row reclaimed after a
 // crash between send and dequeue is dequeued without replaying. Entries are
 // cleared when their row resolves; orphans (row deleted elsewhere) are inert
-// because ids are never reused.
+// because ids are never reused. All helpers fail open: the journal is
+// hardening, and a broken persist layer must never break draining itself.
 function markQueueIdSent(id: string): void {
-  cacheService.setPersist('followup.sent_ids', (prev) => ({ ...prev, [id]: Date.now() }))
+  try {
+    cacheService.setPersist('followup.sent_ids', (prev) => ({ ...prev, [id]: Date.now() }))
+  } catch {
+    // Journal unavailable — the reclaim lease still bounds replays.
+  }
 }
 
 function wasQueueIdSent(id: string): boolean {
-  return cacheService.getPersist('followup.sent_ids')[id] !== undefined
+  try {
+    return cacheService.getPersist('followup.sent_ids')[id] !== undefined
+  } catch {
+    return false
+  }
 }
 
 function clearSentQueueId(id: string): void {
-  cacheService.setPersist('followup.sent_ids', (prev) => {
-    if (prev[id] === undefined) return prev
-    const next: Record<string, number> = {}
-    for (const key of Object.keys(prev)) {
-      if (key !== id) next[key] = prev[key]
-    }
-    return next
-  })
+  try {
+    cacheService.setPersist('followup.sent_ids', (prev) => {
+      if (prev[id] === undefined) return prev
+      const next: Record<string, number> = {}
+      for (const key of Object.keys(prev)) {
+        if (key !== id) next[key] = prev[key]
+      }
+      return next
+    })
+  } catch {
+    // Best effort; a stale entry merely skips one future resend check.
+  }
 }
 
 // Main stores draft/payload as opaque JSON and never interprets them; only the
