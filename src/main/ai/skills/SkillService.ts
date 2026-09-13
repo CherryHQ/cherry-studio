@@ -56,17 +56,17 @@ function normalizeGithubSourceUrl(sourceUrl: string): string[] | null {
     if (!owner || !repo) return null
 
     let refAndPath: string[]
-    let hasExplicitRefNamespace = false
+    let explicitRefNamespace: 'heads' | 'tags' | null = null
     if (host === 'raw.githubusercontent.com') {
       refAndPath = parts
       if (refAndPath[0] === 'refs' && (refAndPath[1] === 'heads' || refAndPath[1] === 'tags')) {
-        hasExplicitRefNamespace = true
+        explicitRefNamespace = refAndPath[1]
         refAndPath = refAndPath.slice(2)
       }
     } else if (host === 'github.com' && (parts[0] === 'blob' || parts[0] === 'raw' || parts[0] === 'tree')) {
       refAndPath = parts.slice(1)
       if (refAndPath[0] === 'refs' && (refAndPath[1] === 'heads' || refAndPath[1] === 'tags')) {
-        hasExplicitRefNamespace = true
+        explicitRefNamespace = refAndPath[1]
         refAndPath = refAndPath.slice(2)
       }
     } else {
@@ -75,7 +75,7 @@ function normalizeGithubSourceUrl(sourceUrl: string): string[] | null {
 
     // Commit permalinks carry an unambiguous ref/path boundary. Keep only the selected path so
     // slash-bearing branch names cannot alias a different nested skill through a shared suffix.
-    if (!hasExplicitRefNamespace && /^[0-9a-f]{40}$/i.test(refAndPath[0] ?? '')) {
+    if (!explicitRefNamespace && /^[0-9a-f]{40}$/i.test(refAndPath[0] ?? '')) {
       const skillPath = refAndPath.slice(1)
       if (skillPath.at(-1)?.toLowerCase() === 'skill.md') skillPath.pop()
       const encodedPath = skillPath.map((part) => encodeURIComponent(part)).join('/')
@@ -93,10 +93,25 @@ function normalizeGithubSourceUrl(sourceUrl: string): string[] | null {
       .slice(0, maxSplit)
       .map((part) => encodeURIComponent(part))
       .join('/')
-    identities.push(`github-url:${owner.toLowerCase()}/${repo.toLowerCase()}/${fullPath}`)
+    identities.push(
+      `github-url:${owner.toLowerCase()}/${repo.toLowerCase()}/${
+        explicitRefNamespace ? `${explicitRefNamespace}/` : ''
+      }${fullPath}`
+    )
+    if (explicitRefNamespace) {
+      identities.push(
+        `github-ref:${owner.toLowerCase()}/${repo.toLowerCase()}/${explicitRefNamespace}/${encodeURIComponent(refAndPath[0] ?? '')}`
+      )
+    }
     for (let split = 1; split <= maxSplit; split++) {
       const skillPath = refAndPath.slice(split)
       if (skillPath.at(-1)?.toLowerCase() === 'skill.md') skillPath.pop()
+      // A one-segment suffix can be either the tail of a slash-bearing ref or a skill path. It is
+      // never enough to identify a nested skill, and retaining it lets a root ref overwrite one.
+      if (skillPath.length === 1) continue
+      // A root identity is safe only when no longer path can be selected from this URL. For a
+      // slash-bearing legacy ref this preserves root re-installs without aliasing nested skills.
+      if (skillPath.length === 0 && maxSplit > 2) continue
       const encodedPath = skillPath.map((part) => encodeURIComponent(part)).join('/')
       identities.push(`github:${owner.toLowerCase()}/${repo.toLowerCase()}${encodedPath ? `/${encodedPath}` : ''}`)
     }
@@ -112,25 +127,45 @@ function normalizeSkillSourceUrl(source: string, sourceUrl: string | null): stri
 }
 
 function sameSkillSourceUrl(left: string[], right: string[]): boolean {
+  const getRefIdentity = (identities: string[]) => identities.find((identity) => identity.startsWith('github-ref:'))
+  const leftRef = getRefIdentity(left)
+  const rightRef = getRefIdentity(right)
+  if (leftRef && rightRef) {
+    const leftMatch = leftRef.match(/^github-ref:([^/]+\/[^/]+)\/([^/]+)\/(.+)$/)
+    const rightMatch = rightRef.match(/^github-ref:([^/]+\/[^/]+)\/([^/]+)\/(.+)$/)
+    if (
+      leftMatch &&
+      rightMatch &&
+      leftMatch[1] === rightMatch[1] &&
+      leftMatch[3] === rightMatch[3] &&
+      leftMatch[2] !== rightMatch[2]
+    ) {
+      return false
+    }
+  }
+
   const leftUrlIdentity = left.filter((identity) => identity.startsWith('github-url:'))
   const rightUrlIdentity = right.filter((identity) => identity.startsWith('github-url:'))
 
-  // Legacy branch URLs do not encode where a slash-bearing ref ends. Only compare their complete
-  // normalized URL identity; suffix matching is reserved for an unambiguous commit permalink.
-  if (leftUrlIdentity.length > 0 && rightUrlIdentity.length > 0) {
-    return leftUrlIdentity.some((identity) => rightUrlIdentity.includes(identity))
-  }
-
   const isRepositoryIdentity = (identity: string) => /^github:[^/]+\/[^/]+$/.test(identity)
-  const leftSpecific = left.filter((identity) => !identity.startsWith('github-url:') && !isRepositoryIdentity(identity))
-  const rightSpecific = right.filter(
-    (identity) => !identity.startsWith('github-url:') && !isRepositoryIdentity(identity)
+  const leftSpecific = left.filter(
+    (identity) =>
+      !identity.startsWith('github-url:') && !identity.startsWith('github-ref:') && !isRepositoryIdentity(identity)
   )
+  const rightSpecific = right.filter(
+    (identity) =>
+      !identity.startsWith('github-url:') && !identity.startsWith('github-ref:') && !isRepositoryIdentity(identity)
+  )
+
+  if (leftSpecific.length > 0 || rightSpecific.length > 0)
+    return leftSpecific.some((identity) => rightSpecific.includes(identity))
 
   // A repository-root identity is ambiguous when either URL also has a possible skill path (the
   // ref itself may contain slashes). Only use it when both URLs are unambiguously root skills.
-  if (leftSpecific.length === 0 && rightSpecific.length === 0) return left.some((identity) => right.includes(identity))
-  return leftSpecific.some((identity) => rightSpecific.includes(identity))
+  if (leftUrlIdentity.length > 0 && rightUrlIdentity.length > 0) {
+    return leftUrlIdentity.some((identity) => rightUrlIdentity.includes(identity))
+  }
+  return left.some((identity) => right.includes(identity))
 }
 
 /**

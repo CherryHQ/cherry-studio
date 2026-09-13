@@ -1305,6 +1305,58 @@ describe('SkillService', () => {
       }
     })
 
+    it('does not treat same-named branches and tags as the same skill origin', async () => {
+      const { skillService, restoreGetPath, workDir } = await setupGithubRootInstall()
+      const branchDir = path.join(workDir, 'branch')
+      const tagDir = path.join(workDir, 'tag')
+      const branchUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/v1/skills/demo/SKILL.md'
+      const tagUrl = 'https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md'
+
+      try {
+        await Promise.all(
+          [branchDir, tagDir].map(async (directory) => {
+            await fs.promises.mkdir(directory, { recursive: true })
+            await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# skill')
+          })
+        )
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Demo', declaredName: 'Demo' }) as never
+        )
+        await skillService['installSkillDir'](branchDir, 'marketplace', branchUrl, { folderNameFallback: 'repo' })
+
+        await expect(
+          skillService['installSkillDir'](tagDir, 'marketplace', tagUrl, { folderNameFallback: 'repo' })
+        ).rejects.toThrow(/refusing to overwrite/)
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('matches a legacy root URL to a commit root without aliasing a commit nested path', async () => {
+      const { skillService, restoreGetPath } = await setupGithubRootInstall()
+      const legacyRootUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/feature/foo/SKILL.md'
+      const commitRootUrl = `https://github.com/owner/repo/tree/${'a'.repeat(40)}`
+      const commitNestedUrl = `https://github.com/owner/repo/tree/${'a'.repeat(40)}/foo`
+
+      try {
+        await dbh.db.insert(agentGlobalSkillTable).values({
+          id: SKILL_ID_1,
+          name: 'Legacy root',
+          folderName: 'content',
+          source: 'marketplace',
+          sourceUrl: legacyRootUrl,
+          contentHash: 'legacy-hash',
+          isEnabled: false
+        })
+
+        expect(skillService['findCatalogSkillBySourceUrl']('marketplace', commitRootUrl, 'repo')?.id).toBe(SKILL_ID_1)
+        expect(skillService['findCatalogSkillBySourceUrl']('marketplace', commitNestedUrl, 'repo')).toBeNull()
+      } finally {
+        restoreGetPath()
+      }
+    })
+
     it('does not alias repository-root and nested skills from the same GitHub repository', async () => {
       const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
       const nestedUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/skills/first/SKILL.md'
