@@ -2228,6 +2228,35 @@ describe('SkillService', () => {
       )
     })
 
+    it('mirrors a quarantined row when a healthy row differs only by case', async () => {
+      const quarantinedDir = await writeLibrarySkill('Case-Skill', '# quarantined copy')
+      const healthyDir = await writeLibrarySkill('case-skill', '# healthy copy')
+      if ((await fs.promises.realpath(quarantinedDir)) === (await fs.promises.realpath(healthyDir))) return
+
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'case-skill',
+        folderName: 'case-skill',
+        source: 'local',
+        contentHash: 'healthy',
+        isEnabled: false
+      })
+      await dbh.db.run(
+        sql.raw(
+          `INSERT INTO agent_global_skill (id, name, description, folder_name, source, source_url, namespace, author, version, tags, content_hash, is_enabled, created_at, updated_at)
+           VALUES ('case-quarantined-row', 'Case Skill', NULL, 'Case-Skill', 'local', NULL, NULL, NULL, NULL, 'not-json', 'quarantined', 1, 1, 1)`
+        )
+      )
+
+      await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
+
+      const mirrored = await fs.promises.lstat(path.join(mirrorRoot, 'Case-Skill'))
+      expect(mirrored.isSymbolicLink()).toBe(false)
+      await expect(fs.promises.readFile(path.join(mirrorRoot, 'Case-Skill', 'SKILL.md'), 'utf-8')).resolves.toBe(
+        '# quarantined copy'
+      )
+    })
+
     it('copies complete builtin content and quarantines later modifications', async () => {
       vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
       const builtinDir = await writeLibrarySkill('skill-creator', '# trusted')

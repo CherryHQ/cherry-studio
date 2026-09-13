@@ -658,7 +658,7 @@ export class SkillService {
   }
 
   /** Mirror `Data/Skills/<folderName>` into CLAUDE_CONFIG_DIR/skills. Idempotent. */
-  async linkMirror(folderName: string, options: { forceCopy?: boolean } = {}): Promise<void> {
+  async linkMirror(folderName: string, options: { forceCopy?: boolean; quarantined?: boolean } = {}): Promise<void> {
     const sourceDir = this.getSkillStoragePath(folderName)
     const rootDir = path.resolve(this.getMirrorRoot())
     const targetDir = path.resolve(rootDir, folderName)
@@ -670,7 +670,7 @@ export class SkillService {
 
     let catalogSkill: InstalledSkill | null
     try {
-      catalogSkill = this.findCatalogSkillCaseInsensitive(folderName)
+      catalogSkill = options.quarantined ? null : this.findCatalogSkillCaseInsensitive(folderName)
     } catch (error) {
       await this.unlinkMirror(folderName)
       logger.warn('Refusing to mirror a case-ambiguous catalog skill', {
@@ -982,11 +982,10 @@ export class SkillService {
    */
   private async reconcileMirror(): Promise<void> {
     const all = agentGlobalSkillService.listAll()
+    const validFolderNames = new Set(all.map((skill) => skill.folderName))
     const quarantinedFolders = agentGlobalSkillService
       .listFolderNames()
-      .filter(
-        (folderName) => !all.some((skill) => normalizeFolderKey(skill.folderName) === normalizeFolderKey(folderName))
-      )
+      .filter((folderName) => !validFolderNames.has(folderName))
     const known = new Set([...all.map((s) => s.folderName), ...quarantinedFolders].map(normalizeFolderKey))
     const groups = new Map<string, InstalledSkill[]>()
     for (const skill of all) {
@@ -1009,7 +1008,9 @@ export class SkillService {
       }
       await this.linkMirror(group[0].folderName)
     }
-    for (const folderName of quarantinedFolders) await this.linkMirror(folderName, { forceCopy: true })
+    for (const folderName of quarantinedFolders) {
+      await this.linkMirror(folderName, { forceCopy: true, quarantined: true })
+    }
 
     const root = this.getMirrorRoot()
     let entries: fs.Dirent[]
