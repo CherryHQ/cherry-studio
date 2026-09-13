@@ -250,7 +250,12 @@ export interface FollowupQueueController {
   setPaused: (paused: boolean) => void
   /** Head item whose send failed; the queue auto-pauses until the user resolves it. */
   failedItemId: string | null
-  /** Re-send the failed head. */
+  /**
+   * Re-send the failed item wherever it currently sits — even if it was reordered
+   * behind other items. The queue stays paused while a failure is unresolved, so
+   * nothing else could overtake it; retry is the explicit user action to send that
+   * payload next. On success the following head waits for the new turn's completion.
+   */
   retryFailed: () => void
   /** Drop the failed head and continue with the next queued message. */
   skipFailed: () => void
@@ -338,6 +343,16 @@ export function useFollowupQueue({
   // Mark the head as failed and auto-pause; the user resolves it via the dock (Skip/Retry/Abort).
   const failHead = useCallback(
     (id: string) => {
+      // A peer instance may have dequeued this head while our send was in flight
+      // (its outcome won the race): never pause for a ghost, or the queue stalls
+      // paused with a failure banner pointing at nothing.
+      if (!stateRef.current.items.some((item) => item.id === id)) {
+        if (failedItemIdRef.current === id) {
+          failedItemIdRef.current = null
+          setFailedItemId(null)
+        }
+        return
+      }
       const next = { ...stateRef.current, paused: true }
       persist(next, id)
       stateRef.current = next
@@ -446,9 +461,14 @@ export function useFollowupQueue({
             settleStale(head, drainScope, seq, sent ? 'sent' : 'unsent')
             return
           }
-          setDraining(null)
+          // A successful send opens a new turn, so dequeue without re-arming: the
+          // next head waits for that turn's completion edge instead of sending
+          // into the still-streaming turn. removeId clears the draining claim.
           if (sent) removeIdRef.current(head.id)
-          else failHeadRef.current(head.id)
+          else {
+            setDraining(null)
+            failHeadRef.current(head.id)
+          }
         },
         () => {
           settleInflight()
@@ -608,12 +628,11 @@ export function useFollowupQueue({
       const wasFailed = failedItemIdRef.current === id
       const wasDraining = drainingIdRef.current === id
       if (wasDraining) {
-        // A send for the removed item is still in flight: invalidate its resolution
-        // but keep the send claim held until it settles (its stale resolution
-        // releases it). Clearing the claim here would let the drain effect — which
-        // re-fires on any re-render while isFulfilled stays true — start the next
-        // item concurrently with the unsettled send.
+        // Invalidate the in-flight resolution and drop the reactive guard (also how a
+        // settled drain reports itself, so the next head waits for a fresh completion
+        // edge). The durable send claim stays held until the send settles.
         drainEpochRef.current += 1
+        setDraining(null)
       }
       const nextFailedId = wasFailed ? null : failedItemIdRef.current
       const remaining = stateRef.current.items.filter((item) => item.id !== id)
@@ -630,7 +649,7 @@ export function useFollowupQueue({
       // starting another send now would put two sends in flight.
       if (wasFailed && remaining.length > 0 && !wasDraining) drainHead(remaining[0])
     },
-    [persist, drainHead]
+    [persist, drainHead, setDraining]
   )
   removeIdRef.current = removeId
 

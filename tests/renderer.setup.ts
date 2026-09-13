@@ -197,6 +197,8 @@ vi.mock('@cherrystudio/ui', async () => {
     createSlugger: () => ({ slug: (value) => String(value ?? '') }),
     extractTextFromNode: () => '',
     BlurCancelPointerSensor: class BlurCancelPointerSensor {},
+    // Rendering-only stand-in: same `visibleItems = items` default and visible-index
+    // renderItem args as the real component; pinned by ReorderableListFake.test.tsx.
     ReorderableList: ({ items, visibleItems = items, renderItem, getId }) =>
       React.createElement(
         React.Fragment,
