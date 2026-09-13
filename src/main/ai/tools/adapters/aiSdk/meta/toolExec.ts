@@ -18,6 +18,8 @@
 import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
+import type { McpCallToolResponse } from '@main/ai/mcp/types'
+
 import type { ToolRegistry } from '../registry'
 import { runExec } from './exec/runtime'
 
@@ -41,7 +43,31 @@ export function createToolExecTool(registry: ToolRegistry): Tool {
         result: result.result,
         ...(result.logs && result.logs.length > 0 ? { logs: result.logs } : {}),
         ...(result.error ? { error: result.error } : {}),
-        ...(result.isError ? { isError: true } : {})
+        ...(result.isError ? { isError: true } : {}),
+        ...(result.images?.length ? { images: result.images } : {})
+      }
+    },
+    toModelOutput: ({ output }) => {
+      const { images, ...textOutput } = output
+      if (!images?.length) return { type: 'json', value: output }
+
+      const content = (output.result as Partial<McpCallToolResponse> | null)?.content
+      const modelOutput =
+        Array.isArray(content) && content.some((part) => part.type === 'image')
+          ? {
+              ...textOutput,
+              result: {
+                ...(output.result as McpCallToolResponse),
+                content: content.filter((part) => part.type !== 'image')
+              }
+            }
+          : textOutput
+      return {
+        type: 'content',
+        value: [
+          { type: 'text', text: JSON.stringify(modelOutput) },
+          ...images.map(({ data, mimeType }) => ({ type: 'image-data' as const, data, mediaType: mimeType }))
+        ]
       }
     }
   })
