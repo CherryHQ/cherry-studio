@@ -72,7 +72,9 @@ function createAdapter() {
 }
 
 describe('QqAdapter.downloadAttachments', () => {
-  beforeEach(() => mockNetFetch.mockReset())
+  beforeEach(() => {
+    mockNetFetch.mockReset()
+  })
   afterEach(() => vi.restoreAllMocks())
 
   it('rejects an SSRF target before any (token-bearing) fetch (C8)', async () => {
@@ -129,7 +131,9 @@ describe('QqAdapter.downloadAttachments', () => {
 })
 
 describe('QqAdapter passive reply', () => {
-  beforeEach(() => mockNetFetch.mockReset())
+  beforeEach(() => {
+    mockNetFetch.mockReset()
+  })
   afterEach(() => vi.restoreAllMocks())
 
   function capturePostBodies(): any[] {
@@ -249,14 +253,117 @@ describe('QqAdapter passive reply', () => {
   })
 })
 
-describe('ChannelAdapter.sendFile default', () => {
+describe('QqAdapter.sendFile', () => {
+  beforeEach(() => {
+    mockNetFetch.mockReset()
+  })
   afterEach(() => vi.restoreAllMocks())
 
-  it('rejects with the channel type for adapters that inherit the base default (QQ)', async () => {
-    const adapter = createAdapter()
-    const file = { filename: 'a.txt', data: 'eA==', media_type: 'text/plain', size: 1 }
+  const png = { filename: 'chart.png', data: 'aW1n', media_type: 'image/png', size: 3 }
+  const pdf = { filename: 'report.pdf', data: 'cGRm', media_type: 'application/pdf', size: 3 }
 
-    await expect(adapter.sendFile('100', file)).rejects.toThrow('Channel type "qq" does not support sending files')
+  /** Answer the `/files` upload POST with `uploadJson` and any other POST with an empty ok body. */
+  function capturePosts(uploadJson: Record<string, unknown>): Array<{ url: string; body: any }> {
+    const posts: Array<{ url: string; body: any }> = []
+    mockNetFetch.mockImplementation((url: string, init?: any) => {
+      posts.push({ url, body: JSON.parse(init.body) })
+      const json = url.endsWith('/files') ? uploadJson : {}
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(json),
+        text: () => Promise.resolve('{}')
+      })
+    })
+    return posts
+  }
+
+  it('uploads an image inline to a private chat, then sends it as a msg_type 7 media message', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const posts = capturePosts({ file_uuid: 'u', file_info: 'INFO-1', ttl: 0 })
+
+    await adapter.sendFile('c2c:u1', png)
+
+    expect(posts.map((p) => p.url)).toEqual([
+      'https://api.sgroup.qq.com/v2/users/u1/files',
+      'https://api.sgroup.qq.com/v2/users/u1/messages'
+    ])
+    expect(posts[0].body).toEqual({ file_type: 1, file_data: 'aW1n', srv_send_msg: false })
+    expect(posts[1].body).toEqual({ msg_type: 7, media: { file_info: 'INFO-1' } })
+  })
+
+  it('sends a non-media file to a group as file_type 4 carrying its filename', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const posts = capturePosts({ file_uuid: 'u', file_info: 'INFO-2', ttl: 0 })
+
+    await adapter.sendFile('group:g1', pdf)
+
+    expect(posts.map((p) => p.url)).toEqual([
+      'https://api.sgroup.qq.com/v2/groups/g1/files',
+      'https://api.sgroup.qq.com/v2/groups/g1/messages'
+    ])
+    expect(posts[0].body).toEqual({ file_type: 4, file_data: 'cGRm', srv_send_msg: false, file_name: 'report.pdf' })
+    expect(posts[1].body.media).toEqual({ file_info: 'INFO-2' })
+  })
+
+  it('strips path, control and bidi-format characters from the upload file name', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const posts = capturePosts({ file_uuid: 'u', file_info: 'INFO-4', ttl: 0 })
+
+    await adapter.sendFile('group:g1', { ...pdf, filename: 'a/b:c\u202Ereport.pdf\u0000' })
+
+    expect(posts[0].body.file_name).toBe('a_b_c_report.pdf_')
+  })
+
+  it('maps video to file_type 2 without a filename', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const posts = capturePosts({ file_uuid: 'u', file_info: 'INFO-3', ttl: 0 })
+
+    await adapter.sendFile('c2c:u1', { filename: 'clip.mp4', data: 'bXA0', media_type: 'video/mp4', size: 3 })
+
+    expect(posts[0].body.file_type).toBe(2)
+    expect(posts[0].body.file_name).toBeUndefined()
+  })
+
+  it('rejects guild channels and guild DMs before any request', async () => {
+    const adapter = createAdapter()
+
+    await expect(adapter.sendFile('channel:c1', png)).rejects.toThrow('accept text only')
+    await expect(adapter.sendFile('dm:guild1', png)).rejects.toThrow('accept text only')
+    expect(mockNetFetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects files over the 10 MB inline cap before any request', async () => {
+    const adapter = createAdapter()
+
+    await expect(adapter.sendFile('c2c:u1', { ...pdf, size: 10 * 1024 * 1024 + 1 })).rejects.toThrow('10 MB')
+    expect(mockNetFetch).not.toHaveBeenCalled()
+  })
+
+  it('does not send a message when the upload returns no file_info', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const posts = capturePosts({ file_uuid: 'u', ttl: 0 })
+
+    await expect(adapter.sendFile('c2c:u1', png)).rejects.toThrow('no file_info')
+    expect(posts).toHaveLength(1)
+  })
+
+  it('surfaces the QQ error body when the platform rejects the upload', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    mockNetFetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: () => Promise.resolve('{"message":"file type not allowed","code":40034}')
+    })
+
+    await expect(adapter.sendFile('group:g1', pdf)).rejects.toThrow('file type not allowed')
+    expect(mockNetFetch).toHaveBeenCalledTimes(1)
   })
 })
 

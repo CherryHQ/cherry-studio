@@ -4,6 +4,7 @@ import WebSocket from 'ws'
 
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { MB } from '@shared/utils/constants'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
@@ -32,6 +33,12 @@ const QQ_PASSIVE_REPLY_TTL_DEFAULT = 5 * 60 * 1000
 const QQ_MAX_PASSIVE_REPLIES = 5
 /** Cap on tracked inbound ids; evict oldest beyond this so the map can't grow unbounded. */
 const QQ_MAX_PASSIVE_ENTRIES = 1000
+/** QQ rich-media `file_type` values. 3 (voice) is deliberately unmapped: it accepts silk audio only. */
+const QQ_FILE_TYPE_IMAGE = 1
+const QQ_FILE_TYPE_VIDEO = 2
+const QQ_FILE_TYPE_FILE = 4
+/** Inline base64 upload cap; larger files need QQ's undocumented chunked protocol. */
+const QQ_MAX_INLINE_UPLOAD_BYTES = 10 * MB
 
 // QQ Bot WebSocket opcodes
 const OP_DISPATCH = 0
@@ -87,6 +94,16 @@ type QqMessage = {
   group_id?: string
   group_openid?: string
   attachments?: QqAttachment[]
+}
+
+function qqMediaFileType(mediaType: string): number {
+  if (mediaType.startsWith('image/')) return QQ_FILE_TYPE_IMAGE
+  if (mediaType.startsWith('video/')) return QQ_FILE_TYPE_VIDEO
+  return QQ_FILE_TYPE_FILE
+}
+
+function sanitizeUploadFileName(filename: string): string {
+  return filename.trim().replace(/[<>:"/\\|?*\p{Cc}\p{Cf}]/gu, '_') || 'file'
 }
 
 class QqAdapter extends ChannelAdapter {
@@ -720,6 +737,37 @@ class QqAdapter extends ChannelAdapter {
     }
     entry.seq += 1
     return entry.seq
+  }
+
+  override async sendFile(chatId: string, file: FileAttachment): Promise<void> {
+    const [type, id] = chatId.split(':')
+    if (type === 'channel' || type === 'dm') {
+      throw new Error('QQ guild channels and guild DMs accept text only; send files to a private (c2c) or group chat')
+    }
+    if (type !== 'c2c' && type !== 'group') {
+      throw new Error(`Unknown chat type: ${type}`)
+    }
+    if (file.size > QQ_MAX_INLINE_UPLOAD_BYTES) {
+      throw new Error(
+        `QQ inline upload limit is ${QQ_MAX_INLINE_UPLOAD_BYTES / MB} MB; "${file.filename}" is ${(file.size / MB).toFixed(1)} MB`
+      )
+    }
+
+    const base = type === 'c2c' ? `${QQ_API_BASE}/v2/users/${id}` : `${QQ_API_BASE}/v2/groups/${id}`
+    const fileType = qqMediaFileType(file.media_type)
+    // The docs still list `file_data` as unsupported, but production accepts inline base64 —
+    // and a desktop app has no public URL to hand QQ instead.
+    const upload: Record<string, unknown> = { file_type: fileType, file_data: file.data, srv_send_msg: false }
+    if (fileType === QQ_FILE_TYPE_FILE) upload.file_name = sanitizeUploadFileName(file.filename)
+
+    const uploadResponse = await this.apiRequest(`${base}/files`, { method: 'POST', body: upload })
+    const { file_info } = (await uploadResponse.json()) as { file_info?: string }
+    if (!file_info) {
+      throw new Error(`QQ media upload returned no file_info for "${file.filename}"`)
+    }
+
+    await this.apiRequest(`${base}/messages`, { method: 'POST', body: { msg_type: 7, media: { file_info } } })
+    this.log.info('Sent file', { chatId, filename: file.filename, size: file.size, mediaType: file.media_type })
   }
 
   // oxlint-disable-next-line no-unused-vars -- no-op abstract method

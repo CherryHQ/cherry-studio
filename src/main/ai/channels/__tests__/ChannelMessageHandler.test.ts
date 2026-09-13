@@ -1,7 +1,8 @@
 import { EventEmitter } from 'events'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -397,6 +398,84 @@ describe('ChannelMessageHandler', () => {
       expect(written[0]).toMatch(/\.png$/)
       expect(await readdir(workDir)).toEqual(['.cherry-studio'])
       expect(await readdir(path.join(workDir, '.cherry-studio'))).toEqual(['channel-images'])
+    } finally {
+      await rm(workDir, { recursive: true, force: true })
+    }
+  })
+
+  it('attaches inbound images and files as file parts so the UI renders them and the model sees them', async () => {
+    const adapter = createMockAdapter()
+    const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-attachments-'))
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      workspace: { path: workDir },
+      configuration: {}
+    }
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
+    simulateStream([{ type: 'text-delta', delta: 'ok' }])
+
+    try {
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'what is this',
+        images: [{ media_type: 'image/jpeg', data: Buffer.from('jpeg-bytes').toString('base64') }],
+        files: [
+          {
+            filename: 'report.pdf',
+            media_type: 'application/pdf',
+            data: Buffer.from('pdf').toString('base64'),
+            size: 3
+          }
+        ]
+      })
+
+      const { userParts } = mockStartAgentSessionRun.mock.calls[0][0]
+      expect(userParts).toHaveLength(3)
+      const [textPart, imagePart, filePart] = userParts
+      // The caption is the whole text: runtimes derive attachment paths from the parts themselves.
+      expect(textPart).toEqual({ type: 'text', text: 'what is this' })
+      expect(imagePart).toMatchObject({ type: 'file', mediaType: 'image/jpeg' })
+      expect(imagePart.url).toMatch(/^file:\/\/.*\/\.cherry-studio\/channel-images\/[^/]+\.jpg$/)
+      expect(filePart).toMatchObject({ type: 'file', mediaType: 'application/pdf', filename: 'report.pdf' })
+      expect(filePart.url).toMatch(/^file:\/\/.*\/\.cherry-studio\/channel-files\/[^/]+report\.pdf$/)
+      // The parts point at the bytes actually written, so a runtime can materialize them.
+      expect(await readFile(fileURLToPath(imagePart.url))).toEqual(Buffer.from('jpeg-bytes'))
+    } finally {
+      await rm(workDir, { recursive: true, force: true })
+    }
+  })
+
+  it('sends an image-only message as a lone file part, with no empty text bubble', async () => {
+    const adapter = createMockAdapter()
+    const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-attachments-'))
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      workspace: { path: workDir },
+      configuration: {}
+    }
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
+    simulateStream([{ type: 'text-delta', delta: 'ok' }])
+
+    try {
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: '',
+        images: [{ media_type: 'image/png', data: Buffer.from('png-bytes').toString('base64') }]
+      })
+
+      const { userParts } = mockStartAgentSessionRun.mock.calls[0][0]
+      expect(userParts).toHaveLength(1)
+      expect(userParts[0]).toMatchObject({ type: 'file', mediaType: 'image/png' })
     } finally {
       await rm(workDir, { recursive: true, force: true })
     }
@@ -815,6 +894,63 @@ describe('ChannelMessageHandler', () => {
     await Promise.all([first, second])
     expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
     expect(mockStartAgentSessionRun.mock.calls[0][0].userParts[0].text).toBe('first\nsecond')
+  })
+
+  it('admits a follow-up queued behind a running turn once the runtime marks it idle', async () => {
+    const adapter = createMockAdapter()
+    // Delivery awaits the platform send; the runtime's idle marker lands inside that window.
+    adapter.sendMessage.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 200)))
+    let runtimeBusy = false
+    const admissions: string[] = []
+    mockStartAgentSessionRun.mockImplementation(async ({ listeners, requireIdle }: any) => {
+      if (requireIdle && runtimeBusy) {
+        admissions.push('busy')
+        return { mode: 'not-started', reason: 'busy' }
+      }
+      runtimeBusy = true
+      admissions.push('started')
+      const runtimeTerminal = {
+        onChunk() {},
+        onDone() {
+          runtimeBusy = false
+        }
+      }
+      // Mirror AiStreamManager: persistence, then unphased (delivery + runtime terminal), then cleanup.
+      const byPhase = (phase?: 'persistence' | 'cleanup') => listeners.filter((l: any) => l.terminalPhase === phase)
+      const ordered = [...byPhase('persistence'), ...byPhase(undefined), runtimeTerminal, ...byPhase('cleanup')]
+      // Like the real call, return once the stream is started; the turn runs on its own.
+      void (async () => {
+        // The model thinks long enough for the follow-up to queue behind this turn.
+        await new Promise((resolve) => setTimeout(resolve, 5000))
+        for (const listener of ordered) {
+          listener.onChunk({ type: 'text-delta', delta: 'reply' })
+          await listener.onDone({ status: 'success' })
+        }
+      })()
+      return { mode: 'started' }
+    })
+
+    try {
+      const first = channelMessageHandler.handleIncoming(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'first'
+      })
+      await vi.advanceTimersByTimeAsync(1000)
+      const second = channelMessageHandler.handleIncoming(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'second'
+      })
+      await vi.advanceTimersByTimeAsync(15_000)
+      await Promise.all([first, second])
+
+      expect(admissions).toEqual(['started', 'started'])
+    } finally {
+      mockStartAgentSessionRun.mockReset()
+    }
   })
 
   it('flushes a sustained message burst at the original sixteen-second deadline', async () => {

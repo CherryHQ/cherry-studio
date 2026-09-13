@@ -138,7 +138,7 @@ const CRON_TOOL: Tool = {
 const NOTIFY_TOOL: Tool = {
   name: NOTIFY_TOOL_NAME,
   description:
-    'Deliver a message, a workspace file, or both to this turn’s configured notification recipients. Files are first-class deliverables: use file_path for final workspace artifacts. Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; Discord/Slack/QQ do not support files yet. Omit channel_id to deliver to all configured recipients; provide channel_id only to select one configured recipient. In a source-channel session, channel_id may also select another live channel owned by this Agent.',
+    'Deliver a message, a workspace file, or both to this turn’s configured notification recipients. Files are first-class deliverables: use file_path for final workspace artifacts. Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; QQ forwards files up to 10 MB to private and group chats only; Discord/Slack do not support files yet. Omit channel_id to deliver to all configured recipients; provide channel_id only to select one configured recipient. In a source-channel session, channel_id may also select another live channel owned by this Agent.',
   inputSchema: {
     type: 'object',
     properties: {
