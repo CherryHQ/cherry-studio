@@ -440,7 +440,7 @@ describe('create_agent', () => {
 })
 
 describe('prepare_diagnostic_report', () => {
-  it('is exposed only by the explicit Cherry Support capability set', async () => {
+  it('is exposed to Cherry Assistant and Cherry Support', async () => {
     const assistantClient = await connectAssistantClient()
     const supportClient = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
 
@@ -449,7 +449,8 @@ describe('prepare_diagnostic_report', () => {
       'diagnose',
       'product_info',
       'apply_setting',
-      'create_agent'
+      'create_agent',
+      'prepare_diagnostic_report'
     ])
 
     const supportTools = (await supportClient.listTools()).tools
