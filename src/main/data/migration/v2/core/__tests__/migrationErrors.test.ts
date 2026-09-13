@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isSchemaOutOfSyncError } from '../migrationErrors'
+import { isMigrationStorageError, isSchemaOutOfSyncError, MigrationDatabaseError } from '../migrationErrors'
 
 /**
  * Build an Error carrying an optional SQLite `code` and `.cause`, mirroring how
@@ -65,5 +65,58 @@ describe('isSchemaOutOfSyncError', () => {
       chain = makeError('wrapper', { code: 'SQLITE_ERROR', cause: chain })
     }
     expect(isSchemaOutOfSyncError(chain)).toBe(false)
+  })
+})
+
+describe('isMigrationStorageError', () => {
+  it.each([
+    'SQLITE_IOERR',
+    'SQLITE_IOERR_READ',
+    'SQLITE_READONLY',
+    'SQLITE_READONLY_DBMOVED',
+    'SQLITE_CANTOPEN',
+    'SQLITE_CANTOPEN_NOTEMPDIR',
+    'SQLITE_CANTOPEN_ISDIR',
+    'SQLITE_CANTOPEN_FULLPATH',
+    'SQLITE_CANTOPEN_CONVPATH',
+    'SQLITE_CANTOPEN_DIRTYWAL',
+    'SQLITE_CANTOPEN_SYMLINK',
+    'SQLITE_FULL',
+    'EIO',
+    'EACCES',
+    'EPERM',
+    'EROFS',
+    'ENOSPC'
+  ])('matches %s through a nested cause chain', (code) => {
+    const storageCause = makeError('storage unavailable', { code })
+    const wrapped = new MigrationDatabaseError('schema', makeError('query failed', { cause: storageCause }))
+
+    expect(isMigrationStorageError(wrapped)).toBe(true)
+  })
+
+  it('matches a code-less database-open failure from its stage context', () => {
+    expect(isMigrationStorageError(new MigrationDatabaseError('open', new Error('unable to open database file')))).toBe(
+      true
+    )
+  })
+
+  it.each(['SQLITE_NOTADB', 'SQLITE_CORRUPT'])(
+    'does not classify an open-stage %s failure as unavailable storage',
+    (code) => {
+      const corruption = makeError('database file is invalid', { code })
+
+      expect(isMigrationStorageError(new MigrationDatabaseError('open', corruption))).toBe(false)
+    }
+  )
+
+  it('does not classify an ordinary schema incompatibility as a storage failure', () => {
+    const schemaError = makeError('table `agent` already exists', { code: 'SQLITE_ERROR' })
+
+    expect(isMigrationStorageError(new MigrationDatabaseError('schema', schemaError))).toBe(false)
+  })
+
+  it('does not classify a code-less WAL or schema failure as a storage failure', () => {
+    expect(isMigrationStorageError(new MigrationDatabaseError('wal', new Error('unexpected failure')))).toBe(false)
+    expect(isMigrationStorageError(new MigrationDatabaseError('schema', new Error('unexpected failure')))).toBe(false)
   })
 })

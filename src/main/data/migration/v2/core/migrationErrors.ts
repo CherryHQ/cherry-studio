@@ -16,6 +16,50 @@
 /** Maximum `.cause` chain depth traversed — guards against cyclic causes. */
 const MAX_CAUSE_DEPTH = 5
 
+const NODE_STORAGE_CODES = new Set(['EIO', 'EACCES', 'EPERM', 'EROFS', 'ENOSPC'])
+
+export type MigrationDatabaseStage = 'open' | 'wal' | 'schema'
+
+export class MigrationDatabaseError extends Error {
+  readonly stage: MigrationDatabaseStage
+
+  constructor(stage: MigrationDatabaseStage, cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause })
+    this.name = 'MigrationDatabaseError'
+    this.stage = stage
+  }
+}
+
+function isStorageCode(code: unknown): boolean {
+  if (typeof code !== 'string') return false
+  return (
+    code === 'SQLITE_CANTOPEN' ||
+    code.startsWith('SQLITE_CANTOPEN_') ||
+    code === 'SQLITE_FULL' ||
+    code === 'SQLITE_IOERR' ||
+    code.startsWith('SQLITE_IOERR_') ||
+    code === 'SQLITE_READONLY' ||
+    code.startsWith('SQLITE_READONLY_') ||
+    NODE_STORAGE_CODES.has(code)
+  )
+}
+
+/** True when migration database setup failed because local storage is unavailable. */
+export function isMigrationStorageError(error: unknown): boolean {
+  let current: unknown = error
+  let isOpenFailure = false
+  let hasErrorCode = false
+  for (let depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
+    if (!(current instanceof Error)) break
+    if (current instanceof MigrationDatabaseError && current.stage === 'open') isOpenFailure = true
+    const code = (current as { code?: unknown }).code
+    if (typeof code === 'string') hasErrorCode = true
+    if (isStorageCode(code)) return true
+    current = (current as { cause?: unknown }).cause
+  }
+  return isOpenFailure && !hasErrorCode
+}
+
 /**
  * True when `error` (or any error in its `.cause` chain) is a
  * `SQLITE_ERROR` whose message reports an existing schema object
