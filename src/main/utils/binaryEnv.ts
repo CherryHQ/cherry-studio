@@ -130,6 +130,53 @@ export function getBinaryIsolatedHomeEnv(): Record<string, string> {
   return env
 }
 
+/**
+ * The Windows variables a child process cannot start without, plus the two that
+ * decide where it reads and writes:
+ * - `SystemRoot`, `windir`, `SystemDrive`, `ComSpec`, `PATHEXT` — the system baseline
+ *   `utilityProcess/host/environment.ts` already forwards to its children;
+ *   `BinaryManager`'s `MISE_PASSTHROUGH_ENV` forwards all of them but `SystemDrive`.
+ *   Without `SystemRoot` a Windows process cannot resolve the system DLLs at all.
+ * - `TEMP`, `TMP` — a writable scratch dir. The utility-process host substitutes a
+ *   Cherry-scoped one instead of forwarding these; here there is none to substitute.
+ * - `USERPROFILE` — Windows' `HOME`, which neither list carries because neither
+ *   child needs a home. Callers here hand the child `HOME` on posix, so this is the
+ *   same value under the name Windows uses for it.
+ *
+ * None of them is a credential or a user-configured setting, so forwarding them
+ * does not widen what a deliberately scoped child env exposes.
+ */
+const WIN32_SYSTEM_ENV_KEYS = [
+  'SystemRoot',
+  'SystemDrive',
+  'windir',
+  'ComSpec',
+  'PATHEXT',
+  'TEMP',
+  'TMP',
+  'USERPROFILE'
+]
+
+/**
+ * The platform's mandatory system variables, read out of `source`.
+ *
+ * Callers that hand a child a *replacement* env — one that does not start from the
+ * host environment — must fold this in. On Windows an env without it kills the
+ * child before it runs any of its own code: a process spawned without `SystemRoot`
+ * cannot resolve the system DLLs, and dies with a Windows exception exit code and
+ * no crash report. Posix has no comparable baseline, so this is empty there.
+ */
+export function pickSystemEnvironment(source: Record<string, string | undefined>): Record<string, string> {
+  if (!isWin) return {}
+  const picked: Record<string, string> = {}
+  for (const name of WIN32_SYSTEM_ENV_KEYS) {
+    // Windows env keys are case-insensitive, so the source may spell them any way.
+    const match = Object.entries(source).find(([key]) => key.toLowerCase() === name.toLowerCase())
+    if (match?.[1] !== undefined) picked[name] = match[1]
+  }
+  return picked
+}
+
 function mergePathEntries(
   env: Record<string, string>,
   prefixes: string[],
