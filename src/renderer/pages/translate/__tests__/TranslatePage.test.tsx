@@ -994,6 +994,52 @@ describe('TranslatePage', () => {
     )
   })
 
+  it('ignores OCR output when cancelled while completion waits for history restore', async () => {
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
+    const { persistLanguages, resolvePersist } = createDeferredLanguagePersist()
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const { rerender } = render(<TranslatePage />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+        await waitFor(() => expect(fileMock.startJob).toHaveBeenCalledTimes(1))
+
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+
+        useJobMock.mockReturnValue({
+          data: {
+            id: 'job-ocr-1',
+            type: 'file-processing.background',
+            status: 'completed',
+            output: { artifact: { kind: 'text', format: 'plain', text: 'cancelled recognized text' } },
+            error: null
+          },
+          isTerminal: true
+        })
+        rerender(<TranslatePage />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+        await waitFor(() => expect(screen.queryByTestId('translate-input-ocr-processing')).not.toBeInTheDocument())
+        await act(async () => resolvePersist())
+        rerender(<TranslatePage />)
+
+        expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('history input')
+        expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('history output')
+        expect(toast.success).not.toHaveBeenCalledWith('translate.files.ocr_completed')
+      }
+    )
+  })
+
   it('treats a completed OCR job without a text artifact as a failure', async () => {
     fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
 

@@ -384,4 +384,40 @@ describe('renderer PreferenceService write consistency', () => {
     expect(persisted[sourceKey]).toBe('zh-cn')
     expect(service.getCachedValue(sourceKey)).toBe('zh-cn')
   })
+
+  it('keeps a later optimistic batch cached after a queued single-key write', async () => {
+    const sourceKey = 'feature.translate.page.source_language'
+    const targetKey = 'feature.translate.page.target_language'
+    const persisted = { [sourceKey]: 'en-us', [targetKey]: 'zh-cn' }
+    getMultipleRaw.mockResolvedValueOnce(persisted)
+    let resolveFirst!: () => void
+    set.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveFirst = () => {
+            persisted[sourceKey] = 'zh-cn'
+            resolve()
+          }
+        })
+    )
+    set.mockImplementationOnce(async () => {
+      persisted[sourceKey] = 'ja-jp'
+    })
+    setMultiple.mockImplementationOnce(async (updates) => {
+      Object.assign(persisted, updates)
+    })
+    const service = await createService()
+    await service.getMultipleRaw([sourceKey, targetKey])
+
+    const prior = service.set(sourceKey, 'zh-cn', { optimistic: false })
+    const queuedSingle = service.set(sourceKey, 'ja-jp')
+    const laterBatch = service.setMultiple({ [sourceKey]: 'fr-fr', [targetKey]: 'de-de' })
+
+    expect(service.getCachedValue(sourceKey)).toBe('fr-fr')
+    resolveFirst()
+    await Promise.all([prior, queuedSingle, laterBatch])
+
+    expect(persisted).toEqual({ [sourceKey]: 'fr-fr', [targetKey]: 'de-de' })
+    expect(service.getCachedValue(sourceKey)).toBe('fr-fr')
+  })
 })

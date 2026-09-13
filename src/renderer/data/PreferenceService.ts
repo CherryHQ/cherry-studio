@@ -41,9 +41,12 @@ export class PreferenceService {
       originalValue: any
       timestamp: number
       requestId: string
+      sequence: number
       isFirst: boolean
     }
   >()
+
+  private optimisticSequence = 0
 
   private writeTails = new Map<UnifiedPreferenceKeyType, Promise<void>>()
 
@@ -144,24 +147,47 @@ export class PreferenceService {
     value: UnifiedPreferenceType[K],
     options: PreferenceUpdateOptions = { optimistic: true }
   ): Promise<void> {
-    return this.enqueueWrite([key], () =>
-      options.optimistic ? this.setOptimistic(key, value) : this.setPessimistic(key, value)
-    )
+    if (options.optimistic) {
+      const requestId = this.generateRequestId()
+      const sequence = ++this.optimisticSequence
+      return this.enqueueWrite([key], () => {
+        const current = this.optimisticValues.get(key)
+        if (!current || current.sequence <= sequence) this.applyOptimisticUpdate(key, value, requestId, sequence)
+        return this.persistOptimistic(key, value, requestId)
+      })
+    }
+
+    return this.enqueueWrite([key], () => this.setPessimistic(key, value))
   }
 
   /**
-   * Optimistic update: Queue request to prevent race conditions
-   * Updates UI immediately, then syncs to database with rollback on failure
+   * Apply an optimistic cache update; persistence is serialized by the caller.
    * @param key The preference key to update
    * @param value The new value to set
    * @returns Promise that resolves when update completes
    */
-  private async setOptimistic<K extends UnifiedPreferenceKeyType>(
+  private applyOptimisticUpdate<K extends UnifiedPreferenceKeyType>(
     key: K,
-    value: UnifiedPreferenceType[K]
-  ): Promise<void> {
-    const requestId = this.generateRequestId()
-    return this.executeOptimisticUpdate(key, value, requestId)
+    value: UnifiedPreferenceType[K],
+    requestId: string,
+    sequence: number
+  ): void {
+    const existingState = this.optimisticValues.get(key)
+    const isFirst = !existingState
+    const originalValue = isFirst ? this.cache[key] : existingState.originalValue
+
+    this.cache[key] = value
+    this.notifyChangeListeners(key)
+    this.optimisticValues.set(key, {
+      value,
+      originalValue,
+      timestamp: Date.now(),
+      requestId,
+      sequence,
+      isFirst
+    })
+
+    logger.debug(`Optimistic update for ${key} (${requestId})${isFirst ? ' [FIRST]' : ''}`)
   }
 
   /**
@@ -171,27 +197,7 @@ export class PreferenceService {
    * @param requestId Unique identifier for this update request
    * @returns Promise that resolves when update completes
    */
-  private async executeOptimisticUpdate(key: UnifiedPreferenceKeyType, value: any, requestId: string): Promise<void> {
-    const existingState = this.optimisticValues.get(key)
-    const isFirst = !existingState
-    const originalValue = isFirst ? this.cache[key] : existingState.originalValue
-
-    // Update cache immediately for responsive UI
-    this.cache[key] = value
-    this.notifyChangeListeners(key)
-
-    // Track optimistic state with proper original value protection
-    this.optimisticValues.set(key, {
-      value,
-      originalValue, // Use real original value (from first request) or current if first
-      timestamp: Date.now(),
-      requestId,
-      isFirst
-    })
-
-    logger.debug(`Optimistic update for ${key} (${requestId})${isFirst ? ' [FIRST]' : ''}`)
-
-    // Attempt to persist to main process
+  private async persistOptimistic(key: UnifiedPreferenceKeyType, value: any, requestId: string): Promise<void> {
     try {
       await window.api.preference.set(key, value)
       // Success: confirm optimistic update
@@ -328,6 +334,7 @@ export class PreferenceService {
    */
   private async setMultipleOptimistic(updates: Partial<UnifiedPreferenceType>): Promise<void> {
     const batchRequestId = this.generateRequestId()
+    const sequence = ++this.optimisticSequence
     const originalValues: Record<string, any> = {}
     const keysToUpdate = Object.keys(updates) as UnifiedPreferenceKeyType[]
 
@@ -355,6 +362,7 @@ export class PreferenceService {
         originalValue: originalValues[key], // Use protected original value
         timestamp,
         requestId: `${batchRequestId}_${key}`, // Unique ID per key in batch
+        sequence,
         isFirst
       })
     })
@@ -647,6 +655,7 @@ export class PreferenceService {
 
     // Clear all optimistic states and write queues
     this.optimisticValues.clear()
+    this.optimisticSequence = 0
     this.writeTails.clear()
 
     this.clearCache()

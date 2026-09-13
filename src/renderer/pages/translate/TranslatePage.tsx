@@ -983,6 +983,10 @@ const TranslatePage: FC = () => {
   // The backend File Processing job keeps running and its result is discarded
   // (deliberate — Cancel/settle is a local "dismiss", not a backend cancel).
   const clearOcrJob = useCallback(() => setOcrJob(null), [])
+  const cancelOcrJob = useCallback(() => {
+    advanceContentOperationRevision()
+    setOcrJob(null)
+  }, [])
 
   const startOcr = useCallback(
     async (file: FileMetadata, contentOperationRevision: number) => {
@@ -1358,7 +1362,7 @@ const TranslatePage: FC = () => {
             <Button
               variant="ghost"
               size="icon-sm"
-              disabled={isExchangePending}
+              disabled={isExchangePending || historyRestorePendingRef.current}
               className={historyOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}
               onClick={() =>
                 setHistoryOpen((open) => {
@@ -1449,7 +1453,7 @@ const TranslatePage: FC = () => {
                 onSelectFile={handleSelectFile}
                 copied={inputCopied}
                 onCopy={onCopyInput}
-                onCancelOcr={clearOcrJob}
+                onCancelOcr={cancelOcrJob}
                 disabled={isTranslating || isDetecting || isProcessing || isOcrRunning}
                 ocrProcessing={isOcrRunning}
                 selecting={selecting}
