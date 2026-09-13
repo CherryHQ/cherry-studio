@@ -214,6 +214,66 @@ describe('KnowledgeBaseComposerRuntime auto-link', () => {
     expect(mocks.updateAssistant).toHaveBeenCalledTimes(1)
   })
 
+  it('does not leak the old assistant ids when a switch lands mid-PATCH', async () => {
+    // A PATCH resolving after an assistant switch must not write its old ids into the
+    // settled ref — the next pick on the new assistant would inherit them and link the
+    // old assistant's bases there.
+    let resolveFirstPatch: (assistant: unknown) => void = () => {}
+    const firstPatch = new Promise<unknown>((resolve) => {
+      resolveFirstPatch = resolve
+    })
+    mocks.updateAssistant.mockImplementationOnce(() => firstPatch).mockImplementationOnce(async () => ({}))
+
+    const { list, deliver } = await openRuntimePanel([kb('kb-1'), kb('kb-2')], [])
+
+    const firstPick = list[0].action?.({ item: { ...list[0], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(1))
+
+    // The switch re-scopes the settled ids to assistant-2 while PATCH-1 is still in flight.
+    deliver({ id: 'assistant-2', knowledgeBaseIds: [] })
+    resolveFirstPatch({})
+    await firstPick
+
+    const secondPick = list[1].action?.({ item: { ...list[1], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(2))
+    expect(mocks.updateAssistant).toHaveBeenNthCalledWith(2, 'assistant-2', { knowledgeBaseIds: ['kb-2'] })
+    await secondPick
+  })
+
+  it('records the settled ids when a same-id refresh delivery lands mid-PATCH', async () => {
+    // Every successful PATCH refresh-delivers a fresh same-id snapshot. While the next
+    // PATCH is in flight, that delivery must not read as a switch and skip the
+    // write-back, or a later pick would drop the just-persisted id from its PATCH.
+    let resolveSecondPatch: (assistant: unknown) => void = () => {}
+    const secondPatch = new Promise<unknown>((resolve) => {
+      resolveSecondPatch = resolve
+    })
+    mocks.updateAssistant
+      .mockImplementationOnce(async () => ({}))
+      .mockImplementationOnce(() => secondPatch)
+      .mockImplementationOnce(async () => ({}))
+
+    const { list, deliver } = await openRuntimePanel([kb('kb-1'), kb('kb-2'), kb('kb-3')], [])
+
+    await list[0].action?.({ item: { ...list[0], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(1))
+
+    const secondPick = list[1].action?.({ item: { ...list[1], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(2))
+
+    // PATCH-1's refresh delivers a fresh same-id snapshot (post-kb-1 truth) mid-flight.
+    deliver({ id: 'assistant-1', knowledgeBaseIds: ['kb-1'] })
+    resolveSecondPatch({})
+    await secondPick
+
+    const thirdPick = list[2].action?.({ item: { ...list[2], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(3))
+    expect(mocks.updateAssistant).toHaveBeenNthCalledWith(3, 'assistant-1', {
+      knowledgeBaseIds: ['kb-1', 'kb-2', 'kb-3']
+    })
+    await thirdPick
+  })
+
   it('starts fresh after an assistant switch instead of carrying the old ids', async () => {
     // A different assistant's delivery is a new scope, not staleness: the settled ids
     // must reset, or a pick on the new assistant would patch in the old one's bases.

@@ -73,14 +73,21 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
       // The pick belongs to this assistant; if the user switches before the queued
       // PATCH runs, dropping the link beats silently widening another assistant.
       const assistantAtPick = assistantSnapshotRef.current
+      // Scope is the assistant id, not the snapshot object: refresh deliveries mint new
+      // same-id snapshots mid-flight and must not read as a switch.
+      const pickStillInScope = () => assistantSnapshotRef.current?.id === assistantAtPick?.id
       const run = async (): Promise<boolean> => {
-        if (!assistantAtPick || assistantSnapshotRef.current !== assistantAtPick) return false
+        if (!assistantAtPick || !pickStillInScope()) return false
         const currentIds = latestKnowledgeBaseIdsRef.current ?? assistantAtPick.knowledgeBaseIds ?? []
         if (currentIds.includes(base.id)) return true
         const knowledgeBaseIds = [...currentIds, base.id]
         try {
           await updateAssistant(assistantAtPick.id, { knowledgeBaseIds })
-          latestKnowledgeBaseIdsRef.current = knowledgeBaseIds
+          // A mid-PATCH switch already re-scoped the settled ids to the new assistant;
+          // writing the old list back would leak this assistant's bases into its next PATCH.
+          if (pickStillInScope()) {
+            latestKnowledgeBaseIdsRef.current = knowledgeBaseIds
+          }
           return true
         } catch (error) {
           logger.error('Failed to auto-link knowledge base to assistant', error as Error, {
