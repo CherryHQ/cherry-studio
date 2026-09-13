@@ -11,7 +11,7 @@ import {
 } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -70,6 +70,8 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['JobManager'])
 export class AgentJobsService extends BaseService {
+  private startupReconciliationPauseHold: Disposable | undefined
+
   protected async onInit(): Promise<void> {
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
 
@@ -84,6 +86,24 @@ export class AgentJobsService extends BaseService {
         })
       })
     )
+  }
+
+  protected async onReady(): Promise<void> {
+    // Lifecycle awaits onReady before system-wide onAllReady. A failed repair
+    // must not fall through to JobManager's deferred startup recovery, but it
+    // also does not need to abort the whole application. JobManager.pause()
+    // is the existing fail-closed primitive: while its hold remains live, no
+    // startup-recovery step, schedule fire, dispatch claim, or maintenance
+    // write can start. The hold is intentionally retained for this process;
+    // a relaunch retries the idempotent reconciliation from persisted state.
+    try {
+      await this.reconcileOrphanedSchedules()
+    } catch (error) {
+      this.startupReconciliationPauseHold ??= application
+        .get('JobManager')
+        .pause('agent-task startup reconciliation failed')
+      logger.error('Failed to reconcile orphaned agent task schedules; JobManager paused', error as Error)
+    }
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
@@ -255,6 +275,37 @@ export class AgentJobsService extends BaseService {
       agentTaskService.notifyReadModelChange(schedules.map((s) => s.id))
     }
     return deleted
+  }
+
+  /**
+   * Remove persisted `agent.task` schedules whose owner no longer exists.
+   * Runs from `onReady`, before JobManager's deferred startup recovery can
+   * snapshot or arm persisted schedules. Malformed task templates are left to
+   * the existing validation/recovery paths rather than widened into this
+   * ownership repair.
+   *
+   * @returns How many orphaned schedule rows were removed.
+   */
+  async reconcileOrphanedSchedules(): Promise<number> {
+    const orphaned = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((schedule) => {
+      const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
+      return template !== null && !agentService.agentExists(template.agentId)
+    })
+
+    const deletedIds: string[] = []
+    try {
+      for (const schedule of orphaned) {
+        if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
+          deletedIds.push(schedule.id)
+        }
+      }
+    } finally {
+      if (deletedIds.length > 0) {
+        logger.info('Reconciled orphaned agent task schedules', { deleted: deletedIds.length })
+        agentTaskService.notifyReadModelChange(deletedIds)
+      }
+    }
+    return deletedIds.length
   }
 
   /** Run a scheduled agent task now (`ai.agent.task.run`). @returns whether the trigger fired (`false` = not found / not owned). */
