@@ -474,6 +474,57 @@ describe('DeepSeekHarnessService', () => {
     expect(processKill).not.toHaveBeenCalled()
   })
 
+  it('forces the Windows process tree after graceful cleanup fails', async () => {
+    vi.useFakeTimers()
+    mocks.isWin = true
+    const child = spawnChild((process) => process.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+    mocks.execFile
+      .mockImplementationOnce(
+        (
+          _file: string,
+          _args: string[],
+          _options: object,
+          callback: (error: Error | null, stdout: string, stderr: string) => void
+        ) => {
+          child.close(null, 'SIGTERM')
+          callback(new Error('taskkill exited with code 128'), '', '')
+        }
+      )
+      .mockImplementationOnce(
+        (
+          _file: string,
+          _args: string[],
+          _options: object,
+          callback: (error: Error | null, stdout: string, stderr: string) => void
+        ) => {
+          child.close(null, 'SIGKILL')
+          callback(null, '', '')
+        }
+      )
+    const service = new DeepSeekHarnessService()
+    await expect(service.start(startInput)).resolves.toMatchObject({ success: true })
+
+    const stop = service.stop()
+    await vi.advanceTimersByTimeAsync(3000)
+    await stop
+
+    expect(mocks.execFile).toHaveBeenNthCalledWith(
+      1,
+      'taskkill',
+      ['/PID', String(child.pid), '/T'],
+      { windowsHide: true },
+      expect.any(Function)
+    )
+    expect(mocks.execFile).toHaveBeenNthCalledWith(
+      2,
+      'taskkill',
+      ['/PID', String(child.pid), '/T', '/F'],
+      { windowsHide: true },
+      expect.any(Function)
+    )
+    expect(service.getStatus()).toEqual({ status: 'stopped' })
+  })
+
   it('bounds graceful and forced termination below the lifecycle stop ceiling', async () => {
     vi.useFakeTimers()
     const child = spawnChild((process) => process.stdout.write('dsh web: http://127.0.0.1:43123\n'))
