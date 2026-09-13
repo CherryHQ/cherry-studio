@@ -65,6 +65,7 @@ import type { FileType } from '@shared/types/file'
 import { type CanonicalFilePath, fileTypeMap } from '@shared/utils/file'
 
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
+import { isFileEntryTransientlyRetained } from './utils/transientFileRetention'
 
 const logger = loggerService.withContext('FileEntryService')
 
@@ -260,6 +261,9 @@ export interface FileEntryService {
 
   /** Auto-policy entries past grace with zero persistent refs (trashed included) — backs the GC pass. */
   findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[]
+
+  /** Recheck process-local ownership immediately before cleanup commits a deletion. */
+  isTransientlyRetained(id: FileEntryId): boolean
 
   /**
    * All entry ids regardless of trashed state — backs the FS orphan sweep,
@@ -742,14 +746,39 @@ class FileEntryServiceImpl implements FileEntryService {
       lt(fileEntryTable.createdAt, Date.now() - opts.graceMs),
       ...persistentRefAbsenceConditions()
     ]
-    const rows = this.getDb()
-      .select({ entry: fileEntryTable })
-      .from(fileEntryTable)
-      .where(and(...conditions))
-      .orderBy(asc(fileEntryTable.createdAt))
-      .limit(opts.limit)
-      .all()
-    return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
+    if (opts.limit <= 0) return []
+
+    // Transient holds live outside SQLite, so applying the batch limit before
+    // checking them can let held rows starve later reclaimable entries. Walk
+    // ordered batches until we have enough eligible entries (or exhaust the
+    // query), keeping the database limit as a bounded page rather than a final
+    // result limit.
+    const candidates: FileEntry[] = []
+    let offset = 0
+    while (candidates.length < opts.limit) {
+      const rows = this.getDb()
+        .select({ entry: fileEntryTable })
+        .from(fileEntryTable)
+        .where(and(...conditions))
+        .orderBy(asc(fileEntryTable.createdAt), asc(fileEntryTable.id))
+        .limit(opts.limit)
+        .offset(offset)
+        .all()
+      if (rows.length === 0) break
+
+      for (const row of rows) {
+        const entry = rowToFileEntrySafe(row.entry)
+        if (entry && !isFileEntryTransientlyRetained(entry.id)) candidates.push(entry)
+        if (candidates.length >= opts.limit) break
+      }
+      if (rows.length < opts.limit) break
+      offset += rows.length
+    }
+    return candidates
+  }
+
+  isTransientlyRetained(id: FileEntryId): boolean {
+    return isFileEntryTransientlyRetained(id)
   }
 
   listAllIds(): Set<FileEntryId> {
