@@ -267,6 +267,21 @@ them by `terminalPhase` (`persistence` → notification → `cleanup`), and then
 a listener) so it inlines the loop instead of going through
 `dispatchToListeners`, but the dead-listener cleanup is the same.
 
+Consumers that gate further admission on `onDone` (the channel completion
+sentinel, for example) must be `cleanup`-phased: unphased listeners run
+before the runtime terminal listener marks the session idle, so a follow-up
+they release would be refused as busy. Every admission path — `dispatch()`
+(renderer opens, approval continues, steer continuations),
+`startAgentSessionRun`, and the delivery service's `dispatchOne` — awaits
+`whenTerminalDispatchSettled(topicId)` under the dispatch lock, so a
+follow-up released by one cleanup listener (or a renderer submit landing
+right after its `done` chunk) cannot evict the stream while later cleanup
+listeners are still running — the stale-generation guard
+would otherwise skip that stream's terminal lifecycle (`done` status
+broadcast and `onConversationCompleted`). The inverse invariant follows:
+a terminal listener must never await the topic's dispatch lock, or the
+admission waiting on that dispatch would deadlock with it.
+
 ### PersistenceListener — strategy pattern
 
 One listener + four backends:
