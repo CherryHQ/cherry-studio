@@ -188,10 +188,13 @@ export function resolveAutoCompactWindow(
  * The per-request output cap the CLI may reserve alongside compacted history.
  * Providers bill input + max_tokens against the limit, so a large output cap on
  * an untrusted channel can outrun the safety-adjusted room even at the trigger
- * point (e.g. 80K trigger history + 128K output against a 153.6K room). Shrink
- * the cap to what fits beside trigger-point history; never below the CLI's own
- * default, which early-turn requests can still use. Trusted channels and
- * default-size caps already fit by construction and pass through untouched.
+ * point (e.g. 80K trigger history + 128K output against a 153.6K room — and past
+ * the 128K real limit from #18894). Shrink the cap so the trigger-point request
+ * fits the emitted window itself: the CLI accounts compaction off that window,
+ * and the emitted window sits at/below the derated room, so the request lands
+ * inside both (80K + 32K = 112K against the 128K real limit). Never below the
+ * CLI's own default, which early-turn requests can still use. Trusted channels
+ * and default-size caps already fit by construction and pass through untouched.
  */
 export function resolveClaudeOutputCap(
   contextWindow: number | undefined,
@@ -213,7 +216,7 @@ export function resolveClaudeOutputCap(
   if (triggerRoom + requestedOutput <= effectiveContextWindow) {
     return requestedOutput
   }
-  return Math.max(effectiveContextWindow - triggerRoom, DEFAULT_REQUESTED_OUTPUT_TOKENS)
+  return Math.max(autoCompactWindow - triggerRoom, DEFAULT_REQUESTED_OUTPUT_TOKENS)
 }
 
 // The CLI has no table for third-party models — it would request a generic 32,000 and cap them at
