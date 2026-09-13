@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs'
 import { app } from 'electron'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import type { AppEdition } from '@shared/types/appEdition'
+
+const logger = loggerService.withContext('AppEdition')
 
 const APPLICATION_IDS = {
   global: 'com.kangfenmao.CherryStudio',
@@ -23,14 +26,24 @@ function parseAppEdition(value: unknown): AppEdition {
 function resolveAppEdition(): AppEdition {
   const developmentEdition = process.env.CHERRY_EDITION?.trim().toLowerCase()
   if (!app.isPackaged && developmentEdition) {
-    return parseAppEdition(developmentEdition)
+    const edition = parseAppEdition(developmentEdition)
+    // Pin the resolved edition in logs so a packaged build hiding providers
+    // can be told apart from edition policy doing it on purpose (#20405).
+    logger.info('Resolved application edition', { edition, isPackaged: app.isPackaged, raw: developmentEdition })
+    return edition
   }
 
   const packageMetadata = JSON.parse(readFileSync(application.getPath('app.root', 'package.json'), 'utf8')) as {
     cherryEdition?: unknown
   }
 
-  return parseAppEdition(packageMetadata.cherryEdition)
+  const edition = parseAppEdition(packageMetadata.cherryEdition)
+  logger.info('Resolved application edition', {
+    edition,
+    isPackaged: app.isPackaged,
+    raw: packageMetadata.cherryEdition ?? null
+  })
+  return edition
 }
 
 let cachedAppEdition: AppEdition | undefined

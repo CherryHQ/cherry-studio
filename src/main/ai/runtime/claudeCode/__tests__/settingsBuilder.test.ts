@@ -3,7 +3,7 @@ import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   listBuiltinToolPolicies,
@@ -74,7 +74,7 @@ const mocks = vi.hoisted(() => ({
   createAgentsMdLoader: vi.fn(),
   loadAgentsMdInitialContext: vi.fn(),
   agentsMdHook: vi.fn(async () => ({})),
-  platform: { isMac: false },
+  platform: { isLinux: false, isMac: false },
   isWin: false
 }))
 
@@ -191,7 +191,9 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('@main/core/platform', () => ({
-  isLinux: false,
+  get isLinux() {
+    return mocks.platform.isLinux
+  },
   get isWin() {
     return mocks.isWin
   },
@@ -284,6 +286,10 @@ function systemPromptText(systemPrompt: unknown): string {
 }
 
 describe('buildClaudeCodeSessionSettings', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.approvalRegister.mockReturnValue(true)
@@ -348,6 +354,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     // test's instance. Must run after the application.get implementation above is in place.
     disposeToolPolicySnapshot('session-1')
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
+    mocks.platform.isLinux = false
     mocks.platform.isMac = false
     mocks.getShellEnv.mockResolvedValue({})
     mocks.refreshShellEnv.mockResolvedValue({})
@@ -394,6 +401,40 @@ describe('buildClaudeCodeSessionSettings', () => {
       MISE_STATE_DIR: '/managed/state',
       MISE_SHIMS_DIR: '/managed/shims'
     })
+  })
+
+  it('preserves the running Linux desktop session bus when the login shell omits it', async () => {
+    mocks.platform.isLinux = true
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/flatpak/session-bus')
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env!.DBUS_SESSION_BUS_ADDRESS).toBe('unix:path=/flatpak/session-bus')
+  })
+
+  it('does not invent a Linux desktop session bus when neither environment provides one', async () => {
+    mocks.platform.isLinux = true
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).not.toHaveProperty('DBUS_SESSION_BUS_ADDRESS')
   })
 
   it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
