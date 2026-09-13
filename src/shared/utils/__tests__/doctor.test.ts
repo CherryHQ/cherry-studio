@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DOCTOR_CHECK_CATALOG, type DoctorCheckId, type DoctorReport } from '../../types/doctor'
-import { DOCTOR_REDACTED, doctorFixMeta, isDoctorFixRequest, projectDoctorReport } from '../doctor'
+import { doctorFixMeta, isDoctorFixRequest, projectDoctorReport } from '../doctor'
 
 describe('DOCTOR_CHECK_CATALOG', () => {
   it('has no prerequisite cycles', () => {
@@ -30,9 +30,20 @@ describe('DOCTOR_CHECK_CATALOG', () => {
 
 describe('isDoctorFixRequest', () => {
   const valid = { runId: 'run-1', checkId: 'config-boot-config-valid', fixId: 'repair' }
+  it('requires targets only for targeted fixes and rejects retired destructive fixes', () => {
+    expect(isDoctorFixRequest({ ...valid, target: 'unexpected' })).toBe(false)
+    expect(isDoctorFixRequest({ ...valid, target: undefined })).toBe(false)
+    expect(isDoctorFixRequest({ runId: 'r', checkId: 'mcp-servers-connected', fixId: 'restart' })).toBe(false)
+    expect(isDoctorFixRequest({ runId: 'r', checkId: 'storage-disk-space', fixId: 'cleanup' })).toBe(false)
+    expect(isDoctorFixRequest({ runId: 'r', checkId: 'storage-diagnostic-data-size', fixId: 'clear' })).toBe(false)
+    expect(isDoctorFixRequest({ runId: 'r', checkId: 'config-hardware-acceleration', fixId: 'enable' })).toBe(false)
+  })
 
   it('accepts a fix the catalog declares for that check, bound to a run', () => {
     expect(isDoctorFixRequest(valid)).toBe(true)
+    expect(
+      isDoctorFixRequest({ runId: 'run-1', checkId: 'mcp-servers-connected', fixId: 'restart', target: 'server-1' })
+    ).toBe(true)
   })
 
   it('rejects a declared fix id aimed at a check that does not offer it', () => {
@@ -43,6 +54,8 @@ describe('isDoctorFixRequest', () => {
     expect(isDoctorFixRequest({ checkId: valid.checkId, fixId: valid.fixId })).toBe(false)
     expect(isDoctorFixRequest({ ...valid, runId: '' })).toBe(false)
     expect(isDoctorFixRequest({ ...valid, checkId: 'nope' })).toBe(false)
+    expect(isDoctorFixRequest({ ...valid, target: '' })).toBe(false)
+    expect(isDoctorFixRequest({ ...valid, target: 1 })).toBe(false)
     expect(isDoctorFixRequest(null)).toBe(false)
     expect(isDoctorFixRequest('config-boot-config-valid')).toBe(false)
   })
@@ -74,16 +87,23 @@ describe('projectDoctorReport', () => {
         status: 'warn',
         attribution: 'user-fixable',
         detail: { variant: 'fallback_to_default' },
-        actions: [],
+        actions: [{ kind: 'open_path', path: '/Users/alice/private-action' }],
         durationMs: 1,
+        devMessage: 'developer trace at /Users/alice/private.log',
         evidence: [
           { key: 'errno', value: 'EACCES', dataClass: 'public' },
           { key: 'path', value: '/Users/alice/...', dataClass: 'local_only' },
           { key: 'stderr', value: 'raw output', dataClass: 'consent_required' }
         ]
+      },
+      {
+        id: 'runtime-managed-tools',
+        status: 'error',
+        durationMs: 2,
+        message: 'spawn failed at /Users/alice/private-runtime'
       }
     ],
-    summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
+    summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 1 }
   }
   const classes = (view: Parameters<typeof projectDoctorReport>[1], consent = false) =>
     projectDoctorReport(report, view, { consentToSensitive: consent }).results[0].evidence?.map((e) => e.dataClass)
@@ -105,39 +125,27 @@ describe('projectDoctorReport', () => {
     expect(classes('upload', true)).toEqual(['public', 'consent_required'])
   })
 
+  it.each(['copy', 'upload'] as const)('drops private result fields from the %s view', (view) => {
+    expect(projectDoctorReport(report, view).results).toEqual([
+      {
+        id: 'storage-userdata-location',
+        status: 'warn',
+        attribution: 'user-fixable',
+        detail: { variant: 'fallback_to_default' },
+        durationMs: 1,
+        evidence: [{ key: 'errno', value: 'EACCES', dataClass: 'public' }]
+      },
+      { id: 'runtime-managed-tools', status: 'error', durationMs: 2 }
+    ])
+  })
+
   it('shows everything locally', () => {
     expect(classes('display')).toEqual(['public', 'local_only', 'consent_required'])
   })
 
-  // `devMessage` names hosts and paths and an errored check's `message` is a raw thrown string;
-  // the assistant tool feeds the upload projection to the model, so neither may survive it.
-  const withDeveloperText: DoctorReport = {
-    ...report,
-    results: [
-      { ...report.results[0], devMessage: 'DNS failed for corp-proxy.internal' },
-      {
-        id: 'network-dns-resolution',
-        status: 'error',
-        message: 'ENOENT /Users/alice/Library/Application Support/CherryStudio/config.json',
-        durationMs: 2,
-        devMessage: 'probe threw'
-      }
-    ],
-    summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 1 }
-  }
-  const project = (view: Parameters<typeof projectDoctorReport>[1]) =>
-    projectDoctorReport(withDeveloperText, view, { consentToSensitive: true }).results
-
-  it.each(['copy', 'upload'] as const)('drops developer text from the %s view', (view) => {
-    const [warned, errored] = project(view)
-    expect(warned).not.toHaveProperty('devMessage')
-    expect(errored).not.toHaveProperty('devMessage')
-    expect(errored).toMatchObject({ status: 'error', message: DOCTOR_REDACTED })
-  })
-
   it.each(['display', 'export'] as const)('keeps developer text in the %s view', (view) => {
-    const [warned, errored] = project(view)
-    expect(warned).toMatchObject({ devMessage: 'DNS failed for corp-proxy.internal' })
-    expect(errored).toMatchObject({ devMessage: 'probe threw', message: expect.stringContaining('ENOENT') })
+    const [warned, errored] = projectDoctorReport(report, view, { consentToSensitive: true }).results
+    expect(warned).toMatchObject({ devMessage: 'developer trace at /Users/alice/private.log' })
+    expect(errored).toMatchObject({ message: expect.stringContaining('private-runtime') })
   })
 })

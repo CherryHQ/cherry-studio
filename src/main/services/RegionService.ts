@@ -32,21 +32,23 @@ type CachedEgressRegion = {
 class RegionService {
   private inflight = new Map<string | null, { promise: Promise<string> }>()
 
-  /** Egress country code (e.g. 'CN', 'US'); defaults to 'CN' on any failure. */
-  async getCountry(): Promise<string> {
+  /** Egress country code (e.g. 'CN', 'US'); defaults to 'CN' on any failure, but an abort still throws. */
+  async getCountry(signal?: AbortSignal): Promise<string> {
     try {
-      return await this.getDetectedCountry()
+      return await this.getDetectedCountry(signal)
     } catch {
+      signal?.throwIfAborted()
       return DEFAULT_COUNTRY
     }
   }
 
   /** True only when the egress country is successfully detected as China. */
-  async isInChina(): Promise<boolean> {
+  async isInChina(signal?: AbortSignal): Promise<boolean> {
     try {
-      const country = await this.getDetectedCountry()
+      const country = await this.getDetectedCountry(signal)
       return country.toLowerCase() === 'cn'
     } catch {
+      signal?.throwIfAborted()
       return false
     }
   }
@@ -58,11 +60,15 @@ class RegionService {
     return cached && cached.proxyKey === proxyKey ? cached.country : null
   }
 
-  private async getDetectedCountry(): Promise<string> {
+  private async getDetectedCountry(signal?: AbortSignal): Promise<string> {
+    signal?.throwIfAborted()
     const cached = this.getCachedCountry()
     if (cached) return cached
 
     const proxyKey = application.get('ProxyService').appliedProxyKey
+    // A caller with its own deadline neither joins nor becomes the shared request: aborting it
+    // must not cancel detection for everyone else.
+    if (signal) return this.detectAndCache(proxyKey, signal)
 
     // Dedup concurrent detections for the active proxy — callers share one in-flight request.
     const current = this.inflight.get(proxyKey)
@@ -82,9 +88,9 @@ class RegionService {
     return inflight.promise
   }
 
-  private async detectAndCache(proxyKey: string | null): Promise<string> {
+  private async detectAndCache(proxyKey: string | null, signal?: AbortSignal): Promise<string> {
     try {
-      const country = await this.fetchCountry()
+      const country = await this.fetchCountry(signal)
       if (application.get('ProxyService').appliedProxyKey === proxyKey) {
         application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
       }
@@ -95,9 +101,11 @@ class RegionService {
     }
   }
 
-  private async fetchCountry(): Promise<string> {
+  private async fetchCountry(signal?: AbortSignal): Promise<string> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+    const abort = () => controller.abort()
+    signal?.addEventListener('abort', abort, { once: true })
 
     try {
       const response = await net.fetch('https://api.ipinfo.io/lite/me?token=5aa4105b40adbc', {
@@ -118,6 +126,7 @@ class RegionService {
       return country
     } finally {
       clearTimeout(timeoutId)
+      signal?.removeEventListener('abort', abort)
     }
   }
 }

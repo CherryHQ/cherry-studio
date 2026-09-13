@@ -52,7 +52,7 @@ function resolvePermissionView(
   if (!isMac || status === null) return null
   if (restartRequired) return 'restart-required'
   if (status === 'authorized') return null
-  if (status === 'denied') return 'denied'
+  if (status === 'denied' || status === 'restricted') return 'denied'
   if (promptUnavailable) return 'prompt-unavailable'
   return 'request'
 }

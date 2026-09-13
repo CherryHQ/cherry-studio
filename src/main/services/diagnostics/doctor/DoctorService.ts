@@ -12,8 +12,6 @@ import {
   type DoctorCheckId,
   type DoctorCheckResult,
   type DoctorCheckStatus,
-  type DoctorFixableCheckId,
-  type DoctorFixId,
   type DoctorFixRequest,
   type DoctorFixResult,
   type DoctorReport,
@@ -64,38 +62,15 @@ function toEngineCheck(id: DoctorCheckId, memo: RunMemo): DoctorEngineCheck {
   }
 }
 
-/** The registry type guarantees every catalog-declared fix has a handler, so no cast is needed. */
-function fixHandler<Id extends DoctorFixableCheckId>(checkId: Id, fixId: DoctorFixId<Id>) {
-  const definition: DoctorCheckDefinition<Id> = doctorCheckRegistry[checkId]
-  return definition.fixes[fixId]
-}
-
-/**
- * Closes a selection over `requires`. The engine rejects a selection that omits a prerequisite,
- * and a check cannot be judged without the layer below it, so a prerequisite always runs.
- */
-function withPrerequisites(ids: readonly DoctorCheckId[]): DoctorCheckId[] {
-  const selected = new Set<DoctorCheckId>()
-  const visit = (id: DoctorCheckId) => {
-    if (selected.has(id)) return
-    selected.add(id)
-    for (const required of DOCTOR_CHECK_CATALOG[id].requires) visit(required)
-  }
-  for (const id of ids) visit(id)
-  return [...selected]
-}
-
 function summarize(results: readonly DoctorCheckResult[]): Record<DoctorCheckStatus, number> {
   const summary: Record<DoctorCheckStatus, number> = { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 }
   for (const result of results) summary[result.status] += 1
   return summary
 }
 
-function offersFix(result: DoctorCheckResult, fixId: string): boolean {
-  return (
-    (result.status === 'warn' || result.status === 'fail') &&
-    result.actions.some((action) => action.kind === 'fix' && action.fixId === fixId)
-  )
+function offersFix(result: DoctorCheckResult, fixId: string, target?: string): boolean {
+  if (result.status !== 'warn' && result.status !== 'fail') return false
+  return result.actions.some((action) => action.kind === 'fix' && action.fixId === fixId && action.target === target)
 }
 
 /**
@@ -107,19 +82,42 @@ function offersFix(result: DoctorCheckResult, fixId: string): boolean {
 @ServicePhase(Phase.WhenReady)
 export class DoctorService extends BaseService {
   private activeRun: { readonly runId: string; readonly controller: AbortController } | null = null
+  private allReady = false
+
+  protected override onAllReady(): void {
+    this.allReady = true
+  }
+
+  private selectChecks(ids: readonly DoctorCheckId[], tier: DoctorRunTier): DoctorCheckId[] {
+    const selected = new Set<DoctorCheckId>()
+    const visit = (id: DoctorCheckId): void => {
+      if (selected.has(id)) return
+      const meta = DOCTOR_CHECK_CATALOG[id]
+      if (!meta || !TIERS_FOR_RUN[tier].includes(meta.tier))
+        throw new Error(`Check ${id} is unavailable in tier ${tier}`)
+      selected.add(id)
+      for (const dependency of meta.requires) visit(dependency)
+    }
+    ids.forEach(visit)
+    return [...selected]
+  }
 
   /** Runs never coexist: a second call while one is in flight gets `busy` with the id it may cancel. */
   async run(input: { tier: DoctorRunTier; checkIds?: readonly DoctorCheckId[] }): Promise<DoctorRunResult> {
+    if (!this.allReady) throw new Error('Doctor is not ready')
     if (this.activeRun) return { status: 'busy', runId: this.activeRun.runId }
+    const ids = this.selectChecks(
+      input.checkIds ??
+        (Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]).filter((id) =>
+          TIERS_FOR_RUN[input.tier].includes(DOCTOR_CHECK_CATALOG[id].tier)
+        ),
+      input.tier
+    )
     const runId = randomUUID()
     const controller = new AbortController()
     this.activeRun = { runId, controller }
     const startedAt = new Date()
     try {
-      const tiers = TIERS_FOR_RUN[input.tier]
-      const ids = (input.checkIds ?? Object.keys(DOCTOR_CHECK_CATALOG)).filter((id): id is DoctorCheckId =>
-        tiers.includes(DOCTOR_CHECK_CATALOG[id as DoctorCheckId].tier)
-      )
       const running: DoctorState = {
         status: 'running',
         runId,
@@ -135,6 +133,11 @@ export class DoctorService extends BaseService {
         this.publish({ status: 'canceled', runId })
         return { status: 'canceled', runId }
       }
+      const basics = await this.collectBasics()
+      if (controller.signal.aborted) {
+        this.publish({ status: 'canceled', runId })
+        return { status: 'canceled', runId }
+      }
       const finishedAt = new Date()
       const report: DoctorReport = {
         schemaVersion: 1,
@@ -143,7 +146,7 @@ export class DoctorService extends BaseService {
         startedAt: startedAt.toISOString(),
         finishedAt: finishedAt.toISOString(),
         expiresAt: new Date(finishedAt.getTime() + DOCTOR_REPORT_TTL_MS).toISOString(),
-        basics: await this.collectBasics(),
+        basics,
         results,
         summary: summarize(results)
       }
@@ -175,35 +178,67 @@ export class DoctorService extends BaseService {
    * It occupies `activeRun` for its duration, so a fix and a run can never overlap in either order.
    */
   async fix(request: DoctorFixRequest): Promise<DoctorFixResult> {
-    const state = this.currentState()
-    if (this.activeRun || state.status !== 'completed' || state.report.runId !== request.runId) {
-      return { status: 'stale', reason: 'run_superseded' }
-    }
-    if (Date.parse(state.report.expiresAt) <= Date.now()) return { status: 'stale', reason: 'run_superseded' }
+    if (!this.allReady) throw new Error('Doctor is not ready')
+    if (this.activeRun) return { status: 'stale', reason: 'run_superseded' }
+    const stale = this.validateFix(request)
+    if (stale) return stale
     const controller = new AbortController()
     this.activeRun = { runId: request.runId, controller }
     try {
-      const before = await this.probeOne(request.checkId, controller.signal)
-      if (!offersFix(before, request.fixId)) return { status: 'stale', reason: 'finding_changed', result: before }
-
+      const state = this.currentState()
+      if (state.status !== 'completed') return { status: 'stale', reason: 'run_superseded' }
+      const ids = this.selectChecks([request.checkId], state.report.tier)
+      const probe = async () => {
+        const results = await this.execute(ids, controller.signal)
+        const result = results.find((item) => item.id === request.checkId)
+        if (!result) throw new Error(`Missing result for ${request.checkId}`)
+        return { results, result }
+      }
+      const before = await probe()
+      const changed = this.validateFix(request)
+      if (changed) return changed
+      this.patchReport(request.runId, before.results)
+      if (!offersFix(before.result, request.fixId, request.target)) {
+        return { status: 'stale', reason: 'finding_changed', result: before.result }
+      }
+      controller.signal.throwIfAborted()
       let outcome: DoctorFixOutcome
       try {
-        outcome = await fixHandler(request.checkId, request.fixId)(runContext(controller.signal, new Map()))
+        const context = runContext(controller.signal, new Map())
+        outcome =
+          request.checkId === 'mcp-servers-connected'
+            ? await doctorCheckRegistry[request.checkId].fixes[request.fixId]({ ...context, target: request.target })
+            : await doctorCheckRegistry[request.checkId].fixes[request.fixId](context)
       } catch (error) {
         outcome = { status: 'failed', message: error instanceof Error ? error.message : String(error) }
       }
-      // Re-probe so the caller renders what the fix actually achieved, not what it hoped for.
-      const result = await this.probeOne(request.checkId, controller.signal)
-      return outcome.status === 'failed' ? { ...outcome, result } : { status: outcome.status, result }
+      const after = await probe()
+      this.patchReport(request.runId, after.results)
+      return outcome.status === 'failed'
+        ? { ...outcome, result: after.result }
+        : { status: outcome.status, result: after.result }
     } finally {
       this.activeRun = null
     }
   }
 
-  /** `execute` also runs the check's prerequisites, so select the requested one by id, not by position. */
-  private async probeOne(id: DoctorCheckId, signal: AbortSignal): Promise<DoctorCheckResult> {
-    const results = await this.execute([id], signal)
-    return results.find((result) => result.id === id)!
+  private validateFix(request: DoctorFixRequest): DoctorFixResult | undefined {
+    const state = this.currentState()
+    if (state.status !== 'completed' || state.report.runId !== request.runId)
+      return { status: 'stale', reason: 'run_superseded' }
+    if (!(Date.parse(state.report.expiresAt) > Date.now())) return { status: 'stale', reason: 'report_expired' }
+    const finding = state.report.results.find((item) => item.id === request.checkId)
+    if (!finding || !offersFix(finding, request.fixId, request.target))
+      return { status: 'stale', reason: 'finding_changed' }
+    return undefined
+  }
+
+  private patchReport(runId: string, results: readonly DoctorCheckResult[]): void {
+    const state = this.currentState()
+    if (state.status !== 'completed' || state.report.runId !== runId) return
+    const updated = new Map(results.map((result) => [result.id, result]))
+    const merged = state.report.results.map((result) => updated.get(result.id) ?? result)
+    this.publish({ status: 'completed', report: { ...state.report, results: merged, summary: summarize(merged) } })
   }
 
   private currentState(): DoctorState {
@@ -222,7 +257,7 @@ export class DoctorService extends BaseService {
     const settled: DoctorCheckResult[] = []
     const memo: RunMemo = new Map()
     const results = (await runDoctorChecks({
-      checks: withPrerequisites(ids).map((id) => toEngineCheck(id, memo)),
+      checks: ids.map((id) => toEngineCheck(id, memo)),
       signal,
       laneLimits: LANE_LIMITS,
       onResult: (result) => {
@@ -230,13 +265,6 @@ export class DoctorService extends BaseService {
         onProgress?.([...settled])
       }
     })) as DoctorCheckResult[]
-    // A re-probe outside a run (fix) patches the completed report in place.
-    const state = this.currentState()
-    if (!onProgress && state.status === 'completed') {
-      const updated = new Map(results.map((result) => [result.id, result]))
-      const merged = state.report.results.map((result) => updated.get(result.id) ?? result)
-      this.publish({ status: 'completed', report: { ...state.report, results: merged, summary: summarize(merged) } })
-    }
     return results
   }
 

@@ -69,9 +69,12 @@ const state = useSharedCacheValue('doctor.state')   // idle | running | complete
 await ipcApi.request('diagnostics.doctor.run', { tier: 'quick' })      // then, on user click:
 await ipcApi.request('diagnostics.doctor.run', { tier: 'live' })       // live = quick + live checks
 await ipcApi.request('diagnostics.doctor.cancel', { runId })
-await ipcApi.request('diagnostics.doctor.fix', { runId, checkId, fixId })
+await ipcApi.request('diagnostics.doctor.fix', { runId, checkId: 'mcp-servers-connected', fixId: 'restart', target: serverId })
 ```
 
 `run` returns `busy` with the in-flight `runId` while a run is active. `fix` is bound to the report's `runId`
 and re-probes before executing; it answers `stale` when the run was superseded or the finding changed.
-Reports carry `expiresAt`; after that the dialog should ask for a re-run before offering fixes.
+Only MCP restart requires a target; other fixes reject one. Passing checks never offer actions.
+Runs and fixes are mutually exclusive and refused before all services have initialized. Selected checks
+include their transitive prerequisites. Fixes revalidate identity, expiry and the offered action after
+re-probing; only the original report is updated. Expired reports require another run.

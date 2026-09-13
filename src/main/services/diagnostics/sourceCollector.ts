@@ -1,6 +1,7 @@
 import { once } from 'node:events'
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
+import { addAbortSignal } from 'node:stream'
 import { finished } from 'node:stream/promises'
 
 import { application } from '@application'
@@ -82,20 +83,26 @@ function hasSameIdentity(snapshot: ReadableFileSnapshot, identity: SourceIdentit
 
 export async function* readRawLines(
   snapshot: ReadableFileSnapshot,
-  snapshotBytes = snapshot.size
+  snapshotBytes = snapshot.size,
+  signal?: AbortSignal
 ): AsyncGenerator<RawLine> {
+  signal?.throwIfAborted()
   const parts: Buffer[] = []
   let lineBytes = 0
   let bytesRead = 0
   let tooLarge = false
 
-  for await (const chunk of snapshot.createReadStream(snapshotBytes)) {
+  const stream = snapshot.createReadStream(snapshotBytes)
+  if (signal) addAbortSignal(signal, stream)
+  for await (const chunk of stream) {
+    signal?.throwIfAborted()
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     bytesRead += buffer.length
     if (bytesRead > snapshotBytes) throw new SourceChangedError()
 
     let offset = 0
     while (offset < buffer.length) {
+      signal?.throwIfAborted()
       const newline = buffer.indexOf(0x0a, offset)
       const end = newline === -1 ? buffer.length : newline + 1
       const part = buffer.subarray(offset, end)

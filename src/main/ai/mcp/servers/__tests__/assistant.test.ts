@@ -99,8 +99,8 @@ afterEach(() => {
 })
 
 beforeEach(() => {
-  MockMainCacheServiceUtils.resetMocks()
   MockMainPreferenceServiceUtils.resetMocks()
+  MockMainCacheServiceUtils.resetMocks()
   mocks.agentCreate.mockReset()
   mocks.applicationGetPath.mockReset()
   mocks.applicationGetPath.mockReturnValue('/mock/product-manifest.json')
@@ -761,14 +761,21 @@ describe('diagnose doctor', () => {
             durationMs: 1,
             attribution: 'user-fixable',
             detail: { variant: 'fallback_to_default' },
-            actions: [],
+            actions: [{ kind: 'open_path', path: '/Users/alice/private-action' }],
+            devMessage: 'developer trace at /Users/alice/private.log',
             evidence: [
               { key: 'actual', value: '/Users/alice/secret', dataClass: 'local_only' },
               { key: 'configuredUsableNow', value: false, dataClass: 'public' }
             ]
+          },
+          {
+            id: 'runtime-managed-tools',
+            status: 'error',
+            durationMs: 2,
+            message: 'spawn failed at /Users/alice/private-runtime'
           }
         ],
-        summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
+        summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 1 }
       }
     })
     const server = new AssistantServer()
@@ -781,6 +788,9 @@ describe('diagnose doctor', () => {
     expect(mocks.doctorRun).toHaveBeenCalledWith({ tier: 'quick' })
     expect(JSON.parse(text)).toMatchObject({ summary: { warn: 1 } })
     expect(text).not.toContain('/Users/alice/secret')
+    expect(text).not.toContain('/Users/alice/private-action')
+    expect(text).not.toContain('/Users/alice/private.log')
+    expect(text).not.toContain('/Users/alice/private-runtime')
     expect(text).toContain('configuredUsableNow')
   })
 

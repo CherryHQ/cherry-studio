@@ -1,5 +1,6 @@
-import { execFileSync, spawn } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import fs from 'fs'
+import { promisify } from 'node:util'
 import path from 'path'
 
 import which from 'which'
@@ -18,6 +19,7 @@ import { getPathFromEnvironment, getShellEnv } from './shellEnv'
  */
 
 const logger = loggerService.withContext('Utils:CommandResolver')
+const execFileAsync = promisify(execFile)
 
 // Timeout for command lookup operations (in milliseconds)
 const COMMAND_LOOKUP_TIMEOUT_MS = 5000
@@ -73,8 +75,10 @@ function filterWindowsCommandCandidates(candidates: readonly string[], extension
 async function findWindowsCommandCandidates(
   command: string,
   env: Record<string, string | undefined>,
-  extensions: string[]
+  extensions: string[],
+  signal?: AbortSignal
 ): Promise<string[]> {
+  signal?.throwIfAborted()
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
     const timeout = new Promise<undefined>((resolve) => {
@@ -90,14 +94,14 @@ async function findWindowsCommandCandidates(
       }),
       timeout
     ])
+    signal?.throwIfAborted()
     if (candidates === undefined) {
-      logger.debug(`Timeout checking command '${command}' on Windows`)
-      return []
+      throw new Error(`Timed out resolving command '${command}' on Windows`)
     }
     return filterWindowsCommandCandidates(candidates ?? [], extensions)
   } catch (error) {
     logger.warn(`Error checking command '${command}'`, { error, platform: 'windows' })
-    return []
+    throw error
   } finally {
     clearTimeout(timeoutId)
   }
@@ -136,12 +140,14 @@ function resolveExistingAbsoluteCommand(command: string): string | null {
   }
 
   try {
-    if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+    if (!fs.statSync(resolved).isFile()) {
       return null
     }
+    fs.accessSync(resolved, isWin ? fs.constants.F_OK : fs.constants.X_OK)
   } catch (error) {
-    logger.debug(`Absolute command path is not readable '${resolved}'`, { error })
-    return null
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return null
+    throw error
   }
 
   return resolved
@@ -155,8 +161,10 @@ function resolveExistingAbsoluteCommand(command: string): string | null {
  */
 export async function findCommandInShellEnv(
   command: string,
-  loginShellEnv: Record<string, string>
+  loginShellEnv: Record<string, string>,
+  signal?: AbortSignal
 ): Promise<string | null> {
+  signal?.throwIfAborted()
   const absoluteCommand = resolveExistingAbsoluteCommand(command)
   if (absoluteCommand) {
     return absoluteCommand
@@ -169,7 +177,12 @@ export async function findCommandInShellEnv(
   }
 
   if (isWin) {
-    const candidates = await findWindowsCommandCandidates(command, loginShellEnv, DEFAULT_WINDOWS_COMMAND_EXTENSIONS)
+    const candidates = await findWindowsCommandCandidates(
+      command,
+      loginShellEnv,
+      DEFAULT_WINDOWS_COMMAND_EXTENSIONS,
+      signal
+    )
     const exePath = candidates.find((candidate) => candidate.toLowerCase().endsWith('.exe'))
     const cmdPath = candidates.find((candidate) => candidate.toLowerCase().endsWith('.cmd'))
     const commandPath = exePath ?? cmdPath ?? null
@@ -179,7 +192,7 @@ export async function findCommandInShellEnv(
     return commandPath
   }
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let resolved = false
 
     const safeResolve = (value: string | null) => {
@@ -194,6 +207,8 @@ export async function findCommandInShellEnv(
     // SECURITY: Use positional parameter $1 to prevent command injection
     const child = spawn('/bin/sh', ['-c', 'command -v "$1"', '--', command], {
       env: loginShellEnv,
+      signal,
+      killSignal: 'SIGKILL',
       stdio: ['ignore', 'pipe', 'pipe']
     })
 
@@ -202,7 +217,8 @@ export async function findCommandInShellEnv(
       if (resolved) return
       child.kill('SIGKILL')
       logger.debug(`Timeout checking command '${command}'`)
-      safeResolve(null)
+      resolved = true
+      reject(new Error(`Timed out resolving command '${command}'`))
     }, COMMAND_LOOKUP_TIMEOUT_MS)
 
     child.stdout.on('data', (data) => {
@@ -226,9 +242,12 @@ export async function findCommandInShellEnv(
           logger.debug(`Command '${command}' resolved to non-path '${commandPath}', treating as not found`)
           safeResolve(null)
         }
-      } else {
+      } else if (code === 1 || code === 127 || code === 0) {
         logger.debug(`Command '${command}' not found in shell environment`)
         safeResolve(null)
+      } else {
+        resolved = true
+        reject(new Error(`Command lookup exited with code ${code}`))
       }
     })
 
@@ -236,7 +255,8 @@ export async function findCommandInShellEnv(
       clearTimeout(timeoutId)
       if (resolved) return
       logger.warn(`Error checking command '${command}':`, { error, platform: 'unix' })
-      safeResolve(null)
+      resolved = true
+      reject(error)
     })
   })
 }
@@ -300,7 +320,12 @@ const MISE_TIMEOUT_MS = 5000
  * @param env  - Environment variables for subprocess
  * @returns Absolute path to the real executable, or null
  */
-export async function findViaMise(name: string, env: Record<string, string>): Promise<string | null> {
+export async function findViaMise(
+  name: string,
+  env: Record<string, string>,
+  signal?: AbortSignal
+): Promise<string | null> {
+  signal?.throwIfAborted()
   if (!isWin) {
     return null
   }
@@ -310,17 +335,18 @@ export async function findViaMise(name: string, env: Record<string, string>): Pr
     return null
   }
 
-  const misePath = await findMiseExecutable(env)
+  const misePath = await findMiseExecutable(env, signal)
   if (!misePath) {
     logger.debug('mise not found, skipping mise fallback')
     return null
   }
 
   try {
-    const result = execFileSync(misePath, ['which', name], {
+    const { stdout: result } = await execFileAsync(misePath, ['which', name], {
       encoding: 'utf8',
       timeout: MISE_TIMEOUT_MS,
-      stdio: ['pipe', 'pipe', 'pipe'],
+      signal,
+      killSignal: 'SIGKILL',
       env
     })
 
@@ -338,9 +364,9 @@ export async function findViaMise(name: string, env: Record<string, string>): Pr
     logger.debug(`Found ${name} via mise`, { path: resolvedPath })
     return resolvedPath
   } catch (error) {
-    // Expected when the tool is not managed by mise, or mise times out
-    logger.debug(`mise which ${name} failed`, { error })
-    return null
+    signal?.throwIfAborted()
+    if ((error as { code?: unknown }).code === 1) return null
+    throw error
   }
 }
 
@@ -348,9 +374,10 @@ export async function findViaMise(name: string, env: Record<string, string>): Pr
  * Locate `mise.exe` on the local machine through the bounded, Unicode-safe PATH resolver.
  */
 export async function findMiseExecutable(
-  env: Record<string, string | undefined> = process.env
+  env: Record<string, string | undefined> = process.env,
+  signal?: AbortSignal
 ): Promise<string | null> {
-  return (await findWindowsCommandCandidates('mise', env, ['.exe']))[0] ?? null
+  return (await findWindowsCommandCandidates('mise', env, ['.exe'], signal))[0] ?? null
 }
 
 /**
@@ -362,8 +389,13 @@ export async function findMiseExecutable(
  * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows,
  * then mise, and finally (for `git` only) the bundled MinGit as the last resort.
  */
-export async function findExecutableInEnv(name: string): Promise<string | null> {
-  const env = await getShellEnv()
+export async function findExecutableInEnv(
+  name: string,
+  options: { env?: Record<string, string>; signal?: AbortSignal } = {}
+): Promise<string | null> {
+  const { signal } = options
+  signal?.throwIfAborted()
+  const env = options.env ?? (await getShellEnv(signal))
 
   // The bundled MinGit dir sits on the PATH tail (see shellEnv), so ordinary
   // PATH lookup can surface it before the system/mise fallbacks run. Treat such
@@ -373,7 +405,7 @@ export async function findExecutableInEnv(name: string): Promise<string | null> 
   const isBundledGit = (p: string) => bundledGit !== null && p.toLowerCase() === bundledGit.toLowerCase()
 
   // Cross-platform: try shell environment lookup first
-  const found = await findCommandInShellEnv(name, env)
+  const found = await findCommandInShellEnv(name, env, signal)
   if (found && !isBundledGit(found)) {
     return found
   }
@@ -386,7 +418,7 @@ export async function findExecutableInEnv(name: string): Promise<string | null> 
     }
 
     // Ask mise for the real binary path
-    const viaMise = await findViaMise(name, env)
+    const viaMise = await findViaMise(name, env, signal)
     if (viaMise) {
       return viaMise
     }

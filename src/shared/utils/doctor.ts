@@ -1,11 +1,15 @@
 import type { SettingsPath } from '../data/types/settingsPath'
 import {
   DOCTOR_CHECK_CATALOG,
+  type DoctorAttribution,
   type DoctorBasics,
   type DoctorCheckId,
   type DoctorCheckResult,
+  type DoctorCheckStatus,
   type DoctorDataClass,
+  type DoctorDetail,
   type DoctorDetailVariant,
+  type DoctorEvidenceItem,
   type DoctorFixId,
   type DoctorFixMeta,
   type DoctorFixRequest,
@@ -25,10 +29,17 @@ export function doctorFixMeta<Id extends DoctorCheckId>(checkId: Id, fixId: Doct
 /** Untrusted-input guard for `diagnostics.doctor.fix`: the check must exist and declare that fix. */
 export function isDoctorFixRequest(value: unknown): value is DoctorFixRequest {
   if (typeof value !== 'object' || value === null) return false
-  const { runId, checkId, fixId } = value as { runId?: unknown; checkId?: unknown; fixId?: unknown }
+  const { runId, checkId, fixId, target } = value as {
+    runId?: unknown
+    checkId?: unknown
+    fixId?: unknown
+    target?: unknown
+  }
   if (typeof runId !== 'string' || runId.length === 0) return false
   if (!isDoctorCheckId(checkId) || typeof fixId !== 'string') return false
-  return (DOCTOR_CHECK_CATALOG[checkId].fixes as readonly DoctorFixMeta[]).some((fix) => fix.id === fixId)
+  const meta = (DOCTOR_CHECK_CATALOG[checkId].fixes as readonly DoctorFixMeta[]).find((fix) => fix.id === fixId)
+  if (!meta) return false
+  return meta.targeted ? typeof target === 'string' && target.length > 0 : !Object.hasOwn(value, 'target')
 }
 
 export const DOCTOR_BASICS_DATA_CLASS: Readonly<Record<keyof DoctorBasics, DoctorDataClass>> = {
@@ -54,38 +65,84 @@ export const DOCTOR_VIEW_DATA_CLASSES: Readonly<Record<DoctorReportView, readonl
   upload: ['public']
 }
 
-export const DOCTOR_REDACTED = '[redacted]'
+type DoctorProjectedCheckResult = {
+  readonly id: DoctorCheckId
+  readonly status: DoctorCheckStatus
+  readonly durationMs: number
+  readonly evidence?: readonly DoctorEvidenceItem[]
+} & (
+  | { readonly status: 'pass'; readonly detail?: DoctorDetail }
+  | {
+      readonly status: 'warn' | 'fail'
+      readonly attribution: DoctorAttribution
+      readonly detail: DoctorDetail
+    }
+  | { readonly status: 'skip'; readonly skippedBy: DoctorCheckId }
+  | { readonly status: 'error' }
+)
 
-/**
- * `devMessage` and an errored check's raw `message` are developer text built from hosts, paths
- * and thrown error bodies, so they carry `local_only` and never survive a public-only view.
- */
-function projectResult(result: DoctorCheckResult, keepDeveloperText: boolean): DoctorCheckResult {
-  if (keepDeveloperText) return result
-  const projected = { ...result, ...(result.status === 'error' ? { message: DOCTOR_REDACTED } : {}) }
-  delete (projected as { devMessage?: string }).devMessage
-  return projected
+type DoctorProjectedReport = Omit<DoctorReport, 'results'> & {
+  readonly results: readonly DoctorProjectedCheckResult[]
+}
+
+type DoctorProjectionOptions = { readonly consentToSensitive?: boolean }
+
+function projectSharedResult(
+  result: DoctorCheckResult,
+  allowed: ReadonlySet<DoctorDataClass>
+): DoctorProjectedCheckResult {
+  const shared = {
+    id: result.id,
+    durationMs: result.durationMs,
+    ...(result.evidence ? { evidence: result.evidence.filter((item) => allowed.has(item.dataClass)) } : undefined)
+  }
+
+  switch (result.status) {
+    case 'pass':
+      return { ...shared, status: 'pass', ...(result.detail ? { detail: result.detail } : undefined) }
+    case 'warn':
+    case 'fail':
+      return { ...shared, status: result.status, attribution: result.attribution, detail: result.detail }
+    case 'skip':
+      return { ...shared, status: 'skip', skippedBy: result.skippedBy }
+    case 'error':
+      return { ...shared, status: 'error' }
+  }
 }
 
 /**
- * Pure projection of a report onto a view: every field outside the view's data classes is
- * dropped — basics, evidence, and the developer text on each result.
+ * Pure projection of a report onto a view. Shared views rebuild each result from an
+ * allowlist so actions, developer text and raw errors cannot cross the process boundary.
  */
 export function projectDoctorReport(
   report: DoctorReport,
+  view: 'display' | 'export',
+  options?: DoctorProjectionOptions
+): DoctorReport
+export function projectDoctorReport(
+  report: DoctorReport,
+  view: 'copy' | 'upload',
+  options?: DoctorProjectionOptions
+): DoctorProjectedReport
+export function projectDoctorReport(
+  report: DoctorReport,
   view: DoctorReportView,
-  options: { readonly consentToSensitive?: boolean } = {}
-): DoctorReport {
+  options?: DoctorProjectionOptions
+): DoctorReport | DoctorProjectedReport
+export function projectDoctorReport(
+  report: DoctorReport,
+  view: DoctorReportView,
+  options: DoctorProjectionOptions = {}
+): DoctorReport | DoctorProjectedReport {
   const allowed = new Set<DoctorDataClass>(DOCTOR_VIEW_DATA_CLASSES[view])
   if (options.consentToSensitive && view !== 'copy') allowed.add('consent_required')
   const basics = Object.fromEntries(
     Object.entries(report.basics).filter(([key]) => allowed.has(DOCTOR_BASICS_DATA_CLASS[key as keyof DoctorBasics]))
   ) as DoctorBasics
-  const keepDeveloperText = allowed.has('local_only')
   const results = report.results.map((result) => {
-    const projected = projectResult(result, keepDeveloperText)
-    if (!projected.evidence) return projected
-    return { ...projected, evidence: projected.evidence.filter((item) => allowed.has(item.dataClass)) }
+    if (view === 'copy' || view === 'upload') return projectSharedResult(result, allowed)
+    if (!result.evidence) return result
+    return { ...result, evidence: result.evidence.filter((item) => allowed.has(item.dataClass)) }
   })
   return { ...report, basics, results }
 }
