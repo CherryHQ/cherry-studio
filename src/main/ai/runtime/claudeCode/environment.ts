@@ -213,7 +213,12 @@ export function resolveClaudeOutputCap(
   }
   const effectiveContextWindow = resolveEffectiveClaudeContextWindow(contextWindow, requestedOutput, provider)
   const triggerRoom = Math.floor((autoCompactWindow * AUTO_COMPACT_TRIGGER_PCT) / 100)
-  if (triggerRoom + requestedOutput <= effectiveContextWindow) {
+  // In the SDK-floor branch the emitted window sits below the derated room, so it
+  // is the tighter proxy for the unknown real limit — fit the trigger-point
+  // request to it (a mid-size cap that fits the derated room can still outrun a
+  // 128K-real provider). Otherwise fit to the derated room itself.
+  const ceiling = autoCompactWindow <= MIN_AUTO_COMPACT_WINDOW ? autoCompactWindow : effectiveContextWindow
+  if (triggerRoom + requestedOutput <= ceiling) {
     return requestedOutput
   }
   return Math.max(autoCompactWindow - triggerRoom, DEFAULT_REQUESTED_OUTPUT_TOKENS)
