@@ -65,6 +65,7 @@ import type {
   SerializedErrorData,
   TextUIPart
 } from '@shared/data/types/message'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
 import { createClearContextPart, withCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema, type Base64String } from '@shared/types/file'
@@ -577,7 +578,8 @@ export async function transformMessage(
     // assistant-role rows; the header shows it first, the model second.
     messageSnapshot: buildMessageSnapshot(
       oldMessage.model,
-      oldMessage.role === 'assistant' ? assistantSnapshot : undefined
+      oldMessage.role === 'assistant' ? assistantSnapshot : undefined,
+      oldMessage.modelId
     ),
     stats: mergeStats(
       oldMessage.usage,
@@ -591,23 +593,26 @@ export async function transformMessage(
 
 /**
  * Build the author {@link MessageSnapshot} from a legacy v1 message: the producing assistant with
- * the model nested inside. Returns null unless both the assistant and a valid model are present
- * (the author owns the model — no author, no snapshot).
+ * the model nested inside. Returns null unless both the assistant and a valid model identity are
+ * present (the author owns the model — no author, no snapshot).
  */
 function buildMessageSnapshot(
   model: OldMessage['model'],
-  assistant: { id: string; name: string; emoji: string } | undefined
+  assistant: { id: string; name: string; emoji: string } | undefined,
+  fallbackModelId?: string | null
 ): MessageSnapshot | null {
   if (!assistant) return null
-  if (!model || typeof model.id !== 'string' || typeof model.provider !== 'string') return null
-  if (!model.id.trim() || !model.provider.trim()) return null
+  const uniqueModelId = legacyModelToUniqueId(model, fallbackModelId)
+  if (!uniqueModelId) return null
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  const fallbackName = modelId
   return {
     ...assistant,
     model: {
-      id: model.id,
-      name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
-      provider: model.provider,
-      group: typeof model.group === 'string' ? model.group : undefined
+      id: modelId,
+      name: (typeof model?.name === 'string' ? model.name : fallbackName) || fallbackName,
+      provider: providerId,
+      group: typeof model?.group === 'string' ? model.group : undefined
     }
   }
 }

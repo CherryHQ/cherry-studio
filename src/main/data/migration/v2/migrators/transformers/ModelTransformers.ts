@@ -69,15 +69,14 @@ export function legacyModelToUniqueId(
     if (providerId && modelId) {
       // If the modelId is already a composite ID, return it directly to avoid double-prefixing.
       if (modelId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
-        return parseValidUniqueModelId(modelId)
-      }
-      if (providerId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
-        return null
-      }
-      try {
-        return createUniqueModelId(providerId, modelId)
-      } catch {
-        return null
+        const parsedModelId = parseValidUniqueModelId(modelId)
+        if (parsedModelId) return parsedModelId
+      } else if (!providerId.includes(UNIQUE_MODEL_ID_SEPARATOR)) {
+        try {
+          return createUniqueModelId(providerId, modelId)
+        } catch {
+          // Fall through to a valid authoritative fallback.
+        }
       }
     }
   }

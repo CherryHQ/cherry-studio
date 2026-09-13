@@ -267,6 +267,48 @@ describe('useTopicMessages', () => {
     expect(result.current.siblingsMap['reply-c-1'].map((message) => message.id)).toEqual(['reply-c-1', 'reply-c-2'])
   })
 
+  it('keeps an ambiguous snapshot ID separate from an authoritative model ID', () => {
+    const authoritativeReply = {
+      ...createAssistantMessage('reply-a-1', 'provider-a::model-a', '2026-01-01T00:00:01.000Z'),
+      messageSnapshot: {
+        id: 'assistant-1',
+        name: 'Assistant',
+        model: { id: 'model-a', provider: 'provider-a', name: 'Model A' }
+      }
+    }
+    const legacyReply = {
+      ...createAssistantMessage('reply-a-2', 'provider-a::model-a', '2026-01-01T00:00:02.000Z'),
+      modelId: null,
+      messageSnapshot: {
+        id: 'assistant-1',
+        name: 'Assistant',
+        model: { id: 'provider-a::model-a', provider: 'provider-a', name: 'Model A' }
+      }
+    }
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [{ message: authoritativeReply, siblingsGroup: [legacyReply] }],
+          nextCursor: undefined,
+          activeNodeId: authoritativeReply.id
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    } as never)
+
+    const { result } = renderHook(() => useTopicMessages('topic-1'))
+
+    expect(result.current.uiMessages.map((message) => message.id)).toEqual([authoritativeReply.id, legacyReply.id])
+    expect(result.current.siblingsMap).toEqual({})
+  })
+
   it('keeps a retried select-all alive despite a retained query error', () => {
     // A previous page fetch failed and SWR still holds its error.
     const retained = new Error('page fetch failed')
