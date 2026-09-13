@@ -62,6 +62,11 @@ export class PreferenceService {
     }
 
     this.changeListenerCleanup = window.api.preference.onChanged((key, value) => {
+      const optimisticState = this.optimisticValues.get(key)
+      if (optimisticState) {
+        optimisticState.originalValue = value
+        return
+      }
       const oldValue = this.cache[key]
 
       // Deep equality filters self-induced IPC echoes: the main-process broadcast
@@ -190,7 +195,7 @@ export class PreferenceService {
     try {
       await window.api.preference.set(key, value)
       // Success: confirm optimistic update
-      this.confirmOptimistic(key, requestId)
+      this.confirmOptimistic(key, requestId, value)
       logger.debug(`Optimistic update for ${key} (${requestId}) confirmed`)
     } catch (error) {
       // Failure: rollback optimistic update
@@ -214,9 +219,13 @@ export class PreferenceService {
     try {
       await window.api.preference.set(key, value)
 
-      // Update local cache after successful database update
-      this.cache[key] = value
-      this.notifyChangeListeners(key)
+      const optimisticState = this.optimisticValues.get(key)
+      if (optimisticState) {
+        optimisticState.originalValue = value
+      } else {
+        this.cache[key] = value
+        this.notifyChangeListeners(key)
+      }
 
       logger.debug(`Pessimistic update for ${key} completed`)
     } catch (error) {
@@ -307,9 +316,9 @@ export class PreferenceService {
     options: PreferenceUpdateOptions = { optimistic: true }
   ): Promise<void> {
     const keys = Object.keys(updates) as UnifiedPreferenceKeyType[]
-    return this.enqueueWrite(keys, () =>
-      options.optimistic ? this.setMultipleOptimistic(updates) : this.setMultiplePessimistic(updates)
-    )
+    return options.optimistic
+      ? this.setMultipleOptimistic(updates)
+      : this.enqueueWrite(keys, () => this.setMultiplePessimistic(updates))
   }
 
   /**
@@ -352,21 +361,20 @@ export class PreferenceService {
 
     logger.debug(`Optimistic batch update for ${keysToUpdate.length} preferences (${batchRequestId})`)
 
-    // Attempt to persist to main process
-    try {
-      await window.api.preference.setMultiple(updates)
-      // Success: confirm all optimistic updates
-      keysToUpdate.forEach((key) => this.confirmOptimistic(key, `${batchRequestId}_${key}`))
-      logger.debug(`Optimistic batch update confirmed for ${keysToUpdate.length} preferences (${batchRequestId})`)
-    } catch (error) {
-      // Failure: rollback all optimistic updates
-      keysToUpdate.forEach((key) => this.rollbackOptimistic(key, `${batchRequestId}_${key}`))
-      logger.error(
-        `Optimistic batch update failed, rolling back ${keysToUpdate.length} preferences (${batchRequestId}):`,
-        error as Error
-      )
-      throw error
-    }
+    return this.enqueueWrite(keysToUpdate, async () => {
+      try {
+        await window.api.preference.setMultiple(updates)
+        keysToUpdate.forEach((key) => this.confirmOptimistic(key, `${batchRequestId}_${key}`, updates[key]))
+        logger.debug(`Optimistic batch update confirmed for ${keysToUpdate.length} preferences (${batchRequestId})`)
+      } catch (error) {
+        keysToUpdate.forEach((key) => this.rollbackOptimistic(key, `${batchRequestId}_${key}`))
+        logger.error(
+          `Optimistic batch update failed, rolling back ${keysToUpdate.length} preferences (${batchRequestId}):`,
+          error as Error
+        )
+        throw error
+      }
+    })
   }
 
   /**
@@ -380,8 +388,13 @@ export class PreferenceService {
 
       // Update local cache for all updated values after successful database update
       for (const [key, value] of Object.entries(updates)) {
-        this.cache[key as UnifiedPreferenceKeyType] = value
-        this.notifyChangeListeners(key)
+        const optimisticState = this.optimisticValues.get(key as UnifiedPreferenceKeyType)
+        if (optimisticState) {
+          optimisticState.originalValue = value
+        } else {
+          this.cache[key as UnifiedPreferenceKeyType] = value
+          this.notifyChangeListeners(key)
+        }
       }
 
       logger.debug(`Pessimistic batch update completed for ${Object.keys(updates).length} preferences`)
@@ -528,15 +541,13 @@ export class PreferenceService {
    * @param key The preference key that was updated
    * @param requestId The unique identifier for the update request
    */
-  private confirmOptimistic(key: UnifiedPreferenceKeyType, requestId: string): void {
+  private confirmOptimistic(key: UnifiedPreferenceKeyType, requestId: string, value: any): void {
     const optimisticState = this.optimisticValues.get(key)
     if (optimisticState && optimisticState.requestId === requestId) {
       this.optimisticValues.delete(key)
       logger.debug(`Optimistic update confirmed for ${key} (${requestId})`)
-    } else {
-      logger.warn(
-        `Attempted to confirm mismatched request for ${key}: expected ${optimisticState?.requestId}, got ${requestId}`
-      )
+    } else if (optimisticState) {
+      optimisticState.originalValue = value
     }
   }
 
