@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cacheService } from '@data/CacheService'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -26,6 +27,30 @@ export interface FollowupQueueItem {
 // already gone, so the dequeue already took effect.
 function isAlreadyResolved(error: unknown): boolean {
   return error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
+}
+
+// Crash-recovery journal: ids this profile already sent. Written after a
+// successful send and checked on every claim win, so a row reclaimed after a
+// crash between send and dequeue is dequeued without replaying. Entries are
+// cleared when their row resolves; orphans (row deleted elsewhere) are inert
+// because ids are never reused.
+function markQueueIdSent(id: string): void {
+  cacheService.setPersist('followup.sent_ids', (prev) => ({ ...prev, [id]: Date.now() }))
+}
+
+function wasQueueIdSent(id: string): boolean {
+  return cacheService.getPersist('followup.sent_ids')[id] !== undefined
+}
+
+function clearSentQueueId(id: string): void {
+  cacheService.setPersist('followup.sent_ids', (prev) => {
+    if (prev[id] === undefined) return prev
+    const next: Record<string, number> = {}
+    for (const key of Object.keys(prev)) {
+      if (key !== id) next[key] = prev[key]
+    }
+    return next
+  })
 }
 
 // Main stores draft/payload as opaque JSON and never interprets them; only the
@@ -249,6 +274,7 @@ export function useFollowupQueue({
         }
         try {
           await removeTrigger({ params: { id } })
+          clearSentQueueId(id)
         } catch {
           toast.error(t('message.error.operation_unavailable'))
           // Release the won claim so the item returns to the queue instead of
@@ -289,6 +315,7 @@ export function useFollowupQueue({
       }
       try {
         await removeTrigger({ params: { id } })
+        clearSentQueueId(id)
         return item
       } catch {
         toast.error(t('message.error.operation_unavailable'))
@@ -345,6 +372,7 @@ export function useFollowupQueue({
         try {
           if (sent) await removeTrigger({ params: { id } })
           else await markFailedTrigger({ params: { id } })
+          if (sent) clearSentQueueId(id)
           if (mountedRef.current) void refetch()
         } catch (error) {
           if (isAlreadyResolved(error)) {
@@ -366,6 +394,7 @@ export function useFollowupQueue({
         try {
           if (sent) await removeTrigger({ params: { id } })
           else await markFailedTrigger({ params: { id } })
+          if (sent) clearSentQueueId(id)
           return true
         } catch (error) {
           // The row is already gone: resolving a deletion against it would
@@ -405,12 +434,18 @@ export function useFollowupQueue({
           await settleItem(id, false)
           return false
         }
+        if (wasQueueIdSent(id)) {
+          // Crash recovery: already sent before dying — dequeue silently.
+          await settleItem(id, true)
+          return true
+        }
         let sent = false
         try {
           sent = await send(item.payload)
         } catch {
           sent = false
         }
+        if (sent) markQueueIdSent(id)
         const settled = await settleItem(id, sent)
         if (!settled && sent) {
           toast.error(t('message.error.operation_unavailable'))
@@ -469,10 +504,12 @@ export function useFollowupQueue({
         return
       }
       if (!won.claimed) {
-        // Nothing claimable: ack only when the mirror still shows queue data
-        // (another window owns the head and our mirror converges through its
-        // notification); otherwise preserve the edge for late-arriving data.
-        if (itemsRef.current[0]) markSeenRef.current()
+        // Nothing claimable: ack only when the scope hasn't moved and the
+        // mirror still shows queue data (another window owns the head and our
+        // mirror converges through its notification). A lost claim from an old
+        // scope must never ack the newly selected scope's edge — otherwise the
+        // new scope's queued head would wait for the next completion.
+        if (scopeKeyRef.current === scope && itemsRef.current[0]) markSeenRef.current()
         return
       }
       const target = itemsRef.current.find((entry) => entry.id === won.id)
@@ -491,6 +528,13 @@ export function useFollowupQueue({
         await settleItem(won.id, false)
         return
       }
+      if (wasQueueIdSent(won.id)) {
+        // Crash recovery: this profile already sent this row before dying, so
+        // dequeue without replaying. The edge is acked — the queue made progress.
+        await settleItem(won.id, true)
+        markSeenRef.current()
+        return
+      }
       markSeenRef.current()
       let sent = false
       try {
@@ -498,6 +542,9 @@ export function useFollowupQueue({
       } catch {
         sent = false
       }
+      // Record the send before resolving: a crash after this point replays as
+      // a skip (via the check above), never as a second send.
+      if (sent) markQueueIdSent(won.id)
       const settled = await settleItem(won.id, sent)
       if (!settled && sent) {
         toast.error(t('message.error.operation_unavailable'))
