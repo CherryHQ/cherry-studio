@@ -221,6 +221,10 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
  * removes that configuration key; omission preserves it.
  */
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
+  // Nullable overrides of the picked columns: `null` clears the tier so the
+  // runtime falls back to the main model (unset is the default state).
+  planModel: UniqueModelIdSchema.nullable().optional(),
+  smallModel: UniqueModelIdSchema.nullable().optional(),
   configuration: AgentConfigurationSchema.partial().optional(),
   /**
    * Per-skill enablement changes for this agent. Omitted means "leave skills
