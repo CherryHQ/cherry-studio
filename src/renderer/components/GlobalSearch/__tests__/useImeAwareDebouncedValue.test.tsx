@@ -124,7 +124,11 @@ describe('useImeAwareDebouncedValue with a real input harness', () => {
   // hook's trimmed value, so real DOM event ordering is exercised.
   function SearchHarness() {
     const [raw, setRaw] = React.useState('')
-    const { committedValue, compositionHandlers } = useImeAwareDebouncedValue(raw.trim())
+    const { committedValue, compositionHandlers } = useImeAwareDebouncedValue(
+      raw.trim(),
+      GLOBAL_SEARCH_QUERY_DEBOUNCE_MS,
+      setRaw
+    )
 
     return (
       <>
@@ -134,6 +138,7 @@ describe('useImeAwareDebouncedValue with a real input harness', () => {
           {...compositionHandlers}
           onChange={(event) => setRaw(event.target.value)}
         />
+        <output data-testid="raw">{raw}</output>
         <output data-testid="committed">{committedValue}</output>
       </>
     )
@@ -167,6 +172,24 @@ describe('useImeAwareDebouncedValue with a real input harness', () => {
 
     // The trailing change event lands afterwards and stays consistent.
     fireEvent.change(input, { target: { value: '你好' } })
+    expect(screen.getByTestId('committed')).toHaveTextContent('你好')
+  })
+
+  it('syncs the controlled value off the composition intermediate in the same tick', () => {
+    render(<SearchHarness />)
+    const input = screen.getByLabelText('harness search') as HTMLInputElement
+
+    fireEvent.compositionStart(input)
+    fireEvent.change(input, { target: { value: 'ni' } })
+    // The engine confirms the candidates: the DOM already holds the composed
+    // text while the controlled value still holds the intermediate.
+    setDomValue(input, '你好')
+    fireEvent.compositionEnd(input)
+
+    // The confirmation must not leave the controlled state on the intermediate
+    // ('ni') — otherwise the hook's re-render can write it back over the input.
+    expect(screen.getByTestId('raw')).toHaveTextContent('你好')
+    expect(input).toHaveValue('你好')
     expect(screen.getByTestId('committed')).toHaveTextContent('你好')
   })
 })

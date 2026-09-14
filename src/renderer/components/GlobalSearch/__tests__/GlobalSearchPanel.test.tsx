@@ -42,6 +42,9 @@ const mocks = vi.hoisted(() => ({
   messageQueryResult: undefined as { items: TopicMessageContentSearchItem[]; nextCursor?: string } | undefined,
   sessionMessageQueryResult: undefined as { items: SessionMessageContentSearchItem[]; nextCursor?: string } | undefined,
   keepStaleContentSearchData: false,
+  // When true, the entities query reports itself as refreshing — the window in
+  // which the aligned query's response has not landed yet.
+  entitiesSearchRefreshing: false,
   // When true, the useDeferredValue mock below keeps returning the previous
   // value, mimicking the frame in which React has committed a new query but
   // has not yet re-rendered the deferred lane.
@@ -642,6 +645,7 @@ describe('GlobalSearchPanel', () => {
       title: 'Chat'
     }
     mocks.keepStaleContentSearchData = false
+    mocks.entitiesSearchRefreshing = false
     mocks.holdDeferredValue = false
     mocks.useQuery.mockImplementation(
       (
@@ -655,7 +659,7 @@ describe('GlobalSearchPanel', () => {
           return {
             data: mocks.queryResult,
             isLoading: false,
-            isRefreshing: false,
+            isRefreshing: mocks.entitiesSearchRefreshing,
             error: undefined
           }
         }
@@ -2287,6 +2291,105 @@ describe('GlobalSearchPanel', () => {
 
     expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-kind', 'assistant')
     expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-id', 'assistant-1')
+  })
+
+  it('swallows Enter while the aligned query fetch is in flight and activates once the response lands', async () => {
+    const user = userEvent.setup()
+    mocks.queryResult = {
+      query: 'assistant',
+      groups: [
+        {
+          type: 'assistant',
+          items: [
+            {
+              type: 'assistant',
+              id: 'assistant-1',
+              title: 'Writing Assistant',
+              target: { assistantId: 'assistant-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    const view = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const input = screen.getByLabelText(SEARCH_INPUT_LABEL)
+    await user.type(input, 'assistant')
+    await screen.findByRole('option', { name: /Writing Assistant/ })
+
+    // Extend the query: the debounce commits, the deferred lane catches up, and
+    // the entities fetch for 'assistantx' starts — while the rendered results
+    // still belong to 'assistant' (keepPreviousData). Enter must be swallowed.
+    mocks.entitiesSearchRefreshing = true
+    await user.type(input, 'x')
+    await waitFor(() => {
+      expect(mocks.useQuery).toHaveBeenLastCalledWith(
+        '/search/entities',
+        expect.objectContaining({
+          enabled: true,
+          query: expect.objectContaining({ q: 'assistantx' })
+        })
+      )
+    })
+    await user.keyboard('{Enter}')
+
+    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.onClose).not.toHaveBeenCalled()
+
+    // The response for 'assistantx' lands: Enter activates the fresh result.
+    mocks.entitiesSearchRefreshing = false
+    mocks.queryResult = {
+      query: 'assistantx',
+      groups: [
+        {
+          type: 'assistant',
+          items: [
+            {
+              type: 'assistant',
+              id: 'assistant-2',
+              title: 'Refined Assistant',
+              target: { assistantId: 'assistant-2' }
+            }
+          ]
+        }
+      ]
+    }
+    view.rerender(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await screen.findByRole('option', { name: /Refined Assistant/ })
+    await user.keyboard('{Enter}')
+
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-kind', 'assistant')
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-id', 'assistant-2')
+  })
+
+  it('keeps the confirmed composition text in the input when compositionend precedes the change event', async () => {
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const input = screen.getByLabelText(SEARCH_INPUT_LABEL) as HTMLInputElement
+    fireEvent.compositionStart(input)
+    fireEvent.change(input, { target: { value: 'ni' } })
+
+    // The engine writes the candidates and emits compositionend before React
+    // processes the matching change event: the controlled value still holds
+    // the intermediate. The panel must adopt the composed text in the same
+    // tick instead of letting a re-render restore the intermediate.
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+    setValue?.call(input, '你好')
+    fireEvent.compositionEnd(input)
+
+    expect(input).toHaveValue('你好')
+
+    await waitFor(() => {
+      expect(mocks.useQuery).toHaveBeenLastCalledWith(
+        '/search/entities',
+        expect.objectContaining({
+          enabled: true,
+          query: expect.objectContaining({ q: '你好' })
+        })
+      )
+    })
   })
 
   it('opens the active knowledge base result with Enter', async () => {

@@ -82,7 +82,7 @@ import {
   type GlobalSearchTimeFilter,
   useGlobalSearchPanelData
 } from './useGlobalSearchPanelData'
-import { useImeAwareDebouncedValue } from './useImeAwareDebouncedValue'
+import { GLOBAL_SEARCH_QUERY_DEBOUNCE_MS, useImeAwareDebouncedValue } from './useImeAwareDebouncedValue'
 
 type GlobalSearchPanelProps = {
   onClose: () => void
@@ -315,11 +315,6 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const searchListRef = useRef<DynamicVirtualListRef>(null)
   const [query, setQuery] = useState('')
   const [panelMode, setPanelMode] = useState<GlobalSearchPanelMode>('search')
-  // Debounce the backend query, freezing it during IME composition;
-  // `useDeferredValue` stays downstream to schedule heavy result renders.
-  const { committedValue: debouncedQuery, compositionHandlers: searchInputCompositionHandlers } =
-    useImeAwareDebouncedValue(query.trim())
-  const deferredQuery = useDeferredValue(debouncedQuery)
   const [filter, setFilter] = useState<GlobalSearchFilter>('all')
   const [timeFilter, setTimeFilter] = useState<GlobalSearchTimeFilter>('any')
   const [messageSourceFilter, setMessageSourceFilter] = useState<GlobalMessageSearchSourceFilter>('all')
@@ -329,6 +324,17 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const [expandedMessageParentIds, setExpandedMessageParentIds] = useState<ReadonlySet<string>>(() => new Set())
   const [messagePreviewTarget, setMessagePreviewTarget] = useState<GlobalSearchMessagePreviewTarget | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+  const commitQueryValue = useCallback((rawValue: string) => {
+    const nextQuery = rawValue.trimStart()
+    setQuery(nextQuery)
+    setPanelMode((current) => (!nextQuery ? 'search' : current))
+    setMessagePreviewTarget(null)
+  }, [])
+  // Debounce the backend query, freezing it during IME composition;
+  // `useDeferredValue` stays downstream to schedule heavy result renders.
+  const { committedValue: debouncedQuery, compositionHandlers: searchInputCompositionHandlers } =
+    useImeAwareDebouncedValue(query.trim(), GLOBAL_SEARCH_QUERY_DEBOUNCE_MS, commitQueryValue)
+  const deferredQuery = useDeferredValue(debouncedQuery)
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const sanitizedRecentItems = useMemo(() => sanitizeGlobalSearchRecentEntries(recentItems ?? []), [recentItems])
   const [userName] = usePreference('app.user.name')
@@ -339,6 +345,8 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     hasQuery,
     isLoading,
     isLoadingMoreMessageResults,
+    isEntitySearchRefreshing,
+    isMessageSearchFetching,
     isMessageLoading,
     isMessageSearchMode,
     loadMoreMessageResults,
@@ -818,9 +826,12 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
       if (event.key === 'Enter') {
         // Swallow Enter while the rendered results still belong to a previous
-        // query; read the input's DOM value, as the state can lag it by a frame.
+        // query: while the queries misalign (DOM value, debounce, deferred lane)
+        // or while the fetch for the aligned query is still in flight; read the
+        // input's DOM value, as the state can lag it by a frame.
         const inputValue = event.currentTarget.value.trim()
-        if (inputValue !== debouncedQuery || debouncedQuery !== deferredQuery) {
+        const resultsInFlight = isMessageSearchMode ? isMessageSearchFetching : isEntitySearchRefreshing
+        if (inputValue !== debouncedQuery || debouncedQuery !== deferredQuery || resultsInFlight) {
           event.preventDefault()
           return
         }
@@ -843,6 +854,8 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       debouncedQuery,
       deferredQuery,
       handleLoadMoreMessageResults,
+      isEntitySearchRefreshing,
+      isMessageSearchFetching,
       isMessageSearchMode,
       keyboardItems,
       moveActiveItem,
@@ -987,12 +1000,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             ref={inputRef}
             value={query}
             {...searchInputCompositionHandlers}
-            onChange={(event) => {
-              const nextQuery = event.target.value.trimStart()
-              setQuery(nextQuery)
-              setPanelMode((current) => (!nextQuery ? 'search' : current))
-              setMessagePreviewTarget(null)
-            }}
+            onChange={(event) => commitQueryValue(event.target.value)}
             onKeyDown={handleInputKeyDown}
             placeholder={t('globalSearch.placeholder')}
             aria-label={t('globalSearch.placeholder')}

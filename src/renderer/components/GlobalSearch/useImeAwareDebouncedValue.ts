@@ -20,6 +20,9 @@ export const GLOBAL_SEARCH_QUERY_DEBOUNCE_MS = 200
  *   The final text is read from the composition event's own target because
  *   some engines emit `compositionend` before the matching change event, at
  *   which point the controlled `value` prop still holds the intermediate.
+ *   `onCompositionEndCommit` lets the owner sync that final text into the
+ *   controlled value in the same tick, so the re-render triggered here cannot
+ *   write the stale intermediate back over the confirmed input.
  * - Clearing the input (`''`) commits synchronously so stale results reset
  *   without waiting one debounce window.
  *
@@ -29,7 +32,8 @@ export const GLOBAL_SEARCH_QUERY_DEBOUNCE_MS = 200
  */
 export function useImeAwareDebouncedValue(
   value: string,
-  delayMs: number = GLOBAL_SEARCH_QUERY_DEBOUNCE_MS
+  delayMs: number = GLOBAL_SEARCH_QUERY_DEBOUNCE_MS,
+  onCompositionEndCommit?: (rawValue: string) => void
 ): {
   committedValue: string
   compositionHandlers: {
@@ -56,12 +60,18 @@ export function useImeAwareDebouncedValue(
     isComposingRef.current = true
   }, [])
 
-  const handleCompositionEnd = useCallback((event: CompositionEvent<HTMLInputElement>) => {
-    isComposingRef.current = false
-    // `compositionend` can precede the final change event, so the controlled
-    // `value` may still hold the intermediate: commit the DOM value instead.
-    setCommittedValue(event.currentTarget.value.trim())
-  }, [])
+  const handleCompositionEnd = useCallback(
+    (event: CompositionEvent<HTMLInputElement>) => {
+      isComposingRef.current = false
+      // `compositionend` can precede the final change event, so the controlled
+      // `value` may still hold the intermediate: commit the DOM value instead.
+      setCommittedValue(event.currentTarget.value.trim())
+      // Sync the owner's controlled value in the same tick — the re-render from
+      // setCommittedValue would otherwise restore the intermediate into the input.
+      onCompositionEndCommit?.(event.currentTarget.value)
+    },
+    [onCompositionEndCommit]
+  )
 
   return {
     committedValue,
