@@ -7,6 +7,7 @@ import type {
   LocalModelStatus,
   LocalModelStatusSnapshot
 } from '@shared/data/presets/localModel'
+import { raceCancellation } from '@shared/utils/async'
 
 import { downloadBundleFiles } from '../acquisition/bundleDownload'
 import { type DownloadSourcePreference, type ModelSourceId, modelSourceOrder } from '../acquisition/modelSource'
@@ -271,24 +272,7 @@ export class BundleInstaller {
   ): Promise<DownloadSourcePreference> {
     if (signal.aborted) return Promise.reject(this.abortError(signal))
 
-    return new Promise<DownloadSourcePreference>((resolve, reject) => {
-      let settled = false
-      const finish = (callback: () => void) => {
-        if (settled) return
-        settled = true
-        signal.removeEventListener('abort', onAbort)
-        callback()
-      }
-      const onAbort = () => finish(() => reject(this.abortError(signal)))
-
-      signal.addEventListener('abort', onAbort, { once: true })
-      Promise.resolve()
-        .then(resolvePreference)
-        .then(
-          (preference) => finish(() => resolve(preference)),
-          (error) => finish(() => reject(error))
-        )
-    })
+    return raceCancellation(Promise.resolve().then(resolvePreference), signal, (aborted) => this.abortError(aborted))
   }
 
   private abortError(signal: AbortSignal): Error {
