@@ -183,7 +183,7 @@ describe('mergeCustomProviderParameters', () => {
     // user's custom parameter dictionary carrying `reasoning_effort` must be renamed
     // to `reasoningEffort` before being merged into the `copilot` provider namespace.
     const result = mergeCustomProviderParameters(
-      { copilot: {} } as unknown as Record<string, Record<string, never>>,
+      { copilot: {} },
       { reasoning_effort: 'high' },
       'github-copilot-openai-compatible',
       'github-copilot-openai-compatible'
@@ -197,7 +197,7 @@ describe('mergeCustomProviderParameters', () => {
     // `reasoningEffort` (already in the SDK dialect) and `reasoning_effort` (snake_case),
     // the existing camelCase wins and the snake_case form is dropped.
     const result = mergeCustomProviderParameters(
-      { copilot: {} } as unknown as Record<string, Record<string, never>>,
+      { copilot: {} },
       { reasoning_effort: 'high', reasoningEffort: 'low' },
       'github-copilot-openai-compatible',
       'github-copilot-openai-compatible'

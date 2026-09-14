@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import { context, diag, type DiagLogger, DiagLogLevel, propagation, trace } from '@opentelemetry/api'
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
@@ -6,6 +5,8 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import type { SpanProcessor } from '@opentelemetry/sdk-trace-base'
 import { BatchSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base'
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node'
+
+import { loggerService } from '@logger'
 
 import type { TraceConfig } from '../traceConfig'
 import { defaultConfig } from '../traceConfig'
