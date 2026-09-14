@@ -74,11 +74,47 @@ export interface ClaudeCodeHookContext {
   /** Loaded plugin directories by manifest name; indexed once per session. */
   pluginDirectories: ReadonlyMap<string, string>
   supportsImages: boolean
+  /** Image support for Claude's built-in subagent model aliases. */
+  subagentImageSupport?: Readonly<Record<'haiku' | 'sonnet' | 'opus', boolean | undefined>>
   agentsMdLoader: AgentsMdLoader
 }
 
 export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSettings['hooks'] {
   const { sessionId, cwd, agentDataPath } = ctx
+  const pendingSubagentImageSupport = new Map<string, boolean[]>()
+  const activeSubagentImageSupport = new Map<string, boolean>()
+
+  const resolveSubagentImageSupport = (input: Record<string, unknown> | undefined): boolean => {
+    const requestedModel = typeof input?.model === 'string' ? input.model.trim().toLowerCase() : ''
+    if (requestedModel === '' || requestedModel === 'inherit') return ctx.supportsImages
+    if (requestedModel === 'haiku' || requestedModel === 'sonnet' || requestedModel === 'opus') {
+      return ctx.subagentImageSupport?.[requestedModel] ?? ctx.supportsImages
+    }
+    return ctx.supportsImages
+  }
+
+  const rememberSubagentLaunch = (input: Record<string, unknown> | undefined): void => {
+    const modelSupport = resolveSubagentImageSupport(input)
+    const agentType =
+      typeof input?.subagent_type === 'string'
+        ? input.subagent_type
+        : typeof input?.agent_type === 'string'
+          ? input.agent_type
+          : ''
+    const queue = pendingSubagentImageSupport.get(agentType) ?? []
+    queue.push(modelSupport)
+    pendingSubagentImageSupport.set(agentType, queue)
+  }
+
+  const bindSubagent = (agentId: string, agentType: string): void => {
+    const queue = pendingSubagentImageSupport.get(agentType) ?? pendingSubagentImageSupport.get('')
+    const modelSupport = queue?.shift()
+    if (queue?.length === 0) {
+      pendingSubagentImageSupport.delete(agentType)
+      if (agentType !== '') pendingSubagentImageSupport.delete('')
+    }
+    if (modelSupport !== undefined) activeSubagentImageSupport.set(agentId, modelSupport)
+  }
 
   // The single policy hook: evaluates the guard table with a fire-time context snapshot. Runs as a
   // PreToolUse hook (not in canUseTool) because hooks fire under every permission mode, while the
@@ -102,11 +138,20 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       cwd,
       agentDataPath,
       signal: options?.signal,
-      supportsImages: ctx.supportsImages,
+      supportsImages: input.agent_id
+        ? (activeSubagentImageSupport.get(input.agent_id) ?? ctx.supportsImages)
+        : ctx.supportsImages,
       interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
       bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id)
     })
+    if (
+      !decision &&
+      (toolName === 'Task' || toolName === 'Agent') &&
+      (typeof toolInput?.subagent_type === 'string' || typeof toolInput?.agent_type === 'string' || toolInput?.model)
+    ) {
+      rememberSubagentLaunch(toolInput)
+    }
     if (!decision) {
       // Soft tier of the bash-repeat-no-progress guard (the hard deny is the guard rule): the
       // first call past the soft threshold is allowed with a one-shot warning so the model can
@@ -225,7 +270,14 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   // long-lived sessions don't retain every completed child's history until whole-session disposal.
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStop') return {}
+    activeSubagentImageSupport.delete(input.agent_id)
     sessionState().disposeBashScope(sessionId, input.agent_id)
+    return {}
+  }
+
+  const subagentStartHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'SubagentStart') return {}
+    bindSubagent(input.agent_id, input.agent_type)
     return {}
   }
 
@@ -308,6 +360,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
+    SubagentStart: [{ hooks: [subagentStartHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }
 }
