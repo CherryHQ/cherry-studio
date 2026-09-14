@@ -47,9 +47,10 @@ const renderToolbar = (app: MiniAppType) =>
   render(
     <MinimalToolbar
       app={app}
-      webviewRef={{ current: null }}
+      webview={null}
       currentUrl={null}
       onReload={vi.fn()}
+      onRestart={vi.fn()}
       onOpenDevTools={vi.fn()}
       splitMode="open"
       onSplit={vi.fn()}

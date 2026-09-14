@@ -6,6 +6,7 @@ import BeatLoader from 'react-spinners/BeatLoader'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
+import { webviewRecreationService } from '@renderer/services/WebviewRecreationService'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
@@ -45,6 +46,7 @@ const MiniAppPane: FC<Props> = ({
   const { t } = useTranslation()
   const displayName = app.nameKey ? t(app.nameKey) : app.name
   const webviewRef = useRef<WebviewTag | null>(null)
+  const [webview, setWebview] = useState<WebviewTag | null>(null)
   // Read through a ref so attaching the webview listener does not depend on a
   // callback identity that changes every render.
   const onActivateRef = useRef(onActivate)
@@ -60,6 +62,7 @@ const MiniAppPane: FC<Props> = ({
     webviewCleanupRef.current?.()
     webviewCleanupRef.current = null
     webviewRef.current = null
+    setWebview(null)
   }, [])
 
   const attachWebview = useCallback(() => {
@@ -71,6 +74,7 @@ const MiniAppPane: FC<Props> = ({
 
     detachWebview()
     webviewRef.current = el
+    setWebview(el)
     const handleInPageNav = (e: any) => setCurrentUrl(e.url)
     // Clicking into the page focuses the webview element itself; that is the
     // only signal the host gets, since events inside the guest never bubble out.
@@ -124,6 +128,11 @@ const MiniAppPane: FC<Props> = ({
     webview.reload()
   }, [app.appId, isReady])
 
+  const handleRestart = useCallback(() => {
+    setCurrentUrl(app.url)
+    webviewRecreationService.request(app.appId)
+  }, [app.appId, app.url])
+
   const handleOpenDevTools = useCallback(() => {
     webviewRef.current?.openDevTools()
   }, [])
@@ -135,10 +144,11 @@ const MiniAppPane: FC<Props> = ({
       <div className="shrink-0">
         <MinimalToolbar
           app={app}
-          webviewRef={webviewRef}
+          webview={webview}
           // currentUrl may be null (navigation not yet captured); fallback to app.url when opening externally
           currentUrl={currentUrl}
           onReload={handleReload}
+          onRestart={handleRestart}
           onOpenDevTools={handleOpenDevTools}
           splitMode={splitMode}
           splitActive={splitActive}

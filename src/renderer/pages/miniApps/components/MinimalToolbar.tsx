@@ -1,5 +1,17 @@
 import type { WebviewTag } from 'electron'
-import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Code,
+  Columns2,
+  ExternalLink,
+  Info,
+  LayoutGrid,
+  Link,
+  RotateCcw,
+  RotateCw,
+  X
+} from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,11 +30,6 @@ import type { MiniApp } from '@shared/data/types/miniApp'
 
 const logger = loggerService.withContext('MinimalToolbar')
 
-// Constants for timing delays
-const WEBVIEW_CHECK_INITIAL_MS = 100 // Initial check interval
-const WEBVIEW_CHECK_MAX_MS = 1000 // Maximum check interval (1 second)
-const WEBVIEW_CHECK_MULTIPLIER = 2 // Exponential backoff multiplier
-const WEBVIEW_CHECK_MAX_ATTEMPTS = 30 // Stop after ~30 seconds total
 const NAVIGATION_UPDATE_DELAY_MS = 50
 const NAVIGATION_COMPLETE_DELAY_MS = 100
 
@@ -31,9 +38,10 @@ export type SplitMode = 'open' | 'close'
 
 interface Props {
   app: MiniApp
-  webviewRef: React.RefObject<WebviewTag | null>
+  webview: WebviewTag | null
   currentUrl: string | null
   onReload: () => void
+  onRestart: () => void
   onOpenDevTools: () => void
   splitMode: SplitMode
   /** Whether the view is currently split, so the control reads as engaged. */
@@ -43,9 +51,10 @@ interface Props {
 
 const MinimalToolbar: FC<Props> = ({
   app,
-  webviewRef,
+  webview,
   currentUrl,
   onReload,
+  onRestart,
   onOpenDevTools,
   splitMode,
   splitActive = false,
@@ -69,10 +78,10 @@ const MinimalToolbar: FC<Props> = ({
 
   // Update navigation state
   const updateNavigationState = useCallback(() => {
-    if (webviewRef.current) {
+    if (webview) {
       try {
-        setCanGoBack(webviewRef.current.canGoBack())
-        setCanGoForward(webviewRef.current.canGoForward())
+        setCanGoBack(webview.canGoBack())
+        setCanGoForward(webview.canGoForward())
       } catch (error) {
         logger.debug('WebView not ready for navigation state update', { appId: app.appId })
         setCanGoBack(false)
@@ -82,7 +91,7 @@ const MinimalToolbar: FC<Props> = ({
       setCanGoBack(false)
       setCanGoForward(false)
     }
-  }, [app.appId, webviewRef])
+  }, [app.appId, webview])
 
   // Schedule navigation state update with debouncing
   const scheduleNavigationUpdate = useCallback(
@@ -98,110 +107,30 @@ const MinimalToolbar: FC<Props> = ({
     [updateNavigationState]
   )
 
-  // Cleanup navigation timeout on unmount
+  // Navigation listeners belong to the attached guest, which restart replaces.
   useEffect(() => {
+    updateNavigationState()
+    if (!webview) return
+
+    const handleNavigation = () => scheduleNavigationUpdate(NAVIGATION_UPDATE_DELAY_MS)
+    webview.addEventListener('did-navigate', handleNavigation)
+    webview.addEventListener('did-navigate-in-page', handleNavigation)
+
     return () => {
+      webview.removeEventListener('did-navigate', handleNavigation)
+      webview.removeEventListener('did-navigate-in-page', handleNavigation)
       if (navigationUpdateTimeoutRef.current) {
         clearTimeout(navigationUpdateTimeoutRef.current)
+        navigationUpdateTimeoutRef.current = null
       }
     }
-  }, [])
-
-  // Monitor webviewRef changes and update navigation state
-  useEffect(() => {
-    let checkTimeout: NodeJS.Timeout | null = null
-    let navigationListener: (() => void) | null = null
-    let listenersAttached = false
-    let currentInterval = WEBVIEW_CHECK_INITIAL_MS
-    let attemptCount = 0
-
-    const attachListeners = () => {
-      if (webviewRef.current && !listenersAttached) {
-        // Update state immediately
-        updateNavigationState()
-
-        // Add navigation event listeners
-        const handleNavigation = () => {
-          scheduleNavigationUpdate(NAVIGATION_UPDATE_DELAY_MS)
-        }
-
-        webviewRef.current.addEventListener('did-navigate', handleNavigation)
-        webviewRef.current.addEventListener('did-navigate-in-page', handleNavigation)
-        listenersAttached = true
-
-        navigationListener = () => {
-          if (webviewRef.current) {
-            webviewRef.current.removeEventListener('did-navigate', handleNavigation)
-            webviewRef.current.removeEventListener('did-navigate-in-page', handleNavigation)
-          }
-          listenersAttached = false
-        }
-
-        if (checkTimeout) {
-          clearTimeout(checkTimeout)
-          checkTimeout = null
-        }
-
-        logger.debug('Navigation listeners attached', { appId: app.appId, attempts: attemptCount })
-        return true
-      }
-      return false
-    }
-
-    const scheduleCheck = () => {
-      checkTimeout = setTimeout(() => {
-        // Use requestAnimationFrame to avoid blocking the main thread
-        requestAnimationFrame(() => {
-          attemptCount++
-          if (!attachListeners()) {
-            // Stop checking after max attempts to prevent infinite loops
-            if (attemptCount >= WEBVIEW_CHECK_MAX_ATTEMPTS) {
-              logger.warn('WebView attachment timeout', {
-                appId: app.appId,
-                attempts: attemptCount,
-                totalTimeMs: currentInterval * attemptCount
-              })
-              return
-            }
-
-            // Exponential backoff: double the interval up to the maximum
-            currentInterval = Math.min(currentInterval * WEBVIEW_CHECK_MULTIPLIER, WEBVIEW_CHECK_MAX_MS)
-
-            // Log only on first few attempts or when interval changes significantly
-            if (attemptCount <= 3 || attemptCount % 10 === 0) {
-              logger.debug('WebView not ready, scheduling next check', {
-                appId: app.appId,
-                nextCheckMs: currentInterval,
-                attempt: attemptCount
-              })
-            }
-
-            scheduleCheck()
-          }
-        })
-      }, currentInterval)
-    }
-
-    // Check for webview attachment
-    if (!webviewRef.current) {
-      scheduleCheck()
-    } else {
-      attachListeners()
-    }
-
-    // Cleanup
-    return () => {
-      if (checkTimeout) clearTimeout(checkTimeout)
-      if (navigationListener) navigationListener()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [app.appId, updateNavigationState, scheduleNavigationUpdate]) // webviewRef excluded as it's a ref object
+  }, [webview, updateNavigationState, scheduleNavigationUpdate])
 
   const handleGoBack = useCallback(() => {
-    if (webviewRef.current) {
+    if (webview) {
       try {
-        if (webviewRef.current.canGoBack()) {
-          webviewRef.current.goBack()
+        if (webview.canGoBack()) {
+          webview.goBack()
           // Delay update to ensure navigation completes
           scheduleNavigationUpdate(NAVIGATION_COMPLETE_DELAY_MS)
         }
@@ -209,13 +138,13 @@ const MinimalToolbar: FC<Props> = ({
         logger.debug('WebView not ready for navigation', { appId: app.appId, action: 'goBack' })
       }
     }
-  }, [app.appId, webviewRef, scheduleNavigationUpdate])
+  }, [app.appId, webview, scheduleNavigationUpdate])
 
   const handleGoForward = useCallback(() => {
-    if (webviewRef.current) {
+    if (webview) {
       try {
-        if (webviewRef.current.canGoForward()) {
-          webviewRef.current.goForward()
+        if (webview.canGoForward()) {
+          webview.goForward()
           // Delay update to ensure navigation completes
           scheduleNavigationUpdate(NAVIGATION_COMPLETE_DELAY_MS)
         }
@@ -223,7 +152,7 @@ const MinimalToolbar: FC<Props> = ({
         logger.debug('WebView not ready for navigation', { appId: app.appId, action: 'goForward' })
       }
     }
-  }, [app.appId, webviewRef, scheduleNavigationUpdate])
+  }, [app.appId, webview, scheduleNavigationUpdate])
 
   const handleTogglePin = useCallback(() => {
     const fallbackKey = isPinned ? 'miniApp.unpin_failed' : 'miniApp.pin_failed'
@@ -287,6 +216,18 @@ const MinimalToolbar: FC<Props> = ({
               className={toolbarButtonClassName()}
               aria-label={t('miniApp.popup.refresh')}>
               <RotateCw size={14} />
+            </Button>
+          </Tooltip>
+
+          <Tooltip content={t('miniApp.popup.restart')} placement="bottom">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={onRestart}
+              className={toolbarButtonClassName()}
+              aria-label={t('miniApp.popup.restart')}>
+              <RotateCcw size={14} />
             </Button>
           </Tooltip>
         </div>

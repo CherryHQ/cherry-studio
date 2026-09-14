@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { webviewRecreationService } from '@renderer/services/WebviewRecreationService'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 // `WebviewContainer` renders an Electron `<webview>` element which JSDOM can't
@@ -179,6 +180,27 @@ describe('MiniAppTabsPool', () => {
 
   /** Latest value the pool published for `webview.focused`. */
   const focusedKey = () => mocks.contextKeys.filter((e) => e.key === 'webview.focused').at(-1)?.value
+
+  it('recreates only the requested WebView and retains the rest of the pool', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [
+      { id: 't1', url: '/app/mini-app/alpha' },
+      { id: 't2', url: '/app/mini-app/bravo' }
+    ]
+    mocks.activeTabId = 't1'
+
+    const { container } = render(<MiniAppTabsPool />)
+    const alphaBefore = webviewOf(container, 'alpha')
+    const bravoBefore = webviewOf(container, 'bravo')
+
+    act(() => {
+      webviewRecreationService.request('alpha')
+    })
+
+    expect(webviewOf(container, 'alpha')).not.toBe(alphaBefore)
+    expect(webviewOf(container, 'bravo')).toBe(bravoBefore)
+  })
 
   it('keeps webview.focused set when another pane mounts behind the focused one', () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha')]

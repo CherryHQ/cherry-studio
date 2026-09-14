@@ -8,6 +8,7 @@ import { useCommandContextKey } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { webviewRecreationService } from '@renderer/services/WebviewRecreationService'
 import {
   DEFAULT_MAX_KEEP_ALIVE_MINI_APPS,
   miniAppIdFromTabUrl,
@@ -63,6 +64,20 @@ const MiniAppTabsPool: React.FC = () => {
 
   // webview refs (pool-internal, used to control show/hide)
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
+  // Changing one app's epoch remounts only its Electron <webview> node,
+  // retaining every other mini-app in the pool.
+  const [webviewEpochs, setWebviewEpochs] = useState<Record<string, number>>({})
+
+  useEffect(
+    () =>
+      webviewRecreationService.subscribe((appId) => {
+        setWebviewEpochs((current) => ({
+          ...current,
+          [appId]: (current[appId] ?? 0) + 1
+        }))
+      }),
+    []
+  )
 
   const tabMiniAppIds = useMemo(() => {
     const ids = new Set<string>()
@@ -304,6 +319,7 @@ const MiniAppTabsPool: React.FC = () => {
               paneGeometry(splitOpen, isPrimaryPane, isSplitPane)
             )}>
             <WebviewContainer
+              key={`${app.appId}:${webviewEpochs[app.appId] ?? 0}`}
               appid={app.appId}
               url={app.url}
               kind={app.kind}
