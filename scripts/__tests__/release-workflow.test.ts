@@ -1258,6 +1258,61 @@ describe('release workflow gates', () => {
     }
   })
 
+  it.each([false, true])('summarizes available preview downloads when artifacts are empty: %s', async (empty) => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const job = workflow.jobs.summary
+    expect(job.needs).toContain('build')
+    expect(job.if).toContain('always()')
+    expect(job.permissions.actions).toBe('read')
+    const artifacts = [
+      { id: 101, name: 'Cherry-Studio-2.0.14-preview-1234567-win-x64-setup.exe', size_in_bytes: 1048576 },
+      { id: 102, name: 'Cherry-Studio-CN-2.0.14-preview-1234567-mac-arm64.dmg', size_in_bytes: 2621440 },
+      { id: 103, name: 'Cherry-Studio-2.0.14-preview-1234567-linux-arm64.AppImage', size_in_bytes: 3145728 },
+      { id: 104, name: 'Cherry-Studio-2.0.14-preview-1234567-win-arm64-setup.exe', expired: true },
+      { id: 105, name: 'unrelated.zip' }
+    ]
+    let output = ''
+    const github = {
+      rest: { actions: { listWorkflowRunArtifacts: 'listWorkflowRunArtifacts' } },
+      paginate: async (_endpoint: unknown, params: { owner: string; repo: string; run_id: number }) => {
+        expect(params).toMatchObject({ owner: 'CherryHQ', repo: 'cherry-studio', run_id: 42 })
+        return empty ? [] : artifacts
+      }
+    }
+    const core = {
+      summary: {
+        addRaw(markdown: string) {
+          output += markdown
+          return this
+        },
+        async write() {}
+      }
+    }
+    const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+    await new AsyncFunction('github', 'context', 'core', job.steps[0].with.script)(
+      github,
+      { repo: { owner: 'CherryHQ', repo: 'cherry-studio' }, runId: 42, serverUrl: 'https://github.com' },
+      core
+    )
+
+    expect(output).toContain('3 days')
+    if (empty) {
+      expect(output).toContain('No preview installers are available')
+      expect(output).not.toContain('[Download]')
+    } else {
+      expect(output).toContain('| Windows | Global | x64 | 2.0.14-preview-1234567 | 1.0 MiB |')
+      expect(output).toContain('| macOS | CN | arm64 | 2.0.14-preview-1234567 | 2.5 MiB |')
+      expect(output).toContain('| Linux | Global | arm64 | 2.0.14-preview-1234567 | 3.0 MiB |')
+      for (const id of [101, 102, 103]) {
+        expect(output).toContain(
+          `[Download](https://github.com/CherryHQ/cherry-studio/actions/runs/42/artifacts/${id})`
+        )
+      }
+      expect(output).not.toContain('/artifacts/104')
+      expect(output).not.toContain('unrelated.zip')
+    }
+  })
+
   it('syncs post-release metadata from the published tag without depending on the release branch head', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'post-release.yml'), 'utf8'))
     const metadataStep = workflow.jobs['sync-release-metadata'].steps.find(
