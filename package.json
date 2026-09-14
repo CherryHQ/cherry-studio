@@ -85,6 +85,7 @@
     "rebuild:node": "node scripts/invalidate-electron-rebuild-metadata.js && pnpm rebuild better-sqlite3",
     "skills:check": "tsx scripts/skills-check.ts",
     "skills:sync": "tsx scripts/skills-sync.ts",
+    "smoke:dsh-runtime": "cross-env CHERRY_DSH_SMOKE=1 vitest run --project main src/main/ai/runtime/dsh/__tests__/bunRuntime.smoke.test.ts",
     "smoke:utility-process": "tsx scripts/utility-process-smoke/run.ts",
     "start": "pnpm rebuild:electron && electron-vite preview",
     "start:cn": "dotenv -v CHERRY_EDITION=cn -- pnpm start",
