@@ -435,18 +435,10 @@ describe('SaveToKnowledgePopup', () => {
       await promise
     })
 
-    await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
-    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
-      {
-        type: 'file',
-        data: {
-          source: '/tmp/ok.pdf',
-          path: '/tmp/ok.pdf'
-        }
-      }
-    ])
-    expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
-    expect(toast.error).not.toHaveBeenCalled()
+    await expect(promise).resolves.toEqual({ success: false, savedCount: 0 })
+    expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('chat.save.knowledge.error.save_failed')
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 
   it('settles a file-only transport failure instead of leaving the save promise pending', async () => {
@@ -471,7 +463,7 @@ describe('SaveToKnowledgePopup', () => {
     expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
   })
 
-  it('saves conversation notes when a file probe fails with a transport error', async () => {
+  it('does not save conversation notes when a file probe fails with a transport error', async () => {
     const files = [createFile('/tmp/probe-fail.pdf', 'probe-fail')]
     const message = {
       ...createMessageWithFiles(files),
@@ -496,18 +488,10 @@ describe('SaveToKnowledgePopup', () => {
       await promise
     })
 
-    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
-      {
-        type: 'note',
-        data: {
-          source: 'All tools are working',
-          content: 'Keep this conversation note'
-        }
-      }
-    ])
-    expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
-    expect(toast.error).not.toHaveBeenCalled()
-    await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
+    expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('chat.save.knowledge.error.save_failed')
+    expect(toast.warning).not.toHaveBeenCalled()
+    await expect(promise).resolves.toEqual({ success: false, savedCount: 0 })
   })
 
   it('reports failure when every selected file is missing and nothing else is saved', async () => {

@@ -367,7 +367,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
             resolveKnowledgeFileMetadataEntryData,
             (file) => file.origin_name || file.name
           )
-          const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch, items.length > 0)
+          const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch)
           if (fileOutcome.fatal !== undefined) {
             throw fileOutcome.fatal
           }
