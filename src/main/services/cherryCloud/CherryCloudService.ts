@@ -124,6 +124,16 @@ function discardResponse(response: Response): void {
   void response.body?.cancel().catch(() => undefined)
 }
 
+function abortable<T>(promise: Promise<T>, signal?: AbortSignal | null): Promise<T> {
+  if (!signal) return promise
+  if (signal.aborted) return Promise.reject(signal.reason)
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort))
+  })
+}
+
 @Injectable('CherryCloudService')
 @ServicePhase(Phase.WhenReady)
 export class CherryCloudService extends BaseService {
@@ -773,7 +783,7 @@ export class CherryCloudService extends BaseService {
     const initialSession = this.cloudState.session
     let session: ProductSession
     try {
-      session = await this.activeSession()
+      session = await abortable(this.activeSession(), init?.signal)
     } catch (error) {
       init?.signal?.throwIfAborted()
       if (error instanceof CherryCloudRefreshError) return error.response.clone()
@@ -811,7 +821,10 @@ export class CherryCloudService extends BaseService {
     try {
       init?.signal?.throwIfAborted()
       if (refreshRequired) {
-        session = await this.activeSession(this.cloudState.session === session, this.cloudState.session)
+        session = await abortable(
+          this.activeSession(this.cloudState.session === session, this.cloudState.session),
+          init?.signal
+        )
       }
       init?.signal?.throwIfAborted()
     } catch (error) {
