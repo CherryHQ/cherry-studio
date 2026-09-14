@@ -381,6 +381,17 @@ describe('OpenCode dsh session headers', () => {
 
     expect(injection.headers).toEqual({ 'X-OpenCode-Session': 'chosen-session', 'x-tenant': 'tenant-1' })
   })
+
+  it('does not add an OpenCode session header to unrelated providers', async () => {
+    const model = makeModel({ id: 'deepseek::deepseek-chat', providerId: 'deepseek', apiModelId: 'deepseek-chat' })
+    const configured = { ...nativeProvider, settings: { extraHeaders: { 'x-tenant': 'tenant-1' } } }
+
+    const bare = await resolveDshProviderInjectionFromSnapshot('session-1', nativeProvider, model)
+    const withCustomHeaders = await resolveDshProviderInjectionFromSnapshot('session-1', configured, model)
+
+    expect(bare.headers).not.toHaveProperty('x-opencode-session')
+    expect(withCustomHeaders.headers).toEqual({ 'x-tenant': 'tenant-1' })
+  })
 })
 
 describe('assertDshProviderUsable', () => {
