@@ -35,6 +35,10 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
     const result = row.result
     return result && (result.status === 'warn' || result.status === 'fail') && result.attribution === 'user-fixable'
   })
+  const otherFindingRows = viewModel.rows.filter((row) => {
+    const result = row.result
+    return result && (result.status === 'warn' || result.status === 'fail') && result.attribution !== 'user-fixable'
+  })
 
   const copyResults = async () => {
     if (!viewModel.report) return
@@ -89,6 +93,22 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
                   defaultLocalDetailsExpanded
                   controller={controller}
                   rows={actionRequiredRows}
+                />
+              </Accordion>
+            </DiagnosticsPanel>
+          ) : null}
+          {viewModel.status === 'completed' && otherFindingRows.length > 0 ? (
+            <DiagnosticsPanel title={t('settings.doctor.copy.checks_heading')} variant="sectioned">
+              <Accordion
+                type="single"
+                collapsible
+                defaultValue={`doctor-${otherFindingRows[0].id}`}
+                className="[&>[data-slot=accordion-item]:first-child]:border-t-0">
+                <DoctorCheckAccordionItems
+                  compact
+                  defaultLocalDetailsExpanded
+                  controller={controller}
+                  rows={otherFindingRows}
                 />
               </Accordion>
             </DiagnosticsPanel>
@@ -194,7 +214,7 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
 
   if (viewModel.report) {
     const summary =
-      viewModel.summary.userFixable > 0
+      viewModel.problemCount > 0
         ? null
         : viewModel.summary.error > 0 || viewModel.summary.skip > 0
           ? t('settings.doctor.summary.incomplete')
@@ -224,7 +244,7 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
             </span>
           ) : null}
           <span className="text-warning">
-            {t('settings.doctor.summary.needs_attention', { count: viewModel.summary.userFixable })}
+            {t('settings.doctor.summary.needs_attention', { count: viewModel.problemCount })}
           </span>
           {summary ? <span className="text-muted-foreground">{summary}</span> : null}
         </p>

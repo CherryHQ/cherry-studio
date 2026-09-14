@@ -8,6 +8,7 @@ import { Accordion, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import type { DoctorInteraction } from '@renderer/hooks/doctor/doctorSessionReducer'
 import { buildDoctorViewModel } from '@renderer/utils/doctor'
+import type { DoctorCheckResult } from '@shared/types/doctor'
 
 vi.unmock('@cherrystudio/ui')
 
@@ -261,7 +262,7 @@ describe('DoctorCheckAccordionItems interactions', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('counts and displays only actionable findings, then reflects the repaired report', () => {
+  it('shows every anomaly while separating user-fixable actions, then reflects the repaired report', async () => {
     const controller = createCompletedPanelController()
     const report = controller.viewModel.report!
     const actionable = report.results[0]
@@ -292,18 +293,24 @@ describe('DoctorCheckAccordionItems interactions', () => {
     const viewModel = buildDoctorViewModel({ status: 'completed', report: mixedReport }, Date.parse(report.finishedAt))
     const view = render(<DoctorChecksPanel controller={{ ...controller, viewModel }} />)
 
-    expect(screen.getByText('Needs attention: 1')).toBeVisible()
+    expect(screen.getByText('Needs attention: 3')).toBeVisible()
     expect(screen.queryByText('Fixed: 0')).not.toBeInTheDocument()
     expect(screen.queryByText('settings.doctor.summary.problems')).not.toBeInTheDocument()
     const findings = screen.getByRole('region', { name: 'error.diagnostics.action_required' })
     expect(
       within(findings).getByRole('button', { name: /settings\.doctor\.checks\.runtime-claude-login\.title/ })
     ).toBeVisible()
-    for (const id of ['install-version-channel', 'logs-recent-findings', 'network-online']) {
+    const otherChecks = screen.getByRole('region', { name: 'settings.doctor.copy.checks_heading' })
+    for (const id of ['logs-recent-findings', 'network-online']) {
       expect(
-        within(findings).queryByRole('button', { name: new RegExp(`settings.doctor.checks.${id}.title`) })
-      ).not.toBeInTheDocument()
+        within(otherChecks).getByRole('button', { name: new RegExp(`settings.doctor.checks.${id}.title`) })
+      ).toBeVisible()
     }
+    await userEvent
+      .setup()
+      .click(within(otherChecks).getByRole('button', { name: /settings\.doctor\.checks\.logs-recent-findings\.title/ }))
+    expect(within(otherChecks).getByRole('button', { name: 'settings.doctor.actions.report_problem' })).toBeVisible()
+    expect(screen.queryByText('settings.doctor.summary.basic_healthy')).not.toBeInTheDocument()
 
     view.rerender(
       <DoctorChecksPanel
@@ -330,6 +337,44 @@ describe('DoctorCheckAccordionItems interactions', () => {
     expect(screen.getByText('Needs attention: 0')).toBeVisible()
     expect(screen.getByText('settings.doctor.summary.basic_healthy')).toBeVisible()
     expect(screen.queryByRole('region', { name: 'error.diagnostics.action_required' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      id: 'logs-recent-findings',
+      status: 'warn',
+      durationMs: 1,
+      attribution: 'app-bug',
+      detail: { variant: 'findings' },
+      actions: [{ kind: 'report' }]
+    },
+    {
+      id: 'network-online',
+      status: 'warn',
+      durationMs: 1,
+      attribution: 'transient',
+      detail: { variant: 'offline' },
+      actions: []
+    }
+  ] satisfies DoctorCheckResult[])('does not call an isolated $attribution finding healthy', (result) => {
+    const controller = createCompletedPanelController()
+    const report = controller.viewModel.report!
+    const viewModel = buildDoctorViewModel(
+      {
+        status: 'completed',
+        report: { ...report, results: [result], summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 } }
+      },
+      Date.parse(report.finishedAt)
+    )
+    render(<DoctorChecksPanel controller={{ ...controller, viewModel }} />)
+
+    expect(screen.getByText('Needs attention: 1')).toBeVisible()
+    expect(screen.queryByText('settings.doctor.summary.basic_healthy')).not.toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: 'settings.doctor.copy.checks_heading' })).getByRole('button', {
+        name: new RegExp(`settings.doctor.checks.${result.id}.title`)
+      })
+    ).toBeVisible()
   })
 
   it('exposes local evidence through an accessible accordion trigger', async () => {

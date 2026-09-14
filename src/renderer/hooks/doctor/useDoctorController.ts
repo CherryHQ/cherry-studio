@@ -86,13 +86,22 @@ export function useDoctorController({
   }, [doctorState])
 
   const viewModel = useMemo(() => buildDoctorViewModel(doctorState, now), [doctorState, now])
-
+  const confirmation = session.interaction
+  const evidenceConfirmationVisible =
+    confirmation.kind === 'confirm-evidence' &&
+    viewModel.status === 'completed' &&
+    viewModel.runId === confirmation.runId &&
+    viewModel.rows.some(
+      (row) =>
+        row.id === confirmation.checkId &&
+        (row.status === 'warn' || row.status === 'fail') &&
+        row.result?.evidence?.some((item) => item.dataClass === 'consent_required')
+    )
   useEffect(() => {
-    if (session.interaction.kind !== 'confirm-evidence' || session.interaction.runId === viewModel.runId) return
-    dispatch({ type: 'cancel-confirmation' })
-    toast.error(t('settings.doctor.messages.result_changed'))
-  }, [session.interaction, t, viewModel.runId])
-
+    if (session.interaction.kind === 'confirm-evidence' && !evidenceConfirmationVisible) {
+      dispatch({ type: 'cancel-confirmation' })
+    }
+  }, [evidenceConfirmationVisible, session.interaction])
   const isInteracting = session.interaction.kind !== 'idle'
   const isCloseBlocked =
     session.interaction.kind === 'fixing' ||
@@ -296,19 +305,14 @@ export function useDoctorController({
   )
 
   const confirmEvidence = useCallback(() => {
-    if (session.interaction.kind !== 'confirm-evidence') return
-    if (session.interaction.runId !== viewModel.runId) {
-      dispatch({ type: 'cancel-confirmation' })
-      toast.error(t('settings.doctor.messages.result_changed'))
-      return
-    }
+    if (session.interaction.kind !== 'confirm-evidence' || !evidenceConfirmationVisible) return
     dispatch({
       type: 'reveal-evidence',
       runId: session.interaction.runId,
       checkId: session.interaction.checkId
     })
     dispatch({ type: 'finish-interaction', kind: 'confirm-evidence' })
-  }, [session.interaction, t, viewModel.runId])
+  }, [evidenceConfirmationVisible, session.interaction])
 
   const requestEvidence = useCallback(
     (checkId: DoctorCheckId) => {

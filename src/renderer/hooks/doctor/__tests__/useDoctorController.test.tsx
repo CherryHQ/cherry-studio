@@ -93,6 +93,29 @@ function completedDoctorState(): DoctorState {
   }
 }
 
+function completedWithSensitiveEvidence(): Extract<DoctorState, { status: 'completed' }> {
+  const state = completedDoctorState()
+  if (state.status !== 'completed') throw new Error('Expected a completed Doctor state')
+  return {
+    ...state,
+    report: {
+      ...state.report,
+      results: [
+        {
+          id: 'runtime-claude-login',
+          status: 'warn',
+          durationMs: 1,
+          attribution: 'user-fixable',
+          detail: { variant: 'not_logged_in' },
+          evidence: [{ key: 'request-body', value: 'private', dataClass: 'consent_required' }],
+          actions: []
+        }
+      ],
+      summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
+    }
+  }
+}
+
 describe('useDoctorController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -214,8 +237,8 @@ describe('useDoctorController', () => {
     expect(result.current.session.activePanel).toBe('checks')
   })
 
-  it('discards consent confirmation when a replacement report arrives', () => {
-    mocks.doctorState = completedDoctorState()
+  it('releases evidence confirmation when another window starts a replacement run', () => {
+    mocks.doctorState = completedWithSensitiveEvidence()
     const { rerender, result } = renderHook(() =>
       useDoctorController({
         initialPanel: 'checks',
@@ -236,15 +259,44 @@ describe('useDoctorController', () => {
     expect(result.current.session.evidenceGrant).toBeUndefined()
 
     act(() => result.current.requestEvidence('runtime-claude-login'))
-    const nextState = completedDoctorState()
-    if (nextState.status !== 'completed') throw new Error('Expected a completed Doctor state')
-    mocks.doctorState = { ...nextState, report: { ...nextState.report, runId: 'replacement-run' } }
+    mocks.doctorState = {
+      status: 'running',
+      runId: 'replacement-run',
+      tier: 'quick',
+      startedAt: new Date().toISOString(),
+      activeCheckIds: [],
+      results: []
+    }
     rerender()
     act(() => result.current.confirmEvidence())
 
     expect(result.current.session.interaction).toEqual({ kind: 'idle' })
     expect(result.current.session.evidenceGrant).toBeUndefined()
     expect(result.current.viewModel.runId).toBe('replacement-run')
+    expect(result.current.canChangePanel).toBe(true)
+    act(() => result.current.setPanel('export'))
+    expect(result.current.session.activePanel).toBe('export')
+  })
+
+  it('releases evidence confirmation when the check passes in the shared report', () => {
+    const state = completedWithSensitiveEvidence()
+    mocks.doctorState = state
+    const { rerender, result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+
+    act(() => result.current.requestEvidence('runtime-claude-login'))
+    expect(result.current.session.interaction.kind).toBe('confirm-evidence')
+    mocks.doctorState = {
+      ...state,
+      report: {
+        ...state.report,
+        results: [{ id: 'runtime-claude-login', status: 'pass', durationMs: 1 }],
+        summary: { pass: 1, warn: 0, fail: 0, skip: 0, error: 0 }
+      }
+    }
+    rerender()
+
+    expect(result.current.session.interaction).toEqual({ kind: 'idle' })
+    expect(result.current.canChangePanel).toBe(true)
   })
 
   it('keeps the shared Doctor report authoritative until the cache publishes a fixed result', async () => {
