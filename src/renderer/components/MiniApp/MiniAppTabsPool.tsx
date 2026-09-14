@@ -8,18 +8,14 @@ import { useCommandContextKey } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { webviewRecreationService } from '@renderer/services/WebviewRecreationService'
 import {
   DEFAULT_MAX_KEEP_ALIVE_MINI_APPS,
   miniAppIdFromTabUrl,
   trimMiniAppKeepAlive
 } from '@renderer/utils/miniAppKeepAlive'
 import { cn } from '@renderer/utils/style'
-import {
-  clearWebviewState,
-  getWebviewLoaded,
-  onWebviewRecreateRequest,
-  setWebviewLoaded
-} from '@renderer/utils/webviewStateManager'
+import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 
 /**
  * Global mini-app WebView pool — keeps `<webview>` elements alive across
@@ -74,7 +70,7 @@ const MiniAppTabsPool: React.FC = () => {
 
   useEffect(
     () =>
-      onWebviewRecreateRequest((appId) => {
+      webviewRecreationService.subscribe((appId) => {
         setWebviewEpochs((current) => ({
           ...current,
           [appId]: (current[appId] ?? 0) + 1

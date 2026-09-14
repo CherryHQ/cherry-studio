@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { webviewRecreationService } from '@renderer/services/WebviewRecreationService'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 // `WebviewContainer` renders an Electron `<webview>` element which JSDOM can't
@@ -65,7 +66,6 @@ const mocks = vi.hoisted(() => ({
   setSplitOpen: vi.fn(),
   setSplitMiniAppId: vi.fn(),
   clearWebviewState: vi.fn(),
-  recreateListeners: new Set<(appId: string) => void>(),
   focusHandlers: new Map<string, (appid: string, focused: boolean) => void>(),
   loadHandlers: new Map<string, (appid: string) => void>(),
   contextKeys: [] as Array<{ key: string; value: unknown }>,
@@ -123,10 +123,6 @@ vi.mock('@renderer/hooks/tab', () => ({
 vi.mock('@renderer/utils/webviewStateManager', () => ({
   clearWebviewState: mocks.clearWebviewState,
   getWebviewLoaded: () => false,
-  onWebviewRecreateRequest: (listener: (appId: string) => void) => {
-    mocks.recreateListeners.add(listener)
-    return () => mocks.recreateListeners.delete(listener)
-  },
   setWebviewLoaded: vi.fn()
 }))
 
@@ -177,7 +173,6 @@ describe('MiniAppTabsPool', () => {
     mocks.setSplitOpen.mockReset()
     mocks.setSplitMiniAppId.mockReset()
     mocks.clearWebviewState.mockReset()
-    mocks.recreateListeners.clear()
     mocks.focusHandlers.clear()
     mocks.loadHandlers.clear()
     mocks.contextKeys = []
@@ -200,7 +195,7 @@ describe('MiniAppTabsPool', () => {
     const bravoBefore = webviewOf(container, 'bravo')
 
     act(() => {
-      mocks.recreateListeners.forEach((listener) => listener('alpha'))
+      webviewRecreationService.request('alpha')
     })
 
     expect(webviewOf(container, 'alpha')).not.toBe(alphaBefore)
