@@ -388,7 +388,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cherry-regression-${{ matrix.platform }}-${{ needs.resolve.outputs.sha }}
+          name: test-evidence-${{ matrix.platform }}
+          overwrite: true
           if-no-files-found: warn
           retention-days: 30
           path: |
@@ -440,7 +441,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           path: downloaded-reports
-          pattern: cherry-regression-*
+          pattern: test-evidence-*
           merge-multiple: false
 
       - name: Generate aggregate report
@@ -450,11 +451,22 @@ jobs:
           --output combined-report
           --mode "${{ needs.resolve.outputs.mode }}"
 
+      - name: Merge detailed Playwright reports
+        env:
+          CHERRY_TEST_RUN_DIR: ${{ github.workspace }}/combined-report
+          PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ github.workspace }}/combined-report/playwright
+          PLAYWRIGHT_HTML_OPEN: never
+        run: |
+          mkdir -p merged-blobs
+          find downloaded-reports -path '*/blob-*/*.zip' -exec cp {} merged-blobs/ \;
+          pnpm exec playwright merge-reports --config cherry-regression.playwright.config.ts --reporter html merged-blobs
+
       - name: Upload aggregate report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cherry-regression-combined-${{ github.run_id }}
+          name: test-report
+          overwrite: true
           path: combined-report
           retention-days: 30
 

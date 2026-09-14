@@ -246,16 +246,30 @@ export function renderAggregateMarkdown(report: AggregateReport): string {
   const runs = [...report.runs].sort(
     (left, right) => PLATFORMS.indexOf(left.metadata.platform) - PLATFORMS.indexOf(right.metadata.platform)
   )
+  const issues = runs.flatMap((run) => [
+    ...Object.entries(run.phases)
+      .filter(([, phase]) => phase.status !== 'passed' || phase.errors.length > 0)
+      .map(
+        ([id, phase]) =>
+          `| ${PLATFORM_LABELS[run.metadata.platform]} | 阶段 ${id} | ${STATUS_LABELS[phase.status]} | ${escapeMarkdown(phase.errors.join('；') || '阶段未成功完成')} |`
+      ),
+    ...selectedCases(run)
+      .filter(({ id }) => run.cases[id].status !== 'passed')
+      .map(({ id }) => {
+        const result = run.cases[id]
+        return `| ${PLATFORM_LABELS[run.metadata.platform]} | ${id} | ${STATUS_LABELS[result.status]} | ${escapeMarkdown(result.summary || '任务未完成')} |`
+      })
+  ])
   return [
     '# Cherry Studio 全链路回归测试汇总',
     '',
     `> **总体结论：${VERDICT_LABELS[report.verdict]}**`,
     '',
-    '| 平台 | 模式 | 任务范围 | 测试对象 | 提交哈希 | 耗时 | 通过 | 失败 | 阻塞 | 平台结论 |',
-    '| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | --- |',
+    '| 平台 | 通过 | 失败 | 阻塞 | 未完成 | 耗时 | 结论 |',
+    '| --- | ---: | ---: | ---: | ---: | --- | --- |',
     ...runs.map(
       (run) =>
-        `| ${PLATFORM_LABELS[run.metadata.platform]} | ${MODE_LABELS[run.metadata.mode]} | ${escapeMarkdown(taskLabel(run.metadata.task))} | ${escapeMarkdown(run.metadata.ref)} | \`${run.metadata.commitSha.slice(0, 12)}\` | ${formatDuration(run.startedAt, run.finishedAt)} | ${statusCount(run, 'passed')} | ${statusCount(run, 'failed')} | ${statusCount(run, 'blocked')} | ${VERDICT_LABELS[getRunVerdict(run)]} |`
+        `| ${PLATFORM_LABELS[run.metadata.platform]} | ${statusCount(run, 'passed')} | ${statusCount(run, 'failed')} | ${statusCount(run, 'blocked')} | ${statusCount(run, 'pending') + statusCount(run, 'running')} | ${formatDuration(run.startedAt, run.finishedAt)} | ${VERDICT_LABELS[getRunVerdict(run)]} |`
     ),
     ...(report.missingPlatforms.length > 0
       ? [
@@ -263,6 +277,27 @@ export function renderAggregateMarkdown(report: AggregateReport): string {
           `> ⚠️ **缺少平台报告：**${report.missingPlatforms.map((platform) => PLATFORM_LABELS[platform]).join('、')}`
         ]
       : []),
+    ...(issues.length > 0
+      ? ['', '## 需要关注', '', '| 平台 | 用例 / 阶段 | 状态 | 原因 |', '| --- | --- | --- | --- |', ...issues]
+      : []),
+    '',
+    '## 全部用例',
+    '',
+    '| 编号 | 测试项 | macOS | Windows |',
+    '| --- | --- | --- | --- |',
+    ...REGRESSION_CASES.filter(({ id }) => runs.some((run) => run.cases[id].status !== 'not_applicable')).map(
+      ({ id, title }) => {
+        const statuses = PLATFORMS.map((platform) => {
+          const run = runs.find((candidate) => candidate.metadata.platform === platform)
+          return run ? STATUS_LABELS[run.cases[id].status] : '⛔ 缺少报告'
+        })
+        return `| ${id} | ${escapeMarkdown(title)} | ${statuses.join(' | ')} |`
+      }
+    ),
+    '',
+    '## 详细报告',
+    '',
+    '下载本次运行的 `test-report` 产物并解压，打开 `playwright/index.html`，可统一查看所有平台和阶段的用例、错误、截图及附件。',
     ''
   ].join('\n')
 }

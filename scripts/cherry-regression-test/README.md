@@ -34,6 +34,21 @@ Only one phase writes a platform's run state at a time; keep `workers: 1` and se
 Capability requirements belong to cases. Missing required capabilities skip execution with an explicit reason and are recorded as blocked, never passed.
 Capability probes are preflight checks, not evidence that a product interaction succeeded.
 
+## Combined report
+
+The aggregate job publishes `test-report`. Download and extract
+it, then open `playwright/index.html` to browse every platform and phase in one HTML
+report, including failures and attachments. The same artifact contains
+`combined-report.md`. Only the aggregate job writes GitHub's summary: platform
+counts, actionable case/phase issues, and a cross-platform case table. Full
+platform reports remain in `test-evidence-macos` and `test-evidence-windows` without
+duplication in the summary. Rerunning a job replaces its same-named artifact.
+
+Each phase retains a blob report with a platform/phase-specific filename. The aggregate
+job uses Playwright's built-in `merge-reports` with an explicit test root for cross-OS
+paths. Platform artifacts remain available for raw logs and generated files. The JSON
+aggregate verdict remains authoritative, including missing or interrupted phases.
+
 ## Verification
 
 - `pnpm exec vitest run --project scripts scripts/cherry-regression-test`

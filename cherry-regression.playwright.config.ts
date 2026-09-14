@@ -16,10 +16,15 @@ export default defineConfig({
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
+  projects: [{ name: process.platform === 'win32' ? 'Windows' : 'macOS' }],
   reporter: [
     ['./scripts/cherry-regression-test/CherryRegressionReporter.ts'],
     ['list'],
-    ['html', { open: 'never', outputFolder: join(runDirectory, 'report', `playwright-${phase}`) }]
+    ['html', { open: 'never', outputFolder: join(runDirectory, 'report', `playwright-${phase}`) }],
+    [
+      'blob',
+      { outputDir: join(runDirectory, 'report', `blob-${phase}`), fileName: `report-${process.platform}-${phase}.zip` }
+    ]
   ],
   outputDir: join(runDirectory, 'evidence', 'playwright', phase),
   use: {

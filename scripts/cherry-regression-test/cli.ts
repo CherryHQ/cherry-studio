@@ -182,8 +182,6 @@ async function finalizeCommand(): Promise<void> {
   writeRun(paths.runState, run)
   redactLogs(paths)
   writeReports(run, paths.output)
-  if (process.env.GITHUB_STEP_SUMMARY)
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${readFileSync(join(paths.output, 'report.md'), 'utf8')}\n`)
 }
 
 async function gateCommand(): Promise<void> {
