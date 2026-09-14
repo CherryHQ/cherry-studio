@@ -1425,6 +1425,34 @@ describe('CherryCloudService', () => {
     }
   })
 
+  it('stops a cancelled request without cancelling a proactive shared refresh', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
+
+    try {
+      const service = await createSignedInService()
+      const controller = new AbortController()
+      const pendingRefresh = deferred<Response>()
+      mockCloudRoute('/api/v1/product-sessions/refresh', pendingRefresh.promise)
+      mockCloudRoute('/v1/models', jsonResponse({ data: [] }))
+      clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
+
+      const cancelled = service.authenticatedFetch('/v1/models', { signal: controller.signal })
+      const cancelledFailure = expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+      const other = service.authenticatedFetch('/v1/models')
+      await vi.waitFor(() => expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1))
+      controller.abort()
+
+      await cancelledFailure
+      expect(requestCalls('/api/v1/product-sessions/refresh')[0][1].signal.aborted).toBe(false)
+      pendingRefresh.resolve(jsonResponse(refreshedTokenSet()))
+
+      await expect(other).resolves.toHaveProperty('status', 200)
+      expect(requestCalls('/v1/models')).toHaveLength(1)
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
   it('times out a token refresh without clearing the retriable Session', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
 
@@ -1903,7 +1931,7 @@ describe('CherryCloudService', () => {
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
   })
 
-  it('lets another waiter finish a shared refresh without retrying the cancelled request', async () => {
+  it('stops a cancelled waiter while another request finishes the shared refresh', async () => {
     const service = await createSignedInService()
     const controller = new AbortController()
     const pendingRefresh = deferred<Response>()
@@ -1919,10 +1947,10 @@ describe('CherryCloudService', () => {
     const other = service.authenticatedFetch('/v1/messages')
     await vi.waitFor(() => expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1))
     controller.abort()
+    await cancelledFailure
     expect(requestCalls('/api/v1/product-sessions/refresh')[0][1].signal.aborted).toBe(false)
     pendingRefresh.resolve(jsonResponse(refreshedTokenSet()))
 
-    await cancelledFailure
     expect(await (await other).json()).toEqual({ result: 'ok' })
     expect(requestCalls('/v1/messages')).toHaveLength(3)
     expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
