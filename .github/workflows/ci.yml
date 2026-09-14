@@ -481,6 +481,8 @@ jobs:
       - name: Load selection-hook with packaged Electron
         shell: bash
         run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth
           shopt -s nullglob
           packages=(*-arm64.deb)
           test "${#packages[@]}" -eq 1
@@ -494,10 +496,11 @@ jobs:
           test -x "$electron"
           test -f "$prebuild"
           file "$prebuild"
-          ELECTRON_RUN_AS_NODE=1 "$electron" -e '
+          xvfb-run -a env ELECTRON_RUN_AS_NODE=1 "$electron" -e '
             const { createRequire } = require("node:module");
             const appRequire = createRequire(process.argv[1]);
             const SelectionHook = appRequire("selection-hook");
+            if (typeof SelectionHook !== "function") throw new Error("Packaged selection-hook has no constructor");
             const loaded = Object.keys(require.cache).find((name) =>
               name.endsWith("/prebuilds/linux-arm64/selection-hook.node"));
             if (!loaded) throw new Error("Packaged Selection Assistant did not load the arm64 prebuild");

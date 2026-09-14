@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
 import { verifyPackagedSelectionHook } from '../after-pack'
+import { selectionHookFilters } from '../before-pack'
 
 const temporaryDirectories: string[] = []
 
@@ -34,13 +35,18 @@ afterEach(() => {
 })
 
 describe('packaged Linux selection-hook', () => {
-  it('ships upstream prebuilds without a competing local build', () => {
+  it('ships upstream prebuilds without a competing local build only on Linux', () => {
     const config = parse(fs.readFileSync('electron-builder.yml', 'utf8')) as {
       files: string[]
       asarUnpack: string[]
     }
-    expect(config.files).toContain('!node_modules/selection-hook/build/**')
-    expect(config.files).not.toContain('!node_modules/selection-hook/prebuilds/**/*')
+    const linuxFiles = selectionHookFilters(config.files, 'linux')
+    expect(linuxFiles).not.toContain('!node_modules/selection-hook/prebuilds/**/*')
+    expect(linuxFiles).toContain('!node_modules/selection-hook/build/**')
+    for (const platform of ['darwin', 'win32']) {
+      expect(selectionHookFilters(config.files, platform)).toContain('!node_modules/selection-hook/prebuilds/**/*')
+      expect(selectionHookFilters(config.files, platform)).not.toContain('!node_modules/selection-hook/build/**')
+    }
     expect(config.asarUnpack).toContain('node_modules/selection-hook/prebuilds/**')
   })
 
