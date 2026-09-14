@@ -47,27 +47,57 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 /**
- * Terminal-failure images (favicon services answering an HTML error page with
- * 200, dead links) are fatal to the clone raster: html-to-image inlines
- * whatever a URL serves, so a text/html body becomes a data:text/html src,
- * and the outer SVG image then fails to decode as a whole — the capture
- * rejects. Swap settled-but-broken images for the transparent placeholder
- * (layout preserved, export proceeds) and restore afterwards.
+ * Pre-inline every remote image with verification. The library's own inline
+ * pass trusts whatever a URL serves (mime taken from the response header), so
+ * when a favicon service rate-limits the burst of capture-time fetches and
+ * answers text/html, the clone gets a data:text/html src and the outer SVG
+ * image fails to decode as a whole — even though the very same URL rendered
+ * fine on the page moments earlier. Fetch serially (browser cache first, no
+ * cache-busting) through getImageBlobFromSource, which rejects non-image
+ * payloads; verified images become data URLs (the library then skips its own
+ * fetch) and anything that fails becomes the transparent placeholder.
  */
-function replaceBrokenImagesForCapture(root: HTMLElement): () => void {
-  const broken = [
+async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void> {
+  const images = [
     ...(root instanceof HTMLImageElement ? [root] : []),
     ...root.querySelectorAll<HTMLImageElement>('img')
-  ]
-    .filter((image) => image.complete && image.naturalWidth === 0 && image.getAttribute('src'))
-    .map((image) => ({ image, src: image.getAttribute('src') as string }))
+  ].filter((image) => /^https?:/i.test(image.getAttribute('src') ?? ''))
 
-  for (const { image } of broken) {
-    image.src = TRANSPARENT_IMAGE_PLACEHOLDER
+  const originalSources = images.map((image) => ({
+    image,
+    src: image.getAttribute('src'),
+    srcset: image.getAttribute('srcset')
+  }))
+  const dataUrlBySource = new Map<string, Promise<string>>()
+
+  for (const { image } of originalSources) {
+    const source = image.src
+    let dataUrlPromise = dataUrlBySource.get(source)
+    if (!dataUrlPromise) {
+      dataUrlPromise = getImageBlobFromSource(source).then(blobToDataUrl)
+      dataUrlBySource.set(source, dataUrlPromise)
+    }
+    try {
+      image.removeAttribute('srcset')
+      image.src = await dataUrlPromise
+    } catch {
+      image.removeAttribute('srcset')
+      image.src = TRANSPARENT_IMAGE_PLACEHOLDER
+    }
   }
+
   return () => {
-    for (const { image, src } of broken) {
-      image.src = src
+    for (const { image, src, srcset } of originalSources) {
+      if (src === null) {
+        image.removeAttribute('src')
+      } else {
+        image.setAttribute('src', src)
+      }
+      if (srcset === null) {
+        image.removeAttribute('srcset')
+      } else {
+        image.setAttribute('srcset', srcset)
+      }
     }
   }
 }
@@ -209,7 +239,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
   if (el) {
     const htmlToImage = await loadHtmlToImage()
     let restoreLocalImageSources: (() => void) | undefined
-    let restoreBrokenImages: (() => void) | undefined
+    let restoreRemoteImages: (() => void) | undefined
     const captureMarker = el.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
 
     try {
@@ -256,7 +286,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
       }
 
       restoreLocalImageSources = await inlineLocalImageSources(el)
-      restoreBrokenImages = replaceBrokenImagesForCapture(el)
+      restoreRemoteImages = await inlineVerifiedRemoteImages(el)
 
       const fontEmbedCSS = await buildFontEmbedCSS()
       const captureOptions = {
@@ -297,7 +327,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
         el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, captureMarker)
       }
       restoreLocalImageSources?.()
-      restoreBrokenImages?.()
+      restoreRemoteImages?.()
     }
   }
 

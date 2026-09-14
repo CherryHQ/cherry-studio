@@ -544,13 +544,19 @@ describe('utils/image', () => {
     })
   })
 
-  describe('broken-image placeholder swap', () => {
-    const makeImage = (src: string, complete: boolean, naturalWidth: number) => {
-      const img = document.createElement('img')
-      img.setAttribute('src', src)
-      Object.defineProperty(img, 'complete', { value: complete, configurable: true })
-      Object.defineProperty(img, 'naturalWidth', { value: naturalWidth, configurable: true })
-      return img
+  describe('verified remote-image inlining', () => {
+    const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+    const stubFetch = (contentType: string, body: Uint8Array) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          ok: true,
+          status: 200,
+          headers: { get: () => contentType },
+          blob: async () => new Blob([body.slice()], { type: contentType })
+        }))
+      )
     }
 
     const makeRoot = (img: HTMLImageElement) => {
@@ -561,37 +567,76 @@ describe('utils/image', () => {
       return div
     }
 
-    it('rasterizes through a terminal-failure image (favicon service answered HTML)', async () => {
-      const img = makeImage('https://icon.horse/icon/example.com', true, 0)
-      const ref = { current: makeRoot(img) } as React.RefObject<HTMLDivElement>
-
+    const captureWithRasterSpy = async (root: HTMLDivElement) => {
       let srcAtRaster: string | undefined
       vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
-        srcAtRaster = img.src
+        const img = root.querySelector('img') as HTMLImageElement
+        srcAtRaster = img.getAttribute('src') ?? undefined
         return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
       })
+      const result = await captureScrollableAsDataUrl({ current: root })
+      return { result, srcAtRaster }
+    }
 
-      const result = await captureScrollableAsDataUrl(ref)
+    it('inlines a healthy remote image as a data URL', async () => {
+      stubFetch('image/png', PNG_BYTES)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://icon.horse/icon/example.com')
+      const root = makeRoot(img)
+
+      const { result, srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(srcAtRaster).toMatch(/^data:image\/png;base64,/)
+      expect(img.getAttribute('src')).toBe('https://icon.horse/icon/example.com')
+      vi.unstubAllGlobals()
+    })
+
+    it('swaps a rate-limited favicon (text/html answer) for the placeholder', async () => {
+      stubFetch('text/html; charset=utf-8', new TextEncoder().encode('<!DOCTYPE html><html>Too Many Requests</html>'))
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://icon.horse/icon/example.com')
+      const root = makeRoot(img)
+
+      const { result, srcAtRaster } = await captureWithRasterSpy(root)
 
       expect(result).toBe('data:image/png;base64,xxx')
       expect(srcAtRaster).toBe('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')
-      // the live element is restored after the capture
-      expect(img.src).toBe('https://icon.horse/icon/example.com')
+      expect(img.getAttribute('src')).toBe('https://icon.horse/icon/example.com')
+      vi.unstubAllGlobals()
     })
 
-    it('leaves healthy images untouched', async () => {
-      const img = makeImage('https://example.com/favicon.png', true, 16)
-      const ref = { current: makeRoot(img) } as React.RefObject<HTMLDivElement>
-
-      let srcAtRaster: string | undefined
-      vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
-        srcAtRaster = img.src
-        return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+    it('dedupes repeated sources into a single fetch', async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'image/png' },
+        blob: async () => new Blob([PNG_BYTES], { type: 'image/png' })
+      }))
+      vi.stubGlobal('fetch', fetchMock)
+      const root = document.createElement('div')
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(root, 'scrollHeight', { value: 100, configurable: true })
+      Array.from({ length: 3 }).forEach(() => {
+        const img = document.createElement('img')
+        img.setAttribute('src', 'https://icon.horse/icon/same.example')
+        root.appendChild(img)
       })
 
-      await captureScrollableAsDataUrl(ref)
+      await captureScrollableAsDataUrl({ current: root })
 
-      expect(srcAtRaster).toBe('https://example.com/favicon.png')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      vi.unstubAllGlobals()
+    })
+
+    it('leaves data-url images untouched', async () => {
+      const img = document.createElement('img')
+      img.setAttribute('src', 'data:image/png;base64,QUJD')
+      const root = makeRoot(img)
+
+      const { srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(srcAtRaster).toBe('data:image/png;base64,QUJD')
     })
   })
 
