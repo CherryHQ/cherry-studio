@@ -664,7 +664,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   async snapshotForFork(boundary: number): Promise<unknown[]> {
     if (!this.bridge || this.closed) throw new Error('DSH connection is closed')
-    const result = await this.bridge.request('session/fork-snapshot', { sessionId: this.runtimeSessionId, boundary })
+    const result = await this.bridge.request(
+      'session/fork-snapshot',
+      { sessionId: this.runtimeSessionId, boundary },
+      { timeoutMs: 60_000 }
+    )
     return result.events
   }
 
@@ -704,6 +708,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       await this.client?.close()
       this.bridge?.runtimeExited()
     } catch (error) {
+      // A failed SDK close can leave the process alive; socket cleanup is not proof of exit.
+      // Keep its write leases until shutdown is confirmed, never release them in finally.
       logger.warn('dsh client close failed', { error })
       closeFailure = error
     }

@@ -243,6 +243,42 @@ describe('DshRuntimeConnection tracing', () => {
     }
   })
 
+  it.each([
+    { nativeSessionId: undefined, resumeToken: undefined, expectedSessionId: 'session-1' },
+    {
+      nativeSessionId: 'rebuilt-native-generation',
+      resumeToken: undefined,
+      expectedSessionId: 'rebuilt-native-generation'
+    },
+    {
+      nativeSessionId: undefined,
+      resumeToken: 'edited-native-generation',
+      expectedSessionId: 'edited-native-generation'
+    }
+  ])(
+    'bounds fork snapshots without closing the source connection ($expectedSessionId)',
+    async ({ expectedSessionId, ...identity }) => {
+      const connection = await new DshRuntimeConnection({ ...connectInput, ...identity }).start()
+      const events = [{ type: 'turn/end', seq: 7 }]
+      try {
+        runtimeMocks.bridgeRequest.mockResolvedValueOnce({ events })
+        await expect(connection.snapshotForFork(7)).resolves.toEqual(events)
+        expect(runtimeMocks.bridgeRequest).toHaveBeenLastCalledWith(
+          'session/fork-snapshot',
+          { sessionId: expectedSessionId, boundary: 7 },
+          { timeoutMs: 60_000 }
+        )
+        runtimeMocks.bridgeRequest.mockRejectedValueOnce(new Error('snapshot timed out'))
+        await expect(connection.snapshotForFork(7)).rejects.toThrow('snapshot timed out')
+        expect(runtimeMocks.clientClose).not.toHaveBeenCalled()
+        runtimeMocks.bridgeRequest.mockResolvedValueOnce({ events })
+        await expect(connection.snapshotForFork(7)).resolves.toEqual(events)
+      } finally {
+        await connection.close()
+      }
+    }
+  )
+
   it('resumes a new native generation inside the same application conversation', async () => {
     const nativeId = 'edited-native-generation'
     const connection = await new DshRuntimeConnection({ ...connectInput, resumeToken: nativeId }).start()
