@@ -287,12 +287,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       if (!model)
         throw new Error(`pi model ${runtimeProviderName}/${injection.modelId} could not be resolved after injection`)
 
-      // The workspace is always trusted: the user picked it by hand in Cherry, so there is
-      // no separate "do you trust this project?" prompt. What actually loads from it is
-      // still governed by the explicit `no*` flags below.
-      // The user-selected workspace is trusted for its shellPath override. Select only that field,
-      // then the global shellPath; no other standalone setting enters Cherry's isolated runtime.
-      // Without either, share Cherry's Git Bash discovery.
+      // Cherry trusts the user-selected workspace, but only shellPath may enter Pi's isolated
+      // settings so other standalone Pi configuration cannot affect the managed runtime.
       const shellPath = resolvePiShellPath(pi, workspacePath)
       const settingsManager = pi.SettingsManager.inMemory(shellPath ? { shellPath } : {}, { projectTrusted: true })
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
