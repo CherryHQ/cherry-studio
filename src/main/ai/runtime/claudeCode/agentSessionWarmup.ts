@@ -562,6 +562,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         fastMode: fastModeTransport === 'claude-code',
         effectiveLanguage,
         primaryModelId: uniqueModelId,
+        primaryTrusted: route.primaryTrusted,
         gatewayModelSlots: route.branch === 'gateway' ? route.budgetSlots : undefined
       },
       agent

@@ -159,6 +159,11 @@ export interface ClaudeCodeSessionOptions {
    * for staleness (primary trust verdict).
    */
   primaryModelId?: UniqueModelId
+  /**
+   * Trust verdict for the primary slot, materialized with the route. Budgeting prefers
+   * it over re-reading provider/model rows; an absent verdict resolves live, failing closed.
+   */
+  primaryTrusted?: boolean
 }
 
 /** A routed model slot the process-wide compaction budget must cover. */
@@ -339,7 +344,9 @@ export async function buildClaudeCodeSessionSettings(
   // the provider-wide default; an unresolvable id degrades to provider-wide trust.
   let primaryModel: Model | null = null
   try {
-    if (options?.primaryModelId !== undefined) {
+    // A materialized verdict makes the live model read unnecessary: both resolvers
+    // prefer the override and never touch provider/model rows.
+    if (options?.primaryModelId !== undefined && options?.primaryTrusted === undefined) {
       const { providerId, modelId } = parseUniqueModelId(options.primaryModelId)
       primaryModel = modelService.getByKey(providerId, modelId) ?? null
     }
@@ -361,6 +368,7 @@ export async function buildClaudeCodeSessionSettings(
       output: requestedOutputTokens,
       provider,
       model: primaryModel,
+      trusted: options?.primaryTrusted,
       isGatewaySlot: false
     }
   ]

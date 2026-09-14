@@ -1192,6 +1192,47 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect((untrusted.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
   })
 
+  // The primary slot budgets from the route-materialized verdict, not a fresh
+  // provider/model read: a materialized-trusted relay keeps the full budget even
+  // though the live provider row reads as untrusted, without resolving the model.
+  it('budgets the primary slot from the materialized trust verdict', async () => {
+    const relayProvider = {
+      id: 'openrouter',
+      presetProviderId: 'openrouter',
+      defaultChatEndpoint: 'openai-chat-completions'
+    } as never
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    } as never
+    const trusted = await buildClaudeCodeSessionSettings(session, relayProvider, {
+      contextWindow: 256_000,
+      maxOutputTokens: 32_000,
+      primaryModelId: 'openrouter::relay-model' as never,
+      primaryTrusted: true
+    })
+
+    expect((trusted.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
+    expect(mocks.modelGetByKey.mock.calls.map((call) => call[1])).not.toContain('relay-model')
+
+    // ...and a materialized-untrusted primary keeps the margin even when the live
+    // provider row still reads as the official endpoint.
+    const officialProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const untrusted = await buildClaudeCodeSessionSettings(session, officialProvider, {
+      contextWindow: 256_000,
+      maxOutputTokens: 32_000,
+      primaryModelId: 'anthropic::claude-relay' as never,
+      primaryTrusted: false
+    })
+
+    expect((untrusted.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
+  })
+
   it.each([undefined, 64_000, 99_999])(
     'omits a model context window below Claude Code limits (%s)',
     async (contextWindow) => {
