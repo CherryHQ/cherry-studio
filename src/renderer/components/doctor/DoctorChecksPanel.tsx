@@ -1,3 +1,6 @@
+import { ChevronDown, Copy, Download } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Accordion,
   AccordionContent,
@@ -18,9 +21,7 @@ import type { DoctorController } from '@renderer/hooks/doctor'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
-import { doctorCheckTitleKey } from '@shared/types/doctor'
-import { ChevronDown, Copy, Download } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { doctorCheckTitleKey } from '@shared/utils/doctor'
 
 import { DoctorCheckNotices } from './DoctorCheckNotices'
 import { DoctorCheckResults } from './DoctorCheckResults'
@@ -110,7 +111,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
         </div>
       </Scrollbar>
 
-      <DialogFooter className="border-border border-t px-6 py-4">
+      <DialogFooter className="border-t border-border px-6 py-4">
         {viewModel.canCancel ? (
           <Button
             variant="outline"

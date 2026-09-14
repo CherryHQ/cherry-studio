@@ -1,3 +1,7 @@
+import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Accordion,
   AccordionContent,
@@ -27,16 +31,8 @@ import {
   isDoctorRowExpandedByDefault,
   resolveDoctorFixLabel
 } from '@renderer/utils/doctor'
-import {
-  type DoctorAction,
-  doctorCheckDetailKey,
-  type DoctorCheckId,
-  type DoctorCheckResult,
-  doctorCheckTitleKey
-} from '@shared/types/doctor'
-import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { type DoctorAction, type DoctorCheckId, type DoctorCheckResult } from '@shared/types/doctor'
+import { doctorCheckDetailKey, doctorCheckTitleKey } from '@shared/utils/doctor'
 
 type DoctorFixTargetNameResolver = (target: string) => string | undefined
 type DoctorStatusIconStatus =
@@ -78,7 +74,7 @@ export function DoctorCheckResults({ controller }: { readonly controller: Doctor
                         : DOCTOR_STATUS_LABEL_KEYS[group.status]
                   )}
                 </span>
-                <Badge variant="outline" className="font-normal text-xs">
+                <Badge variant="outline" className="text-xs font-normal">
                   {group.rows.length}
                 </Badge>
               </span>
@@ -153,8 +149,8 @@ function DoctorCheckListItem({
       <AccordionTrigger className="py-3 font-normal">
         <span className="flex min-w-0 items-center gap-2">
           <StatusIcon status={row.status} />
-          <span className="min-w-0 truncate font-medium text-sm">{t(doctorCheckTitleKey(row.id))}</span>
-          <Badge variant="outline" className="shrink-0 font-normal text-xs">
+          <span className="min-w-0 truncate text-sm font-medium">{t(doctorCheckTitleKey(row.id))}</span>
+          <Badge variant="outline" className="shrink-0 text-xs font-normal">
             {t(DOCTOR_STATUS_LABEL_KEYS[row.status])}
           </Badge>
         </span>
@@ -215,7 +211,7 @@ function DoctorCheckEvidence({
           onValueChange={(value) => setIsEvidenceExpanded(value === evidenceItemValue)}
           className="pt-1 text-xs">
           <AccordionItem value={evidenceItemValue} className="border-0 first:border-t-0">
-            <AccordionTrigger className="py-1 font-normal text-muted-foreground text-xs">
+            <AccordionTrigger className="text-muted-foreground py-1 text-xs font-normal">
               {t('settings.doctor.evidence.local_details')}
             </AccordionTrigger>
             <AccordionContent className="pb-0">
@@ -409,7 +405,7 @@ function ConfirmationPanel({
       <Scrollbar className="min-h-0 px-6 py-4">
         <Alert type="warning" showIcon message={title} description={description} />
       </Scrollbar>
-      <DialogFooter className="border-border border-t px-6 py-4">
+      <DialogFooter className="border-t border-border px-6 py-4">
         <Button variant="outline" onClick={onCancel}>
           {t('common.cancel')}
         </Button>
@@ -455,17 +451,17 @@ function StatusIcon({ status }: { readonly status: DoctorStatusIconStatus }): Re
       return <CircleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
     case 'fail':
     case 'error':
-      return <CircleX className="mt-0.5 size-4 shrink-0 text-error" aria-hidden />
+      return <CircleX className="text-error mt-0.5 size-4 shrink-0" aria-hidden />
     case 'pending':
     case 'running':
       return (
         <span className="mt-0.5 inline-flex shrink-0 motion-safe:animate-spin" aria-hidden>
-          <CircleDashed className="size-4 text-muted-foreground" />
+          <CircleDashed className="text-muted-foreground size-4" />
         </span>
       )
     case 'skip':
     case 'neutral':
-      return <CircleMinus className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+      return <CircleMinus className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
     default:
       return assertNever(status)
   }

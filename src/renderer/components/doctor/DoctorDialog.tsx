@@ -1,12 +1,14 @@
+import { ArrowLeft } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import type { DiagnosticUploadPanelHandle } from '@renderer/components/feedback/DiagnosticUploadPanel'
 import { useDoctorController } from '@renderer/hooks/doctor'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
-import type { DoctorNavigateTarget, DoctorPanel } from '@shared/types/doctor'
-import { ArrowLeft } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
+import type { DoctorNavigateTarget } from '@shared/types/doctor'
+import type { DoctorPanel } from '@shared/utils/doctor'
 
 import { DoctorChecksPanel } from './DoctorChecksPanel'
 
@@ -116,7 +118,7 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
         onEscapeKeyDown={(event) => {
           if (controller.isCloseBlocked) event.preventDefault()
         }}>
-        <DialogHeader className="flex-row items-start gap-3 border-border border-b px-6 pt-6 pr-12 pb-4">
+        <DialogHeader className="flex-row items-start gap-3 border-b border-border px-6 pt-6 pr-12 pb-4">
           {controller.session.activePanel !== 'checks' && canReturnToChecks ? (
             <Button
               type="button"
@@ -167,7 +169,7 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
 function PanelLoading() {
   const { t } = useTranslation()
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground text-sm" role="status">
+    <div className="text-muted-foreground flex min-h-0 flex-1 items-center justify-center text-sm" role="status">
       {t('common.loading')}
     </div>
   )
