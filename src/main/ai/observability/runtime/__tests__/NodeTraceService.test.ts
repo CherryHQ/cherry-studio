@@ -20,7 +20,9 @@ const { captured, mockTracerInit, mockTracerShutdown, MockCacheBatchSpanProcesso
   },
   mockTracerInit: vi.fn(),
   mockTracerShutdown: vi.fn<() => Promise<void>>(() => Promise.resolve()),
-  MockCacheBatchSpanProcessor: vi.fn((exporter: unknown, storage: unknown) => ({ exporter, storage }))
+  MockCacheBatchSpanProcessor: vi.fn(function (exporter: unknown, storage: unknown) {
+    return { exporter, storage }
+  })
 }))
 
 vi.mock('@application', () => ({
@@ -72,7 +74,9 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('../FunctionSpanExporter', () => ({
-  FunctionSpanExporter: vi.fn((callback: unknown) => ({ callback }))
+  FunctionSpanExporter: vi.fn(function (callback: unknown) {
+    return { callback }
+  })
 }))
 
 vi.mock('../CacheBatchSpanProcessor', () => ({
