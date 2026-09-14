@@ -130,17 +130,12 @@ export const resolveKnowledgeFileBatch = async <T>(
   return { resolved, skipped, failed }
 }
 
-/** Skip missing/malformed files; skip transport failures when something else can still be saved. */
+/** Skip expected missing/malformed files. Unexpected IPC/transport failures stay fatal. */
 export const selectKnowledgeFileBatchOutcome = (
-  batch: KnowledgeFileBatchResult,
-  hasOtherPersistableItems: boolean
+  batch: KnowledgeFileBatchResult
 ): { resolved: KnowledgeFileItemData[]; skipped: KnowledgeFileResolveFailure[]; fatal?: unknown } => {
-  const canSkipUnexpected = hasOtherPersistableItems || batch.resolved.length > 0
-  if (batch.failed.length > 0 && !canSkipUnexpected) {
+  if (batch.failed.length > 0) {
     return { resolved: [], skipped: batch.skipped, fatal: batch.failed[0].error }
   }
-  return {
-    resolved: batch.resolved,
-    skipped: canSkipUnexpected ? [...batch.skipped, ...batch.failed] : batch.skipped
-  }
+  return { resolved: batch.resolved, skipped: batch.skipped }
 }
