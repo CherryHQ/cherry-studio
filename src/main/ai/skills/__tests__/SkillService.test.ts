@@ -264,12 +264,37 @@ describe('SkillService', () => {
         skillId: 'malformed-enabled-skill',
         isEnabled: true
       })
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: 'drive-relative-enabled-skill',
+        name: 'Drive-relative enabled skill',
+        folderName: 'C:outside',
+        source: 'local',
+        contentHash: 'malformed-drive-relative',
+        isEnabled: true
+      })
+      await dbh.db.insert(agentSkillTable).values({
+        agentId: AGENT_ID,
+        skillId: 'drive-relative-enabled-skill',
+        isEnabled: true
+      })
 
       expect(await skillService.list()).toEqual(
-        expect.arrayContaining([expect.objectContaining({ id: 'malformed-enabled-skill' })])
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'malformed-enabled-skill' }),
+          expect.objectContaining({ id: 'drive-relative-enabled-skill' })
+        ])
       )
       expect(await skillService.list({ agentId: AGENT_ID })).not.toEqual(
-        expect.arrayContaining([expect.objectContaining({ id: 'malformed-enabled-skill' })])
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'malformed-enabled-skill' }),
+          expect.objectContaining({ id: 'drive-relative-enabled-skill' })
+        ])
+      )
+      expect(await dataSkillHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'malformed-enabled-skill' }),
+          expect.objectContaining({ id: 'drive-relative-enabled-skill' })
+        ])
       )
     })
 

@@ -15,7 +15,7 @@ import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@m
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import type { SkillCatalogEntry } from '@shared/types/skill'
+import { isCanonicalSkillFolderName, type SkillCatalogEntry } from '@shared/types/skill'
 import type {
   SkillFileNode,
   SkillImportSystemOptions,
@@ -51,18 +51,7 @@ function sanitizeFolderValue(candidate: unknown): string {
   const trimmed = candidate.trim()
   if (!trimmed) return ''
   const sanitized = sanitizeFolderName(trimmed)
-  return isSingleFolderName(sanitized) ? sanitized : ''
-}
-
-function isSingleFolderName(folderName: string): boolean {
-  return (
-    Boolean(folderName) &&
-    folderName !== '.' &&
-    folderName !== '..' &&
-    !folderName.includes('/') &&
-    !folderName.includes('\\') &&
-    !folderName.includes(String.fromCharCode(0))
-  )
+  return isCanonicalSkillFolderName(sanitized) ? sanitized : ''
 }
 
 function normalizeGithubSourceUrl(sourceUrl: string): string[] | null {
@@ -285,19 +274,7 @@ export class SkillService {
   }
 
   async list(query: ListSkillsQuery = {}): Promise<InstalledSkill[]> {
-    const skills = agentGlobalSkillService.list(query)
-    if (!query.agentId) return skills
-
-    // Runtime consumers resolve enabled skills as direct child directories. Keep malformed
-    // migrated rows visible to the global catalog/reconcile flow, but never expose them here.
-    return skills.filter((skill) => {
-      if (isSingleFolderName(skill.folderName)) return true
-      logger.warn('Skipping malformed skill from agent runtime projection', {
-        skillId: skill.id,
-        folderName: skill.folderName
-      })
-      return false
-    })
+    return agentGlobalSkillService.list(query)
   }
 
   /** Enable or disable a skill for a specific agent. */
@@ -911,7 +888,7 @@ export class SkillService {
 
   private getSkillStoragePath(folderName: string): string {
     const storageRoot = path.resolve(application.getPath('feature.agents.skills'))
-    if (!isSingleFolderName(folderName)) {
+    if (!isCanonicalSkillFolderName(folderName)) {
       throw new Error(`Invalid skill folder name: ${folderName}`)
     }
     const storagePath = path.resolve(storageRoot, folderName)
@@ -938,7 +915,7 @@ export class SkillService {
 
   private getMirrorPath(folderName: string): string {
     const mirrorRoot = path.resolve(this.getMirrorRoot())
-    if (!isSingleFolderName(folderName)) {
+    if (!isCanonicalSkillFolderName(folderName)) {
       throw new Error(`Invalid skill mirror folder name: ${folderName}`)
     }
     const mirrorPath = path.resolve(mirrorRoot, folderName)
