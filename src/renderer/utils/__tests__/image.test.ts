@@ -740,6 +740,55 @@ describe('utils/image', () => {
       vi.unstubAllGlobals()
     })
 
+    it('inlines a headerless SVG that opens with a BOM and leading whitespace', async () => {
+      const svgBytes = new TextEncoder().encode(
+        '\ufeff\n  <?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
+      )
+      stubFetch('', svgBytes)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://raw.example.com/icon.svg')
+      const root = makeRoot(img)
+
+      const { result, srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(srcAtRaster).toMatch(/^data:image\/svg\+xml;base64,/)
+      vi.unstubAllGlobals()
+    })
+
+    it('re-types a shared-HEIF-brand ftyp box carrying AVIF as image/avif', async () => {
+      // AVIF may declare the shared HEIF major brand 'mif1' and list 'avif' as compatible.
+      const avifBytes = new Uint8Array(32)
+      avifBytes.set(new TextEncoder().encode('ftyp'), 4)
+      avifBytes.set(new TextEncoder().encode('mif1'), 8)
+      avifBytes.set(new TextEncoder().encode('avifisom'), 16)
+      stubFetch('', avifBytes)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://raw.example.com/photo')
+      const root = makeRoot(img)
+
+      const { srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(srcAtRaster).toMatch(/^data:image\/avif;base64,/)
+      vi.unstubAllGlobals()
+    })
+
+    it('keeps a shared-HEIF-brand box without an AVIF marker as image/heic', async () => {
+      const heicBytes = new Uint8Array(32)
+      heicBytes.set(new TextEncoder().encode('ftyp'), 4)
+      heicBytes.set(new TextEncoder().encode('mif1'), 8)
+      heicBytes.set(new TextEncoder().encode('mif1isom'), 16)
+      stubFetch('', heicBytes)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://raw.example.com/photo')
+      const root = makeRoot(img)
+
+      const { srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(srcAtRaster).toMatch(/^data:image\/heic;base64,/)
+      vi.unstubAllGlobals()
+    })
+
     it('swaps a no-content-type non-image answer for the placeholder', async () => {
       stubFetch('', new TextEncoder().encode('Too Many Requests'))
       const img = document.createElement('img')
@@ -751,6 +800,58 @@ describe('utils/image', () => {
       expect(result).toBe('data:image/png;base64,xxx')
       expect(srcAtRaster).toBe('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')
       vi.unstubAllGlobals()
+    })
+
+    it('caps post-budget settle waits so an exhausted stage cannot stall per image', async () => {
+      const fetchMock = vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+          })
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const root = document.createElement('div')
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(root, 'scrollHeight', { value: 100, configurable: true })
+      const srcs = [
+        'https://stalled.example.com/one.png',
+        'https://stalled.example.com/two.png',
+        'https://stalled.example.com/three.png'
+      ]
+      srcs.forEach((src) => {
+        const img = document.createElement('img')
+        img.setAttribute('src', src)
+        // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+        Object.defineProperty(img, 'complete', { value: true, configurable: true })
+        root.appendChild(img)
+      })
+      // Deliberately not armed: jsdom never fires load/error, so each settle rides its timer cap.
+
+      vi.useFakeTimers()
+      try {
+        let srcsAtRaster: string[] = []
+        let resolved = false
+        vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+          srcsAtRaster = [...root.querySelectorAll('img')].map((img) => img.getAttribute('src') ?? '')
+          return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+        })
+        void captureScrollableAsDataUrl({ current: root })
+          .then(() => {
+            resolved = true
+          })
+          .catch(() => {})
+        // Budget math: abort at 10s + 2s settle, second abort at the 20s deadline, third
+        // source already past the budget. Only the post-budget settles are still pending
+        // at 22s when the stage cap is honored; an uncapped 2s settle per image lands at 25s.
+        await vi.advanceTimersByTimeAsync(22_000)
+
+        expect(resolved).toBe(true)
+        expect(srcsAtRaster).toHaveLength(3)
+        expect(srcsAtRaster.every((src) => src.startsWith('data:image/gif'))).toBe(true)
+      } finally {
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
+      }
     })
 
     it('rasterizes only after the swapped-in data URL has settled', async () => {

@@ -74,7 +74,7 @@ const isVisibleInCapture = (image: HTMLImageElement, root: HTMLElement): boolean
  * Resolves once the swapped-in src settles (load/error), so the clone rasterizes the
  * new intrinsic size — not the 0×0 of a still-loading swap. Bounded for silent decodes.
  */
-const waitForSwapSettle = (image: HTMLImageElement): Promise<void> =>
+const waitForSwapSettle = (image: HTMLImageElement, timeoutMs = INLINE_SWAP_SETTLE_TIMEOUT_MS): Promise<void> =>
   new Promise((resolve) => {
     if (image.complete && image.naturalWidth > 0) return resolve()
     const done = () => {
@@ -83,7 +83,7 @@ const waitForSwapSettle = (image: HTMLImageElement): Promise<void> =>
       image.removeEventListener('error', done)
       resolve()
     }
-    const timer = setTimeout(done, INLINE_SWAP_SETTLE_TIMEOUT_MS)
+    const timer = setTimeout(done, timeoutMs)
     image.addEventListener('load', done, { once: true })
     image.addEventListener('error', done, { once: true })
   })
@@ -136,7 +136,7 @@ async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void
       image.removeAttribute('srcset')
       image.src = TRANSPARENT_IMAGE_PLACEHOLDER
     }
-    await waitForSwapSettle(image)
+    await waitForSwapSettle(image, stageDeadline - Date.now())
   }
 
   return () => {
@@ -1230,8 +1230,8 @@ export async function getImageBlobFromSource(src: string, options?: { signal?: A
   return await assertImageBlob(blob, src)
 }
 
-/** Byte count consulted by the format sniff (longest signature is the ftyp brand box). */
-const IMAGE_SNIFF_BYTE_COUNT = 16
+/** Byte count consulted by the format sniff (longest signature is the ftyp box with compatible brands). */
+const IMAGE_SNIFF_BYTE_COUNT = 32
 
 /** First bytes of a blob, via FileReader — Blob.arrayBuffer is unavailable in the jsdom test env. */
 const readBlobHead = (blob: Blob, byteCount: number) =>
@@ -1252,9 +1252,23 @@ function sniffImageMimeType(bytes: Uint8Array): string | undefined {
   if (bytes.length >= 12 && ascii(4, 'ftyp')) {
     const brand = String.fromCharCode(...bytes.slice(8, 12))
     if (brand.startsWith('avi')) return 'image/avif'
-    if (/^(hei|hev|mif|msf)/.test(brand)) return 'image/heic'
+    if (/^(hei|hev|mif|msf)/.test(brand)) {
+      // mif1/msf1 are shared HEIF brands — an AVIF payload declares itself in the compatible brands.
+      const compatible = /^(mif|msf)/.test(brand) ? String.fromCharCode(...bytes.slice(16, 32)) : ''
+      return compatible.includes('avif') ? 'image/avif' : 'image/heic'
+    }
   }
-  if (ascii(0, '<?xm') || ascii(0, '<svg')) return 'image/svg+xml'
+  // A UTF-8 BOM or XML leading whitespace may precede the markup of a textual format.
+  let textStart = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0
+  while (
+    bytes[textStart] === 0x20 ||
+    bytes[textStart] === 0x09 ||
+    bytes[textStart] === 0x0a ||
+    bytes[textStart] === 0x0d
+  ) {
+    textStart++
+  }
+  if (ascii(textStart, '<?xm') || ascii(textStart, '<svg')) return 'image/svg+xml'
   if (ascii(0, 'BM')) return 'image/bmp'
   if (bytes.length >= 4 && bytes[0] === 0 && bytes[1] === 0 && bytes[2] === 1 && bytes[3] === 0) return 'image/x-icon'
   return undefined
