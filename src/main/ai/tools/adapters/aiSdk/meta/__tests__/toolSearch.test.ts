@@ -117,7 +117,7 @@ describe('tool_search meta-tool', () => {
   ])('toModelOutput safely falls back for %s', (_name, output) => {
     const reg = setup()
     const tool = createToolSearchTool(reg, new Set(), new Set())
-    const out = tool.toModelOutput!({ toolCallId: 'tc-1', input: {}, output } as never) as {
+    const out = tool.toModelOutput!({ toolCallId: 'tc-1', input: {}, output }) as {
       type: string
       value: string
     }
