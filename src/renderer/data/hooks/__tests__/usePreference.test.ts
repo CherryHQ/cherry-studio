@@ -1,8 +1,9 @@
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { preferenceService } from '@data/PreferenceService'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@data/PreferenceService')
 vi.unmock('@data/hooks/usePreference')
@@ -62,12 +63,13 @@ describe('useMultiplePreferences', () => {
 
   it('rebinds values and actions when the key map changes', async () => {
     const boundary = installPreferenceBoundary()
+    const initialProps: { keys: Record<'primary' | 'secondary', UnifiedPreferenceKeyType> } = {
+      keys: { primary: KEY_A, secondary: KEY_B }
+    }
     const { result, rerender } = renderHook(
       ({ keys }: { keys: Record<'primary' | 'secondary', UnifiedPreferenceKeyType> }) => useMultiplePreferences(keys),
       {
-        initialProps: {
-          keys: { primary: KEY_A, secondary: KEY_B } as Record<'primary' | 'secondary', UnifiedPreferenceKeyType>
-        }
+        initialProps
       }
     )
     const initialUpdateValues = result.current[1]

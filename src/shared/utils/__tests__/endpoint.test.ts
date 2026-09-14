@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import { resolveCanonicalEndpoint, resolveEndpointBaseUrl } from '../endpoint'
 
