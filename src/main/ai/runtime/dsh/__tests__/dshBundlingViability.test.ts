@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
@@ -57,4 +59,45 @@ describe('dsh SDK bundling viability', () => {
     expect(prepared.ref).toMatchObject({ mediaType: 'image/png', width: 1, height: 1 })
     expect(sharp.versions.sharp).toBe('0.35.3')
   })
+
+  it('decodes a DSH attachment with WASM sharp in Electron-as-Node', async () => {
+    const require = createRequire(import.meta.url)
+    const electronBinary = require('electron')
+    if (typeof electronBinary !== 'string') throw new Error('Electron binary is unavailable')
+
+    const { default: sharp } = await import('sharp')
+    const png = await sharp({ create: { width: 2, height: 3, channels: 4, background: '#f00' } })
+      .png()
+      .toBuffer()
+    const attachmentUrl = pathToFileURL(resolveBundledDshRuntimeEntry('@deepseek-ai/dsh-attachment-local')).href
+    const output = execFileSync(
+      electronBinary,
+      [
+        '--input-type=module',
+        '-e',
+        `import { createRequire } from 'node:module'
+         import sharp from 'sharp'
+         const require = createRequire(import.meta.url)
+         if (!require.cache[require.resolve('@img/sharp-wasm32/sharp.node')]) {
+           throw new Error('DSH did not load the WASM binding')
+         }
+         const { prepareImageFile } = await import(process.argv[1])
+         const png = Buffer.from(process.argv[2], 'base64')
+         const prepared = await prepareImageFile(
+           { data: png, mediaType: 'image/png' },
+           { maxImageBytes: 1048576, maxImagesPerMessage: 1, maxMessageImageBytes: 1048576,
+             maxImagePixels: 1024, maxImageDimension: 32 },
+           { maxPixels: 1024, maxDimension: 32, maxBytes: 1048576 }
+         )
+         const metadata = await sharp(png).metadata()
+         process.stdout.write(JSON.stringify({ format: metadata.format, width: prepared.ref.width,
+           height: prepared.ref.height }))`,
+        attachmentUrl,
+        png.toString('base64')
+      ],
+      { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', CHERRY_DSH_SHARP_WASM: '1' }, timeout: 15000 }
+    )
+
+    expect(JSON.parse(output.toString())).toEqual({ format: 'png', width: 2, height: 3 })
+  }, 20000)
 })

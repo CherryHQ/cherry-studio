@@ -119,6 +119,7 @@
     "@earendil-works/pi-coding-agent": "0.80.3",
     "@firecrawl/anydoc": "0.1.3",
     "@huggingface/transformers": "4.2.0",
+    "@img/sharp-wasm32": "0.35.3",
     "@larksuiteoapi/node-sdk": "^1.73.0",
     "@napi-rs/canvas": "0.1.80",
     "@napi-rs/system-ocr": "1.1.0",

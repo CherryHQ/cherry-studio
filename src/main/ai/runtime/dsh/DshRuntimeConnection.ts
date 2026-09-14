@@ -402,6 +402,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
               ? { HOME: process.env.HOME }
               : {}),
           ELECTRON_RUN_AS_NODE: '1',
+          ...(process.platform === 'linux' ? { CHERRY_DSH_SHARP_WASM: '1' } : {}),
           CHERRY_DSH_API_KEY: injection.apiKey,
           CHERRY_DSH_CONFIG: this.compositionPath,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,

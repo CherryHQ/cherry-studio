@@ -208,6 +208,7 @@ patchedDependencies:
   ollama-ai-provider-v2@3.3.1: d2b640ac5475c802eee5f983bcad08fb4e5cec7615c57aac188850c3f531743b
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
+  sharp@0.35.3: a062713fd46befa06d2528f81331b0b978c3c6f973d9f1e8d79e2b8b6a30878c
   streamdown@2.5.0: e7275804eb3d9c069a4b2f193c03553501f4db2d37dac35230551a7ab14444df
   tesseract.js@6.0.1: a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e
 
@@ -239,6 +240,9 @@ importers:
       '@huggingface/transformers':
         specifier: 4.2.0
         version: 4.2.0(@types/node@24.10.4)
+      '@img/sharp-wasm32':
+        specifier: 0.35.3
+        version: 0.35.3
       '@larksuiteoapi/node-sdk':
         specifier: ^1.73.0
         version: 1.73.0
@@ -319,7 +323,7 @@ importers:
         version: 2.1.1
       sharp:
         specifier: 0.35.3
-        version: 0.35.3(@types/node@24.10.4)
+        version: 0.35.3(patch_hash=a062713fd46befa06d2528f81331b0b978c3c6f973d9f1e8d79e2b8b6a30878c)(@types/node@24.10.4)
       smol-toml:
         specifier: ^1.7.0
         version: 1.7.0
@@ -1910,7 +1914,7 @@ importers:
         version: 1.2.0-beta.15
       sharp:
         specifier: 0.35.3
-        version: 0.35.3(@types/node@24.10.4)
+        version: 0.35.3(patch_hash=a062713fd46befa06d2528f81331b0b978c3c6f973d9f1e8d79e2b8b6a30878c)(@types/node@24.10.4)
     devDependencies:
       '@types/node':
         specifier: ^24.10.2
@@ -18137,7 +18141,7 @@ snapshots:
       '@deepseek-ai/dsh-attachment': 0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-brand@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))
       '@deepseek-ai/dsh-home-paths': 0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)
       '@deepseek-ai/schemastery': 3.18.2
-      sharp: 0.35.3(@types/node@24.10.4)
+      sharp: 0.35.3(patch_hash=a062713fd46befa06d2528f81331b0b978c3c6f973d9f1e8d79e2b8b6a30878c)(@types/node@24.10.4)
     transitivePeerDependencies:
       - '@types/node'
 
@@ -19618,7 +19622,7 @@ snapshots:
       '@huggingface/tokenizers': 0.1.3
       onnxruntime-node: 1.25.1(patch_hash=7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef)
       onnxruntime-web: 1.26.0-dev.20260416-b7804b056c
-      sharp: 0.35.3(@types/node@24.10.4)
+      sharp: 0.35.3(patch_hash=a062713fd46befa06d2528f81331b0b978c3c6f973d9f1e8d79e2b8b6a30878c)(@types/node@24.10.4)
     transitivePeerDependencies:
       - '@types/node'
 
@@ -30998,7 +31002,7 @@ snapshots:
 
   setprototypeof@1.2.0: {}
 
-  sharp@0.35.3(@types/node@24.10.4):
+  sharp@0.35.3(patch_hash=a062713fd46befa06d2528f81331b0b978c3c6f973d9f1e8d79e2b8b6a30878c)(@types/node@24.10.4):
     dependencies:
       '@img/colour': 1.1.0
       detect-libc: 2.1.2

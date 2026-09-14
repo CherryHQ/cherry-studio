@@ -1,0 +1,46 @@
+diff --git a/dist/sharp.cjs b/dist/sharp.cjs
+--- a/dist/sharp.cjs
++++ b/dist/sharp.cjs
+@@ -22,9 +22,15 @@ const runtimePlatform = runtimePlatformArch();
+ let sharp;
+ const errors = [];
+-try {
+-  sharp = require(`../src/build/Release/sharp-${runtimePlatform}-${version}.node`);
+-} catch (err) {
+-  errors.push(err);
++// The Linux Electron-as-Node DSH child cannot safely decode with native sharp.
++if (process.env.CHERRY_DSH_SHARP_WASM === "1") {
++  sharp = require("@img/sharp-wasm32/sharp.node");
++}
++if (!sharp) {
++  try {
++    sharp = require(`../src/build/Release/sharp-${runtimePlatform}-${version}.node`);
++  } catch (err) {
++    errors.push(err);
++  }
+ }
+ if (!sharp) {
+   try {
+diff --git a/dist/sharp.mjs b/dist/sharp.mjs
+--- a/dist/sharp.mjs
++++ b/dist/sharp.mjs
+@@ -22,9 +22,15 @@ const runtimePlatform = runtimePlatformArch();
+ let sharp;
+ const errors = [];
+-try {
+-  sharp = require(`../src/build/Release/sharp-${runtimePlatform}-${version}.node`);
+-} catch (err) {
+-  errors.push(err);
++// The Linux Electron-as-Node DSH child cannot safely decode with native sharp.
++if (process.env.CHERRY_DSH_SHARP_WASM === "1") {
++  sharp = require("@img/sharp-wasm32/sharp.node");
++}
++if (!sharp) {
++  try {
++    sharp = require(`../src/build/Release/sharp-${runtimePlatform}-${version}.node`);
++  } catch (err) {
++    errors.push(err);
++  }
+ }
+ if (!sharp) {
+   try {

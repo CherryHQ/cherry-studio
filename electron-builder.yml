@@ -82,6 +82,7 @@ asarUnpack:
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
+  - "node_modules/@emnapi/runtime/**" # sharp WASM reads its runtime from the unpacked DSH child
   # DSH runs as an external Node process: bundle its JS and unpack only native/runtime files.
   - "node_modules/@cherrystudio/dsh-bridge/dist/runtime/**"
   - "node_modules/sharp/**"
