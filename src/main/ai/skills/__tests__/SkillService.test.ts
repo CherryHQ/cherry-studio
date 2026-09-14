@@ -1415,6 +1415,52 @@ describe('SkillService', () => {
       }
     })
 
+    it('does not let an ambiguous legacy branch URL overwrite an explicit fetched skill', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
+      const existingDir = path.join(workDir, 'existing')
+      const incomingDir = path.join(workDir, 'incoming')
+      const explicitUrl = `https://github.com/owner/repo/tree/${'a'.repeat(40)}/skills/demo?ref=refs%2Fheads%2Fmain`
+      // Without an explicit refs/heads marker, this path could be split at a different branch/path
+      // boundary (for example, a slash-bearing branch beginning with "main").
+      const ambiguousLegacyUrl = 'https://raw.githubusercontent.com/owner/repo/main/skills/demo/SKILL.md'
+
+      try {
+        await Promise.all(
+          [existingDir, incomingDir].map(async (directory) => {
+            await fs.promises.mkdir(directory, { recursive: true })
+            await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# skill')
+          })
+        )
+        vi.mocked(parseSkillMetadata)
+          .mockResolvedValueOnce({
+            ...githubRootMetadata({ name: 'Explicit', declaredName: 'Explicit' }),
+            filename: 'Explicit'
+          } as never)
+          .mockResolvedValueOnce({
+            ...githubRootMetadata({ name: 'Incoming', declaredName: 'Incoming' }),
+            filename: 'Incoming'
+          } as never)
+
+        const existing = await skillService['installSkillDir'](existingDir, 'marketplace', explicitUrl)
+        await fs.promises.writeFile(path.join(dataSkillsRoot, existing.folderName, 'SKILL.md'), '# retained explicit')
+
+        await expect(
+          skillService['installSkillDir'](incomingDir, 'marketplace', ambiguousLegacyUrl, {
+            folderNameFallback: 'repo'
+          })
+        ).rejects.toThrow(/refusing to overwrite/)
+
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+        await expect(
+          fs.promises.readFile(path.join(dataSkillsRoot, existing.folderName, 'SKILL.md'), 'utf-8')
+        ).resolves.toBe('# retained explicit')
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'Incoming'))).rejects.toThrow()
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
     it('reinstalls an unannotated legacy branch URL against its explicit fetched branch', async () => {
       const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
       const existingDir = path.join(workDir, 'existing')

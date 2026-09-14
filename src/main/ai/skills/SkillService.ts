@@ -175,15 +175,13 @@ function sameSkillSourceUrl(left: string[], right: string[]): boolean {
   const leftUrlIdentity = left.filter((identity) => identity.startsWith('github-url:'))
   const rightUrlIdentity = right.filter((identity) => identity.startsWith('github-url:'))
 
-  // A fetched URL with an explicit ref marker is authoritative. An unannotated legacy URL can
-  // split the same path at multiple ref boundaries, so its generic path identity must not alias a
-  // ref-bound row and overwrite the selected skill.
-  if (
-    (leftRefPath.length > 0 && rightUrlIdentity.length > 0) ||
-    (rightRefPath.length > 0 && leftUrlIdentity.length > 0)
-  ) {
-    const refPath = leftRefPath.length > 0 ? leftRefPath : rightRefPath
-    const legacyUrl = leftRefPath.length > 0 ? rightUrlIdentity : leftUrlIdentity
+  // An explicit ref is authoritative when it is being installed, so it may heal a legacy row.
+  // The reverse direction is unsafe: an unannotated legacy URL has no reliable ref/path boundary
+  // and must never overwrite a row that already carries an explicit ref identity.
+  if (leftRefPath.length > 0 && rightUrlIdentity.length > 0) return false
+  if (rightRefPath.length > 0 && leftUrlIdentity.length > 0) {
+    const refPath = rightRefPath
+    const legacyUrl = leftUrlIdentity
     return refPath.some((identity) => {
       const legacyIdentity = legacyBranchIdentityFromRefPath(identity)
       return legacyIdentity ? legacyUrl.includes(legacyIdentity) : false
@@ -232,6 +230,19 @@ function sameSkillSourceUrl(left: string[], right: string[]): boolean {
     return leftUrlIdentity.some((identity) => rightUrlIdentity.includes(identity))
   }
   return left.some((identity) => right.includes(identity))
+}
+
+function hasAmbiguousLegacySourceConflict(existing: string[], incoming: string[]): boolean {
+  const existingRefPath = existing.some((identity) => identity.startsWith('github-ref-path:'))
+  const incomingLegacyUrl = incoming.some((identity) => identity.startsWith('github-url:'))
+  const incomingExplicitRef = incoming.some(
+    (identity) => identity.startsWith('github-ref-path:') || identity.startsWith('github-ref:')
+  )
+  if (!existingRefPath || !incomingLegacyUrl || incomingExplicitRef) return false
+
+  const existingPathIdentities = existing.filter((identity) => identity.startsWith('github:'))
+  const incomingPathIdentities = incoming.filter((identity) => identity.startsWith('github:'))
+  return existingPathIdentities.some((identity) => incomingPathIdentities.includes(identity))
 }
 
 /**
@@ -1370,13 +1381,19 @@ export class SkillService {
 
   private findCatalogSkillBySourceUrl(source: string, sourceUrl: string, folderName: string): InstalledSkill | null {
     const sourceIdentity = normalizeSkillSourceUrl(source, sourceUrl)
-    const matches = agentGlobalSkillService
-      .listAll()
-      .filter(
-        (skill) =>
-          skill.source === source &&
-          sameSkillSourceUrl(normalizeSkillSourceUrl(skill.source, skill.sourceUrl), sourceIdentity)
+    const sourceSkills = agentGlobalSkillService.listAll().filter((skill) => skill.source === source)
+    const matches = sourceSkills.filter((skill) =>
+      sameSkillSourceUrl(normalizeSkillSourceUrl(skill.source, skill.sourceUrl), sourceIdentity)
+    )
+    if (matches.length === 0) {
+      // Legacy URLs omit the ref/path boundary. If one of their possible path identities points at
+      // an explicitly ref-bound row, surface that row as a conflict so the caller refuses to
+      // overwrite it instead of silently creating a duplicate under a new derived folder.
+      const ambiguousMatches = sourceSkills.filter((skill) =>
+        hasAmbiguousLegacySourceConflict(normalizeSkillSourceUrl(skill.source, skill.sourceUrl), sourceIdentity)
       )
+      if (ambiguousMatches.length > 0) return ambiguousMatches[0]
+    }
     if (matches.length <= 1) return matches[0] ?? null
 
     const folderMatches = matches.filter(
