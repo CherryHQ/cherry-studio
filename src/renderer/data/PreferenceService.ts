@@ -49,6 +49,8 @@ export class PreferenceService {
 
   private preferenceRevisions = new Map<UnifiedPreferenceKeyType, number>()
 
+  private pendingWriteValues = new Map<UnifiedPreferenceKeyType, any[]>()
+
   constructor() {
     this.setupChangeListeners()
   }
@@ -67,6 +69,22 @@ export class PreferenceService {
       const optimisticState = this.optimisticValues.get(key)
       if (optimisticState) {
         this.bumpPreferenceRevision(key)
+        // Ignore own/stale echoes; a different value is authoritative and remains
+        // visible while this optimistic request settles.
+        if (
+          isEqual(value, optimisticState.value) ||
+          isEqual(value, optimisticState.originalValue) ||
+          this.hasPendingWriteValue(key, value)
+        )
+          return
+
+        optimisticState.originalValue = value
+        const oldValue = this.cache[key]
+        if (!isEqual(oldValue, value)) {
+          this.cache[key] = value
+          this.notifyChangeListeners(key)
+          logger.debug(`Preference ${key} updated to:`, { value })
+        }
         return
       }
       this.bumpPreferenceRevision(key)
@@ -122,6 +140,7 @@ export class PreferenceService {
       // Fetch from main process if not cached
       const value = await window.api.preference.get(key)
       if (this.getPreferenceRevision(key) !== readRevision) {
+        await this.subscribeToKeyInternal([key])
         return (key in this.cache ? this.cache[key] : value) as UnifiedPreferenceType[K]
       }
       const optimisticState = this.optimisticValues.get(key)
@@ -157,13 +176,14 @@ export class PreferenceService {
     options: PreferenceUpdateOptions = { optimistic: true }
   ): Promise<void> {
     this.bumpPreferenceRevision(key)
+    const releasePendingWrite = this.trackPendingWrite(key, value)
     if (options.optimistic) {
       const requestId = this.generateRequestId()
       this.applyOptimisticUpdate(key, value, requestId)
-      return this.enqueueWrite([key], () => this.persistOptimistic(key, value, requestId))
+      return this.enqueueWrite([key], () => this.persistOptimistic(key, value, requestId)).finally(releasePendingWrite)
     }
 
-    return this.enqueueWrite([key], () => this.setPessimistic(key, value))
+    return this.enqueueWrite([key], () => this.setPessimistic(key, value)).finally(releasePendingWrite)
   }
 
   /**
@@ -344,9 +364,11 @@ export class PreferenceService {
   ): Promise<void> {
     const keys = Object.keys(updates) as UnifiedPreferenceKeyType[]
     keys.forEach((key) => this.bumpPreferenceRevision(key))
-    return options.optimistic
+    const releasePendingWrites = keys.map((key) => this.trackPendingWrite(key, updates[key]))
+    const write = options.optimistic
       ? this.setMultipleOptimistic(updates)
       : this.enqueueWrite(keys, () => this.setMultiplePessimistic(updates))
+    return write.finally(() => releasePendingWrites.forEach((release) => release()))
   }
 
   /**
@@ -641,6 +663,23 @@ export class PreferenceService {
     this.preferenceRevisions.set(key, this.getPreferenceRevision(key) + 1)
   }
 
+  private trackPendingWrite(key: UnifiedPreferenceKeyType, value: any): () => void {
+    const values = this.pendingWriteValues.get(key) ?? []
+    values.push(value)
+    this.pendingWriteValues.set(key, values)
+    return () => {
+      const current = this.pendingWriteValues.get(key)
+      if (!current) return
+      const index = current.findIndex((pendingValue) => isEqual(pendingValue, value))
+      if (index >= 0) current.splice(index, 1)
+      if (current.length === 0) this.pendingWriteValues.delete(key)
+    }
+  }
+
+  private hasPendingWriteValue(key: UnifiedPreferenceKeyType, value: any): boolean {
+    return (this.pendingWriteValues.get(key) ?? []).some((pendingValue) => isEqual(pendingValue, value))
+  }
+
   /**
    * Generate unique request ID for tracking concurrent requests
    * @returns Unique request identifier string
@@ -693,6 +732,7 @@ export class PreferenceService {
     this.optimisticValues.clear()
     this.writeTails.clear()
     this.preferenceRevisions.clear()
+    this.pendingWriteValues.clear()
 
     this.clearCache()
     this.allChangesListeners.clear()

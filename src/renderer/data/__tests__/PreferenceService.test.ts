@@ -249,6 +249,55 @@ describe('renderer PreferenceService write consistency', () => {
     expect(service.getPendingOptimisticUpdates()).toEqual([])
   })
 
+  it('keeps an authoritative cross-window update visible during an optimistic write', async () => {
+    const key = 'feature.translate.page.source_language'
+    get.mockResolvedValueOnce('en-us')
+    const service = await createService()
+    await service.get(key)
+
+    let resolveWrite!: () => void
+    set.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveWrite = resolve
+        })
+    )
+    const listener = vi.fn()
+    service.subscribeChange(key)(listener)
+
+    const update = service.set(key, 'zh-cn')
+    listener.mockClear()
+    emitChanged?.(key, 'ja-jp')
+
+    expect(service.getCachedValue(key)).toBe('ja-jp')
+    expect(listener).toHaveBeenCalledOnce()
+
+    resolveWrite()
+    await update
+    expect(service.getCachedValue(key)).toBe('ja-jp')
+  })
+
+  it('subscribes when a delayed get becomes stale before it resolves', async () => {
+    const key = 'app.developer_mode.enabled'
+    let resolveRead!: (value: boolean) => void
+    get.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRead = resolve
+        })
+    )
+    const service = await createService()
+
+    const pendingRead = service.get(key)
+    set.mockResolvedValueOnce(undefined)
+    const update = service.set(key, false)
+    resolveRead(true)
+
+    await expect(pendingRead).resolves.toBe(false)
+    await update
+    expect(subscribe).toHaveBeenCalledWith([key])
+  })
+
   it('keeps a queued optimistic write ahead of a delayed multiple read', async () => {
     const key = 'app.developer_mode.enabled'
     let resolvePrior!: () => void
