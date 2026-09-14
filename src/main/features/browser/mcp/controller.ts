@@ -211,9 +211,14 @@ export class CdpBrowserController {
       }
     }
 
-    activeTab.view.webContents.loadURL(finalUrl).catch((error) => {
-      logger.warn('Navigation failed in tab bar', { error, url: finalUrl, tabId: windowInfo.activeTabId })
-    })
+    void activeTab.ready
+      .then(() => {
+        this.assertWindowActive(windowInfo)
+        return activeTab.view.webContents.loadURL(finalUrl)
+      })
+      .catch((error) => {
+        logger.warn('Navigation failed in tab bar', { error, url: finalUrl, tabId: activeTab.id })
+      })
   }
 
   private handleBackAction(windowInfo: WindowInfo) {
@@ -546,7 +551,10 @@ export class CdpBrowserController {
     } finally {
       this.creatingTabs--
     }
-    const ready = session.run(() => view.webContents.loadURL('about:blank'))
+    const ready = session.run(async () => {
+      await view.webContents.loadURL('about:blank')
+      await session.send('Network.enable')
+    })
     const tabInfo: TabInfo = {
       session,
       ready,

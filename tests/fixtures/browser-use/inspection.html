@@ -7,12 +7,48 @@
   <body>
     <h1>Browser inspection fixture</h1>
     <button id="save" onclick="window.saved = (window.saved || 0) + 1">Save</button>
-    <button id="replace" onclick="document.querySelector('#save').outerHTML = document.querySelector('#save').outerHTML">Rebuild Save</button>
-    <button id="ambiguous" onclick="document.body.append(document.querySelector('#save').cloneNode(true))">Duplicate Save</button>
-    <button id="logs" onclick="console.info('fixture info'); console.warn('fixture warning'); setTimeout(() => { throw new Error('fixture exception') }, 0)">Emit diagnostics</button>
-    <button id="fetch" onclick="fetch('/slow').then(r => r.text()).then(text => document.querySelector('#result').textContent = text)">Slow request</button>
-    <button id="redirect" onclick="fetch('/redirect').then(r => r.text()).then(text => document.querySelector('#result').textContent = text)">Redirect request</button>
-    <button id="failure" onclick="fetch('/failure').catch(() => document.querySelector('#result').textContent = 'Request failed')">Failed request</button>
+    <button
+      id="replace"
+      onclick="document.querySelector('#save').outerHTML = document.querySelector('#save').outerHTML">
+      Rebuild Save
+    </button>
+    <button id="ambiguous" onclick="document.body.append(document.querySelector('#save').cloneNode(true))">
+      Duplicate Save
+    </button>
+    <button
+      id="logs"
+      onclick="
+        console.info('fixture info')
+        console.warn('fixture warning')
+        setTimeout(() => {
+          throw new Error('fixture exception')
+        }, 0)
+      ">
+      Emit diagnostics
+    </button>
+    <button
+      id="fetch"
+      onclick="
+        fetch('/slow')
+          .then((r) => r.text())
+          .then((text) => (document.querySelector('#result').textContent = text))
+      ">
+      Slow request
+    </button>
+    <button
+      id="redirect"
+      onclick="
+        fetch('/redirect')
+          .then((r) => r.text())
+          .then((text) => (document.querySelector('#result').textContent = text))
+      ">
+      Redirect request
+    </button>
+    <button
+      id="failure"
+      onclick="fetch('/failure').catch(() => (document.querySelector('#result').textContent = 'Request failed'))">
+      Failed request
+    </button>
     <p id="result"></p>
     <div style="height: 4000px"></div>
     <button id="offscreen" onclick="window.offscreenClicked = true">Offscreen action</button>

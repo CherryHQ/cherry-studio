@@ -9,11 +9,13 @@ import { BaseService, Signal } from '@main/core/lifecycle'
 
 import { BrowserSessionService } from '../../BrowserSessionService'
 import { CdpBrowserController } from '../../mcp/controller'
+import { handleExecute } from '../../mcp/tools/execute'
 import { handleConsoleMessages, handleNetworkRequests } from '../../mcp/tools/inspect'
 import { handleWaitFor } from '../../mcp/tools/navigate'
 import { handleHistory } from '../../mcp/tools/navigate'
 import { handleReset } from '../../mcp/tools/reset'
 import type { WindowInfo } from '../../mcp/types'
+import { BrowserSessionError } from '../../session/BrowserSessionError'
 import { createGuest } from '../guestFixture'
 
 vi.mock('electron', async () => {
@@ -25,6 +27,7 @@ vi.mock('electron', async () => {
     const { mock } = createGuest(sequence++)
     let url = 'about:blank'
     let initialized = false
+    let networkEnabled = false
     let audioMuted = false
     Object.assign(mock, {
       setUserAgent: vi.fn(),
@@ -35,8 +38,17 @@ vi.mock('electron', async () => {
       getZoomFactor: () => 1,
       getURL: () => url,
       getTitle: () => new URL(url).hostname,
-      loadURL: vi.fn(async () => {
+      loadURL: vi.fn(async (nextUrl: string) => {
         initialized = true
+        url = nextUrl
+        if (networkEnabled) {
+          mock.debugger.emit('message', {}, 'Network.requestWillBeSent', {
+            requestId: nextUrl,
+            type: 'Document',
+            request: { method: 'GET', url: nextUrl }
+          })
+          mock.debugger.emit('message', {}, 'Network.loadingFinished', { requestId: nextUrl })
+        }
       }),
       canGoBack: () => false,
       canGoForward: () => false,
@@ -45,6 +57,7 @@ vi.mock('electron', async () => {
     })
     mock.debugger.sendCommand.mockImplementation(async (method, params: any) => {
       if (method === 'Page.enable' && !initialized) throw new Error('Fresh BrowserView has no document')
+      if (method === 'Network.enable') networkEnabled = true
       if (method === 'Page.getLayoutMetrics')
         return {
           cssContentSize: { x: 0, y: 0, width: 1000, height: 7000 },
@@ -173,6 +186,101 @@ const controller = () => {
 }
 
 describe('MCP browser on shared sessions', () => {
+  it('does not create a replacement page when execute cannot resolve its explicit target', async () => {
+    const c = controller()
+    const { tabId } = await c.createTab()
+    const result = await handleExecute(c, { code: 'document.title', tabId: 'missing-tab' })
+    expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'not_found' }] })
+    expect((await c.listTabs()).map((tab) => tab.tabId)).toEqual([tabId])
+  })
+
+  it('keeps an execute failure associated with its original tab after switching tabs', async () => {
+    const c = controller()
+    const first = await c.createTab()
+    const second = await c.createTab()
+    vi.spyOn(first.view.webContents, 'getURL').mockReturnValue('https://first.example/')
+    vi.spyOn(second.view.webContents, 'getURL').mockReturnValue('https://second.example/')
+    const command = vi.mocked(first.view.webContents.debugger.sendCommand)
+    const fallback = command.getMockImplementation()!
+    const started = new Signal<void>()
+    const resume = new Signal<void>()
+    command.mockImplementation(async (method, params) => {
+      if (method === 'Runtime.evaluate') {
+        started.resolve()
+        await resume
+        throw new BrowserSessionError('timeout')
+      }
+      return fallback(method, params)
+    })
+    await c.switchTab(false, first.tabId)
+    const pending = handleExecute(c, { code: 'new Promise(() => {})' })
+    await started
+    await c.switchTab(false, second.tabId)
+    resume.resolve()
+    const result = await pending
+    expect(result.isError).toBe(true)
+    expect(JSON.parse((result.content as Array<{ text: string }>)[0].text)).toMatchObject({
+      error: 'timeout',
+      tabId: first.tabId,
+      url: 'https://first.example/'
+    })
+    expect((await c.getSession()).tabId).toBe(second.tabId)
+  })
+
+  it('waits for managed inspection readiness before GUI navigation and retains the initial request', async () => {
+    const c = controller()
+    const windowsAccess = c as unknown as {
+      getOrCreateWindow: (privateMode: boolean, showWindow?: boolean) => Promise<WindowInfo>
+    }
+    const info = await windowsAccess.getOrCreateWindow(false, true)
+    info.tabBarView!.webContents.emit('did-finish-load')
+    const started = new Signal<void>()
+    const resume = new Signal<void>()
+    const navigated = new Signal<void>()
+    const url = 'https://example.com/initial-request'
+    vi.mocked(info.window.addBrowserView).mockImplementation((view) => {
+      const command = vi.mocked(view.webContents.debugger.sendCommand)
+      const fallback = command.getMockImplementation()!
+      command.mockImplementation(async (method, params) => {
+        if (method === 'Network.enable' && !started.isResolved) {
+          started.resolve()
+          await resume
+        }
+        return fallback(method, params)
+      })
+      const load = vi.mocked(view.webContents.loadURL)
+      const loadPage = load.getMockImplementation()!
+      load.mockImplementation(async (...args) => {
+        await loadPage(...args)
+        if (args[0] === url) navigated.resolve()
+      })
+    })
+    const opening = c.createTab(false, true)
+    await Promise.race([started, opening])
+    try {
+      info.tabBarView!.webContents.emit(
+        'console-message',
+        {},
+        0,
+        JSON.stringify({
+          channel: 'tabbar-action',
+          payload: { type: 'navigate', url }
+        })
+      )
+      await Promise.resolve()
+      expect(info.tabs.get(info.activeTabId!)!.view.webContents.getURL()).toBe('about:blank')
+    } finally {
+      resume.resolve()
+    }
+    const { tabId } = await opening
+    await navigated
+    const result = await handleNetworkRequests(c, { tabId })
+    expect(JSON.parse((result.content as Array<{ text: string }>)[0].text)).toMatchObject({
+      ok: true,
+      requests: [{ url, state: 'completed' }]
+    })
+  })
+
   it.each(['console', 'network'])('starts inspection when %s is the first tool on a fresh page', async (kind) => {
     const c = controller()
     const { tabId, session } = await c.getSession()
