@@ -5,6 +5,7 @@ import { net } from 'electron'
 
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
+import { createTimeout } from '@shared/utils/async'
 import { buildGithubSkillResult, searchSkillMarketplaces } from '@shared/utils/skillMarketplace'
 
 const logger = loggerService.withContext('McpServer:Skills')
@@ -158,7 +159,7 @@ class SkillsServer {
 
   private async fetchMarketplaceJson(url: string): Promise<unknown> {
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    const deadline = createTimeout(REQUEST_TIMEOUT_MS, () => controller.abort())
     try {
       const response = await net.fetch(url, { method: 'GET', signal: controller.signal })
       if (!response.ok) {
@@ -166,7 +167,7 @@ class SkillsServer {
       }
       return response.json()
     } finally {
-      clearTimeout(timer)
+      deadline.dispose()
     }
   }
 

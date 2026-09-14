@@ -1,8 +1,9 @@
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { createAbortError, createTimeout, onAbort as subscribeToAbort } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
-import { createAbortError, isTerminalHttpStatus, uint8ToBase64, waitWithSignal } from '../transportUtils'
+import { isTerminalHttpStatus, uint8ToBase64, waitWithSignal } from '../transportUtils'
 
 /**
  * ModelScope (魔搭) API Inference transport for AIGC image generation.
@@ -198,17 +199,12 @@ class ModelscopeTransport implements ImageGenerationTransport {
     const controller = new AbortController()
     let externallyAborted = false
 
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    const deadline = createTimeout(timeout, () => controller.abort())
     const onExternalAbort = () => {
       externallyAborted = true
       controller.abort()
     }
-    if (externalSignal?.aborted) {
-      externallyAborted = true
-      controller.abort()
-    } else {
-      externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
-    }
+    const disposeAbort = subscribeToAbort(externalSignal, onExternalAbort)
 
     const fetchOptions: RequestInit = {
       method,
@@ -237,8 +233,8 @@ class ModelscopeTransport implements ImageGenerationTransport {
       }
       throw error
     } finally {
-      clearTimeout(timeoutId)
-      externalSignal?.removeEventListener('abort', onExternalAbort)
+      deadline.dispose()
+      disposeAbort()
     }
   }
 }

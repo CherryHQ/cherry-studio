@@ -1,9 +1,12 @@
+import { setTimeout as sleep } from 'node:timers/promises'
+
 import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
 import type { WindowId } from '@shared/ipc/types'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
+import { createTimeout } from '@shared/utils/async'
 import { conversationRouteUrl } from '@shared/utils/conversationRoute'
 
 import { openRouteInMainWindow } from './mainWindowNavigation'
@@ -18,7 +21,7 @@ interface PendingOwnershipQuery {
   ownerWindowIds: Set<WindowId>
   respondingWindowIds: Set<WindowId>
   resolve: (snapshot: OwnershipSnapshot | null) => void
-  timer: ReturnType<typeof setTimeout>
+  timer: ReturnType<typeof createTimeout<void>>
 }
 
 interface OwnershipSnapshot {
@@ -29,7 +32,7 @@ interface OwnershipSnapshot {
 interface PendingNavigationCommand {
   destinationWindowId: WindowId
   resolve: (completed: boolean) => void
-  timer: ReturnType<typeof setTimeout>
+  timer: ReturnType<typeof createTimeout<void>>
 }
 
 function conversationTargetKey(target: ConversationNavigationTarget): string {
@@ -193,8 +196,9 @@ export class ConversationNavigationService extends BaseService {
     title: string
   ): Promise<boolean> {
     return new Promise((resolve) => {
-      const timer = setTimeout(() => this.settleNavigationCommand(requestId, false), NAVIGATION_COMMAND_TIMEOUT_MS)
-      timer.unref()
+      const timer = createTimeout(NAVIGATION_COMMAND_TIMEOUT_MS, () => this.settleNavigationCommand(requestId, false), {
+        ref: false
+      })
       this.pendingCommands.set(requestId, { destinationWindowId: destination.id, resolve, timer })
 
       application.get('IpcApiService').send(destination.id, 'navigation.conversation_focus_or_open_requested', {
@@ -215,10 +219,7 @@ export class ConversationNavigationService extends BaseService {
       throw new Error(`Timed out waiting for conversation owners: ${conversationTargetKey(target)}`)
     }
 
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, Math.min(OWNERSHIP_RETRY_DELAY_MS, remainingMs))
-      timer.unref()
-    })
+    await sleep(Math.min(OWNERSHIP_RETRY_DELAY_MS, remainingMs), undefined, { ref: false })
   }
 
   private queryOwners(
@@ -231,8 +232,9 @@ export class ConversationNavigationService extends BaseService {
     }
 
     return new Promise((resolve) => {
-      const timer = setTimeout(() => this.settleOwnershipQuery(requestId), OWNERSHIP_RESPONSE_TIMEOUT_MS)
-      timer.unref()
+      const timer = createTimeout(OWNERSHIP_RESPONSE_TIMEOUT_MS, () => this.settleOwnershipQuery(requestId), {
+        ref: false
+      })
       this.pendingQueries.set(requestId, {
         expectedWindowIds: new Set(windows.map((window) => window.id)),
         ownerWindowIds: new Set(),
@@ -254,7 +256,7 @@ export class ConversationNavigationService extends BaseService {
     const pending = this.pendingQueries.get(requestId)
     if (!pending) return
 
-    clearTimeout(pending.timer)
+    pending.timer.dispose()
     this.pendingQueries.delete(requestId)
     pending.resolve({
       ownerWindowIds: [...pending.ownerWindowIds],
@@ -266,14 +268,14 @@ export class ConversationNavigationService extends BaseService {
     const pending = this.pendingCommands.get(requestId)
     if (!pending) return
 
-    clearTimeout(pending.timer)
+    pending.timer.dispose()
     this.pendingCommands.delete(requestId)
     pending.resolve(completed)
   }
 
   private cancelOwnershipQueries(): void {
     for (const [requestId, pending] of this.pendingQueries) {
-      clearTimeout(pending.timer)
+      pending.timer.dispose()
       this.pendingQueries.delete(requestId)
       pending.resolve(null)
     }
@@ -281,7 +283,7 @@ export class ConversationNavigationService extends BaseService {
 
   private cancelNavigationCommands(): void {
     for (const [requestId, pending] of this.pendingCommands) {
-      clearTimeout(pending.timer)
+      pending.timer.dispose()
       this.pendingCommands.delete(requestId)
       pending.resolve(false)
     }

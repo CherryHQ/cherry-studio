@@ -1,3 +1,5 @@
+import { AsyncInitializer } from '@shared/utils/async'
+
 import { dmxapiUsesCustomTransport } from './dmxapi/dmxapiImageRouting'
 import type { ImageGenerationTransport } from './imageGenerationModel'
 
@@ -9,21 +11,20 @@ interface TransportRegistration {
 }
 
 function createLazyTransport(registration: TransportRegistration, providerSettings: unknown): ImageGenerationTransport {
-  let transportPromise: Promise<ImageGenerationTransport> | undefined
-  const load = () => (transportPromise ??= registration.load(providerSettings))
+  const transport = new AsyncInitializer(() => registration.load(providerSettings))
 
   return {
-    submit: async (input) => (await load()).submit(input),
+    submit: async (input) => (await transport.get()).submit(input),
     ...(registration.poll && {
       poll: async (...args: Parameters<NonNullable<ImageGenerationTransport['poll']>>) => {
-        const transport = await load()
-        if (!transport.poll) throw new Error('Image transport does not implement polling')
-        return transport.poll(...args)
+        const loaded = await transport.get()
+        if (!loaded.poll) throw new Error('Image transport does not implement polling')
+        return loaded.poll(...args)
       }
     }),
     ...(registration.cancel && {
       cancel: async (taskId: string) => {
-        await (await load()).cancel?.(taskId)
+        await (await transport.get()).cancel?.(taskId)
       }
     })
   }

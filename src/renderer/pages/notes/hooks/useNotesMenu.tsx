@@ -10,6 +10,7 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
+import { delay as sleep } from '@shared/utils/async'
 
 const logger = loggerService.withContext('UseNotesMenu')
 
@@ -74,7 +75,7 @@ export const useNotesMenu = ({
 
         if (activeNode?.id !== node.id) {
           onSelectNode(node)
-          selectionReady = new Promise((resolve) => setTimeout(resolve, 500))
+          selectionReady = sleep(500)
         }
 
         const [{ exportNote }] = await Promise.all([exportServicePromise, selectionReady])

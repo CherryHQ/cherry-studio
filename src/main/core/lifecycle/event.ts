@@ -14,16 +14,7 @@
  * this.registerDisposable(windowService.onMainWindowCreated((win) => { ... }))
  */
 
-/**
- * A resource that can be cleaned up. Call dispose() to release it.
- *
- * Used for event subscriptions, signals, and any resource that needs
- * deterministic cleanup. Register via BaseService.registerDisposable()
- * for automatic cleanup on service stop/destroy.
- */
-export interface Disposable {
-  dispose(): void
-}
+import type { Disposable } from '@shared/types/disposable'
 
 /**
  * Wrap a cleanup function as a Disposable.

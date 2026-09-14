@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   renderFunction: undefined as ((content: string, container: HTMLDivElement) => Promise<void>) | undefined
 }))
 
-vi.mock('@renderer/utils/asyncInitializer', () => ({
+vi.mock('@shared/utils/async', () => ({
   AsyncInitializer: class {
     constructor() {
       return { get: mocks.getViz }

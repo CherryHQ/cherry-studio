@@ -7,6 +7,8 @@ import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { executeCommand } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
+import { raceTimeout } from '@shared/utils/async'
+
 const logger = loggerService.withContext('Utils:Rtk')
 
 const RTK_MIN_VERSION = '0.23.0'
@@ -29,30 +31,18 @@ interface RtkExecution {
 let cachedProbe: { checkedAt: number; execution: RtkExecution | null } | null = null
 let probePromise: Promise<RtkExecution | null> | null = null
 
-/** Resolve `promise`, or `null` if it does not settle within `ms`. */
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
-  let timer: ReturnType<typeof setTimeout>
-  const timeout = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), ms)
-  })
-  try {
-    return await Promise.race([promise, timeout])
-  } finally {
-    clearTimeout(timer!)
-  }
-}
-
 async function probeRtk(): Promise<RtkExecution | null> {
   // A single guard keeps the probe from ever rejecting: rtkRewrite and its Bash
   // PreToolUse hook await this inline, so a thrown snapshot query must degrade to
   // "no rewrite", never propagate out and fail the tool call.
   try {
-    const snapshot = await withTimeout(
+    const snapshot = await raceTimeout(
       application
         .get('BinaryManager')
         .getToolSnapshots(['rtk'])
         .then((snapshots) => snapshots.rtk),
-      PROBE_TIMEOUT_MS
+      PROBE_TIMEOUT_MS,
+      () => null
     )
     if (!snapshot || snapshot.availability.source === 'none') {
       logger.warn(

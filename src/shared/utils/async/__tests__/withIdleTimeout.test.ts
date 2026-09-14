@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { withIdleTimeout } from '../withIdleTimeout'
+import { withIdleTimeout } from '..'
 
 /**
  * Build a controllable ReadableStream plus helpers to push / close / error it.
@@ -169,7 +169,7 @@ describe('withIdleTimeout', () => {
     expect(controller.signal.aborted).toBe(true)
   })
 
-  it('rearms on the next chunk after idle.cleanup()', async () => {
+  it('does not rearm after disposal even when a pending read delivers another chunk', async () => {
     const src = makeControllableStream<number>()
     const controller = new AbortController()
 
@@ -179,16 +179,18 @@ describe('withIdleTimeout', () => {
     src.push(1)
     await reader.read()
 
-    idle.cleanup()
-    vi.advanceTimersByTime(5000) // paused — no abort
+    idle.dispose()
+    idle.dispose()
+    idle.reset(100)
+    vi.advanceTimersByTime(5000)
     expect(controller.signal.aborted).toBe(false)
 
-    // The resolving chunk (e.g. the approval was answered) flows through `pull`,
-    // which calls `idle.reset()` and rearms the timer.
     src.push(2)
-    await reader.read()
+    expect((await reader.read()).value).toBe(2)
     vi.advanceTimersByTime(1001)
-    expect(controller.signal.aborted).toBe(true)
-    expect((controller.signal.reason as DOMException).name).toBe('TimeoutError')
+    expect(controller.signal.aborted).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+    src.close()
+    expect((await reader.read()).done).toBe(true)
   })
 })

@@ -42,12 +42,12 @@ import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { AsyncEventQueue, Sequencer } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
-import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -290,48 +290,9 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
 // Compatibility export for the Pi runtime and existing consumers; Claude Code itself uses native attachment routing below.
 export { buildAgentUserContent }
 
-class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
-  private readonly messages: SDKUserMessage[] = []
-  private waitResolve?: (value: IteratorResult<SDKUserMessage>) => void
-  private closed = false
-
-  push(message: SDKUserMessage): void {
-    if (this.closed) return
-    if (this.waitResolve) {
-      const resolve = this.waitResolve
-      this.waitResolve = undefined
-      resolve({ value: message, done: false })
-      return
-    }
-    this.messages.push(message)
-  }
-
-  close(): void {
-    this.closed = true
-    if (this.waitResolve) {
-      const resolve = this.waitResolve
-      this.waitResolve = undefined
-      resolve({ value: undefined, done: true })
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
-    return {
-      next: () => {
-        const next = this.messages.shift()
-        if (next) return Promise.resolve({ value: next, done: false })
-        if (this.closed) return Promise.resolve({ value: undefined as unknown as SDKUserMessage, done: true })
-        return new Promise<IteratorResult<SDKUserMessage>>((resolve) => {
-          this.waitResolve = resolve
-        })
-      }
-    }
-  }
-}
-
 class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
-  private sdkInputQueue = new SdkInputQueue()
+  private sdkInputQueue = new AsyncEventQueue<SDKUserMessage>()
   private readonly abortController = new AbortController()
   private query?: Query
   /** SDK `query` factory captured at connect — the sync stale-resume retry cannot await the import. */
@@ -359,7 +320,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly streamInvocationIdsByLane = new Map<string, string>()
   private readonly committedInvocationIds = new Set<string>()
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
-  private reconcileChain: Promise<unknown> = Promise.resolve()
+  private readonly reconcileQueue = new Sequencer()
   /** Set when a steer hook (PreToolUse or PostToolBatch) injects a steer; the next top-level
    *  assistant `message_start` emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
@@ -523,15 +484,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
   }): Promise<AgentRuntimeReconcileResult> {
-    // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
-    // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
-    // gate and the subprocess on different policies.
-    const run = this.reconcileChain.then(
-      () => this.reconcileOnce(input),
-      () => this.reconcileOnce(input)
-    )
-    this.reconcileChain = run.catch(() => undefined)
-    return run
+    // Keep concurrent push/pull reconciliation from interleaving SDK policy and snapshot writes,
+    // which could leave the local gate and subprocess on different policies.
+    return this.reconcileQueue.queue(() => this.reconcileOnce(input))
   }
 
   private async reconcileOnce(input: {
@@ -830,7 +785,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       chunk: { type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} }
     })
     this.sdkInputQueue.close()
-    this.sdkInputQueue = new SdkInputQueue()
+    this.sdkInputQueue = new AsyncEventQueue<SDKUserMessage>()
     if (this.lastSdkUserMessage) {
       this.sdkInputQueue.push({ ...this.lastSdkUserMessage, session_id: '' })
     }

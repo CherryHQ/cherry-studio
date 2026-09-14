@@ -1,6 +1,7 @@
 import { Worker } from 'node:worker_threads'
 
 import { loggerService } from '@logger'
+import { onAbort as subscribeToAbort } from '@shared/utils/async'
 
 import { execWorkerSource } from './worker'
 
@@ -56,6 +57,7 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
     const activeChildAborts = new Set<AbortController>()
     const worker = new Worker(execWorkerSource, { eval: true })
     const parentSignal = ctx.abortSignal
+    let disposeAbort = () => {}
     let finished = false
     let timedOut = false
     let terminating = false
@@ -83,7 +85,7 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
       if (finished) return
       finished = true
       if (timeoutId) clearTimeout(timeoutId)
-      parentSignal?.removeEventListener('abort', onParentAbort)
+      disposeAbort()
       worker.removeAllListeners()
       abortChildren(new Error('tool_exec finished'))
       if (terminateWorker) {
@@ -147,11 +149,8 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
     scheduleTimeout()
     ctx.onExecutionStarted?.({ pauseTimeout, resumeTimeout })
 
-    if (parentSignal?.aborted) {
-      onParentAbort()
-      return
-    }
-    parentSignal?.addEventListener('abort', onParentAbort, { once: true })
+    disposeAbort = subscribeToAbort(parentSignal, onParentAbort)
+    if (parentSignal?.aborted) return
 
     const handleToolCall = async (message: WorkerCallToolMessage) => {
       if (finished || timedOut || terminating) return

@@ -11,6 +11,7 @@ import {
   type RelocationStage,
   UserDataRelocationIpcChannels
 } from '@shared/types/userDataRelocation'
+import { createTimeout } from '@shared/utils/async'
 
 const logger = loggerService.withContext('UserDataRelocationWindow')
 const CRITICAL_STAGES: ReadonlySet<RelocationStage> = new Set(['preparing', 'copying', 'committing'])
@@ -122,11 +123,10 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
   const readyPromise = new Promise<void>((resolve) => {
     let settled = false
     const webContents = window!.webContents
-    const timeout = setTimeout(() => finish(false, 'ready timeout'), READY_TIMEOUT_MS)
-    timeout.unref?.()
+    const timeout = createTimeout(READY_TIMEOUT_MS, () => finish(false, 'ready timeout'), { ref: false })
 
     const cleanup = () => {
-      clearTimeout(timeout)
+      timeout.dispose()
       webContents.removeListener('did-finish-load', didFinishLoad)
       webContents.removeListener('did-fail-load', didFailLoad)
       webContents.removeListener('render-process-gone', didExit)

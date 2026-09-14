@@ -1,26 +1,23 @@
-/**
- * A resettable idle-timeout AbortController.
- *
- * Port of `src/renderer/src/utils/IdleTimeoutController.ts` (origin/main).
- * Each call to `reset()` restarts the countdown; when the timeout fires
- * without being reset, the internal `AbortController` is aborted with a
- * `TimeoutError` DOMException.
- */
+import type { Disposable } from '@shared/types/disposable'
 
-/** Lightweight handle exposing only the reset / cleanup callbacks. */
-export interface IdleTimeoutHandle {
+/** Inactivity deadline controls without access to the abort controller. */
+export interface IdleTimeoutHandle extends Disposable {
   /** Restart the countdown. Pass `durationMs` to arm a one-off window (e.g. a generous
    *  human-approval wait); omit it to use the controller's configured timeout. */
   reset: (durationMs?: number) => void
-  cleanup: () => void
 }
 
-export class IdleTimeoutController {
+/** Resettable inactivity deadline; disposal prevents late activity from rearming it. */
+export class IdleTimeoutController implements IdleTimeoutHandle {
   private controller: AbortController
   private timerId: ReturnType<typeof setTimeout> | null = null
   private readonly timeoutMs: number
+  private disposed = false
 
-  constructor(timeoutMs: number) {
+  constructor(
+    timeoutMs: number,
+    private readonly reasonFactory: () => unknown = () => new DOMException('Idle timeout exceeded', 'TimeoutError')
+  ) {
     this.timeoutMs = timeoutMs
     this.controller = new AbortController()
     this.startTimer()
@@ -34,19 +31,20 @@ export class IdleTimeoutController {
   /** Reset the idle timer. Call this every time new data arrives. Pass `durationMs` to arm a one-off
    *  window (e.g. a generous human-approval wait); omit it to use the configured timeout. */
   reset = (durationMs?: number): void => {
-    if (this.controller.signal.aborted) return
+    if (this.disposed || this.controller.signal.aborted) return
     this.clearTimer()
     this.startTimer(durationMs ?? this.timeoutMs)
   }
 
-  /** Clean up the timer (e.g. when the stream finishes normally). */
-  cleanup = (): void => {
+  /** Permanently release the timer without aborting the signal. */
+  dispose = (): void => {
+    this.disposed = true
     this.clearTimer()
   }
 
   private startTimer(durationMs: number = this.timeoutMs): void {
     this.timerId = setTimeout(() => {
-      this.controller.abort(new DOMException('Idle timeout exceeded', 'TimeoutError'))
+      this.controller.abort(this.reasonFactory())
     }, durationMs)
   }
 

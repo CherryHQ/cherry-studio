@@ -3201,7 +3201,7 @@ describe('AgentSessionRuntimeService', () => {
         .openTurnStream({
           sessionId: 'session-1',
           turnId: handle.turnId,
-          signal: new AbortController().signal
+          signal: handle.abortController.signal
         })
         .getReader()
       await expect(originalReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
@@ -3249,7 +3249,7 @@ describe('AgentSessionRuntimeService', () => {
         .openTurnStream({
           sessionId: 'session-1',
           turnId: deferredTurn.turnId,
-          signal: new AbortController().signal
+          signal: handle.abortController.signal
         })
         .getReader()
       await expect(resumedReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
@@ -3261,7 +3261,9 @@ describe('AgentSessionRuntimeService', () => {
       )
       expect(mocks.suspendUnadmittedRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1')
 
-      void service.closeSession('session-1')
+      handle.abortController.abort('resumed turn stopped')
+      await vi.waitFor(() => expect(service.inspect('session-1')).toBeUndefined())
+      expect(connection.close).toHaveBeenCalledOnce()
       await originalReader.cancel().catch(() => undefined)
       await resumedReader.cancel().catch(() => undefined)
     })
@@ -4311,6 +4313,119 @@ describe('AgentSessionRuntimeService', () => {
     await secondReader.cancel().catch(() => undefined)
   })
 
+  it('ignores a completed turn abort signal while its successor keeps streaming and owns session close', async () => {
+    const events = createAsyncQueue<any>()
+    const connectionClosed = createDeferred<void>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current'),
+      close: vi.fn(() => connectionClosed.promise)
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const firstReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: first.turnId, signal: first.abortController.signal })
+      .getReader()
+    await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+    events.push({ type: 'turn-complete' })
+    await expect(firstReader.read()).resolves.toMatchObject({ done: true })
+    await terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2')
+    })
+    const secondReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: second.turnId, signal: second.abortController.signal })
+      .getReader()
+    await expect(secondReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() =>
+      expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-2'), systemReminder: false })
+    )
+
+    first.abortController.abort('late first-turn cancellation')
+
+    expect(service.inspect('session-1')).toMatchObject({ assistantMessageId: 'assistant-2' })
+    expect(connection.close).not.toHaveBeenCalled()
+    events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'second-output', delta: 'still streaming' } })
+    await expect(secondReader.read()).resolves.toMatchObject({
+      value: { type: 'text-delta', delta: 'still streaming' },
+      done: false
+    })
+
+    second.abortController.abort('current turn stopped')
+    expect(service.inspect('session-1')).toBeUndefined()
+    expect(connection.close).toHaveBeenCalledOnce()
+    let closed = false
+    const closing = service.closeSession('session-1').then(() => {
+      closed = true
+    })
+    await Promise.resolve()
+    expect(closed).toBe(false)
+    connectionClosed.resolve()
+    await closing
+    await expect(secondReader.read()).resolves.toMatchObject({ done: true })
+  })
+
+  it.each(['is cancelled', 'fails during start'] as const)(
+    'keeps a replacement stream live after its previous opening %s',
+    async (previousOutcome) => {
+      const events = createAsyncQueue<any>()
+      const admitted = createDeferred<void>()
+      const connection = {
+        events: events.iterable,
+        send: vi.fn(() => admitted.promise),
+        close: vi.fn()
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockResolvedValue(connection),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const input = { sessionId: 'session-1', turnId: handle.turnId, signal: handle.abortController.signal }
+      const previousReader = service.openTurnStream(input).getReader()
+      await expect(previousReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+      const currentReader = service.openTurnStream(input).getReader()
+      await expect(currentReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      if (previousOutcome === 'fails during start') {
+        const failure = new Error('previous send failed')
+        const failedRead = expect(previousReader.read()).rejects.toBe(failure)
+        admitted.reject(failure)
+        await failedRead
+      } else {
+        await previousReader.cancel()
+        admitted.resolve()
+      }
+
+      events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'replacement', delta: 'replacement output' } })
+      await expect(currentReader.read()).resolves.toMatchObject({
+        value: { type: 'text-delta', delta: 'replacement output' },
+        done: false
+      })
+      handle.abortController.abort('current opening stopped')
+      expect(service.inspect('session-1')).toBeUndefined()
+      expect(connection.close).toHaveBeenCalledOnce()
+      await service.closeSession('session-1')
+      await expect(currentReader.read()).resolves.toMatchObject({ done: true })
+    }
+  )
+
   it('closes the runtime session when the active turn is aborted by the user', async () => {
     const events = createAsyncQueue<any>()
     const connection = {
@@ -4345,6 +4460,31 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
     expect(service.inspect('session-1')).toBeUndefined()
     await reader.cancel().catch(() => undefined)
+  })
+
+  it('closes an already-aborted turn stream without connecting or admitting a prompt', async () => {
+    const send = vi.fn()
+    const connect = vi.fn().mockResolvedValue({ events: [], send, close: vi.fn() })
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    handle.abortController.abort('stopped before opening')
+
+    const reader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: handle.abortController.signal })
+      .getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ done: true })
+    expect(service.inspect('session-1')).toBeUndefined()
+    expect(connect).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+    await service.closeSession('session-1')
   })
 
   it('waits for a late aborted connection to close before connecting an immediate retry', async () => {

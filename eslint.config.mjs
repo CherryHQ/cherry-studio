@@ -89,6 +89,19 @@ const BAN_DRIZZLE_MIGRATOR = {
     "Do not call drizzle's migrate() directly — its transaction makes drizzle-kit's `PRAGMA foreign_keys=OFF` a no-op, so any table-recreate migration silently cascades child rows away. Use applyMigrations() from @data/db/applyMigrations."
 }
 
+const ASYNC_IMPORT_BANS = [
+  {
+    group: ['p-queue', 'async-mutex'],
+    message: 'Import asynchronous primitives through @shared/utils/async.'
+  },
+  {
+    group: ['es-toolkit', 'es-toolkit/compat'],
+    importNames: ['delay', 'debounce', 'throttle', 'retry', 'withTimeout'],
+    message:
+      'Import asynchronous primitives through @shared/utils/async to preserve cancellation and cleanup contracts.'
+  }
+]
+
 // Utility-process child code (protocol/runtime, entries, smoke entries) is bundled for a
 // separate process that has no lifecycle container, no logger, and no database. Importing a
 // main-only singleton there fails at runtime — or silently drags winston/Drizzle into the
@@ -885,6 +898,7 @@ export default defineConfig([
         'error',
         {
           patterns: [
+            ...ASYNC_IMPORT_BANS,
             {
               group: ['@shared/ipc/schemas', '@shared/ipc/schemas/*'],
               allowTypeImports: true,
@@ -908,7 +922,7 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }
+        { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR, ...ASYNC_IMPORT_BANS] }
       ]
     }
   },
@@ -922,9 +936,16 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }
+        { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR, ...ASYNC_IMPORT_BANS] }
       ],
       'import-x/no-restricted-paths': ['error', { basePath: RENDERER_DIRNAME, zones: [UTILITY_CHILD_ZONE] }]
+    }
+  },
+  {
+    files: ['src/shared/**/*.{ts,tsx,js,jsx}'],
+    ignores: ['src/shared/utils/async/**'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', { patterns: ASYNC_IMPORT_BANS }]
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).

@@ -3,6 +3,7 @@ import type { FileMetadata } from '@renderer/types/file'
 import { createPaintingGenerateError, normalizePaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import { aiErrorDetail } from '@shared/ipc/errors/ai'
 import type { SerializedError } from '@shared/types/error'
+import { isAbortError } from '@shared/utils/async'
 
 import { downloadImages } from '../utils/downloadImages'
 import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
@@ -67,7 +68,7 @@ export async function runPainting(
     }
     return resolvePaintingFiles(result)
   } catch (error: unknown) {
-    if (error instanceof Error && error.name !== 'AbortError') {
+    if (error instanceof Error && !isAbortError(error)) {
       // `ai.image.generate` wraps a provider/SDK failure as an AI_REQUEST_FAILED
       // IpcError carrying the full serialized error (statusCode / responseBody) in
       // `data`. Recover it so the log AND the user-facing modal show the real cause

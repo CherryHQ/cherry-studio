@@ -7,6 +7,7 @@ import { application } from '@application'
 import { isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { AsyncInitializer, withTimeout } from '@shared/utils/async'
 
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
 import { TAB_BAR_HTML } from './tabbarHtml'
@@ -22,7 +23,9 @@ export class CdpBrowserController {
   private windows: Map<string, WindowInfo> = new Map()
   private readonly maxWindows: number
   private readonly idleTimeoutMs: number
-  private turndownServicePromise?: Promise<TurndownService>
+  private readonly turndownService = new AsyncInitializer<TurndownService>(() =>
+    import('turndown').then(({ default: TurndownService }) => new TurndownService())
+  )
 
   // Update all tab bars on theme change. Named so dispose() can unregister it —
   // nativeTheme is app-global, and one controller is created per MCP connection.
@@ -42,12 +45,6 @@ export class CdpBrowserController {
     this.idleTimeoutMs = options?.idleTimeoutMs ?? 5 * 60 * 1000
 
     nativeTheme.on('updated', this.handleThemeUpdated)
-  }
-
-  private getTurndownService(): Promise<TurndownService> {
-    return (this.turndownServicePromise ??= import('turndown').then(
-      ({ default: TurndownService }) => new TurndownService()
-    ))
   }
 
   /**
@@ -651,13 +648,11 @@ export class CdpBrowserController {
     this.touchTab(windowKey, actualTabId)
 
     let resolved = false
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
     let onFinish: () => void
     let onDomReady: () => void
     let onFail: (_event: Electron.Event, code: number, desc: string) => void
 
     const cleanup = () => {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
       webContents.removeListener('did-finish-load', onFinish)
       webContents.removeListener('did-fail-load', onFail)
       webContents.removeListener('dom-ready', onDomReady)
@@ -687,12 +682,12 @@ export class CdpBrowserController {
       webContents.once('did-fail-load', onFail)
     })
 
-    const timeoutPromise = new Promise<void>((_, reject) => {
-      timeoutHandle = setTimeout(() => reject(new Error('Navigation timed out')), timeout)
-    })
-
     try {
-      await Promise.race([view.webContents.loadURL(url), loadPromise, timeoutPromise])
+      await withTimeout(
+        Promise.race([view.webContents.loadURL(url), loadPromise]),
+        timeout,
+        () => new Error('Navigation timed out')
+      )
     } finally {
       cleanup()
     }
@@ -723,34 +718,24 @@ export class CdpBrowserController {
 
     await this.ensureDebuggerAttached(dbg, windowKey)
 
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
     const evalPromise = dbg.sendCommand('Runtime.evaluate', {
       expression: code,
       awaitPromise: true,
       returnByValue: true
     })
 
-    try {
-      const result = await Promise.race([
-        evalPromise,
-        new Promise((_, reject) => {
-          timeoutHandle = setTimeout(() => reject(new Error('Execution timed out')), timeout)
-        })
-      ])
+    const result = await withTimeout(evalPromise, timeout, () => new Error('Execution timed out'))
 
-      const evalResult = result
+    const evalResult = result
 
-      if (evalResult?.exceptionDetails) {
-        const message = evalResult.exceptionDetails.exception?.description || 'Unknown script error'
-        logger.warn('Runtime.evaluate raised exception', { message })
-        throw new Error(message)
-      }
-
-      const value = evalResult?.result?.value ?? evalResult?.result?.description ?? null
-      return value
-    } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
+    if (evalResult?.exceptionDetails) {
+      const message = evalResult.exceptionDetails.exception?.description || 'Unknown script error'
+      logger.warn('Runtime.evaluate raised exception', { message })
+      throw new Error(message)
     }
+
+    const value = evalResult?.result?.value ?? evalResult?.result?.description ?? null
+    return value
   }
 
   public async reset(privateMode?: boolean, tabId?: string) {
@@ -853,42 +838,33 @@ export class CdpBrowserController {
       expression = `${root}.outerHTML`
     }
 
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    try {
-      const result = (await Promise.race([
-        dbg.sendCommand('Runtime.evaluate', {
-          expression,
-          returnByValue: true
-        }),
-        new Promise<never>((_, reject) => {
-          timeoutHandle = setTimeout(() => reject(new Error('Fetch content timed out')), timeout)
+    const result = (await withTimeout(
+      dbg.sendCommand('Runtime.evaluate', { expression, returnByValue: true }),
+      timeout,
+      () => new Error('Fetch content timed out')
+    )) as { result?: { value?: string } }
+
+    const rawContent = result?.result?.value ?? ''
+
+    let content: string | object
+    if (format === 'markdown') {
+      content = (await this.turndownService.get()).turndown(rawContent)
+    } else if (format === 'json') {
+      try {
+        content = JSON.parse(rawContent)
+      } catch (parseError) {
+        logger.warn('JSON parse failed, returning raw content', {
+          url,
+          contentLength: rawContent.length,
+          error: parseError
         })
-      ])) as { result?: { value?: string } }
-
-      const rawContent = result?.result?.value ?? ''
-
-      let content: string | object
-      if (format === 'markdown') {
-        content = (await this.getTurndownService()).turndown(rawContent)
-      } else if (format === 'json') {
-        try {
-          content = JSON.parse(rawContent)
-        } catch (parseError) {
-          logger.warn('JSON parse failed, returning raw content', {
-            url,
-            contentLength: rawContent.length,
-            error: parseError
-          })
-          content = { data: rawContent }
-        }
-      } else {
-        content = rawContent
+        content = { data: rawContent }
       }
-
-      return { tabId, content }
-    } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
+    } else {
+      content = rawContent
     }
+
+    return { tabId, content }
   }
 
   /**

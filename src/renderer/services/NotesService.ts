@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils/file'
+import { delay as sleep } from '@shared/utils/async'
 import type { TreeDirRoot, TreeNode } from '@shared/utils/file'
 
 const logger = loggerService.withContext('NotesService')
@@ -320,7 +321,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
 
     // Yield to the event loop between batches to keep UI responsive
     if (i + BATCH_SIZE < markdownFiles.length) {
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await sleep(0)
     }
   }
 

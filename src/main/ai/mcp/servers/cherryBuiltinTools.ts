@@ -53,7 +53,6 @@ import {
   WEB_SEARCH_DESCRIPTION,
   webLookupModelOutput
 } from '@main/ai/tools/webLookup'
-import { isAbortError } from '@main/utils/error'
 import {
   GENERATE_IMAGE_TOOL_NAME,
   REPORT_ARTIFACTS_DESCRIPTION,
@@ -64,6 +63,7 @@ import {
   webFetchInputSchema,
   webSearchInputSchema
 } from '@shared/ai/builtinTools'
+import { isAbortError } from '@shared/utils/async'
 
 import { type CherryAgentContext, CherryAutonomyTools } from './cherryAutonomyTools'
 import { CherryCliTools } from './cherryCliTools'

@@ -4,6 +4,7 @@ import { request as httpsRequest, type RequestOptions } from 'node:https'
 import type { LookupFunction } from 'node:net'
 
 import { application } from '@application'
+import { timeoutSignal } from '@shared/utils/async'
 
 import { type ResolvedRemoteFetchUrl, resolveRemoteFetchUrl } from './remoteUrlSafety'
 
@@ -89,12 +90,6 @@ function parseContentLength(headers: IncomingHttpHeaders): number | undefined {
 
   const parsed = Number(contentLength)
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
-}
-
-function buildSignal(options: FetchRemoteTextOptions): AbortSignal {
-  const timeoutSignal = AbortSignal.timeout(options.timeoutMs ?? DEFAULT_REMOTE_FETCH_TIMEOUT_MS)
-
-  return options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal
 }
 
 async function fetchRemoteTextFromUrl(
@@ -225,7 +220,7 @@ export async function fetchRemoteText(url: string, options: FetchRemoteTextOptio
     throw new Error('maxRedirects must be a non-negative safe integer')
   }
 
-  const signal = buildSignal(options)
+  const signal = timeoutSignal(options.timeoutMs ?? DEFAULT_REMOTE_FETCH_TIMEOUT_MS, options.signal)
   const requestOptions: ResolvedFetchRemoteTextOptions = { ...options, headers: new Headers(options.headers) }
   return fetchRemoteTextFromUrl(url, requestOptions, signal, maxRedirects)
 }

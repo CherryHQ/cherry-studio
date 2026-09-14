@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import i18n, { getLanguageCode } from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { createTimeout } from '@shared/utils/async'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 const logger = loggerService.withContext('oauth')
@@ -218,7 +219,7 @@ export const oauthWithCherryIn = async (
   )
 
   return new Promise<string>((resolve, reject) => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let deadline: ReturnType<typeof createTimeout> | undefined
 
     const removeListener = ipcApi.on('oauth.deep_link_result', async (result) => {
       // Defensive: another concurrent CherryIN flow on the same window would
@@ -251,20 +252,15 @@ export const oauthWithCherryIn = async (
 
     function cleanup(): void {
       removeListener()
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-        timeoutId = null
-      }
+      deadline?.dispose()
+      deadline = undefined
     }
 
-    timeoutId = setTimeout(
-      () => {
-        logger.warn('Flow timed out')
-        cleanup()
-        reject(new Error('OAuth flow timed out'))
-      },
-      10 * 60 * 1000
-    )
+    deadline = createTimeout(10 * 60 * 1000, () => {
+      logger.warn('Flow timed out')
+      cleanup()
+      reject(new Error('OAuth flow timed out'))
+    })
   })
 }
 

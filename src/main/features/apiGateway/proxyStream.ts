@@ -15,7 +15,6 @@
  * `text/event-stream` `ReadableStream`; non-streaming requests return a JSON
  * `Response`. The Elysia route handlers return this `Response` directly.
  */
-
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -27,6 +26,7 @@ import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
 import type { Provider } from '@shared/data/types/provider'
+import { onAbort as subscribeToAbort } from '@shared/utils/async'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
@@ -257,18 +257,15 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     // chunk. Adapters can emit protocol scaffolding for AI SDK `start` chunks.
     const encoder = new TextEncoder()
     let startupState: StartupState = 'pending'
-    let resolveStartup!: () => void
-    let rejectStartup!: (error: unknown) => void
-    const startup = new Promise<void>((resolve, reject) => {
-      resolveStartup = resolve
-      rejectStartup = reject
-    })
+
+    const { promise: startup, resolve: resolveStartup, reject: rejectStartup } = Promise.withResolvers<void>()
     const bufferedFrames: Uint8Array[] = []
     let abortStream: (() => void) | undefined
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         let closed = false
+        let disposeAbort = () => {}
 
         const commit = () => {
           if (startupState !== 'pending') return
@@ -292,7 +289,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         const safeClose = () => {
           if (closed) return
           closed = true
-          signal?.removeEventListener('abort', onAbort)
+          disposeAbort()
           try {
             controller.close()
           } catch {
@@ -319,10 +316,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         }
         abortStream = onAbort
 
-        if (signal) {
-          if (signal.aborted) onAbort()
-          else signal.addEventListener('abort', onAbort, { once: true })
-        }
+        disposeAbort = subscribeToAbort(signal, onAbort)
 
         const sseListener = new SseListener(write, complete, () => !closed, {
           id: `gateway:${streamId}`,
@@ -416,12 +410,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   // Non-streaming: drive the adapter to accumulate state; respond with JSON at the end.
   // Terminal barrier: resolved on done/paused, rejected on error.
-  let resolveDone!: () => void
-  let rejectDone!: (error: unknown) => void
-  const done = new Promise<void>((resolve, reject) => {
-    resolveDone = resolve
-    rejectDone = reject
-  })
+
+  const { promise: done, resolve: resolveDone, reject: rejectDone } = Promise.withResolvers<void>()
 
   let aborted = false
   const onAbort = () => {
@@ -429,10 +419,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     aiStreamManager.abort(streamId, 'gateway client disconnected')
     resolveDone()
   }
-  if (signal) {
-    if (signal.aborted) onAbort()
-    else signal.addEventListener('abort', onAbort, { once: true })
-  }
+  const disposeAbort = subscribeToAbort(signal, onAbort)
 
   const listener: StreamListener = {
     id: `gateway:${streamId}`,
@@ -461,17 +448,19 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   }
 
   try {
-    aiStreamManager.streamPrompt({
-      streamId,
-      uniqueModelId,
-      messages,
-      listener,
-      callOverrides,
-      contextOwner: 'caller',
-      ...(usageContext ? { usageContext } : {}),
-      ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
-      idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
-    })
+    if (!aborted) {
+      aiStreamManager.streamPrompt({
+        streamId,
+        uniqueModelId,
+        messages,
+        listener,
+        callOverrides,
+        contextOwner: 'caller',
+        ...(usageContext ? { usageContext } : {}),
+        ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
+        idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
+      })
+    }
 
     await done
 
@@ -489,6 +478,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     onError?.(error)
     throw error
   } finally {
-    signal?.removeEventListener('abort', onAbort)
+    disposeAbort()
   }
 }

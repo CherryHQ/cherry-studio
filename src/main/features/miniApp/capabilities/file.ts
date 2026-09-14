@@ -7,7 +7,6 @@
  * defended against. `getUrl` / `getPhysicalPath` deliberately never cross the
  * bridge — a mini app's world has logical names and no concept of a path.
  */
-
 import fs from 'node:fs'
 
 import { and, eq, sql } from 'drizzle-orm'
@@ -21,6 +20,7 @@ import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import type { QuotaUsage, QuotaUsageWithLimits } from '@shared/types/miniAppQuota'
+import { SequencerByKey } from '@shared/utils/async'
 
 import { InvalidArgumentError } from '../errors'
 import { PermissionDeniedError } from '../grants'
@@ -68,14 +68,9 @@ const exportLimiter = new ConcurrentRateLimiter('file.export', 10, 1)
  * past the quota together. A promise chain per app is enough: writes to one app's
  * sandbox are inherently low-frequency (and rate-limited above).
  */
-const saveChains = new Map<string, Promise<unknown>>()
+const saves = new SequencerByKey<string>()
 function serializePerApp<T>(appId: string, fn: () => Promise<T>): Promise<T> {
-  const next = (saveChains.get(appId) ?? Promise.resolve()).then(fn, fn)
-  saveChains.set(
-    appId,
-    next.catch(() => undefined)
-  )
-  return next
+  return saves.queue(appId, fn)
 }
 
 function readUsage(appId: string): QuotaUsage {

@@ -2,7 +2,6 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { TraceMethod } from '@main/ai/observability'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isAbortError } from '@main/utils/error'
 import { resolveRemoteFetchUrl } from '@main/utils/remoteUrlSafety'
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type {
@@ -11,6 +10,7 @@ import type {
   WebSearchResponse,
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
+import { isAbortError } from '@shared/utils/async'
 import { getWebSearchFallbackProviderIds, getWebSearchProviderReadiness } from '@shared/utils/webSearch'
 
 import { postProcessWebSearchResponse } from './postProcessing'

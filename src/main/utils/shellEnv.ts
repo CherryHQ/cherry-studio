@@ -3,6 +3,7 @@ import { spawn } from 'child_process'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
+import { createTimeout } from '@shared/utils/async'
 
 import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
 import { getBundledGitDir } from './bundledGit'
@@ -180,11 +181,11 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
     logger.debug(`Spawning shell: ${shellPath} with args: ${commandArgs.join(' ')} in ${homeDirectory}`)
 
     let settled = false
-    let timeoutId: NodeJS.Timeout | undefined
+    let timeoutId: ReturnType<typeof createTimeout<void>> | undefined
 
     const cleanup = () => {
       if (timeoutId) {
-        clearTimeout(timeoutId)
+        timeoutId.dispose()
         timeoutId = undefined
       }
     }
@@ -218,14 +219,14 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
     let errorOutput = ''
 
     // Protects against shells that wait for user input or hang during profile sourcing.
-    timeoutId = setTimeout(() => {
+    timeoutId = createTimeout(SHELL_ENV_TIMEOUT_MS, () => {
       const errorMessage = `Timed out after ${SHELL_ENV_TIMEOUT_MS}ms while retrieving shell environment. Shell: ${shellPath}. Args: ${commandArgs.join(
         ' '
       )}. CWD: ${homeDirectory}`
       logger.error(errorMessage)
       child.kill()
       rejectOnce(new Error(errorMessage))
-    }, SHELL_ENV_TIMEOUT_MS)
+    })
 
     child.stdout.on('data', (data) => {
       output += data.toString()

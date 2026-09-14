@@ -1,3 +1,5 @@
+import { createDeferred, type Deferred, onAbort, raceCancellation, Sequencer, withTimeout } from '@shared/utils/async'
+
 /**
  * Per-definition engine: one live generation at a time, request correlation, cancellation,
  * the stop / withStopped barriers, idle TTL, and the circuit breaker.
@@ -5,7 +7,6 @@
  * Constructed with injected deps only — no `@application` / `@logger` — so unit tests drive it
  * with an in-memory adapter and the smoke harness with the real Electron adapter.
  */
-
 import {
   PROTOCOL,
   PROTOCOL_VERSION,
@@ -56,34 +57,6 @@ export interface ChildProcessGoneDetails {
   serviceName?: string
 }
 
-interface Deferred<T> {
-  promise: Promise<T>
-  resolve: (value: T) => void
-  reject: (reason: unknown) => void
-}
-
-function createDeferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void
-  let reject!: (reason: unknown) => void
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  // Waiters attach their own handlers; an unobserved rejection must not crash main.
-  promise.catch(() => {})
-  return { promise, resolve, reject }
-}
-
-function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (signal === undefined) return promise
-  if (signal.aborted) return Promise.reject(signal.reason)
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = (): void => reject(signal.reason)
-    signal.addEventListener('abort', onAbort, { once: true })
-    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort))
-  })
-}
-
 const describe = (error: unknown): string => toRemoteError(error).message
 
 type Outcome = { value: unknown } | { error: unknown }
@@ -92,8 +65,7 @@ interface Pending {
   resolve: (value: unknown) => void
   reject: (error: unknown) => void
   onEvent?: (event: unknown) => void
-  signal?: AbortSignal
-  onAbort?: () => void
+  offAbort?: () => void
   /** Terminal frames for this request are dropped; it settles at exit (stop, terminate-cancel). */
   dropTerminals: boolean
   /** Settles with this reason instead of the generation's exit error (terminate-cancel). */
@@ -138,7 +110,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
   private failureCount = 0
   private idleTimer: NodeJS.Timeout | null = null
   private stopPromise: Promise<void> | null = null
-  private maintenanceChain: Promise<unknown> = Promise.resolve()
+  private readonly maintenance = new Sequencer()
   /** > 0 while a withStopped() is enqueued or running: requests fail fast with PROCESS_BLOCKED. */
   private blockedDepth = 0
   private disposed = false
@@ -173,10 +145,10 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       this.clearIdleTimer()
       const generation = this.live ?? this.spawnGeneration()
       if (generation.phase === 'stopping') {
-        await abortable(generation.exit.promise, signal)
+        await raceCancellation(generation.exit.promise, signal)
         continue
       }
-      if (generation.phase === 'starting') await abortable(generation.ready.promise, signal)
+      if (generation.phase === 'starting') await raceCancellation(generation.ready.promise, signal)
       if (generation.settled) throw generation.settleError
       if (generation.phase !== 'ready') continue
       return this.dispatch(generation, method, input, signal, onEvent)
@@ -214,12 +186,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
         this.cleanupIfQuiescent()
       }
     }
-    const next = this.maintenanceChain.then(run, run)
-    this.maintenanceChain = next.then(
-      () => undefined,
-      () => undefined
-    )
-    return next
+    return this.maintenance.queue(run)
   }
 
   /** Terminal: stops the live generation and blocks every later request. */
@@ -539,7 +506,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       this.clearIdleTimer()
       const requestId = generation.nextRequestId
       generation.nextRequestId += 1
-      const pending: Pending = { resolve, reject, onEvent, signal, dropTerminals: false, settleWith: null }
+      const pending: Pending = { resolve, reject, onEvent, dropTerminals: false, settleWith: null }
       generation.pending.set(requestId, pending)
       try {
         generation.handle.send({ ...this.identity(generation), kind: 'request', requestId, method, input })
@@ -554,10 +521,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
         this.maybeArmIdle(generation)
         return
       }
-      if (signal !== undefined) {
-        pending.onAbort = () => this.cancelRequest(generation, requestId, signal.reason)
-        signal.addEventListener('abort', pending.onAbort, { once: true })
-      }
+      pending.offAbort = onAbort(signal, (reason) => this.cancelRequest(generation, requestId, reason))
     })
   }
 
@@ -590,9 +554,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     const pending = generation.pending.get(requestId)
     if (pending === undefined) return
     generation.pending.delete(requestId)
-    if (pending.signal !== undefined && pending.onAbort !== undefined) {
-      pending.signal.removeEventListener('abort', pending.onAbort)
-    }
+    pending.offAbort?.()
     if ('error' in outcome) pending.reject(outcome.error)
     else pending.resolve(outcome.value)
     this.maybeArmIdle(generation)
@@ -619,17 +581,14 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       this.clearTimer(generation, 'readyTimer')
       if (!generation.exited) generation.handle.kill()
     }
-    const timeout = createDeferred<never>()
-    const stopTimer = setTimeout(() => timeout.reject(new Error('stop timeout')), STOP_TOTAL_MS)
     try {
-      await Promise.race([generation.exit.promise, timeout.promise])
+      await withTimeout(generation.exit.promise, STOP_TOTAL_MS, () => new Error('stop timeout'))
     } catch {
       if (generation.exited) return
       const message = `generation ${generation.id} did not exit within ${STOP_TOTAL_MS} ms after stop; quarantined until it exits`
       this.settleGeneration(generation, { code: 'PROCESS_STOP_FAILED', message, countFailure: false })
       throw this.error('PROCESS_STOP_FAILED', message, { generation: generation.id })
     } finally {
-      clearTimeout(stopTimer)
       this.clearTimer(generation, 'killTimer')
     }
   }

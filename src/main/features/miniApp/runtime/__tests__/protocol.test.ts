@@ -35,6 +35,41 @@ afterEach(() => {
 const get = (url: string) => handler(new Request(url))
 
 describe('mini app protocol handler', () => {
+  it('keeps eight bodies active and admits only 64 additional reads until they finish', async () => {
+    const appId = 'com.example.capacity'
+    fs.writeFileSync(path.join(root, 'big.bin'), Buffer.alloc(4 * 1024 * 1024))
+    const serve = createMiniAppProtocolHandler(appId, () => root, path.join(work, 'assets'))
+    const read = () => serve(new Request(`cherry-miniapp://${appId}/big.bin`))
+    const held: Response[] = []
+    for (let i = 0; i < 8; i++) held.push(await read())
+
+    const overflow = Promise.withResolvers<unknown>()
+    const queued = Array.from({ length: 65 }, () =>
+      read().catch((error: unknown) => {
+        overflow.resolve(error)
+        return undefined
+      })
+    )
+    try {
+      expect(await overflow.promise).toEqual(new Error('Too many concurrent mini app reads'))
+    } finally {
+      await Promise.all(held.map((response) => response.body!.cancel()))
+    }
+
+    const admitted = await Promise.all(
+      queued.map(async (request) => {
+        const response = await request
+        if (!response) return false
+        await response.body!.cancel()
+        return true
+      })
+    )
+    expect(admitted.filter(Boolean)).toHaveLength(64)
+    const next = await read()
+    expect(next.status).toBe(200)
+    await next.body!.cancel()
+  })
+
   it('releases the read slot when the guest cancels mid-stream', async () => {
     // The bug this guards: releasing only in `flush`. A cancelled fetch never calls it
     // (measured on Node 24), so eight requests wedge the guest's own protocol.

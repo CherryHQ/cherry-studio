@@ -1,132 +1,92 @@
-/**
- * Generic throttled flush controller.
- *
- * A pure scheduling primitive that manages timer-based throttling,
- * mutex-guarded flushing, and reflush-on-conflict. Contains no
- * business logic — the actual flush work is provided via a callback.
- *
- * Inspired by openclaw-lark's FlushController.
- */
+import { loggerService } from '@logger'
+import { createTimeout, SingleFlight } from '@shared/utils/async'
 
-/** Default minimum interval between flushes (ms). */
-const DEFAULT_THROTTLE_MS = 200
+const logger = loggerService.withContext('FlushController')
 
-/**
- * After a long gap (e.g. first update or pause in streaming), batch briefly
- * so the first visible update contains meaningful text rather than 1-2 chars.
- */
-const LONG_GAP_THRESHOLD_MS = 2000
-const BATCH_AFTER_GAP_MS = 300
-
+/** Channel update timing, including batching after a quiet period and final-flush coordination. */
 export class FlushController {
-  private flushInProgress = false
-  private flushResolvers: Array<() => void> = []
+  private readonly active = new SingleFlight<void>()
   private needsReflush = false
-  private pendingFlushTimer: ReturnType<typeof setTimeout> | null = null
+  private pendingFlushTimer: ReturnType<typeof createTimeout<void>> | undefined
   private lastUpdateTime = 0
-  private _completed = false
+  private completed = false
 
   constructor(private readonly doFlush: () => Promise<void>) {}
 
-  /** Mark the controller as completed — no more flushes after current one. */
+  /** Stop future updates and release their timer; an active flush can still be awaited. */
   complete(): void {
-    this._completed = true
+    this.completed = true
+    this.needsReflush = false
+    this.cancelPendingFlush()
   }
 
   get isCompleted(): boolean {
-    return this._completed
+    return this.completed
   }
 
-  /** Cancel any pending deferred flush timer. */
   cancelPendingFlush(): void {
-    if (this.pendingFlushTimer) {
-      clearTimeout(this.pendingFlushTimer)
-      this.pendingFlushTimer = null
-    }
+    this.pendingFlushTimer?.dispose()
+    this.pendingFlushTimer = undefined
   }
 
-  /** Wait for any in-progress flush to finish. */
-  waitForFlush(): Promise<void> {
-    if (!this.flushInProgress) return Promise.resolve()
-    return new Promise<void>((resolve) => this.flushResolvers.push(resolve))
+  /** Join only the current callback, absorbing failure so the owner can publish its final message. */
+  async waitForFlush(): Promise<void> {
+    await this.active.promise?.catch(() => {})
   }
 
-  /**
-   * Execute a flush (mutex-guarded, with reflush on conflict).
-   *
-   * If a flush is already in progress, marks needsReflush so a
-   * follow-up flush fires immediately after the current one completes.
-   */
+  /** A busy call returns immediately and requests a rerun, rather than joining the active flush. */
   async flush(): Promise<void> {
-    if (this.flushInProgress || this._completed) {
-      if (this.flushInProgress && !this._completed) this.needsReflush = true
+    if (this.completed) return
+    if (this.active.isRunning) {
+      this.needsReflush = true
       return
     }
-    this.flushInProgress = true
     this.needsReflush = false
-    // Update timestamp BEFORE the API call to prevent concurrent callers
-    // from also entering the flush.
     this.lastUpdateTime = Date.now()
     try {
-      await this.doFlush()
-      this.lastUpdateTime = Date.now()
+      await this.active.run(async () => {
+        await this.doFlush()
+        this.lastUpdateTime = Date.now()
+      })
     } finally {
-      this.flushInProgress = false
-      const resolvers = this.flushResolvers
-      this.flushResolvers = []
-      for (const resolve of resolvers) resolve()
-
-      // If events arrived while the API call was in flight,
-      // schedule an immediate follow-up flush.
-      if (this.needsReflush && !this._completed && !this.pendingFlushTimer) {
+      if (this.needsReflush && !this.completed && !this.pendingFlushTimer) {
         this.needsReflush = false
-        this.pendingFlushTimer = setTimeout(() => {
-          this.pendingFlushTimer = null
-          void this.flush()
-        }, 0)
+        this.scheduleFlush(0)
       }
     }
   }
 
-  /**
-   * Throttled update entry point.
-   *
-   * @param throttleMs - Minimum interval between flushes. Defaults to 200ms.
-   */
-  async throttledUpdate(throttleMs = DEFAULT_THROTTLE_MS): Promise<void> {
+  /** Schedule channel edits at the adapter's interval; batch the first burst after a two-second gap. */
+  async throttledUpdate(throttleMs = 200): Promise<void> {
+    if (this.completed) return
     const now = Date.now()
     const elapsed = now - this.lastUpdateTime
 
     if (elapsed >= throttleMs) {
       this.cancelPendingFlush()
-      if (elapsed > LONG_GAP_THRESHOLD_MS) {
-        // After a long gap, batch briefly so the first visible update
-        // contains meaningful text rather than just 1-2 characters.
+      if (elapsed > 2000) {
         this.lastUpdateTime = now
-        this.pendingFlushTimer = setTimeout(() => {
-          this.pendingFlushTimer = null
-          void this.flush()
-        }, BATCH_AFTER_GAP_MS)
+        this.scheduleFlush(300)
       } else {
         await this.flush()
       }
     } else if (!this.pendingFlushTimer) {
-      // Inside throttle window — schedule a deferred flush
-      const delay = throttleMs - elapsed
-      this.pendingFlushTimer = setTimeout(() => {
-        this.pendingFlushTimer = null
-        void this.flush()
-      }, delay)
+      this.scheduleFlush(throttleMs - elapsed)
     }
   }
 
-  /** Reset for reuse (e.g. new streaming session). */
+  private scheduleFlush(delay: number): void {
+    this.pendingFlushTimer = createTimeout(delay, () => {
+      this.pendingFlushTimer = undefined
+      void this.flush().catch((error) => logger.error('Failed to flush channel update', error))
+    })
+  }
+
+  /** Reset pending scheduling for reuse; retain any active callback and its waiters. */
   reset(): void {
     this.cancelPendingFlush()
-    this.flushInProgress = false
     this.needsReflush = false
-    this._completed = false
+    this.completed = false
     this.lastUpdateTime = 0
-    this.flushResolvers = []
   }
 }

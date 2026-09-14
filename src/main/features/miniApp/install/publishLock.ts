@@ -1,3 +1,5 @@
+import { SequencerByKey } from '@shared/utils/async'
+
 /**
  * Serializes every publish action for one appId.
  *
@@ -11,16 +13,8 @@
  * nothing to contend over, and serializing them would make a slow download block
  * an unrelated uninstall.
  */
-const chains = new Map<string, Promise<unknown>>()
+const publishes = new SequencerByKey<string>()
 
 export function withPublishLock<T>(appId: string, fn: () => Promise<T>): Promise<T> {
-  const previous = chains.get(appId) ?? Promise.resolve()
-  // Chain off the SETTLEMENT, not the value: a rejected predecessor must not
-  // cancel its successors, and must not leave the chain permanently poisoned.
-  const next = previous.then(fn, fn)
-  chains.set(
-    appId,
-    next.catch(() => undefined)
-  )
-  return next
+  return publishes.queue(appId, fn)
 }

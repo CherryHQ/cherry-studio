@@ -2,7 +2,6 @@ import './jobTypes'
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
 import {
@@ -11,6 +10,7 @@ import {
   getFileProcessingMarkdownArtifactPath
 } from '@main/features/fileProcessing'
 import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { KeyedMutex } from '@shared/utils/async'
 
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'

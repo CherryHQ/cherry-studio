@@ -5,6 +5,7 @@ import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { createPdfParser } from '@main/utils/pdf'
+import { AsyncInitializer } from '@shared/utils/async'
 
 import type { FileProcessingCapabilityHandler } from '../../types'
 import { ocrPdfPagesToMarkdown } from '../pdfPageOcr'
@@ -35,11 +36,7 @@ type AnydocModule = {
   toMarkdownBytes: typeof toMarkdownBytes
 }
 
-let anydocModulePromise: Promise<AnydocModule> | undefined
-
-function loadAnydocModule(): Promise<AnydocModule> {
-  return (anydocModulePromise ??= import('@firecrawl/anydoc'))
-}
+const anydocModule = new AsyncInitializer<AnydocModule>(() => import('@firecrawl/anydoc'))
 
 /**
  * Fully offline PDF to markdown. anydoc handles PDFs whose every page carries a
@@ -94,7 +91,7 @@ export const localDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'do
 
 /** Markdown from the PDF's text layer, or `null` when it has none and OCR must take over. */
 async function convertWithAnydoc(pdfBytes: Uint8Array): Promise<string | null> {
-  const anydoc = await loadAnydocModule()
+  const anydoc = await anydocModule.get()
 
   try {
     return (await anydoc.toMarkdownBytes(pdfBytes, anydoc.formatFromExtension('pdf') ?? undefined)).trim()

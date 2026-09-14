@@ -1,4 +1,4 @@
-import { Mutex } from 'async-mutex'
+import { Mutex } from '@shared/utils/async'
 
 /**
  * Thin per-queue state holder. The dispatch loop itself lives on JobManager —
