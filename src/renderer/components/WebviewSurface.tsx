@@ -26,6 +26,7 @@ export function WebviewSurface({ anchor, children }: Props) {
     let frame: number | undefined
     const update = () => {
       frame = undefined
+      observeAncestors()
       const rect = anchor.getBoundingClientRect()
       const visible = anchor.isConnected && rect.width > 0 && rect.height > 0
       surface.style.opacity = visible ? '1' : '0'
@@ -44,10 +45,30 @@ export function WebviewSurface({ anchor, children }: Props) {
     }
     const resize = new ResizeObserver(schedule)
     const mutation = new MutationObserver(schedule)
-    for (let node: HTMLElement | null = anchor; node; node = node.parentElement) {
-      resize.observe(node)
-      mutation.observe(node, { attributes: true, attributeFilter: ['style', 'class', 'hidden'] })
+    let ancestors: HTMLElement[] = []
+    const observeAncestors = () => {
+      const next: HTMLElement[] = []
+      for (let node: HTMLElement | null = anchor; node; node = node.parentElement) next.push(node)
+      if (next.length === ancestors.length && next.every((node, index) => node === ancestors[index])) return
+      ancestors = next
+      resize.disconnect()
+      mutation.disconnect()
+      for (const node of ancestors) {
+        resize.observe(node)
+        mutation.observe(node, { attributes: true, attributeFilter: ['style', 'class', 'hidden'] })
+      }
     }
+    const topology = new MutationObserver((records) => {
+      if (
+        records.some(
+          (record) =>
+            ancestors.some((node) => node === record.target) ||
+            [...record.addedNodes, ...record.removedNodes].some((node) => node.contains(anchor))
+        )
+      )
+        schedule()
+    })
+    topology.observe(document.documentElement, { childList: true, subtree: true })
     window.addEventListener('resize', schedule)
     window.addEventListener('scroll', schedule, true)
     update()
@@ -55,6 +76,7 @@ export function WebviewSurface({ anchor, children }: Props) {
       if (frame !== undefined) cancelAnimationFrame(frame)
       resize.disconnect()
       mutation.disconnect()
+      topology.disconnect()
       window.removeEventListener('resize', schedule)
       window.removeEventListener('scroll', schedule, true)
       surface.style.opacity = '0'

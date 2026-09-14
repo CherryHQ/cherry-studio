@@ -135,6 +135,7 @@ import {
   clearAllWebviewStates,
   clearWebviewState,
   getWebviewElement,
+  getWebviewLoaded,
   setWebviewLoaded
 } from '@renderer/services/MiniAppWebviewService'
 
@@ -728,6 +729,28 @@ describe('MiniAppTabsPool', () => {
       // The `useMiniApps` stand-in is not reactive: rerender to see the pool react.
       rerender(<MiniAppTabsPool />)
       expect(renderedAppIds(container)).toEqual(['bravo'])
+    })
+
+    it('releases the owned guest without depending on when the cache updater runs', () => {
+      mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+      mocks.tabs = [
+        { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+        { id: 'bravo-tab', url: '/app/mini-app/bravo' }
+      ]
+      render(<MiniAppTabsPool />)
+      setWebviewLoaded('alpha', true)
+      setWebviewLoaded('bravo', true)
+      const bravo = getWebviewElement('bravo')
+      const updates: Array<(current: MiniApp[]) => MiniApp[]> = []
+      mocks.setOpenedKeepAliveMiniApps.mockImplementation((update) => updates.push(update))
+
+      emitIpc('mini_app.runtime.evicted', { appId: 'alpha' })
+
+      expect(getWebviewElement('alpha')).toBeNull()
+      expect(getWebviewLoaded('alpha')).toBe(false)
+      expect(getWebviewElement('bravo')).toBe(bravo)
+      expect(getWebviewLoaded('bravo')).toBe(true)
+      expect(updates[0](mocks.openedKeepAliveMiniApps).map((app) => app.appId)).toEqual(['bravo'])
     })
 
     it('ignores an eviction for an app it is not showing', () => {
