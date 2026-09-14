@@ -18,22 +18,6 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   IndicatorLight: () => <span />,
-  Switch: ({
-    checked,
-    onCheckedChange,
-    ...props
-  }: Omit<ComponentProps<'input'>, 'checked' | 'onChange'> & {
-    checked: boolean
-    onCheckedChange: (checked: boolean) => void
-  }) => (
-    <input
-      type="checkbox"
-      role="switch"
-      checked={checked}
-      onChange={(event) => onCheckedChange(event.target.checked)}
-      {...props}
-    />
-  ),
   Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
@@ -81,7 +65,7 @@ describe('DeviceConnectionsSettings', () => {
     })
   })
 
-  it('shows the plain-HTTP risk notice before LAN access is enabled', () => {
+  it('offers a single start control and the risk notice before LAN access is enabled', () => {
     useApiGatewayMock.mockReturnValue({
       ...useApiGatewayMock(),
       apiGatewayConfig: { enabled: true, host: '127.0.0.1', port: 23333, apiKey: 'cs-sk-test' }
@@ -90,9 +74,11 @@ describe('DeviceConnectionsSettings', () => {
     render(<DeviceConnectionsSettings />)
 
     expect(screen.getByRole('note')).toHaveTextContent('deviceConnections.toggle.risk')
+    expect(screen.getByRole('button', { name: 'deviceConnections.service.start' })).toBeEnabled()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
   })
 
-  it('blocks LAN config changes while a gateway command is in flight', () => {
+  it('blocks starting a connection while a gateway command is in flight', () => {
     useApiGatewayMock.mockReturnValue({
       ...useApiGatewayMock(),
       apiGatewayLoading: true
@@ -100,7 +86,7 @@ describe('DeviceConnectionsSettings', () => {
 
     render(<DeviceConnectionsSettings />)
 
-    expect(screen.getByRole('switch', { name: 'deviceConnections.toggle.label' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'deviceConnections.service.start' })).toBeDisabled()
   })
 
   it('renders the QR from the Main-owned active endpoint offer', async () => {

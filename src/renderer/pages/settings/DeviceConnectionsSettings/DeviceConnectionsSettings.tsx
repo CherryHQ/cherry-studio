@@ -5,7 +5,7 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, IndicatorLight, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, IndicatorLight, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import {
   SettingGroup,
@@ -21,7 +21,6 @@ import { cn } from '@renderer/utils/style'
 import type { OutputFor } from '@shared/ipc/types'
 
 const LAN_HOST = '0.0.0.0'
-const LOOPBACK_HOST = '127.0.0.1'
 
 const DeviceConnectionsSettings: FC = () => {
   const { theme } = useTheme()
@@ -43,7 +42,7 @@ const DeviceConnectionsSettings: FC = () => {
   const connectionReady = lanEnabled && apiGatewayRunning
   const [pairingOffer, setPairingOffer] = useState<OutputFor<'api_gateway.create_pairing_offer'>>()
   const [isCreatingOffer, setIsCreatingOffer] = useState(false)
-  const [isUpdatingLan, setIsUpdatingLan] = useState(false)
+  const [isStartingConnection, setIsStartingConnection] = useState(false)
   const [revokingId, setRevokingId] = useState<string>()
 
   useDataChange('/api-gateway/paired-devices', () => void refetchDevices())
@@ -88,20 +87,18 @@ const DeviceConnectionsSettings: FC = () => {
     [deleteDevice, isRevoking, t]
   )
 
-  const setLanEnabled = useCallback(
-    async (enabled: boolean) => {
-      if (apiGatewayRunning || apiGatewayLoading || isUpdatingLan) return
-      setIsUpdatingLan(true)
-      try {
-        await setApiGatewayConfig({ host: enabled ? LAN_HOST : LOOPBACK_HOST })
-      } catch {
-        toast.error(t('common.save_failed'))
-      } finally {
-        setIsUpdatingLan(false)
-      }
-    },
-    [apiGatewayLoading, apiGatewayRunning, isUpdatingLan, setApiGatewayConfig, t]
-  )
+  const startConnection = async () => {
+    if (apiGatewayRunning || apiGatewayLoading || isStartingConnection) return
+    setIsStartingConnection(true)
+    try {
+      if (!lanEnabled) await setApiGatewayConfig({ host: LAN_HOST })
+      await startApiGateway()
+    } catch {
+      toast.error(t('common.save_failed'))
+    } finally {
+      setIsStartingConnection(false)
+    }
+  }
 
   const qrPayload = pairingOffer
     ? JSON.stringify({
@@ -156,44 +153,20 @@ const DeviceConnectionsSettings: FC = () => {
           </div>
         </div>
         {apiGatewayRunning ? (
-          <Button variant="outline" loading={apiGatewayLoading} onClick={() => void stopApiGateway()}>
+          <Button
+            variant="outline"
+            loading={apiGatewayLoading || isStartingConnection}
+            onClick={() => void stopApiGateway()}>
             {t('apiGateway.actions.stop')}
           </Button>
-        ) : lanEnabled ? (
-          <Button loading={apiGatewayLoading} onClick={() => void startApiGateway()}>
+        ) : (
+          <Button loading={apiGatewayLoading || isStartingConnection} onClick={() => void startConnection()}>
             {t('deviceConnections.service.start')}
           </Button>
-        ) : null}
+        )}
       </StatusCard>
 
       <Sections>
-        <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
-          <SectionFields>
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <SettingRowTitle>{t('deviceConnections.toggle.label')}</SettingRowTitle>
-                <div className="mt-1 text-foreground-tertiary text-xs leading-5">
-                  {t('deviceConnections.toggle.description')}
-                </div>
-              </div>
-              <Tooltip content={apiGatewayRunning ? t('deviceConnections.toggle.stopFirst') : undefined}>
-                <Switch
-                  aria-label={t('deviceConnections.toggle.label')}
-                  checked={lanEnabled}
-                  disabled={apiGatewayRunning || apiGatewayLoading || isUpdatingLan}
-                  onCheckedChange={(checked: boolean) => void setLanEnabled(checked)}
-                />
-              </Tooltip>
-            </div>
-            <div
-              role="note"
-              className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs leading-5">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-              <span>{t('deviceConnections.toggle.risk')}</span>
-            </div>
-          </SectionFields>
-        </SettingGroup>
-
         <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
           <SectionFields>
             <div>
@@ -203,9 +176,14 @@ const DeviceConnectionsSettings: FC = () => {
               </div>
             </div>
 
-            {!lanEnabled ? (
-              <div className="text-foreground-tertiary text-xs">{t('deviceConnections.pairing.requiresLan')}</div>
-            ) : !apiGatewayRunning ? (
+            <div
+              role="note"
+              className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs leading-5">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <span>{t('deviceConnections.toggle.risk')}</span>
+            </div>
+
+            {!connectionReady ? (
               <div className="text-foreground-tertiary text-xs">{t('deviceConnections.pairing.requiresRunning')}</div>
             ) : pairingOffer && qrPayload ? (
               <div className="flex flex-col items-start gap-2">
