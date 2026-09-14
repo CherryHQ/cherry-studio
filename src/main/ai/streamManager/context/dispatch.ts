@@ -165,9 +165,17 @@ export async function dispatchStreamRequest(
     )
   }
 
-  // Async preparation may outlive the stream it planned to append to. Re-check
-  // liveness once at the synchronous handoff and degrade to a fresh turn when
-  // the original stream has settled.
+  // Preparation may yield while the previous turn enters terminal dispatch. Re-check at the
+  // synchronous handoff so send() cannot evict that stream before its terminal lifecycle settles.
+  for (;;) {
+    const terminalDispatch = manager.whenTerminalDispatchSettled(req.topicId)
+    if (!terminalDispatch) break
+    await terminalDispatch
+  }
+
+  // Async preparation and terminal dispatch can both outlive the stream an append targeted.
+  // Decide append vs fresh turn only after the terminal gate settles, otherwise the new branch
+  // can preserve the old active node even though send() starts it outside the finished group.
   const preparedChange = prepared.liveExecutionChange
   const canAppendToLiveStream = preparedChange?.mode === 'append' && manager.hasLiveStream(prepared.topicId)
   let preserveActiveNode = prepared.preserveActiveNode
@@ -190,14 +198,6 @@ export async function dispatchStreamRequest(
             siblingsGroupId: preparedChange.siblingsGroupId
           }
         : undefined
-
-  // Preparation may yield while the previous turn enters terminal dispatch. Re-check at the
-  // synchronous handoff so send() cannot evict that stream before its terminal lifecycle settles.
-  for (;;) {
-    const terminalDispatch = manager.whenTerminalDispatchSettled(req.topicId)
-    if (!terminalDispatch) break
-    await terminalDispatch
-  }
 
   const result = manager.send({
     topicId: prepared.topicId,

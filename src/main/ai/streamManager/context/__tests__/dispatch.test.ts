@@ -247,6 +247,53 @@ describe('dispatchStreamRequest — steer', () => {
     expect(manager.send).toHaveBeenCalledTimes(1)
   })
 
+  it('rechecks live-group append admission after terminal dispatch settles', async () => {
+    let terminalReleased = false
+    let releaseTerminal!: () => void
+    let terminalDispatch: Promise<void> | undefined = new Promise<void>((resolve) => {
+      releaseTerminal = () => {
+        terminalReleased = true
+        terminalDispatch = undefined
+        resolve()
+      }
+    })
+    mocks.persistentPrepare.mockResolvedValue({
+      topicId: 'topic-terminal-append',
+      models: [{ modelId: 'p::m2', request: { messageId: 'assistant-2' } }],
+      listeners: [] as StreamListener[],
+      reservedMessages: [{ id: 'assistant-2', role: 'assistant', parts: [] }],
+      liveExecutionChange: {
+        mode: 'append',
+        groupAnchorMessageId: 'assistant-1',
+        parentAnchorId: 'user-1',
+        siblingsGroupId: 1,
+        activateFallback: true
+      },
+      preserveActiveNode: true
+    })
+    const manager = makeManager(true)
+    vi.mocked(manager.hasLiveStream).mockImplementation(() => !terminalReleased)
+    vi.mocked(manager.whenTerminalDispatchSettled).mockImplementation(() => terminalDispatch)
+
+    const dispatch = dispatchStreamRequest(manager, makeSubscriber(), {
+      topicId: 'topic-terminal-append',
+      trigger: 'regenerate-message',
+      parentAnchorId: 'user-1',
+      appendToLiveGroupMessageId: 'assistant-1',
+      mentionedModelIds: ['p::m2']
+    })
+
+    await vi.waitFor(() => expect(manager.whenTerminalDispatchSettled).toHaveBeenCalledWith('topic-terminal-append'))
+    expect(manager.send).not.toHaveBeenCalled()
+
+    releaseTerminal()
+    const result = await dispatch
+
+    expect(mocks.setActiveNode).toHaveBeenCalledWith('topic-terminal-append', 'assistant-2')
+    expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ liveExecutionChange: undefined }))
+    expect(result).toMatchObject({ preserveActiveNode: false })
+  })
+
   it('validates multi-model placeholders before sending', async () => {
     mocks.persistentPrepare.mockResolvedValue({
       topicId: 'topic-3',
