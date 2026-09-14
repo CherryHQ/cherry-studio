@@ -1,6 +1,10 @@
+import { arrayMove } from '@dnd-kit/sortable'
+import type { Ref } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
-import { arrayMove } from '@dnd-kit/sortable'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useTabs } from '@renderer/hooks/tab'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
@@ -15,14 +19,9 @@ import {
   getSidebarApp,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
-  isMessageOnlyConversationUrl,
-  REQUIRED_SIDEBAR_FAVORITES,
   resolveSidebarActiveItem,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
-import type { Ref } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import {
@@ -38,13 +37,19 @@ import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
-const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 
-export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
+export default function Sidebar({
+  ref,
+  isFullscreen = false
+}: {
+  ref?: Ref<HTMLDivElement | null>
+  isFullscreen?: boolean
+}) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const {
     favorites,
+    appFavorites,
     miniAppFavoriteIds,
     agentFavoriteIds,
     assistantFavoriteIds,
@@ -110,15 +115,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [avatar, t, userName]
   )
   const sidebarLogo = useMemo(
-    () => (
-      <button
-        type="button"
-        aria-label={sidebarUser.name}
-        onClick={sidebarUser.onClick}
-        className="flex h-full w-full items-center justify-center rounded-full [-webkit-app-region:no-drag]">
-        <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />
-      </button>
-    ),
+    () => <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />,
     [sidebarUser]
   )
 
@@ -142,7 +139,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleRemoveSidebarFavorite = useCallback(
     (favorite: SidebarAppId) => {
-      if (REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
       setAppPinned(favorite, false)
     },
     [setAppPinned]
@@ -161,6 +157,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
       if (activeTab?.isPinned) {
         openTab(path, { forceNew: true, title, icon: options?.icon })
+        return
+      }
+
+      // Keep a Mini App's owning tab intact when leaving it so the global
+      // WebView pool can preserve the guest instead of treating it as closed.
+      if (miniAppIdFromTabUrl(activeTab?.url)) {
+        openTab(path, { title, icon: options?.icon })
         return
       }
 
@@ -189,13 +192,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (!options?.inNewTab) {
         // Conversation apps: any owned tab is already "there" — its URL carries its own
         // conversation, and re-entering through the route interceptor would just rebind
-        // it. Message-only viewers are not an app entry, so they navigate like any
-        // foreign tab. Apps without sub-instances keep exact-URL matching.
+        // it. Apps without sub-instances keep exact-URL matching.
         const isActiveTarget =
-          !!activeTab &&
-          (app.conversationRoute
-            ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
-            : activeTab.url === path)
+          !!activeTab && (app.conversationRoute ? tabBelongsToApp(app, activeTab.url) : activeTab.url === path)
         if (isActiveTarget) return
       }
 
@@ -220,6 +219,14 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (!app) return
 
       const path = `${MINI_APP_ROUTE_PREFIX}${app.appId}`
+      const title = app.nameKey ? t(app.nameKey) : app.name
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      const icon = app.logoSrc ?? app.logo
+      if (options?.inNewTab) {
+        navigateRouteTab(path, title, { ...options, icon })
+        return
+      }
+
       if (activeTab?.url === path) return
 
       const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === path)
@@ -228,9 +235,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return
       }
 
-      const title = app.nameKey ? t(app.nameKey) : app.name
-      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
-      const icon = app.logoSrc ?? app.logo
       navigateRouteTab(path, title, { ...options, icon })
     },
     [activeTab, navigateRouteTab, openableMiniAppById, setActiveTab, t, tabs]
@@ -267,7 +271,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       assistantIconType,
       agentIconType,
       defaultModelId,
-      isRequiredApp: (id) => REQUIRED_SIDEBAR_FAVORITE_SET.has(id),
+      visibleAppCount: appFavorites.length,
       openApp: handleNavigate,
       openMiniApp: handleOpenMiniAppTab,
       openAgent: handleOpenAgentTab,
@@ -286,6 +290,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       assistantIconType,
       agentIconType,
       defaultModelId,
+      appFavorites.length,
       handleNavigate,
       handleOpenMiniAppTab,
       handleOpenAgentTab,
@@ -353,10 +358,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
+    isFullscreen,
     entries,
     active: { activeItem, activeTabId: activeMiniAppId },
     title: sidebarUser.name,
     logo: sidebarLogo,
+    onHeaderClick: sidebarUser.onClick,
     actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
       <SidebarShellActions
         layout={footerLayout}

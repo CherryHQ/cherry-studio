@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { TerminalConfig } from '@shared/types/codeCli'
-import { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('useAvailableTerminals')
 

@@ -1,3 +1,7 @@
+import { Copy, Download, MoreHorizontal, Tag, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
@@ -5,9 +9,6 @@ import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import type { Group } from '@shared/data/types/group'
-import { Copy, Download, MoreHorizontal, Tag, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ResourceCardMenu')
 

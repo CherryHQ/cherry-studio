@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import { describe, expect, it } from 'vitest'
 
 import { runPainting } from '../runPainting'
 

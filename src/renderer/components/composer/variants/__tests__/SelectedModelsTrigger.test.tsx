@@ -1,9 +1,10 @@
-import type { Model } from '@shared/data/types/model'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { SelectedModelsTrigger } from '../SelectedModelsTrigger'
 
@@ -81,10 +82,6 @@ vi.mock('@renderer/components/tags/Model', () => ({
       {tag}
     </span>
   )
-}))
-
-vi.mock('@renderer/hooks/useProvider', () => ({
-  getProviderDisplayName: (provider: { name: string } | undefined) => provider?.name ?? ''
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -198,7 +195,7 @@ describe('SelectedModelsTrigger', () => {
     expect(onModelsChange).toHaveBeenCalledWith([modelA])
   })
 
-  it('does not expose remove actions for a single selected model', () => {
+  it('shows the model and provider without exposing remove actions for a single selected model', () => {
     const onModelsChange = vi.fn()
     const onRestore = vi.fn()
     render(
@@ -213,10 +210,32 @@ describe('SelectedModelsTrigger', () => {
     )
 
     expect(screen.queryByLabelText('Remove Model A')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Selected models' })).toHaveTextContent('Model A')
-    expect(screen.getByRole('button', { name: 'Selected models' })).not.toHaveTextContent('Provider A')
+    expect(screen.getByRole('button', { name: 'Selected models' })).toHaveTextContent('Model A | Provider A')
+    expect(screen.getByTitle('Model A | Provider A')).toBeInTheDocument()
     expect(onModelsChange).not.toHaveBeenCalled()
     expect(onRestore).not.toHaveBeenCalled()
+  })
+
+  it('uses the canonical system provider name while provider metadata is loading', () => {
+    const minimaxModel: Model = {
+      ...modelA,
+      id: 'minimax::MiniMax-M3',
+      providerId: 'minimax',
+      name: 'MiniMax-M3'
+    }
+
+    render(
+      <SelectedModelsTrigger
+        models={[minimaxModel]}
+        assistantModel={minimaxModel}
+        providers={[]}
+        fallbackLabel="Select model"
+        onModelsChange={vi.fn()}
+        onRestore={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Selected models' })).toHaveTextContent('MiniMax-M3 | MiniMax')
   })
 
   it('does not render popover content for a single selected model', () => {

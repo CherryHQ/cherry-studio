@@ -1,6 +1,8 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
-import { loggerService } from '@logger'
 import { context, type Span, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
 import { KB } from '@shared/utils/constants'
 import { redactRecord, redactUrlParams } from '@shared/utils/redaction'
 
@@ -24,6 +26,12 @@ export interface HttpTraceOptions {
   tracer?: Tracer
   /** Per-body capture cap; defaults to {@link MAX_BODY_BYTES}. */
   maxBodyBytes?: number
+}
+
+/** Enable developer HTTP tracing independently of the request modality. */
+export function applyHttpTrace(settings: { fetch?: FetchFunction }, opts: HttpTraceOptions): void {
+  if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
+  settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, opts)
 }
 
 /**
@@ -188,14 +196,18 @@ async function accumulateBody(
 
 /**
  * Overwrite the span's `inputs` with the body the innermost fetch actually sent,
- * when a provider transform rewrote it via the trace slot. No-op when the slot is
- * absent (no transform in the chain) or carries no string body.
+ * when a provider transform rewrote it via the trace slot. A `null` body clears
+ * stale inputs after redirect handling changed the request to GET.
  */
 function applyFinalBodyInputs(span: Span, init: RequestInit | undefined, maxBodyBytes: number): void {
   const slot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
     HTTP_TRACE_FINAL_BODY_SLOT
   ]
   const finalBody = slot?.body
+  if (finalBody === null) {
+    span.setAttribute('inputs', '')
+    return
+  }
   if (typeof finalBody !== 'string') return
   const parsed = readRequestBody(finalBody, maxBodyBytes)
   if (parsed !== undefined) span.setAttribute('inputs', stringifyBody(parsed))

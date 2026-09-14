@@ -23,6 +23,7 @@ import deepseek from './deepseek'
 import elevenlabs from './elevenlabs'
 import google from './google'
 import ideogram from './ideogram'
+import iflytek from './iflytek'
 import inception from './inception'
 import intern from './intern'
 import jina from './jina'
@@ -83,6 +84,7 @@ export const CREATORS: Creator[] = [
   elevenlabs,
   google,
   ideogram,
+  iflytek,
   inception,
   intern,
   jina,

@@ -3,11 +3,15 @@ import { EFFORT, modeWire } from './wires'
 
 const effortWire = modeWire('reasoningEffort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'medium' })
 
-const fixedTopPParameterSupport = { topP: { supported: false } } as const
+const fixedSamplingParameterSupport = {
+  temperature: { supported: false },
+  topP: { supported: false }
+} as const
 
 export default openaiCompatible({
   id: 'moonshot',
   name: 'Moonshot AI',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.moonshot.cn',
   reasoningFormat: {
     type: 'openai-chat',
@@ -35,15 +39,21 @@ export default openaiCompatible({
     official: 'https://www.moonshot.cn/'
   },
   overrides: [
-    // Moonshot fixes top_p at 0.95 for these models. Omitting the non-configurable
-    // parameter uses that server default; sending Cherry's default of 1 is rejected.
-    { modelId: 'kimi-k2.5', parameterSupport: fixedTopPParameterSupport },
-    ...['kimi-k2.6', 'kimi-k3'].map((modelId) => ({
+    // Moonshot fixes temperature and top_p (0.95) for these models and rejects other
+    // values with HTTP 400; omitting the non-configurable parameters uses the server defaults.
+    { modelId: 'kimi-k2.5', parameterSupport: fixedSamplingParameterSupport },
+    // Moonshot's provider wire only carries `thinking.type`, so these SKUs need their own contract
+    // for a chosen tier to reach the request at all.
+    ...['kimi-k2.6', 'kimi-k3', 'kimi-k3-fast'].map((modelId) => ({
       modelId,
-      ...(modelId === 'kimi-k3' ? { parameterSupport: fixedTopPParameterSupport } : {}),
+      parameterSupport: fixedSamplingParameterSupport,
       reasoningContracts: {
         'openai-chat-completions': { wire: effortWire }
       }
+    })),
+    ...['kimi-k2.7-code', 'kimi-k2.7-code-highspeed'].map((modelId) => ({
+      modelId,
+      parameterSupport: fixedSamplingParameterSupport
     }))
   ]
 })

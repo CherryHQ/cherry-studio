@@ -1,3 +1,8 @@
+import { Check, Copy, Edit3, Plus, Trash2, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { v4 as uuidv4 } from 'uuid'
+
 import { Button, Input, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -5,10 +10,6 @@ import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/usePro
 import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { Check, Copy, Edit3, Minus, Plus, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { v4 as uuidv4 } from 'uuid'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { apiKeyListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -214,13 +215,10 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
           </Scrollbar>
         </div>
 
-        <div className={apiKeyListClasses.actionRow}>
-          <div className={apiKeyListClasses.helperText}>{t('settings.provider.api_key.tip')}</div>
-          <Button variant="secondary" size="sm" disabled={!!draft || saving} onClick={startAdd}>
-            <Plus size={14} />
-            {t('common.add')}
-          </Button>
-        </div>
+        <Button className="w-full" variant="secondary" size="sm" disabled={!!draft || saving} onClick={startAdd}>
+          <Plus size={14} />
+          {t('settings.provider.api_setup.add_key')}
+        </Button>
       </div>
     </ProviderSettingsDrawer>
   )
@@ -303,6 +301,7 @@ interface ApiKeyDisplayRowProps {
 
 function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: ApiKeyDisplayRowProps) {
   const { t } = useTranslation()
+  const maskedKey = maskApiKey(entry.key)
   const handleCopy = useCallback(() => {
     void copyApiKeyToClipboard(entry.key, t)
   }, [entry.key, t])
@@ -310,13 +309,13 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
   return (
     <div className={apiKeyListClasses.keyDisplayRow}>
       <div className={apiKeyListClasses.keyTextBlock}>
-        <div className={apiKeyListClasses.keyLabel}>{entry.label || t('settings.provider.api_key.unnamed')}</div>
+        {entry.label ? <div className={apiKeyListClasses.keyLabel}>{entry.label}</div> : null}
         <button
           type="button"
           title={t('settings.provider.api_key.copy')}
           className={`${apiKeyListClasses.keyValue} block cursor-pointer text-left transition-colors hover:text-foreground`}
           onClick={handleCopy}>
-          {maskApiKey(entry.key)}
+          {maskedKey === entry.key ? '••••••••' : maskedKey}
         </button>
       </div>
       <div className={apiKeyListClasses.keyRowActions}>
@@ -347,7 +346,7 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
             aria-label={t('common.delete')}
             disabled={saving}
             onClick={onRemove}>
-            <Minus />
+            <Trash2 />
           </button>
         </Tooltip>
         <Switch size="xs" checked={entry.isEnabled} disabled={saving} onCheckedChange={onToggleEnabled} />

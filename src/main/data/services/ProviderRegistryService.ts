@@ -13,6 +13,8 @@
  * (RegistryLoader, buildPersistedEndpointConfigs).
  */
 
+import { isEqual } from 'es-toolkit/compat'
+
 import type {
   ProtoModelConfig,
   ProtoProviderConfig,
@@ -63,7 +65,6 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
-import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { resolveRegistryPaths } from './utils/registryDataPaths'
@@ -73,6 +74,8 @@ const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 export interface ProviderDisplayMetadata {
   description?: string
   websites?: ProviderWebsites
+  /** Application editions that should offer the resolved preset. */
+  availableInEditions?: Provider['availableInEditions']
   /** Registry capability: where the model list comes from (default `'api'`). */
   modelListSource?: 'api' | 'registry'
   /** Registry capability: accepted credential kinds (default `['api-key']`). */
@@ -567,6 +570,23 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
             currency: mergedPricing.cacheWrite.currency
           }
         : undefined,
+      inputTokenTiers: mergedPricing.inputTokenTiers?.map((tier) => ({
+        minInputTokens: tier.minInputTokens,
+        input: {
+          perMillionTokens: tier.input.perMillionTokens ?? null,
+          currency: tier.input.currency
+        },
+        output: {
+          perMillionTokens: tier.output.perMillionTokens ?? null,
+          currency: tier.output.currency
+        },
+        cacheRead: tier.cacheRead
+          ? { perMillionTokens: tier.cacheRead.perMillionTokens ?? null, currency: tier.cacheRead.currency }
+          : undefined,
+        cacheWrite: tier.cacheWrite
+          ? { perMillionTokens: tier.cacheWrite.perMillionTokens ?? null, currency: tier.cacheWrite.currency }
+          : undefined
+      })),
       perImage: mergedPricing.perImage
         ? { price: mergedPricing.perImage.price, unit: mergedPricing.perImage.unit }
         : undefined,
@@ -781,6 +801,7 @@ class ProviderRegistryService {
       return {
         description: provider?.description,
         websites: provider?.metadata?.website,
+        availableInEditions: provider?.availableInEditions,
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,
@@ -868,11 +889,7 @@ class ProviderRegistryService {
 
     for (const field of new Set(fields)) {
       if (field === 'endpointConfigs') {
-        result.endpointConfigs = presetProvider
-          ? (buildPersistedEndpointConfigs(presetProvider.endpointConfigs) as Partial<
-              Record<EndpointType, EndpointConfig>
-            > | null)
-          : null
+        result.endpointConfigs = presetProvider ? buildPersistedEndpointConfigs(presetProvider.endpointConfigs) : null
       } else if (field === 'models') {
         result.models = presetProvider ? this.listProviderPresetModels(providerId, presetProvider) : []
       }
@@ -1131,6 +1148,7 @@ class ProviderRegistryService {
    * @returns Array of fully resolved Model objects
    */
   resolveModels(providerId: string, modelIds: string[]): Model[] {
+    getDataService('ProviderService').assertAvailable(providerId)
     const loader = this.getLoader()
     const providerContext = this.getEffectiveProviderContext(providerId)
     const presetProvider = this.resolveProviderPreset(providerId, providerContext.presetProviderId, false)
@@ -1310,6 +1328,7 @@ class ProviderRegistryService {
    * (greedy `:modelId` capture for HuggingFace-style ids containing `/`).
    */
   getImageGenerationSupport(providerId: string, modelId: string): ImageGenerationSupport | null {
+    getDataService('ProviderService').assertAvailable(providerId)
     const { presetModel, registryOverride } = this.lookupModel(providerId, modelId)
     // Override wins — lets vendor-exclusive overrides declare their own
     // imageGeneration block without polluting the global models.json.

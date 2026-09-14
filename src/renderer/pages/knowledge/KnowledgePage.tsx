@@ -28,7 +28,7 @@ const KnowledgePageContent = () => {
       ) : (
         <main
           data-ui="knowledge.content"
-          className="flex min-h-0 min-w-0 flex-1 items-center justify-center px-6 text-muted-foreground text-sm">
+          className="flex min-h-0 min-w-0 flex-1 items-center justify-center px-6 text-sm text-muted-foreground">
           {t('common.loading')}
         </main>
       )}

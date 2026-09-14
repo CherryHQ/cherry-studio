@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import UsageSettings from '../UsageSettings'
 
@@ -111,6 +112,17 @@ describe('UsageSettings', () => {
     expect(screen.getByRole('button', { name: '饼图' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('radio', { name: '按周' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('combobox', { name: 'Top' })).toHaveTextContent('20')
+  })
+
+  it('caps the dashboard column so ultrawide windows do not stretch charts', () => {
+    render(<UsageSettings />)
+
+    const overview = screen.getByRole('heading', { name: '概览' })
+    const column = overview.closest('.mx-auto')
+
+    // Layout contract: the usage dashboard is bounded (`max-w-6xl`), not full-bleed (`max-w-none`).
+    expect(column).toHaveClass('max-w-6xl')
+    expect(column).not.toHaveClass('max-w-none')
   })
 
   it('keeps the overview insight row when usage data exists', () => {

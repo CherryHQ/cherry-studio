@@ -27,7 +27,8 @@ export function updateColumns(
 
       for (let j = 0; j < colspan; j += 1, col += 1) {
         const hasWidth = overrideCol === col ? overrideValue : ((colwidth && colwidth[j]) as number | undefined)
-        const cssWidth = hasWidth ? `${hasWidth}px` : ''
+        const [propertyKey, propertyValue] = getColStyleDeclaration(cellMinWidth, hasWidth)
+        const cssWidth = propertyKey === 'width' ? propertyValue : ''
 
         totalWidth += hasWidth || cellMinWidth
 
@@ -38,16 +39,16 @@ export function updateColumns(
         if (!nextDOM) {
           const colElement = document.createElement('col')
 
-          const [propertyKey, propertyValue] = getColStyleDeclaration(cellMinWidth, hasWidth)
-
           colElement.style.setProperty(propertyKey, propertyValue)
 
           colgroup.appendChild(colElement)
         } else {
-          if ((nextDOM as HTMLTableColElement).style.width !== cssWidth) {
-            const [propertyKey, propertyValue] = getColStyleDeclaration(cellMinWidth, hasWidth)
+          const colElement = nextDOM as HTMLTableColElement
 
-            ;(nextDOM as HTMLTableColElement).style.setProperty(propertyKey, propertyValue)
+          if (colElement.style.width !== cssWidth) {
+            colElement.style.removeProperty('width')
+            colElement.style.removeProperty('min-width')
+            colElement.style.setProperty(propertyKey, propertyValue)
           }
 
           nextDOM = nextDOM.nextSibling

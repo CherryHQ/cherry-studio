@@ -106,8 +106,9 @@ export type AiUsageRecordModality = z.infer<typeof AiUsageRecordModalitySchema>
  * User-facing source that produced the usage:
  * - `assistant`: regular chat topic owned by an assistant
  * - `agent`: agent session message
+ * - `mini-app`: locally installed mini app
  */
-export const AiUsageRecordSourceTypeSchema = z.enum(['assistant', 'agent'])
+export const AiUsageRecordSourceTypeSchema = z.enum(['assistant', 'agent', 'mini-app'])
 export type AiUsageRecordSourceType = z.infer<typeof AiUsageRecordSourceTypeSchema>
 
 export const AiUsageRecordEntrySchema = z.strictObject({

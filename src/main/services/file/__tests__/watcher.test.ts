@@ -2,9 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { FileEntryId } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -77,7 +78,7 @@ describe('createDirectoryWatcher', () => {
 
   it('emits "add" for newly created files and writes "present" into DanglingCache', async () => {
     const target = path.join(dir, 'note.txt') as AbsoluteFilePath
-    danglingCache.addEntry('e-w-add' as FileEntryId, target)
+    danglingCache.addEntry('e-w-add', target)
 
     const w = createDirectoryWatcher(dir as AbsoluteFilePath)
     await waitForReady(w)
@@ -103,7 +104,7 @@ describe('createDirectoryWatcher', () => {
   it('emits "unlink" for removed files and writes "missing" into DanglingCache', async () => {
     const target = path.join(dir, 'gone.txt') as AbsoluteFilePath
     await writeFile(target, 'soon-to-go')
-    danglingCache.addEntry('e-w-unlink' as FileEntryId, target)
+    danglingCache.addEntry('e-w-unlink', target)
     danglingCache.onFsEvent(target, 'present')
 
     const w = createDirectoryWatcher(dir as AbsoluteFilePath, { stabilityThresholdMs: 0 })
@@ -202,7 +203,7 @@ describe('createDirectoryWatcher', () => {
       // DanglingCache's reverse index is populated by `ensureExternalEntry`,
       // whose `externalPath` is now stored byte-faithful (no NFC). Mirror that
       // by registering the entry under the exact NFD bytes on disk.
-      danglingCache.addEntry('e-w-nfd' as FileEntryId, writtenPath)
+      danglingCache.addEntry('e-w-nfd', writtenPath)
 
       const w = createDirectoryWatcher(dir as AbsoluteFilePath)
       await waitForReady(w)

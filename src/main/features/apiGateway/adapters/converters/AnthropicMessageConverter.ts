@@ -15,12 +15,13 @@ import type {
   Tool as AnthropicTool,
   ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
+import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
+import { tool, zodSchema } from 'ai'
+
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGemini3ModelId } from '@shared/utils/model'
-import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
-import { tool, zodSchema } from 'ai'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
@@ -32,6 +33,20 @@ const TOOL_NAME_HASH_LENGTH = 12
 
 function isResponsesCompatibleToolName(name: string): boolean {
   return name.length <= RESPONSES_TOOL_NAME_MAX_LENGTH && RESPONSES_TOOL_NAME_PATTERN.test(name)
+}
+
+function sanitizeDescription(value: string): string {
+  let out = ''
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i)
+    if (code === 0x09 || code === 0x0a || code === 0x0d) {
+      out += value[i]
+      continue
+    }
+    if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) continue
+    out += value[i]
+  }
+  return out
 }
 
 function buildResponsesToolName(name: string, attempt: number): string {
@@ -289,7 +304,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     }
     const reasoningDetails = this.openRouterReasoningCache?.get(`openrouter-${toolCallId}`)
     if (reasoningDetails) {
-      options.openrouter = { reasoning_details: (sanitizeJson(reasoningDetails) as JSONValue[]) || [] }
+      options.openrouter = { reasoning_details: sanitizeJson(reasoningDetails) || [] }
     }
     return Object.keys(options).length > 0 ? options : undefined
   }
@@ -312,7 +327,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       const schema = jsonSchemaToZod(rawSchema as JsonSchemaLike)
 
       const aiTool = tool({
-        description: toolDef.description || '',
+        description: sanitizeDescription(toolDef.description || ''),
         inputSchema: zodSchema(schema),
         // The gateway forwards arbitrary Anthropic/MCP schemas. They do not satisfy
         // Responses strict-mode's all-properties-required contract, so match the

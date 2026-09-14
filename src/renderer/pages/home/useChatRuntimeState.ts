@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 // eslint-disable-next-line barrel/closed -- Bypass the flow barrel so chat startup does not touch TopicMessageFlowCanvas.
@@ -5,10 +7,6 @@ import {
   buildTopicMessageFlowLiveState,
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
-import {
-  type TranslationOverlayEntry,
-  type TranslationOverlaySetter
-} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
@@ -39,7 +37,6 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
@@ -145,7 +142,6 @@ export function useChatRuntimeState({
   // anchor resolution — that snapshot now happens synchronously at the call
   // site inside `chatWriteActions.regenerateWithCapabilities`.
 
-  const [translationOverlay, setTranslationOverlayMap] = useState<Record<string, TranslationOverlayEntry>>({})
   const [branchLiveMessages, setBranchLiveMessages] = useState<CherryUIMessage[]>([])
   const [branchLiveExecutions, setBranchLiveExecutions] = useState<ActiveExecution[]>([])
   const [branchLiveActiveNodeOverride, setBranchLiveActiveNodeOverride] = useState<{
@@ -172,27 +168,6 @@ export function useChatRuntimeState({
       current && current.previousActiveNodeId !== activeNodeId ? null : current
     )
   }, [activeNodeId])
-  const setTranslationOverlay = useCallback<TranslationOverlaySetter>((messageId, entry) => {
-    setTranslationOverlayMap((prev) => {
-      if (entry == null) {
-        if (!(messageId in prev)) return prev
-        const next = { ...prev }
-        delete next[messageId]
-        return next
-      }
-      const existing = prev[messageId]
-      if (
-        existing &&
-        existing.content === entry.content &&
-        existing.targetLanguage === entry.targetLanguage &&
-        existing.sourceLanguage === entry.sourceLanguage
-      ) {
-        return prev
-      }
-      return { ...prev, [messageId]: entry }
-    })
-  }, [])
-
   const branchActiveExecutions = useMemo(
     () => mergeActiveExecutions([...activeExecutions], branchLiveExecutions),
     [activeExecutions, branchLiveExecutions]
@@ -226,8 +201,7 @@ export function useChatRuntimeState({
     messages,
     overlay,
     executions: branchActiveExecutions,
-    liveAssistants,
-    translationOverlay
+    liveAssistants
   })
   const activeAwaitingInputMessageId = useMemo(
     () =>
@@ -484,13 +458,15 @@ export function useChatRuntimeState({
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        return await send({ text, options })
+        const sent = await send({ text, options })
+        if (sent) scrollToBottom()
+        return sent
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [send]
+    [scrollToBottom, send]
   )
 
   return {
@@ -503,8 +479,6 @@ export function useChatRuntimeState({
     locateMessage,
     sendMessage,
     composerChatTarget,
-    composerContext,
-    translationOverlay,
-    setTranslationOverlay
+    composerContext
   }
 }
