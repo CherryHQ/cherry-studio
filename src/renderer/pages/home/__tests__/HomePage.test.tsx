@@ -349,7 +349,7 @@ vi.mock('../Chat', () => ({
     const showConversation = Boolean(activeTopic && !centerSurface)
 
     return (
-      <section data-testid="home-chat-shell">
+      <section data-testid="home-chat-shell" data-active-topic-id={activeTopic?.id ?? ''}>
         <output data-testid="pane-open">{String(paneOpen)}</output>
         <output data-testid="pane-position">{panePosition ?? ''}</output>
         <output data-testid="pane-manual-toggle">
@@ -644,10 +644,24 @@ vi.mock('../components/AssistantConversationPickerDialog', () => ({
 }))
 
 vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
-  default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (topic: Topic | null) => void }) =>
+  default: ({
+    open,
+    onRecordSelect,
+    onActiveRecordChange
+  }: {
+    open?: boolean
+    onRecordSelect?: (topic: Topic) => void
+    onActiveRecordChange?: (topic: Topic | null) => void
+  }) =>
     open ? (
       <div data-testid="history-records-view">
-        <button type="button" onClick={() => onRecordSelect?.(null)}>
+        <button type="button" onClick={() => onRecordSelect?.(historyTopic)}>
+          Open history topic
+        </button>
+        <button type="button" onClick={() => onActiveRecordChange?.(historyTopic)}>
+          Replace deleted topic
+        </button>
+        <button type="button" onClick={() => onActiveRecordChange?.(null)}>
           Clear history selection
         </button>
       </div>
@@ -1642,17 +1656,54 @@ describe('HomePage', () => {
     expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
   })
 
-  it('creates an empty topic when history clears the selected topic', async () => {
-    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-default' })
-
+  it('keeps history open while replacing the active topic and its URL', async () => {
+    const user = userEvent.setup()
     render(<HomePage />)
+    await user.click(screen.getByRole('button', { name: 'Open history records' }))
+    await user.click(screen.getByRole('button', { name: 'Replace deleted topic' }))
+    await waitFor(() =>
+      expect(homeMocks.navigate).toHaveBeenCalledWith({
+        to: '/app/chat',
+        search: { topicId: historyTopic.id },
+        replace: true
+      })
+    )
+    expect(screen.getByTestId('home-chat-shell')).toHaveAttribute('data-active-topic-id', historyTopic.id)
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Clear history selection' }))
+  it('keeps history open after clearing the last topic and requesting route re-entry', async () => {
+    const user = userEvent.setup()
+    let finishNavigation!: () => void
+    homeMocks.navigate.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishNavigation = resolve
+      })
+    )
+    render(<HomePage />)
+    await user.click(screen.getByRole('button', { name: 'Open history records' }))
+    await user.click(screen.getByRole('button', { name: 'Clear history selection' }))
+    expect(homeMocks.navigate).toHaveBeenCalledWith({ to: '/app/chat', search: {}, replace: true })
+    await act(async () => {
+      finishNavigation()
+    })
+    expect(screen.getByTestId('home-chat-shell')).toHaveAttribute('data-active-topic-id', '')
+    expect(screen.getByTestId('history-records-view')).toBeInTheDocument()
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
 
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-default' }))
-    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
-    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-default')
+  it('closes history and activates the selected topic in the same-tab fallback', async () => {
+    const user = userEvent.setup()
+    render(<HomePage />)
+    await user.click(screen.getByRole('button', { name: 'Open history records' }))
+    await user.click(screen.getByRole('button', { name: 'Open history topic' }))
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent(historyTopic.id))
+    expect(homeMocks.navigate).toHaveBeenCalledWith({
+      to: '/app/chat',
+      search: { topicId: historyTopic.id },
+      replace: true
+    })
+    expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
   })
 
   it('toggles the left sidebar off with the left sidebar shortcut', () => {
