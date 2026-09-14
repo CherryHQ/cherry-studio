@@ -340,6 +340,19 @@ export function useFollowupQueue({
     persistState(scopeKeyRef.current, next.items, next.paused, fid, pending)
   }, [])
 
+  // Live items with no entry means the TTL lapsed (every mutation persists, so
+  // the entry can only go missing by expiring): drop them instead of resurrecting.
+  const dropExpiredLiveState = useCallback(() => {
+    if (stateRef.current.items.length === 0) return
+    if (cacheService.getCasual(keyFor(scopeKeyRef.current)) !== undefined) return
+    const empty: FollowupQueueState = { items: [], paused: false }
+    stateRef.current = empty
+    failedItemIdRef.current = null
+    pendingDrainIdRef.current = null
+    setFailedItemId(null)
+    setState(empty)
+  }, [])
+
   // Mark the head as failed and auto-pause; the user resolves it via the dock (Skip/Retry/Abort).
   const failHead = useCallback(
     (id: string) => {
@@ -372,6 +385,7 @@ export function useFollowupQueue({
   const manualClaimsRef = useRef(new Map<string, string>())
 
   const removeIdRef = useRef<(id: string) => void>(() => {})
+  const drainHeadRef = useRef<(head: FollowupQueueItem | undefined) => void>(() => {})
 
   // Resolution for a send whose queue moved on before it settled (scope switch /
   // clear / removal / unmount). Never disturbs a replacement send for the same head.
@@ -407,6 +421,19 @@ export function useFollowupQueue({
         // stalling silently); a removed head just releases its durable claim.
         writeFailureToScope(drainScope, head.id)
         if (mountedRef.current && drainingIdRef.current === head.id) setDraining(null)
+        // The removed head consumed its completion edge, so continue with the
+        // next head now (same keep-moving rule as removing the failed head).
+        if (
+          mountedRef.current &&
+          drainScope === scopeKeyRef.current &&
+          drainingIdRef.current === null &&
+          !stateRef.current.paused &&
+          !failedItemIdRef.current &&
+          !stateRef.current.items.some((item) => item.id === head.id)
+        ) {
+          const nextHead = stateRef.current.items[0]
+          if (nextHead && !inflightRef.current.has(nextHead.id)) drainHeadRef.current(nextHead)
+        }
       }
     },
     [setDraining]
@@ -484,6 +511,7 @@ export function useFollowupQueue({
     },
     [persist, setDraining, settleStale]
   )
+  drainHeadRef.current = drainHead
 
   // Reload live state from the persisted entry (cross-instance sync). The entry is
   // the source of truth — every mutation persists synchronously — so converging
@@ -564,6 +592,7 @@ export function useFollowupQueue({
 
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload): EnqueueResult => {
+      dropExpiredLiveState()
       if (stateRef.current.items.length >= QUEUE_LIMIT) return 'full'
       const newItem: FollowupQueueItem = { id: crypto.randomUUID(), draft, payload }
       const next = { items: [...stateRef.current.items, newItem], paused: stateRef.current.paused }
@@ -572,12 +601,17 @@ export function useFollowupQueue({
       setState(next)
       return 'ok'
     },
-    [persist]
+    [persist, dropExpiredLiveState]
   )
 
   const reorder = useCallback(
     (nextItems: FollowupQueueItem[]) => {
-      const nextIds = new Set(nextItems.map((i) => i.id))
+      dropExpiredLiveState()
+      // A reorder gesture on expired items carries stale state: intersect with
+      // live so the reset above isn't overwritten with resurrected items.
+      const liveIds = new Set(stateRef.current.items.map((i) => i.id))
+      const effectiveItems = nextItems.filter((i) => liveIds.has(i.id))
+      const nextIds = new Set(effectiveItems.map((i) => i.id))
       if (drainingIdRef.current && !nextIds.has(drainingIdRef.current)) {
         // Same as removeId: invalidate the in-flight resolution but keep the send
         // claim held until it settles, so the next item cannot start concurrently.
@@ -585,14 +619,14 @@ export function useFollowupQueue({
       }
       const shouldClearFailed = failedItemIdRef.current !== null && !nextIds.has(failedItemIdRef.current)
       const nextFailedId = shouldClearFailed ? null : failedItemIdRef.current
-      const next = { items: nextItems, paused: shouldClearFailed ? false : stateRef.current.paused }
+      const next = { items: effectiveItems, paused: shouldClearFailed ? false : stateRef.current.paused }
       persist(next, nextFailedId)
       stateRef.current = next
       failedItemIdRef.current = nextFailedId
       if (shouldClearFailed) setFailedItemId(null)
       setState(next)
     },
-    [persist]
+    [persist, dropExpiredLiveState]
   )
 
   const clear = useCallback(() => {
@@ -625,6 +659,7 @@ export function useFollowupQueue({
         removeIdFromScope(scopeKeyRef.current, id)
         return
       }
+      dropExpiredLiveState()
       const wasFailed = failedItemIdRef.current === id
       const wasDraining = drainingIdRef.current === id
       if (wasDraining) {
@@ -649,12 +684,13 @@ export function useFollowupQueue({
       // starting another send now would put two sends in flight.
       if (wasFailed && remaining.length > 0 && !wasDraining) drainHead(remaining[0])
     },
-    [persist, drainHead, setDraining]
+    [persist, drainHead, setDraining, dropExpiredLiveState]
   )
   removeIdRef.current = removeId
 
   const setPaused = useCallback(
     (nextPaused: boolean) => {
+      dropExpiredLiveState()
       const next = { ...stateRef.current, paused: nextPaused }
       persist(next)
       stateRef.current = next
@@ -667,7 +703,7 @@ export function useFollowupQueue({
         }
       }
     },
-    [persist, drainHead]
+    [persist, drainHead, dropExpiredLiveState]
   )
 
   // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once) and
@@ -734,6 +770,7 @@ export function useFollowupQueue({
   const skipFailed = useCallback(() => {
     const failed = failedItemIdRef.current
     if (!failed || drainingIdRef.current !== null) return
+    dropExpiredLiveState()
     const remaining = stateRef.current.items.filter((item) => item.id !== failed)
     setFailedItemId(null)
     failedItemIdRef.current = null
@@ -742,7 +779,7 @@ export function useFollowupQueue({
     setState(next)
     stateRef.current = next
     drainHead(remaining[0])
-  }, [drainHead, persist])
+  }, [drainHead, persist, dropExpiredLiveState])
 
   return {
     items: state.items,
