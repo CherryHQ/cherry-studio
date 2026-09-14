@@ -50,8 +50,10 @@ class LazyFileReader extends VectorStoreFileReader<Document> {
 class TextFallbackReader extends LazyFileReader {}
 
 export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorStoreFileReader<Document> {
-  const extension = getFileExt(filePath).toLowerCase()
+  return createReaderForExtension(getFileExt(filePath).toLowerCase())
+}
 
+function createReaderForExtension(extension: string): VectorStoreFileReader<Document> {
   switch (extension) {
     case '.pdf':
       return new LazyFileReader(async () =>
@@ -110,7 +112,7 @@ export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorSto
 /** True when the factory routes {@link filePath} to the non-fatal text fallback, the only reader
  * that can turn a binary file into mojibake. Derived from the factory itself — no parallel list. */
 export const usesTextFallbackReader = (filePath: string): boolean =>
-  createSupportedFileReader(filePath as AbsoluteFilePath) instanceof TextFallbackReader
+  createReaderForExtension(getFileExt(filePath).toLowerCase()) instanceof TextFallbackReader
 
 /**
  * Read a base-relative file with the extension's reader and tag every document

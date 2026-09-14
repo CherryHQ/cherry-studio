@@ -1,8 +1,9 @@
 import type * as FsPromises from 'node:fs/promises'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as FsUtils from '@main/utils/file'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loadDataMock, readFileMock } = vi.hoisted(() => ({
   loadDataMock: vi.fn(),
