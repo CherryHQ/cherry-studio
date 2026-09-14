@@ -482,7 +482,8 @@
 .markdown th,
 .markdown td {
   padding: 0.65em 0.75em;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
   border-right: 0.5px solid var(--markdown-border-color);
   border-bottom: 0.5px solid var(--markdown-border-color);
   text-align: start;
