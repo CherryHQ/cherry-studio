@@ -9,10 +9,12 @@ import { BaseService, Signal } from '@main/core/lifecycle'
 
 import { BrowserSessionService } from '../../BrowserSessionService'
 import { CdpBrowserController } from '../../mcp/controller'
+import { handleExecute } from '../../mcp/tools/execute'
 import { handleWaitFor } from '../../mcp/tools/navigate'
 import { handleHistory } from '../../mcp/tools/navigate'
 import { handleReset } from '../../mcp/tools/reset'
 import type { WindowInfo } from '../../mcp/types'
+import { BrowserSessionError } from '../../session/BrowserSessionError'
 import { createGuest } from '../guestFixture'
 
 vi.mock('electron', async () => {
@@ -163,6 +165,47 @@ const controller = () => {
 }
 
 describe('MCP browser on shared sessions', () => {
+  it('does not create a replacement page when execute cannot resolve its explicit target', async () => {
+    const c = controller()
+    const { tabId } = await c.createTab()
+    const result = await handleExecute(c, { code: 'document.title', tabId: 'missing-tab' })
+    expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'not_found' }] })
+    expect((await c.listTabs()).map((tab) => tab.tabId)).toEqual([tabId])
+  })
+
+  it('keeps an execute failure associated with its original tab after switching tabs', async () => {
+    const c = controller()
+    const first = await c.createTab()
+    const second = await c.createTab()
+    vi.spyOn(first.view.webContents, 'getURL').mockReturnValue('https://first.example/')
+    vi.spyOn(second.view.webContents, 'getURL').mockReturnValue('https://second.example/')
+    const command = vi.mocked(first.view.webContents.debugger.sendCommand)
+    const fallback = command.getMockImplementation()!
+    const started = new Signal<void>()
+    const resume = new Signal<void>()
+    command.mockImplementation(async (method, params) => {
+      if (method === 'Runtime.evaluate') {
+        started.resolve()
+        await resume
+        throw new BrowserSessionError('timeout')
+      }
+      return fallback(method, params)
+    })
+    await c.switchTab(false, first.tabId)
+    const pending = handleExecute(c, { code: 'new Promise(() => {})' })
+    await started
+    await c.switchTab(false, second.tabId)
+    resume.resolve()
+    const result = await pending
+    expect(result.isError).toBe(true)
+    expect(JSON.parse((result.content as Array<{ text: string }>)[0].text)).toMatchObject({
+      error: 'timeout',
+      tabId: first.tabId,
+      url: 'https://first.example/'
+    })
+    expect((await c.getSession()).tabId).toBe(second.tabId)
+  })
+
   it('mutes browser audio while the window is hidden or minimized', async () => {
     const c = controller()
     const { view } = await c.createTab()
