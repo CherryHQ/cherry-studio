@@ -91,4 +91,20 @@ describe('doctorSessionReducer', () => {
     state = doctorSessionReducer(state, { type: 'finish-interaction', kind: 'fixing' })
     expect(state.interaction).toEqual({ kind: 'idle' })
   })
+
+  it('does not replace an active operation with an evidence confirmation', () => {
+    const initial = createDoctorSession({ initialPanel: 'checks' })
+    const fixing = doctorSessionReducer(initial, {
+      type: 'start-interaction',
+      interaction: { kind: 'fixing', request: fixRequest }
+    })
+
+    const result = doctorSessionReducer(fixing, {
+      type: 'confirm-evidence',
+      runId: 'run-1',
+      checkId: 'runtime-claude-login'
+    })
+
+    expect(result).toBe(fixing)
+  })
 })

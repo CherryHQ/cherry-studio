@@ -85,6 +85,13 @@ export function useDoctorController({
   }, [doctorState])
 
   const viewModel = useMemo(() => buildDoctorViewModel(doctorState, now), [doctorState, now])
+
+  useEffect(() => {
+    if (session.interaction.kind !== 'confirm-evidence' || session.interaction.runId === viewModel.runId) return
+    dispatch({ type: 'cancel-confirmation' })
+    toast.error(t('settings.doctor.messages.result_changed'))
+  }, [session.interaction, t, viewModel.runId])
+
   const isInteracting = session.interaction.kind !== 'idle'
   const isCloseBlocked =
     session.interaction.kind === 'fixing' ||
@@ -283,13 +290,18 @@ export function useDoctorController({
 
   const confirmEvidence = useCallback(() => {
     if (session.interaction.kind !== 'confirm-evidence') return
+    if (session.interaction.runId !== viewModel.runId) {
+      dispatch({ type: 'cancel-confirmation' })
+      toast.error(t('settings.doctor.messages.result_changed'))
+      return
+    }
     dispatch({
       type: 'reveal-evidence',
       runId: session.interaction.runId,
       checkId: session.interaction.checkId
     })
     dispatch({ type: 'finish-interaction', kind: 'confirm-evidence' })
-  }, [session.interaction])
+  }, [session.interaction, t, viewModel.runId])
 
   const requestEvidence = useCallback(
     (checkId: DoctorCheckId) => {

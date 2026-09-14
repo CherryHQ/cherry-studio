@@ -1,10 +1,11 @@
+import { CircleAlert, CircleCheck, Loader2, Sparkles } from 'lucide-react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { AccordionContent, AccordionItem, AccordionTrigger, Badge, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
-import { CircleAlert, CircleCheck, Loader2, Sparkles } from 'lucide-react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AIDiagnosisSection')
 
@@ -83,31 +84,33 @@ const AiDiagnosisSectionWithStatus = memo(
             ) : status === 'done' ? (
               <CircleCheck className="size-4 shrink-0 text-success" aria-hidden />
             ) : status === 'error' ? (
-              <CircleAlert className="size-4 shrink-0 text-error" aria-hidden />
+              <CircleAlert className="text-error size-4 shrink-0" aria-hidden />
             ) : (
-              <Sparkles className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              <Sparkles className="text-muted-foreground size-4 shrink-0" aria-hidden />
             )}
-            <span className="font-medium text-sm">{t('error.diagnosis.ai_result')}</span>
+            <span className="text-sm font-medium">{t('error.diagnosis.ai_result')}</span>
             {statusLabel ? (
-              <Badge
-                variant="outline"
-                className="font-normal text-xs"
-                role={status === 'error' ? 'alert' : 'status'}
-                aria-atomic="true">
+              <Badge variant="outline" className="text-xs font-normal">
                 {statusLabel}
               </Badge>
             ) : null}
           </span>
         </AccordionTrigger>
+        <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {status === 'loading' || status === 'done' ? statusLabel : null}
+        </span>
+        <span className="sr-only" role="alert" aria-atomic="true">
+          {status === 'error' ? statusLabel : null}
+        </span>
         <AccordionContent className="space-y-3 pb-3">
           {status === 'done' && result ? (
-            <div className="space-y-2 text-muted-foreground text-sm leading-6">
+            <div className="text-muted-foreground space-y-2 text-sm leading-6">
               <p>{result.explanation || result.summary}</p>
               {result.steps.length > 0 ? (
                 <ol className="space-y-1.5">
                   {result.steps.map((step, index) => (
                     <li key={`${index}-${step.text}`} className="flex gap-2 px-2.5 py-1.5">
-                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted font-medium text-muted-foreground text-xs">
+                      <span className="text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
                         {index + 1}
                       </span>
                       <span>{step.text}</span>

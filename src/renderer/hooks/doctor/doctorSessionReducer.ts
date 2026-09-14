@@ -66,10 +66,12 @@ export function doctorSessionReducer(state: DoctorSessionState, action: DoctorSe
     case 'mark-relaunch-required':
       return { ...state, relaunchRequired: true }
     case 'confirm-evidence':
-      return {
-        ...state,
-        interaction: { kind: 'confirm-evidence', runId: action.runId, checkId: action.checkId }
-      }
+      return state.interaction.kind === 'idle'
+        ? {
+            ...state,
+            interaction: { kind: 'confirm-evidence', runId: action.runId, checkId: action.checkId }
+          }
+        : state
     case 'cancel-confirmation':
       return state.interaction.kind === 'confirm-evidence' ? { ...state, interaction: { kind: 'idle' } } : state
     case 'start-interaction':

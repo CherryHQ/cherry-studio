@@ -213,7 +213,7 @@ describe('useDoctorController', () => {
     expect(result.current.session.activePanel).toBe('checks')
   })
 
-  it('binds consent-required evidence confirmation to the report run', () => {
+  it('discards consent confirmation when a replacement report arrives', () => {
     mocks.doctorState = completedDoctorState()
     const { rerender, result } = renderHook(() =>
       useDoctorController({
@@ -242,10 +242,7 @@ describe('useDoctorController', () => {
     act(() => result.current.confirmEvidence())
 
     expect(result.current.session.interaction).toEqual({ kind: 'idle' })
-    expect(result.current.session.evidenceGrant).toEqual({
-      runId: 'completed-run',
-      checkIds: ['runtime-claude-login']
-    })
+    expect(result.current.session.evidenceGrant).toBeUndefined()
     expect(result.current.viewModel.runId).toBe('replacement-run')
   })
 
