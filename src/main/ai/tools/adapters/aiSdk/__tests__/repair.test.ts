@@ -51,7 +51,9 @@ async function callRepair(
 }
 
 describe('createAiRepair', () => {
-  beforeEach(() => generateText.mockReset())
+  beforeEach(() => {
+    generateText.mockReset()
+  })
 
   it('asks ai-core generateText with Output.object and returns the structured repair', async () => {
     generateText.mockResolvedValue({ output: { query: 'hello world' } })

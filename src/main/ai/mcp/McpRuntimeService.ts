@@ -18,6 +18,7 @@ import { loggerService } from '@logger'
 import { TraceMethod, withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
+import { clampImageForModel } from '@main/utils/image'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
@@ -37,6 +38,7 @@ import {
 } from './mcpClientSdk'
 import type { McpPackageService } from './McpPackageService'
 import { redactCacheKey } from './mcpRedact'
+import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { createTransport, isMcpOAuthEnabled } from './mcpTransport'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
@@ -133,6 +135,30 @@ function getServerLogger(server: McpServer, extra?: Record<string, any>) {
     type: server?.type || (server?.command ? 'stdio' : server?.baseUrl ? 'http' : 'inmemory')
   }
   return loggerService.withContext('McpRuntimeService', { ...base, ...extra })
+}
+
+/**
+ * Shrink tool-result images to the model-bound edge cap before any consumer (Cherry chat, pi,
+ * dsh, claude bridge) sees them. An unusable image degrades to a text block: the result lands
+ * in durable session history, so failing the call would strand the turn over one screenshot.
+ */
+async function clampToolResultImages(
+  response: McpCallToolResponse,
+  serverLogger: ReturnType<typeof getServerLogger>
+): Promise<McpCallToolResponse> {
+  const content = await Promise.all(
+    response.content.map(async (part) => {
+      if (part.type !== 'image' || !part.data) return part
+      try {
+        const clamped = await clampImageForModel(Buffer.from(part.data, 'base64'))
+        return clamped ? { ...part, data: Buffer.from(clamped).toString('base64') } : part
+      } catch (error) {
+        serverLogger.warn('Dropping unprocessable tool-result image', { mimeType: part.mimeType, error })
+        return { type: 'text' as const, text: `[image (${part.mimeType ?? 'unknown'}) could not be processed]` }
+      }
+    })
+  )
+  return { ...response, content }
 }
 
 /**
@@ -1088,14 +1114,15 @@ export class McpRuntimeService extends BaseService {
               })
             }
           },
-          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
-          // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
-          // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
-          resetTimeoutOnProgress: server.longRunning,
-          maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
+          ...resolveMcpRequestOptions(server),
+          // resetTimeoutOnProgress 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
+          // resetTimeoutOnProgress needs server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           signal: effectiveSignal
         })
-        return result as McpCallToolResponse
+        const response = result as McpCallToolResponse
+        // Error results never carry model-bound media, so leave their payload untouched.
+        if (response.isError) return response
+        return clampToolResultImages(response, getServerLogger(server, { tool: name, callId: toolCallId }))
       } catch (error) {
         if (isMcpCancellation(error, effectiveSignal)) {
           // Expected cancellation (user stop / stream abort) — keep it out of error logs.
