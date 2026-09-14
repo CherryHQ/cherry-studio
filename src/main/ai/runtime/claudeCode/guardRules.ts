@@ -23,6 +23,7 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
+import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
@@ -70,6 +71,18 @@ const globalInstallCommand = (ctx: ToolGuardContext): GuardHit | null => {
   if (!command) return null
   const reason = detectGlobalInstall(command)
   return reason ? { evidence: reason } : null
+}
+
+const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
+  const decision = await evaluateUserDataSqliteGuard({
+    runtime: 'claude-code',
+    toolName: ctx.toolName,
+    args: ctx.input,
+    cwd: ctx.cwd,
+    workspacePath: ctx.cwd,
+    signal: ctx.signal
+  })
+  return decision ? {} : null
 }
 
 const mutatingConfigAction = (ctx: ToolGuardContext): GuardHit | null => {
@@ -123,6 +136,13 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { when: (ctx) => (ctx.toolName && ctx.isDisabled(ctx.toolName) ? {} : null) },
     effect: 'deny',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool is disabled for this agent.`
+  },
+  {
+    id: 'user-data-sqlite-write',
+    bypassBehavior: 'enforce',
+    match: { when: userDataSqliteWrite },
+    effect: 'deny',
+    reason: USER_DATA_SQLITE_GUARD_REASON
   },
   {
     id: 'unsupported-image-read',

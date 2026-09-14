@@ -9,6 +9,7 @@
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+
 import type { ReasoningEffort } from '@cherrystudio/openai/resources'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import {
@@ -87,7 +88,7 @@ function passThroughAnthropicReasoning(
         : {}),
       ...(effort != null ? { effort } : {})
     }
-  } as ProviderOptions
+  }
 }
 
 /** Keep Gemini sentinels and optional fields exactly as supplied. */
@@ -98,7 +99,7 @@ function passThroughGeminiThinking(thinkingConfig: GeminiThinkingConfig): Provid
   if (typeof includeThoughts === 'boolean') nativeThinkingConfig.includeThoughts = includeThoughts
   if (typeof thinkingLevel === 'string') nativeThinkingConfig.thinkingLevel = thinkingLevel
   if (Object.keys(nativeThinkingConfig).length === 0) return undefined
-  return { google: { thinkingConfig: nativeThinkingConfig } } as ProviderOptions
+  return { google: { thinkingConfig: nativeThinkingConfig } }
 }
 
 /** Map an Anthropic thinking configuration to the resolved model's target dialect. */

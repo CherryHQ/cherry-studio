@@ -1,7 +1,8 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { act, renderHook } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { useComposerKnowledgeBaseScope } from '../useComposerKnowledgeBaseScope'
 

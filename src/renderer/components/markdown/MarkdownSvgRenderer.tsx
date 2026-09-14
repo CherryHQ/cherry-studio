@@ -1,10 +1,11 @@
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
-import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 import { Eye } from 'lucide-react'
 import { type FC, type SVGProps, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ExtraProps } from 'streamdown'
+
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
+import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 
 interface SvgProps extends SVGProps<SVGSVGElement>, ExtraProps {
   'data-needs-measurement'?: 'true'

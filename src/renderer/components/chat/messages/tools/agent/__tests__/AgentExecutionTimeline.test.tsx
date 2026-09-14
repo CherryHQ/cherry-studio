@@ -1,6 +1,7 @@
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 const cardProps = vi.hoisted(() => ({
   current: undefined as Record<string, unknown> | undefined

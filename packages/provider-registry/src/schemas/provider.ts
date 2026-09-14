@@ -8,6 +8,7 @@ import * as z from 'zod'
 import { VENDOR_PATTERNS, type VendorKey } from '../patterns/vendor-patterns'
 import { MetadataSchema, ProviderIdSchema, VersionSchema, ZodCurrencySchema } from './common'
 import { ENDPOINT_TYPE, type EndpointType, objectValues, SERVER_TOOL, SERVER_TOOL_MODEL_SCOPE } from './enums'
+import { looseArray } from './forwardCompat'
 import { ReasoningWireProfileSchema } from './reasoningWire'
 
 export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
@@ -81,13 +82,13 @@ export const ServerToolConfigSchema = z.object({
   id: z.enum(objectValues(SERVER_TOOL)),
   modelScope: z.enum(objectValues(SERVER_TOOL_MODEL_SCOPE)).default(SERVER_TOOL_MODEL_SCOPE.MODEL_DEPENDENT),
   /** Endpoint protocols on which the host serves the tool. Absent ⇒ all configured endpoints. */
-  endpointTypes: z.array(EndpointTypeSchema).optional(),
+  endpointTypes: looseArray(EndpointTypeSchema).optional(),
   /**
    * Vendor families the host actually serves the tool for, when narrower than
    * the tool's model eligibility (e.g. Vertex url-context is Gemini-only: the
    * vertex-anthropic SDK exposes no webFetch tool). Absent ⇒ no narrowing.
    */
-  vendors: z.array(z.enum(Object.keys(VENDOR_PATTERNS) as [VendorKey, ...VendorKey[]])).optional()
+  vendors: looseArray(z.enum(Object.keys(VENDOR_PATTERNS) as [VendorKey, ...VendorKey[]])).optional()
 })
 
 export type ServerToolConfig = z.infer<typeof ServerToolConfigSchema>
@@ -194,7 +195,7 @@ export const ProviderConfigSchema = z
     /** Display name */
     name: z.string(),
     /** App editions where this provider is available. Omitted means all editions. */
-    availableInEditions: z.array(ProviderEditionSchema).min(1).optional(),
+    availableInEditions: looseArray(ProviderEditionSchema, { min: 1 }).optional(),
     /** Provider description */
     description: z.string().optional(),
     /** Per-endpoint-type configuration (partial record — not all endpoint types need to be present) */
@@ -229,7 +230,7 @@ export const ProviderConfigSchema = z
      * Absent ⇒ the default `['api-key']`. "Login-based" (suppress the api-key
      * inputs) is the derived `!includes('api-key')`, not a value of its own.
      */
-    authMethods: z.array(z.enum(['api-key', 'oauth', 'external-cli'])).optional(),
+    authMethods: looseArray(z.enum(['api-key', 'oauth', 'external-cli'])).optional(),
     /**
      * The provider serves requests without any credential — a local server
      * (ollama / lmstudio / gpustack / ovms) reachable over a baseUrl with no API
@@ -240,7 +241,7 @@ export const ProviderConfigSchema = z
      */
     authOptional: z.boolean().default(false),
     /** Provider-native (server-executed) built-in tools served by this host. */
-    serverTools: z.array(ServerToolConfigSchema).default([]),
+    serverTools: looseArray(ServerToolConfigSchema).default([]),
     /** Whether usage responses carry the actual billed amount. */
     reportsActualCost: z.boolean().default(false),
     /**
@@ -268,7 +269,7 @@ export const ProviderConfigSchema = z
 
 export const ProviderListSchema = z.object({
   version: VersionSchema,
-  providers: z.array(ProviderConfigSchema)
+  providers: looseArray(ProviderConfigSchema)
 })
 
 export { ENDPOINT_TYPE } from './enums'

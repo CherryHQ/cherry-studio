@@ -1,11 +1,12 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
-import { createFilePathHandle } from '@shared/utils/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 
 import PdfFilePreview from '../PdfFilePreview'
 import { PdfRangeTooLargeError } from '../PdfFileRangeTransport'
@@ -32,7 +33,7 @@ const mocks = vi.hoisted(() => ({
   pdfViewerSetDocument: vi.fn(),
   pdfViewerUpdateScale: vi.fn(),
   rangeTransportInstances: [] as Array<{
-    abort: ReturnType<typeof vi.fn>
+    abort: ReturnType<typeof vi.fn<(...args: any[]) => any>>
     fail: (error: unknown) => void
     handle: unknown
     length: number
@@ -357,6 +358,24 @@ describe('PdfFilePreview', () => {
     await user.type(pageInput, '3{Enter}')
 
     expect(mocks.pdfViewerPageNumbers).toContain(3)
+  })
+
+  it.each(['{Enter}', '{Tab}'])('normalizes an out-of-range page at the last page on %s', async (commitKey) => {
+    const user = userEvent.setup()
+    renderPreview()
+    const pageInput = screen.getByRole('textbox', { name: 'file_preview.pdf.page_number' })
+    await waitFor(() => expect(pageInput).toBeEnabled())
+
+    await user.clear(pageInput)
+    await user.type(pageInput, '3{Enter}')
+    await waitFor(() => expect(pageInput).toHaveValue('3'))
+    expect(screen.getByRole('button', { name: 'common.next' })).toBeDisabled()
+
+    await user.clear(pageInput)
+    await user.type(pageInput, `999${commitKey}`)
+
+    expect(pageInput).toHaveValue('3')
+    expect(screen.getByRole('button', { name: 'common.next' })).toBeDisabled()
   })
 
   it('shows the PDF outline and navigates to its destinations', async () => {

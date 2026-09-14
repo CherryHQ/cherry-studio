@@ -1,6 +1,5 @@
 /**
- * Text-recognition requests (PaddleOCR via ppu-paddle-ocr) and what they answer with.
- * Paired with `./worker.ts`, which implements them.
+ * Text-recognition payloads shared by the main process and the inference utility process.
  */
 
 /** Absolute paths to the PaddleOCR model files (installed by the main process). */
@@ -29,15 +28,3 @@ export interface OcrRecognizePayload {
   modelPaths: OcrModelPaths
   source: OcrRecognizeSource
 }
-
-export type OcrRequestPayloads = {
-  recognize: OcrRecognizePayload
-}
-
-export type OcrResultPayloads = {
-  recognize: { text: string; lines: OcrLine[][] }
-}
-
-export const OCR_RESULT_KEYS = {
-  recognize: ['text', 'lines']
-} as const

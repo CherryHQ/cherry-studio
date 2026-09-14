@@ -11,7 +11,9 @@
  * Zod schemas are the single source of truth — all types derived via z.infer<>
  */
 
-import type { EndpointType, ServerTool, ServerToolConfig } from '@cherrystudio/provider-registry'
+import * as z from 'zod'
+
+import type { ServerTool, ServerToolConfig } from '@cherrystudio/provider-registry'
 import {
   CURRENCY,
   ENDPOINT_TYPE,
@@ -20,7 +22,6 @@ import {
   ProviderEditionSchema,
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
-import * as z from 'zod'
 
 export type { ServerTool, ServerToolConfig }
 
@@ -263,9 +264,7 @@ export const ProviderSchema = z.object({
   /** Preset provider website links */
   websites: ProviderWebsitesSchema.optional(),
   /** Per-endpoint-type connection configuration */
-  endpointConfigs: z.record(EndpointTypeSchema, EndpointConfigSchema).optional() as z.ZodOptional<
-    z.ZodType<Partial<Record<EndpointType, EndpointConfig>>>
-  >,
+  endpointConfigs: z.partialRecord(EndpointTypeSchema, EndpointConfigSchema).optional(),
   /** Default text generation endpoint type */
   defaultChatEndpoint: EndpointTypeSchema.optional(),
   /**

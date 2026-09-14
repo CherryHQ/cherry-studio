@@ -1,5 +1,6 @@
-import { AsyncInitializer } from '@renderer/utils/asyncInitializer'
 import React, { memo, useCallback } from 'react'
+
+import { AsyncInitializer } from '@renderer/utils/asyncInitializer'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'

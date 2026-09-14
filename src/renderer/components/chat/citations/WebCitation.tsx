@@ -4,14 +4,15 @@
  * page. Knowledge-base citations render through `KnowledgeCitation.tsx`.
  */
 
+import React, { useCallback, useMemo } from 'react'
+import useSWRImmutable from 'swr/immutable'
+
 import { Skeleton } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import MarqueeText from '@renderer/components/MarqueeText'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import type { Citation } from '@renderer/types/message'
 import { fetchXOEmbed, isXPostUrl, xOembedKey } from '@renderer/utils/fetch'
-import React, { useCallback, useMemo } from 'react'
-import useSWRImmutable from 'swr/immutable'
 
 import { useOptionalMessageListActions } from '../messages/MessageListProvider'
 import { type CitationPanelActions, CopyButton, getCitationHostname, handleLinkClick, truncateText } from './common'
@@ -56,16 +57,16 @@ export const WebCitationCard: React.FC<{
           )}
           {citation.url ? (
             <a
-              className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
+              className="flex-1 text-sm leading-[1.6] text-nowrap text-foreground no-underline"
               href={citation.url}
               onClick={(e) => handleLinkClick(citation.url, e, linkActions)}>
               {displayTitle || <span className="text-link">{citation.hostname}</span>}
             </a>
           ) : (
-            <span className="flex-1 text-nowrap text-foreground text-sm leading-[1.6]">{titleContent}</span>
+            <span className="flex-1 text-sm leading-[1.6] text-nowrap text-foreground">{titleContent}</span>
           )}
 
-          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] text-primary leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
+          <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] leading-[1.6] text-primary opacity-100 transition-opacity duration-300 group-hover:opacity-0">
             {citation.number}
           </div>
           {fetchedContent && <CopyButton content={fetchedContent} actions={actions} />}
@@ -77,7 +78,7 @@ export const WebCitationCard: React.FC<{
           </div>
         ) : (
           fetchedContent && (
-            <div className="selectable-text cursor-text select-text break-all text-[13px] text-muted-foreground leading-[1.6]">
+            <div className="selectable-text cursor-text text-[13px] leading-[1.6] break-all text-muted-foreground select-text">
               {fetchedContent}
             </div>
           )
@@ -151,7 +152,7 @@ export const WebCitationHoverContent: React.FC<{ citation: WebCitationHoverData;
         onClick={handleClick}>
         <Favicon hostname={hostname} alt={sourceTitle} />
         <div
-          className="overflow-hidden text-ellipsis whitespace-nowrap text-foreground text-sm leading-[1.4]"
+          className="overflow-hidden text-sm leading-[1.4] text-ellipsis whitespace-nowrap text-foreground"
           role="heading"
           aria-level={3}
           title={sourceTitle}>
@@ -160,7 +161,7 @@ export const WebCitationHoverContent: React.FC<{ citation: WebCitationHoverData;
       </a>
       {displayContent && (
         <div
-          className="mb-2 overflow-hidden text-[13px] text-muted-foreground leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
+          className="mb-2 [display:-webkit-box] overflow-hidden text-[13px] leading-normal text-muted-foreground [-webkit-box-orient:vertical] [-webkit-line-clamp:3]"
           role="article"
           aria-label="Citation content"
           style={{
@@ -176,7 +177,7 @@ export const WebCitationHoverContent: React.FC<{ citation: WebCitationHoverData;
         href={citation.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-link text-xs hover:underline"
+        className="cursor-pointer overflow-hidden text-xs text-ellipsis whitespace-nowrap text-link hover:underline"
         aria-label={`Visit ${hostname}`}
         onClick={handleClick}>
         {hostname}

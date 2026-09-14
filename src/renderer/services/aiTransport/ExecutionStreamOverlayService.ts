@@ -1,3 +1,5 @@
+import { isToolUIPart, readUIMessageStream } from 'ai'
+
 /**
  * Window-level owner of streaming overlay state shared by topic and agent-session
  * consumers (execution readers, live snapshots, interval-batched flushes). Extracted
@@ -44,7 +46,6 @@ import { loggerService } from '@logger'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { isToolUIPart, readUIMessageStream } from 'ai'
 
 import { TopicStreamSubscription } from './TopicStreamSubscription'
 
@@ -158,10 +159,10 @@ function pickSeed(
   seedFromEmpty = false
 ): CherryUIMessage | undefined {
   if (!anchorMessageId) return undefined
-  if (seedFromEmpty) return { id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage
+  if (seedFromEmpty) return { id: anchorMessageId, role: 'assistant', parts: [] }
   const found = uiMessages.find((m) => m.id === anchorMessageId)
   if (!found) {
-    return { id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage
+    return { id: anchorMessageId, role: 'assistant', parts: [] }
   }
   // readUIMessageStream mutates `message.parts` in place. `found` is the live, render-stable
   // SWR-derived row whose `parts` array aliases the SWR cache, so seeding the reader with it
@@ -236,7 +237,7 @@ function shareSettledPartReferences(
 function computeView(snapshots: Record<string, CherryUIMessage>): ExecutionOverlayView {
   const overlay: Record<string, CherryMessagePart[]> = {}
   for (const snapshot of Object.values(snapshots)) {
-    if (snapshot?.parts?.length) overlay[snapshot.id] = snapshot.parts as CherryMessagePart[]
+    if (snapshot?.parts?.length) overlay[snapshot.id] = snapshot.parts
   }
   const liveAssistants = Object.values(snapshots).filter((s): s is CherryUIMessage => s?.role === 'assistant')
   return { overlay, liveAssistants }
@@ -520,7 +521,7 @@ export class ExecutionStreamOverlayService {
 
   #liveReaderExecutionIds(entry: Entry): Set<string> {
     const ids = new Set<string>()
-    for (const handle of entry.readers.values()) ids.add(handle.executionId as string)
+    for (const handle of entry.readers.values()) ids.add(handle.executionId)
     return ids
   }
 
@@ -602,10 +603,7 @@ export class ExecutionStreamOverlayService {
           }
         })) {
           if (cancelled) break
-          const sharedParts = shareSettledPartReferences(
-            last?.parts as CherryMessagePart[] | undefined,
-            snapshot.parts as CherryMessagePart[]
-          )
+          const sharedParts = shareSettledPartReferences(last?.parts, snapshot.parts)
           const nextSnapshot = sharedParts === snapshot.parts ? snapshot : { ...snapshot, parts: sharedParts }
           last = nextSnapshot
           this.#queueSnapshot(entry, executionId, nextSnapshot, readerEpoch, readerVersion)

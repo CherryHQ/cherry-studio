@@ -1,6 +1,7 @@
+import { Dexie, type IndexableType } from 'dexie'
+
 import { loggerService } from '@logger'
 import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
-import { Dexie, type IndexableType } from 'dexie'
 
 const logger = loggerService.withContext('LegacyV1BrowserData')
 

@@ -1,12 +1,13 @@
 import fs from 'node:fs'
 
-import { fileEntryTable } from '@data/db/schemas/file'
-import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
-import { miniAppTable } from '@data/db/schemas/miniApp'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { BrowserWindow, dialog, webContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { fileEntryTable } from '@data/db/schemas/file'
+import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
+import { miniAppTable } from '@data/db/schemas/miniApp'
 
 import { type CallLease, MiniAppQuiescingError } from '../../runtime/MiniAppRuntimeService'
 import { base64CharCap, MINI_APP_QUOTAS } from '../quota'

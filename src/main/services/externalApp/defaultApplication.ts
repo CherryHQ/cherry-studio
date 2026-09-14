@@ -3,11 +3,12 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { app } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { app } from 'electron'
 
 const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('DefaultApplication')

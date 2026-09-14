@@ -1,5 +1,6 @@
-import { IpcChannel } from '@shared/IpcChannel'
 import { ipcRenderer, type IpcRendererEvent } from 'electron'
+
+import { IpcChannel } from '@shared/IpcChannel'
 
 /**
  * Low-level IpcApi bridge exposed at `window.api.ipcApi`.
