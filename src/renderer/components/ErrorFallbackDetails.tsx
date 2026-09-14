@@ -1,9 +1,10 @@
+import { Copy } from 'lucide-react'
+import type { FC } from 'react'
+
 import { Button } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { formatErrorDetails } from '@renderer/utils/errorDetails'
-import { Copy } from 'lucide-react'
-import type { FC } from 'react'
 
 interface ErrorFallbackDetailsProps {
   error: unknown
