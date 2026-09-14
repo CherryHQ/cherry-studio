@@ -9,7 +9,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
-import { Session, SessionId, SessionLogOffset, SessionStore } from '@deepseek-ai/dsh-session'
+import { interruptedTurnClosers, Session, SessionId, SessionLogOffset, SessionStore } from '@deepseek-ai/dsh-session'
 import { JsonlSessionPersistence } from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
 import * as fileTools from '@deepseek-ai/dsh-tool-fs'
@@ -111,6 +111,35 @@ const openParams = {
 }
 
 describe('cherry bridge plugin', () => {
+  it('snapshots only the completed prefix while the source has an interrupted later turn', async () => {
+    const context = new Context()
+    await context.plugin(SessionStore)
+    cleanup.push(() => context.fiber.dispose())
+    const session = context.sessions.create(SessionId('session-1'))
+    session.append('turn/start', { turn: 0 })
+    const end = session.append('turn/end', { turn: 0, reason: { kind: 'blocked' } })
+    const later = session.append('turn/start', { turn: 1 })
+    const sourceEvents = session.snapshotEvents()
+    expect(interruptedTurnClosers(sourceEvents).length).toBeGreaterThan(0)
+    const host = await startHost()
+    const ctx = makeContext({ agents: { get: () => ({ session }) } })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    const expected = sourceEvents.slice(0, end.seq + 1)
+    expect(interruptedTurnClosers(expected)).toEqual([])
+    await expect(host.request('session/fork-snapshot', { sessionId: 'session-1', boundary: end.seq })).resolves.toEqual(
+      {
+        events: expected
+      }
+    )
+    await expect(
+      host.request('session/fork-snapshot', { sessionId: 'session-1', boundary: later.seq })
+    ).rejects.toThrow('history_changed')
+    expect(session.snapshotEvents()).toEqual(sourceEvents)
+  })
+
   it.each([false, true])('never creates empty native fork history when required (resume=%s)', async (resume) => {
     const host = await startHost()
     const create = vi.fn()

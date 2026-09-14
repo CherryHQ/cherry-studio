@@ -223,6 +223,27 @@ afterEach(() => {
 })
 
 describe('DshRuntimeConnection tracing', () => {
+  it('bounds fork snapshots without closing the source connection', async () => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const events = [{ type: 'turn/end', seq: 7 }]
+    try {
+      runtimeMocks.bridgeRequest.mockResolvedValueOnce({ events })
+      await expect(connection.snapshotForFork(7)).resolves.toEqual(events)
+      expect(runtimeMocks.bridgeRequest).toHaveBeenLastCalledWith(
+        'session/fork-snapshot',
+        { sessionId: 'session-1', boundary: 7 },
+        { timeoutMs: 60_000 }
+      )
+      runtimeMocks.bridgeRequest.mockRejectedValueOnce(new Error('snapshot timed out'))
+      await expect(connection.snapshotForFork(7)).rejects.toThrow('snapshot timed out')
+      expect(runtimeMocks.clientClose).not.toHaveBeenCalled()
+      runtimeMocks.bridgeRequest.mockResolvedValueOnce({ events })
+      await expect(connection.snapshotForFork(7)).resolves.toEqual(events)
+    } finally {
+      await connection.close()
+    }
+  })
+
   it.each([false, true])('uses durable preparation state for fork resume strictness (unsent=%s)', async (unsent) => {
     runtimeMocks.isFork.mockReturnValue(true)
     runtimeMocks.needsPreparation.mockReturnValue(unsent)
