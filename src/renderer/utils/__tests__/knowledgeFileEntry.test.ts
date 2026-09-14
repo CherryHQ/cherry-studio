@@ -167,7 +167,7 @@ describe('knowledgeFileEntry', () => {
     ]
 
     const batch = await resolveKnowledgeFileBatch(files, resolveKnowledgeFileMetadataEntryData, (file) => file.name)
-    const outcome = selectKnowledgeFileBatchOutcome(batch, false)
+    const outcome = selectKnowledgeFileBatchOutcome(batch)
 
     expect(outcome.fatal).toBeUndefined()
     expect(outcome.resolved).toEqual([{ source: '/tmp/ok.pdf', path: '/tmp/ok.pdf' }])
@@ -196,18 +196,34 @@ describe('knowledgeFileEntry', () => {
       (file) => resolveKnowledgeFileMetadataEntryData(file as (typeof files)[0] & object),
       (file) => file?.name
     )
-    const outcome = selectKnowledgeFileBatchOutcome(batch, false)
+    const outcome = selectKnowledgeFileBatchOutcome(batch)
 
     expect(outcome.fatal).toBeUndefined()
     expect(outcome.resolved).toEqual([{ source: '/tmp/ok.pdf', path: '/tmp/ok.pdf' }])
     expect(outcome.skipped[0]?.error).toBeInstanceOf(TypeError)
   })
 
-  it('treats a transport failure as fatal only when nothing else can be saved', async () => {
+  it('treats a transport failure as fatal even when a sibling file resolved', async () => {
     const probeError = new IpcError(IpcErrorCode.INTERNAL, 'IpcApi returned a malformed result')
-    mocks.request.mockRejectedValue(probeError)
+    mocks.request.mockImplementation(async (_route: string, handle?: { path?: string }) => {
+      if (handle?.path?.includes('probe')) {
+        throw probeError
+      }
+      return presentFileMetadata
+    })
 
     const files = [
+      {
+        id: 'ok',
+        name: 'ok.pdf',
+        origin_name: 'ok.pdf',
+        path: '/tmp/ok.pdf',
+        size: 1,
+        ext: '.pdf',
+        type: 'document' as const,
+        created_at: '2026-05-27T00:00:00.000Z',
+        count: 1
+      },
       {
         id: 'probe',
         name: 'probe.pdf',
@@ -222,9 +238,10 @@ describe('knowledgeFileEntry', () => {
     ]
 
     const batch = await resolveKnowledgeFileBatch(files, resolveKnowledgeFileMetadataEntryData, (file) => file.name)
+    const outcome = selectKnowledgeFileBatchOutcome(batch)
 
-    expect(selectKnowledgeFileBatchOutcome(batch, false).fatal).toBe(probeError)
-    expect(selectKnowledgeFileBatchOutcome(batch, true).fatal).toBeUndefined()
-    expect(selectKnowledgeFileBatchOutcome(batch, true).skipped[0]?.error).toBe(probeError)
+    expect(outcome.fatal).toBe(probeError)
+    expect(outcome.resolved).toEqual([])
+    expect(outcome.skipped).toEqual([])
   })
 })

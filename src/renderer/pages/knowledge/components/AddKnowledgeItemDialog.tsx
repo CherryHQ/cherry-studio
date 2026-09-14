@@ -215,7 +215,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       describeItem: (item: T) => string | undefined
     ): Promise<KnowledgeAddItemInput[]> => {
       const fileBatch = await resolveKnowledgeFileBatch(files, resolveItem, describeItem)
-      const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch, false)
+      const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch)
       if (fileOutcome.fatal !== undefined) {
         throw fileOutcome.fatal
       }
