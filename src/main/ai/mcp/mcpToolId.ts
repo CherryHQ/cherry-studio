@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 
-import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import * as tinyPinyin from 'tiny-pinyin'
+
+import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 
 const MCP_TOOL_ID_MAX_LENGTH = 63
 const IDENTITY_DIGEST_LENGTH = 20

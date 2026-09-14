@@ -1,0 +1,147 @@
+name: Publish Release
+run-name: Publish ${{ github.event.workflow_run.head_branch }} @ ${{ github.event.workflow_run.head_sha }}
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  approve:
+    name: Approve production release
+    if: >-
+      github.repository == 'CherryHQ/cherry-studio' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'workflow_dispatch' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'release/v') &&
+      github.event.workflow_run.display_title == format(
+        'Release build all {0} @ {1}',
+        github.event.workflow_run.head_branch,
+        github.event.workflow_run.head_sha
+      )
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - name: Record approval
+        run: echo "Approved release build ${{ github.event.workflow_run.html_url }}"
+
+  publish:
+    name: Publish approved release
+    needs: approve
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-state
+      cancel-in-progress: false
+    steps:
+      - name: Check out trusted publication code without credentials
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+
+      - name: Validate and publish current draft
+        shell: bash
+        env:
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          BUILD_RUN_ID: ${{ github.event.workflow_run.id }}
+          BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          REPO: ${{ github.repository }}
+        run: |
+          git fetch origin "refs/heads/main:refs/remotes/origin/main"
+
+          collect_pending_hotfixes() {
+            local main_sha="$1" fork_point hotfix_prs pending merge_sha pr_json
+            fork_point="$(git merge-base "$BUILD_SHA" "$main_sha")"
+            hotfix_prs="$(gh pr list --repo "$REPO" --base main --state merged --limit 1000 --json labels,mergeCommit,title,url)"
+            pending=""
+
+            while IFS= read -r pr_json; do
+              if ! jq -e '
+                (.title | test("^hotfix(\\([a-z0-9]+(-[a-z0-9]+)*\\))?: \\S")) or
+                any(.labels[]; .name == "hotfix")
+              ' <<< "$pr_json" >/dev/null; then
+                continue
+              fi
+              merge_sha="$(jq -r '.mergeCommit.oid // ""' <<< "$pr_json")"
+              if [ -z "$merge_sha" ] || [ "$merge_sha" = "$fork_point" ]; then
+                continue
+              fi
+              if ! git merge-base --is-ancestor "$fork_point" "$merge_sha" || \
+                 ! git merge-base --is-ancestor "$merge_sha" "$main_sha"; then
+                continue
+              fi
+              if ! jq -e --arg label "backported/$TAG" 'any(.labels[]; .name == $label)' <<< "$pr_json" >/dev/null; then
+                pending+="${pending:+$'\n'}$(jq -r '.url' <<< "$pr_json")"
+              fi
+            done < <(jq -c '.[]' <<< "$hotfix_prs")
+
+            printf '%s' "$pending"
+          }
+
+          TAG="${BRANCH#release/}"
+          HOTFIX_CUTOFF_SHA="$(git rev-parse origin/main)"
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          RELEASE="$(jq -c --arg tag "$TAG" '
+            [.[][] | select(.tag_name == $tag)] |
+            .[0] // empty
+          ' <<< "$RELEASE_PAGES")"
+          RELEASE_ID="$(jq -r '.id // empty' <<< "$RELEASE")"
+          TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
+          PENDING_HOTFIXES="$(collect_pending_hotfixes "$HOTFIX_CUTOFF_SHA")"
+          EXPECTED_BUILD="Release build all $BRANCH @ $BUILD_SHA"
+          BUILD_RUN="$(gh api "repos/$REPO/actions/runs/$BUILD_RUN_ID")"
+
+          if [ "$(jq -r '.head_repository.full_name' <<< "$BUILD_RUN")" != "$REPO" ] || \
+             [ "$(jq -r '.head_branch' <<< "$BUILD_RUN")" != "$BRANCH" ]; then
+            echo "The approved build no longer identifies the expected repository and release branch" >&2
+            exit 1
+          fi
+
+          BRANCH_SHA="$BRANCH_SHA" \
+          BUILD_RUN_JSON="$BUILD_RUN" \
+          EXPECTED_BUILD_TITLE="$EXPECTED_BUILD" \
+          OPEN_RELEASE_PULL_REQUESTS="$OPEN_RELEASE_PRS" \
+          PENDING_HOTFIXES="$PENDING_HOTFIXES" \
+          RELEASE_JSON="$RELEASE" \
+          TAG="$TAG" \
+          TAG_SHA="$TAG_SHA" \
+          WORKFLOW_SHA="$BUILD_SHA" \
+            node scripts/release/validate-release-state.js publish
+
+          PRERELEASE="$(jq -r '.prerelease' <<< "$RELEASE")"
+          if [ "$PRERELEASE" = "true" ]; then
+            MAKE_LATEST="false"
+          else
+            MAKE_LATEST="true"
+          fi
+          # PATCH without tag_name resets a draft to untagged-<sha>
+          jq -n \
+            --arg makeLatest "$MAKE_LATEST" \
+            --arg tag "$TAG" \
+            --argjson prerelease "$PRERELEASE" \
+            '{tag_name: $tag, draft: false, prerelease: $prerelease, make_latest: $makeLatest}' \
+            > "$RUNNER_TEMP/publish-release.json"
+
+          echo "Publishing $TAG with hotfix cutoff $HOTFIX_CUTOFF_SHA"
+          PUBLISHED="$(gh api --method PATCH "repos/$REPO/releases/$RELEASE_ID" \
+            --input "$RUNNER_TEMP/publish-release.json")"
+          if [ "$(jq -r '.draft' <<< "$PUBLISHED")" != "false" ] || \
+             [ "$(jq -r '.tag_name' <<< "$PUBLISHED")" != "$TAG" ]; then
+            echo "Release $TAG was not published from $BUILD_SHA" >&2
+            exit 1
+          fi
+          if [ "$PRERELEASE" = "false" ] && \
+             [ "$(gh api "repos/$REPO/releases/latest" --jq '.id')" != "$RELEASE_ID" ]; then
+            echo "Stable release $TAG was not marked latest" >&2
+            exit 1
+          fi

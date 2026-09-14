@@ -13,17 +13,19 @@
  * them and ai-retry can't re-shape them mid-call); the capability gate ensures a
  * skipped fallback never receives a native request shape it can't handle.
  */
-import { resolveLanguageModel } from '@cherrystudio/ai-core'
+import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isAbortError } from '@main/utils/error'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
-import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { isAudioModel, isFunctionCallingModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
-import type { AiBaseRequest, AppProviderSettingsMap } from '../../../types'
+import type { AiChatRequest, AppProviderSettingsMap } from '../../../types'
 import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
@@ -36,7 +38,7 @@ const logger = loggerService.withContext('ModelRetry')
 export interface BuildFallbackModelsArgs {
   // Base request shape accepted by `buildAgentParams`; kept `messages`-agnostic so
   // both streamText (UIMessage[]) and generateText (ModelMessage[]) requests fit.
-  request: AiBaseRequest & { chatId?: string; messageId?: string }
+  request: AiChatRequest & { messageId?: string }
   assistant: Assistant | undefined
   signal: AbortSignal | undefined
   /** Primary model's stored UniqueModelId — fallbacks equal to it are dropped. */
@@ -47,6 +49,12 @@ export interface BuildFallbackModelsArgs {
   requiredNativeFileSupport: NativeFileSupport
   extraFeatures: readonly RequestFeature[]
   retryPolicy: RetryPolicy
+  createUsagePlugin: (input: {
+    provider: Provider
+    model: Model
+    sdkModelId: string
+    credentialReceipt: ServingCredentialReceipt
+  }) => AiPlugin
 }
 
 const FALLBACK_CALL_OPTION_KEYS = [
@@ -67,7 +75,7 @@ function pickFallbackCallOptions(options: AgentOptions): FallbackCallOptions | u
   const entries = FALLBACK_CALL_OPTION_KEYS.flatMap((key) =>
     options[key] === undefined ? [] : ([[key, options[key]]] as const)
   )
-  return entries.length > 0 ? (Object.fromEntries(entries) as FallbackCallOptions) : undefined
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
 
 export function buildFallbackModels(args: BuildFallbackModelsArgs): FallbackResolver[] {
@@ -136,13 +144,15 @@ async function resolveFallback(
     return null
   }
 
-  const { sdkConfig, plugins, options, nativeFileSupport } = await buildAgentParams({
+  const repairUsagePlugins: { current?: AiPlugin[] } = {}
+  const { sdkConfig, credentialReceipt, plugins, options, nativeFileSupport } = await buildAgentParams({
     request: args.request,
     signal: args.signal,
     provider,
     model,
     assistant: args.assistant,
-    extraFeatures: args.extraFeatures
+    extraFeatures: args.extraFeatures,
+    getRepairUsagePlugins: () => repairUsagePlugins.current ?? []
   })
   const unsupportedNativeType = (Object.keys(required) as Array<keyof NativeFileSupport>).find(
     (type) => required[type] && !nativeFileSupport[type]
@@ -155,11 +165,13 @@ async function resolveFallback(
     return null
   }
 
+  const usagePlugin = args.createUsagePlugin({ provider, model, sdkModelId: sdkConfig.modelId, credentialReceipt })
+  repairUsagePlugins.current = [usagePlugin]
   const resolved = await resolveLanguageModel<AppProviderSettingsMap>(
     sdkConfig.providerId,
     sdkConfig.providerSettings,
     sdkConfig.modelId,
-    plugins
+    [...plugins, usagePlugin]
   )
-  return { model: resolved, options: pickFallbackCallOptions(options) }
+  return { model: resolved, options: pickFallbackCallOptions(options), repairToolCall: options.repairToolCall }
 }

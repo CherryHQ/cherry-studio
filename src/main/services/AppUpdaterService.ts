@@ -1,3 +1,9 @@
+import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
+import { CancellationToken } from 'builder-util-runtime'
+import { app, net } from 'electron'
+import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
+import { AppUpdater, autoUpdater } from 'electron-updater'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { computeBackoff } from '@main/core/job/runtime/backoff'
@@ -5,9 +11,11 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { regionService } from '@main/services/RegionService'
+import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type { AppEdition } from '@shared/types/appEdition'
 import { APP_NAME } from '@shared/utils/constants'
 import {
   hasMultiLanguageReleaseNotes,
@@ -16,11 +24,6 @@ import {
   parseReleaseHistory,
   type ReleaseNotesEntry
 } from '@shared/utils/releaseNotes'
-import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
-import { CancellationToken } from 'builder-util-runtime'
-import { app, net } from 'electron'
-import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
-import { AppUpdater, autoUpdater } from 'electron-updater'
 
 const logger = loggerService.withContext('AppUpdaterService')
 
@@ -30,7 +33,11 @@ const RELEASE_HISTORY_URL = 'https://releases.cherry-ai.com/release-history.json
 const RELEASE_HISTORY_TIMEOUT_MS = 10_000
 const RELEASE_HISTORY_MAX_BYTES = 1024 * 1024
 
-function getUpdateHeaders(region: ReleaseRegion) {
+function getEditionUpdateChannel(channel: UpgradeChannel, edition: AppEdition): string {
+  return edition === 'cn' ? `${channel}-cn` : channel
+}
+
+function getUpdateHeaders({ region, edition }: { region: ReleaseRegion; edition: AppEdition }) {
   return {
     'User-Agent': generateUserAgent(),
     'Cache-Control': 'no-cache',
@@ -38,6 +45,7 @@ function getUpdateHeaders(region: ReleaseRegion) {
     'App-Name': APP_NAME,
     'App-Version': `v${app.getVersion()}`,
     OS: process.platform,
+    'X-Edition': edition,
     'X-Region': region
   }
 }
@@ -180,14 +188,16 @@ export class AppUpdaterService extends BaseService {
 
     const ipCountry = await regionService.getCountry()
     const region: ReleaseRegion = ipCountry.toLowerCase() === 'cn' ? 'cn' : 'global'
+    const edition = getAppEdition()
+    const updateChannel = getEditionUpdateChannel(requestedChannel, edition)
 
-    const updateHeaders = getUpdateHeaders(region)
+    const updateHeaders = getUpdateHeaders({ region, edition })
 
-    return { currentVersion, ipCountry, region, requestedChannel, testPlan, updateHeaders }
+    return { currentVersion, edition, ipCountry, region, testPlan, updateChannel, updateHeaders }
   }
 
   private async configureUpdaterForCheck() {
-    const { currentVersion, ipCountry, region, requestedChannel, testPlan, updateHeaders } =
+    const { currentVersion, edition, ipCountry, region, testPlan, updateChannel, updateHeaders } =
       await this.getUpdateRequest()
 
     autoUpdater.requestHeaders = {
@@ -196,9 +206,9 @@ export class AppUpdaterService extends BaseService {
     }
 
     logger.info(
-      `Using managed update feed for version ${currentVersion}, testPlan: ${testPlan}, channel: ${requestedChannel}, region: ${region} (IP country: ${ipCountry})`
+      `Using managed update feed for version ${currentVersion}, edition: ${edition}, testPlan: ${testPlan}, channel: ${updateChannel}, region: ${region} (IP country: ${ipCountry})`
     )
-    autoUpdater.channel = requestedChannel
+    autoUpdater.channel = updateChannel
 
     // disable downgrade after change the channel
     autoUpdater.allowDowngrade = false
@@ -238,14 +248,14 @@ export class AppUpdaterService extends BaseService {
 
   public async getLatestReleaseNotes(): Promise<ReleaseNotesEntry | null> {
     try {
-      const { requestedChannel, updateHeaders } = await this.getUpdateRequest()
+      const { updateChannel, updateHeaders } = await this.getUpdateRequest()
       const updater = new ReleaseNotesUpdater()
       updater.logger = logger as Logger
       updater.forceDevUpdateConfig = !app.isPackaged
       updater.autoDownload = false
       updater.autoInstallOnAppQuit = false
       updater.requestHeaders = updateHeaders
-      updater.channel = requestedChannel
+      updater.channel = updateChannel
       updater.allowDowngrade = false
 
       const result = await updater.checkForUpdates()

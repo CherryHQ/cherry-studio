@@ -1,7 +1,8 @@
-import { Checkbox, type CheckedState } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Bell, Check, FileText, Mail, Shield, Star } from 'lucide-react'
 import { useState } from 'react'
+
+import { Checkbox, type CheckedState } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Checkbox> = {
   title: 'Components/Primitives/Checkbox',

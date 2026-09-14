@@ -1,3 +1,5 @@
+import type { JSONContent } from '@tiptap/core'
+
 import { isComposerInputTokenKind, isComposerMessageTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type {
@@ -7,7 +9,6 @@ import type {
   ComposerMessageTokenPayload
 } from '@shared/data/types/uiParts'
 import { FileTypeSchema } from '@shared/types/file'
-import type { JSONContent } from '@tiptap/core'
 
 import { createPromptVariableContent } from './promptVariables'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
@@ -304,7 +305,7 @@ export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): C
 }
 
 function createComposerTextPart(text: string, composer?: ComposerMessageSnapshot): CherryMessagePart {
-  if (!composer) return { type: 'text', text } as CherryMessagePart
+  if (!composer) return { type: 'text', text }
 
   const cherry: CherryProviderMetadata = { composer }
   return {

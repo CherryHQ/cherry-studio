@@ -1,21 +1,17 @@
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
-import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
-import type { MessageStats } from '@shared/data/types/message'
 import type { FC, MouseEvent } from 'react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
+import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
+
 import { useMessageListActions, useMessageListMeta } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
-import { getMessageModelTokensPerSecond } from './messagePerformance'
+import { getMessageModelTokensPerSecond, getMessageTokenUsage } from './messagePerformance'
 import MessageTokenDetailsCard from './MessageTokenDetailsCard'
 
 interface MessageTokensProps {
   message: MessageListItem
-}
-
-function getTotalTokens(stats: MessageStats): number {
-  return stats.totalTokens ?? (stats.inputTokens ?? 0) + (stats.outputTokens ?? 0)
 }
 
 function UserMessageTokens({ label, onLocate }: { label: string; onLocate: () => void }) {
@@ -38,12 +34,12 @@ function AssistantMessageTokens({
   message: MessageListItem
   onLocate: () => void
 }) {
-  const [showAllDetails, setShowAllDetails] = useState(false)
+  const [showMoreDetails, setShowMoreDetails] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isDetailsDismissed, setIsDetailsDismissed] = useState(false)
   const contentId = useId()
   const messageKind = useMessageListMeta().aiUsageMessageKind ?? 'chat'
-  const { pages, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/ai-usage-records', {
+  const { pages, isLoading, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/ai-usage-records', {
     enabled: isDetailsOpen && message.stats?.runtimeTiming !== undefined,
     query: {
       messageKind,
@@ -91,11 +87,10 @@ function AssistantMessageTokens({
   const handleBlur = () => {
     pointerDownPositionRef.current = undefined
     setIsDetailsDismissed(false)
-    setShowAllDetails(false)
   }
 
   useEffect(() => {
-    if (!isDetailsOpen) {
+    if (!showMoreDetails || !isDetailsVisible) {
       requestedPageCountRef.current = pages.length
       return
     }
@@ -103,16 +98,15 @@ function AssistantMessageTokens({
 
     requestedPageCountRef.current = pages.length + 1
     loadNext()
-  }, [hasNext, isDetailsOpen, isRefreshing, loadNext, pages.length])
+  }, [hasNext, isDetailsVisible, isRefreshing, loadNext, pages.length, showMoreDetails])
 
   return (
     <HoverCard open={isDetailsVisible} onOpenChange={handleDetailsOpenChange} openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>
         <button
           type="button"
-          aria-describedby={showAllDetails && isDetailsVisible ? contentId : undefined}
+          aria-describedby={isDetailsVisible ? contentId : undefined}
           className="message-tokens cursor-pointer select-text text-right text-muted-foreground text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
-          onFocus={() => setShowAllDetails(true)}
           onBlur={handleBlur}
           onMouseDown={handleMouseDown}
           onMouseEnter={handleMouseBoundary}
@@ -128,7 +122,13 @@ function AssistantMessageTokens({
         sideOffset={8}
         collisionPadding={12}
         className="w-[28rem] max-w-(--radix-hover-card-content-available-width) p-0">
-        <MessageTokenDetailsCard message={message} records={records} showAllDetails={showAllDetails} />
+        <MessageTokenDetailsCard
+          message={message}
+          records={records}
+          showMoreDetails={showMoreDetails}
+          isLoadingDetails={isLoading || isRefreshing}
+          onShowMoreDetailsChange={setShowMoreDetails}
+        />
       </HoverCardContent>
     </HoverCard>
   )
@@ -155,8 +155,11 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
     return null
   }
 
-  const totalTokens = getTotalTokens(stats)
-  const tokenLabel = t('chat.message.token_details.tokens', { value: compactFormatter.format(totalTokens) })
+  const totalTokens = getMessageTokenUsage(stats).totalTokens
+  const tokenLabel = t('chat.message.token_details.tokens', {
+    value:
+      totalTokens === undefined ? t('chat.message.token_details.unavailable') : compactFormatter.format(totalTokens)
+  })
   const locateMessage = () => actions.locateMessage?.(message.id, false)
 
   if (message.role === 'user') {

@@ -1,3 +1,6 @@
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { dataApiService } from '@data/DataApiService'
 import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
@@ -18,6 +21,7 @@ import {
   type MessageListMeta,
   type MessageListProviderValue,
   type MessageListRuntime,
+  type MessageListSelectAllPagination,
   type MessageListState,
   type MessageRuntime,
   type MessageStreamingLayers
@@ -29,7 +33,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
@@ -51,8 +55,6 @@ import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
-import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   consumePendingTopicImageActions,
@@ -74,6 +76,7 @@ interface HomeMessageListParams {
   isMessagesStale?: boolean
   loadOlder?: () => void
   hasOlder?: boolean
+  selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
@@ -92,6 +95,7 @@ export function useHomeMessageListProviderValue({
   isMessagesStale = false,
   loadOlder,
   hasOlder = false,
+  selectAllPagination,
   openCitationsPanel,
   imageActionConsumer,
   onBindRuntime,
@@ -222,11 +226,16 @@ export function useHomeMessageListProviderValue({
 
     await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
   }, [])
+  const diagnosticReport = useMemo(
+    () => (normalInteractionsEnabled ? { location: t('error.diagnostic_report.locations.home') } : undefined),
+    [normalInteractionsEnabled, t]
+  )
 
   const {
     errorActions,
     exportActions,
     getMessageActivityState,
+    messageActivityStore,
     headerCapabilities,
     leafCapabilities,
     menuConfig,
@@ -241,7 +250,9 @@ export function useHomeMessageListProviderValue({
     partsByMessageId,
     streamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
-    persistDiagnosis
+    diagnosticReport,
+    persistDiagnosis,
+    selectAllPagination
   })
 
   useEffect(() => {
@@ -442,7 +453,7 @@ export function useHomeMessageListProviderValue({
           allParts[resolved.index] = {
             ...resolved.part,
             text: updatedText
-          } as CherryMessagePart
+          }
           await requireChatWrite('saveCodeBlock').editMessage(resolved.messageId, allParts)
           toast.success(t('code_block.edit.save.success'))
           return
@@ -531,7 +542,7 @@ export function useHomeMessageListProviderValue({
           ...(sourceLanguage && { sourceLanguage })
         }
       }
-      await write.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
+      await write.editMessage(messageId, [...baseParts, loadingPart])
       if (!isCurrentTranslation()) return null
 
       let pendingUpdate = Promise.resolve()
@@ -551,7 +562,7 @@ export function useHomeMessageListProviderValue({
         pendingUpdate = pendingUpdate
           .then(() => {
             if (!isCurrentTranslation()) return
-            return write.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart])
+            return write.editMessage(messageId, [...baseParts, translationPart])
           })
           .catch((error) => {
             logger.error('Failed to update message translation:', error as Error, { messageId })
@@ -737,7 +748,7 @@ export function useHomeMessageListProviderValue({
           } as SharedModel)
         : undefined
 
-      const mentionModelFilter = (model: SharedModel) => {
+      const mentionModelFilter: ModelSelectorFilter = (model) => {
         if (isNonChatModel(model)) return false
         const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
         if (needsVision && !isVisionModel(model)) return false
@@ -784,10 +795,11 @@ export function useHomeMessageListProviderValue({
       menuConfig,
       selection: selectionController.selection,
       editingMessageId,
-      translationLanguages: translationLanguages ?? [],
+      translationLanguages,
       translationLanguagesStatus,
       getMessageUiState: messageUiStateCache.getMessageUiState,
       getMessageSiblings,
+      messageActivityStore,
       getMessageActivityState,
       isMessageTranslating,
       ...pickMessageLeafState(leafCapabilities),
@@ -806,6 +818,7 @@ export function useHomeMessageListProviderValue({
       menuConfig,
       messageUiStateCache.getMessageUiState,
       messageItems,
+      messageActivityStore,
       messageNavigation,
       partsByMessageId,
       renderConfig,

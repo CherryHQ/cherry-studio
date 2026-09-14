@@ -1,9 +1,11 @@
+import { isUndefined, omitBy } from 'es-toolkit/compat'
+import { useCallback } from 'react'
+import type { SWRConfiguration } from 'swr'
+
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useDataChange } from '@data/hooks/useDataChange'
 import { loggerService } from '@logger'
-import { getProviderLabelKey } from '@renderer/i18n/label'
-import i18n from '@renderer/i18n/resolver'
-import { isSystemProviderId } from '@renderer/types/provider'
+import { getProviderDisplayName } from '@renderer/utils/naming'
 import type {
   CreateProviderDto,
   ListProvidersQuery,
@@ -13,12 +15,13 @@ import type {
 } from '@shared/data/api/schemas/providers'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
-import { isUndefined, omitBy } from 'es-toolkit/compat'
-import { useCallback } from 'react'
-import type { SWRConfiguration } from 'swr'
 
 const EMPTY_PROVIDERS: Provider[] = []
 const logger = loggerService.withContext('useProviders')
+
+function getErrorType(error: unknown) {
+  return error instanceof Error ? error.name : typeof error
+}
 
 /**
  * All SWR cache keys that must revalidate after any mutation to a provider:
@@ -30,11 +33,7 @@ const logger = loggerService.withContext('useProviders')
  * use schema template paths directly, so no `as ConcreteApiPaths` casts are needed there.
  */
 function providerRefreshPaths(providerId: string): ConcreteApiPaths[] {
-  return [
-    '/providers',
-    `/providers/${providerId}` as ConcreteApiPaths,
-    `/providers/${providerId}/*` as ConcreteApiPaths
-  ]
+  return ['/providers', `/providers/${providerId}`, `/providers/${providerId}/*`]
 }
 
 // ─── Layer 1: List + Create ────────────────────────────────────────────
@@ -53,7 +52,7 @@ export function useProviders(
         }
       : undefined
 
-  const { data, isLoading, refetch } = useQuery('/providers', queryOptions)
+  const { data, isLoading, error, refetch } = useQuery('/providers', queryOptions)
 
   const {
     trigger: createTrigger,
@@ -79,12 +78,22 @@ export function useProviders(
 
   return {
     providers,
+    hasLoaded: data !== undefined,
     isLoading,
+    error,
     createProvider,
     isCreating,
     createError,
     refetch
   }
+}
+
+/**
+ * IDs hidden by edition policy (e.g. global-only presets on a cn build),
+ * so the settings UI can explain them instead of silently omitting them.
+ */
+export function useEditionHiddenProviders() {
+  return useQuery('/providers/edition-hidden')
 }
 
 // ─── Layer 2: Single read + write + delete ────────────────────────────
@@ -188,7 +197,7 @@ export function useProviderMutations(providerId: string) {
       try {
         await addApiKeyTrigger({ params: { providerId }, body: { key, label } })
       } catch (error) {
-        logger.error('Failed to add API key', { providerId, error })
+        logger.error('Failed to add API key', { providerId, errorType: getErrorType(error) })
         throw error
       }
     },
@@ -212,7 +221,7 @@ export function useProviderMutations(providerId: string) {
       try {
         await replaceApiKeysTrigger({ params: { providerId }, body: { keys: apiKeys } })
       } catch (error) {
-        logger.error('Failed to update API keys', { providerId, error })
+        logger.error('Failed to update API keys', { providerId, errorType: getErrorType(error) })
         throw error
       }
     },
@@ -224,7 +233,7 @@ export function useProviderMutations(providerId: string) {
       try {
         await updateApiKeyTrigger({ params: { providerId, keyId }, body: updates })
       } catch (error) {
-        logger.error('Failed to update API key', { providerId, keyId, error })
+        logger.error('Failed to update API key', { providerId, keyId, errorType: getErrorType(error) })
         throw error
       }
     },
@@ -278,15 +287,7 @@ export function useProviderPreset(providerId: string | null | undefined, fields:
   return query
 }
 
-/**
- * Pure resolver for a provider's display name. System providers get the
- * i18n label; custom providers use their user-set name. Returns empty
- * string when the provider is missing.
- */
-export function getProviderDisplayName(provider: Provider | undefined): string {
-  if (!provider) return ''
-  return isSystemProviderId(provider.id) ? i18n.t(getProviderLabelKey(provider.id)) : provider.name
-}
+export { getProviderDisplayName }
 
 /**
  * Hook variant of {@link getProviderDisplayName} for callers that have a

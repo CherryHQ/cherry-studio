@@ -1,0 +1,1 @@
+{"level":"error","message":"Handler execution failed Model with id 'vendor/Qwen-Image-2.0' not found [NOT_FOUND]","module":"DataApi:ModelService","process":"main","timestamp":"2026-08-20 13:00:00"}

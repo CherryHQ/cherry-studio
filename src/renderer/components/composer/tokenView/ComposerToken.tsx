@@ -1,21 +1,3 @@
-import { NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import {
-  getQuoteTooltipContent,
-  QUOTE_TOOLTIP_BODY_CLASS_NAME,
-  QUOTE_TOOLTIP_CONTENT_CLASS_NAME
-} from '@renderer/components/composer/quoteToken'
-import { useOptionalOpenFilePreviewTab } from '@renderer/components/FilePreview'
-import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
-import Favicon from '@renderer/components/icons/FallbackFavicon'
-import { ipcApi } from '@renderer/ipc'
-import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
-import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
-import { formatFileSize } from '@renderer/utils/file'
-import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { FileUrlString } from '@shared/types/file'
-import { fileUrlToPath } from '@shared/utils/file'
 import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
 import {
   type ComponentType,
@@ -33,6 +15,26 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { cacheService } from '@data/CacheService'
+import {
+  getQuoteTooltipContent,
+  QUOTE_TOOLTIP_BODY_CLASS_NAME,
+  QUOTE_TOOLTIP_CONTENT_CLASS_NAME
+} from '@renderer/components/composer/quoteToken'
+import { useOptionalOpenFilePreviewTab } from '@renderer/components/FilePreview'
+import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
+import Favicon from '@renderer/components/icons/FallbackFavicon'
+import { ipcApi } from '@renderer/ipc'
+import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
+import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
+import { formatFileSize } from '@renderer/utils/file'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { FileUrlString } from '@shared/types/file'
+import { fileUrlToPath } from '@shared/utils/file'
+
 import type { ChatInputTokenKind, ChatTokenView } from '../chatTokenView'
 import { parseComposerLink } from '../linkToken'
 import { type FileTokenPresentation, getFileTokenPresentation } from './fileTokenPresentation'
@@ -44,10 +46,11 @@ const tokenRemoveIconClassName = 'size-[0.95em] shrink-0 text-current'
 const TOKEN_POPOVER_OPEN_DELAY_MS = 120
 const TOKEN_POPOVER_CLOSE_DELAY_MS = 160
 const TOKEN_TOOLTIP_DELAY_MS = 300
+const PASTED_TEXT_PREVIEW_CACHE_TTL_MS = 5 * 60 * 1000
 type TokenPopoverOpenReason = 'keyboard' | 'pointer'
 const tokenPreviewHeaderClassName =
   'flex h-20 items-center justify-center border-border-subtle border-b bg-[repeating-linear-gradient(135deg,var(--border-subtle)_0,var(--border-subtle)_1px,transparent_1px,transparent_8px)] bg-muted'
-const pastedTextPreviewCache = new Map<string, Promise<string>>()
+const pastedTextPreviewCacheKey = (path: string) => `composer:pasted-text-preview:${path}`
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   skill: <ToolCase className={tokenIconClassName} />,
@@ -69,6 +72,7 @@ export interface ComposerTokenProps {
   token: ChatTokenView
   readOnly?: boolean
   readOnlyFilePreview?: ReadOnlyComposerFileTokenPreview
+  imageIconPreview?: boolean
   selected?: boolean
   className?: string
   children?: ReactNode
@@ -87,7 +91,6 @@ export interface ReadOnlyComposerFileTokenPreview {
 }
 
 interface FileComposerTokenProps extends ComposerTokenProps {
-  imageIconPreview?: boolean
   tooltipActions?: ReactNode
 }
 
@@ -324,13 +327,14 @@ function shouldShowFileTokenPopover(file: ComposerAttachment | undefined) {
 }
 
 function readPastedTextPreview(path: string) {
-  let request = pastedTextPreviewCache.get(path)
+  const cacheKey = pastedTextPreviewCacheKey(path)
+  let request = cacheService.getCasual<Promise<string>>(cacheKey)
   if (!request) {
     request = window.api.fs.readText(path).catch((error) => {
-      pastedTextPreviewCache.delete(path)
+      cacheService.deleteCasual(cacheKey)
       throw error
     })
-    pastedTextPreviewCache.set(path, request)
+    cacheService.setCasual(cacheKey, request, PASTED_TEXT_PREVIEW_CACHE_TTL_MS)
   }
   return request
 }
@@ -791,7 +795,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[1.4] transition-[color,box-shadow,border-color]',
         'group-focus-visible:border-primary',
         (props.readOnly || canOpenFilePreview) && 'focus-visible:border-primary focus-visible:outline-none',
         canOpenFilePreview && 'cursor-pointer',
@@ -936,10 +940,52 @@ export function FolderComposerToken(props: ComposerTokenProps) {
 }
 
 export function KnowledgeComposerToken(props: ComposerTokenProps) {
-  return renderActiveComposerTokenElement({
-    ...props,
-    icon: tokenIconByKind.knowledge
-  })
+  const removeLabel = props.removeLabel ?? 'Remove'
+
+  const chipElement = (
+    <span
+      className={cn(
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
+        'group-focus-visible:border-primary',
+        props.readOnly && 'focus-visible:border-primary focus-visible:outline-none',
+        'border-border bg-background hover:bg-accent',
+        props.selected && 'border-primary ring-1 ring-primary/40',
+        props.className
+      )}
+      title={props.token.description ? undefined : props.token.label}
+      data-composer-token-kind={props.token.kind}
+      onMouseDown={props.onMouseDown}>
+      <span
+        className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 bg-accent text-muted-foreground leading-none"
+        data-knowledge-token-icon="">
+        <InlineTokenIconSlot
+          icon={props.token.icon ? props.token.icon : <Boxes className={tokenIconClassName} aria-hidden />}
+          removeLabel={removeLabel}
+          onRemove={props.onRemove}
+          removeButtonClassName="size-full rounded-[5px]"
+          removeIconClassName="size-3"
+        />
+      </span>
+      {props.children ?? (
+        <span className={cn('whitespace-nowrap! min-w-0 max-w-full truncate break-normal', props.maxWidthClassName)}>
+          {props.token.label}
+        </span>
+      )}
+    </span>
+  )
+
+  if (!props.token.description) return chipElement
+
+  return (
+    <NormalTooltip
+      content={props.token.description}
+      side="top"
+      sideOffset={6}
+      delayDuration={300}
+      triggerProps={props.readOnly ? { tabIndex: 0, 'aria-label': props.token.label } : undefined}>
+      {chipElement}
+    </NormalTooltip>
+  )
 }
 
 export function ReferenceComposerToken(props: ComposerTokenProps) {

@@ -1,7 +1,12 @@
-import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
+import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import type { MessageListActions, MessageListItem, MessageStreamingLayers } from '../types'
+import type {
+  MessageListActions,
+  MessageListItem,
+  MessageListSelectAllPagination,
+  MessageStreamingLayers
+} from '../types'
 import { useMessageActivityState } from './useMessageActivityState'
 import { useMessageErrorActions } from './useMessageErrorActions'
 import { useMessageExportActions } from './useMessageExportActions'
@@ -19,7 +24,10 @@ interface UseMessageListAdapterCapabilitiesOptions {
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   deleteMessage?: MessageListActions['deleteMessage']
-  persistDiagnosis?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
+  diagnosticReport?: ErrorDetailContentProps['diagnosticReport']
+  persistDiagnosis?: ErrorDetailContentProps['onDiagnosisComplete']
+  /** Load-all pagination handle for select-all; absent = fully loaded. */
+  selectAllPagination?: MessageListSelectAllPagination
 }
 
 /**
@@ -34,29 +42,33 @@ export function useMessageListAdapterCapabilities({
   partsByMessageId,
   streamingLayers,
   deleteMessage,
-  persistDiagnosis
+  diagnosticReport,
+  persistDiagnosis,
+  selectAllPagination
 }: UseMessageListAdapterCapabilitiesOptions) {
-  const getMessageActivityState = useMessageActivityState(topicId, partsByMessageId)
+  const messageActivity = useMessageActivityState(topicId, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName })
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
-  const errorActions = useMessageErrorActions({ persistDiagnosis })
+  const errorActions = useMessageErrorActions({ diagnosticReport, persistDiagnosis })
   const selectionController = useMessageSelectionController({
     topicId,
     messages,
     partsByMessageId,
     deleteMessage,
     saveTextFile: exportActions.saveTextFile,
-    copyRichContent: leafCapabilities.copyRichContent
+    copyRichContent: leafCapabilities.copyRichContent,
+    selectAllPagination
   })
 
   return {
     errorActions,
     exportActions,
-    getMessageActivityState,
+    getMessageActivityState: messageActivity.getMessageActivityState,
+    messageActivityStore: messageActivity.store,
     headerCapabilities,
     leafCapabilities,
     menuConfig,

@@ -1,5 +1,10 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/TopicService'
+import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -11,15 +16,6 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
-import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
-import { createUniqueModelId } from '@shared/data/types/model'
-import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -28,6 +24,11 @@ const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
 vi.mock('@data/dataApiDataChange', () => ({
   notifyDataApiDataChange: notifyDataApiDataChangeMock
 }))
+
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
+import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -482,6 +483,149 @@ describe('MessageService', () => {
     })
   })
 
+  describe('listLiveCreatedInRangeMetadataPage', () => {
+    it('returns body-free canonical metadata within the closed range in stable newest-first order', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-range-a', activeNodeId: null, orderKey: 'ba0' },
+        { id: 'topic-range-b', activeNodeId: null, orderKey: 'ba1' },
+        { id: 'topic-range-deleted', activeNodeId: null, orderKey: 'ba2', deletedAt: 1 }
+      ])
+      await dbh.db.insert(messageTable).values([
+        { ...rootRow('topic-range-a'), createdAt: 200, updatedAt: 200 },
+        rootRow('topic-range-b'),
+        rootRow('topic-range-deleted'),
+        {
+          id: 'range-start',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'user',
+          data: mainText('start'),
+          status: 'success',
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'range-tie-a',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'assistant',
+          data: mainText('tie a'),
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'range-tie-z',
+          parentId: 'vroot-topic-range-b',
+          topicId: 'topic-range-b',
+          role: 'assistant',
+          data: mainText('tie z'),
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'range-end',
+          parentId: 'vroot-topic-range-b',
+          topicId: 'topic-range-b',
+          role: 'user',
+          data: mainText('结束🙂\n"quoted"\\slash'),
+          status: 'success',
+          compactionSummary: '摘要🙂\n"quoted"',
+          createdAt: 300,
+          updatedAt: 300
+        },
+        {
+          id: 'range-before',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'user',
+          data: mainText('before'),
+          status: 'success',
+          createdAt: 99,
+          updatedAt: 99
+        },
+        {
+          id: 'range-after',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'user',
+          data: mainText('after'),
+          status: 'success',
+          createdAt: 301,
+          updatedAt: 301
+        },
+        {
+          id: 'range-message-deleted',
+          parentId: 'vroot-topic-range-a',
+          topicId: 'topic-range-a',
+          role: 'assistant',
+          data: mainText('deleted message'),
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200,
+          deletedAt: 1
+        },
+        {
+          id: 'range-topic-deleted',
+          parentId: 'vroot-topic-range-deleted',
+          topicId: 'topic-range-deleted',
+          role: 'assistant',
+          data: mainText('deleted topic'),
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      const firstPage = messageService.listLiveCreatedInRangeMetadataPage({ fromMs: 100, toMs: 300, limit: 2 })
+      const secondPage = messageService.listLiveCreatedInRangeMetadataPage({
+        fromMs: 100,
+        toMs: 300,
+        limit: 2,
+        cursor: firstPage.nextCursor
+      })
+
+      expect(firstPage.items.map((message) => message.id)).toEqual(['range-end', 'range-tie-a'])
+      expect(secondPage.items.map((message) => message.id)).toEqual(['range-tie-z', 'range-start'])
+      expect(secondPage.nextCursor).toBeUndefined()
+      expect([...firstPage.items, ...secondPage.items].map((message) => message.createdAt)).toEqual([
+        '1970-01-01T00:00:00.300Z',
+        '1970-01-01T00:00:00.200Z',
+        '1970-01-01T00:00:00.200Z',
+        '1970-01-01T00:00:00.100Z'
+      ])
+      for (const metadata of [...firstPage.items, ...secondPage.items]) {
+        const entity = messageService.getById(metadata.id)
+        expect(metadata).not.toHaveProperty('data')
+        expect(metadata.topicId).toBe(entity.topicId)
+        expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(entity), 'utf8'))
+      }
+    })
+
+    it('plans the global keyset range walk without a temporary order-by sort', () => {
+      const plan = dbh.sqlite
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT message.id
+           FROM message
+           INNER JOIN topic ON message.topic_id = topic.id
+           WHERE message.created_at >= ?
+             AND message.created_at <= ?
+             AND message.deleted_at IS NULL
+             AND topic.deleted_at IS NULL
+             AND message.role != 'root'
+             AND (message.created_at < ? OR (message.created_at = ? AND message.id > ?))
+           ORDER BY message.created_at DESC, message.id ASC
+           LIMIT ?`
+        )
+        .all(100, 300, 200, 200, 'cursor-id', 101) as Array<{ detail: string }>
+
+      expect(plan.some(({ detail }) => detail.includes('USING INDEX message_created_at_id_idx'))).toBe(true)
+      expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
+    })
+  })
+
   describe('markMessagesError', () => {
     async function seedStatuses() {
       await dbh.db.insert(topicTable).values({
@@ -554,6 +698,204 @@ describe('MessageService', () => {
 
       expect(await statusOf('m-a')).toBe('pending')
     })
+  })
+
+  describe('delete — context reply inheritance', () => {
+    it.each([
+      ['m-a1', 'm-a2'],
+      ['m-a2', 'm-a3'],
+      ['m-a3', 'm-a2']
+    ])('hands context from %s to its visual neighbour %s', async (targetId, expectedId) => {
+      await seedMultiModelTree()
+      const source = dbh.db.select().from(messageTable).where(eq(messageTable.id, 'm-a1')).get()!
+      const { ftsRowid: _ftsRowid, ...sibling } = source
+      void _ftsRowid
+      dbh.db
+        .insert(messageTable)
+        .values({ ...sibling, id: 'm-a3', createdAt: 220 })
+        .run()
+      topicService.setActiveNode('topic-1', targetId)
+      // The follow-up lives under the neighbour that inherits, so the branch has to run
+      // through it down to that leaf instead of stopping where the deleted reply stood.
+      expect(messageService.delete(targetId, false).newActiveNodeId).toBe('m-follow')
+      expect(messageService.getBranchMessages('topic-1').items.map((item) => item.message.id)).toEqual([
+        'm-root',
+        expectedId,
+        'm-follow'
+      ])
+    })
+
+    it('chooses the previous live neighbour deterministically and clears obsolete context summaries', async () => {
+      await seedMultiModelTree()
+      const source = dbh.db.select().from(messageTable).where(eq(messageTable.id, 'm-a1')).get()!
+      const { ftsRowid: _ftsRowid, ...sibling } = source
+      void _ftsRowid
+      dbh.db
+        .insert(messageTable)
+        .values([
+          { ...sibling, id: 'm-a0', createdAt: 200 },
+          { ...sibling, id: 'm-deleted', createdAt: 150, deletedAt: 160 },
+          { ...sibling, id: 'm-other-group', siblingsGroupId: 2, createdAt: 100 }
+        ])
+        .run()
+      dbh.db
+        .update(messageTable)
+        .set({ compactionSummary: 'old context', stats: { contextTokens: 99, totalTokens: 120 } })
+        .where(eq(messageTable.id, 'm-follow'))
+        .run()
+      messageService.delete('m-a2', false)
+      expect(messageService.getById('m-follow')).toMatchObject({
+        parentId: 'm-a1',
+        compactionSummary: null,
+        stats: { totalTokens: 120 }
+      })
+      expect(messageService.getById('m-follow').stats).not.toHaveProperty('contextTokens')
+      expect(messageService.getPathToNode('m-follow').map((message) => message.id)).toEqual([
+        'm-root',
+        'm-a1',
+        'm-follow'
+      ])
+    })
+
+    it('publishes by-ID changes for all descendants whose context was cleared', async () => {
+      await seedMultiModelTree()
+      dbh.db
+        .insert(messageTable)
+        .values({
+          id: 'm-deep',
+          topicId: 'topic-1',
+          parentId: 'm-follow',
+          role: 'assistant',
+          data: mainText('deep reply'),
+          status: 'success',
+          siblingsGroupId: 0,
+          compactionSummary: 'obsolete',
+          stats: { contextTokens: 42 }
+        })
+        .run()
+      notifyDataApiDataChangeMock.mockClear()
+
+      messageService.delete('m-a2', false)
+
+      expect(messageService.getById('m-deep').compactionSummary).toBeNull()
+      expect(messageService.getById('m-deep').stats).not.toHaveProperty('contextTokens')
+      const effects = notifyDataApiDataChangeMock.mock.calls.flatMap(([batch]) => batch)
+      expect(effects.find((effect) => effect.endpoint === '/messages/:id')?.entityIds).toEqual(
+        expect.arrayContaining(['m-a2', 'm-follow', 'm-deep'])
+      )
+    })
+
+    it('clears descendant context when deleting the final inherited reply', async () => {
+      await seedMultiModelTree()
+      messageService.delete('m-a2', false)
+      dbh.db
+        .update(messageTable)
+        .set({ compactionSummary: 'context from remaining reply', stats: { contextTokens: 99, totalTokens: 120 } })
+        .where(eq(messageTable.id, 'm-follow'))
+        .run()
+
+      messageService.delete('m-a1', false)
+
+      expect(messageService.getById('m-follow')).toMatchObject({
+        parentId: 'm-root',
+        compactionSummary: null,
+        stats: { totalTokens: 120 }
+      })
+      expect(messageService.getById('m-follow').stats).not.toHaveProperty('contextTokens')
+      const branch = messageService.getBranchMessages('topic-1')
+      expect(branch.activeNodeId).toBe('m-follow')
+      expect(branch.items.map((item) => item.message.id)).toEqual(['m-root', 'm-follow'])
+    })
+
+    it.each([0, 2])('does not inherit from an ungrouped or unrelated reply (group=%s)', async (group) => {
+      await seedMultiModelTree()
+      dbh.db.update(messageTable).set({ siblingsGroupId: group }).where(eq(messageTable.id, 'm-a1')).run()
+      topicService.setActiveNode('topic-1', 'm-a2')
+      // No group to inherit from: the follow-up is spliced onto the shared parent, and the
+      // branch descends from that parent to it rather than truncating at the user message.
+      expect(messageService.delete('m-a2', false).newActiveNodeId).toBe('m-follow')
+      expect(messageService.getById('m-follow').parentId).toBe('m-root')
+    })
+
+    it('preserves explicit clear semantics', async () => {
+      await seedMultiModelTree()
+      topicService.setActiveNode('topic-1', 'm-a2')
+      expect(messageService.delete('m-a2', false, 'clear').newActiveNodeId).toBeNull()
+      expect(messageService.getById('m-follow').parentId).toBe('m-root')
+      expect(messageService.getById('m-a1').id).toBe('m-a1')
+    })
+
+    it('preserves the successor existing children and avoids group collisions', async () => {
+      await seedMultiModelTree()
+      dbh.db
+        .insert(messageTable)
+        .values({
+          id: 'other-follow',
+          topicId: 'topic-1',
+          parentId: 'm-a1',
+          role: 'user',
+          data: mainText('other branch'),
+          status: 'success',
+          siblingsGroupId: 3
+        })
+        .run()
+      dbh.db.update(messageTable).set({ siblingsGroupId: 3 }).where(eq(messageTable.id, 'm-follow')).run()
+      messageService.delete('m-a2', false)
+      expect(messageService.getById('other-follow').parentId).toBe('m-a1')
+      expect(messageService.getById('m-follow').parentId).toBe('m-a1')
+      expect(messageService.getById('m-follow').siblingsGroupId).not.toBe(3)
+      expect(messageService.getBranchMessages('topic-1').activeNodeId).toBe('m-follow')
+    })
+
+    it.each([false, true])('retains the group and context with descendants=%s', async (withDescendants) => {
+      await seedMultiModelTree()
+      topicService.setActiveNode('topic-1', withDescendants ? 'm-follow' : 'm-a2')
+      const result = messageService.delete('m-a2', false)
+      expect(result.deletedIds).toEqual(['m-a2'])
+      expect(messageService.getById('m-follow').parentId).toBe('m-a1')
+      const branch = messageService.getBranchMessages('topic-1', { includeSiblings: true })
+      // Whether the view sat on the reply or on its follow-up, the surviving conversation
+      // is the same — nothing below the deleted reply may drop out of the branch.
+      expect(branch.items.map((item) => item.message.id)).toEqual(['m-root', 'm-a1', 'm-follow'])
+      expect(branch.activeNodeId).toBe('m-follow')
+    })
+
+    it('does not change the active branch when deleting another reply', async () => {
+      await seedMultiModelTree()
+      messageService.delete('m-a1', false)
+      expect(messageService.getBranchMessages('topic-1').items.map((item) => item.message.id)).toEqual([
+        'm-root',
+        'm-a2',
+        'm-follow'
+      ])
+    })
+
+    it.each([false, true])(
+      'keeps a surviving regenerated group on the branch when the active reply is deleted (cascade=%s)',
+      async (cascade) => {
+        // m-root already carries the group-1 replies; m-regen is a later regeneration, so
+        // deleting it leaves no group member to inherit from — only the shared parent.
+        await seedMultiModelTree()
+        await dbh.db.insert(messageTable).values({
+          id: 'm-regen',
+          parentId: 'm-root',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: mainText('regenerated reply'),
+          status: 'success',
+          siblingsGroupId: 2,
+          createdAt: 400,
+          updatedAt: 400
+        })
+        topicService.setActiveNode('topic-1', 'm-regen')
+
+        messageService.delete('m-regen', cascade)
+
+        const branch = messageService.getBranchMessages('topic-1', { includeSiblings: true })
+        expect(branch.items.map((item) => item.message.id)).toEqual(['m-root', 'm-a2', 'm-follow'])
+        expect(branch.items[1].siblingsGroup?.map((sibling) => sibling.id)).toEqual(['m-a1'])
+      }
+    )
   })
 
   describe('getBranchMessages — regression for raw SQL casing bug', () => {
@@ -2171,20 +2513,34 @@ describe('MessageService', () => {
       expect(rows.find((row) => row.id === 'm-follow')?.parentId).toBe('m-a2')
     })
 
-    it('falls the active node back to the shared parent when the active reply is deleted', async () => {
+    it('keeps the active node on the reparented follow-up when the active reply is deleted', async () => {
       await seedMultiModelTree()
       await dbh.db.update(topicTable).set({ activeNodeId: 'm-a2' }).where(eq(topicTable.id, 'topic-1'))
 
       const result = messageService.deleteReplyGroup('m-a1')
 
-      expect(result.newActiveNodeId).toBe('m-root')
+      expect(result.newActiveNodeId).toBe('m-follow')
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
-      expect(topic.activeNodeId).toBe('m-root')
+      expect(topic.activeNodeId).toBe('m-follow')
     })
 
-    it('clears the active node when the deleted group is directly under the virtual root', async () => {
+    it('descends past the virtual root when the deleted group sat directly under it', async () => {
+      await seedMultiModelTree()
+      // Splices m-root out, so m-a1/m-a2 become first-turn replies under the virtual root.
+      messageService.delete('m-root', false)
+      await dbh.db.update(topicTable).set({ activeNodeId: 'm-a2' }).where(eq(topicTable.id, 'topic-1'))
+
+      const result = messageService.deleteReplyGroup('m-a1')
+
+      expect(result.newActiveNodeId).toBe('m-follow')
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
+      expect(topic.activeNodeId).toBe('m-follow')
+    })
+
+    it('clears the active node when the deleted group leaves the topic empty', async () => {
       await seedMultiModelTree()
       messageService.delete('m-root', false)
+      messageService.delete('m-follow', false)
       await dbh.db.update(topicTable).set({ activeNodeId: 'm-a2' }).where(eq(topicTable.id, 'topic-1'))
 
       const result = messageService.deleteReplyGroup('m-a1')
@@ -2234,8 +2590,9 @@ describe('MessageService', () => {
       expect(byId.get('m-follow-a1')?.siblingsGroupId).not.toBe(byId.get('m-follow')?.siblingsGroupId)
     })
 
-    it('non-cascade delete reparents children to the real parent (linear splice)', async () => {
+    it('non-cascade delete without a remaining group member reparents children to the real parent', async () => {
       await seedMultiModelTree()
+      messageService.delete('m-a1', false)
 
       // m-a2 is mid-conversation (parent = m-root); its child m-follow reparents to m-root.
       const result = messageService.delete('m-a2', false)

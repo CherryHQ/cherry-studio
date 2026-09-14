@@ -12,7 +12,7 @@ export function createConditionContext(): ConditionContext {
     platform: process.platform,
     arch: process.arch,
     cpuModel: cpus.length > 0 ? cpus[0].model : '',
-    env: process.env as Record<string, string | undefined>
+    env: process.env
   }
 }
 

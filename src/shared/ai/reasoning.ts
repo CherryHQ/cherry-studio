@@ -12,7 +12,8 @@ const EFFORT_RATIO: Record<BudgetEffort, number> = {
   medium: 0.5,
   high: 0.8,
   xhigh: 0.9,
-  max: 1
+  max: 1,
+  ultra: 1
 }
 
 const BUDGET_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const

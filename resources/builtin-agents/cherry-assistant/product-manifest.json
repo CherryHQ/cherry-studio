@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.9",
+    "version": "2.0.14",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
   "routes": {
     "primary": [
       {
-        "id": "assistants",
-        "path": "/app/chat"
-      },
-      {
         "id": "agents",
         "path": "/app/agents"
+      },
+      {
+        "id": "assistants",
+        "path": "/app/chat"
       },
       {
         "id": "paintings",
@@ -77,6 +77,7 @@
       "/settings/quick-assistant",
       "/settings/scheduled-tasks",
       "/settings/screenshot",
+      "/settings/search",
       "/settings/selection-assistant",
       "/settings/shortcut",
       "/settings/skills",
@@ -225,6 +226,19 @@
           "0"
         ],
         "editable": false
+      }
+    },
+    {
+      "id": "chat.input.focus",
+      "titleKey": "settings.shortcuts.focus_input",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "I"
+        ],
+        "when": "!webview.focused"
       }
     },
     {
@@ -448,16 +462,12 @@
     }
   ],
   "providers": {
-    "version": "b3b73ceeb452801e",
-    "count": 61,
+    "version": "e47c80cffa19d83b",
+    "count": 62,
     "entries": [
       {
         "id": "cherryin",
         "name": "CherryIN"
-      },
-      {
-        "id": "radeon-cloud",
-        "name": "AMD GPU Cloud"
       },
       {
         "id": "silicon",
@@ -530,6 +540,14 @@
       {
         "id": "ollama",
         "name": "Ollama"
+      },
+      {
+        "id": "radeon-cloud",
+        "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "tokendance",
+        "name": "TokenDance"
       },
       {
         "id": "new-api",
@@ -757,6 +775,11 @@
       "value": "vi-VN",
       "flag": "🇻🇳",
       "label": "Tiếng Việt"
+    },
+    {
+      "value": "tr-TR",
+      "flag": "🇹🇷",
+      "label": "Türkçe"
     }
   ],
   "agents": {
@@ -782,12 +805,70 @@
         "openclaw",
         "deepseek-harness",
         "gemini-cli",
+        "antigravity-cli",
         "qwen-code",
         "kimi-code",
         "qoder-cli",
         "github-copilot-cli",
         "pi",
         "hermes"
+      ]
+    }
+  },
+  "features": {
+    "context": {
+      "defaults": {
+        "enabled": true,
+        "truncateThreshold": 50000,
+        "maxMessages": null,
+        "compress": {
+          "enabled": true,
+          "modelId": null,
+          "thresholdPercent": 80
+        }
+      },
+      "limits": {
+        "minTruncateThreshold": 2000,
+        "compressionMinOutputTokens": 4096,
+        "compressionMaxOutputTokens": 16384
+      }
+    },
+    "mcp": {
+      "serverTypes": [
+        "stdio",
+        "sse",
+        "streamableHttp",
+        "inMemory"
+      ],
+      "installSources": [
+        "builtin",
+        "manual",
+        "ai_assisted",
+        "protocol",
+        "unknown"
+      ]
+    },
+    "knowledge": {
+      "supportedFileExtensions": [
+        ".txt",
+        ".markdown",
+        ".md",
+        ".mdx",
+        ".pdf",
+        ".html",
+        ".htm",
+        ".xlsx",
+        ".xls",
+        ".docx",
+        ".csv",
+        ".doc",
+        ".pptx",
+        ".ppt",
+        ".epub",
+        ".draftsexport"
+      ],
+      "fileProcessingExtensions": [
+        ".pdf"
       ]
     }
   }

@@ -2,15 +2,17 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import { application } from '@application'
 import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
+import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
+import * as z from 'zod'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveLocalFile, resolveWorkspaceFile } from '@main/ai/channels'
 import { listAgentSessionAttachments } from '@main/ai/messages/agentSessionAttachments'
 import type { FileAttachment } from '@main/utils/downloadAsBase64'
 import { isAbortError } from '@main/utils/error'
 import { isSameOrInside, realpath } from '@main/utils/file'
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import {
   TO_MARKDOWN_DESCRIPTION,
   TO_MARKDOWN_TOOL_NAME,
@@ -18,7 +20,6 @@ import {
   toMarkdownOutputSchema
 } from '@shared/ai/builtinTools'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import * as z from 'zod'
 
 export interface CherryDocumentContext {
   agentDataPath: string

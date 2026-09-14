@@ -34,14 +34,15 @@ vi.mock('grammy', () => {
     ) {}
   }
   return {
-    Bot: vi.fn().mockImplementation(() => mockBot),
+    Bot: vi.fn().mockImplementation(function BotMock() {
+      return mockBot
+    }),
     InputFile: MockInputFile
   }
 })
 
 // Import the module to trigger self-registration side effect
 import '../telegram/TelegramAdapter'
-
 import { InputFile } from 'grammy'
 
 import { registerAdapterFactory } from '../../ChannelManager'

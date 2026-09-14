@@ -3,16 +3,19 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { Mutex } from 'async-mutex'
+
 import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { decodeTextBufferIfText, isOutsidePath, openReadableFileSnapshot } from '@main/utils/file'
+import { decodeTextBufferIfText, isOutsidePath, isPathInside, openReadableFileSnapshot } from '@main/utils/file'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import type { SkillCatalogEntry } from '@shared/types/skill'
 import type {
   SkillFileNode,
   SkillImportSystemOptions,
@@ -23,7 +26,6 @@ import type {
   SystemSkillCandidate,
   SystemSkillPlacement
 } from '@shared/types/skill'
-import { Mutex } from 'async-mutex'
 
 import { extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'
@@ -166,6 +168,35 @@ export class SkillService {
     return this.getSkillStoragePath(skill.folderName)
   }
 
+  /** Classify only registered skills, following symlinks rather than import provenance. */
+  async listCatalog(query: Pick<ListSkillsQuery, 'search'> = {}): Promise<SkillCatalogEntry[]> {
+    const skills = agentGlobalSkillService.list(query)
+    if (skills.length === 0) return []
+    const realPath = async (directory: string): Promise<string | undefined> => {
+      try {
+        return await fs.promises.realpath(directory)
+      } catch (error) {
+        if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) return undefined
+        throw error
+      }
+    }
+    const env = await getShellEnv()
+    const roots = await Promise.all(
+      [
+        application.getPath('feature.agents.skills'),
+        ...buildSystemSkillSources(application.getPath('sys.home'), env).map((source) => source.directoryPath)
+      ].map(realPath)
+    )
+    return Promise.all(
+      skills.map(async (skill): Promise<SkillCatalogEntry> => {
+        if (skill.source === 'builtin') return { ...skill, scope: 'builtin' }
+        const directory = await realPath(this.getInstalledSkillDirectory(skill))
+        const scope = directory && roots.some((root) => root && isPathInside(directory, root)) ? 'system' : 'local'
+        return { ...skill, scope }
+      })
+    )
+  }
+
   /** Local plugin bridge used when the SDK user setting source must remain isolated. */
   getSkillPluginDirectory(): string {
     return path.dirname(this.getMirrorRoot())
@@ -177,12 +208,22 @@ export class SkillService {
       if (!skill) {
         throw new Error(`Skill not found: ${skillId}`)
       }
+      await this.uninstallLocked(skill)
+    })
+  }
 
-      const skillPath = this.getSkillStoragePath(skill.folderName)
-      await this.installer.uninstall(skillPath)
-      await this.unlinkMirror(skill.folderName)
-      agentGlobalSkillService.deleteById(skillId)
-      logger.info('Skill uninstalled', { skillId, folderName: skill.folderName })
+  /** Remove an app-owned conditional builtin without touching a colliding user skill. */
+  async uninstallBuiltinSkill(folderName: string, namespace: string): Promise<boolean> {
+    return this.mutationLock.runExclusive(async () => {
+      const skill = this.findCatalogSkillCaseInsensitive(sanitizeFolderName(folderName))
+      if (!skill) return false
+      if (skill.source !== 'builtin' || skill.namespace !== namespace) {
+        throw new Error(
+          `Skill folder "${folderName}" is not owned by builtin namespace "${namespace}"; refusing to remove it.`
+        )
+      }
+      await this.uninstallLocked(skill)
+      return true
     })
   }
 
@@ -1075,12 +1116,23 @@ export class SkillService {
    * toggles it off, so a fresh `agent_global_skill` row is enabled everywhere —
    * for existing and future agents alike — without any `agent_skill` rows.
    */
-  async syncBuiltinSkill(folderName: string, sourcePath: string, appVersion: string): Promise<boolean> {
+  async syncBuiltinSkill(
+    folderName: string,
+    sourcePath: string,
+    appVersion: string,
+    namespace: string | null = null
+  ): Promise<boolean> {
     return this.mutationLock.runExclusive(async () => {
       const existing = this.findCatalogSkillCaseInsensitive(folderName)
       if (existing && existing.source !== 'builtin') {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; refusing to overwrite it with a builtin.`
+        )
+      }
+      if (existing && existing.namespace !== namespace) {
+        throw new Error(
+          `Folder name "${folderName}" belongs to builtin namespace "${existing.namespace ?? 'default'}"; ` +
+            `refusing to overwrite it with "${namespace ?? 'default'}".`
         )
       }
 
@@ -1130,7 +1182,8 @@ export class SkillService {
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
-          contentHash: sourceHash
+          contentHash: sourceHash,
+          namespace
         })
       } else {
         agentGlobalSkillService.insert({
@@ -1139,7 +1192,7 @@ export class SkillService {
           folderName: destFolderName,
           source: 'builtin',
           sourceUrl: null,
-          namespace: null,
+          namespace,
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
@@ -1151,6 +1204,14 @@ export class SkillService {
       logger.info('Built-in skill synced to DB', { folderName: destFolderName, firstInstall: !existing, filesUpdated })
       return filesUpdated
     })
+  }
+
+  private async uninstallLocked(skill: InstalledSkill): Promise<void> {
+    const skillPath = this.getSkillStoragePath(skill.folderName)
+    await this.installer.uninstall(skillPath)
+    await this.unlinkMirror(skill.folderName)
+    agentGlobalSkillService.deleteById(skill.id)
+    logger.info('Skill uninstalled', { skillId: skill.id, folderName: skill.folderName })
   }
 }
 

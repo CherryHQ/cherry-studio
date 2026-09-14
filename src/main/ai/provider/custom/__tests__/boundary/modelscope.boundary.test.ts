@@ -48,7 +48,7 @@ describe('ModelScope request boundary', () => {
       size: '1024x1024',
       seed: 7,
       providerParams: { numInferenceSteps: 30, guidanceScale: 4, negativePrompt: 'blur' }
-    } as ImageGenerationSubmitInput)
+    })
 
     expect(req.url).toBe(url)
     txt2imgBody.parse(req.body)
@@ -61,7 +61,7 @@ describe('ModelScope request boundary', () => {
       modelId: 'Qwen/Qwen-Image-Edit',
       prompt: 'make it night',
       files: [{ mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }] as ImageGenerationSubmitInput['files']
-    } as ImageGenerationSubmitInput)
+    })
 
     expect(req.url).toBe(url)
     editBody.parse(req.body)

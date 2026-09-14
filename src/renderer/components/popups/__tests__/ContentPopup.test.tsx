@@ -1,6 +1,7 @@
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
 // This suite exercises the real popup store + host, so opt out of the global mock.
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())

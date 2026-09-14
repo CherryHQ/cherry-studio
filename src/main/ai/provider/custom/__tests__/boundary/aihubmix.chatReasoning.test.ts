@@ -21,7 +21,7 @@ describe('AiHubMix chat boundary — providerOptions.aihubmix reaches the wire',
         .doGenerate({
           prompt: PROMPT,
           providerOptions: { aihubmix: { reasoningEffort: 'none' } }
-        } as LanguageModelV3CallOptions)
+        })
     )
 
     expect(req.url).toBe('https://aihubmix.com/v1/chat/completions')
@@ -35,7 +35,7 @@ describe('AiHubMix chat boundary — providerOptions.aihubmix reaches the wire',
         .doGenerate({
           prompt: PROMPT,
           providerOptions: { aihubmix: { reasoningEffort: 'high', enable_thinking: true } }
-        } as LanguageModelV3CallOptions)
+        })
     )
 
     expect(req.body).toMatchObject({ model: 'deepseek-v4', reasoning_effort: 'high', enable_thinking: true })
@@ -47,7 +47,7 @@ describe('AiHubMix Gemini boundary — baseURL derives from the configured gatew
     const req = await captureWithFetch((fetch) =>
       createAihubmix({ apiKey: 'sk', baseURL: 'https://proxy.example.com/v1', fetch })
         .languageModel('gemini-2.5-pro')
-        .doGenerate({ prompt: PROMPT } as LanguageModelV3CallOptions)
+        .doGenerate({ prompt: PROMPT })
     )
 
     expect(req.url).toMatch(/^https:\/\/proxy\.example\.com\/gemini\/v1beta\/models\/gemini-2\.5-pro/)
@@ -55,9 +55,7 @@ describe('AiHubMix Gemini boundary — baseURL derives from the configured gatew
 
   it('keeps the official Gemini surface for the default baseURL', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ apiKey: 'sk', fetch })
-        .languageModel('gemini-2.5-pro')
-        .doGenerate({ prompt: PROMPT } as LanguageModelV3CallOptions)
+      createAihubmix({ apiKey: 'sk', fetch }).languageModel('gemini-2.5-pro').doGenerate({ prompt: PROMPT })
     )
 
     expect(req.url).toMatch(/^https:\/\/aihubmix\.com\/gemini\/v1beta\/models\/gemini-2\.5-pro/)
@@ -75,7 +73,7 @@ describe('AiHubMix Gemini boundary — baseURL derives from the configured gatew
         fetch
       })
         .languageModel('gemini-2.5-pro')
-        .doGenerate({ prompt: PROMPT } as LanguageModelV3CallOptions)
+        .doGenerate({ prompt: PROMPT })
     )
 
     expect(req.url).toMatch(/^https:\/\/gemini\.proxy\.example\/custom\/v1beta\/models\/gemini-2\.5-pro/)

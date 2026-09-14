@@ -31,6 +31,12 @@ export default defineCreator({
     // `qwen3.8-max-preview` serves thinking mode only, unlike the hybrid
     // `qwen3.8-max` (help.aliyun.com/zh/model-studio/text-generation-model).
     { pattern: '^qwen3[.-]8-max-preview', toggle: false },
+    {
+      pattern: '^qwen3[.-]8-flash$',
+      effort: ['low', 'medium', 'xhigh'],
+      budget: { min: 0, max: 262144 },
+      toggle: true
+    },
     // QwQ/QVQ always-reasoning previews.
     { pattern: '^qwq|^qvq', toggle: false },
     { pattern: '^qwen', toggle: true, template: true },
@@ -76,6 +82,17 @@ export default defineCreator({
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text'],
       contextWindow: 262144
+    },
+    {
+      id: 'qwen3-8-flash',
+      name: 'Qwen3.8 Flash',
+      family: 'qwen',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'structured-output'],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxInputTokens: 991808,
+      maxOutputTokens: 131072
     },
     {
       id: 'qwen3-8-max',

@@ -37,6 +37,15 @@ describe('AgentEntitySchema', () => {
     expect(UpdateAgentSchema.safeParse({ skillIds: ['skill-b'] }).success).toBe(false)
   })
 
+  it('accepts null model tiers on update: null clears the override, invalid ids stay rejected', () => {
+    const parsed = UpdateAgentSchema.parse({ planModel: null, smallModel: null })
+    expect(parsed.planModel).toBeNull()
+    expect(parsed.smallModel).toBeNull()
+
+    expect(UpdateAgentSchema.parse({ planModel: 'openai::gpt-4' }).planModel).toBe('openai::gpt-4')
+    expect(UpdateAgentSchema.safeParse({ planModel: 'no-separator' }).success).toBe(false)
+  })
+
   it('validates the persisted agent reasoning effort', () => {
     expect(AgentConfigurationSchema.parse({ reasoning_effort: 'high' }).reasoning_effort).toBe('high')
     expect(AgentConfigurationSchema.safeParse({ reasoning_effort: 'invalid' }).success).toBe(false)
@@ -45,6 +54,15 @@ describe('AgentEntitySchema', () => {
   it('validates the persisted agent service tier', () => {
     expect(AgentConfigurationSchema.parse({ service_tier: 'fast' }).service_tier).toBe('fast')
     expect(AgentConfigurationSchema.safeParse({ service_tier: 'invalid' }).success).toBe(false)
+  })
+
+  it('bounds the per-agent language label: trimmed, non-empty, nullable, length-capped', () => {
+    expect(AgentConfigurationSchema.parse({ language: '  Thai  ' }).language).toBe('Thai')
+    expect(AgentConfigurationSchema.parse({ language: null }).language).toBeNull()
+    expect(AgentConfigurationSchema.parse({ language: undefined }).language).toBeUndefined()
+    expect(AgentConfigurationSchema.parse({ language: 'x'.repeat(50) }).language).toHaveLength(50)
+    expect(AgentConfigurationSchema.safeParse({ language: '   ' }).success).toBe(false)
+    expect(AgentConfigurationSchema.safeParse({ language: 'x'.repeat(51) }).success).toBe(false)
   })
 
   it('accepts first-level configuration patches and preserves explicit removals', () => {

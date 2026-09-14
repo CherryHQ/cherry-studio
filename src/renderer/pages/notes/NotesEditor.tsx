@@ -1,3 +1,8 @@
+import { SpellCheck } from 'lucide-react'
+import type { FC, RefObject } from 'react'
+import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { type CodeEditorHandles, EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -5,14 +10,10 @@ import ActionIconButton from '@renderer/components/ActionIconButton'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
-import { SpellCheck } from 'lucide-react'
-import type { FC, RefObject } from 'react'
-import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('NotesEditor')
 // Hides the toolbar button and the slash-menu entry only. Image *paste* stays enabled: notes have
@@ -42,13 +43,22 @@ interface NotesEditorProps {
   editorRef: RefObject<RichEditorRef | null>
   codeEditorRef: RefObject<CodeEditorHandles | null>
   onMarkdownChange: (content: string) => void
+  onCreateNote?: () => void
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
-  ({ activeNodeId, currentContent, contentLoadError, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
+  ({
+    activeNodeId,
+    currentContent,
+    contentLoadError,
+    tokenCount,
+    onMarkdownChange,
+    editorRef,
+    codeEditorRef,
+    onCreateNote
+  }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
-    const { activeCmTheme } = useCodeStyle()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
@@ -58,6 +68,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       }
     }, [settings.defaultEditMode, settings.defaultViewMode])
     const [tmpViewMode, setTmpViewMode] = useState(currentViewMode)
+    const activeCmTheme = useCmTheme(tmpViewMode === 'source')
     const currentViewModeRef = useRef(currentViewMode)
     const userViewModeOverrideRef = useRef(false)
 
@@ -76,7 +87,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     if (!activeNodeId) {
       return (
         <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
-          <EmptyState preset="no-note" title={t('notes.empty')} />
+          <EmptyState
+            preset="no-note"
+            title={t('notes.empty')}
+            actionLabel={t('notes.new_note')}
+            onAction={onCreateNote}
+          />
         </div>
       )
     }
@@ -97,6 +113,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       <>
         <div
           data-ui="notes.editor"
+          data-note-id={activeNodeId}
           className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
           <ErrorBoundary>
             <Suspense fallback={<NotesEditorLoading label={t('common.loading')} />}>
@@ -159,7 +176,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 </Tooltip>
               )}
               <Selector
-                value={tmpViewMode as EditorView}
+                value={tmpViewMode}
                 onChange={(value: EditorView) => {
                   userViewModeOverrideRef.current = true
                   setTmpViewMode(value)

@@ -1,5 +1,6 @@
-import { definePlugin } from '@cherrystudio/ai-core'
 import type { LanguageModelMiddleware } from 'ai'
+
+import { definePlugin } from '@cherrystudio/ai-core'
 
 /**
  * Qwen Thinking Middleware

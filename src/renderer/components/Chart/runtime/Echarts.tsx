@@ -1,9 +1,10 @@
-import { cn } from '@renderer/utils/style'
 import { AriaComponent } from 'echarts/components'
 import type { EChartsCoreOption, EChartsType, SetOptionOpts } from 'echarts/core'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useEffect, useRef } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 echarts.use([AriaComponent, CanvasRenderer])
 

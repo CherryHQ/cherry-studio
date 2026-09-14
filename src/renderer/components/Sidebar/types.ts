@@ -1,5 +1,6 @@
-import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import type { ReactNode } from 'react'
+
+import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 
 export interface SidebarMiniApp {
   id: string

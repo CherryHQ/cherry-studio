@@ -9,7 +9,9 @@
  */
 
 import { type ReactElement, useCallback, useMemo } from 'react'
+import remarkDefinitionList, { defListHastHandlers } from 'remark-definition-list'
 import remarkAlert from 'remark-github-blockquote-alert'
+import { remarkMark } from 'remark-mark-highlight'
 import {
   type AnimateOptions,
   Block,
@@ -24,7 +26,12 @@ import {
 import type { Pluggable } from 'unified'
 
 import { MarkdownBlockContext } from './context'
-import { rehypeHeadingIds, rehypePrefixSvgReferences } from './plugins'
+import { rehypeHeadingIds, rehypePrefixSvgReferences, rehypePreserveAnchorTargets } from './plugins'
+import {
+  FILE_LINK_MARKER_PROPERTY,
+  rehypePrepareFileLinks,
+  rehypeRestoreFileLinks
+} from './plugins/rehype-preserve-file-links'
 import rehypeScalableSvg from './plugins/rehype-scalable-svg'
 import {
   createMarkdownSanitizeSchema,
@@ -95,6 +102,8 @@ export interface MarkdownCoreProps {
   disallowedElements?: readonly string[]
   /** Override the default 'Footnotes' label (for i18n). */
   footnoteLabel?: string
+  /** Preserve local file hrefs for a custom anchor while retaining URL hardening for every link and image. */
+  preserveFileLinkHrefs?: boolean
 }
 
 export function MarkdownCore({
@@ -109,12 +118,18 @@ export function MarkdownCore({
   parseIncompleteMarkdown,
   className,
   disallowedElements = DISALLOWED_ELEMENTS,
-  footnoteLabel = 'Footnotes'
+  footnoteLabel = 'Footnotes',
+  preserveFileLinkHrefs = false
 }: MarkdownCoreProps): ReactElement {
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
 
   const remarkPlugins = useMemo(() => {
-    const list: Pluggable[] = [...STREAMDOWN_DEFAULT_REMARK_PLUGINS, remarkAlert as Pluggable]
+    const list: Pluggable[] = [
+      ...STREAMDOWN_DEFAULT_REMARK_PLUGINS,
+      remarkDefinitionList as Pluggable,
+      remarkMark as Pluggable,
+      remarkAlert as Pluggable
+    ]
     if (extraRemarkPlugins?.length) list.push(...extraRemarkPlugins)
     return list
   }, [extraRemarkPlugins])
@@ -122,19 +137,34 @@ export function MarkdownCore({
   const rehypePlugins = useMemo(() => {
     const { raw, sanitizeFn, sanitizeSchema, hardenFn, hardenOptions } = resolveDefaultRehypePlugins()
     const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema)
-    const result: Pluggable[] = [raw]
+    const effectiveSchema = preserveFileLinkHrefs
+      ? {
+          ...extendedSchema,
+          attributes: {
+            ...extendedSchema.attributes,
+            span: [
+              ...(extendedSchema.attributes?.span ?? []),
+              ...(extendedSchema.attributes?.a ?? []),
+              FILE_LINK_MARKER_PROPERTY
+            ]
+          }
+        }
+      : extendedSchema
+    const result: Pluggable[] = [raw, ...(preserveFileLinkHrefs ? ([rehypePrepareFileLinks] as Pluggable[]) : [])]
     result.push(
-      [sanitizeFn, extendedSchema] as Pluggable,
+      [sanitizeFn, effectiveSchema] as Pluggable,
+      rehypePreserveAnchorTargets as Pluggable,
       ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
-      [rehypePrefixSvgReferences, (extendedSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
+      [rehypePrefixSvgReferences, (effectiveSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
       // Harden runs after sanitize, so every URL it rejects was already stripped or vetted there.
       // Keep the author's text/alt instead of defacing it with harden's "[blocked]" placeholders.
       [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
+      ...(preserveFileLinkHrefs ? ([rehypeRestoreFileLinks] as Pluggable[]) : []),
       [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
     )
     if (extraRehypePlugins?.length) result.push(...extraRehypePlugins)
     return result
-  }, [hasSvgElement, id, extraRehypePlugins])
+  }, [hasSvgElement, id, extraRehypePlugins, preserveFileLinkHrefs])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value
@@ -145,7 +175,8 @@ export function MarkdownCore({
     () => ({
       footnoteLabel,
       footnoteLabelTagName: 'h4' as const,
-      footnoteBackContent: ' '
+      footnoteBackContent: ' ',
+      handlers: defListHastHandlers
     }),
     [footnoteLabel]
   )

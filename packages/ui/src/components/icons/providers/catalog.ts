@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-08-10T12:29:08.885Z
- * Total icons: 158
+ * Generated at: 2026-09-07T13:21:05.291Z
+ * Total icons: 160
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -120,6 +120,7 @@ import { OpenclawIcon } from './openclaw'
 import { OpenCodeGoIcon } from './opencode'
 import { OpenrouterIcon } from './openrouter'
 import { PaddleocrIcon } from './paddleocr'
+import { ParallelIcon } from './parallel'
 import { PerplexityIcon } from './perplexity'
 import { Ph8Icon } from './ph8'
 import { PoeIcon } from './poe'
@@ -149,6 +150,7 @@ import { TesseractJsIcon } from './tesseract-js'
 import { ThinkAnyIcon } from './think-any'
 import { TngIcon } from './tng'
 import { TogetherIcon } from './together'
+import { TokendanceIcon } from './tokendance'
 import { TwitterIcon } from './twitter'
 import { UpstageIcon } from './upstage'
 import { VercelIcon } from './vercel'
@@ -280,6 +282,7 @@ export const PROVIDER_ICON_CATALOG = {
   opencode: OpenCodeGoIcon,
   openrouter: OpenrouterIcon,
   paddleocr: PaddleocrIcon,
+  parallel: ParallelIcon,
   perplexity: PerplexityIcon,
   ph8: Ph8Icon,
   poe: PoeIcon,
@@ -309,6 +312,7 @@ export const PROVIDER_ICON_CATALOG = {
   'think-any': ThinkAnyIcon,
   tng: TngIcon,
   together: TogetherIcon,
+  tokendance: TokendanceIcon,
   twitter: TwitterIcon,
   upstage: UpstageIcon,
   vercel: VercelIcon,
