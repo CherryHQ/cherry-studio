@@ -658,34 +658,6 @@
       ]
     },
     {
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "DaoXE - AI model provider",
-      "endpointConfigs": {
-        "anthropic-messages": {
-          "adapterFamily": "newapi",
-          "baseUrl": "https://daoxe.com"
-        },
-        "openai-chat-completions": {
-          "adapterFamily": "newapi",
-          "baseUrl": "https://daoxe.com/v1"
-        },
-        "openai-responses": {
-          "adapterFamily": "openai",
-          "baseUrl": "https://daoxe.com/v1"
-        }
-      },
-      "id": "daoxe",
-      "metadata": {
-        "website": {
-          "apiKey": "https://daoxe.com/dashboard",
-          "docs": "https://github.com/seven7763/DaoXE-AI",
-          "models": "https://daoxe.com/pricing",
-          "official": "https://daoxe.com/"
-        }
-      },
-      "name": "DaoXE"
-    },
-    {
       "authOptional": true,
       "availableInEditions": ["global", "cn"],
       "description": "Ollama - AI model provider",
@@ -732,6 +704,35 @@
         }
       },
       "name": "AMD GPU Cloud"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "DaoXE - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "newapi",
+          "baseUrl": "https://daoxe.com"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "newapi",
+          "baseUrl": "https://daoxe.com/v1"
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://daoxe.com/v1"
+        }
+      },
+      "id": "daoxe",
+      "metadata": {
+        "website": {
+          "apiKey": "https://daoxe.com/dashboard",
+          "docs": "https://github.com/seven7763/DaoXE-AI",
+          "models": "https://daoxe.com/pricing",
+          "official": "https://daoxe.com/"
+        }
+      },
+      "name": "DaoXE"
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -2557,5 +2558,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e47c80cffa19d83b"
+  "version": "a2775f26e06516a0"
 }

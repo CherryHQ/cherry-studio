@@ -510,7 +510,8 @@ const newApiFetcher: ModelFetcher = {
     p.id === SystemProviderIds['new-api'] ||
     p.presetProviderId === 'new-api' ||
     p.id === SystemProviderIds.cherryin ||
-    p.id === SystemProviderIds.aionly,
+    p.id === SystemProviderIds.aionly ||
+    p.id === SystemProviderIds.daoxe,
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const response = await getFromApi({

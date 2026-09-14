@@ -786,6 +786,31 @@ describe('listModels — newApiFetcher endpoint types', () => {
 
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
   })
+
+  it('routes daoxe through the NewAPI-compatible model parser so live discovery keeps endpoint types', async () => {
+    const provider = makeProvider({
+      id: 'daoxe',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://daoxe.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'claude-sonnet-4',
+            supported_endpoint_types: ['anthropic', 'openai']
+          },
+          { id: 'plain-chat-model' }
+        ]
+      }
+    })
+
+    const models = await listModels(provider)
+
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+    expect(models[1].endpointTypes).toBeUndefined()
+  })
 })
 
 describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () => {
