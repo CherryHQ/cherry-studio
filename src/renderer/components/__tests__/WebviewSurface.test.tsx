@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, render } from '@testing-library/react'
+import { act, render, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -51,5 +51,52 @@ describe('WebviewSurface', () => {
     expect(live).toBe(0)
     expect(guest.isConnected).toBe(false)
     anchor.remove()
+  })
+  it('tracks same-size anchor reparenting and sibling reordering without remounting its guest', async () => {
+    let live = 0
+    function Guest() {
+      useEffect(() => {
+        live += 1
+        return () => {
+          live -= 1
+        }
+      }, [])
+      return <webview data-testid="moving-guest" />
+    }
+    const first = document.createElement('div')
+    const second = document.createElement('div')
+    const anchor = document.createElement('div')
+    const sibling = document.createElement('div')
+    first.append(anchor)
+    second.append(sibling)
+    document.body.append(first, second)
+    vi.spyOn(anchor, 'getBoundingClientRect').mockImplementation(
+      () => new DOMRect(anchor.parentElement === first ? 10 : 200, anchor.previousSibling ? 90 : 20, 640, 480)
+    )
+    const view = render(
+      <WebviewSurface anchor={anchor}>
+        <Guest />
+      </WebviewSurface>
+    )
+    const guest = view.getByTestId('moving-guest')
+    const surface = guest.parentElement!
+    second.append(anchor)
+    await waitFor(() => expect(surface).toHaveStyle({ left: '200px', top: '90px' }))
+
+    second.prepend(anchor)
+    await waitFor(() => expect(surface).toHaveStyle({ left: '200px', top: '20px' }))
+    expect(view.getByTestId('moving-guest')).toBe(guest)
+    expect(live).toBe(1)
+
+    anchor.remove()
+    await waitFor(() => expect(surface).toHaveStyle({ opacity: '0' }))
+    expect(surface.inert).toBe(true)
+    second.append(anchor)
+    await waitFor(() => expect(surface).toHaveStyle({ opacity: '1', top: '90px' }))
+    expect(live).toBe(1)
+    view.unmount()
+    expect(live).toBe(0)
+    first.remove()
+    second.remove()
   })
 })

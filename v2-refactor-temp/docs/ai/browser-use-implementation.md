@@ -270,7 +270,10 @@ snapshot; the ref counter never resets within the session. Dialog open/closed ev
 PR B adds download tracking and the Network events needed for settling. PR3 adds console/network
 inspection and typed consumed events via `ProtocolMapping.Events`. `BrowserInspection` belongs to
 the guest, records only managed sessions, retains recent history across navigation and clears on
-detach/disposal. Text fields cap at 2,000 characters; entry-array output caps at 40,000 serialized
+detach/disposal. Managed-tab readiness enables Runtime and Network after the initial blank document;
+GUI navigation waits for that readiness so its initial requests are captured. Annotation-only borrowed
+guests remain lazy. Diagnostic URLs redact credential query values while retaining ordinary parameters.
+Text fields cap at 2,000 characters; entry-array output caps at 40,000 serialized
 characters, returning the newest entries with `truncated` when needed. `clear` removes all selected
 entries, including ones omitted by the output cap, without touching the separate settling state.
 `freeze`/`thaw` and WebMCP (§5.7) remain follow-ups. Download events must be attributed to their originating guest on the shared Electron
@@ -316,7 +319,7 @@ becomes the primary policy and the model only sees the reported dialog.
    - keep a node if interactive, or role ∈ {heading, text, StaticText, img, listitem, cell, row} with a non-empty name;
    - drop `ignored` AX nodes and generic containers with exactly one kept child (re-parent);
    - viewport filter: keep when `rect.y ∈ [scrollY − 1000, scrollY + h + 1000]`, mark `inViewport` when inside the actual viewport; nodes outside the band are counted, not emitted;
-   - refs: interactive nodes get `e<n>` from the session's ref map. The counter is per `GuestSession` and never resets, not even on navigation, so a ref from an earlier document can never name an element in a later one. Each entry records `{ backendNodeId, documentId }`; a re-snapshot of the same document keeps existing refs, a new document allocates fresh numbers. `resolveRef` returns `stale_ref` when the entry's `documentId` differs from the current one or the ref is unknown; it never re-resolves across documents.
+   - refs: interactive nodes get `e<n>` from the session's ref map. The counter is per `GuestSession` and never resets, not even on navigation, so a ref from an earlier document can never name an element in a later one. Each ref maps to a backend node ID. A re-snapshot of the same document keeps existing refs; document invalidation clears the maps, and the next document allocates fresh numbers. `resolveRef` returns `stale_ref` for an unknown ref; it never re-resolves across documents.
 3. `serializeSnapshot`: one node per line, two spaces per depth:
    `[e12] button "Submit" (disabled)` / `heading "Pricing" (level=2)` / `[e13] link "Docs" (href=/docs)`; textbox values as `value="…"` truncated at 80 chars. Header line `url · title · N interactive / M total`. Cap 40 000 chars, closing with `… (K more nodes below; use scroll, scope, or find)`.
 4. `diffSnapshot`: key each line by `backendNodeId`. Output = header + lines that are new (prefixed `*`) or whose text changed, plus `- N nodes removed`. Fall back to the full text when more than 60 % of the lines changed or the `documentId` differs. Unchanged snapshot → `(no change)`.
@@ -349,8 +352,8 @@ and the scrolled-page Electron acceptance case.
 
 ### 5.4 Keyboard (`actions/keyboard.ts`)
 
-- `type`: `DOM.focus({ backendNodeId })`; `clear` → `Control/Meta+a` then `Delete` via key events; then `Input.insertText({ text })`; read back `value ?? textContent` via `Runtime.callFunctionOn`; mismatch → retry once with per-character `dispatchKeyEvent` (`keyDown` with `text`, `keyUp`), still mismatched → `ok: false`, `error: 'not_found'` with the observed value in the text.
-- `press_key`: parse `Modifier+Key`; key table maps names → `{ key, code, windowsVirtualKeyCode }` (Enter 13, Tab 9, Escape 27, Backspace 8, Delete 46, arrows 37–40, Home/End/PageUp/PageDown, F1–F12, printable characters). Modifiers bitmask: Alt 1, Control 2, Meta 4, Shift 8. Enter additionally sends `char` with `text: '\r'` so forms submit.
+- `type`: verify the target is editable, then `DOM.focus({ backendNodeId })`. With `clear`, select all using `Control/Meta+a` and clear with `Backspace`; otherwise position the caret at the end. Insert text with `Input.insertText`, then read back `value ?? textContent`. A mismatch retries the complete expected value once through the centralized key-event pipeline, after clearing the field. Multiline mismatches and a failed retry return `not_found` without exposing the observed field value. With `submit`, press Enter after successful verification.
+- `press_key`: parse `Modifier+Key`; the centralized key table maps names to `{ key, code, windowsVirtualKeyCode }`. Dispatch `rawKeyDown`, an optional `char`, then `keyUp`. Printable text and Enter (`text: '\r'`) emit `char` unless Control, Meta or Alt suppress text. Modifiers bitmask: Alt 1, Control 2, Meta 4, Shift 8. The platform select-all chord also passes Chromium's `selectAll` editing command.
 
 ### 5.5 Forms (`actions/forms.ts`)
 

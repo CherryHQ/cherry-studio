@@ -2454,7 +2454,7 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-1')
     expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ appId: 'agents', preserveVisuals: false })
+      expect.objectContaining({ routePrefix: '/app/agents', preserveVisuals: false })
     )
 
     agentPageMocks.routeSearch = { sessionId: 'session-2' }
@@ -2466,7 +2466,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('active-session')).toHaveTextContent('')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('true')
     expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ appId: 'agents', preserveVisuals: true })
+      expect.objectContaining({ routePrefix: '/app/agents', preserveVisuals: true })
     )
 
     activeSessionMocks.session = {
@@ -2482,7 +2482,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-2')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('false')
     expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
-      expect.objectContaining({ appId: 'agents', preserveVisuals: false })
+      expect.objectContaining({ routePrefix: '/app/agents', preserveVisuals: false })
     )
   })
 

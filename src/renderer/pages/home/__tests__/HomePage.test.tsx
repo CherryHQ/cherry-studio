@@ -1977,7 +1977,7 @@ describe('HomePage', () => {
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
     expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        appId: 'assistants',
+        routePrefix: '/app/chat',
         preserveVisuals: true
       })
     )

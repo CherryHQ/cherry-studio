@@ -22,14 +22,19 @@ export const executeToolDefinition = {
 
 export async function handleExecute(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   const { code, timeout, privateMode, tabId } = ExecuteSchema.parse(args)
+  let targetTabId: string | undefined
   try {
-    const value = await controller.execute(code, timeout, privateMode ?? false, tabId, signal)
+    signal?.throwIfAborted()
+    targetTabId = (await controller.getSession(privateMode, tabId)).tabId
+    const value = await controller.execute(code, timeout, privateMode ?? false, targetTabId, signal)
     return successResponse(typeof value === 'string' ? value : JSON.stringify(value))
   } catch (error) {
-    if (error instanceof BrowserSessionError)
-      return browserResult(controller, { privateMode, tabId }, signal, async () => {
+    if (error instanceof BrowserSessionError) {
+      if (targetTabId === undefined) return errorResponse(error)
+      return browserResult(controller, { privateMode, tabId: targetTabId }, signal, async () => {
         throw error
       })
+    }
     logger.error('Execute failed', { error, code: code.slice(0, 100), privateMode, tabId })
     return errorResponse(error as Error)
   }

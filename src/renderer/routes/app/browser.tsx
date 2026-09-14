@@ -5,7 +5,10 @@ import { normalizeBrowserEntryUrl } from '@shared/utils/browserUrl'
 
 export const Route = createFileRoute('/app/browser')({
   validateSearch: (search): { url: string } => ({
-    url: normalizeBrowserEntryUrl(typeof search.url === 'string' ? search.url : '')
+    url:
+      typeof search.url !== 'string' || !search.url.trim() || search.url === 'about:blank'
+        ? 'about:blank'
+        : normalizeBrowserEntryUrl(search.url)
   }),
   component: BrowserRoute
 })
