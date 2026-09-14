@@ -2206,6 +2206,51 @@ describe('main web search API providers', () => {
       expect(fetchRemoteTextMock).not.toHaveBeenCalled()
     })
 
+    it('treats a 202 response as a bot-detection challenge even without anomaly markers', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse('', 'text/html', 202))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(/bot-detection challenge/)
+      expect(fetchRemoteTextMock).not.toHaveBeenCalled()
+    })
+
+    it('returns empty results for a legitimate no-hit search instead of throwing', async () => {
+      fetchMock.mockResolvedValueOnce(createTextResponse('<html><body>No results.</body></html>', 'text/html', 200))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('asdfqwerty', runtimeConfig)
+
+      expect(result.results).toEqual([])
+      expect(mocks.loggerWarn).toHaveBeenCalled()
+    })
+
+    it('decodes redirect targets with uppercase schemes', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createTextResponse(
+          `<div class="result"><h2 class="result__title"><a class="result__a" href="//duckduckgo.com/l/?uddg=HTTP%3A%2F%2Fexample.com%2Fupper&amp;rut=r1">Uppercase Scheme</a></h2></div>`,
+          'text/html'
+        )
+      )
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+
+      expect(result.results[0].url).toBe('HTTP://example.com/upper')
+    })
+
     it('does not mistake results mentioning the anomaly markers for a challenge page', async () => {
       fetchMock.mockResolvedValueOnce(
         createTextResponse(

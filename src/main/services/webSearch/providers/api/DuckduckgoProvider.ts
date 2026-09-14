@@ -1,9 +1,10 @@
+import * as cheerio from 'cheerio'
+import { net } from 'electron'
+
 import { loggerService } from '@logger'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { isHttpUrl } from '@shared/utils/url'
-import * as cheerio from 'cheerio'
-import { net } from 'electron'
 
 import { fetchSearchResultContents } from '../../utils/fetchContent'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
@@ -12,7 +13,7 @@ const SEARCH_ENDPOINT = 'https://html.duckduckgo.com/html/'
 
 const logger = loggerService.withContext('DuckduckgoProvider')
 
-/** DDG serves bot-detection challenges with 200/202, so the body is the only reliable signal. */
+/** The 200-served challenge interstitial's body markers. */
 function isAnomalyPage(html: string): boolean {
   return html.includes('anomaly-modal') || html.includes('anomaly.js')
 }
@@ -28,7 +29,9 @@ function decodeResultUrl(href: string): string {
 
     // URLSearchParams already percent-decoded the target; decoding again would corrupt it.
     const target = url.searchParams.get('uddg')
-    return target?.startsWith('http') ? target : href
+    // Scheme check must go through URL parsing: `startsWith('http')` is case-sensitive and
+    // rejects uppercase schemes the URL parser accepts.
+    return target && isHttpUrl(target) ? target : href
   } catch {
     return href
   }
@@ -81,9 +84,10 @@ export class DuckduckgoProvider extends BaseWebSearchProvider {
     const html = await response.text()
     const searchItems = parseSearchItems(html)
 
-    // Challenge interstitials carry no .result blocks, so gate on a zero parse to
-    // avoid flagging results that merely mention the anomaly markers.
-    if (searchItems.length === 0 && isAnomalyPage(html)) {
+    // 202 is DDG's block status for this endpoint (never a real search response). For the 200
+    // shape, challenge interstitials carry no .result blocks, so gate on a zero parse to avoid
+    // flagging results that merely mention the anomaly markers.
+    if (response.status === 202 || (searchItems.length === 0 && isAnomalyPage(html))) {
       throw new Error('Duckduckgo search blocked by a bot-detection challenge page')
     }
 
