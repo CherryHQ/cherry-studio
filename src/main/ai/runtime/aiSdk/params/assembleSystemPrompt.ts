@@ -4,6 +4,7 @@
 
 import type { ToolSet } from 'ai'
 
+import { t } from '@main/i18n'
 import { replacePromptVariables } from '@main/utils/prompt'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
@@ -70,39 +71,40 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
 /**
  * Inline the SKILL.md of every attached skill as a system-prompt instruction block. Chat topics
  * have no runtime that loads skills by name (unlike agent topics), so the descriptor text itself
- * must travel with the request (#19773). A missing or unreadable SKILL.md fails the turn instead
- * of silently dropping the instructions — the error reaches the UI through the stream's
- * pre-start error funnel.
+ * must travel with the request (#19773). A missing, disabled, or oversized SKILL.md fails the
+ * turn instead of silently dropping the instructions — the localized error reaches the UI
+ * through the stream's pre-start error funnel.
  */
-/** Folder names may contain characters meaningful to the pseudo-XML wrapper — escape them. */
-function escapeXmlAttribute(value: string): string {
-  return value.replace(/[<>&"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
-}
-
 async function buildSkillInstructionsSection(folderNames: readonly string[]): Promise<string> {
   const blocks: string[] = []
+  const limitMb = SKILL_FILE_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)
   let totalBytes = 0
   for (const folderName of folderNames) {
     const state = await skillService.readSkillMdByFolderName(folderName)
     if (state.status !== 'found') {
-      const detail =
+      const key =
         state.status === 'missing'
-          ? 'SKILL.md not found'
+          ? 'skill.attach.missing'
           : state.reason === 'too-large'
-            ? `SKILL.md exceeds the ${SKILL_FILE_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)} MB limit`
-            : 'SKILL.md unreadable'
-      throw new Error(`Skill "${folderName}" cannot be read (${detail}). Remove it from the message or reinstall it.`)
+            ? 'skill.attach.too_large'
+            : state.reason === 'disabled'
+              ? 'skill.attach.disabled'
+              : 'skill.attach.unreadable'
+      throw new Error(t(key, { name: folderName, limit: limitMb }))
     }
     // Each descriptor alone fits the limit; the combined section must fit it too.
     totalBytes += Buffer.byteLength(state.content)
     if (totalBytes > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) {
-      throw new Error(
-        `The attached skills together exceed the ${SKILL_FILE_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)} MB limit. Remove some of them.`
-      )
+      throw new Error(t('skill.attach.total_too_large', { limit: limitMb }))
     }
     blocks.push(`<skill name="${escapeXmlAttribute(folderName)}">\n${state.content.trim()}\n</skill>`)
   }
   return `<attached-skills>\nThe user attached the following skills to this conversation. Follow the instructions inside each block.\n${blocks.join('\n')}\n</attached-skills>`
+}
+
+/** Folder names may contain characters meaningful to the pseudo-XML wrapper — escape them. */
+function escapeXmlAttribute(value: string): string {
+  return value.replace(/[<>&"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
 }
 
 export function buildWebSearchDateContext(now: Date): string {
