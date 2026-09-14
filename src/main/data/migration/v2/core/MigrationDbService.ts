@@ -17,7 +17,6 @@ import { applyMigrations } from '@data/db/applyMigrations'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 
-import { describeErrorChain } from './migrationErrors'
 import type { MigrationPaths } from './MigrationPaths'
 
 const logger = loggerService.withContext('MigrationDbService')
@@ -72,7 +71,7 @@ export class MigrationDbService {
       } catch {
         // Best-effort — the original error is more important.
       }
-      throw new Error(`Database schema migration failed: ${describeErrorChain(error)}`, { cause: error })
+      throw new Error('Database schema migration failed', { cause: error })
     }
 
     // Keep foreign keys OFF for the ENTIRE migration. better-sqlite3's single persistent
