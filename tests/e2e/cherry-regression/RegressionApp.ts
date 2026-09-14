@@ -85,7 +85,7 @@ export class RegressionApp {
       }
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))
     } while (Date.now() < deadline)
-    throw new Error('Cherry Studio 主窗口在 60 秒内未就绪')
+    throw new Error('Cherry Studio main window was not ready within 60 seconds')
   }
 
   async window(pathFragment: string): Promise<Page> {
@@ -99,7 +99,7 @@ export class RegressionApp {
       if (page) return page
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 250))
     } while (Date.now() < deadline)
-    throw new Error(`未找到窗口：${pathFragment}`)
+    throw new Error(`Window not found: ${pathFragment}`)
   }
 
   async cleanupTransientUi(mainWindow: Page): Promise<void> {

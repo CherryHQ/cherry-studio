@@ -8,10 +8,10 @@ import type { CapabilityResult, Platform } from './types'
 function commandAvailable(command: string, args: string[]): CapabilityResult {
   try {
     const version = execFileSync(command, args, { encoding: 'utf8', timeout: 10_000 }).trim()
-    return { available: true, detail: version || `${command} 可用` }
+    return { available: true, detail: version || `${command} Available` }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
-    return { available: false, detail: `命令不可用：${detail}` }
+    return { available: false, detail: `Command unavailable: ${detail}` }
   }
 }
 
@@ -30,7 +30,10 @@ function probeDesktopAutomation(platform: Platform): CapabilityResult {
       ).trim()
       return {
         available: enabled === 'true',
-        detail: enabled === 'true' ? 'macOS 系统事件辅助功能自动化已启用' : 'macOS 系统事件辅助功能未启用'
+        detail:
+          enabled === 'true'
+            ? 'macOS System Events accessibility automation is enabled'
+            : 'macOS System Events accessibility automation is disabled'
       }
     }
 
@@ -39,10 +42,10 @@ function probeDesktopAutomation(platform: Platform): CapabilityResult {
       ['-NoProfile', '-NonInteractive', '-Command', '$null = New-Object -ComObject WScript.Shell'],
       { stdio: 'ignore', timeout: 10_000 }
     )
-    return { available: true, detail: 'Windows 桌面输入自动化可用' }
+    return { available: true, detail: 'Windows desktop input automation is available' }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
-    return { available: false, detail: `桌面自动化不可用：${detail}` }
+    return { available: false, detail: `Desktop automation unavailable: ${detail}` }
   }
 }
 
@@ -68,11 +71,11 @@ function probeScreenCapture(platform: Platform, paths: RunPaths): CapabilityResu
         timeout: 15_000
       })
     }
-    if (!existsSync(outputPath)) throw new Error('截图命令未生成图片')
-    return { available: true, detail: `桌面截图已保存至 ${outputPath}` }
+    if (!existsSync(outputPath)) throw new Error('Screenshot command did not produce an image')
+    return { available: true, detail: `Desktop screenshot saved to ${outputPath}` }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
-    return { available: false, detail: `屏幕截图不可用：${detail}` }
+    return { available: false, detail: `Screen capture unavailable: ${detail}` }
   }
 }
 
@@ -81,7 +84,7 @@ export function probeCapabilities(platform: Platform, paths: RunPaths): Record<s
   const screenCapture = probeScreenCapture(platform, paths)
   const directCdp = commandAvailable(process.execPath, [
     '-e',
-    "require.resolve('ws'); process.stdout.write('CDP 直连可用')"
+    "require.resolve('ws'); process.stdout.write('Direct CDP connection available')"
   ])
 
   return {
@@ -90,18 +93,22 @@ export function probeCapabilities(platform: Platform, paths: RunPaths): Record<s
       available: desktopAutomation.available && screenCapture.available,
       detail: desktopAutomation.available
         ? screenCapture.detail
-        : `跨应用划词需要桌面自动化：${desktopAutomation.detail}`
+        : `Cross-app text selection requires desktop automation: ${desktopAutomation.detail}`
     },
     globalShortcut: {
       available: desktopAutomation.available,
-      detail: desktopAutomation.available ? '桌面自动化可聚焦外部应用并发送已配置的快捷键' : desktopAutomation.detail
+      detail: desktopAutomation.available
+        ? 'Desktop automation can focus external apps and send configured shortcuts'
+        : desktopAutomation.detail
     },
     directCdp,
     npx: probeNpx(platform),
     screenCapture,
     systemFilePicker: {
       available: desktopAutomation.available,
-      detail: desktopAutomation.available ? '桌面自动化可操作系统原生文件选择器' : desktopAutomation.detail
+      detail: desktopAutomation.available
+        ? 'Desktop automation can operate native file pickers'
+        : desktopAutomation.detail
     }
   }
 }

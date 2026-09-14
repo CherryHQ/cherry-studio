@@ -187,7 +187,7 @@ async function finalizeCommand(): Promise<void> {
 async function gateCommand(): Promise<void> {
   const paths = runDirectory()
   const verdict = getRunVerdict(readRun(paths.runState))
-  process.stdout.write(`Cherry 回归测试结论：${verdict}\n`)
+  process.stdout.write(`Cherry regression verdict: ${verdict}\n`)
   if (!verdict.endsWith('_pass')) process.exitCode = 1
 }
 
@@ -204,7 +204,7 @@ async function aggregateCommand(): Promise<void> {
   writeFileSync(join(output, 'combined-results.json'), `${JSON.stringify(report, null, 2)}\n`)
   writeFileSync(join(output, 'combined-report.md'), markdown)
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${markdown}\n`)
-  process.stdout.write(`Cherry 回归测试汇总结论：${report.verdict}\n`)
+  process.stdout.write(`Cherry aggregate regression verdict: ${report.verdict}\n`)
 }
 
 async function aggregateGateCommand(): Promise<void> {
@@ -213,7 +213,7 @@ async function aggregateGateCommand(): Promise<void> {
     verdict: string
   }
   if (!report.verdict.endsWith('_pass')) {
-    process.stderr.write(`Cherry 回归测试汇总未通过：${report.verdict}\n`)
+    process.stderr.write(`Cherry aggregate regression failed: ${report.verdict}\n`)
     process.exitCode = 1
   }
 }

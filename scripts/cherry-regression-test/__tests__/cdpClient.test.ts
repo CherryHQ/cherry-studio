@@ -49,9 +49,9 @@ describe('CDP expression evaluation', () => {
 
   it('rejects a runtime exception returned by CDP', async () => {
     await withCdpServer(
-      () => ({ exceptionDetails: { text: '表达式异常' }, result: {} }),
+      () => ({ exceptionDetails: { text: 'Expression error' }, result: {} }),
       async (url) => {
-        await expect(evaluateCdpExpression(url, 'throw new Error()')).rejects.toThrow('表达式异常')
+        await expect(evaluateCdpExpression(url, 'throw new Error()')).rejects.toThrow('Expression error')
       }
     )
   })

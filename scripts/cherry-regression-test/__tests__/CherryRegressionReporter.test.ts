@@ -56,7 +56,7 @@ describe('Playwright reporter contract', () => {
     const run = readRun(getRunPaths(directory).runState)
     expect(getRunVerdict(run)).toBe('development_failed')
     expect(run.cases['S-01'].status).toBe('passed')
-    expect(run.phases['01-startup'].errors).toEqual(['执行器错误：teardown failed: [REDACTED]'])
+    expect(run.phases['01-startup'].errors).toEqual(['Executor error: teardown failed: [REDACTED]'])
   })
 
   it('does not mutate run state during enumeration without test execution', () => {
@@ -74,7 +74,7 @@ describe('Playwright reporter contract', () => {
     reporter.onTestEnd(startup, {
       ...passed,
       status: 'skipped',
-      annotations: [{ type: 'skip', description: '缺少运行能力：desktopAutomation' }]
+      annotations: [{ type: 'skip', description: 'Missing capabilities: desktopAutomation' }]
     })
     reporter.onEnd({ status: 'passed', startTime: new Date(), duration: 10 })
     const run = readRun(getRunPaths(directory).runState)

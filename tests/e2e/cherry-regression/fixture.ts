@@ -27,7 +27,7 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
     const testCase = getCase(id ?? '')
     const run = readRun(getRunPaths(runDirectory).runState)
     const missing = missingCapabilities(testCase.id, run.capabilities)
-    base.skip(missing.length > 0, `缺少运行能力：${missing.join(', ')}`)
+    base.skip(missing.length > 0, `Missing capabilities: ${missing.join(', ')}`)
     const app = new RegressionApp(runDirectory, testCase.id)
     try {
       await use(app)
@@ -54,7 +54,7 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
         () => true,
         () => false
       )
-      if (captured) await testInfo.attach('失败截图', { path: screenshotPath, contentType: 'image/png' })
+      if (captured) await testInfo.attach('Failure screenshot', { path: screenshotPath, contentType: 'image/png' })
     }
 
     await app.cleanupTransientUi(currentPage)

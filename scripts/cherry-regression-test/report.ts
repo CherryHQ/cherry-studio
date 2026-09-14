@@ -14,21 +14,21 @@ import {
 } from './types'
 
 const STATUS_LABELS: Record<CaseStatus, string> = {
-  pending: '⏳ 等待执行',
-  running: '🔄 执行中',
-  passed: '✅ 通过',
-  failed: '❌ 失败',
-  blocked: '⛔ 阻塞',
-  not_applicable: '— 不适用'
+  pending: '⏳ Pending',
+  running: '🔄 Running',
+  passed: '✅ Passed',
+  failed: '❌ Failed',
+  blocked: '⛔ Blocked',
+  not_applicable: '— Not applicable'
 }
 
 const VERDICT_LABELS: Record<RunVerdict, string> = {
-  development_pass: '✅ 开发分支测试通过',
-  development_failed: '❌ 开发分支测试未通过',
-  development_blocked: '⛔ 开发分支测试受阻',
-  release_pass: '✅ 发布验收通过',
-  release_failed: '❌ 发布验收未通过',
-  release_blocked: '⛔ 发布验收受阻'
+  development_pass: '✅ Development tests passed',
+  development_failed: '❌ Development tests failed',
+  development_blocked: '⛔ Development tests blocked',
+  release_pass: '✅ Release acceptance passed',
+  release_failed: '❌ Release acceptance failed',
+  release_blocked: '⛔ Release acceptance blocked'
 }
 
 const PLATFORM_LABELS: Record<Platform, string> = {
@@ -37,18 +37,18 @@ const PLATFORM_LABELS: Record<Platform, string> = {
 }
 
 const MODE_LABELS: Record<RunMode, string> = {
-  branch: '开发分支',
-  tag: '发布版本'
+  branch: 'Development branch',
+  tag: 'Release'
 }
 
 const CAPABILITY_LABELS: Record<string, string> = {
-  desktopAutomation: '桌面自动化',
-  externalSelection: '跨应用划词',
-  globalShortcut: '全局快捷键',
-  directCdp: 'CDP 直连',
+  desktopAutomation: 'Desktop automation',
+  externalSelection: 'Cross-app text selection',
+  globalShortcut: 'Global shortcut',
+  directCdp: 'Direct CDP connection',
   npx: 'npx',
-  screenCapture: '屏幕截图',
-  systemFilePicker: '系统文件选择器'
+  screenCapture: 'Screen capture',
+  systemFilePicker: 'System file picker'
 }
 
 function escapeMarkdown(value: string): string {
@@ -65,9 +65,9 @@ function escapeXml(value: string): string {
 }
 
 function taskLabel(task: TaskSelection): string {
-  if (task === 'all') return '全部任务'
+  if (task === 'all') return 'All tasks'
   const titles = REGRESSION_CASES.filter((testCase) => testCase.task === task).map(({ title }) => title)
-  return titles.length > 0 ? titles.join('、') : task
+  return titles.length > 0 ? titles.join(', ') : task
 }
 
 function selectedCases(run: RegressionRun) {
@@ -83,13 +83,13 @@ function capabilityLabel(name: string): string {
 }
 
 function formatDuration(startedAt: string, finishedAt?: string): string {
-  if (!finishedAt) return '仍在运行'
+  if (!finishedAt) return 'Still running'
   const totalSeconds = Math.max(0, Math.floor((Date.parse(finishedAt) - Date.parse(startedAt)) / 1_000))
-  if (!Number.isFinite(totalSeconds)) return '未知'
+  if (!Number.isFinite(totalSeconds)) return 'Unknown'
   const hours = Math.floor(totalSeconds / 3_600)
   const minutes = Math.floor((totalSeconds % 3_600) / 60)
   const seconds = totalSeconds % 60
-  return hours > 0 ? `${hours} 小时 ${minutes} 分 ${seconds} 秒` : `${minutes} 分 ${seconds} 秒`
+  return hours > 0 ? `${hours}h ${minutes}m ${seconds}s` : `${minutes}m ${seconds}s`
 }
 
 export function renderMarkdown(run: RegressionRun): string {
@@ -97,7 +97,7 @@ export function renderMarkdown(run: RegressionRun): string {
   const testCases = selectedCases(run)
   const rows = testCases.map((testCase) => {
     const result = run.cases[testCase.id]
-    return `| ${testCase.id} | ${escapeMarkdown(testCase.title)} | ${STATUS_LABELS[result.status]} | ${escapeMarkdown(result.summary || '暂未记录结果')} | ${result.artifacts?.length ?? 0} |`
+    return `| ${testCase.id} | ${escapeMarkdown(testCase.title)} | ${STATUS_LABELS[result.status]} | ${escapeMarkdown(result.summary || 'No result recorded')} | ${result.artifacts?.length ?? 0} |`
   })
   const blockingResults = testCases
     .filter(({ id }) => ['blocked', 'failed'].includes(run.cases[id].status))
@@ -106,70 +106,70 @@ export function renderMarkdown(run: RegressionRun): string {
       return [
         `### ${STATUS_LABELS[result.status]} · ${testCase.id} · ${escapeMarkdown(testCase.title)}`,
         '',
-        `- **结果说明：**${escapeMarkdown(result.summary)}`,
-        `- **自动化产物：**${result.artifacts?.length ?? 0} 个`,
+        `- **Summary:** ${escapeMarkdown(result.summary)}`,
+        `- **Artifacts:** ${result.artifacts?.length ?? 0}`,
         ''
       ]
     })
   const metadataRows = [
-    `| 测试平台 | ${PLATFORM_LABELS[run.metadata.platform]} |`,
-    `| GitHub 执行器 | \`${escapeMarkdown(run.metadata.runner)}\` |`,
-    `| 测试对象 | \`${escapeMarkdown(run.metadata.ref)}\` |`,
-    `| 提交哈希 | \`${escapeMarkdown(run.metadata.commitSha)}\` |`,
-    `| 应用版本 | \`${escapeMarkdown(run.metadata.appVersion)}\` |`,
-    `| 运行模式 | ${MODE_LABELS[run.metadata.mode]} |`,
-    `| 任务范围 | ${escapeMarkdown(taskLabel(run.metadata.task))} |`,
-    `| 开始时间（UTC） | \`${run.startedAt}\` |`,
-    ...(run.finishedAt ? [`| 结束时间（UTC） | \`${run.finishedAt}\` |`] : []),
-    `| 运行耗时 | ${formatDuration(run.startedAt, run.finishedAt)} |`,
-    ...(run.metadata.artifactName ? [`| 安装包 | \`${escapeMarkdown(run.metadata.artifactName)}\` |`] : []),
-    ...(run.metadata.artifactSha256 ? [`| 安装包 SHA-256 | \`${run.metadata.artifactSha256}\` |`] : [])
+    `| Platform | ${PLATFORM_LABELS[run.metadata.platform]} |`,
+    `| GitHub runner | \`${escapeMarkdown(run.metadata.runner)}\` |`,
+    `| Test reference | \`${escapeMarkdown(run.metadata.ref)}\` |`,
+    `| Commit SHA | \`${escapeMarkdown(run.metadata.commitSha)}\` |`,
+    `| App version | \`${escapeMarkdown(run.metadata.appVersion)}\` |`,
+    `| Run mode | ${MODE_LABELS[run.metadata.mode]} |`,
+    `| Task selection | ${escapeMarkdown(taskLabel(run.metadata.task))} |`,
+    `| Started at (UTC) | \`${run.startedAt}\` |`,
+    ...(run.finishedAt ? [`| Finished at (UTC) | \`${run.finishedAt}\` |`] : []),
+    `| Duration | ${formatDuration(run.startedAt, run.finishedAt)} |`,
+    ...(run.metadata.artifactName ? [`| Installer | \`${escapeMarkdown(run.metadata.artifactName)}\` |`] : []),
+    ...(run.metadata.artifactSha256 ? [`| Installer SHA-256 | \`${run.metadata.artifactSha256}\` |`] : [])
   ]
   const capabilities = Object.entries(run.capabilities)
   const availableCapabilities = capabilities.filter(([, result]) => result.available).length
 
   return [
-    '# Cherry Studio 全链路回归测试报告',
+    '# Cherry Studio End-to-End Regression Report',
     '',
-    `> **总体结论：${VERDICT_LABELS[verdict]}**`,
+    `> **Overall verdict: ${VERDICT_LABELS[verdict]}**`,
     '',
-    '## 运行信息',
+    '## Run information',
     '',
-    '| 项目 | 内容 |',
+    '| Item | Value |',
     '| --- | --- |',
     ...metadataRows,
     '',
-    '## 结果概览',
+    '## Results overview',
     '',
-    '| 适用测试项 | 通过 | 失败 | 阻塞 | 未完成 |',
+    '| Applicable cases | Passed | Failed | Blocked | Incomplete |',
     '| ---: | ---: | ---: | ---: | ---: |',
     `| ${testCases.length} | ${statusCount(run, 'passed')} | ${statusCount(run, 'failed')} | ${statusCount(run, 'blocked')} | ${statusCount(run, 'pending') + statusCount(run, 'running')} |`,
     '',
-    '## 阶段执行',
+    '## Phase execution',
     '',
-    '| 阶段 | 状态 | 执行器错误 |',
+    '| Phase | Status | Executor errors |',
     '| --- | --- | --- |',
     ...Object.entries(run.phases).map(
-      ([id, phase]) => `| ${id} | ${STATUS_LABELS[phase.status]} | ${escapeMarkdown(phase.errors.join('；'))} |`
+      ([id, phase]) => `| ${id} | ${STATUS_LABELS[phase.status]} | ${escapeMarkdown(phase.errors.join('; '))} |`
     ),
     '',
-    '## 测试项明细',
+    '## Case details',
     '',
-    '| 编号 | 测试项 | 结果 | 结果说明 | 自动化产物 |',
+    '| ID | Test case | Result | Summary | Artifacts |',
     '| --- | --- | --- | --- | ---: |',
     ...rows,
     '',
-    '## 异常详情',
+    '## Failures and blockers',
     '',
-    ...(blockingResults.length > 0 ? blockingResults : ['无失败或阻塞项。', '']),
+    ...(blockingResults.length > 0 ? blockingResults : ['No failed or blocked cases.', '']),
     '<details>',
-    `<summary>运行能力检查（${availableCapabilities} / ${capabilities.length} 可用）</summary>`,
+    `<summary>Capability checks (${availableCapabilities} / ${capabilities.length} available)</summary>`,
     '',
-    '| 能力 | 结果 | 说明 |',
+    '| Capability | Result | Details |',
     '| --- | --- | --- |',
     ...capabilities.map(
       ([name, result]) =>
-        `| ${capabilityLabel(name)} | ${result.available ? '✅ 可用' : '❌ 不可用'} | ${escapeMarkdown(result.detail)} |`
+        `| ${capabilityLabel(name)} | ${result.available ? '✅ Available' : '❌ Unavailable'} | ${escapeMarkdown(result.detail)} |`
     ),
     '',
     '</details>',
@@ -183,7 +183,7 @@ export function renderJUnit(run: RegressionRun): string {
     .filter(([, phase]) => phase.status !== 'passed' || phase.errors.length > 0)
     .map(([id, phase]) => ({
       id,
-      message: phase.errors.join('; ') || '阶段未成功完成',
+      message: phase.errors.join('; ') || 'Phase did not complete successfully',
       failed: phase.status === 'failed' || (phase.errors.length > 0 && phase.status !== 'blocked')
     }))
   const failedPhases = phaseIssues.filter(({ failed }) => failed).length
@@ -251,21 +251,21 @@ export function renderAggregateMarkdown(report: AggregateReport): string {
       .filter(([, phase]) => phase.status !== 'passed' || phase.errors.length > 0)
       .map(
         ([id, phase]) =>
-          `| ${PLATFORM_LABELS[run.metadata.platform]} | 阶段 ${id} | ${STATUS_LABELS[phase.status]} | ${escapeMarkdown(phase.errors.join('；') || '阶段未成功完成')} |`
+          `| ${PLATFORM_LABELS[run.metadata.platform]} | Phase ${id} | ${STATUS_LABELS[phase.status]} | ${escapeMarkdown(phase.errors.join('; ') || 'Phase did not complete successfully')} |`
       ),
     ...selectedCases(run)
       .filter(({ id }) => run.cases[id].status !== 'passed')
       .map(({ id }) => {
         const result = run.cases[id]
-        return `| ${PLATFORM_LABELS[run.metadata.platform]} | ${id} | ${STATUS_LABELS[result.status]} | ${escapeMarkdown(result.summary || '任务未完成')} |`
+        return `| ${PLATFORM_LABELS[run.metadata.platform]} | ${id} | ${STATUS_LABELS[result.status]} | ${escapeMarkdown(result.summary || 'Task incomplete')} |`
       })
   ])
   return [
-    '# Cherry Studio 全链路回归测试汇总',
+    '# Cherry Studio End-to-End Regression Summary',
     '',
-    `> **总体结论：${VERDICT_LABELS[report.verdict]}**`,
+    `> **Overall verdict: ${VERDICT_LABELS[report.verdict]}**`,
     '',
-    '| 平台 | 通过 | 失败 | 阻塞 | 未完成 | 耗时 | 结论 |',
+    '| Platform | Passed | Failed | Blocked | Incomplete | Duration | Verdict |',
     '| --- | ---: | ---: | ---: | ---: | --- | --- |',
     ...runs.map(
       (run) =>
@@ -274,30 +274,37 @@ export function renderAggregateMarkdown(report: AggregateReport): string {
     ...(report.missingPlatforms.length > 0
       ? [
           '',
-          `> ⚠️ **缺少平台报告：**${report.missingPlatforms.map((platform) => PLATFORM_LABELS[platform]).join('、')}`
+          `> ⚠️ **Missing platform reports:** ${report.missingPlatforms.map((platform) => PLATFORM_LABELS[platform]).join(', ')}`
         ]
       : []),
     ...(issues.length > 0
-      ? ['', '## 需要关注', '', '| 平台 | 用例 / 阶段 | 状态 | 原因 |', '| --- | --- | --- | --- |', ...issues]
+      ? [
+          '',
+          '## Needs attention',
+          '',
+          '| Platform | Case / Phase | Status | Reason |',
+          '| --- | --- | --- | --- |',
+          ...issues
+        ]
       : []),
     '',
-    '## 全部用例',
+    '## All cases',
     '',
-    '| 编号 | 测试项 | macOS | Windows |',
+    '| ID | Test case | macOS | Windows |',
     '| --- | --- | --- | --- |',
     ...REGRESSION_CASES.filter(({ id }) => runs.some((run) => run.cases[id].status !== 'not_applicable')).map(
       ({ id, title }) => {
         const statuses = PLATFORMS.map((platform) => {
           const run = runs.find((candidate) => candidate.metadata.platform === platform)
-          return run ? STATUS_LABELS[run.cases[id].status] : '⛔ 缺少报告'
+          return run ? STATUS_LABELS[run.cases[id].status] : '⛔ Missing report'
         })
         return `| ${id} | ${escapeMarkdown(title)} | ${statuses.join(' | ')} |`
       }
     ),
     '',
-    '## 详细报告',
+    '## Detailed report',
     '',
-    '下载本次运行的 `test-report` 产物并解压，打开 `playwright/index.html`，可统一查看所有平台和阶段的用例、错误、截图及附件。',
+    'Download and extract the `test-report` artifact, then open `playwright/index.html` to view tests, errors, screenshots, and attachments across all platforms and phases.',
     ''
   ].join('\n')
 }

@@ -21,7 +21,8 @@ export function createRun(metadata: RunMetadata): RegressionRun {
         {
           id: testCase.id,
           status: metadata.task === 'all' || testCase.task === metadata.task ? 'pending' : 'not_applicable',
-          summary: metadata.task !== 'all' && testCase.task !== metadata.task ? `未被任务 ${metadata.task} 选中` : ''
+          summary:
+            metadata.task !== 'all' && testCase.task !== metadata.task ? `Not selected by task ${metadata.task}` : ''
         }
       ])
     )
@@ -30,8 +31,8 @@ export function createRun(metadata: RunMetadata): RegressionRun {
 
 export function beginCase(run: RegressionRun, caseId: string): RegressionRun {
   const result = run.cases[caseId]
-  if (!result) throw new Error(`未知的回归测试项：${caseId}`)
-  if (result.status === 'not_applicable') throw new Error(`${caseId} 不适用于 ${run.metadata.mode} 模式`)
+  if (!result) throw new Error(`Unknown regression case: ${caseId}`)
+  if (result.status === 'not_applicable') throw new Error(`${caseId} is not applicable in ${run.metadata.mode} mode`)
   return {
     ...run,
     cases: {
@@ -49,9 +50,9 @@ export function completeE2eCase(
   artifacts: string[] = []
 ): RegressionRun {
   const result = run.cases[caseId]
-  if (!result) throw new Error(`未知的回归测试项：${caseId}`)
-  if (result.status === 'not_applicable') throw new Error(`${caseId} 不适用于 ${run.metadata.mode} 模式`)
-  if (!summary.trim() || !/[\u3400-\u9fff]/.test(summary)) throw new Error(`${caseId} 的结果摘要必须使用简体中文`)
+  if (!result) throw new Error(`Unknown regression case: ${caseId}`)
+  if (result.status === 'not_applicable') throw new Error(`${caseId} is not applicable in ${run.metadata.mode} mode`)
+  if (!summary.trim()) throw new Error(`${caseId} requires a non-empty result summary`)
 
   return {
     ...run,
@@ -77,7 +78,7 @@ export function finalizeRun(run: RegressionRun): RegressionRun {
         {
           ...result,
           status: 'blocked' as const,
-          summary: '任务在生成最终报告前未完成',
+          summary: 'Task did not finish before the final report',
           finishedAt: new Date().toISOString()
         }
       ]
@@ -87,7 +88,7 @@ export function finalizeRun(run: RegressionRun): RegressionRun {
     Object.entries(run.phases).map(([id, phase]) => [
       id,
       ['pending', 'running'].includes(phase.status)
-        ? { ...phase, status: 'blocked' as const, errors: [...phase.errors, '阶段在完成前中断'] }
+        ? { ...phase, status: 'blocked' as const, errors: [...phase.errors, 'Phase interrupted before completion'] }
         : phase
     ])
   )

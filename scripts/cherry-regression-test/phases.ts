@@ -25,7 +25,11 @@ export async function runPhase(paths: RunPaths, phase: PhaseId): Promise<void> {
   if (code !== 0 || result.phases[phase].status !== 'passed') {
     writeRun(
       paths.runState,
-      updatePhase(result, phase, 'failed', [code !== 0 ? `测试执行器异常退出（退出码 ${code}）` : '阶段未报告成功完成'])
+      updatePhase(result, phase, 'failed', [
+        code !== 0
+          ? `Test executor exited abnormally (exit code ${code})`
+          : 'Phase did not report successful completion'
+      ])
     )
     process.exitCode = 1
   }

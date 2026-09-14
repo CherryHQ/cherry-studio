@@ -30,6 +30,8 @@ The workflow keeps ten separately timed steps. Each calls `run-phase`; the contr
 `run.json` schema version 2 records both cases and phases. The parent marks a phase running before starting Playwright; the reporter records test results and executor errors; a nonzero child exit also fails the phase.
 A phase left pending/running becomes blocked during finalization. Passing cases cannot hide a failed or unfinished phase. Missing platform reports block the aggregate gate.
 Only one phase writes a platform's run state at a time; keep `workers: 1` and sequential workflow steps.
+The macOS and Windows jobs run in parallel; each platform keeps its own isolated run directory.
+Test names and generated report text use English. External errors and captured application content remain unchanged.
 
 Capability requirements belong to cases. Missing required capabilities skip execution with an explicit reason and are recorded as blocked, never passed.
 Capability probes are preflight checks, not evidence that a product interaction succeeded.

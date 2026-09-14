@@ -20,7 +20,7 @@ Use `.github/workflows/cherry-regression-test.yml` as the entry point. It:
 4. Launches one owned Electron process with CDP enabled.
 5. Runs the ten files in `tests/e2e/cherry-regression/` from simple to complex.
 6. Continues after a failed phase so later results are still collected.
-7. Produces Chinese platform and aggregate reports, then enforces the verdict.
+7. Produces English platform and aggregate reports, then enforces the verdict.
 8. Stops only the Electron process recorded in the isolated run directory.
 
 Do not add an LLM tool loop, MCP control server, turn limit, or a second
@@ -67,7 +67,7 @@ and visible text. Native dialogs and cross-application interactions must use
 the repository-owned helpers in `systemAutomation.ts`.
 
 Record assertions in Playwright, not prose. The custom reporter writes case and phase
-status into `run.json` and feeds the Chinese Markdown/JUnit reports. The fixture
+status into `run.json` and feeds the English Markdown/JUnit reports. The fixture
 saves failure screenshots. Executor errors and interrupted phases block a passing verdict. Do not enable Playwright Trace for credential-bearing
 tests because action parameters can expose secrets. A passing result does not
 depend on a model's judgment.

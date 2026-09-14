@@ -26,7 +26,7 @@ describe('regression report gate', () => {
       }),
       'C-02',
       'blocked',
-      '没有可交互的桌面'
+      'No interactive desktop available'
     )
 
     expect(aggregateRuns([macos, finalizeRun(windows)]).verdict).toBe('release_blocked')
@@ -46,21 +46,24 @@ describe('regression report gate', () => {
     )
 
     const markdown = renderMarkdown(run)
-    expect(markdown).toContain('# Cherry Studio 全链路回归测试报告')
-    expect(markdown).toContain('> **总体结论：⛔ 开发分支测试受阻**')
-    expect(markdown).toContain('| M-01 | 登录 CherryIN 并完成聊天 | ⛔ 阻塞 | 任务在生成最终报告前未完成 | 0 |')
-    expect(markdown).toContain('任务在生成最终报告前未完成')
-    expect(markdown).not.toContain('## Results')
-    expect(markdown).not.toContain('Failures and Blockers')
-    expect(renderJUnit(run)).toContain('<skipped message="任务在生成最终报告前未完成"')
+    expect(markdown).toContain('# Cherry Studio End-to-End Regression Report')
+    expect(markdown).toContain('> **Overall verdict: ⛔ Development tests blocked**')
+    expect(markdown).toContain(
+      '| M-01 | Sign in to CherryIN and chat | ⛔ Blocked | Task did not finish before the final report | 0 |'
+    )
+    expect(markdown).toContain('Task did not finish before the final report')
+    expect(markdown).not.toMatch(/[\u3400-\u9fff]/)
+    expect(renderJUnit(run)).not.toMatch(/[\u3400-\u9fff]/)
+    expect(renderAggregateMarkdown(aggregateRuns([run]))).not.toMatch(/[\u3400-\u9fff]/)
+    expect(renderJUnit(run)).toContain('<skipped message="Task did not finish before the final report"')
     expect(renderJUnit(run)).toContain('classname="cherry-regression.executor" name="01-startup"><skipped')
   })
 
   it('keeps a missing branch matrix in the development verdict namespace', () => {
     const report = aggregateRuns([], 'branch')
     expect(report.verdict).toBe('development_blocked')
-    expect(renderAggregateMarkdown(report)).toContain('> **总体结论：⛔ 开发分支测试受阻**')
-    expect(renderAggregateMarkdown(report)).toContain('**缺少平台报告：**macOS、Windows')
+    expect(renderAggregateMarkdown(report)).toContain('> **Overall verdict: ⛔ Development tests blocked**')
+    expect(renderAggregateMarkdown(report)).toContain('**Missing platform reports:** macOS, Windows')
   })
 
   it('includes both platforms and their failure details in one report', () => {
@@ -75,23 +78,23 @@ describe('regression report gate', () => {
       createRun({ ...metadata, platform: 'macos', runner: 'macos-latest' }),
       'N-01',
       'passed',
-      '笔记保存成功'
+      'Note saved successfully'
     )
     const windows = completeE2eCase(
       createRun({ ...metadata, platform: 'windows', runner: 'windows-2022' }),
       'N-01',
       'failed',
-      '保存失败 | 文件只读'
+      'Save failed | File is read-only'
     )
     const markdown = renderAggregateMarkdown(aggregateRuns([windows, macos]))
-    expect(markdown).toContain('| N-01 | 创建和保存笔记 | ✅ 通过 | ❌ 失败 |')
-    expect(markdown).not.toContain('笔记保存成功')
-    expect(markdown).not.toContain('完整结果')
-    expect(markdown).toContain('保存失败 \\| 文件只读')
+    expect(markdown).toContain('| N-01 | Create and save a note | ✅ Passed | ❌ Failed |')
+    expect(markdown).not.toContain('Note saved successfully')
+    expect(markdown).not.toContain('Full results')
+    expect(markdown).toContain('Save failed \\| File is read-only')
     expect(markdown).toContain('playwright/index.html')
     expect(markdown).not.toContain('| M-01 |')
     expect(renderAggregateMarkdown(aggregateRuns([macos]))).toContain(
-      '| N-01 | 创建和保存笔记 | ✅ 通过 | ⛔ 缺少报告 |'
+      '| N-01 | Create and save a note | ✅ Passed | ⛔ Missing report |'
     )
   })
 
@@ -108,15 +111,15 @@ describe('regression report gate', () => {
       }),
       'N-01',
       'passed',
-      '笔记保存成功'
+      'Note saved successfully'
     )
     const phaseId = Object.keys(run.phases)[0]
     const passed = updatePhase(run, phaseId, 'passed')
-    expect(renderAggregateMarkdown(aggregateRuns([passed]))).not.toContain('## 需要关注')
-    const failed = updatePhase(passed, phaseId, 'failed', ['执行器退出码 1'])
+    expect(renderAggregateMarkdown(aggregateRuns([passed]))).not.toContain('## Needs attention')
+    const failed = updatePhase(passed, phaseId, 'failed', ['Executor exit code 1'])
     const markdown = renderAggregateMarkdown(aggregateRuns([failed]))
-    expect(markdown).toContain(`| macOS | 阶段 ${phaseId} | ❌ 失败 | 执行器退出码 1 |`)
-    expect(markdown).toContain('总体结论：❌ 开发分支测试未通过')
+    expect(markdown).toContain(`| macOS | Phase ${phaseId} | ❌ Failed | Executor exit code 1 |`)
+    expect(markdown).toContain('Overall verdict: ❌ Development tests failed')
   })
 
   it('shows unfinished cases without claiming a passing result', () => {
@@ -131,7 +134,7 @@ describe('regression report gate', () => {
     })
     const markdown = renderAggregateMarkdown(aggregateRuns([run]))
     expect(markdown).toContain('| Windows | 0 | 0 | 0 | 1 |')
-    expect(markdown).toContain('| Windows | N-01 | ⏳ 等待执行 | 任务未完成 |')
-    expect(markdown).toContain('总体结论：⛔ 开发分支测试受阻')
+    expect(markdown).toContain('| Windows | N-01 | ⏳ Pending | Task incomplete |')
+    expect(markdown).toContain('Overall verdict: ⛔ Development tests blocked')
   })
 })

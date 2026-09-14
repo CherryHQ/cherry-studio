@@ -21,7 +21,7 @@ async function openSocket(url: string): Promise<WebSocket> {
   await new Promise<void>((resolvePromise, reject) => {
     const timer = setTimeout(() => {
       socket.terminate()
-      reject(new Error('CDP 连接超时'))
+      reject(new Error('CDP connection timed out'))
     }, 5_000)
     const onError = (error: Error): void => {
       clearTimeout(timer)
@@ -40,7 +40,9 @@ async function openSocket(url: string): Promise<WebSocket> {
 function evaluationValue<T>(evaluation: RuntimeEvaluation): T {
   if (evaluation.exceptionDetails) {
     throw new Error(
-      evaluation.exceptionDetails.exception?.description ?? evaluation.exceptionDetails.text ?? 'CDP 表达式执行失败'
+      evaluation.exceptionDetails.exception?.description ??
+        evaluation.exceptionDetails.text ??
+        'CDP expression evaluation failed'
     )
   }
   return evaluation.result.value as T
@@ -51,7 +53,7 @@ export async function evaluateCdpExpression<T>(webSocketDebuggerUrl: string, exp
   try {
     const evaluation = await new Promise<RuntimeEvaluation>((resolvePromise, reject) => {
       const commandId = 1
-      const timer = setTimeout(() => reject(new Error('CDP 表达式执行超时')), 15_000)
+      const timer = setTimeout(() => reject(new Error('CDP expression evaluation timed out')), 15_000)
       const finish = (callback: () => void): void => {
         clearTimeout(timer)
         socket.off('message', onMessage)
@@ -60,7 +62,7 @@ export async function evaluateCdpExpression<T>(webSocketDebuggerUrl: string, exp
         callback()
       }
       const onError = (error: Error): void => finish(() => reject(error))
-      const onClose = (): void => finish(() => reject(new Error('CDP 连接已关闭')))
+      const onClose = (): void => finish(() => reject(new Error('CDP connection closed')))
       const onMessage = (data: WebSocket.RawData): void => {
         let message: CdpMessage
         try {

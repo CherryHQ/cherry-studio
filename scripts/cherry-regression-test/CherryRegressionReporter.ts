@@ -41,7 +41,7 @@ export default class CherryRegressionReporter implements Reporter {
       for (const phase of this.phases) {
         const expected = selectCases(run.metadata.task).filter((testCase) => testCase.phase === phase)
         if (expected.length === 0 || expected.some(({ id }) => !this.ids.includes(id))) {
-          this.errors.push(`阶段 ${phase} 的用例注册与所选任务不一致`)
+          this.errors.push(`Registered cases for phase ${phase} do not match the selected task`)
         }
         run = updatePhase(run, phase, 'running')
       }
@@ -55,16 +55,16 @@ export default class CherryRegressionReporter implements Reporter {
     const blocked = result.annotations.find(({ type }) => type === 'skip')?.description
     const summary =
       result.status === 'passed'
-        ? `端到端测试通过，耗时 ${Math.ceil(result.duration / 1000)} 秒`
+        ? `End-to-end test passed in ${Math.ceil(result.duration / 1000)} seconds`
         : result.status === 'skipped'
-          ? `运行条件不满足：${blocked ?? '请查看阶段日志'}`
-          : '端到端测试未通过，请查看阶段日志与 HTML 报告'
+          ? `Prerequisites not met: ${blocked ?? 'See phase logs'}`
+          : 'End-to-end test failed; see phase logs and the HTML report'
     const run = completeE2eCase(readRun(this.paths.runState), caseId(test), status, this.redact(summary), artifacts)
     writeRun(this.paths.runState, run)
   }
 
   onError(error: TestError): void {
-    this.errors.push(this.redact(`执行器错误：${error.message ?? error.value ?? '未知错误'}`))
+    this.errors.push(this.redact(`Executor error: ${error.message ?? error.value ?? 'Unknown error'}`))
   }
 
   onEnd(result: FullResult): void {
@@ -80,7 +80,7 @@ export default class CherryRegressionReporter implements Reporter {
     }
     writeRun(this.paths.runState, run)
     process.stdout.write(
-      `端到端测试阶段结论：${result.status === 'passed' && this.errors.length === 0 ? '通过' : '未通过'}\n`
+      `End-to-end phase verdict: ${result.status === 'passed' && this.errors.length === 0 ? 'Passed' : 'Failed'}\n`
     )
   }
 }

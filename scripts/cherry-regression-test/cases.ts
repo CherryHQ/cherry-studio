@@ -1,85 +1,91 @@
 export const REGRESSION_CASES = [
-  { id: 'S-01', capabilities: [], phase: '01-startup', title: '应用启动冒烟测试', task: 'startup-smoke' },
-  { id: 'APP-01', capabilities: [], phase: '02-basic-features', title: '打开小程序', task: 'mini-app' },
-  { id: 'N-01', capabilities: [], phase: '02-basic-features', title: '创建和保存笔记', task: 'notes' },
+  { id: 'S-01', capabilities: [], phase: '01-startup', title: 'Application startup smoke test', task: 'startup-smoke' },
+  { id: 'APP-01', capabilities: [], phase: '02-basic-features', title: 'Open a Mini App', task: 'mini-app' },
+  { id: 'N-01', capabilities: [], phase: '02-basic-features', title: 'Create and save a note', task: 'notes' },
   {
     id: 'M-02',
     capabilities: [],
     phase: '03-models-and-assistants',
-    title: '配置自定义聊天服务商并完成聊天',
+    title: 'Configure a custom chat provider and send a message',
     task: 'custom-provider-chat'
   },
   {
     id: 'C-01',
     capabilities: [],
     phase: '03-models-and-assistants',
-    title: '创建自定义助手并聊天',
+    title: 'Create a custom assistant and chat',
     task: 'custom-assistant'
   },
-  { id: 'T-01', capabilities: [], phase: '04-translation', title: '文本翻译', task: 'translation' },
+  { id: 'T-01', capabilities: [], phase: '04-translation', title: 'Translate text', task: 'translation' },
   {
     id: 'T-02',
     capabilities: ['desktopAutomation'],
     phase: '04-translation',
-    title: 'PDF 文件翻译',
+    title: 'Translate a PDF file',
     task: 'translation'
   },
   {
     id: 'C-02',
     capabilities: ['desktopAutomation'],
     phase: '05-desktop-assistants',
-    title: '使用快捷助手完成全局问答',
+    title: 'Ask a question using Quick Assistant',
     task: 'quick-assistant'
   },
   {
     id: 'K-01',
     capabilities: ['desktopAutomation'],
     phase: '06-knowledge',
-    title: '配置嵌入服务商并创建知识库',
+    title: 'Configure an embedding provider and create a knowledge base',
     task: 'knowledge-import'
   },
   {
     id: 'K-02',
     capabilities: ['desktopAutomation'],
     phase: '06-knowledge',
-    title: '基于知识库问答并验证引用',
+    title: 'Query a knowledge base and verify citations',
     task: 'knowledge-qa'
   },
   {
     id: 'MCP-01',
     capabilities: ['npx'],
     phase: '07-integrations',
-    title: '创建并使用 Everything MCP',
+    title: 'Create and use Everything MCP',
     task: 'everything-mcp'
   },
   {
     id: 'A-02',
     capabilities: ['desktopAutomation'],
     phase: '07-integrations',
-    title: '从文件夹导入 Skill 并验证生效',
+    title: 'Import a Skill from a folder and verify it works',
     task: 'skill-import'
   },
   {
     id: 'CODE-01',
     capabilities: ['desktopAutomation'],
     phase: '08-code-tools',
-    title: '启动 Claude Code',
+    title: 'Launch Claude Code',
     task: 'code-cli'
   },
-  { id: 'CODE-02', capabilities: ['desktopAutomation'], phase: '08-code-tools', title: '启动 Codex', task: 'code-cli' },
-  { id: 'CODE-03', capabilities: [], phase: '08-code-tools', title: '启动 OpenClaw', task: 'openclaw' },
+  {
+    id: 'CODE-02',
+    capabilities: ['desktopAutomation'],
+    phase: '08-code-tools',
+    title: 'Launch Codex',
+    task: 'code-cli'
+  },
+  { id: 'CODE-03', capabilities: [], phase: '08-code-tools', title: 'Launch OpenClaw', task: 'openclaw' },
   {
     id: 'M-01',
     capabilities: [],
     phase: '09-cherryin-and-images',
-    title: '登录 CherryIN 并完成聊天',
+    title: 'Sign in to CherryIN and chat',
     task: 'cherryin-chat'
   },
   {
     id: 'P-01',
     capabilities: ['desktopAutomation'],
     phase: '09-cherryin-and-images',
-    title: '使用图像模型生成图片',
+    title: 'Generate an image using an image model',
     task: 'image-generation'
   },
   {
@@ -107,7 +113,7 @@ export const REGRESSION_CASES = [
     id: 'A-01',
     capabilities: ['desktopAutomation'],
     phase: '10-agent-runtimes',
-    title: '默认 Agent 完成基础文件任务',
+    title: 'Complete a basic file task with the default Agent',
     task: 'agent-basic-task'
   }
 ] as const
