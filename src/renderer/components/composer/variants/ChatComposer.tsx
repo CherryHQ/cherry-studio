@@ -89,7 +89,7 @@ import type { ComposerToolLauncher } from '../toolLauncher'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { getCachedSkillTokens, getSkillFromCachedToken } from './agent/agentDraftCache'
-import { agentComposerTokenId, agentSkillToComposerToken } from './agentComposerTokens'
+import { agentComposerTokenId, agentSkillToComposerToken, findSkillByTokenId } from './agentComposerTokens'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
@@ -225,7 +225,9 @@ const createSkillQuickPanelItems = (
     label: skill.name,
     description: skill.description ?? undefined,
     icon: <ToolCase size={16} />,
-    filterText: skill.name,
+    // Root-panel search treats filterText as authoritative (label/description are excluded once
+    // it is set), so description must be folded in to honor "search by name and description".
+    filterText: [skill.name, skill.description].filter(Boolean).join(' '),
     searchAliases: [options.skillLabel],
     action: ({ inputAdapter }) => {
       options.onInsertSkill(skill, inputAdapter)
@@ -713,8 +715,8 @@ const ChatComposerInner = ({
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text)
       setDraftTokens(historyDraft.tokens.length ? historyDraft.tokens : undefined)
-      // Skills ride in the draft tokens: a recalled history entry (plain text) drops them,
-      // restoring a preview brings them back — same contract as AgentComposer.
+      // Skills ride in the draft tokens: entries saved with skill chips restore them, plain-text
+      // entries drop them — same contract as AgentComposer.
       setSelectedSkills(getCachedSkillTokens(historyDraft.tokens).map(getSkillFromCachedToken))
 
       if (options.source === 'history') {
@@ -1359,10 +1361,7 @@ const ChatComposerInner = ({
         let changed = next.length !== prev.length
 
         for (const token of skillTokens) {
-          const skill = availableSkills.find((candidate) => {
-            const candidateId = agentComposerTokenId.skill(candidate)
-            return candidateId === token.id || candidate.name === token.label || candidate.filename === token.label
-          })
+          const skill = findSkillByTokenId(token, availableSkills)
           if (!skill) continue
 
           const skillId = agentComposerTokenId.skill(skill)
@@ -1682,7 +1681,9 @@ const ChatComposerInner = ({
         userMessageParts: withSkillScopePart(
           withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds),
           skillFolderNames
-        )
+        ),
+        // Spread into plain objects: the shared payload carries these loosely for history recall.
+        skillTokens: draft.tokens.filter((token) => token.kind === 'skill').map((token) => ({ ...token }))
       }
     },
     [
@@ -1719,7 +1720,9 @@ const ChatComposerInner = ({
           chatTarget: payload.chatTarget
         })
         if (sent === false) return false
-        saveHistory(getComposerHistoryText(payload.userMessageParts))
+        // Round-tripped through the loosely-typed shared payload; we wrote it in buildQueuedPayload.
+        const historySkillTokens = payload.skillTokens as ComposerSerializedToken[] | undefined
+        saveHistory(getComposerHistoryText(payload.userMessageParts), historySkillTokens)
         return true
       } catch (error) {
         logger.warn('send failed', { error })

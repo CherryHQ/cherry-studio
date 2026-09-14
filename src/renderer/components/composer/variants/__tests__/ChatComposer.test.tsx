@@ -95,7 +95,7 @@ const mocks = vi.hoisted(() => ({
 
 const originalResizeObserver = globalThis.ResizeObserver
 
-const seedInputHistory = (items: string[]) => {
+const seedInputHistory = (items: Array<string | { text: string; skillTokens: ComposerSerializedToken[] }>) => {
   MockUseCacheUtils.setPersistCacheValue('ui.composer.input_history', items)
 }
 
@@ -1525,6 +1525,82 @@ describe('ChatComposer', () => {
 
     await waitFor(() => {
       expect(mocks.surfaceProps?.tokens.some((token) => token.id === 'skill:pdf')).toBe(false)
+    })
+  })
+
+  it('attaches only the selected skill when two installed skills share a display name', async () => {
+    // Both catalog rows display as "PDF"; the editor token names the chosen folder. Display-name
+    // matching must not win over the exact token id or the unselected twin gets attached too.
+    mocks.availableSkills = [
+      { name: 'PDF', folderName: 'a-pdf', description: null },
+      { name: 'PDF', folderName: 'b-pdf', description: null }
+    ]
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    await act(async () => {
+      mocks.surfaceProps?.onTokensChange?.([
+        { id: 'skill:b-pdf', kind: 'skill', label: 'PDF', index: 0, textOffset: 0 }
+      ])
+    })
+
+    expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:b-pdf' }))
+    expect(mocks.surfaceProps?.tokens.some((token) => token.id === 'skill:a-pdf')).toBe(false)
+  })
+
+  it('prunes exactly the removed chip when one of two same-name skill chips is deleted', async () => {
+    mocks.availableSkills = [
+      { name: 'PDF', folderName: 'a-pdf', description: null },
+      { name: 'PDF', folderName: 'b-pdf', description: null }
+    ]
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    await act(async () => {
+      mocks.surfaceProps?.onTokensChange?.([
+        { id: 'skill:a-pdf', kind: 'skill', label: 'PDF', index: 0, textOffset: 0 },
+        { id: 'skill:b-pdf', kind: 'skill', label: 'PDF', index: 1, textOffset: 0 }
+      ])
+    })
+    await act(async () => {
+      mocks.surfaceProps?.onTokensChange?.([
+        { id: 'skill:b-pdf', kind: 'skill', label: 'PDF', index: 0, textOffset: 0 }
+      ])
+    })
+
+    expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:b-pdf' }))
+    expect(mocks.surfaceProps?.tokens.some((token) => token.id === 'skill:a-pdf')).toBe(false)
+  })
+
+  it('restores skill chips when recalling a history entry that was sent with them', async () => {
+    mocks.availableSkills = [pdfSkill]
+    seedInputHistory([{ text: 'Use the pdf skill. summarize the spec', skillTokens: [pdfSkillDraftToken] }])
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('Use the pdf skill. summarize the spec')
+      expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:pdf' }))
+    })
+  })
+
+  it('recalls a legacy plain-text history entry without skill chips', async () => {
+    mocks.availableSkills = [pdfSkill]
+    seedInputHistory(['plain old entry'])
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('plain old entry')
+      expect(mocks.surfaceProps?.tokens.some((token) => token.kind === 'skill')).toBe(false)
     })
   })
 

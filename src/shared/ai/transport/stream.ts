@@ -95,6 +95,11 @@ export interface ComposerQueuedMessagePayload {
    * the renderer queue (re-edit/restore + send-time part build) reads it.
    */
   attachments?: Array<Record<string, unknown>>
+  /**
+   * Skill chips captured with this queued draft, for input-history recall. Loosely typed here
+   * (the concrete token lives in the renderer); main ignores it — only history readback consumes it.
+   */
+  skillTokens?: unknown[]
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
   /** Canonical reasoning selection captured with this queued draft. */
