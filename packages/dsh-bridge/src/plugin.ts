@@ -29,6 +29,7 @@ import {
   type BridgeHostParams,
   type BridgePluginRequestMap,
   type BridgePolicy,
+  type BridgeSessionOpenResult,
   type BridgeSubagentChild,
   type BridgeToolDescriptor
 } from './protocol'
@@ -178,7 +179,7 @@ export function apply(ctx: Context): void {
     }
   }
 
-  async function openSession(params: BridgeHostParams<'session/open'>): Promise<Record<string, never>> {
+  async function openSession(params: BridgeHostParams<'session/open'>): Promise<BridgeSessionOpenResult> {
     policies.set(params.sessionId, params.policy)
     const agentOptions = {
       provider: params.provider,
@@ -190,11 +191,15 @@ export function apply(ctx: Context): void {
       if (params.resume) {
         try {
           const resumed = await ctx.agents.resume({ resumeSessionId: SessionId(params.sessionId), agentOptions })
-          if (resumed.agent.session.header.cwd !== params.cwd) {
+          const persistedCwd = resumed.agent.session.header.cwd
+          if (persistedCwd !== params.cwd) {
             await resumed.dispose()
-            throw new Error(
-              `persisted dsh session cwd ${JSON.stringify(resumed.agent.session.header.cwd)} does not match ${JSON.stringify(params.cwd)}`
-            )
+            // Recoverable state: report both cwds for host recovery (a throw
+            // crosses the wire as an untyped -32603 with no payload).
+            policies.delete(params.sessionId)
+            disposeTools(params.sessionId)
+            if (persistedCwd === undefined) throw new Error('persisted dsh session has no verified workspace directory')
+            return { status: 'cwd-mismatch', persistedCwd, requestedCwd: params.cwd }
           }
         } catch (error) {
           if (!isMissingSessionError(error)) throw error
@@ -212,7 +217,7 @@ export function apply(ctx: Context): void {
           agentOptions
         })
       }
-      return {}
+      return { status: 'opened' }
     } catch (error) {
       policies.delete(params.sessionId)
       disposeTools(params.sessionId)
