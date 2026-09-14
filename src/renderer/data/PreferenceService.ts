@@ -42,14 +42,13 @@ export class PreferenceService {
       timestamp: number
       requestId: string
       isFirst: boolean
+      externalRevision: number | null
     }
   >()
 
   private writeTails = new Map<UnifiedPreferenceKeyType, Promise<void>>()
 
   private preferenceRevisions = new Map<UnifiedPreferenceKeyType, number>()
-
-  private pendingWriteValues = new Map<UnifiedPreferenceKeyType, any[]>()
 
   constructor() {
     this.setupChangeListeners()
@@ -69,16 +68,12 @@ export class PreferenceService {
       const optimisticState = this.optimisticValues.get(key)
       if (optimisticState) {
         this.bumpPreferenceRevision(key)
-        // Ignore own/stale echoes; a different value is authoritative and remains
-        // visible while this optimistic request settles.
-        if (
-          isEqual(value, optimisticState.value) ||
-          isEqual(value, optimisticState.originalValue) ||
-          this.hasPendingWriteValue(key, value)
-        )
-          return
-
+        // Renderer-originated echoes are excluded by the main-process sender
+        // filter. Every event that reaches this branch is therefore an
+        // authoritative update from another window, including same-value
+        // updates that must become the rollback baseline.
         optimisticState.originalValue = value
+        optimisticState.externalRevision = this.getPreferenceRevision(key)
         const oldValue = this.cache[key]
         if (!isEqual(oldValue, value)) {
           this.cache[key] = value
@@ -90,10 +85,7 @@ export class PreferenceService {
       this.bumpPreferenceRevision(key)
       const oldValue = this.cache[key]
 
-      // Deep equality filters self-induced IPC echoes: the main-process broadcast
-      // intentionally does NOT exclude the sender (it relies on this gate to drop
-      // own-echoes), so for object/array preferences the payload is a fresh JS
-      // reference even when the value is unchanged.
+      // Avoid notifying React for structurally unchanged cross-window values.
       if (!isEqual(oldValue, value)) {
         this.cache[key] = value
         this.notifyChangeListeners(key)
@@ -176,14 +168,13 @@ export class PreferenceService {
     options: PreferenceUpdateOptions = { optimistic: true }
   ): Promise<void> {
     this.bumpPreferenceRevision(key)
-    const releasePendingWrite = this.trackPendingWrite(key, value)
     if (options.optimistic) {
       const requestId = this.generateRequestId()
       this.applyOptimisticUpdate(key, value, requestId)
-      return this.enqueueWrite([key], () => this.persistOptimistic(key, value, requestId)).finally(releasePendingWrite)
+      return this.enqueueWrite([key], () => this.persistOptimistic(key, value, requestId))
     }
 
-    return this.enqueueWrite([key], () => this.setPessimistic(key, value)).finally(releasePendingWrite)
+    return this.enqueueWrite([key], () => this.setPessimistic(key, value))
   }
 
   /**
@@ -208,7 +199,8 @@ export class PreferenceService {
       originalValue,
       timestamp: Date.now(),
       requestId,
-      isFirst
+      isFirst,
+      externalRevision: existingState?.externalRevision ?? null
     })
 
     logger.debug(`Optimistic update for ${key} (${requestId})${isFirst ? ' [FIRST]' : ''}`)
@@ -225,7 +217,7 @@ export class PreferenceService {
     try {
       await window.api.preference.set(key, value)
       // Success: confirm optimistic update
-      this.confirmOptimistic(key, requestId, value)
+      await this.confirmOptimistic(key, requestId, value)
       logger.debug(`Optimistic update for ${key} (${requestId}) confirmed`)
     } catch (error) {
       // Failure: rollback optimistic update
@@ -364,11 +356,10 @@ export class PreferenceService {
   ): Promise<void> {
     const keys = Object.keys(updates) as UnifiedPreferenceKeyType[]
     keys.forEach((key) => this.bumpPreferenceRevision(key))
-    const releasePendingWrites = keys.map((key) => this.trackPendingWrite(key, updates[key]))
     const write = options.optimistic
       ? this.setMultipleOptimistic(updates)
       : this.enqueueWrite(keys, () => this.setMultiplePessimistic(updates))
-    return write.finally(() => releasePendingWrites.forEach((release) => release()))
+    return write
   }
 
   /**
@@ -405,7 +396,8 @@ export class PreferenceService {
         originalValue: originalValues[key], // Use protected original value
         timestamp,
         requestId: `${batchRequestId}_${key}`, // Unique ID per key in batch
-        isFirst
+        isFirst,
+        externalRevision: existingState?.externalRevision ?? null
       })
     })
 
@@ -414,7 +406,9 @@ export class PreferenceService {
     return this.enqueueWrite(keysToUpdate, async () => {
       try {
         await window.api.preference.setMultiple(updates)
-        keysToUpdate.forEach((key) => this.confirmOptimistic(key, `${batchRequestId}_${key}`, updates[key]))
+        await Promise.all(
+          keysToUpdate.map((key) => this.confirmOptimistic(key, `${batchRequestId}_${key}`, updates[key]))
+        )
         logger.debug(`Optimistic batch update confirmed for ${keysToUpdate.length} preferences (${batchRequestId})`)
       } catch (error) {
         keysToUpdate.forEach((key) => this.rollbackOptimistic(key, `${batchRequestId}_${key}`))
@@ -599,13 +593,32 @@ export class PreferenceService {
    * @param key The preference key that was updated
    * @param requestId The unique identifier for the update request
    */
-  private confirmOptimistic(key: UnifiedPreferenceKeyType, requestId: string, value: any): void {
+  private async confirmOptimistic(key: UnifiedPreferenceKeyType, requestId: string, value: any): Promise<void> {
     const optimisticState = this.optimisticValues.get(key)
-    if (optimisticState && optimisticState.requestId === requestId) {
+    if (!optimisticState) return
+
+    let persistedValue = value
+    const externalRevision = optimisticState.externalRevision
+    const readRevision = this.getPreferenceRevision(key)
+    if (externalRevision !== null) {
+      try {
+        persistedValue = await window.api.preference.get(key)
+      } catch (error) {
+        logger.warn(`Failed to reconcile preference ${key} after a concurrent update`, error as Error)
+        persistedValue = optimisticState.originalValue
+      }
+    }
+
+    const current = this.optimisticValues.get(key)
+    if (!current || (externalRevision !== null && this.getPreferenceRevision(key) !== readRevision)) return
+    if (current.requestId === requestId) {
+      const oldValue = this.cache[key]
+      this.cache[key] = persistedValue
+      if (!isEqual(oldValue, persistedValue)) this.notifyChangeListeners(key)
       this.optimisticValues.delete(key)
       logger.debug(`Optimistic update confirmed for ${key} (${requestId})`)
-    } else if (optimisticState) {
-      optimisticState.originalValue = value
+    } else {
+      current.originalValue = persistedValue
     }
   }
 
@@ -663,23 +676,6 @@ export class PreferenceService {
     this.preferenceRevisions.set(key, this.getPreferenceRevision(key) + 1)
   }
 
-  private trackPendingWrite(key: UnifiedPreferenceKeyType, value: any): () => void {
-    const values = this.pendingWriteValues.get(key) ?? []
-    values.push(value)
-    this.pendingWriteValues.set(key, values)
-    return () => {
-      const current = this.pendingWriteValues.get(key)
-      if (!current) return
-      const index = current.findIndex((pendingValue) => isEqual(pendingValue, value))
-      if (index >= 0) current.splice(index, 1)
-      if (current.length === 0) this.pendingWriteValues.delete(key)
-    }
-  }
-
-  private hasPendingWriteValue(key: UnifiedPreferenceKeyType, value: any): boolean {
-    return (this.pendingWriteValues.get(key) ?? []).some((pendingValue) => isEqual(pendingValue, value))
-  }
-
   /**
    * Generate unique request ID for tracking concurrent requests
    * @returns Unique request identifier string
@@ -732,7 +728,6 @@ export class PreferenceService {
     this.optimisticValues.clear()
     this.writeTails.clear()
     this.preferenceRevisions.clear()
-    this.pendingWriteValues.clear()
 
     this.clearCache()
     this.allChangesListeners.clear()

@@ -286,7 +286,7 @@ const TranslatePage: FC = () => {
   )
   const handleTranslationResponse = useCallback(
     (text: string) => {
-      if (!isTranslationOperationCurrent()) return
+      if (!isTranslationOperationCurrent() || cacheService.get('translate.history_restore_pending') != null) return
       setTranslateOutput(text)
     },
     [isTranslationOperationCurrent, setTranslateOutput]
@@ -335,7 +335,6 @@ const TranslatePage: FC = () => {
   const prePdfOutputRef = useRef<string | null>(null)
   const historyRestorePendingRef = useRef(false)
   const historyRestoreBarrierRef = useRef<Promise<boolean> | null>(null)
-  const historyRestoreTranslationRevisionRef = useRef<number | null>(null)
   const translateContentRef = useRef({ input: translateInput, output: translateOutput, pdfFile })
   const isContentOperationCurrent = useCallback(
     (revision: number) => isMountedRef.current && revision === getContentOperationRevision(),
@@ -470,10 +469,11 @@ const TranslatePage: FC = () => {
 
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
-      if (!translated || !isTranslationOperationCurrent()) return
+      if (!translated) return
       const historyRestoreBarrier = historyRestoreBarrierRef.current
       if (historyRestoreBarrier && (await historyRestoreBarrier)) return
-      if (!isMountedRef.current) return
+      if (!isTranslationOperationCurrent()) return
+      if (historyRestoreBarrier) setTranslateOutput(translated)
       toast.success(t('translate.complete'))
 
       if (autoCopy) {
@@ -505,6 +505,7 @@ const TranslatePage: FC = () => {
       isTranslationOperationCurrent,
       isTranslating,
       runTranslate,
+      setTranslateOutput,
       setOutputCopied,
       setTimeoutTimer,
       smoothReset,
@@ -786,7 +787,6 @@ const TranslatePage: FC = () => {
       })
       historyRestoreBarrierRef.current = historyRestoreBarrier
       historyRestorePendingRef.current = true
-      historyRestoreTranslationRevisionRef.current = translationOperationRef.current?.revision ?? null
       translationDetectionRevisionRef.current += 1
       const restoreToken = { intentRevision: contentIntentRevisionBeforePersist, barrier: historyRestoreBarrier }
       setPendingHistoryRestore(restoreToken)
@@ -805,15 +805,10 @@ const TranslatePage: FC = () => {
         if (!persisted || (contentIntentRevisionBeforePersist !== currentIntentRevision && !priorRestoreAdvancedIntent))
           return
         if (!isMountedRef.current) {
-          const translationOnlyOutputChange =
-            historyRestoreTranslationRevisionRef.current !== null &&
-            translationOperationRef.current?.revision === historyRestoreTranslationRevisionRef.current &&
-            cacheService.get('translate.input') === contentBeforePersist.input
           if (restoredFile) {
             if (
               (cacheService.get('translate.input') !== contentBeforePersist.input ||
                 cacheService.get('translate.output') !== contentBeforePersist.output) &&
-              !translationOnlyOutputChange &&
               (!priorRestoreAdvancedIntent ||
                 cacheService.get('translate.input') !== lastRestore.input ||
                 cacheService.get('translate.output') !== lastRestore.output)
@@ -833,7 +828,6 @@ const TranslatePage: FC = () => {
           if (
             (cacheService.get('translate.input') !== contentBeforePersist.input ||
               cacheService.get('translate.output') !== contentBeforePersist.output) &&
-            !translationOnlyOutputChange &&
             (!priorRestoreAdvancedIntent ||
               cacheService.get('translate.input') !== lastRestore.input ||
               cacheService.get('translate.output') !== lastRestore.output)
@@ -884,7 +878,6 @@ const TranslatePage: FC = () => {
         contentRestored = true
       } finally {
         historyRestorePendingRef.current = false
-        historyRestoreTranslationRevisionRef.current = null
         setPendingHistoryRestore((current) => (current === restoreToken ? null : current))
         releaseHistoryRestore(contentRestored)
         if (historyRestoreBarrierRef.current === historyRestoreBarrier) historyRestoreBarrierRef.current = null
@@ -1499,6 +1492,7 @@ const TranslatePage: FC = () => {
         )}
         <TranslateHistoryList
           isOpen={historyOpen}
+          isRestorePending={isHistoryRestorePending}
           onClose={() => setHistoryOpen(false)}
           onHistoryItemClick={onHistoryItemClick}
         />

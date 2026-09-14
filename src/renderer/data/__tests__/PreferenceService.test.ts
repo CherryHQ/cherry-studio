@@ -139,7 +139,7 @@ describe('renderer PreferenceService keyed subscription batching', () => {
 })
 
 describe('renderer PreferenceService write consistency', () => {
-  it('drops a deep-equal cross-window echo but delivers a real external change', async () => {
+  it('drops a deep-equal cross-window update but delivers a changed value', async () => {
     get.mockResolvedValueOnce(['en-US'])
     const service = await createService()
     await service.get('app.spell_check.languages')
@@ -202,7 +202,7 @@ describe('renderer PreferenceService write consistency', () => {
     expect(service.getPendingOptimisticUpdates()).toEqual([])
   })
 
-  it('keeps a queued optimistic write ahead of a delayed read and cross-window echo', async () => {
+  it('keeps a queued optimistic write ahead of a delayed read', async () => {
     const key = 'app.developer_mode.enabled'
     let resolvePrior!: () => void
     let resolveOptimistic!: () => void
@@ -233,9 +233,6 @@ describe('renderer PreferenceService write consistency', () => {
     const optimistic = service.set(key, false)
 
     expect(service.getCachedValue(key)).toBe(false)
-    emitChanged?.(key, true)
-    expect(service.getCachedValue(key)).toBe(false)
-
     resolvePrior()
     await vi.waitFor(() => expect(set).toHaveBeenCalledTimes(2))
 
@@ -251,7 +248,7 @@ describe('renderer PreferenceService write consistency', () => {
 
   it('keeps an authoritative cross-window update visible during an optimistic write', async () => {
     const key = 'feature.translate.page.source_language'
-    get.mockResolvedValueOnce('en-us')
+    get.mockResolvedValueOnce('en-us').mockResolvedValueOnce('ja-jp')
     const service = await createService()
     await service.get(key)
 
@@ -275,6 +272,57 @@ describe('renderer PreferenceService write consistency', () => {
     resolveWrite()
     await update
     expect(service.getCachedValue(key)).toBe('ja-jp')
+  })
+
+  it('retains a same-value external update as the rollback baseline', async () => {
+    const key = 'feature.translate.page.source_language'
+    get.mockResolvedValueOnce('en-us')
+    const service = await createService()
+    await service.get(key)
+
+    const failure = new Error('local write failed')
+    let rejectWrite!: (error: Error) => void
+    set.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectWrite = reject
+        })
+    )
+
+    const update = service.set(key, 'zh-cn')
+    emitChanged?.(key, 'zh-cn')
+    rejectWrite(failure)
+
+    await expect(update).rejects.toBe(failure)
+    expect(service.getCachedValue(key)).toBe('zh-cn')
+  })
+
+  it('rolls a queued failure back to the first confirmed write after a concurrent window update', async () => {
+    const key = 'feature.translate.page.source_language'
+    get.mockResolvedValueOnce('en-us').mockResolvedValueOnce('zh-cn')
+    const service = await createService()
+    await service.get(key)
+
+    let resolveFirst!: () => void
+    const failure = new Error('queued write failed')
+    set
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockRejectedValueOnce(failure)
+
+    const first = service.set(key, 'zh-cn')
+    const second = service.set(key, 'fr-fr')
+    const secondResult = expect(second).rejects.toBe(failure)
+    emitChanged?.(key, 'ja-jp')
+    resolveFirst()
+
+    await first
+    await secondResult
+    expect(service.getCachedValue(key)).toBe('zh-cn')
   })
 
   it('subscribes when a delayed get becomes stale before it resolves', async () => {
@@ -465,7 +513,6 @@ describe('renderer PreferenceService write consistency', () => {
     expect(service.getCachedValue(targetKey)).toBe('en-us')
 
     resolveFirst()
-    emitChanged?.(sourceKey, 'zh-cn')
     expect(service.getCachedValue(sourceKey)).toBe('ja-jp')
     await first
     await secondResult
@@ -602,23 +649,6 @@ describe('renderer PreferenceService write consistency', () => {
     resolveHydration({ [key]: false })
     await hydration
     rejectWrite(error)
-    await expect(update).rejects.toBe(error)
-
-    expect(service.getCachedValue(key)).toBe(true)
-  })
-
-  it('does not replace the rollback baseline with a stale cross-window event', async () => {
-    const key = 'app.developer_mode.enabled'
-    get.mockResolvedValueOnce(true)
-    const service = await createService()
-    await service.get(key)
-
-    const error = new Error('write failed')
-    set.mockRejectedValueOnce(error)
-    const update = service.set(key, false)
-
-    emitChanged?.(key, true)
-    emitChanged?.(key, false)
     await expect(update).rejects.toBe(error)
 
     expect(service.getCachedValue(key)).toBe(true)

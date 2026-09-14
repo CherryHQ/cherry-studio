@@ -2989,15 +2989,14 @@ describe('TranslatePage', () => {
           emitResponse('completed translation', true)
           resolveTranslate('completed translation')
         })
-        const input = screen.getByLabelText('translate.input.placeholder')
-        fireEvent.change(input, { target: { value: 'newer input' } })
+        expect(screen.getByTestId('translate-output-content')).not.toHaveTextContent('completed translation')
         rerender(<TranslatePage />)
         await act(async () => rejectPersist())
         rerender(<TranslatePage />)
       }
     )
 
-    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('newer input')
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('current input')
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('completed translation')
     expect(toast.success).toHaveBeenCalledWith('translate.complete')
     expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
@@ -3047,7 +3046,7 @@ describe('TranslatePage', () => {
     )
   })
 
-  it('restores history after an in-flight translation emits before the page remounts', async () => {
+  it('ignores an in-flight translation during history persistence before the page remounts', async () => {
     let emitResponse!: (text: string, isComplete: boolean) => void
     let resolveTranslate!: (value: string) => void
     translateCoreMock.translateText.mockImplementationOnce(
@@ -3094,7 +3093,7 @@ describe('TranslatePage', () => {
           emitResponse('stale translation', true)
           resolveTranslate('stale translation')
         })
-        expect(screen.getByTestId('translate-output-content')).toHaveTextContent('stale translation')
+        expect(screen.getByTestId('translate-output-content')).not.toHaveTextContent('stale translation')
 
         firstPage.unmount()
         const secondPage = render(<TranslatePage />)
