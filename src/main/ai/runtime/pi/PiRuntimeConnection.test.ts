@@ -1,6 +1,9 @@
 import type * as NodeFs from 'node:fs'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import type * as PiCodingAgent from '@earendil-works/pi-coding-agent'
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -91,6 +94,7 @@ const mocks = vi.hoisted(() => ({
   bashToolOptions: undefined as Record<string, unknown> | undefined,
   loaderOpts: undefined as Record<string, unknown> | undefined,
   settingsArgs: undefined as unknown[] | undefined,
+  settingsCreate: vi.fn(),
   autoDiscoverGitBash: vi.fn(),
   setShellCommandPrefix: vi.fn(),
   getShellEnv: vi.fn(),
@@ -225,6 +229,7 @@ const fakePi = {
     inMemory: () => ({ registerProvider: mocks.registerProvider, find: () => ({ id: 'm', provider: 'p' }) })
   },
   SettingsManager: {
+    create: mocks.settingsCreate,
     inMemory: (...args: unknown[]) => {
       mocks.settingsArgs = args
       return { setShellCommandPrefix: mocks.setShellCommandPrefix }
@@ -306,6 +311,7 @@ beforeEach(() => {
   mocks.bashToolOptions = undefined
   mocks.loaderOpts = undefined
   mocks.settingsArgs = undefined
+  mocks.settingsCreate.mockReturnValue({ getShellPath: () => undefined })
   mocks.autoDiscoverGitBash.mockReturnValue(null)
   mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
   mocks.isStreaming = false
@@ -1436,7 +1442,7 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.reload).toHaveBeenCalledWith()
   })
 
-  it('uses Cherry Git Bash discovery without importing standalone pi settings', async () => {
+  it('uses Cherry Git Bash discovery when pi has no configured shell', async () => {
     const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     mocks.autoDiscoverGitBash.mockReturnValue('C:\\Users\\tester\\scoop\\apps\\git\\current\\bin\\bash.exe')
 
@@ -1453,6 +1459,44 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.bashToolOptions).toMatchObject({
       shellPath: 'C:\\Users\\tester\\scoop\\apps\\git\\current\\bin\\bash.exe'
     })
+  })
+
+  it('uses effective file-backed pi shell settings before Cherry discovery', async () => {
+    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'cherry-pi-shell-'))
+    const workspacePath = path.join(fixtureRoot, 'workspace')
+    const agentDir = path.join(fixtureRoot, 'agent')
+    const globalShellPath = 'C:\\Users\\tester\\scoop\\apps\\git\\current\\bin\\bash.exe'
+    const projectShellPath = 'C:\\PortableGit\\bin\\bash.exe'
+    const realPi = await vi.importActual<typeof PiCodingAgent>('@earendil-works/pi-coding-agent')
+
+    await mkdir(path.join(workspacePath, '.pi'), { recursive: true })
+    await mkdir(agentDir, { recursive: true })
+    await writeFile(path.join(agentDir, 'settings.json'), JSON.stringify({ shellPath: globalShellPath }))
+    vi.stubEnv('PI_CODING_AGENT_DIR', agentDir)
+    mocks.getById.mockReturnValue({
+      id: SESSION_ID,
+      agentId: 'agent-1',
+      workspace: { path: workspacePath, type: 'system' }
+    })
+    mocks.settingsCreate.mockImplementation((cwd, root, options) => realPi.SettingsManager.create(cwd, root, options))
+    mocks.autoDiscoverGitBash.mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    try {
+      await new PiRuntimeConnection(input).start()
+      expect(mocks.bashToolOptions).toMatchObject({ shellPath: globalShellPath })
+
+      await writeFile(path.join(workspacePath, '.pi', 'settings.json'), JSON.stringify({ shellPath: projectShellPath }))
+      await new PiRuntimeConnection(input).start()
+    } finally {
+      platform.mockRestore()
+      await rm(fixtureRoot, { recursive: true, force: true })
+    }
+
+    expect(mocks.settingsCreate).toHaveBeenLastCalledWith(workspacePath, undefined, { projectTrusted: true })
+    expect(mocks.settingsArgs).toEqual([{ shellPath: projectShellPath }, { projectTrusted: true }])
+    expect(mocks.bashToolOptions).toMatchObject({ shellPath: projectShellPath })
+    expect(mocks.autoDiscoverGitBash).not.toHaveBeenCalled()
   })
 
   it('keeps the explicit Cherry Git Bash override across new pi sessions', async () => {

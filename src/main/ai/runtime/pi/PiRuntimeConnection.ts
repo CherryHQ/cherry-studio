@@ -98,9 +98,12 @@ export function buildPiLoginPathPrefix(
   return platform !== 'win32' && loginPath ? `export PATH="$PATH":${quoteShellWord(loginPath)}` : undefined
 }
 
-function resolvePiShellPath(): string | undefined {
+function resolvePiShellPath(pi: Awaited<ReturnType<typeof loadPiSdk>>, workspacePath: string): string | undefined {
   if (process.platform !== 'win32') return undefined
-  return autoDiscoverGitBash() ?? undefined
+  const configuredShellPath = pi.SettingsManager.create(workspacePath, undefined, {
+    projectTrusted: true
+  }).getShellPath()
+  return configuredShellPath ?? autoDiscoverGitBash() ?? undefined
 }
 const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
@@ -276,9 +279,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // The workspace is always trusted: the user picked it by hand in Cherry, so there is
       // no separate "do you trust this project?" prompt. What actually loads from it is
       // still governed by the explicit `no*` flags below.
-      // Keep Cherry's runtime isolated from pi's standalone settings while sharing Cherry's
-      // Windows Git Bash resolution with the Claude Code runtime.
-      const shellPath = resolvePiShellPath()
+      // Read only pi's effective shell selection; all other standalone settings stay outside
+      // Cherry's isolated runtime. Without one, share Cherry's Git Bash discovery.
+      const shellPath = resolvePiShellPath(pi, workspacePath)
       const settingsManager = pi.SettingsManager.inMemory(shellPath ? { shellPath } : {}, { projectTrusted: true })
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
