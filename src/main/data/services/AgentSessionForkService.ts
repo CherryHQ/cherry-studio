@@ -14,6 +14,7 @@ import { agentSessionForkContextService } from './AgentSessionForkContextService
 import {
   AgentSessionForkJournalSchema,
   FORK_JOURNAL_PREFIX,
+  hasActiveAgentSessionForkCleanupTx,
   type AgentSessionForkJournal
 } from './agentSessionForkJournal'
 import { agentSessionMessageService } from './AgentSessionMessageService'
@@ -72,16 +73,8 @@ export class AgentSessionForkService {
   /** Serialize cleanup admission with workspace registration in SQLite, not an async check-then-delete. */
   beginCleanup(journal: AgentSessionForkJournal): void {
     application.get('DbService').withWriteTx((tx) => {
-      const active = tx
-        .select({ value: appStateTable.value })
-        .from(appStateTable)
-        .where(like(appStateTable.key, FORK_JOURNAL_PREFIX + '%'))
-        .all()
-        .some(
-          ({ value }) =>
-            value && typeof value === 'object' && 'cleanupState' in value && value.cleanupState === 'active'
-        )
-      if (active) throw DataApiErrorFactory.resourceLocked('Workspace', journal.operationId, 'fork cleanup; retry')
+      if (hasActiveAgentSessionForkCleanupTx(tx))
+        throw DataApiErrorFactory.resourceLocked('Workspace', journal.operationId, 'fork cleanup; retry')
       if (journal.version === 1) journal.workspaceDisposition = 'retained'
       journal.version = 2
       journal.cleanupState = 'active'

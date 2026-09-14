@@ -1,12 +1,11 @@
 import path from 'path'
 
-import { and, asc, count, desc, eq, like } from 'drizzle-orm'
+import { and, asc, count, desc, eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { appStateTable } from '@data/db/schemas/appState'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -25,7 +24,7 @@ import {
   type UpdateAgentWorkspaceDto
 } from '@shared/data/api/schemas/agentWorkspaces'
 
-import { FORK_JOURNAL_PREFIX } from './agentSessionForkJournal'
+import { hasActiveAgentSessionForkCleanupTx } from './agentSessionForkJournal'
 
 type AgentWorkspaceLookupOptions = { includeSystem?: boolean }
 export type FindOrCreateAgentWorkspaceResult = { workspace: AgentWorkspaceEntity; created: boolean }
@@ -286,15 +285,8 @@ export class AgentWorkspaceService {
   }
 
   private assertRegistrationAllowedTx(tx: DbOrTx, workspacePath: string): void {
-    const active = tx
-      .select({ value: appStateTable.value })
-      .from(appStateTable)
-      .where(like(appStateTable.key, FORK_JOURNAL_PREFIX + '%'))
-      .all()
-      .some(
-        ({ value }) => value && typeof value === 'object' && 'cleanupState' in value && value.cleanupState === 'active'
-      )
-    if (active) throw DataApiErrorFactory.resourceLocked('Workspace', workspacePath, 'fork cleanup; retry')
+    if (hasActiveAgentSessionForkCleanupTx(tx))
+      throw DataApiErrorFactory.resourceLocked('Workspace', workspacePath, 'fork cleanup; retry')
   }
 
   private assertUserWorkspaceExistsTx(tx: DbOrTx, id: string): void {
