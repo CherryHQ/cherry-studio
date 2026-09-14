@@ -7,10 +7,7 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
-import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { popup } from '@renderer/services/popup'
-import { popup } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
