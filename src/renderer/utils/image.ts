@@ -46,22 +46,22 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
+/** Per-source cap on a remote-image fetch, and the shared budget for the whole inline stage. */
+const REMOTE_INLINE_SOURCE_TIMEOUT_MS = 10_000
+const REMOTE_INLINE_STAGE_BUDGET_MS = 20_000
+
 /**
- * Pre-inline every remote image with verification. The library's own inline
- * pass trusts whatever a URL serves (mime taken from the response header), so
- * when a favicon service rate-limits the burst of capture-time fetches and
- * answers text/html, the clone gets a data:text/html src and the outer SVG
- * image fails to decode as a whole — even though the very same URL rendered
- * fine on the page moments earlier. Fetch serially (browser cache first, no
- * cache-busting) through getImageBlobFromSource, which rejects non-image
- * payloads; verified images become data URLs (the library then skips its own
- * fetch) and anything that fails becomes the transparent placeholder.
+ * Pre-inline every remote image with verification — the library's own inline pass
+ * trusts whatever a URL serves, so a rate-limit HTML answer becomes a data:text/html
+ * src that sinks the whole SVG decode. Sources are the browser-selected candidates
+ * (`currentSrc`), each fetch is abort-bounded, and anything unverified becomes the
+ * transparent placeholder; see the PR description for the failure narrative.
  */
 async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void> {
   const images = [
     ...(root instanceof HTMLImageElement ? [root] : []),
     ...root.querySelectorAll<HTMLImageElement>('img')
-  ].filter((image) => /^https?:/i.test(image.getAttribute('src') ?? ''))
+  ].filter((image) => /^https?:/i.test(image.currentSrc || image.getAttribute('src') || ''))
 
   const originalSources = images.map((image) => ({
     image,
@@ -69,12 +69,24 @@ async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void
     srcset: image.getAttribute('srcset')
   }))
   const dataUrlBySource = new Map<string, Promise<string>>()
+  const stageDeadline = Date.now() + REMOTE_INLINE_STAGE_BUDGET_MS
 
   for (const { image } of originalSources) {
-    const source = image.src
+    // currentSrc is the candidate the browser actually picked from srcset/sizes;
+    // inlining that candidate (not the src attribute) preserves responsive semantics.
+    const source = image.currentSrc || image.src
     let dataUrlPromise = dataUrlBySource.get(source)
     if (!dataUrlPromise) {
-      dataUrlPromise = getImageBlobFromSource(source).then(blobToDataUrl)
+      const budget = Math.min(REMOTE_INLINE_SOURCE_TIMEOUT_MS, stageDeadline - Date.now())
+      if (budget <= 0) {
+        dataUrlPromise = Promise.reject(new Error(`Remote-image inline budget exhausted: ${source}`))
+      } else {
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), budget)
+        dataUrlPromise = getImageBlobFromSource(source, { signal: controller.signal })
+          .then(blobToDataUrl)
+          .finally(() => clearTimeout(timer))
+      }
       dataUrlBySource.set(source, dataUrlPromise)
     }
     try {
@@ -1146,7 +1158,7 @@ function decodeDataUrlBytes(data: string): Uint8Array {
  * paintings skeleton reveal pipeline can consume it without importing across the
  * renderer's downward-only layering.
  */
-export async function getImageBlobFromSource(src: string): Promise<Blob> {
+export async function getImageBlobFromSource(src: string, options?: { signal?: AbortSignal }): Promise<Blob> {
   if (src.startsWith('data:')) {
     const parseResult = parseDataUrl(src)
     if (!parseResult || !parseResult.mediaType) {
@@ -1167,7 +1179,7 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
     return assertImageBlob(new Blob([content.slice()], { type: mime }), src)
   }
 
-  const response = await fetch(src)
+  const response = await fetch(src, { signal: options?.signal })
   // An error page (404/500 HTML) is not an image — fail so callers can skip/report it.
   if (!response.ok) {
     throw new Error(`Failed to fetch image: ${response.status} ${src}`)
