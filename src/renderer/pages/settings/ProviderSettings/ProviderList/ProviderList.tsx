@@ -2,17 +2,19 @@ import { Plus } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Alert, Button } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useReorder } from '@data/hooks/useReorder'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { useModels } from '@renderer/hooks/useModel'
-import { useProviders } from '@renderer/hooks/useProvider'
+import { useEditionHiddenProviders, useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
   isProviderPresetInstanceSource,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import type { Provider } from '@shared/data/types/provider'
 import { canManageProvider } from '@shared/utils/provider'
@@ -44,6 +46,8 @@ export default function ProviderList({
 }: ProviderListProps) {
   const { t } = useTranslation()
   const { providers } = useProviders()
+  const { data: editionHiddenProviderIds } = useEditionHiddenProviders()
+  const showEditionNotice = getAppEdition() === 'cn' && (editionHiddenProviderIds ?? []).length > 0
   const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
@@ -336,6 +340,19 @@ export default function ProviderList({
           />
         }
       />
+      {showEditionNotice ? (
+        <div className="shrink-0 px-2.5 pt-2">
+          <Alert
+            type="info"
+            showIcon
+            message={t('settings.provider.edition_notice.title')}
+            description={t('settings.provider.edition_notice.description')}
+          />
+          <Button variant="outline" size="sm" disabled={dragging} onClick={openProviderEditor} className="mt-2 w-full">
+            {t('settings.provider.edition_notice.add_custom')}
+          </Button>
+        </div>
+      ) : null}
       <ProviderListContent
         providers={providers}
         visibleProviders={filteredProviders}

@@ -104,6 +104,10 @@ patchedDependencies:
   "@deepseek-ai/dsh-llm-pi-ai@0.1.2-rc.1": patches/@deepseek-ai__dsh-llm-pi-ai@0.1.2-rc.1.patch
   "@earendil-works/pi-ai@0.80.6": patches/@earendil-works__pi-ai@0.80.6.patch
   "@earendil-works/pi-coding-agent@0.80.3": patches/@earendil-works__pi-coding-agent@0.80.3.patch
+  # #20329: preserve current animation targets when React Activity reconnects.
+  # Remove when an upstream release includes the blocked-initial-animation remount fix.
+  motion-dom@12.42.0: patches/motion-dom@12.42.0.patch
+  "@tiptap/extension-list@3.26.1": patches/@tiptap__extension-list@3.26.1.patch
 
 allowBuilds:
   "@deepseek-ai/dsh-subprocess-local": true
