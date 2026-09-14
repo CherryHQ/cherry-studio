@@ -1,9 +1,10 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import type { SerializedError } from '@renderer/types/error'
-import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
 import { Copy, Eye } from 'lucide-react'
 import type { Ref } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import type { SerializedError } from '@renderer/types/error'
+import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
 
 import { DiagnosticsPanel } from '../DiagnosticsPanel'
 import {
@@ -79,7 +80,7 @@ export function ErrorBasicInformation({
           {fields.map(({ id, value }) => (
             <div
               key={id}
-              className="grid gap-x-4 gap-y-1 border-border border-t px-4 py-3 first:border-t-0 sm:grid-cols-[14rem_minmax(0,1fr)]">
+              className="grid gap-x-4 gap-y-1 border-t border-border px-4 py-3 first:border-t-0 sm:grid-cols-[14rem_minmax(0,1fr)]">
               <dt className="font-medium">{labels[id]}</dt>
               <dd className="selectable min-w-0 break-words">{value}</dd>
             </div>

@@ -1,5 +1,6 @@
-import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { lazy, Suspense } from 'react'
+
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 
 import type { DoctorDialogParams } from './DoctorDialog'
 

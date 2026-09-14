@@ -1,11 +1,12 @@
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import type * as DoctorComponents from '@renderer/components/doctor'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorCheckResult, DoctorState } from '@shared/types/doctor'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ErrorDetailContentProps } from '../ErrorDetailModal'
 
