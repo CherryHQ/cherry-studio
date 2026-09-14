@@ -4485,7 +4485,7 @@
   "settings.provider.balance": "余额",
   "settings.provider.base_url.invalid": "请输入有效的 HTTP 或 HTTPS 地址",
   "settings.provider.base_url.label": "API 地址",
-  "settings.provider.base_url.placeholder": "例如 https://example.com 或 https://api.example.com/v1/chat/completions",
+  "settings.provider.base_url.placeholder": "Base URL：https://example.com",
   "settings.provider.base_url.required": "请输入 API 地址",
   "settings.provider.basic_auth.label": "HTTP 认证",
   "settings.provider.basic_auth.password.label": "密码",

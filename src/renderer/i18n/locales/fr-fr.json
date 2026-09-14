@@ -4485,7 +4485,7 @@
   "settings.provider.balance": "Équilibre",
   "settings.provider.base_url.invalid": "Entrez une URL HTTP ou HTTPS valide",
   "settings.provider.base_url.label": "API URL",
-  "settings.provider.base_url.placeholder": "e.g. https://example.com or https://api.example.com/v1/chat/completions",
+  "settings.provider.base_url.placeholder": "https://api.example.com",
   "settings.provider.base_url.required": "Please enter the API URL",
   "settings.provider.basic_auth.label": "Authentification HTTP",
   "settings.provider.basic_auth.password.label": "mot de passe",

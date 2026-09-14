@@ -4485,7 +4485,7 @@
   "settings.provider.balance": "Υπόλοιπο",
   "settings.provider.base_url.invalid": "Εισαγάγετε έγκυρη διεύθυνση URL HTTP ή HTTPS",
   "settings.provider.base_url.label": "API URL",
-  "settings.provider.base_url.placeholder": "e.g. https://example.com or https://api.example.com/v1/chat/completions",
+  "settings.provider.base_url.placeholder": "https://api.example.com",
   "settings.provider.base_url.required": "Please enter the API URL",
   "settings.provider.basic_auth.label": "Πιστοποίηση HTTP",
   "settings.provider.basic_auth.password.label": "κωδικός πρόσβασης",
