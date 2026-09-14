@@ -1170,13 +1170,15 @@ describe('release workflow gates', () => {
     expect(addLabelIndex).toBeLessThan(noteCheckIndex)
   })
 
-  it('requires environment approval before exposing preview signing and service credentials', () => {
+  it('builds previews without environment approval while retaining signing and service credentials', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
     const buildJob = workflow.jobs.build
     const checkoutStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Check out preview commit')
     const macBuildStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Build Mac')
 
-    expect(buildJob.environment).toBe('release')
+    for (const job of Object.values(workflow.jobs)) {
+      expect(job).not.toHaveProperty('environment')
+    }
     expect(checkoutStep.with['persist-credentials']).toBe(false)
     expect(macBuildStep.env).toMatchObject({
       APPLE_ID: '${{ secrets.APPLE_ID }}',

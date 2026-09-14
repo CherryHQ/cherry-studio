@@ -45,7 +45,7 @@ Use **Preview Release** when a maintainer needs installable packages from an unr
 
 Every selected platform builds both the global and China editions from the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview-<7-character-commit>`. Each successful platform and edition build uploads its packages as an Actions artifact named `cherry-studio-preview-<branch>-<12-character-commit>-<runner>-<edition>`, retained for 3 days. The workflow does not create GitHub Releases or tags.
 
-Preview macOS builds use the same signing, notarization, and application environment variables as formal releases. The build job therefore requires approval through the `release` Environment before any source-branch code runs. Preview builds explicitly disable package publishing and do not acquire the `release-state` lock or participate in formal release preparation, hotfix backports, or Post Release.
+Preview macOS builds use the same signing, notarization, and application environment variables as formal releases. Preview jobs use repository-level secrets and do not reference a GitHub Environment, so they start without deployment approval. Only dispatch previews for trusted same-repository source branches. Formal publishing still requires approval through the `release` Environment. Preview builds explicitly disable package publishing and do not acquire the `release-state` lock or participate in formal release preparation, hotfix backports, or Post Release.
 
 ## Before Starting
 
@@ -255,7 +255,7 @@ If the metadata files already match `main`, **Post Release** exits without openi
 
 ## Invariants
 
-- Build internal feature previews only with **Preview Release** from a same-repository branch; source code runs only after protected `release` Environment approval, and preview packages are available only as Actions artifacts.
+- Build internal feature previews only with **Preview Release** from a same-repository branch; source branches must be trusted because builds use repository-level secrets without deployment approval, and preview packages are available only as Actions artifacts.
 - Build from `release/v<version>` and publish only the exact approved release-branch SHA, never `main`.
 - Merge every hotfix into `main` before backporting it to the release branch.
 - Merge hotfixes into the release branch through a backport pull request, never through an automatic direct commit.
