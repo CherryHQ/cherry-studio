@@ -93,8 +93,13 @@ async function readDataUrlBytes(url: string): Promise<Buffer | null> {
 }
 
 async function recognizeBytes(part: FileUIPart, bytes: Buffer): Promise<PreparedFilePart> {
-  const signature = await fileTypeFromBuffer(bytes)
-  const text = signature ? null : decodeTextBufferIfText(bytes)
+  const hasTextBom =
+    (bytes[0] === 0xff && bytes[1] === 0xfe) ||
+    (bytes[0] === 0xfe && bytes[1] === 0xff) ||
+    (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf)
+  const bomText = hasTextBom ? decodeTextBufferIfText(bytes) : null
+  const signature = bomText === null ? await fileTypeFromBuffer(bytes) : undefined
+  const text = signature ? null : (bomText ?? decodeTextBufferIfText(bytes))
   const mediaType =
     signature?.mime ??
     (text === null ? null : /^\s*(?:<\?xml[^>]*>\s*)?<svg(?:\s|>)/i.test(text) ? 'image/svg+xml' : 'text/plain')

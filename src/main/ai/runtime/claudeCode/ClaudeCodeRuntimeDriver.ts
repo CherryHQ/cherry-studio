@@ -32,7 +32,7 @@ import {
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
-import { probeReadable } from '@main/utils/file'
+import { decodeTextBufferIfText, probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
@@ -1267,8 +1267,11 @@ async function materializeUserContent(
       continue
     }
     if (readCherryMeta(part)?.fileEntryId || part.url?.startsWith('file://')) fallbackParts.push(part)
-    else if (prepared?.kind === 'recognized' && prepared.mediaType === 'text/plain') {
-      const body = prepared.bytes.toString('utf8')
+    else if (
+      prepared?.kind === 'recognized' &&
+      (prepared.mediaType === 'text/plain' || prepared.mediaType === 'image/svg+xml')
+    ) {
+      const body = decodeTextBufferIfText(prepared.bytes) ?? ''
       const head = body.slice(0, surrogateSafeEnd(body, READ_FILE_PAGE_SIZE))
       inlineTexts.push(
         `Attached file "${part.filename ?? 'file'}":\n${head}${head.length < body.length ? '\n[Truncated attachment text.]' : ''}`

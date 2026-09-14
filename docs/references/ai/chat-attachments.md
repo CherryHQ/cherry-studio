@@ -66,7 +66,8 @@ Decided per file part in `prepareChatMessages`
 Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway /
 external file parts (no `fileEntryId`) are still eagerly prepared, but
 image/audio/video parts are omitted when native support is false. Recognized
-text is inlined and unknown binary content gets a visible unsupported note.
+SVG and encoded text are inlined, PDFs without native support are extracted,
+and unknown binary content gets a visible unsupported note.
 
 HTTP(S) file URLs are passed through without fetching or verifying remote
 content. Existing `image/*` placeholders are likewise preserved on passthrough
@@ -94,7 +95,9 @@ per-request attachment allow-list from the tool-call context.
   entry id against a per-request allow-list. The model never sees or guesses
   entry ids, and can only read files attached to the current conversation.
 - Returns **text only** (extracted / OCR), paginated. Errors are sanitized to
-  filename-level messages; details are logged, not returned.
+  filename-level messages; details are logged, not returned. Each read uses the
+  same content recognition as the inline excerpt, so a misleading extension
+  cannot switch its later pages to a different parser.
 - Exposed to tool-capable models whenever the request carries first-party file
   attachments (`applies: scope.hasFileAttachments`). It pages over-cap text; when
   everything inlines within the cap the model simply never needs to call it.

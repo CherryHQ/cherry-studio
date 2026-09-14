@@ -4,9 +4,11 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { convertToModelMessages, type UIMessage } from 'ai'
+import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { readFile } from '@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool'
 import type { FileUIPart } from '@shared/data/types/message'
 
 const { readMock, getByIdMock, ocrMock } = vi.hoisted(() => ({
@@ -49,11 +51,11 @@ const part = (filename: string, url: string, fileEntryId?: string): FileUIPart =
   ...(fileEntryId ? { providerMetadata: { cherry: { fileEntryId } } } : {})
 })
 
-async function sdkContent(file: FileUIPart, image = true) {
+async function sdkContent(file: FileUIPart, image = true, pdf = true) {
   const messages = [{ id: 'user-1', role: 'user', parts: [file] }] as UIMessage[]
   const prepared = await prepareChatMessages(messages, {
     attachments: collectFileAttachments(messages),
-    nativeSupport: { image, pdf: true, audio: true, video: true },
+    nativeSupport: { image, pdf, audio: true, video: true },
     isToolCapable: false
   })
   const sdk = await convertToModelMessages(prepared)
@@ -121,6 +123,13 @@ describe('chat attachment content admission into AI SDK', () => {
     expect(content).toEqual([expect.objectContaining({ type: 'text', text: expect.stringContaining('ABC') })])
   })
 
+  it('decodes BOM-marked UTF-16 text instead of treating its bytes as media', async () => {
+    const bytes = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('hello 中文', 'utf16le')])
+    const content = await sdkContent(part('encoded.png', `data:image/png;base64,${bytes.toString('base64')}`), false)
+
+    expect(content).toEqual([expect.objectContaining({ type: 'text', text: expect.stringContaining('hello 中文') })])
+  })
+
   it('uses the bytes present at send time after a local attachment changes', async () => {
     const target = path.join(tmpDir, 'changed.png')
     await fs.writeFile(target, png)
@@ -152,6 +161,29 @@ describe('chat attachment content admission into AI SDK', () => {
     ])
   })
 
+  it('keeps a legacy SVG as text when vision is unavailable', async () => {
+    const content = await sdkContent(
+      part('diagram.png', 'data:image/png,%3Csvg%20viewBox=%220%200%201%201%22%3E%3C/svg%3E'),
+      false
+    )
+
+    expect(content).toEqual([
+      expect.objectContaining({ type: 'text', text: expect.stringContaining('<svg viewBox="0 0 1 1"></svg>') })
+    ])
+  })
+
+  it('does not send recognized legacy PDF to a provider without native PDF support', async () => {
+    const document = await PDFDocument.create()
+    const page = document.addPage()
+    page.drawText('PDF_CONTENT_SENTINEL', { x: 50, y: 700, font: await document.embedFont(StandardFonts.Helvetica) })
+    const pdf = Buffer.from(await document.save())
+    const content = await sdkContent(part('report.bin', `data:image/png;base64,${pdf.toString('base64')}`), true, false)
+
+    expect(content).toEqual([
+      expect.objectContaining({ type: 'text', text: expect.stringContaining('PDF_CONTENT_SENTINEL') })
+    ])
+  })
+
   it('extracts an Office document recognized under a .bin filename', async () => {
     vi.mocked(application.getPath).mockReturnValue(tmpDir)
     readMock.mockResolvedValueOnce({ content: docx.toString('base64'), mime: 'application/octet-stream' })
@@ -160,6 +192,50 @@ describe('chat attachment content admission into AI SDK', () => {
     const content = await sdkContent(part('notes.bin', 'file:///stale/notes.bin', 'entry-docx'))
 
     expect(content).toEqual([expect.objectContaining({ type: 'text', text: expect.stringContaining('Office body') })])
+  })
+
+  it('pages the same recognized text for a misnamed managed attachment', async () => {
+    const body = `${'a'.repeat(10_000)}TAIL_SENTINEL`
+    readMock.mockResolvedValue({ content: Buffer.from(body).toString('base64'), mime: 'image/png' })
+    getByIdMock.mockResolvedValue({ ext: 'png' })
+
+    const file = part('misnamed.png', 'file:///stale/misnamed.png', 'entry-text')
+    const messages = [{ id: 'user-1', role: 'user', parts: [file] }] as UIMessage[]
+    const attachments = collectFileAttachments(messages)
+    const prepared = await prepareChatMessages(messages, {
+      attachments,
+      nativeSupport: { image: false, pdf: false, audio: false, video: false },
+      isToolCapable: true
+    })
+    const inline = (prepared[0].parts[0] as { text: string }).text
+    const offset = Number(inline.match(/read_file\("misnamed\.png", offset=(\d+)\)/)?.[1])
+    expect(offset).toBeGreaterThan(0)
+
+    const tail = await readFile({ filename: 'misnamed.png', offset }, { attachments })
+    expect(tail).toMatchObject({ text: expect.stringContaining('TAIL_SENTINEL'), totalChars: body.length })
+    expect(ocrMock).not.toHaveBeenCalled()
+  })
+
+  it('pages recognized Office content even when the managed extension is .bin', async () => {
+    vi.mocked(application.getPath).mockReturnValue(tmpDir)
+    readMock.mockResolvedValue({ content: docx.toString('base64'), mime: 'application/octet-stream' })
+    getByIdMock.mockResolvedValue({ ext: 'bin' })
+
+    const file = part('notes.bin', 'file:///stale/notes.bin', 'entry-office')
+    const messages = [{ id: 'user-1', role: 'user', parts: [file] }] as UIMessage[]
+    const attachments = collectFileAttachments(messages)
+    const prepared = await prepareChatMessages(messages, {
+      attachments,
+      nativeSupport: { image: false, pdf: false, audio: false, video: false },
+      isToolCapable: true,
+      budget: { tokens: 5, tokenizer: { id: 'chars', count: (text: string) => text.length } }
+    })
+    const inline = (prepared[0].parts[0] as { text: string }).text
+    const offset = Number(inline.match(/read_file\("notes\.bin", offset=(\d+)\)/)?.[1])
+    expect(offset).toBeGreaterThan(0)
+
+    const tail = await readFile({ filename: 'notes.bin', offset }, { attachments })
+    expect(tail).toMatchObject({ text: expect.stringContaining('body'), totalChars: 'Office body'.length })
   })
 
   it('passes HTTP(S) media through without claiming to inspect its remote bytes', async () => {

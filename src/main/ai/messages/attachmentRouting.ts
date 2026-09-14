@@ -115,7 +115,7 @@ function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boole
   return false
 }
 
-function contentFileType(prepared: PreparedFilePart, ext: string): FileType {
+export function contentFileType(prepared: PreparedFilePart, ext: string): FileType {
   if (prepared.kind === 'passthrough') return getFileTypeByExt(ext)
   if (prepared.kind !== 'recognized') return FILE_TYPE.OTHER
   const type = prepared.mediaType
@@ -134,7 +134,7 @@ function contentFileType(prepared: PreparedFilePart, ext: string): FileType {
   return FILE_TYPE.OTHER
 }
 
-function contentExt(prepared: PreparedFilePart, ext: string): string {
+export function contentExt(prepared: PreparedFilePart, ext: string): string {
   if (prepared.kind !== 'recognized') return ext
   if (prepared.mediaType === 'application/pdf') return 'pdf'
   if (
@@ -233,15 +233,28 @@ async function prepareChatMessage<T extends UIMessage>(
       } else {
         const mediaType = prepared.part.mediaType
         const rejectedKind = rejectedMediaKind(mediaType, ctx.nativeSupport)
-        if (rejectedKind) {
+        if (prepared.kind === 'recognized' && contentFileType(prepared, '') === FILE_TYPE.TEXT) {
+          defer(kept, pending, name, decodeTextBufferIfText(prepared.bytes) ?? '')
+        } else if (prepared.kind === 'recognized' && mediaType === 'application/pdf' && !ctx.nativeSupport.pdf) {
+          try {
+            const text = await extractDocumentText('', {
+              signal: ctx.signal,
+              preparedBytes: prepared.bytes,
+              preparedExt: 'pdf'
+            })
+            defer(kept, pending, name, text?.trim() || noExtractableTextNote(name))
+          } catch (error) {
+            if (ctx.signal?.aborted || isAbortError(error)) throw error
+            logger.warn('Could not extract legacy PDF text', { messageId: message.id, filename: name, error })
+            kept.push(noteOf(name))
+          }
+        } else if (rejectedKind) {
           kept.push({
             type: 'text',
             text: `[${rejectedKind} attachment omitted: this model does not accept ${rejectedKind} input]`
           })
         } else if (prepared.kind === 'unrecognized') {
           kept.push({ type: 'text', text: `Cannot read the attached file "${name}" as text (unsupported file type).` })
-        } else if (prepared.kind === 'recognized' && contentFileType(prepared, '') === FILE_TYPE.TEXT) {
-          defer(kept, pending, name, decodeTextBufferIfText(prepared.bytes) ?? '')
         } else {
           kept.push(prepared.part)
         }

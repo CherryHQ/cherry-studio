@@ -899,6 +899,73 @@ describe('ClaudeCodeRuntimeDriver', () => {
     }
   })
 
+  it('passes SVG bytes in a data URL to Claude as readable text', async () => {
+    mocks.useRealFileProcessor = true
+    const queryQueue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const nextInput = mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect the diagram' },
+            {
+              type: 'file',
+              filename: 'diagram.png',
+              mediaType: 'image/png',
+              url: 'data:image/png,%3Csvg%20viewBox=%220%200%201%201%22%3E%3C/svg%3E'
+            }
+          ]
+        }
+      }
+    })
+
+    const result = await nextInput
+    expect(result.value.message.content).toContain('Attached file "diagram.png":\n<svg viewBox="0 0 1 1"></svg>')
+    expect(result.value.message.content).not.toContain('Unavailable attachments: diagram.png')
+    await connection.close()
+  })
+
+  it('decodes recognized UTF-16 data URL text before building Claude SDK input', async () => {
+    mocks.useRealFileProcessor = true
+    const queryQueue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const nextInput = mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
+    const bytes = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('hello 中文', 'utf16le')])
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            {
+              type: 'file',
+              filename: 'encoded.png',
+              mediaType: 'image/png',
+              url: `data:image/png;base64,${bytes.toString('base64')}`
+            }
+          ]
+        }
+      }
+    })
+
+    const result = await nextInput
+    expect(result.value.message.content).toContain('Attached file "encoded.png":\nhello 中文')
+    await connection.close()
+  })
+
   it('passes first-party archive attachments to ordinary Agents as tool-readable paths', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

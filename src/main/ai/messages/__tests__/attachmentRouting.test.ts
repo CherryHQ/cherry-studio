@@ -339,8 +339,9 @@ describe('prepareChatMessages — routing', () => {
     ).rejects.toThrow()
   })
 
-  it('eager-inlines legacy parts without a fileEntryId (no getById)', async () => {
+  it('extracts a legacy PDF without native support or a fileEntryId', async () => {
     resolveMock.mockResolvedValueOnce({ type: 'file', url: 'data:inlined', mediaType: 'application/pdf' })
+    extractMock.mockResolvedValueOnce('pdf body')
     const legacy = { type: 'file', url: 'file:///x/legacy.pdf', mediaType: 'application/pdf' } as CherryMessagePart
     const [out] = await prepareChatMessages([userMessage([legacy])] as UIMessage[], {
       attachments: [],
@@ -348,7 +349,7 @@ describe('prepareChatMessages — routing', () => {
       isToolCapable: true
     })
     expect(getByIdMock).not.toHaveBeenCalled()
-    expect(out.parts).toEqual([{ type: 'file', url: 'data:inlined', mediaType: 'application/pdf' }])
+    expect(textOf(out.parts)).toEqual(['Attached file "file":\npdf body'])
   })
 
   it.each([
