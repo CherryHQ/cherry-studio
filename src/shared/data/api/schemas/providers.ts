@@ -216,6 +216,18 @@ export type ProviderSchemas = {
   }
 
   /**
+   * IDs of persisted providers hidden from the current edition by registry policy.
+   * Lets the settings UI explain intentionally-unavailable providers (#20405).
+   * @example GET /providers/edition-hidden
+   */
+  '/providers/edition-hidden': {
+    /** List edition-hidden provider IDs */
+    GET: {
+      response: string[]
+    }
+  }
+
+  /**
    * Individual provider endpoint
    * @example GET /providers/openai-main
    * @example PATCH /providers/openai-main { "isEnabled": false }

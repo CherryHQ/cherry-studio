@@ -12,6 +12,8 @@ import path from 'node:path'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
+import StreamZip from 'node-stream-zip'
+
 import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/utils/image'
 import {
@@ -23,7 +25,6 @@ import {
   type MiniAppManifest,
   MiniAppManifestSchema
 } from '@shared/types/miniAppManifest'
-import StreamZip from 'node-stream-zip'
 
 import { bestEffortCleanup } from './cleanup'
 import { assertSupportedIconBytes } from './icon'

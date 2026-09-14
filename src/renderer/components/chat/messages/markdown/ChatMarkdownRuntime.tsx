@@ -1,4 +1,9 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
+import { isEmpty } from 'es-toolkit/compat'
+import { type FC, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { PluginConfig } from 'streamdown'
+import type { Pluggable } from 'unified'
 
 import { defaultMarkdownPlugins, Markdown, StreamingMarkdown, withMath } from '@cherrystudio/ui'
 import {
@@ -8,11 +13,6 @@ import {
 import { remarkLatexMath } from '@renderer/components/markdown'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
-import { isEmpty } from 'es-toolkit/compat'
-import { type FC, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
-import type { PluginConfig } from 'streamdown'
-import type { Pluggable } from 'unified'
 
 import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'

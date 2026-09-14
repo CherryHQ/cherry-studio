@@ -1,6 +1,10 @@
 import '@data/services/AgentSessionMessageService'
-
 import { randomUUID } from 'node:crypto'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { eq, sql } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
@@ -26,10 +30,6 @@ import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/service
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq, sql } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -207,6 +207,22 @@ describe('AgentService', () => {
         planModel: TEST_MODEL_ID,
         smallModel: TEST_MODEL_ID
       })
+    })
+
+    it('clears plan and small models when PATCHed with null', async () => {
+      const created = await insertAgent({
+        model: TEST_MODEL_ID,
+        planModel: TEST_MODEL_ID,
+        smallModel: TEST_MODEL_ID
+      })
+
+      const updated = agentService.updateAgent(created.id, { planModel: null, smallModel: null })
+
+      // The entity reports the tiers as unset; the row itself holds SQL NULL.
+      expect(updated).toMatchObject({ planModel: undefined, smallModel: undefined })
+      const [row] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, created.id))
+      expect(row.planModel).toBeNull()
+      expect(row.smallModel).toBeNull()
     })
 
     it('does not mislabel non-skill FK failures as stale selected skills', async () => {

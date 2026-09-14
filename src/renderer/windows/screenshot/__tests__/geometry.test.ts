@@ -1,7 +1,8 @@
-import type { DetectedWindow } from '@shared/types/screenshot'
 import { render, screen } from '@testing-library/react'
 import { createElement } from 'react'
 import { describe, expect, it } from 'vitest'
+
+import type { DetectedWindow } from '@shared/types/screenshot'
 
 import { OcrTextOverlay } from '../components/OcrTextOverlay'
 import { Toolbar } from '../components/Toolbar'

@@ -1,9 +1,10 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
-import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
+import type { ExternalOpenTarget } from '@shared/types/externalApp'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../types'

@@ -1,10 +1,11 @@
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import LocalModelDownloadPopup from '@renderer/components/popups/LocalModelDownloadPopup'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { LOCAL_EMBEDDING_PROVIDER_ID, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
 import type { Model } from '@shared/data/types/model'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { isEmbeddingModel, KnowledgeModelSelect, type KnowledgeModelSelectProps } from './KnowledgeModelSelect'
 

@@ -482,7 +482,7 @@ export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
       code,
       error.message,
       ERROR_STATUS_MAP[code],
-      { originalError: error.message, context: error.name } as DetailsForCode<typeof code>,
+      { originalError: error.message, context: error.name },
       requestContext
     )
   }
@@ -869,7 +869,7 @@ export function toDataApiError(error: unknown, context?: string): DataApiError {
   return DataApiErrorFactory.create(
     ErrorCode.INTERNAL_SERVER_ERROR,
     `Unknown error${context ? ` in ${context}` : ''}: ${String(error)}`,
-    { originalError: String(error), context } as DetailsForCode<ErrorCode.INTERNAL_SERVER_ERROR>
+    { originalError: String(error), context }
   )
 }
 

@@ -1,7 +1,8 @@
-import { toast } from '@renderer/services/toast'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 import { useChannels } from '../useChannels'
 

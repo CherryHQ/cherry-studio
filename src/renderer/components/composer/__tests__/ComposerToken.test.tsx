@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Editor } from '@tiptap/core'
@@ -10,6 +10,8 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import postcss from 'postcss'
 import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 
 import { serializeComposerDocument } from '../composerDraft'
 import { createComposerEditorPreset } from '../composerPreset'
@@ -146,7 +148,7 @@ vi.mock('@cherrystudio/ui', async () => {
           preventDefault: () => {
             defaultPrevented = true
           }
-        } as Event)
+        })
 
         if (!defaultPrevented) {
           contentRef.current
@@ -162,7 +164,7 @@ vi.mock('@cherrystudio/ui', async () => {
             preventDefault: () => {
               defaultPrevented = true
             }
-          } as Event)
+          })
 
           if (!defaultPrevented) {
             triggerRef.current?.focus()
@@ -218,6 +220,7 @@ vi.mock('react-i18next', () => ({
 const readPastedTextMock = vi.fn()
 
 beforeEach(() => {
+  MockCacheUtils.resetMocks()
   ipcRequestMock.mockReset()
   ipcRequestMock.mockResolvedValue(undefined)
   imagePreviewShowMock.mockReset()
@@ -1148,6 +1151,53 @@ describe('ComposerToken', () => {
 
     fireEvent.click(removeButton)
     expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders no knowledge chip when no knowledge reference is selected', () => {
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF Reader',
+          description: 'Read and summarize PDF files.'
+        }}
+      />
+    )
+
+    expect(container.querySelector('[data-composer-token-kind="knowledge"]')).toBeNull()
+    expect(container.querySelector('[data-composer-token-remove]')).toBeNull()
+  })
+
+  it('renders multiple knowledge chips with independent remove actions', async () => {
+    const user = userEvent.setup()
+    const onRemoveFirst = vi.fn()
+    const onRemoveSecond = vi.fn()
+    render(
+      <>
+        <ComposerToken
+          token={{ id: 'knowledge:base-1', kind: 'knowledge', label: 'Product Docs' }}
+          onRemove={onRemoveFirst}
+          removeLabel="Remove Product Docs"
+        />
+        <ComposerToken
+          token={{ id: 'knowledge:base-2', kind: 'knowledge', label: 'API Guide' }}
+          onRemove={onRemoveSecond}
+          removeLabel="Remove API Guide"
+        />
+      </>
+    )
+
+    expect(screen.getByText('Product Docs')).toBeInTheDocument()
+    expect(screen.getByText('API Guide')).toBeInTheDocument()
+
+    const removeButtons = screen.getAllByRole('button', { name: /remove/i })
+    expect(removeButtons).toHaveLength(2)
+
+    await user.click(screen.getByRole('button', { name: 'Remove Product Docs' }))
+    expect(onRemoveFirst).toHaveBeenCalledTimes(1)
+    expect(onRemoveSecond).not.toHaveBeenCalled()
+    expect(screen.getByText('API Guide')).toBeInTheDocument()
   })
 
   it.each([

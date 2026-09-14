@@ -1,7 +1,8 @@
+import type { LanguageModelMiddleware } from 'ai'
+
 import { definePlugin } from '@cherrystudio/ai-core'
 import { matchesPreset } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
-import type { LanguageModelMiddleware } from 'ai'
 
 import type { RequestFeature } from '../feature'
 

@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import useSWR, { useSWRConfig } from 'swr'
+
 import { useDataChange, useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
@@ -11,8 +14,6 @@ import type {
   SkillSearchResult,
   SystemSkillCandidate
 } from '@shared/types/skill'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import useSWR, { useSWRConfig } from 'swr'
 
 const logger = loggerService.withContext('useSkills')
 

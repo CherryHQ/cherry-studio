@@ -1,7 +1,8 @@
+import { useMemo } from 'react'
+
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { SlashCommand } from '@shared/ai/slashCommands'
-import { useMemo } from 'react'
 
 const EMPTY_SESSION_ID = '__none__'
 

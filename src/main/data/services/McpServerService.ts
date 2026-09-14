@@ -6,6 +6,8 @@
  * - Listing with optional filters (isActive, type)
  */
 
+import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
+
 import { application } from '@application'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { agentService } from '@data/services/AgentService'
@@ -14,7 +16,6 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
-import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -70,7 +71,11 @@ export class McpServerService {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
     const rows = this.db.select().from(mcpServerTable).where(whereClause).orderBy(asc(mcpServerTable.sortOrder)).all()
-    const [{ count }] = this.db.select({ count: sql<number>`count(*)` }).from(mcpServerTable).where(whereClause).all()
+    const [{ count }] = this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(mcpServerTable)
+      .where(whereClause)
+      .all()
 
     return {
       items: rows.map(rowToMcpServer),

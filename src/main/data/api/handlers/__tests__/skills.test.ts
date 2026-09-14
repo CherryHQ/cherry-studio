@@ -28,7 +28,7 @@ describe('skillHandlers', () => {
     const result = await skillHandlers['/skills/:skillId'].PATCH({
       params: { skillId: 'skill-1' },
       body: { isGlobalEnabled: false }
-    } as never)
+    })
 
     expect(updateGlobalEnabledMock).toHaveBeenCalledWith('skill-1', false)
     expect(result).toBe(updated)

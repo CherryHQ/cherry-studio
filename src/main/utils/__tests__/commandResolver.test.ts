@@ -2,6 +2,7 @@ import { execFileSync, spawn } from 'child_process'
 import { EventEmitter } from 'events'
 import fs from 'fs'
 import path from 'path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import which from 'which'
 
@@ -857,7 +858,7 @@ function createMockChildProcess() {
   const mockChild = new EventEmitter() as EventEmitter & {
     stdout: EventEmitter
     stderr: EventEmitter
-    kill: ReturnType<typeof vi.fn>
+    kill: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
   mockChild.stdout = new EventEmitter()
   mockChild.stderr = new EventEmitter()

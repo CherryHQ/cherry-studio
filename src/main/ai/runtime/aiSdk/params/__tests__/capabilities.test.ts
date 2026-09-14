@@ -1,7 +1,8 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', () => ({
   application: {

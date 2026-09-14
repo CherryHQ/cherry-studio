@@ -140,6 +140,6 @@ export class MessageRuntimeTimingCollector {
       ...existing,
       ...incoming,
       startedAt: shouldPreserveEarliestStart ? Math.min(existing.startedAt, incoming.startedAt) : incoming.startedAt
-    } as MessageRuntimeSpan
+    }
   }
 }

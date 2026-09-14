@@ -1,5 +1,6 @@
-import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 interface ProviderFieldProps {
   title: ReactNode
@@ -28,10 +29,10 @@ export default function ProviderField({
       className={cn(
         'space-y-2',
         className,
-        isHorizontal && 'grid grid-cols-[7rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 space-y-0'
+        isHorizontal && 'grid grid-cols-[7rem_minmax(0,1fr)] items-start space-y-0 gap-x-3 gap-y-1.5'
       )}>
       <div className={cn('flex items-center justify-between gap-3', isHorizontal && 'min-h-8 justify-start')}>
-        <div className={cn('font-medium text-muted-foreground text-sm leading-5', titleClassName)}>{title}</div>
+        <div className={cn('text-sm leading-5 font-medium text-muted-foreground', titleClassName)}>{title}</div>
         {action}
       </div>
       {children}

@@ -13,7 +13,10 @@ vi.mock('@application', () => ({
   }
 }))
 
-import { CherryCloudLoginUnavailableError } from '@main/services/cherryCloud/CherryCloudService'
+import {
+  CherryCloudLoginUnavailableError,
+  CherryCloudUpgradeRequiredError
+} from '@main/services/cherryCloud/CherryCloudService'
 import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -22,14 +25,17 @@ import { cherryCloudHandlers } from '../cherryCloud'
 describe('cherryCloudHandlers', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('maps an unavailable login service to a stable IPC error', async () => {
-    service.startLogin.mockRejectedValueOnce(new CherryCloudLoginUnavailableError())
+  it.each([
+    [new CherryCloudLoginUnavailableError(), cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE],
+    [new CherryCloudUpgradeRequiredError(), cherryCloudErrorCodes.UPGRADE_REQUIRED]
+  ])('preserves the login error code %s across IPC', async (failure, code) => {
+    service.startLogin.mockRejectedValueOnce(failure)
 
     const error = await cherryCloudHandlers['cherry_cloud.login.start'](undefined, { senderId: 'w1' }).catch(
       (caught: unknown) => caught
     )
 
     expect(error).toBeInstanceOf(IpcError)
-    expect(error).toHaveProperty('code', cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE)
+    expect(error).toHaveProperty('code', code)
   })
 })

@@ -2,10 +2,11 @@ import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
-import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
-import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 
@@ -747,8 +748,8 @@ describe('PiRuntimeConnection', () => {
     expect(providerSpan.end).toHaveBeenCalledOnce()
 
     const cb = mocks.subscribeCb!
-    cb({ type: 'tool_execution_start', toolCallId: 'tool-a', toolName: 'read', args: {} } as AgentSessionEvent)
-    cb({ type: 'tool_execution_start', toolCallId: 'tool-b', toolName: 'bash', args: {} } as AgentSessionEvent)
+    cb({ type: 'tool_execution_start', toolCallId: 'tool-a', toolName: 'read', args: {} })
+    cb({ type: 'tool_execution_start', toolCallId: 'tool-b', toolName: 'bash', args: {} })
     cb({ type: 'tool_execution_end', toolCallId: 'tool-b', toolName: 'bash', result: {}, isError: true })
     cb({ type: 'tool_execution_end', toolCallId: 'tool-a', toolName: 'read', result: {}, isError: false })
 
@@ -782,7 +783,7 @@ describe('PiRuntimeConnection', () => {
       toolCallId: 'tool-open',
       toolName: 'bash',
       args: {}
-    } as AgentSessionEvent)
+    })
 
     await connection.close()
 

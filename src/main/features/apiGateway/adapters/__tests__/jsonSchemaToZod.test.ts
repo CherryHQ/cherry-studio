@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { type JsonSchemaLike, jsonSchemaToZod } from '../converters/jsonSchemaToZod'
+import { jsonSchemaToZod } from '../converters/jsonSchemaToZod'
 
 describe('jsonSchemaToZod', () => {
   it('maps string with min/max constraints', () => {
@@ -43,7 +43,7 @@ describe('jsonSchemaToZod', () => {
   })
 
   it('maps a union type array (["string", "null"])', () => {
-    const schema = jsonSchemaToZod({ type: ['string', 'null'] } as JsonSchemaLike)
+    const schema = jsonSchemaToZod({ type: ['string', 'null'] })
     expect(schema.safeParse('x').success).toBe(true)
     expect(schema.safeParse(null).success).toBe(true)
     expect(schema.safeParse(42).success).toBe(false)
@@ -71,7 +71,7 @@ describe('jsonSchemaToZod', () => {
   it('maps a boolean `true` property schema to "accept anything"', () => {
     const schema = jsonSchemaToZod({
       type: 'object',
-      properties: { open: true } as unknown as JsonSchemaLike['properties'],
+      properties: { open: true },
       required: ['open']
     })
     expect(schema.safeParse({ open: 123 }).success).toBe(true)
@@ -81,7 +81,7 @@ describe('jsonSchemaToZod', () => {
   it('maps a boolean `false` property schema to "reject any provided value" (z.never)', () => {
     const schema = jsonSchemaToZod({
       type: 'object',
-      properties: { closed: false } as unknown as JsonSchemaLike['properties']
+      properties: { closed: false }
     })
     expect(schema.safeParse({ closed: 'x' }).success).toBe(false)
   })
@@ -89,7 +89,7 @@ describe('jsonSchemaToZod', () => {
   it('honors `required` for boolean property schemas (non-required → optional)', () => {
     const schema = jsonSchemaToZod({
       type: 'object',
-      properties: { maybe: true } as unknown as JsonSchemaLike['properties'],
+      properties: { maybe: true },
       required: []
     })
     // `maybe` accepts anything but is not required, so it may be omitted.
@@ -98,7 +98,7 @@ describe('jsonSchemaToZod', () => {
   })
 
   it('falls back to unknown for an unspecified type', () => {
-    const schema = jsonSchemaToZod({} as JsonSchemaLike)
+    const schema = jsonSchemaToZod({})
     expect(schema.safeParse({ anything: true }).success).toBe(true)
   })
 

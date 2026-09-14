@@ -3,11 +3,12 @@ import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
 
+import { SpanStatusCode } from '@opentelemetry/api'
+import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { SpanStatusCode } from '@opentelemetry/api'
-import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
 import type { Attributes, AttributeValue, SpanEntity } from '@shared/data/types/trace'
 import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -486,7 +487,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
         typeof savedAttrs[attrKey] === 'object' &&
         savedAttrs[attrKey] !== null
       ) {
-        savedAttrs[attrKey] = { ...savedAttrs[attrKey], ...jsonData } as AttributeValue
+        savedAttrs[attrKey] = { ...savedAttrs[attrKey], ...jsonData }
       } else {
         savedAttrs[attrKey] = rawValue
       }

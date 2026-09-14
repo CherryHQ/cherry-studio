@@ -1,4 +1,4 @@
-import type { Data, InlineMath, Link, Math, Paragraph, PhrasingContent, Root, RootContent, Text } from 'mdast'
+import type { InlineMath, Link, Math, Paragraph, PhrasingContent, Root, RootContent, Text } from 'mdast'
 import type { CompileContext, Extension as FromMarkdownExtension } from 'mdast-util-from-markdown'
 import type { Construct, Extension as MicromarkExtension, State, Token, Tokenizer } from 'micromark-util-types'
 import type { Plugin } from 'unified'
@@ -16,6 +16,10 @@ declare module 'micromark-util-types' {
 }
 
 declare module 'mdast' {
+  interface Data {
+    latexMathKind?: LatexMathKind
+  }
+
   interface Math {
     type: 'math'
     value: string
@@ -42,10 +46,6 @@ declare module 'mdast' {
 }
 
 type LatexMathKind = 'bracket' | 'environment' | 'paren'
-
-interface LatexMathData extends Data {
-  latexMathKind?: LatexMathKind
-}
 
 const BACKSLASH = 92
 const DOLLAR = 36
@@ -453,7 +453,7 @@ function createInlineMath(token: Token, context: CompileContext): void {
       hProperties: { className: ['language-math', 'math-inline'] },
       hChildren: [],
       latexMathKind: kind
-    } as LatexMathData
+    }
   }
   context.enter(node, token)
   context.buffer()
@@ -498,7 +498,7 @@ const latexMathFromMarkdown: FromMarkdownExtension = {
 }
 
 function getLatexMathKind(node: InlineMath): LatexMathKind | undefined {
-  return (node.data as LatexMathData | undefined)?.latexMathKind
+  return node.data?.latexMathKind
 }
 
 function toPlainText(node: InlineMath): Text {
@@ -587,7 +587,7 @@ function splitDisplayMath(paragraph: Paragraph): RootContent[] {
 
   for (const child of paragraph.children) {
     if (child.type !== 'inlineMath' || !isDisplayLatexMath(child)) {
-      if (child.type === 'inlineMath') delete (child.data as LatexMathData | undefined)?.latexMathKind
+      if (child.type === 'inlineMath') delete child.data?.latexMathKind
       phrasing.push(child)
       continue
     }
