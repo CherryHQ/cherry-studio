@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import { isPiCompatibleModel, mapEndpointToPiApi, resolvePiApi } from '../piModelCompatibility'
 
@@ -23,7 +24,7 @@ function makeModel(overrides: Partial<Model>): Model {
     isEnabled: true,
     isHidden: false,
     ...overrides
-  } as Model
+  }
 }
 
 describe('mapEndpointToPiApi', () => {

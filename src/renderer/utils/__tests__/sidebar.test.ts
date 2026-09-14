@@ -1,5 +1,6 @@
-import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
+
+import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 
 import {
   getOrderedLaunchpadApps,

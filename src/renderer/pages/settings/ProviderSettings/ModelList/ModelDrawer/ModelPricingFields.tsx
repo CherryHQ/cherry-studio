@@ -1,3 +1,8 @@
+import type { TFunction } from 'i18next'
+import { Plus, Trash2 } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   InputNumber,
@@ -9,10 +14,6 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import type { Model } from '@shared/data/types/model'
-import type { TFunction } from 'i18next'
-import { Plus, Trash2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ProviderField from '../../primitives/ProviderField'
 import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'

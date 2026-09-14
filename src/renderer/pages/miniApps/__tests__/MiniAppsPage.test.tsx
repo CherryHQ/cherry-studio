@@ -1,11 +1,12 @@
-import type * as CherryStudioUI from '@cherrystudio/ui'
-import type * as UseCacheModule from '@data/hooks/useCache'
-import type * as MiniAppPresets from '@shared/data/presets/miniApps'
-import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUI from '@cherrystudio/ui'
+import type * as UseCacheModule from '@data/hooks/useCache'
+import type * as MiniAppPresets from '@shared/data/presets/miniApps'
+import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
 
 import MiniAppsPage from '../MiniAppsPage'
 

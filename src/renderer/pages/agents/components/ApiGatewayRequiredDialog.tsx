@@ -1,9 +1,10 @@
+import { useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ConfirmDialog } from '@cherrystudio/ui'
 import { useMandatoryGateOpen } from '@renderer/components/MandatoryGateProvider'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useIpcOn } from '@renderer/ipc'
-import { useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   sessionId: string

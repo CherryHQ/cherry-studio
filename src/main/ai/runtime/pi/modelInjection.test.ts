@@ -1,9 +1,10 @@
 import type { Api as PiApi, Model as PiModel } from '@earendil-works/pi-ai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const serviceMocks = vi.hoisted(() => ({
   getByProviderId: vi.fn(),
@@ -77,7 +78,7 @@ function makeModel(overrides: Partial<Model>): Model {
     isEnabled: true,
     isHidden: false,
     ...overrides
-  } as Model
+  }
 }
 
 describe('buildPiProviderInjection', () => {
@@ -924,7 +925,7 @@ describe('pi thinking level ladder', () => {
           controls: [{ kind: 'effort', values: ['low', 'high', 'max'] }, { kind: 'toggle' }],
           selectableEfforts: ['low', 'high', 'max', 'none']
         }
-      } as Partial<Model>)
+      })
     )
 
     expect(getSupportedThinkingLevels(piModel)).toEqual(['off', 'low', 'high', 'max'])
@@ -941,7 +942,7 @@ describe('pi thinking level ladder', () => {
           controls: [{ kind: 'effort', values: ['low', 'high', 'max'] }],
           selectableEfforts: ['low', 'high', 'max']
         }
-      } as Partial<Model>)
+      })
     )
 
     expect(getSupportedThinkingLevels(piModel)).not.toContain('off')
@@ -960,7 +961,7 @@ describe('pi thinking level ladder', () => {
           controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'] }],
           selectableEfforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
         }
-      } as Partial<Model>),
+      }),
       makeProvider({
         id: 'openai-codex',
         defaultChatEndpoint: 'openai-responses',
@@ -1003,7 +1004,7 @@ describe('pi thinking level ladder', () => {
       makeModel({
         capabilities: ['reasoning'],
         reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
-      } as Partial<Model>)
+      })
     )
 
     expect(piModel).not.toHaveProperty('thinkingLevelMap')

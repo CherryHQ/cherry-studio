@@ -1,3 +1,6 @@
+import { isEqual } from 'es-toolkit/compat'
+import { useCallback, useMemo, useRef } from 'react'
+
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -13,8 +16,6 @@ import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStat
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppId, SiteMiniApp } from '@shared/data/types/miniApp'
 import { fileUrlToPath } from '@shared/utils/file'
-import { isEqual } from 'es-toolkit/compat'
-import { useCallback, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useMiniAppPopup')
 

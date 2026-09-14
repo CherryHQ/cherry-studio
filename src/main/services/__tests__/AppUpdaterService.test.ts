@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appEditionState, netFetchMock, releaseNotesCheckMock, releaseNotesUpdaterInstances, trackAppUpdateMock } =
   vi.hoisted(() => ({
-    appEditionState: { current: 'global' as 'global' | 'cn' },
+    appEditionState: { current: 'global' },
     netFetchMock: vi.fn(),
     releaseNotesCheckMock: vi.fn(),
     releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,
@@ -116,13 +116,14 @@ vi.mock('electron-updater', () => {
   }
 })
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { app, net } from 'electron'
+import { autoUpdater } from 'electron-updater'
+
 import { application } from '@application'
 import { regionService } from '@main/services/RegionService'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { APP_NAME } from '@shared/utils/constants'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { app, net } from 'electron'
-import { autoUpdater } from 'electron-updater'
 
 import { AppUpdaterService } from '../AppUpdaterService'
 

@@ -1,3 +1,7 @@
+import type { ComponentProps } from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
@@ -6,9 +10,6 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { isFileConfiguredCli } from '@shared/utils/cliConfig'
-import type { ComponentProps } from 'react'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   type CliConfigFileDraft,

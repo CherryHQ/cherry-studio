@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process'
 import { lstatSync, statSync } from 'node:fs'
 import path from 'node:path'
 
+import { app, shell } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { safeOpen, showInFolder } from '@main/services/file'
@@ -10,7 +12,6 @@ import { removeEnvProxy } from '@main/utils/processRunner'
 import type { ExternalOpenTarget, ExternalOpenTargetResult } from '@shared/types/externalApp'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { isDangerExt, normalizeExt } from '@shared/utils/file'
-import { app, shell } from 'electron'
 
 import { resolveDefaultApplication } from './defaultApplication'
 

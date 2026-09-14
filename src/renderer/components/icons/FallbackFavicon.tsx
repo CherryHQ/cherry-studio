@@ -1,5 +1,6 @@
-import { loggerService } from '@logger'
 import { useEffect, useState } from 'react'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('FallbackFavicon')
 
@@ -143,7 +144,7 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
   // Render based on current state
   if (faviconState.status === 'failed') {
     return (
-      <span className="inline-flex h-4 w-4 items-center justify-center rounded-[4px] bg-primary/15 font-bold text-[10px] text-primary">
+      <span className="inline-flex h-4 w-4 items-center justify-center rounded-[4px] bg-primary/15 text-[10px] font-bold text-primary">
         {hostname.charAt(0).toUpperCase()}
       </span>
     )

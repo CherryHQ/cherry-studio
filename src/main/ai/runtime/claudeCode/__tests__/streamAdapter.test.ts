@@ -1,6 +1,7 @@
-import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import { readUIMessageStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 
 const loggerMocks = vi.hoisted(() => ({
   silly: vi.fn(),
@@ -38,7 +39,7 @@ function createAdapter(
   const adapter = new ClaudeCodeStreamAdapter({
     modelId: 'sonnet',
     sessionId: 'session-1',
-    streamOptions: { prompt: [] } as any,
+    streamOptions: { prompt: [] },
     sink: { enqueue: (part) => parts.push(part) },
     statusSink: { emit: (event) => statusEvents.push(event) },
     onSessionId: (sessionId) => sessionIds.push(sessionId),

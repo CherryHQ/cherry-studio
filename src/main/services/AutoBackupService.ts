@@ -418,7 +418,7 @@ export class AutoBackupService extends BaseService {
 
   private emit(event: AutoBackupEventInput): void {
     if (!this.active) return
-    const emittedEvent = { ...event, id: ++this.nextEventId } as AutoBackupEvent
+    const emittedEvent = { ...event, id: ++this.nextEventId }
     application.get('CacheService').setShared(`backup.auto_sync.state.${event.type}`, emittedEvent)
     if (event.status === 'warning' || event.status === 'failed') {
       this.pendingNotifications.set(event.type, emittedEvent)

@@ -1,13 +1,15 @@
 import { createHash } from 'node:crypto'
 
-import { application } from '@application'
-import { mcpServerService } from '@data/services/McpServerService'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
-import { loggerService } from '@logger'
-import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult, ContentBlock, Tool } from '@modelcontextprotocol/sdk/types.js'
+
+import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
+import { loggerService } from '@logger'
+import { MCP_FORWARDING_TIMEOUT_MS } from '@main/ai/mcp/mcpRequestOptions'
+import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 
 const logger = loggerService.withContext('PiMcpToolAdapter')
@@ -95,13 +97,14 @@ function toPiToolDefinition(serverName: string, tool: Tool, client: Client): PiM
     name: buildPiMcpToolName(serverName, tool.name),
     label: tool.name,
     description: tool.description ?? '',
-    parameters: tool.inputSchema as ToolDefinition['parameters'],
+    parameters: tool.inputSchema,
     ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
     async execute(_toolCallId, params, signal) {
       const result = (await client.callTool(
         { name: tool.name, arguments: params as Record<string, unknown> },
         undefined,
-        { signal }
+        // Forwarding only: no timeout policy at this layer — McpRuntimeService owns it (#20266).
+        { signal, timeout: MCP_FORWARDING_TIMEOUT_MS }
       )) as CallToolResult
       if (result.isError) throw new Error(joinErrorText(result.content))
       return {

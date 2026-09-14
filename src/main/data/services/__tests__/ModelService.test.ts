@@ -2,6 +2,11 @@
  * Tests for ModelService — field mapping, update behavior, and create merge logic.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { and, eq, or } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
@@ -19,9 +24,6 @@ import {
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { and, eq, or } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
@@ -618,7 +620,7 @@ describe('ModelService.create', () => {
             name: 'GPT-4o',
             maxInputTokens: 128_000,
             maxOutputTokens: 4_096
-          } as any,
+          },
           registryOverride: null,
           reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
@@ -657,7 +659,7 @@ describe('ModelService.create', () => {
             id: 'gpt-4o',
             name: 'GPT-4o',
             capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
-          } as any,
+          },
           registryOverride: null,
           reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
         }
@@ -976,7 +978,7 @@ describe('ModelService.list', () => {
   it('filters by capability (post-filter)', async () => {
     await seedMultipleModels()
 
-    const models = modelService.list({ capability: 'reasoning' as any })
+    const models = modelService.list({ capability: 'reasoning' })
 
     expect(models).toHaveLength(1)
     expect(models[0].apiModelId).toBe('claude-3')
@@ -1969,6 +1971,44 @@ describe('ModelService.getNamesByUniqueIdsTx', () => {
   it('returns an empty map for empty input without querying', async () => {
     const result = modelService.getNamesByUniqueIdsTx(dbh.db, [])
     expect(result.size).toBe(0)
+  })
+})
+
+/**
+ * Seeders run inside `DbService.onInit()`, where `getDb()` still throws. A `*Tx`
+ * read that reaches for the service singleton instead of its own transaction
+ * therefore aborts startup (v2.0.11 shipped exactly that: the Cherry Support
+ * seeder could not create the built-in Agent). Edition availability must be
+ * decided from columns the caller's own query already returned.
+ */
+describe('ModelService — transaction-scoped reads never re-enter DbService', () => {
+  const dbh = setupTestDatabase()
+
+  beforeEach(async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { name: 'GPT-4o' }))
+    MockMainDbServiceUtils.setDb({
+      select: () => {
+        throw new Error('Database is not initialized, please call init() first!')
+      }
+    })
+  })
+
+  afterEach(() => MockMainDbServiceUtils.setDb(dbh.db))
+
+  const uid = createUniqueModelId('openai', 'gpt-4o')
+
+  it('resolves model names', () => {
+    expect(modelService.getNamesByUniqueIdsTx(dbh.db, [uid]).get(uid)).toBe('GPT-4o')
+  })
+
+  it('finds a model by id', () => {
+    expect(modelService.findByIdTx(dbh.db, uid)?.id).toBe(uid)
+  })
+
+  it('checks model existence', () => {
+    expect(modelService.existsByIdTx(dbh.db, uid)).toBe(true)
+    expect(modelService.existsByIdTx(dbh.db, 'openai::missing')).toBe(false)
   })
 })
 

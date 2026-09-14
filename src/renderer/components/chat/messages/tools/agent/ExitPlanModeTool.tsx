@@ -1,5 +1,6 @@
-import { StaticMarkdown } from '@renderer/components/markdown'
 import { useTranslation } from 'react-i18next'
+
+import { StaticMarkdown } from '@renderer/components/markdown'
 
 import type { ExitPlanModeToolInput, ExitPlanModeToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'

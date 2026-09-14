@@ -1,5 +1,6 @@
-import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { BinaryToolSnapshot } from '@shared/types/binary'
 
 const snapshotRef = vi.hoisted(() => ({
   value: { name: 'rtk', availability: { source: 'none' } } as BinaryToolSnapshot
