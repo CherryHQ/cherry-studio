@@ -992,7 +992,7 @@ describe('PiRuntimeConnection', () => {
     const events = await collectUntilTerminal(conn.events)
     const usageEvents = events.filter((event) => event.type === 'usage')
     expect(usageEvents).toHaveLength(1)
-    const invocation = (usageEvents[0] as Extract<AgentRuntimeEvent, { type: 'usage' }>).invocation
+    const invocation = usageEvents[0].invocation
     expect(invocation.metrics?.timeFirstTokenMs).toEqual(expect.any(Number))
     expect(invocation.metrics?.timeCompletionMs).toEqual(expect.any(Number))
     expect(invocation.metrics?.timeCompletionMs ?? 0).toBeGreaterThanOrEqual(invocation.metrics?.timeFirstTokenMs ?? 0)
