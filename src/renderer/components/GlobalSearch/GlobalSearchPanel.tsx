@@ -832,7 +832,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         // the input's DOM value, as the state can lag it by a frame.
         const inputValue = event.currentTarget.value.trim()
         const resultsInFlight = isMessageSearchMode ? isMessageSearchFetching : isEntitySearchRefreshing
-        const resultsErrored = !isMessageSearchMode && error != null
+        const resultsErrored = isMessageSearchMode ? messageError != null : error != null
         if (inputValue !== debouncedQuery || debouncedQuery !== deferredQuery || resultsInFlight || resultsErrored) {
           event.preventDefault()
           return
@@ -861,6 +861,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       isMessageSearchFetching,
       isMessageSearchMode,
       keyboardItems,
+      messageError,
       moveActiveItem,
       onClose,
       openMessagePanelItem,

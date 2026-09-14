@@ -48,6 +48,10 @@ const mocks = vi.hoisted(() => ({
   // When set, the entities query reports a terminal error for the aligned
   // query — the window in which keepPreviousData still renders the stale list.
   entitiesSearchError: undefined as unknown,
+  // When set, the contents (message) query reports a terminal error — the panel
+  // renders the error state and hides the listbox while the keyboard selection
+  // still references the retained rows.
+  messageSearchError: undefined as unknown,
   // When true, the useDeferredValue mock below keeps returning the previous
   // value, mimicking the frame in which React has committed a new query but
   // has not yet re-rendered the deferred lane.
@@ -650,6 +654,7 @@ describe('GlobalSearchPanel', () => {
     mocks.keepStaleContentSearchData = false
     mocks.entitiesSearchRefreshing = false
     mocks.entitiesSearchError = undefined
+    mocks.messageSearchError = undefined
     mocks.holdDeferredValue = false
     mocks.useQuery.mockImplementation(
       (
@@ -702,7 +707,7 @@ describe('GlobalSearchPanel', () => {
             },
             isLoading: false,
             isRefreshing: false,
-            error: undefined
+            error: mocks.messageSearchError
           }
         }
 
@@ -2437,6 +2442,44 @@ describe('GlobalSearchPanel', () => {
 
     expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-kind', 'assistant')
     expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-id', 'assistant-2')
+  })
+
+  it('swallows Enter while the message search shows its error state', async () => {
+    const user = userEvent.setup()
+    mocks.messageQueryResult = {
+      items: [
+        {
+          messageId: 'message-1',
+          topicId: 'topic-1',
+          topicName: 'Topic A',
+          topicCreatedAt: '2026-01-01T00:00:00.000Z',
+          topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+          role: 'user' as const,
+          snippet: 'needle message one',
+          createdAt: '2026-01-01T00:00:00.000Z'
+        }
+      ],
+      nextCursor: 'cursor-2'
+    }
+
+    const view = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const input = screen.getByLabelText(SEARCH_INPUT_LABEL)
+    await user.type(input, 'needle')
+    await screen.findByRole('radio', { name: 'Messages' })
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    await screen.findByRole('option', { name: /needle message one/ })
+    await user.click(input)
+
+    // The load-more page fails terminally: the panel renders the error state and
+    // hides the listbox, but the keyboard selection still references the retained
+    // rows. Enter must not open one of them.
+    mocks.messageSearchError = new Error('load-more failed')
+    view.rerender(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await screen.findByText('Search failed')
+    await user.keyboard('{Enter}')
+
+    expect(screen.queryByRole('complementary', { name: 'Message preview' })).not.toBeInTheDocument()
   })
 
   it('keeps the confirmed composition text in the input when compositionend precedes the change event', async () => {
