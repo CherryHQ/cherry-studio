@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { dataApiService } from '@renderer/data/DataApiService'
 import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 
 import type { TrashItem } from '../trashUtils'
 
@@ -14,6 +15,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof Cher
 
 const mocks = vi.hoisted(() => ({
   fileItems: [] as TrashItem[],
+  ipcRequest: vi.fn(),
   runDelete: vi
     .fn()
     .mockResolvedValue({ succeeded: [] as string[], failed: [] as Array<{ id: string; error: string }> })
@@ -77,6 +79,7 @@ vi.mock('../TrashDomainSections', async () => {
     FileTrashSection: FileSection
   }
 })
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
 
 const { default: TrashSettings } = await import('../TrashSettings')
 
@@ -103,6 +106,7 @@ afterEach(cleanup)
 beforeEach(async () => {
   await i18n.changeLanguage('en-US')
   vi.mocked(dataApiService.get).mockReset()
+  mocks.ipcRequest.mockReset()
   mocks.runDelete.mockReset().mockResolvedValue({ succeeded: [], failed: [] })
   mocks.fileItems = fileItems(1)
 })
@@ -114,6 +118,24 @@ describe('TrashSettings', () => {
 
     expect(screen.getByText('自动清理周期')).toBeInTheDocument()
     expect(screen.queryByText('已删除的项目将一直保留，直到你手动彻底删除')).not.toBeInTheDocument()
+  })
+
+  it('reports referenced files kept instead of claiming the trash is empty', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockResolvedValueOnce({
+      status: 'completed',
+      reclaimed: true,
+      deletedCount: 3,
+      retainedReferencedFileCount: 2
+    })
+    render(<TrashSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'Empty Trash' }))
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Referenced files will be kept.')
+    await user.click(within(dialog).getByRole('button', { name: 'Empty Trash' }))
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Deleted: 3. Referenced files kept: 2.'))
   })
 })
 

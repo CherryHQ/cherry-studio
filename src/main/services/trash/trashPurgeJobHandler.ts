@@ -26,6 +26,15 @@ const PURGE_BATCH_SIZE = 500
 
 const DAY_MS = 86_400_000
 
+interface PurgeBatch {
+  purgedIds: string[]
+  hasMore: boolean
+}
+
+function completedPurgeBatch(purgedIds: string[], limit: number): PurgeBatch {
+  return { purgedIds, hasMore: purgedIds.length === limit }
+}
+
 /**
  * RFC §6 purge order — containers before independent rows: topic (messages
  * cascade via purge path) → session (session messages FK-cascade) → agent →
@@ -35,7 +44,7 @@ const DAY_MS = 86_400_000
  */
 const PURGE_DOMAINS: ReadonlyArray<{
   name: string
-  purgeExpired: (cutoffMs: number, limit: number) => string[] | Promise<string[]>
+  purgeExpired: (cutoffMs: number, limit: number) => PurgeBatch | Promise<PurgeBatch>
   /**
    * Post-commit read-model refresh. The `*Tx` variants stay silent so they compose
    * inside a caller's transaction, which leaves the notification owing here — without
@@ -45,8 +54,12 @@ const PURGE_DOMAINS: ReadonlyArray<{
 }> = [
   {
     name: 'topic',
-    purgeExpired: (cutoffMs, limit) =>
-      application.get('DbService').withWriteTx((tx) => topicService.purgeExpiredTx(tx, cutoffMs, limit)),
+    purgeExpired: (cutoffMs, limit) => {
+      const purgedIds = application
+        .get('DbService')
+        .withWriteTx((tx) => topicService.purgeExpiredTx(tx, cutoffMs, limit))
+      return completedPurgeBatch(purgedIds, limit)
+    },
     notifyPurged: (ids) => topicService.notifyPurged(ids)
   },
   {
@@ -57,16 +70,24 @@ const PURGE_DOMAINS: ReadonlyArray<{
   },
   {
     name: 'agent',
-    purgeExpired: (cutoffMs, limit) =>
-      application.get('DbService').withWriteTx((tx) => agentService.purgeExpiredTx(tx, cutoffMs, limit)),
+    purgeExpired: (cutoffMs, limit) => {
+      const purgedIds = application
+        .get('DbService')
+        .withWriteTx((tx) => agentService.purgeExpiredTx(tx, cutoffMs, limit))
+      return completedPurgeBatch(purgedIds, limit)
+    },
     // Retention is the first and only moment a trashed agent's prompt bindings are
     // dropped — they deliberately survive Delete — so this is the only chance to say so.
     notifyPurged: (ids) => agentService.notifyPurged(ids)
   },
   {
     name: 'assistant',
-    purgeExpired: (cutoffMs, limit) =>
-      application.get('DbService').withWriteTx((tx) => assistantDataService.purgeExpiredTx(tx, cutoffMs, limit)),
+    purgeExpired: (cutoffMs, limit) => {
+      const purgedIds = application
+        .get('DbService')
+        .withWriteTx((tx) => assistantDataService.purgeExpiredTx(tx, cutoffMs, limit))
+      return completedPurgeBatch(purgedIds, limit)
+    },
     notifyPurged: (ids) => {
       assistantDataService.notifyReadModelChange(ids, 'membership')
       promptService.notifyTargetBindingsChanged()
@@ -74,14 +95,22 @@ const PURGE_DOMAINS: ReadonlyArray<{
   },
   {
     name: 'painting',
-    purgeExpired: (cutoffMs, limit) =>
-      application.get('DbService').withWriteTx((tx) => paintingService.purgeExpiredTx(tx, cutoffMs, limit)),
+    purgeExpired: (cutoffMs, limit) => {
+      const purgedIds = application
+        .get('DbService')
+        .withWriteTx((tx) => paintingService.purgeExpiredTx(tx, cutoffMs, limit))
+      return completedPurgeBatch(purgedIds, limit)
+    },
     notifyPurged: (ids) => paintingService.notifyReadModelChange(ids, 'membership')
   },
   {
     name: 'fileEntry',
-    purgeExpired: (cutoffMs, limit) =>
-      application.get('DbService').withWriteTx((tx) => fileEntryService.purgeExpiredTx(tx, cutoffMs, limit)),
+    purgeExpired: (cutoffMs, limit) => {
+      const purgedIds = application
+        .get('DbService')
+        .withWriteTx((tx) => fileEntryService.purgeExpiredTx(tx, cutoffMs, limit))
+      return completedPurgeBatch(purgedIds, limit)
+    },
     notifyPurged: (ids) =>
       notifyDataApiDataChange([
         { endpoint: '/files/entries', kind: 'membership', entityIds: ids },
@@ -117,7 +146,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     for (const [index, domain] of retentionDisabled ? [] : PURGE_DOMAINS.entries()) {
       ctx.signal.throwIfAborted()
       const purgedIds: string[] = []
-      let batch: string[]
+      let batch: PurgeBatch
       // DB-only domains keep each synchronous transaction short; Session additionally
       // drains its runtime before entering the transaction.
       do {
@@ -125,13 +154,14 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
         // to finish before the next check.
         ctx.signal.throwIfAborted()
         batch = await domain.purgeExpired(cutoffMs, PURGE_BATCH_SIZE)
-        purgedIds.push(...batch)
-      } while (batch.length === PURGE_BATCH_SIZE)
+        purgedIds.push(...batch.purgedIds)
+      } while (batch.hasMore)
       purged[domain.name] = purgedIds.length
       // After the commits, so a listener that re-reads sees the rows already gone.
       if (purgedIds.length > 0) domain.notifyPurged(purgedIds)
       ctx.reportProgress(Math.round(((index + 1) / totalSteps) * 100))
     }
+    const retainedReferencedFileCount = emptyAll ? fileEntryService.getStats().trashTotal : 0
 
     // Schedule reconciliation strictly AFTER all transactions committed. It runs even
     // when retention is disabled so an interrupted event cleanup heals on the next pass.
@@ -150,9 +180,12 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
       const report = await application.get('FileManager').runSweep()
       // The sweep aborts itself when the residue looks like a restore, and caps entry
       // cleanup per pass — reporting an unqualified success would hide leftover blobs.
-      if (report.outcome !== 'completed') {
+      if (report.outcome !== 'completed' || report.entryCleanup.hasPendingWork) {
         reclaimed = false
-        logger.warn('File orphan sweep did not reclaim everything', { outcome: report.outcome })
+        logger.warn('File orphan sweep did not reclaim everything', {
+          outcome: report.outcome,
+          entryCleanup: report.entryCleanup
+        })
       }
     } catch (error) {
       if (ctx.signal.aborted) throw error
@@ -176,7 +209,13 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     }
     ctx.reportProgress(100)
 
-    logger.info('Trash purge complete', { emptyAll, purged, reclaimed, retentionDisabled })
-    return { skipped: retentionDisabled, purged, reclaimed }
+    logger.info('Trash purge complete', {
+      emptyAll,
+      purged,
+      reclaimed,
+      retainedReferencedFileCount,
+      retentionDisabled
+    })
+    return { skipped: retentionDisabled, purged, reclaimed, retainedReferencedFileCount }
   }
 }

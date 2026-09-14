@@ -165,29 +165,42 @@ export class AgentSessionDeliveryService extends BaseService {
     return work
   }
 
-  async purgeExpiredSessions(cutoffMs: number, limit: number): Promise<string[]> {
+  async purgeExpiredSessions(cutoffMs: number, limit: number): Promise<{ purgedIds: string[]; hasMore: boolean }> {
     const hold = this.pause('trash-purge')
     try {
       const sessionIds = agentSessionService.listExpiredTrashIds(cutoffMs, limit)
-      if (sessionIds.length === 0) return []
+      if (sessionIds.length === 0) return { purgedIds: [], hasMore: false }
 
-      const purged = await Promise.all(
-        sessionIds.map((sessionId) =>
-          this.retentionPurgeLocks.runExclusive(sessionId, async () => {
-            if (!agentSessionService.isExpiredTrash(sessionId, cutoffMs)) return []
+      const releases: Array<() => void> = []
+      try {
+        for (const sessionId of sessionIds) {
+          releases.push(await this.retentionPurgeLocks.acquire(sessionId))
+        }
 
+        const expiredSessionIds = sessionIds.filter((sessionId) =>
+          agentSessionService.isExpiredTrash(sessionId, cutoffMs)
+        )
+        const drains = await Promise.allSettled(
+          expiredSessionIds.map(async (sessionId) => {
             await application
               .get('AiStreamManager')
               .abortAndDrain(buildAgentSessionTopicId(sessionId), 'agent-session-retention-purge')
             await this.drainSessionQueues([sessionId])
-
-            return application
-              .get('DbService')
-              .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, [sessionId], cutoffMs))
           })
         )
-      )
-      return purged.flat()
+        const failedDrain = drains.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+        if (failedDrain) throw failedDrain.reason
+
+        const purgedIds =
+          expiredSessionIds.length === 0
+            ? []
+            : application
+                .get('DbService')
+                .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, expiredSessionIds, cutoffMs))
+        return { purgedIds, hasMore: sessionIds.length === limit }
+      } finally {
+        for (const release of releases.reverse()) release()
+      }
     } finally {
       hold.dispose()
     }

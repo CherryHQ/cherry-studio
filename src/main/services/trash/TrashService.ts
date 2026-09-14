@@ -63,16 +63,20 @@ export class TrashService extends BaseService {
    * terminal state, so callers can trust `status` ('completed' | 'failed' |
    * 'cancelled') before invalidating caches or toasting success.
    *
-   * `reclaimed` reports whether disk reclamation actually finished. The rows are
-   * always gone on 'completed', but the sweeps are batch-capped and stand aside
-   * during a restore, so a caller must not promise the space back on status alone.
+   * `retainedReferencedFileCount` reports protected file rows that remain in the
+   * Recycle Bin. `reclaimed` separately reports whether disk reclamation finished.
    *
    * Concurrency is 1 — a manual run queues behind an in-flight scheduled
    * purge. Caveat: JobManager.onDestroy abandons unresolved `finished`
    * promises during shutdown, so a request pending at quit never resolves;
    * acceptable for this fire-from-UI path.
    */
-  async purgeNow(): Promise<{ status: TerminalJobStatus; reclaimed: boolean }> {
+  async purgeNow(): Promise<{
+    status: TerminalJobStatus
+    reclaimed: boolean
+    deletedCount: number
+    retainedReferencedFileCount: number
+  }> {
     const handle = application.get('JobManager').enqueue('trash.purge', { emptyAll: true })
     const snapshot = await handle.finished
     // `finished` resolves only at a terminal state; the guard narrows the type
@@ -80,8 +84,15 @@ export class TrashService extends BaseService {
     if (!isTerminalStatus(snapshot.status)) {
       throw new Error(`Trash purge resolved with non-terminal status: ${snapshot.status}`)
     }
-    const output = snapshot.output as { reclaimed?: boolean } | undefined
-    return { status: snapshot.status, reclaimed: output?.reclaimed === true }
+    const output = snapshot.output as
+      | { reclaimed?: boolean; retainedReferencedFileCount?: number; purged?: Record<string, number> }
+      | undefined
+    return {
+      status: snapshot.status,
+      reclaimed: output?.reclaimed === true,
+      deletedCount: Object.values(output?.purged ?? {}).reduce((total, count) => total + count, 0),
+      retainedReferencedFileCount: output?.retainedReferencedFileCount ?? 0
+    }
   }
 
   async archiveTopics(topicIds: string[]): Promise<DeleteTopicsResult> {

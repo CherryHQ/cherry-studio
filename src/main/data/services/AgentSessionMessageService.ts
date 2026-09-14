@@ -1116,7 +1116,7 @@ export class AgentSessionMessageService {
       .select({ agentId: sessionTable.agentId, agentName: agentTable.name, sessionName: sessionTable.name })
       .from(sessionTable)
       .leftJoin(agentTable, and(eq(sessionTable.agentId, agentTable.id), isNull(agentTable.deletedAt)))
-      .where(eq(sessionTable.id, input.senderSessionId))
+      .where(and(eq(sessionTable.id, input.senderSessionId), isNull(sessionTable.deletedAt)))
       .limit(1)
       .all()
     if (!sender || sender.agentId !== input.senderAgentId || sender.agentName === null) {
@@ -1129,7 +1129,7 @@ export class AgentSessionMessageService {
     const [receiverSession] = tx
       .select({ agentId: sessionTable.agentId, sessionName: sessionTable.name })
       .from(sessionTable)
-      .where(eq(sessionTable.id, input.receiverSessionId))
+      .where(and(eq(sessionTable.id, input.receiverSessionId), isNull(sessionTable.deletedAt)))
       .limit(1)
       .all()
     if (!receiverSession) {
@@ -1601,12 +1601,24 @@ export class AgentSessionMessageService {
       .all()
     const results: AgentSessionMessageEntity[] = []
     const now = new Date().toISOString()
+    const error = { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' }
     for (const request of requests) {
-      if (
-        !request.delivery ||
-        request.delivery.replyPolicy !== 'completion' ||
-        deleting.includes(request.delivery.sender.sessionId)
-      )
+      if (!request.delivery) continue
+      tx.update(sessionMessagesTable)
+        .set({
+          deliveryStatus: 'failed',
+          deliveryTurnRef: null,
+          delivery: { ...request.delivery, outcome: 'interrupted', error, statusAt: now }
+        })
+        .where(
+          and(
+            eq(sessionMessagesTable.id, request.id),
+            inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+          )
+        )
+        .run()
+
+      if (request.delivery.replyPolicy !== 'completion' || deleting.includes(request.delivery.sender.sessionId))
         continue
       const existingResult = tx
         .select({ id: sessionMessagesTable.id })
@@ -1618,7 +1630,7 @@ export class AgentSessionMessageService {
       const callerExists = tx
         .select({ id: sessionTable.id })
         .from(sessionTable)
-        .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+        .where(and(eq(sessionTable.id, request.delivery.sender.sessionId), isNull(sessionTable.deletedAt)))
         .limit(1)
         .all()[0]
       if (!callerExists) continue
@@ -1639,7 +1651,7 @@ export class AgentSessionMessageService {
               replyPolicy: 'none',
               sourceMessageId: null,
               outcome: 'failed',
-              error: { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' },
+              error,
               statusAt: now
             },
             deliveryStatus: 'accepted',

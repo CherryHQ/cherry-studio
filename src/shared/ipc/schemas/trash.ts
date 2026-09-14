@@ -31,6 +31,11 @@ export const trashRequestSchemas = {
   }),
   'trash.purge_now': defineRoute({
     input: z.void(),
-    output: z.strictObject({ status: TerminalJobStatusSchema, reclaimed: z.boolean() })
+    output: z.strictObject({
+      status: TerminalJobStatusSchema,
+      reclaimed: z.boolean(),
+      deletedCount: z.number().int().nonnegative(),
+      retainedReferencedFileCount: z.number().int().nonnegative()
+    })
   })
 }

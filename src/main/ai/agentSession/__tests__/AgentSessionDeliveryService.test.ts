@@ -693,7 +693,7 @@ describe('AgentSessionDeliveryService', () => {
 
     releaseRuntime()
 
-    await expect(purge).resolves.toEqual(['expired-session'])
+    await expect(purge).resolves.toEqual({ purgedIds: ['expired-session'], hasMore: false })
     expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledWith({}, ['expired-session'], 500)
     expect(service.isWriteQuiesced).toBe(false)
   })
@@ -721,7 +721,7 @@ describe('AgentSessionDeliveryService', () => {
     markRestored()
 
     await expect(restore).resolves.toEqual({ id: 'expired-session' })
-    await expect(purge).resolves.toEqual([])
+    await expect(purge).resolves.toEqual({ purgedIds: [], hasMore: false })
     expect(mocks.isExpiredTrash).toHaveBeenCalledWith('expired-session', 500)
     expect(mocks.abortAndDrain).not.toHaveBeenCalled()
   })
@@ -755,7 +755,7 @@ describe('AgentSessionDeliveryService', () => {
 
     releaseRuntime()
 
-    await expect(purge).resolves.toEqual(['expired-session'])
+    await expect(purge).resolves.toEqual({ purgedIds: ['expired-session'], hasMore: false })
     await expect(restore).rejects.toMatchObject({ code: 'NOT_FOUND' })
     expect(order).toEqual(['drain', 'purge', 'restore'])
   })
@@ -788,8 +788,58 @@ describe('AgentSessionDeliveryService', () => {
 
     releaseValidation()
 
-    await expect(purge).resolves.toEqual(['expired-session'])
+    await expect(purge).resolves.toEqual({ purgedIds: ['expired-session'], hasMore: false })
     expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledOnce()
+  })
+
+  it('keeps purge paused until every runtime drain settles and commits no partial batch', async () => {
+    let releaseSlowDrain!: () => void
+    const slowDrain = new Promise<void>((resolve) => {
+      releaseSlowDrain = resolve
+    })
+    mocks.listExpiredTrashIds.mockReturnValue(['failed-session', 'slow-session'])
+    mocks.abortAndDrain.mockImplementation((topicId: string) => {
+      if (topicId === 'agent-session:failed-session') return Promise.reject(new Error('drain failed'))
+      return slowDrain
+    })
+    const service = new AgentSessionDeliveryService()
+
+    let settled = false
+    const purge = service.purgeExpiredSessions(500, 10)
+    void purge.then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
+      }
+    )
+    await vi.waitFor(() => expect(mocks.abortAndDrain).toHaveBeenCalledTimes(2))
+    await flush()
+
+    expect(settled).toBe(false)
+    expect(service.isWriteQuiesced).toBe(true)
+    expect(mocks.purgeExpiredByIdsTx).not.toHaveBeenCalled()
+
+    releaseSlowDrain()
+
+    await expect(purge).rejects.toThrow('drain failed')
+    expect(service.isWriteQuiesced).toBe(false)
+    expect(mocks.purgeExpiredByIdsTx).not.toHaveBeenCalled()
+  })
+
+  it('uses the selected candidate count to report another purge page after a restored row is skipped', async () => {
+    mocks.listExpiredTrashIds.mockReturnValue(['restored-session', 'expired-session'])
+    mocks.isExpiredTrash.mockImplementation((sessionId: string) => sessionId === 'expired-session')
+    mocks.purgeExpiredByIdsTx.mockReturnValue(['expired-session'])
+    const service = new AgentSessionDeliveryService()
+
+    await expect(service.purgeExpiredSessions(500, 2)).resolves.toEqual({
+      purgedIds: ['expired-session'],
+      hasMore: true
+    })
+    expect(mocks.abortAndDrain).toHaveBeenCalledOnce()
+    expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledWith({}, ['expired-session'], 500)
   })
 
   it('closes duplicate placeholder runtimes through the delivery owner', async () => {

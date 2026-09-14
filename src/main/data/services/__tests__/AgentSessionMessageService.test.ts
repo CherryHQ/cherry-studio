@@ -250,6 +250,38 @@ describe('AgentSessionMessageService', () => {
       expect(() => send('deleted-target')).toThrowError(expect.objectContaining({ code: 'TARGET_AGENT_DELETED' }))
     })
 
+    it('rejects delivery from a trashed sender Session without writing to the target', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'trashed-sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0', deletedAt: 100 })
+      await seedSession({ id: 'target', agentId: 'agent-a', name: 'Target', orderKey: 'b1' })
+
+      expect(() =>
+        agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'trashed-sender',
+          receiverSessionId: 'target',
+          content: 'must not be accepted'
+        })
+      ).toThrowError(expect.objectContaining({ code: 'SENDER_FORBIDDEN' }))
+      expect(agentSessionMessageService.listSessionDeliveries('target')).toEqual([])
+    })
+
+    it('rejects delivery to a trashed target Session without writing a message', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'trashed-target', agentId: 'agent-a', name: 'Target', orderKey: 'b1', deletedAt: 100 })
+
+      expect(() =>
+        agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'sender',
+          receiverSessionId: 'trashed-target',
+          content: 'must not be accepted'
+        })
+      ).toThrowError(expect.objectContaining({ code: 'TARGET_SESSION_NOT_FOUND' }))
+      expect(agentSessionMessageService.listSessionDeliveries('trashed-target')).toEqual([])
+    })
+
     it('keeps accepted and delivering rows recoverable until terminal consumption', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
@@ -376,7 +408,7 @@ describe('AgentSessionMessageService', () => {
       ).toEqual([first!.id, request.id].sort())
     })
 
-    it('creates a failure result before deleting a target with an unfinished completion request', async () => {
+    it('terminalizes an unfinished completion request before moving its target Session to Trash', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedAgent('agent-b', 'Agent B')
       await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
@@ -402,6 +434,14 @@ describe('AgentSessionMessageService', () => {
           outcome: 'failed',
           error: { code: 'TARGET_SESSION_DELETED' }
         }
+      })
+      expect(agentSessionMessageService.listRecoverableSessionDeliveries('target')).toEqual([])
+
+      agentSessionService.restore('target')
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'failed',
+        outcome: 'interrupted',
+        error: { code: 'TARGET_SESSION_DELETED' }
       })
     })
 

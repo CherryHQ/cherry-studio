@@ -181,14 +181,20 @@ const TrashSettings: FC = () => {
   const handleEmptyTrash = async () => {
     setIsEmptying(true)
     try {
-      const { status, reclaimed } = await ipcApi.request('trash.purge_now')
+      const { status, reclaimed, deletedCount, retainedReferencedFileCount } = await ipcApi.request('trash.purge_now')
       await invalidate(PURGE_INVALIDATE_PATHS)
       if (status === 'completed') {
-        // The rows are gone either way, but the sweeps are batch-capped — do not
-        // promise the disk space back when reclamation has not finished.
         toast.success(
-          t(reclaimed ? 'settings.data.trash.empty_trash.success' : 'settings.data.trash.empty_trash.partial')
+          retainedReferencedFileCount > 0
+            ? t('settings.data.trash.empty_trash.retained', {
+                deleted: deletedCount,
+                count: retainedReferencedFileCount
+              })
+            : t(reclaimed ? 'settings.data.trash.empty_trash.success' : 'settings.data.trash.empty_trash.partial')
         )
+        if (retainedReferencedFileCount > 0 && !reclaimed) {
+          toast.info(t('settings.data.trash.empty_trash.partial'))
+        }
       } else {
         logger.error(`empty trash finished with non-completed status: ${status}`)
         toast.error(t('settings.data.trash.empty_trash.error'))

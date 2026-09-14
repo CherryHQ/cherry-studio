@@ -49,11 +49,21 @@ describe('trashHandlers', () => {
   })
 
   it('purge_now delegates to TrashService and returns the terminal status', async () => {
-    trashService.purgeNow.mockResolvedValue({ status: 'completed', reclaimed: true })
+    trashService.purgeNow.mockResolvedValue({
+      status: 'completed',
+      reclaimed: true,
+      deletedCount: 3,
+      retainedReferencedFileCount: 2
+    })
 
     const result = await trashHandlers['trash.purge_now'](undefined, ctx)
 
     expect(trashService.purgeNow).toHaveBeenCalledTimes(1)
-    expect(result).toEqual({ status: 'completed', reclaimed: true })
+    expect(result).toEqual({
+      status: 'completed',
+      reclaimed: true,
+      deletedCount: 3,
+      retainedReferencedFileCount: 2
+    })
   })
 })

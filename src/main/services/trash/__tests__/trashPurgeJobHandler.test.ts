@@ -30,7 +30,12 @@ const {
 } = vi.hoisted(() => ({
   agentJobsServiceMock: { reconcileAgentSchedules: vi.fn(async () => 0) },
   agentSessionDeliveryServiceMock: { purgeExpiredSessions: vi.fn() },
-  fileManagerMock: { runSweep: vi.fn(async () => ({ outcome: 'completed' })) },
+  fileManagerMock: {
+    runSweep: vi.fn(async () => ({
+      outcome: 'completed',
+      entryCleanup: { outcome: 'completed', candidates: 0, deleted: 0, hasPendingWork: false }
+    }))
+  },
   notifyDataApiDataChangeMock: vi.fn(),
   sweepAgentOrphansMock: vi.fn(async () => ({ removed: [], failedDrivers: [] }))
 }))
@@ -89,10 +94,14 @@ describe('trashPurgeJobHandler', () => {
     agentSessionDeliveryServiceMock.purgeExpiredSessions.mockClear()
     agentSessionDeliveryServiceMock.purgeExpiredSessions.mockImplementation(async (cutoffMs: number, limit: number) => {
       const ids = agentSessionService.listExpiredTrashIds(cutoffMs, limit)
-      return dbh.db.transaction((tx) => agentSessionService.purgeExpiredByIdsTx(tx, ids, cutoffMs))
+      const purgedIds = dbh.db.transaction((tx) => agentSessionService.purgeExpiredByIdsTx(tx, ids, cutoffMs))
+      return { purgedIds, hasMore: ids.length === limit }
     })
     fileManagerMock.runSweep.mockClear()
-    fileManagerMock.runSweep.mockImplementation(async () => ({ outcome: 'completed' }))
+    fileManagerMock.runSweep.mockImplementation(async () => ({
+      outcome: 'completed',
+      entryCleanup: { outcome: 'completed', candidates: 0, deleted: 0, hasPendingWork: false }
+    }))
     sweepAgentOrphansMock.mockClear()
     sweepAgentOrphansMock.mockImplementation(async () => ({ removed: [], failedDrivers: [] }))
     notifyDataApiDataChangeMock.mockClear()
@@ -277,7 +286,10 @@ describe('trashPurgeJobHandler', () => {
         .from(topicTable)
         .where(eq(topicTable.id, 'topic-expired'))
         .all().length
-      return { outcome: 'completed' }
+      return {
+        outcome: 'completed',
+        entryCleanup: { outcome: 'completed', candidates: 0, deleted: 0, hasPendingWork: false }
+      }
     })
 
     const ctx = makeCtx({})
@@ -291,6 +303,7 @@ describe('trashPurgeJobHandler', () => {
     expect(result).toEqual({
       skipped: false,
       reclaimed: true,
+      retainedReferencedFileCount: 0,
       purged: {
         topic: 1,
         session: 1,
@@ -411,6 +424,18 @@ describe('trashPurgeJobHandler', () => {
     }
   })
 
+  it('continues Session pagination when a full candidate page purges fewer rows', async () => {
+    const firstPage = Array.from({ length: 499 }, (_, index) => `session-first-${index}`)
+    agentSessionDeliveryServiceMock.purgeExpiredSessions
+      .mockResolvedValueOnce({ purgedIds: firstPage, hasMore: true })
+      .mockResolvedValueOnce({ purgedIds: ['session-tail'], hasMore: false })
+
+    const result = await trashPurgeJobHandler.execute(makeCtx({}))
+
+    expect(agentSessionDeliveryServiceMock.purgeExpiredSessions).toHaveBeenCalledTimes(2)
+    expect(result).toMatchObject({ purged: expect.objectContaining({ session: 500 }) })
+  })
+
   it('swallows post-commit disk-sweep failures (RFC §6: logged, never thrown)', async () => {
     await seedWorld()
     // Both post-commit reclamation sweeps blow up; the handler must still
@@ -458,5 +483,49 @@ describe('trashPurgeJobHandler', () => {
     expect(result).toMatchObject({ skipped: false, purged: expect.objectContaining({ topic: 1 }) })
     expect(allIds(dbh.db.select({ id: topicTable.id }).from(topicTable).all())).toEqual(['topic-active'])
     expect(fileManagerMock.runSweep).toHaveBeenCalledTimes(1)
+  })
+
+  it('emptyAll keeps referenced trashed files and reports how many remain', async () => {
+    const held = '019606a0-0000-7000-8000-00000000dd01'
+    const free = '019606a0-0000-7000-8000-00000000dd02'
+    await dbh.db.insert(topicTable).values({ id: 'topic-file-holder', name: 'holder', orderKey: 'a0' })
+    await dbh.db.insert(messageTable).values([
+      rootRow('topic-file-holder'),
+      {
+        id: 'message-file-holder',
+        parentId: 'vroot-topic-file-holder',
+        topicId: 'topic-file-holder',
+        role: 'user',
+        data: { parts: [] },
+        status: 'success'
+      }
+    ])
+    await seedFileEntry(held, OLD)
+    await seedFileEntry(free, OLD)
+    await dbh.db.insert(chatMessageFileRefTable).values({
+      id: 'cmfr-trash-held',
+      fileEntryId: held,
+      sourceId: 'message-file-holder',
+      role: 'attachment'
+    })
+
+    const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true }))
+
+    expect(result).toMatchObject({
+      purged: expect.objectContaining({ fileEntry: 1 }),
+      retainedReferencedFileCount: 1
+    })
+    expect(allIds(dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable).all())).toEqual([held])
+  })
+
+  it('does not report reclamation complete when entry cleanup still has pending work', async () => {
+    fileManagerMock.runSweep.mockImplementationOnce(async () => ({
+      outcome: 'completed',
+      entryCleanup: { outcome: 'completed', candidates: 100, deleted: 100, hasPendingWork: true }
+    }))
+
+    const result = await trashPurgeJobHandler.execute(makeCtx({ emptyAll: true }))
+
+    expect(result).toMatchObject({ reclaimed: false })
   })
 })

@@ -25,5 +25,5 @@ A deletion that moves only the selected Agent or Assistant to the Recycle Bin wh
 _Avoid_: Non-cascade deletion, owner-only cascade
 
 **Cascade deletion**:
-A single reversible deletion that moves an Agent or Assistant and its currently active Sessions or Topics to the Recycle Bin together. Restoring the parent restores exactly the still-trashed children moved by that deletion; children may be restored independently, and permanent deletion remains item-scoped.
+A single deletion action that moves an Agent or Assistant and its currently active Sessions or Topics to the Recycle Bin together. Recycle Bin Restore and permanent deletion are item-scoped. Only the immediate post-deletion Undo attempts to restore the exact parent and children moved by that action; children may also be restored independently.
 _Avoid_: Bulk deletion, recursive deletion
