@@ -9,11 +9,7 @@ import { closeSettings } from './settings'
 
 async function selectTranslationModel(page: Parameters<typeof selectSidebarApp>[0], model: string): Promise<void> {
   await selectSidebarApp(page, 'Translation')
-  await page
-    .locator(
-      '[data-ui="translate.view"] [data-selector-shell-root="true"]:has(+ button[aria-label="Translation History"]) > button'
-    )
-    .click()
+  await page.locator('[data-ui~="translate.view"] [data-selector-shell-root="true"] > button').click()
   await selectVisibleModel(page, model)
   const targetLanguage = page.getByRole('button', { name: /^Target Language\b/ })
   if (!(await targetLanguage.textContent())?.includes('Chinese')) {

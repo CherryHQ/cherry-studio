@@ -7,7 +7,7 @@ test(...caseDefinition('APP-01'), async ({ mainWindow: page }) => {
 
   await openLaunchpadApp(page, 'MiniApp')
   await expect(page.getByRole('button', { name: 'ChatGPT', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'ChatGPT', exact: true }).click()
+  await page.getByRole('main').getByRole('button', { name: 'ChatGPT', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Go Back', exact: true })).toBeVisible({ timeout: 30_000 })
   await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeVisible()
 

@@ -4,7 +4,7 @@ import { selectChatModel, sendChatMarker } from './chat'
 import { expect, test } from './fixture'
 import { CUSTOM_CHAT_PROVIDER, ensureCustomChatProvider } from './models'
 import { dismissOnboarding, selectSidebarApp } from './navigation'
-import { closeSettings } from './settings'
+import { closeSettings, openSettingsSection } from './settings'
 
 test(...caseDefinition('M-02'), async ({ app, mainWindow }) => {
   let page = mainWindow
@@ -22,7 +22,7 @@ test(...caseDefinition('M-02'), async ({ app, mainWindow }) => {
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
-  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await openSettingsSection(page, 'Model Provider')
   await expect(page.getByText(CUSTOM_CHAT_PROVIDER, { exact: true }).first()).toBeVisible()
 })
 

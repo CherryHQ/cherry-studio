@@ -18,6 +18,10 @@ test(...caseDefinition('M-01'), async ({ app, mainWindow: _mainWindow }) => {
   await ensureCherryInSignedIn(app, page)
   await addCherryInModel(page, app.config.cherryIn.chatModel)
   await closeSettings(page)
+  await selectSidebarApp(page, 'Chat')
+  const chatView = page.locator('[data-ui~="chat.view"]:visible')
+  await chatView.getByRole('listbox').getByRole('button', { name: 'Cherry Assistant', exact: true }).click()
+  await chatView.getByRole('button', { name: 'New Chat', exact: true }).last().click()
   await selectChatModel(page, app.config.cherryIn.chatModel)
   await sendChatMarker(page, 'Reply with exactly CHERRYIN_CHAT_PASS and nothing else.', 'CHERRYIN_CHAT_PASS', false)
 

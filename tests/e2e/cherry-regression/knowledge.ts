@@ -61,14 +61,14 @@ export async function ensureKnowledgeBase(app: RegressionApp, page: Page): Promi
   const navigation = page.locator('[data-ui="knowledge.navigation"]')
   const existingBase = navigation.getByText(name, { exact: true }).first()
   const selectedBase = page.locator('[data-ui="knowledge.content"]').getByText(name, { exact: true }).first()
-  const createBase = page.getByRole('button', { name: 'Create Knowledge Base', exact: true })
+  const createBase = page.getByRole('button', { name: /^(Create|New) Knowledge Base$/ })
   await expect(existingBase.or(selectedBase).or(createBase).first()).toBeVisible()
 
   if (!(await selectedBase.isVisible().catch(() => false))) {
     if (await existingBase.isVisible().catch(() => false)) {
       await existingBase.click()
     } else {
-      await page.getByRole('button', { name: 'Create Knowledge Base', exact: true }).click()
+      await createBase.click()
       const dialog = page.getByRole('dialog', { name: 'New Knowledge Base' })
       await page.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
       await page.getByRole('button', { name: 'Embedding Model', exact: true }).click()

@@ -23,7 +23,11 @@ export async function sendChatMarker(page: Page, prompt: string, marker: string,
     .locator(`[data-ui~="chat.message"][data-message-id]${excludePrevious}:visible`)
     .filter({ has: page.locator('.message-assistant') })
     .last()
-  await expect(response.getByText(marker, { exact })).toBeVisible({ timeout: 2 * 60_000 })
+  const answer = response
+    .getByText(marker, { exact })
+    .and(response.locator(':not([data-ui~="part:message-reasoning"] *)'))
+    .last()
+  await expect(answer).toBeVisible({ timeout: 2 * 60_000 })
   const id = await response.getAttribute('data-message-id')
   await expect
     .poll(
