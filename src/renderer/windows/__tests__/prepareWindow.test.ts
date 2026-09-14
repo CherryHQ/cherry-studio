@@ -33,10 +33,14 @@ describe('prepareWindow', () => {
     expect(initI18nMock).toHaveBeenCalledTimes(1)
   })
 
-  it('exposes the DataApi DevTools control surface synchronously in development', () => {
+  it('exposes the DataApi DevTools control surface during development bootstrap', async () => {
     const pending = prepareWindow({ preference: 'all' })
 
-    expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(import.meta.env.DEV ? 1 : 0)
+    if (import.meta.env.DEV) {
+      await vi.waitFor(() => expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(1))
+    } else {
+      expect(exposeControlSurfaceMock).not.toHaveBeenCalled()
+    }
     return pending
   })
 
