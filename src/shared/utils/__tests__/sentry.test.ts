@@ -37,6 +37,38 @@ describe('Sentry context', () => {
 })
 
 describe('Sentry event sanitization', () => {
+  it.each([
+    'https://alice:demo-password@example.com/api',
+    'https://alice@example.com/api',
+    'https://alice:p%40ss@example.com/api',
+    'https://alice:p@ss@example.com/api',
+    '//alice:demo-password@example.com/api',
+    'socks5://alice:demo-password@[::1]:1080/api'
+  ])('removes URL credentials embedded in error text: %s', (url) => {
+    const event = {
+      exception: { values: [{ type: 'Error', value: `Connection failed: ${url}` }] },
+      request: { url }
+    }
+
+    const sanitized = sanitizeSentryEvent(event)
+
+    for (const secret of ['alice', 'demo-password', 'p%40ss', 'p@ss']) {
+      expect(JSON.stringify(sanitized)).not.toContain(secret)
+    }
+    expect(sanitized.exception.values[0].value).toContain('Connection failed: ')
+    expect(sanitized.request.url).toContain('/api')
+    expect(event.request.url).toBe(url)
+  })
+
+  it('preserves diagnostic URLs and redacts multiple credential-bearing URLs in one message', () => {
+    const message =
+      'https://alice:demo-password@example.com/a → https://bob:other-password@example.org/b; https://example.net/@scope/pkg?email=dev@example.net'
+
+    expect(sanitizeSentryEvent({ message }).message).toBe(
+      'https://<redacted>@example.com/a → https://<redacted>@example.org/b; https://example.net/@scope/pkg?email=dev@example.net'
+    )
+  })
+
   it('redacts nested credentials without discarding diagnostic context or mutating the input', () => {
     const event = {
       message: 'request failed: Authorization: Bearer real-token',
