@@ -5,6 +5,11 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      linux_selection_arm64_smoke:
+        description: "Cross-package Linux arm64 Selection Assistant and load it on arm64"
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -427,6 +432,78 @@ jobs:
       - name: Scripts Test
         if: needs.changes.outputs.scripts == 'true' || needs.changes.outputs.provider-registry == 'true' || needs.changes.outputs.test-infra == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: pnpm test:scripts
+
+  linux-selection-arm64-package-smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.linux_selection_arm64_smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v7
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cross-package Linux arm64 deb
+        run: |
+          sudo apt-get install -y libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
+          pnpm build
+          pnpm exec electron-builder --linux deb --arm64 --publish never
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload arm64 deb for native smoke
+        uses: actions/upload-artifact@v7
+        with:
+          name: selection-arm64-package
+          path: dist/*-arm64.deb
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  linux-selection-arm64-runtime-smoke:
+    needs: linux-selection-arm64-package-smoke
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Download arm64 deb
+        uses: actions/download-artifact@v8
+        with:
+          name: selection-arm64-package
+
+      - name: Load selection-hook with packaged Electron
+        shell: bash
+        run: |
+          shopt -s nullglob
+          packages=(*-arm64.deb)
+          test "${#packages[@]}" -eq 1
+          test "$(dpkg-deb -f "${packages[0]}" Architecture)" = arm64
+          dpkg-deb -x "${packages[0]}" "$RUNNER_TEMP/cherry-deb"
+          mapfile -t app_asars < <(find "$RUNNER_TEMP/cherry-deb" -name app.asar -type f)
+          test "${#app_asars[@]}" -eq 1
+          resources="${app_asars[0]%/app.asar}"
+          electron="${resources%/resources}/CherryStudio"
+          prebuild="$resources/app.asar.unpacked/node_modules/selection-hook/prebuilds/linux-arm64/selection-hook.node"
+          test -x "$electron"
+          test -f "$prebuild"
+          file "$prebuild"
+          ELECTRON_RUN_AS_NODE=1 "$electron" -e '
+            const { createRequire } = require("node:module");
+            const appRequire = createRequire(process.argv[1]);
+            const SelectionHook = appRequire("selection-hook");
+            const loaded = Object.keys(require.cache).find((name) =>
+              name.endsWith("/prebuilds/linux-arm64/selection-hook.node"));
+            if (!loaded) throw new Error("Packaged Selection Assistant did not load the arm64 prebuild");
+            new SelectionHook();
+            process.stdout.write(`Loaded packaged Selection Assistant from ${loaded}\n`);
+          ' "$resources/app.asar/package.json"
 
   renderer-test-shard:
     name: renderer-test (${{ matrix.shard }}/5)
