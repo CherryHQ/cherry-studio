@@ -223,7 +223,7 @@ describe('assembleSystemPrompt', () => {
 
     await expect(
       assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model, skillFolderNames: ['gone'] })
-    ).rejects.toThrow('Skill "gone" cannot be read (SKILL.md not found)')
+    ).rejects.toThrow('Skill "gone" is no longer installed')
   })
 
   it('fails the turn when an attached skill SKILL.md exists but cannot be read', async () => {
@@ -231,7 +231,15 @@ describe('assembleSystemPrompt', () => {
 
     await expect(
       assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model, skillFolderNames: ['locked'] })
-    ).rejects.toThrow('Skill "locked" cannot be read (SKILL.md unreadable)')
+    ).rejects.toThrow('Skill "locked" could not be read')
+  })
+
+  it('fails the turn when an attached skill is globally disabled', async () => {
+    readSkillMdByFolderName.mockResolvedValue({ status: 'error', reason: 'disabled' })
+
+    await expect(
+      assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model, skillFolderNames: ['off'] })
+    ).rejects.toThrow('Skill "off" is disabled')
   })
 
   it('fails the turn when an attached skill SKILL.md exceeds the size limit', async () => {
@@ -239,7 +247,7 @@ describe('assembleSystemPrompt', () => {
 
     await expect(
       assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model, skillFolderNames: ['huge'] })
-    ).rejects.toThrow('Skill "huge" cannot be read (SKILL.md exceeds the')
+    ).rejects.toThrow('Skill "huge" exceeds the 2 MB limit')
   })
 
   it('fails the turn when the combined attached skills exceed the size limit', async () => {
@@ -249,7 +257,7 @@ describe('assembleSystemPrompt', () => {
 
     await expect(
       assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model, skillFolderNames: ['one', 'two'] })
-    ).rejects.toThrow('attached skills together exceed the')
+    ).rejects.toThrow('skills together exceed the')
   })
 
   it('escapes characters that would break the pseudo-XML skill wrapper', async () => {
