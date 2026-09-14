@@ -102,6 +102,10 @@ describe('findBareFilePathMatches', () => {
     ])
   })
 
+  it('does not emit an ambiguous prefix for unquoted Windows directories with multiple spaces', () => {
+    expect(paths(String.raw`Open C:\Users\lee\My Project Files\report.pdf`, 'windows')).toEqual([])
+  })
+
   it('rejects Windows reserved device names', () => {
     expect(paths(String.raw`Open C:\Users\CON.txt or C:\tmp\report.txt`, 'windows')).toEqual([
       String.raw`C:\tmp\report.txt`
@@ -168,6 +172,14 @@ describe('findBareFilePathMatches', () => {
 
     expect(paths(input, 'posix')).toEqual([])
     expect(performance.now() - startedAt).toBeLessThan(2_000)
+  })
+
+  it('scans punctuation-heavy paths without quadratic rescans', () => {
+    const input = `${'/tmp/'}${'a,'.repeat(64_000)}`
+    const startedAt = performance.now()
+
+    expect(paths(input, 'posix')).toEqual([input.slice(0, -1)])
+    expect(performance.now() - startedAt).toBeLessThan(1_000)
   })
 })
 

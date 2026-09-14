@@ -38,6 +38,7 @@ const QUOTE_PAIRS = new Map([
 const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '。', '，', '；', '：', '！', '？'])
 const SENTENCE_PUNCTUATION = new Set([...TRAILING_PUNCTUATION].filter((character) => character !== '.'))
 const WORD_CHARACTER_PATTERN = /[\p{L}\p{N}_]/u
+const EXTENSION_CHARACTER_PATTERN = /[\p{L}\p{N}_+-]/u
 const WINDOWS_RESERVED_NAME_PATTERN = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$/iu
 const HTTP_METHOD_CONTEXT_PATTERN = /(?:^|\s)(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT)\s*[:=]?\s*$/u
 const PATTERN_CONTEXT_PATTERN = /(?:^|\s)(?:regex|regexp|正则(?:表达式)?)\s*[:=]?\s*$/iu
@@ -70,9 +71,9 @@ function isUnquotedTerminator(character: string): boolean {
 
 function isLikelySentenceBoundary(
   value: string,
-  pathStart: number,
   index: number,
-  platform: BareFilePathPlatform
+  platform: BareFilePathPlatform,
+  hasClearExtension: boolean
 ): boolean {
   const character = value[index]
   if (!character || !SENTENCE_PUNCTUATION.has(character)) return false
@@ -82,11 +83,9 @@ function isLikelySentenceBoundary(
   // `/tmp/report,final.txt`) is part of the path. Once a complete filename
   // has already been seen, punctuation followed by prose is a sentence
   // boundary instead of another path character.
-  const prefix = value.slice(pathStart, index)
-  if (!hasClearFileExtension(prefix)) return false
-  const suffix = value.slice(index + 1)
-  if (!suffix) return true
-  const next = suffix[0]
+  if (!hasClearExtension) return false
+  const next = value[index + 1]
+  if (!next) return true
   return Boolean(next && WORD_CHARACTER_PATTERN.test(next) && next !== '/' && next !== '\\')
 }
 
@@ -186,6 +185,65 @@ function isValidPath(value: string, platform: BareFilePathPlatform, allowWhitesp
   return platform === 'windows' ? isValidWindowsPath(value) : isValidPosixPath(value)
 }
 
+interface FilenameState {
+  segmentStart: number
+  segmentStartsWithDot: boolean
+  lastDot: number
+  extensionHasCharacter: boolean
+  extensionCharactersValid: boolean
+}
+
+function createFilenameState(pathStart: number): FilenameState {
+  return {
+    segmentStart: pathStart,
+    segmentStartsWithDot: false,
+    lastDot: -1,
+    extensionHasCharacter: false,
+    extensionCharactersValid: true
+  }
+}
+
+function appendFilenameCharacter(state: FilenameState, value: string, index: number): void {
+  const codePoint = value.codePointAt(index)
+  if (codePoint === undefined) return
+  const codeUnit = value[index]
+  const previousCodeUnit = index > 0 ? value[index - 1] : undefined
+  if (codeUnit && previousCodeUnit && /[\uDC00-\uDFFF]/u.test(codeUnit) && /[\uD800-\uDBFF]/u.test(previousCodeUnit)) {
+    return
+  }
+  const character = String.fromCodePoint(codePoint)
+  if (character === '/' || character === '\\') {
+    state.segmentStart = index + 1
+    state.segmentStartsWithDot = false
+    state.lastDot = -1
+    state.extensionHasCharacter = false
+    state.extensionCharactersValid = true
+    return
+  }
+
+  if (index === state.segmentStart) state.segmentStartsWithDot = character === '.'
+  if (character === '.') {
+    state.lastDot = index
+    state.extensionHasCharacter = false
+    state.extensionCharactersValid = true
+    return
+  }
+
+  if (state.lastDot < 0 || state.lastDot === state.segmentStart) return
+  const isValidExtensionCharacter = EXTENSION_CHARACTER_PATTERN.test(character)
+  state.extensionCharactersValid = state.extensionCharactersValid && isValidExtensionCharacter
+  if (isValidExtensionCharacter) state.extensionHasCharacter = true
+}
+
+function hasClearFileExtensionFromState(state: FilenameState): boolean {
+  return (
+    !state.segmentStartsWithDot &&
+    state.lastDot > state.segmentStart &&
+    state.extensionHasCharacter &&
+    state.extensionCharactersValid
+  )
+}
+
 function startsPath(value: string, index: number, platform: BareFilePathPlatform): boolean {
   if (!isBoundary(value, index)) return false
 
@@ -251,9 +309,10 @@ function hasClearFileExtension(value: string): boolean {
   return /^[^.].*\.[\p{L}\p{N}][\p{L}\p{N}_+-]*$/u.test(finalSegment)
 }
 
-function hasFilenameLikeLeaf(value: string): boolean {
-  const finalSegment = value.split(/[\\/]/).at(-1) ?? ''
-  if (hasClearFileExtension(value)) return true
+function hasFilenameLikeLeaf(value: string, platform?: BareFilePathPlatform): boolean {
+  const normalizedValue = platform === 'windows' ? value.replace(/(?::\d+){1,2}$/u, '') : value
+  const finalSegment = normalizedValue.split(/[\\/]/).at(-1) ?? ''
+  if (hasClearFileExtension(normalizedValue)) return true
 
   // A dotfile is already a complete filename. Treating it as a directory
   // makes the whitespace heuristic incorrectly join the next prose token
@@ -289,31 +348,39 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
 
     if (!startsPath(value, index, platform)) continue
 
+    const filenameState = createFilenameState(index)
     let end = index
     while (
       end < value.length &&
       !isUnquotedTerminator(value[end]) &&
-      !isLikelySentenceBoundary(value, index, end, platform)
-    )
+      !isLikelySentenceBoundary(value, end, platform, hasClearFileExtensionFromState(filenameState))
+    ) {
+      appendFilenameCharacter(filenameState, value, end)
       end += 1
+    }
     let candidate = trimUnmatchedClosingBrackets(value.slice(index, end))
     let continuedAcrossWhitespace = false
     while (
       (platform === 'posix' || platform === 'windows') &&
-      !hasFilenameLikeLeaf(candidate) &&
+      !hasFilenameLikeLeaf(candidate, platform) &&
       (platform === 'posix'
         ? looksLikeUnquotedPathContinuation(value, end)
         : looksLikeUnquotedWindowsPathContinuation(value, end))
     ) {
       let nextStart = end
-      while (value[nextStart] === ' ' || value[nextStart] === '\t') nextStart += 1
+      while (value[nextStart] === ' ' || value[nextStart] === '\t') {
+        appendFilenameCharacter(filenameState, value, nextStart)
+        nextStart += 1
+      }
       let nextEnd = nextStart
       while (
         nextEnd < value.length &&
         !isUnquotedTerminator(value[nextEnd]) &&
-        !isLikelySentenceBoundary(value, nextStart, nextEnd, platform)
-      )
+        !isLikelySentenceBoundary(value, nextEnd, platform, hasClearFileExtensionFromState(filenameState))
+      ) {
+        appendFilenameCharacter(filenameState, value, nextEnd)
         nextEnd += 1
+      }
       end = nextEnd
       candidate = trimUnmatchedClosingBrackets(value.slice(index, end))
       continuedAcrossWhitespace = true
@@ -324,8 +391,9 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
       continue
     }
     const hasAmbiguousWhitespaceBoundary =
-      platform === 'posix' &&
-      !hasFilenameLikeLeaf(candidate) &&
+      (platform === 'posix' || platform === 'windows') &&
+      !hasFilenameLikeLeaf(candidate, platform) &&
+      !isKnownNavigationPath(candidate) &&
       !continuedAcrossWhitespace &&
       scannedEnd === index + candidate.length &&
       /[ \t]/u.test(value[scannedEnd] ?? '')
