@@ -284,7 +284,8 @@ describe('remarkLatexMath', () => {
   it.each([
     ['LF', '$$x$$\n\nText with $$y$$'],
     ['CRLF', '$$x$$\r\n\r\nText with $$y$$'],
-    ['trailing spaces', '$$x$$  \n\nText with $$y$$']
+    ['trailing spaces', '$$x$$  \n\nText with $$y$$'],
+    ['trailing tab', '$$x$$\t\n\nText with $$y$$']
   ])('leaves a first-line closing fence to the existing parser (%s)', (_label, source) => {
     const tree = parse(source)
 
@@ -300,6 +301,29 @@ describe('remarkLatexMath', () => {
         { type: 'inlineMath', value: 'y' }
       ]
     })
+  })
+
+  it('preserves text and headings after math closed on its opening line', () => {
+    const source = '$$x=1$$，这是说明文字。\n\n## Next section\n\nText with $$y=2$$'
+    const tree = parse(source)
+
+    expect(tree.children).toMatchObject([
+      {
+        type: 'paragraph',
+        children: [
+          { type: 'inlineMath', value: 'x=1' },
+          { type: 'text', value: '，这是说明文字。' }
+        ]
+      },
+      { type: 'heading', depth: 2, children: [{ type: 'text', value: 'Next section' }] },
+      {
+        type: 'paragraph',
+        children: [
+          { type: 'text', value: 'Text with ' },
+          { type: 'inlineMath', value: 'y=2' }
+        ]
+      }
+    ])
   })
 
   it('preserves a leading tag in existing multiline display math', () => {

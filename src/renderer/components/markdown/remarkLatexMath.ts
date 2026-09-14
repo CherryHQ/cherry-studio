@@ -361,17 +361,7 @@ const latexMultilineDollarMath: Construct = {
         effects.consume(code)
         return firstLineClosingFence
       }
-      if (closingSize !== fenceSize) return firstLine(code)
-      return firstLineClosingTail(code)
-    }
-
-    function firstLineClosingTail(code: number | null): State | undefined {
-      if (code === SPACE || code === 9) {
-        effects.consume(code)
-        return firstLineClosingTail
-      }
-      if (code === null || code <= -3) return nok(code)
-      return firstLine(code)
+      return closingSize === fenceSize ? nok(code) : firstLine(code)
     }
 
     function contentStart(code: number | null): State | undefined {
