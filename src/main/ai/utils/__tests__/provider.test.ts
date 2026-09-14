@@ -163,7 +163,7 @@ describe('getExtraHeaders', () => {
       settings: { extraHeaders: { 'X-Custom': 'keep' } }
     })
 
-    expect(getExtraHeaders(provider)).toEqual({
+    expect(getExtraHeaders(provider, getBaseUrl(provider))).toEqual({
       'X-Custom': 'keep',
       'X-AIMLAPI-Source': 'agent/cherry-studio',
       'X-AIMLAPI-Partner-ID': 'part_coOdPvy7ZV7C44WAnKIfhnw8'
@@ -177,7 +177,7 @@ describe('getExtraHeaders', () => {
       endpointConfigs: aimlapiEndpoints
     })
 
-    expect(getExtraHeaders(provider)).toEqual({
+    expect(getExtraHeaders(provider, getBaseUrl(provider))).toEqual({
       'X-AIMLAPI-Source': 'agent/cherry-studio',
       'X-AIMLAPI-Partner-ID': 'part_coOdPvy7ZV7C44WAnKIfhnw8'
     })
@@ -194,7 +194,32 @@ describe('getExtraHeaders', () => {
       settings: { extraHeaders: { 'X-Custom': 'keep' } }
     })
 
-    expect(getExtraHeaders(provider)).toEqual({ 'X-Custom': 'keep' })
+    expect(getExtraHeaders(provider, getBaseUrl(provider))).toEqual({ 'X-Custom': 'keep' })
+  })
+
+  it('does not add the AIMLAPI headers when the selected endpoint routes elsewhere while the default is AI/ML API', () => {
+    const provider = makeProvider({
+      id: 'aimlapi',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.aimlapi.com/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.example/anthropic' }
+      }
+    })
+
+    // The default endpoint alone would qualify…
+    expect(getExtraHeaders(provider, getBaseUrl(provider))).toEqual({
+      'X-AIMLAPI-Source': 'agent/cherry-studio',
+      'X-AIMLAPI-Partner-ID': 'part_coOdPvy7ZV7C44WAnKIfhnw8'
+    })
+    // …but the request actually selected the Anthropic endpoint, which leaves for another host.
+    expect(getExtraHeaders(provider, getBaseUrl(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES))).toEqual({})
+  })
+
+  it('does not add the AIMLAPI headers when no destination is given for the request', () => {
+    const provider = makeProvider({ id: 'aimlapi', endpointConfigs: aimlapiEndpoints })
+
+    expect(getExtraHeaders(provider)).toEqual({})
   })
 
   it('does not treat a look-alike host as AI/ML API', () => {
@@ -206,13 +231,13 @@ describe('getExtraHeaders', () => {
       }
     })
 
-    expect(getExtraHeaders(provider)).toEqual({})
+    expect(getExtraHeaders(provider, getBaseUrl(provider))).toEqual({})
   })
 
   it('does not add the AIMLAPI headers when the provider has no endpoint configured', () => {
     const provider = makeProvider({ id: 'aimlapi' })
 
-    expect(getExtraHeaders(provider)).toEqual({})
+    expect(getExtraHeaders(provider, getBaseUrl(provider))).toEqual({})
   })
 
   it('does not add the AIMLAPI source to other providers', () => {
@@ -234,7 +259,7 @@ describe('getExtraHeaders', () => {
       }
     })
 
-    expect(getExtraHeaders(provider)).toEqual({
+    expect(getExtraHeaders(provider, getBaseUrl(provider))).toEqual({
       'X-Custom': 'keep',
       'X-AIMLAPI-Source': 'agent/cherry-studio',
       'X-AIMLAPI-Partner-ID': 'part_coOdPvy7ZV7C44WAnKIfhnw8'

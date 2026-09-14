@@ -49,24 +49,31 @@ export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType 
 const AIMLAPI_HOST = 'api.aimlapi.com'
 
 /**
- * True only when requests actually leave for AI/ML API. A provider copied from
- * the preset keeps `presetProviderId` after the user points it at another host,
- * and the partner headers must not follow it there.
+ * True only when this request actually leaves for AI/ML API. A provider copied
+ * from the preset keeps `presetProviderId` after the user points it at another
+ * host, and a provider can route one endpoint type elsewhere while its default
+ * still targets AI/ML API — so the check is made against the base URL the
+ * caller resolved for the current request, never the provider default.
  */
-function isAimlapiDestination(provider: Provider): boolean {
-  if (!matchesPreset(provider, SystemProviderIds.aimlapi)) return false
+function isAimlapiDestination(provider: Provider, destinationBaseUrl: string | undefined): boolean {
+  if (!destinationBaseUrl || !matchesPreset(provider, SystemProviderIds.aimlapi)) return false
   try {
-    return new URL(getBaseUrl(provider)).hostname === AIMLAPI_HOST
+    return new URL(destinationBaseUrl).hostname === AIMLAPI_HOST
   } catch {
     return false
   }
 }
 
-export function getExtraHeaders(provider: Provider): Record<string, string> {
+/**
+ * @param destinationBaseUrl The base URL the current request will be sent to.
+ * Destination-gated headers (AI/ML API attribution) are only added when it is
+ * given and resolves to that provider's host.
+ */
+export function getExtraHeaders(provider: Provider, destinationBaseUrl?: string): Record<string, string> {
   const headers = { ...provider.settings?.extraHeaders }
   const isTokenDance = matchesPreset(provider, SystemProviderIds.tokendance)
   const isRadeonCloud = matchesPreset(provider, SystemProviderIds['radeon-cloud'])
-  const isAimlapi = isAimlapiDestination(provider)
+  const isAimlapi = isAimlapiDestination(provider, destinationBaseUrl)
 
   for (const name of Object.keys(headers)) {
     const normalizedName = name.toLowerCase()
@@ -103,12 +110,13 @@ export function getProviderAppHeaders(provider: Provider): Record<string, string
   return isCanonicalProvider ? defaultAppHeaders() : {}
 }
 
+/** Headers for calls made to the provider's default base URL (model listing). */
 export function defaultHeaders(provider: Provider): Record<string, string> {
   const apiKey = providerService.getRotatedApiKey(provider.id)
   return mergeHeaders(
     getProviderAppHeaders(provider),
     apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : undefined,
-    getExtraHeaders(provider)
+    getExtraHeaders(provider, getBaseUrl(provider))
   )
 }
 
