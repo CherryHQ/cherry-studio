@@ -1,6 +1,10 @@
+import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert, X } from 'lucide-react'
+import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, NormalTooltip, Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
@@ -10,9 +14,6 @@ import { cn } from '@renderer/utils/style'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
-import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert, X } from 'lucide-react'
-import React, { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   COMPOSER_BELOW_SELECTOR_BUTTON_CLASS,
@@ -50,7 +51,8 @@ export interface AgentConversationControlsProps {
   onAgentChange: (agentId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
-  modelFilter?: (model: Model) => boolean
+  modelFilter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
   onAgentDialogCloseAutoFocus?: () => void
 }
 
@@ -154,10 +156,18 @@ function ModelControl({
   side,
   iconOnly = false,
   onModelSelect,
-  modelFilter
+  modelFilter,
+  isModelDisabled
 }: Pick<
   AgentConversationControlsProps,
-  'model' | 'selectModelLabel' | 'canChangeModel' | 'side' | 'iconOnly' | 'onModelSelect' | 'modelFilter'
+  | 'model'
+  | 'selectModelLabel'
+  | 'canChangeModel'
+  | 'side'
+  | 'iconOnly'
+  | 'onModelSelect'
+  | 'modelFilter'
+  | 'isModelDisabled'
 >) {
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
@@ -184,13 +194,14 @@ function ModelControl({
       <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && model && 'hidden')} />
     </Button>
   )
-
   return (
     <ModelSelector
       multiple={false}
+      includeAgentOnlyModels
       value={model}
       onSelect={onModelSelect}
       filter={modelFilter}
+      isModelDisabled={isModelDisabled}
       shortcut={canChangeModel ? 'chat.model.select' : undefined}
       side={side}
       align="start"

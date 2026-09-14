@@ -1,8 +1,9 @@
-import { ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { beforeAll, describe, expect, it } from 'vitest'
+
+import { ErrorCode } from '@shared/data/api/errors'
 
 import {
   applyMoves,

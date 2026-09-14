@@ -1,9 +1,9 @@
 import '@testing-library/jest-dom/vitest'
-
-import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
 const toastErrorMock = vi.fn()
 const defaultUsePreferenceImplementation = mockUsePreference.getMockImplementation()

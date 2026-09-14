@@ -178,14 +178,21 @@ export async function copyFileIntoKnowledgeBaseAt(
   return relativePath
 }
 
-/** Write in-memory content (e.g. a captured URL snapshot) to a base-relative file. */
+/**
+ * Write in-memory content (e.g. a captured URL snapshot) to a base-relative file. `overwrite` is for
+ * re-acquisition, which rewrites an item's own already-pinned snapshot in place; `write` commits via
+ * tmp+rename, so the replacement is atomic.
+ */
 export async function writeFileIntoKnowledgeBaseAt(
   baseId: string,
   relativePath: PosixRelativeFilePath,
-  content: string
+  content: string,
+  options: { overwrite?: boolean } = {}
 ): Promise<PosixRelativeFilePath> {
   const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
-  await assertTargetAvailable(destPath)
+  if (!options.overwrite) {
+    await assertTargetAvailable(destPath)
+  }
   await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(destPath)))
   await write(destPath, content)
   return relativePath

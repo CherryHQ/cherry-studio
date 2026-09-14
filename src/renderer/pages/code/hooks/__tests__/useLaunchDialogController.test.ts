@@ -1,8 +1,9 @@
+import { act, renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   availableTerminals: [] as { id: string; name: string }[],
@@ -418,9 +419,9 @@ describe('useLaunchDialogController', () => {
     const gatewayModelsById = new Map<UniqueModelId, Model>([[managedModel.id, managedModel]])
 
     function renderGatewayLaunch(
-      getApiKey: ReturnType<typeof vi.fn>,
+      getApiKey: ReturnType<typeof vi.fn<(...args: any[]) => any>>,
       availableModels: Map<UniqueModelId, Model> = gatewayModelsById,
-      ensureRunning: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(undefined),
+      ensureRunning: ReturnType<typeof vi.fn<(...args: any[]) => any>> = vi.fn().mockResolvedValue(undefined),
       selectedCliTool: CodeCli = CodeCli.CLAUDE_CODE
     ) {
       const upsertProviderConfig = vi.fn().mockResolvedValue(CLI_API_GATEWAY_PROVIDER_ID)

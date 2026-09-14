@@ -1,8 +1,9 @@
-import { TopicType } from '@renderer/types/topic'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { TopicType } from '@renderer/types/topic'
 
 const mocks = vi.hoisted(() => ({
   launchers: [] as any[],

@@ -36,6 +36,9 @@ describe('buildPathRegistry', () => {
 
     expect(registry['app.database.file']).toBe(path.join(dataRoot, 'cherrystudio.sqlite'))
     expect(registry['feature.backup.restore.file']).toBe(path.join(dataRoot, 'restore-journal.json'))
+    expect(registry['feature.cherry_account.credentials_file']).toBe(
+      path.join('/mock/userData', 'Credentials', 'cherry-account.json')
+    )
   })
 
   it('keeps the Claude config under the Agents data directory', () => {
@@ -53,6 +56,13 @@ describe('buildPathRegistry', () => {
       path.join(registry['app.root.resources'], 'code-cli-skills')
     )
     expect(shouldAutoEnsure('feature.code_cli.skills.builtin')).toBe(false)
+  })
+
+  it('keeps utility-process entry bundles read-only under the app root', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['app.utility_process']).toBe(path.join('/mock/app', 'out', 'utility-process'))
+    expect(shouldAutoEnsure('app.utility_process')).toBe(false)
   })
 
   it('keeps pi runtime state under the Agents data directory', () => {

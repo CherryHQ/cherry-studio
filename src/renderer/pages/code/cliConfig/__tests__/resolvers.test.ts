@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
-import { describe, expect, it } from 'vitest'
 
 import { resolveGeminiBaseUrl, resolveHermesProviderInfo, resolvePiProviderInfo } from '../resolvers'
 

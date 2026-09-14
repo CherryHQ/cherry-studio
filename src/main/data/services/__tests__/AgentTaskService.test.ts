@@ -4,8 +4,9 @@
  * covered by its integration suite.
  */
 
-import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -58,6 +59,20 @@ function makeSnapshot(overrides: Partial<JobScheduleSnapshot> = {}): JobSchedule
   }
 }
 
+/**
+ * What the v1→v2 migration actually writes for an agent heartbeat: the reserved
+ * prompt survives verbatim, the `heartbeat` name does not — `job_schedule` is
+ * UNIQUE on (type, name), so every agent past the first is renamed `task_<v1Id>`.
+ */
+function makeHeartbeatSnapshot(overrides: Partial<JobScheduleSnapshot> = {}): JobScheduleSnapshot {
+  return makeSnapshot({
+    name: 'task_v1-7',
+    jobInputTemplate: { agentId: AGENT_ID, prompt: '__heartbeat__', timeoutMinutes: 2, workspace: taskWorkspace },
+    metadata: { migratedFrom: 'v1.agentTask', v1Id: 'v1-7' },
+    ...overrides
+  })
+}
+
 function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
   return {
     id: 'job-1',
@@ -73,11 +88,12 @@ function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
     attempt: 0,
     maxAttempts: 1,
     input: {},
-    output: { sessionId: 'sess-1', result: 'ok' },
+    output: { result: 'ok' },
     error: null,
     parentId: null,
     cancelRequested: false,
-    metadata: {},
+    cancelRequestedAt: null,
+    metadata: { sessionId: 'sess-1' },
     timeoutMs: null,
     createdAt: '2026-05-20T00:00:00.000Z',
     updatedAt: '2026-05-20T00:00:05.000Z',
@@ -212,7 +228,7 @@ describe('AgentTaskService (read side)', () => {
           name: 'b',
           jobInputTemplate: { agentId: 'other', prompt: 'x', timeoutMinutes: 2, workspace: taskWorkspace }
         }),
-        makeSnapshot({ id: 's3', name: 'heartbeat' })
+        makeHeartbeatSnapshot({ id: 's3' })
       ])
 
       const result = agentTaskService.listTasks(AGENT_ID)
@@ -223,10 +239,18 @@ describe('AgentTaskService (read side)', () => {
       expect(result.tasks[0]).not.toHaveProperty('runSummary')
     })
 
+    it('lists a user task that merely happens to be named heartbeat', () => {
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([makeSnapshot({ id: 's1', name: 'heartbeat' })])
+
+      const result = agentTaskService.listTasks(AGENT_ID)
+
+      expect(result.tasks.map((t) => t.id)).toEqual(['s1'])
+    })
+
     it('returns heartbeat tasks when includeHeartbeat=true', () => {
       vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([
         makeSnapshot({ id: 's1', name: 'a' }),
-        makeSnapshot({ id: 's3', name: 'heartbeat' })
+        makeHeartbeatSnapshot({ id: 's3' })
       ])
 
       const result = agentTaskService.listTasks(AGENT_ID, { includeHeartbeat: true })
@@ -244,7 +268,7 @@ describe('AgentTaskService (read side)', () => {
           createdAt: '2026-05-22T00:00:00.000Z',
           jobInputTemplate: { agentId: 'other', prompt: 'x', timeoutMinutes: 2, workspace: taskWorkspace }
         }),
-        makeSnapshot({ id: 'heartbeat', name: 'heartbeat', createdAt: '2026-05-23T00:00:00.000Z' })
+        makeHeartbeatSnapshot({ id: 'heartbeat', createdAt: '2026-05-23T00:00:00.000Z' })
       ])
 
       const result = agentTaskService.listAllTasks({ limit: 1, offset: 0 })
@@ -314,6 +338,120 @@ describe('AgentTaskService (read side)', () => {
       expect(result.logs[0]).not.toHaveProperty('taskId')
       expect(result.logs[0]).not.toHaveProperty('runAt')
       expect(result.logs[0]).toHaveProperty('startedAt')
+    })
+
+    it('preserves pre-metadata session links while preferring the current metadata link', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({ id: 'old', metadata: {}, output: { result: 'ok', sessionId: 'old-session' } }),
+        makeJobSnapshot({
+          id: 'rebound',
+          metadata: { sessionId: 'replacement-session' },
+          output: { result: 'ok', sessionId: 'old-session' }
+        })
+      ])
+
+      expect(agentTaskService.getTaskLogs(TASK_ID).logs).toEqual([
+        expect.objectContaining({ id: 'old', sessionId: 'old-session', result: 'ok' }),
+        expect.objectContaining({ id: 'rebound', sessionId: 'replacement-session', result: 'ok' })
+      ])
+    })
+
+    it('links a failed run to its session from metadata when no output was persisted', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({
+          id: 'j1',
+          status: 'failed',
+          output: null,
+          error: { code: 'X', message: 'boom', retryable: false },
+          metadata: { sessionId: 'sess-meta' }
+        })
+      ])
+
+      const result = agentTaskService.getTaskLogs(TASK_ID)
+
+      expect(result.logs).toEqual([expect.objectContaining({ id: 'j1', status: 'failed', sessionId: 'sess-meta' })])
+    })
+
+    it('links a run that never reached the session step to no session', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({ id: 'j1', status: 'cancelled', output: null, metadata: {} })
+      ])
+
+      const result = agentTaskService.getTaskLogs(TASK_ID)
+
+      expect(result.logs).toEqual([expect.objectContaining({ id: 'j1', status: 'cancelled', sessionId: null })])
+    })
+
+    it('returns a null duration while a run is still in flight', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({ id: 'j1', status: 'running', startedAt: '2026-05-20T00:00:01.000Z', finishedAt: null })
+      ])
+
+      const result = agentTaskService.getTaskLogs(TASK_ID)
+
+      expect(result.logs).toEqual([expect.objectContaining({ id: 'j1', status: 'running', durationMs: null })])
+    })
+
+    it('shows cancel-requested unfinished runs as cancelled, timed by cancelRequestedAt', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({
+          id: 'j1',
+          status: 'running',
+          startedAt: '2026-05-20T00:00:01.000Z',
+          finishedAt: null,
+          cancelRequested: true,
+          cancelRequestedAt: '2026-05-20T00:00:11.000Z',
+          updatedAt: '2026-05-20T00:00:12.500Z'
+        }),
+        // Never started — no duration; queue-wait time must not show as one.
+        makeJobSnapshot({
+          id: 'j2',
+          status: 'pending',
+          startedAt: null,
+          finishedAt: null,
+          cancelRequested: true,
+          cancelRequestedAt: '2026-05-20T00:00:03.000Z'
+        }),
+        makeJobSnapshot({ id: 'j3', status: 'completed', cancelRequested: true })
+      ])
+
+      const result = agentTaskService.getTaskLogs(TASK_ID)
+
+      expect(result.logs).toEqual([
+        expect.objectContaining({ id: 'j1', status: 'cancelled', durationMs: 10_000 }),
+        expect.objectContaining({ id: 'j2', status: 'cancelled', durationMs: null }),
+        expect.objectContaining({ id: 'j3', status: 'completed', durationMs: 4_000 })
+      ])
+    })
+
+    it('times a recovery-settled cancelled run by cancelRequestedAt, not the late finishedAt', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({
+          id: 'j1',
+          status: 'cancelled',
+          startedAt: '2026-05-20T00:00:01.000Z',
+          cancelRequested: true,
+          cancelRequestedAt: '2026-05-20T00:00:09.000Z',
+          // Startup recovery stamped the terminal transition a day later.
+          finishedAt: '2026-05-21T00:00:00.000Z'
+        }),
+        // Cancelled before it ever started — no duration.
+        makeJobSnapshot({
+          id: 'j2',
+          status: 'cancelled',
+          startedAt: null,
+          cancelRequested: true,
+          cancelRequestedAt: '2026-05-20T00:00:03.000Z',
+          finishedAt: '2026-05-20T00:00:03.000Z'
+        })
+      ])
+
+      const result = agentTaskService.getTaskLogs(TASK_ID)
+
+      expect(result.logs).toEqual([
+        expect.objectContaining({ id: 'j1', status: 'cancelled', durationMs: 8_000 }),
+        expect.objectContaining({ id: 'j2', status: 'cancelled', durationMs: null })
+      ])
     })
   })
 

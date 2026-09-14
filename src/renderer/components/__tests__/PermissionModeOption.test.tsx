@@ -1,9 +1,10 @@
-import { Form, FormField, FormItem } from '@cherrystudio/ui'
-import type { PermissionMode } from '@renderer/types/agent'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { TFunction } from 'i18next'
 import { useForm } from 'react-hook-form'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+
+import { Form, FormField, FormItem } from '@cherrystudio/ui'
+import type { PermissionMode } from '@renderer/types/agent'
 
 import * as PermissionModeComponents from '../PermissionModeOption'
 import { QuickPanelRow } from '../QuickPanel/list'
@@ -40,7 +41,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as unknown as typeof ResizeObserver
+  }
 
   if (!HTMLElement.prototype.hasPointerCapture) HTMLElement.prototype.hasPointerCapture = () => false
   if (!HTMLElement.prototype.releasePointerCapture) HTMLElement.prototype.releasePointerCapture = () => {}
@@ -178,21 +179,21 @@ describe('PermissionModeWarning', () => {
     expect(screen.getByRole('button', { name: /Needs a model that supports it\./ })).toBeInTheDocument()
   })
 
-  it('anchors the active QuickPanel warning Tooltip to its icon', async () => {
-    render(
-      <QuickPanelRow
-        active
-        item={{
-          id: 'permission-mode-auto',
-          label: 'Approve for Me',
-          description: 'Runs without routine prompts.',
-          icon: '!',
-          tooltip: 'Needs a model that supports it.',
-          tooltipAnchor: <PermissionModeWarning card={withWarning} showTooltip={false} t={t} />
-        }}
-        onSelect={vi.fn()}
-      />
-    )
+  it('anchors the keyboard-active QuickPanel warning Tooltip to its icon', async () => {
+    const item = {
+      id: 'permission-mode-auto',
+      label: 'Approve for Me',
+      description: 'Runs without routine prompts.',
+      icon: '!',
+      tooltip: 'Needs a model that supports it.',
+      tooltipAnchor: <PermissionModeWarning card={withWarning} showTooltip={false} t={t} />
+    }
+    const { rerender } = render(<QuickPanelRow active item={item} onSelect={vi.fn()} />)
+
+    // Programmatic focus (e.g. the panel opens on the current value) does not surface the tooltip.
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+    rerender(<QuickPanelRow active keyboardActive item={item} onSelect={vi.fn()} />)
 
     const tooltip = await screen.findByRole('tooltip')
     const icon = screen.getByLabelText('Needs a model that supports it.')

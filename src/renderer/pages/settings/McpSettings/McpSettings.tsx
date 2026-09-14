@@ -1,7 +1,13 @@
-import { Alert, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
+import { getRouteApi, useNavigate, useParams } from '@tanstack/react-router'
+import { ArrowLeft, SaveIcon } from 'lucide-react'
+import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
+import { Alert, Button, Flex, Form, SegmentedControl, Switch, Tabs, TabsContent } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -14,6 +20,7 @@ import { ipcApi } from '@renderer/ipc'
 import McpDescription from '@renderer/pages/settings/McpSettings/McpDescription'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { AppRouter } from '@renderer/types/router'
 import type { McpTool } from '@renderer/types/tool'
 import { formatMcpError } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
@@ -21,11 +28,6 @@ import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
 import { isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
-import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { ArrowLeft, SaveIcon } from 'lucide-react'
-import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import McpLogsTab from './McpLogsTab'
 import McpPromptsSection from './McpPrompt'
@@ -49,6 +51,7 @@ import { useMcpServerTrust } from './useMcpServerTrust'
 import { toUpdateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpSettings')
+const mcpSettingsRouteApi = getRouteApi('/settings/mcp/settings/$serverId')
 
 type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources'
 type McpTabItem = {
@@ -57,7 +60,6 @@ type McpTabItem = {
   children: React.ReactNode
 }
 type McpToolsCacheKey = `mcp.tools.${string}`
-type McpSettingsSearch = { autoEnable?: 'true' }
 
 const mcpToolsCacheKey = (serverId: string): McpToolsCacheKey => `mcp.tools.${serverId}`
 
@@ -71,7 +73,7 @@ interface McpSettingsContentProps {
 
 const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateMcpServer }) => {
   const { t } = useTranslation()
-  const search = useSearch({ strict: false }) as McpSettingsSearch
+  const search = mcpSettingsRouteApi.useSearch<AppRouter>()
   const serverId = server.id
   const [initialFormValues] = useState(() => toMcpFormDefaultValues(server))
 

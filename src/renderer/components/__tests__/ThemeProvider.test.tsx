@@ -1,8 +1,9 @@
-import { useTheme } from '@renderer/hooks/useTheme'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useTheme } from '@renderer/hooks/useTheme'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 import { ThemeProvider } from '../ThemeProvider'
 

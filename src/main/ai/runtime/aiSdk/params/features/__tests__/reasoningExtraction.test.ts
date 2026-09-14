@@ -1,8 +1,9 @@
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { LanguageModelMiddleware } from 'ai'
 import { wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { createOllamaWithImageModel } from '../../../../../provider/custom/ollama/ollamaProvider'
 import { reasoningExtractionFeature } from '../reasoningExtraction'
@@ -54,7 +55,7 @@ async function streamOllama(chunks: string[]): Promise<LanguageModelV3StreamPart
   )
   const middlewares = await getOllamaReasoningMiddleware()
   const model = middlewares.length > 0 ? wrapLanguageModel({ model: baseModel, middleware: middlewares }) : baseModel
-  const result = await model.doStream({ prompt: PROMPT } as LanguageModelV3CallOptions)
+  const result = await model.doStream({ prompt: PROMPT })
 
   const parts: LanguageModelV3StreamPart[] = []
   for await (const part of result.stream) parts.push(part)
