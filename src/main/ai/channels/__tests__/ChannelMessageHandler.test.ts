@@ -403,7 +403,7 @@ describe('ChannelMessageHandler', () => {
     }
   })
 
-  it('attaches inbound images and files as file parts so the UI renders them and the model sees them', async () => {
+  it('attaches inbound images as file parts and ordinary files as workspace paths', async () => {
     const adapter = createMockAdapter()
     const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-attachments-'))
     const session = {
@@ -435,16 +435,63 @@ describe('ChannelMessageHandler', () => {
       })
 
       const { userParts } = mockStartAgentSessionRun.mock.calls[0][0]
-      expect(userParts).toHaveLength(3)
-      const [textPart, imagePart, filePart] = userParts
-      // The caption is the whole text: runtimes derive attachment paths from the parts themselves.
-      expect(textPart).toEqual({ type: 'text', text: 'what is this' })
+      expect(userParts).toHaveLength(2)
+      const [textPart, imagePart] = userParts
       expect(imagePart).toMatchObject({ type: 'file', mediaType: 'image/jpeg' })
       expect(imagePart.url).toMatch(/^file:\/\/.*\/\.cherry-studio\/channel-images\/[^/]+\.jpg$/)
-      expect(filePart).toMatchObject({ type: 'file', mediaType: 'application/pdf', filename: 'report.pdf' })
-      expect(filePart.url).toMatch(/^file:\/\/.*\/\.cherry-studio\/channel-files\/[^/]+report\.pdf$/)
-      // The parts point at the bytes actually written, so a runtime can materialize them.
+      // The part points at the bytes actually written, so a runtime can materialize them.
       expect(await readFile(fileURLToPath(imagePart.url))).toEqual(Buffer.from('jpeg-bytes'))
+      // The file reaches the runtime only as a path the agent can read, never as a part it could inline.
+      const filesDir = path.join(workDir, '.cherry-studio', 'channel-files')
+      const [savedFile] = await readdir(filesDir)
+      expect(savedFile).toMatch(/report\.pdf$/)
+      expect(textPart).toEqual({
+        type: 'text',
+        text: `what is this\n\n[Attached files saved to workspace]\n- ${path.join(filesDir, savedFile)}`
+      })
+      expect(await readFile(path.join(filesDir, savedFile))).toEqual(Buffer.from('pdf'))
+    } finally {
+      await rm(workDir, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps an unrecognized file named like an image out of the parts the runtime could promote to an image', async () => {
+    const adapter = createMockAdapter()
+    const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-attachments-'))
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      workspace: { path: workDir },
+      configuration: {}
+    }
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
+    simulateStream([{ type: 'text-delta', delta: 'ok' }])
+
+    try {
+      // Exactly what QqAdapter emits for bytes file-type cannot sniff: the sender's name survives.
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: '',
+        files: [
+          {
+            filename: 'a.png',
+            media_type: 'application/octet-stream',
+            data: Buffer.from('not an image').toString('base64'),
+            size: 12
+          }
+        ]
+      })
+
+      const { userParts } = mockStartAgentSessionRun.mock.calls[0][0]
+      expect(userParts.map((part: { type: string }) => part.type)).toEqual(['text'])
+      const filesDir = path.join(workDir, '.cherry-studio', 'channel-files')
+      const [savedFile] = await readdir(filesDir)
+      expect(savedFile).toMatch(/a\.png$/)
+      expect(userParts[0].text).toBe(`[Attached files saved to workspace]\n- ${path.join(filesDir, savedFile)}`)
     } finally {
       await rm(workDir, { recursive: true, force: true })
     }

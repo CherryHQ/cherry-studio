@@ -452,13 +452,14 @@ export class ChannelMessageHandler {
         }
       }
 
-      // Attachments travel as `file` parts (the shape the in-app composer emits): the UI renders
-      // them, image-capable runtimes see the pixels, and every runtime appends on-disk paths itself.
+      // Images travel as `file` parts because their media type was byte-sniffed. Ordinary files stay
+      // path-as-text: the part would keep the sender's filename, and runtimes still admit images by extension.
       const images = message.images ?? []
-      const files = message.files ?? []
-      const userParts: CherryMessagePart[] = message.text ? [{ type: 'text', text: message.text }] : []
+      const fileNote =
+        filePaths.length > 0 ? `[Attached files saved to workspace]\n${filePaths.map((p) => `- ${p}`).join('\n')}` : ''
+      const text = [message.text, fileNote].filter(Boolean).join('\n\n')
+      const userParts: CherryMessagePart[] = text ? [{ type: 'text', text }] : []
       imagePaths.forEach((filePath, i) => userParts.push(toFilePart(filePath, images[i].media_type)))
-      filePaths.forEach((filePath, i) => userParts.push(toFilePart(filePath, files[i].media_type, files[i].filename)))
 
       const abortController = new AbortController()
       this.activeAbortControllers.set(session.id, abortController)
@@ -1002,8 +1003,13 @@ export class ChannelMessageHandler {
   }
 }
 
-function toFilePart(filePath: string, mediaType: string, filename = path.basename(filePath)): CherryMessagePart {
-  return { type: 'file', url: toFileUrl(AbsoluteFilePathSchema.parse(filePath)), mediaType, filename }
+function toFilePart(filePath: string, mediaType: string): CherryMessagePart {
+  return {
+    type: 'file',
+    url: toFileUrl(AbsoluteFilePathSchema.parse(filePath)),
+    mediaType,
+    filename: path.basename(filePath)
+  }
 }
 
 export const channelMessageHandler = new ChannelMessageHandler()
