@@ -826,12 +826,14 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
       if (event.key === 'Enter') {
         // Swallow Enter while the rendered results still belong to a previous
-        // query: while the queries misalign (DOM value, debounce, deferred lane)
-        // or while the fetch for the aligned query is still in flight; read the
-        // input's DOM value, as the state can lag it by a frame.
+        // query: while the queries misalign (DOM value, debounce, deferred lane),
+        // while the fetch for the aligned query is still in flight, or when that
+        // fetch failed (keepPreviousData leaves the stale list rendered); read
+        // the input's DOM value, as the state can lag it by a frame.
         const inputValue = event.currentTarget.value.trim()
         const resultsInFlight = isMessageSearchMode ? isMessageSearchFetching : isEntitySearchRefreshing
-        if (inputValue !== debouncedQuery || debouncedQuery !== deferredQuery || resultsInFlight) {
+        const resultsErrored = !isMessageSearchMode && error != null
+        if (inputValue !== debouncedQuery || debouncedQuery !== deferredQuery || resultsInFlight || resultsErrored) {
           event.preventDefault()
           return
         }
@@ -853,6 +855,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       activeItemId,
       debouncedQuery,
       deferredQuery,
+      error,
       handleLoadMoreMessageResults,
       isEntitySearchRefreshing,
       isMessageSearchFetching,

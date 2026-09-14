@@ -45,6 +45,9 @@ const mocks = vi.hoisted(() => ({
   // When true, the entities query reports itself as refreshing — the window in
   // which the aligned query's response has not landed yet.
   entitiesSearchRefreshing: false,
+  // When set, the entities query reports a terminal error for the aligned
+  // query — the window in which keepPreviousData still renders the stale list.
+  entitiesSearchError: undefined as unknown,
   // When true, the useDeferredValue mock below keeps returning the previous
   // value, mimicking the frame in which React has committed a new query but
   // has not yet re-rendered the deferred lane.
@@ -646,6 +649,7 @@ describe('GlobalSearchPanel', () => {
     }
     mocks.keepStaleContentSearchData = false
     mocks.entitiesSearchRefreshing = false
+    mocks.entitiesSearchError = undefined
     mocks.holdDeferredValue = false
     mocks.useQuery.mockImplementation(
       (
@@ -660,7 +664,7 @@ describe('GlobalSearchPanel', () => {
             data: mocks.queryResult,
             isLoading: false,
             isRefreshing: mocks.entitiesSearchRefreshing,
-            error: undefined
+            error: mocks.entitiesSearchError
           }
         }
 
@@ -2340,6 +2344,77 @@ describe('GlobalSearchPanel', () => {
 
     // The response for 'assistantx' lands: Enter activates the fresh result.
     mocks.entitiesSearchRefreshing = false
+    mocks.queryResult = {
+      query: 'assistantx',
+      groups: [
+        {
+          type: 'assistant',
+          items: [
+            {
+              type: 'assistant',
+              id: 'assistant-2',
+              title: 'Refined Assistant',
+              target: { assistantId: 'assistant-2' }
+            }
+          ]
+        }
+      ]
+    }
+    view.rerender(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await screen.findByRole('option', { name: /Refined Assistant/ })
+    await user.keyboard('{Enter}')
+
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-kind', 'assistant')
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-id', 'assistant-2')
+  })
+
+  it('swallows Enter after the aligned query fetch fails and activates once a response lands', async () => {
+    const user = userEvent.setup()
+    mocks.queryResult = {
+      query: 'assistant',
+      groups: [
+        {
+          type: 'assistant',
+          items: [
+            {
+              type: 'assistant',
+              id: 'assistant-1',
+              title: 'Writing Assistant',
+              target: { assistantId: 'assistant-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    const view = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const input = screen.getByLabelText(SEARCH_INPUT_LABEL)
+    await user.type(input, 'assistant')
+    await screen.findByRole('option', { name: /Writing Assistant/ })
+
+    // Extend the query: the aligned fetch for 'assistantx' fails terminally —
+    // isRefreshing has settled and the queries align, but keepPreviousData
+    // still renders the 'assistant' results. Enter must be swallowed.
+    mocks.entitiesSearchError = new Error('network unavailable')
+    await user.type(input, 'x')
+    await waitFor(() => {
+      expect(mocks.useQuery).toHaveBeenLastCalledWith(
+        '/search/entities',
+        expect.objectContaining({
+          enabled: true,
+          query: expect.objectContaining({ q: 'assistantx' })
+        })
+      )
+    })
+    await user.keyboard('{Enter}')
+
+    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.onClose).not.toHaveBeenCalled()
+
+    // A later attempt succeeds: Enter activates the fresh result.
+    mocks.entitiesSearchError = undefined
     mocks.queryResult = {
       query: 'assistantx',
       groups: [
