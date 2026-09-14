@@ -144,6 +144,20 @@ describe('AgentHtmlArtifactRequestPolicy', () => {
     await expect(policy.isAllowed(request(outsideFileUrl, 'script'))).resolves.toBe(false)
   })
 
+  it('retries a missing initial HTML file while retaining the successful root boundary', async () => {
+    const policy = new AgentHtmlArtifactRequestPolicy()
+    const pendingPath = path.join(artifactDirectory, 'pending.html')
+    const pendingUrl = pathToFileURL(pendingPath).toString()
+    await expect(policy.isAllowed(request(pendingUrl, 'mainFrame'))).resolves.toBe(false)
+    await writeFile(pendingPath, '<p>Now ready</p>')
+
+    await expect(policy.isAllowed(request(pendingUrl, 'mainFrame'))).resolves.toBe(true)
+    await expect(policy.isAllowed(request(nestedAssetUrl, 'script'))).resolves.toBe(true)
+    const outsideHtml = path.join(tempRoot, 'outside', 'other.html')
+    await writeFile(outsideHtml, '<p>Outside the authorized directory</p>')
+    await expect(policy.isAllowed(request(pathToFileURL(outsideHtml).toString(), 'mainFrame'))).resolves.toBe(false)
+  })
+
   it('rejects lexical root escapes before filesystem access', async () => {
     const lstatSpy = vi.spyOn(fileUtils, 'lstat')
     const realpathSpy = vi.spyOn(fileUtils, 'realpath')
