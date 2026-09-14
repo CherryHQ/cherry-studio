@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-09-07T13:21:05.101Z
- * Total icons: 160
+ * Total icons: 161
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -18,6 +18,7 @@ export { AlayanewIcon as Alayanew } from './alayanew'
 export { AllenaiIcon as Allenai } from './allenai'
 export { AnthropicIcon as Anthropic } from './anthropic'
 export { ApplicationIcon as Application } from './application'
+export { ApiRouteIcon as ApiRoute } from './api-route'
 export { ArceeAiIcon as ArceeAi } from './arcee-ai'
 export { AwsBedrockIcon as AwsBedrock } from './aws-bedrock'
 export { AzureaiIcon as Azureai } from './azureai'
