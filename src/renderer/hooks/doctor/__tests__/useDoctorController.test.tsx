@@ -237,7 +237,7 @@ describe('useDoctorController', () => {
     expect(result.current.session.activePanel).toBe('checks')
   })
 
-  it('releases evidence confirmation when another window starts a replacement run', () => {
+  it('releases evidence confirmation when another window replaces the run and clears the finding', () => {
     mocks.doctorState = completedWithSensitiveEvidence()
     const { rerender, result } = renderHook(() =>
       useDoctorController({
@@ -276,6 +276,22 @@ describe('useDoctorController', () => {
     expect(result.current.canChangePanel).toBe(true)
     act(() => result.current.setPanel('export'))
     expect(result.current.session.activePanel).toBe('export')
+
+    const settled = completedDoctorState()
+    if (settled.status !== 'completed') throw new Error('Expected a completed Doctor state')
+    mocks.doctorState = {
+      ...settled,
+      report: {
+        ...settled.report,
+        runId: 'replacement-run',
+        results: [{ id: 'runtime-claude-login', status: 'pass', durationMs: 1 }],
+        summary: { pass: 1, warn: 0, fail: 0, skip: 0, error: 0 }
+      }
+    }
+    rerender()
+    expect(result.current.viewModel.rows[0]).toMatchObject({ id: 'runtime-claude-login', status: 'pass' })
+    expect(result.current.session.interaction).toEqual({ kind: 'idle' })
+    expect(result.current.canChangePanel).toBe(true)
   })
 
   it('releases evidence confirmation when the check passes in the shared report', () => {
