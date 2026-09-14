@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { setImmediate } from 'node:timers/promises'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as z from 'zod'
@@ -321,6 +322,76 @@ describe('TesseractRuntimeService', () => {
 
     expect(createWorkerMock).toHaveBeenCalledTimes(2)
     expect(secondRecognizeMock).toHaveBeenCalledTimes(1)
+  })
+
+  // A result queued before cancellation still undergoes the final raw-reason abort check.
+  it('preserves the original abort reason when recognition wins the microtask race', async () => {
+    const started = Promise.withResolvers<void>()
+    const recognition = Promise.withResolvers<{ data: { text: string } }>()
+    createWorkerMock.mockResolvedValue({
+      recognize: () => {
+        started.resolve()
+        return recognition.promise
+      },
+      terminate: async () => {}
+    })
+    service = new TesseractRuntimeService()
+    await service._doInit()
+    const controller = new AbortController()
+    const reason = new Error('Cancelled as recognition completed')
+    const extraction = service.extract({ file: createFileInfo(), langs: ['eng'], signal: controller.signal })
+    const outcome = extraction.catch((error: unknown) => error)
+    await started.promise
+
+    recognition.resolve({ data: { text: 'must not escape after cancellation' } })
+    queueMicrotask(() => controller.abort(reason))
+
+    expect(await outcome).toBe(reason)
+  })
+
+  // A stuck worker termination must not hold cancellation or prevent the next extraction.
+  it('rejects cancellation with its mapped reason while worker termination remains pending', async () => {
+    const started = Promise.withResolvers<void>()
+    const recognition = Promise.withResolvers<{ data: { text: string } }>()
+    const termination = Promise.withResolvers<void>()
+    let terminating = false
+    createWorkerMock
+      .mockResolvedValueOnce({
+        recognize: () => {
+          started.resolve()
+          return recognition.promise
+        },
+        terminate: () => {
+          terminating = true
+          return termination.promise
+        }
+      })
+      .mockResolvedValueOnce({
+        recognize: async () => ({ data: { text: 'next extraction' } }),
+        terminate: async () => {}
+      })
+    service = new TesseractRuntimeService()
+    await service._doInit()
+    const controller = new AbortController()
+    const extraction = service.extract({ file: createFileInfo(), langs: ['eng'], signal: controller.signal })
+    const outcome = extraction.catch((error: unknown) => error)
+    await started.promise
+
+    try {
+      controller.abort('OCR cancelled')
+      const error = await Promise.race([outcome, setImmediate().then(() => 'still pending')])
+      expect(error).toBeInstanceOf(Error)
+      expect(error).toMatchObject({ name: 'AbortError', message: 'OCR cancelled' })
+      expect(terminating).toBe(true)
+      await expect(service.extract({ file: createFileInfo(), langs: ['eng'] })).resolves.toEqual({
+        kind: 'text',
+        text: 'next extraction'
+      })
+    } finally {
+      termination.resolve()
+      recognition.reject(new Error('late worker failure after cancellation'))
+      await outcome
+    }
   })
 
   it('does not fail stop when terminating the worker throws', async () => {

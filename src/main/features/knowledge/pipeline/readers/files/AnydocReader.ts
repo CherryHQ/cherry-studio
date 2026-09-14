@@ -2,16 +2,13 @@ import type { toMarkdownBytes } from '@firecrawl/anydoc'
 import { Document, FileReader, type Metadata } from '@vectorstores/core'
 
 import { loggerService } from '@logger'
+import { AsyncInitializer } from '@shared/utils/async'
 
 const logger = loggerService.withContext('KnowledgeAnydocReader')
 type AnydocModule = { toMarkdownBytes: typeof toMarkdownBytes }
 
-let anydocModulePromise: Promise<AnydocModule> | undefined
+const anydocModule = new AsyncInitializer<AnydocModule>(() => import('@firecrawl/anydoc'))
 let didLogModuleLoadFailure = false
-
-function loadAnydocModule(): Promise<AnydocModule> {
-  return (anydocModulePromise ??= import('@firecrawl/anydoc'))
-}
 
 function normalizeError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
@@ -41,7 +38,7 @@ export class AnydocReader extends FileReader<Document<Metadata>> {
   async loadDataAsContent(fileContent: Uint8Array, filename?: string): Promise<Document<Metadata>[]> {
     let anydoc: AnydocModule
     try {
-      anydoc = await loadAnydocModule()
+      anydoc = await anydocModule.get()
     } catch (error) {
       const normalizedError = normalizeError(error)
       if (!didLogModuleLoadFailure) {

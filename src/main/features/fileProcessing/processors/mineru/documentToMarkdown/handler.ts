@@ -15,7 +15,7 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   mode: 'remote-poll',
   prepare(file, config, signal, context) {
     signal?.throwIfAborted()
-    const startContext = prepareStartContext(file, config, context?.dataId, signal)
+    const startContext = prepareStartContext(file, config, context?.dataId)
 
     return {
       mode: 'remote-poll',
@@ -81,10 +81,8 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
 function prepareStartContext(
   file: FileInfo,
   config: FileProcessorMerged,
-  dataId: string | undefined,
-  signal?: AbortSignal
+  dataId: string | undefined
 ): PreparedMineruStartContext {
-  signal?.throwIfAborted()
   if (!dataId) {
     throw new Error('mineru prepare: missing dataId')
   }

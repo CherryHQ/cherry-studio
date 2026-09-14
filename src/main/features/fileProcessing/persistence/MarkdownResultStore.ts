@@ -34,7 +34,9 @@ class MarkdownResultStore {
     signal?: AbortSignal
   }): Promise<AbsoluteFilePath> {
     try {
+      options.signal?.throwIfAborted()
       const data = await this.resolveMarkdownBytes(options)
+      options.signal?.throwIfAborted()
       await atomicWriteFile(options.path, data)
       return options.path
     } catch (error) {

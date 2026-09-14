@@ -67,6 +67,16 @@ describe('A1 whitelist invariant: real toPersistable() never emits apiKey', () =
     vi.spyOn(fs, 'stat').mockResolvedValue({ size: 1024 } as never)
   })
 
+  it.each([
+    ['doc2x', doc2xDocumentToMarkdownHandler],
+    ['mineru', mineruDocumentToMarkdownHandler]
+  ] as const)('%s rejects cancelled preparation before validating provider configuration', (id, handler) => {
+    const reason = new DOMException('preparation deadline', 'TimeoutError')
+    const config = { ...buildConfig(id, 'https://provider.example.com'), apiKeys: [] }
+
+    expect(() => handler.prepare(FAKE_PDF, config, AbortSignal.abort(reason))).toThrow(reason)
+  })
+
   it('doc2x.toPersistable excludes apiKey and includes publishable fields', async () => {
     const config = buildConfig('doc2x', 'https://doc2x.example.com')
     const prepared = await prepareRemote(doc2xDocumentToMarkdownHandler, config)

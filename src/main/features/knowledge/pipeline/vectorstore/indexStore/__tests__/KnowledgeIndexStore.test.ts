@@ -419,56 +419,59 @@ describe('KnowledgeIndexStore', () => {
   })
 
   it('yields the main-process event loop between materials during a batch delete', async () => {
-    // Each search_text delete fires the trigram FTS delete trigger synchronously, so a
-    // large folder delete would block the main process (the macOS beachball) without
-    // periodic yields. Prove the loop hands control back: drive the MONOTONIC performance.now()
-    // past the time budget on every read (deterministic — no real-clock dependency) and confirm
-    // the loop schedules a macrotask (setImmediate) per material while still deleting correctly.
+    // Over-budget deletion must let other main-process callbacks run while rows remain;
+    // otherwise large folder deletions freeze the app.
     store.rebuildMaterial('m1', buildInput('alpha body one', [[0, 14]], 'a.md'))
     store.rebuildMaterial('m2', buildInput('bravo body two', [[0, 14]], 'b.md'))
     store.rebuildMaterial('m3', buildInput('gamma body six', [[0, 14]], 'c.md'))
 
-    // setImmediate is spied (call-through), not stubbed, so the yields still resolve.
     let clock = 0
     const perfNow = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 100))
-    const immediate = vi.spyOn(global, 'setImmediate')
-    let yields = 0
+    const remainingAtHeartbeat: number[] = []
+    const beat = () => {
+      remainingAtHeartbeat.push(Number(driver.execute('SELECT COUNT(*) AS n FROM material').rows[0].n))
+      heartbeat = setImmediate(beat)
+    }
+    let heartbeat = setImmediate(beat)
     try {
       await store.deleteMaterials(['m1', 'm2', 'm3'])
-      yields = immediate.mock.calls.length
     } finally {
       perfNow.mockRestore()
-      immediate.mockRestore()
+      clearImmediate(heartbeat)
     }
 
-    expect(yields).toBeGreaterThanOrEqual(3) // one yield per material under the forced clock
+    expect(remainingAtHeartbeat).toEqual(expect.arrayContaining([2, 1]))
     expect(await count('material')).toBe(0)
     expect(await count('search_text')).toBe(0)
     expect(await count('embedding')).toBe(0)
   })
 
   it('does not yield when a small batch stays within the time budget', async () => {
-    // The yield is gated on ELAPSED TIME, not row count: a fast batch that never crosses
-    // DELETE_YIELD_BUDGET_MS must schedule zero macrotasks. Freezing the monotonic clock keeps
-    // every delta at 0 — so this fails if the gate is ever replaced by an unconditional
-    // yield-per-row (the exact regression the test above cannot, on its own, rule out).
+    // Fast batches must finish before unrelated macrotasks; this catches unconditional per-row yielding.
     store.rebuildMaterial('m1', buildInput('alpha body one', [[0, 14]], 'a.md'))
     store.rebuildMaterial('m2', buildInput('bravo body two', [[0, 14]], 'b.md'))
     store.rebuildMaterial('m3', buildInput('gamma body six', [[0, 14]], 'c.md'))
 
     const perfNow = vi.spyOn(performance, 'now').mockReturnValue(1000)
-    const immediate = vi.spyOn(global, 'setImmediate')
-    let yields = 0
+    const order: string[] = []
+    const heartbeat = Promise.withResolvers<void>()
+    const probe = setImmediate(() => {
+      order.push('heartbeat')
+      heartbeat.resolve()
+    })
     try {
       await store.deleteMaterials(['m1', 'm2', 'm3'])
-      yields = immediate.mock.calls.length
+      order.push('deleted')
+      await heartbeat.promise
     } finally {
       perfNow.mockRestore()
-      immediate.mockRestore()
+      clearImmediate(probe)
     }
 
-    expect(yields).toBe(0)
+    expect(order).toEqual(['deleted', 'heartbeat'])
     expect(await count('material')).toBe(0)
+    expect(await count('search_text')).toBe(0)
+    expect(await count('embedding')).toBe(0)
   })
 
   it('reclaimSpace VACUUMs a large delete and keeps the survivor FTS-searchable (issue #16132 guard)', async () => {
