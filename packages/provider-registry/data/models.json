@@ -20828,7 +20828,7 @@
       "family": "mimo",
       "id": "mimo-v2-5",
       "inputModalities": ["text", "image", "audio", "video"],
-      "maxOutputTokens": 131100,
+      "maxOutputTokens": 131072,
       "metadata": {},
       "name": "MiMo-V2.5",
       "openWeights": true,
