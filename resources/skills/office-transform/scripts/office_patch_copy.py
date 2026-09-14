@@ -446,6 +446,28 @@ def grouped_formula_ranges(sheet_data) -> list[tuple[str, str, tuple[int, int, i
     return ranges
 
 
+XSTRING_ESCAPE_RE = re.compile(r"_(?=x[0-9A-Fa-f]{4}[_\r])")
+
+
+def encode_xlsx_string(value: str) -> str:
+    """Encode a string for a SpreadsheetML text node, whose type is ST_Xstring.
+
+    Excel decodes `_xHHHH_` in `<t>` on load, so text written verbatim can come back as something
+    else: a cell holding the literal `Site_x0020_Name` displays as `Site Name`. The escape is
+    `_x005F_` in place of the leading underscore, applied wherever the pattern starts — the starts
+    can overlap, so `_x005F_x0020_` needs both of its underscores escaped to round-trip.
+
+    A carriage return is the second case: XML parsers normalise one in character data, so it cannot
+    survive as itself, and Excel writes it `_x000D_`. That substitution has to run after the
+    underscore escape, or it would escape the text it just produced — and the pattern accepts a
+    carriage return where the closing underscore goes, because that substitution supplies one:
+    left alone, an unfinished `_x0041` followed by a carriage return would come out a live escape.
+    Tab and newline stay literal —
+    `<t xml:space="preserve">` carries both, and an in-cell line break is stored as a plain newline.
+    """
+    return XSTRING_ESCAPE_RE.sub("_x005F_", value).replace("\r", "_x000D_")
+
+
 def set_cell_value(doc: minidom.Document, cell, value) -> None:
     # CT_Cell is `f?, v?, is?, extLst?`. The value is what the edit replaces; an extension payload is
     # untouched content like everything else in the part — kept verbatim, never descended into, the
@@ -480,7 +502,7 @@ def set_cell_value(doc: minidom.Document, cell, value) -> None:
         inline = doc.createElement(make_tag(cell.tagName, "is"))
         text = doc.createElement(make_tag(cell.tagName, "t"))
         text.setAttribute("xml:space", "preserve")
-        text.appendChild(doc.createTextNode(value))
+        text.appendChild(doc.createTextNode(encode_xlsx_string(value)))
         inline.appendChild(text)
         cell.insertBefore(inline, extension)
     else:

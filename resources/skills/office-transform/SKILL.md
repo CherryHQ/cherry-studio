@@ -379,6 +379,10 @@ print(ws['B2'].value)"
 cell you just wrote still reads back its old result. Check the cells you wrote, and tell the
 user the dependent totals are recomputed when Excel opens the file.
 
+A written xlsx string cell that held a literal `_xHHHH_` or a carriage return reads back through
+openpyxl in its escaped form (`_x005F_xHHHH_`, `_x000D_`) — see the ST_Xstring note under
+"Limits". That is the reader, not a verification failure.
+
 If verification fails, say so and show the error — do not present an unverified file.
 
 ## Limits
@@ -386,7 +390,11 @@ If verification fails, say so and show the error — do not present an unverifie
 - pptx edits go through python-pptx (see "Edit pptx"), not patch-copy; slide-copy
   into a new deck is not supported (python-pptx cannot clone slides) — say so
   when asked for it.
-- Patched xlsx string cells become inline strings (valid OOXML; Excel reads them fine).
+- Patched xlsx string cells become inline strings (valid OOXML; Excel reads them fine). Their
+  text is written as ST_Xstring, so a literal `_xHHHH_` in the value is escaped to
+  `_x005F_xHHHH_` and a carriage return is stored as `_x000D_` — that is what makes Excel show
+  the characters that were written. openpyxl decodes neither, so a verification read of such a
+  cell shows the escaped form; that is the reader, not the file.
 - Edited XML parts may lose insignificant serialization details (attribute quoting,
   empty-element form); namespace prefixes and untouched content are preserved.
 - xlsx extraction refuses ranges over 1,000,000 cells; both scripts refuse packages
