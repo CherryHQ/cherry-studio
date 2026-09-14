@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryUiModule from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 
 import type RecallResultCardComponent from '../RecallResultCard'
@@ -83,8 +84,10 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const { Alert } = await importOriginal<typeof CherryUiModule>()
   return {
+    Alert,
     Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <button type="button" {...props}>
         {children}
@@ -525,14 +528,16 @@ describe('RecallTestPanel', () => {
     fireEvent.change(input, { target: { value: 'large query' } })
     fireEvent.click(screen.getByRole('button', { name: '检索' }))
 
-    expect(await screen.findByText('重排序失败，显示原始检索结果。请检查重排序模型配置后重试。')).toBeInTheDocument()
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '重排序失败，显示原始检索结果。请检查重排序模型配置后重试。'
+    )
     expect(screen.getByText('2 个结果')).toBeInTheDocument()
 
     fireEvent.change(input, { target: { value: 'smaller query' } })
     fireEvent.click(screen.getByRole('button', { name: '检索' }))
 
     await waitFor(() => {
-      expect(screen.queryByText('重排序失败，显示原始检索结果。请检查重排序模型配置后重试。')).not.toBeInTheDocument()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
     })
     expect(screen.getByText('2 个结果')).toBeInTheDocument()
   })

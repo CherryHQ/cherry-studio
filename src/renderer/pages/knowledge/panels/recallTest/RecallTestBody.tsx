@@ -1,7 +1,7 @@
-import { Clock, LoaderCircle, Sparkles, TriangleAlert } from 'lucide-react'
+import { Clock, LoaderCircle, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { EmptyState } from '@cherrystudio/ui'
+import { Alert, EmptyState } from '@cherrystudio/ui'
 
 import RecallResultCard from './RecallResultCard'
 import { useRecallResult } from './RecallTestProvider'
@@ -16,10 +16,7 @@ const RecallResultSummary = () => {
   return (
     <div className="border-b border-border-subtle px-4 py-3 text-xs leading-4 text-foreground-tertiary">
       {hasRerankFailed ? (
-        <div role="status" className="mb-2 flex items-start gap-1.5 text-warning-subtle-foreground">
-          <TriangleAlert className="mt-0.5 size-3 shrink-0" />
-          <span>{t('knowledge.recall.rerank_failed')}</span>
-        </div>
+        <Alert type="warning" showIcon className="mb-2" message={t('knowledge.recall.rerank_failed')} />
       ) : null}
       <div className="flex items-center gap-2.5">
         <span className="flex items-center gap-0.5">

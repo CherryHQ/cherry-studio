@@ -20,7 +20,8 @@ import {
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
   prepareEntityImageBytes,
-  transformImageToPng
+  transformImageToPng,
+  waitForCaptureAssets
 } from '../image'
 
 // mock 依赖
@@ -500,6 +501,32 @@ describe('utils/image', () => {
     })
   })
 
+  describe('captureScrollableImage pipeline routing', () => {
+    const makeEl = (left: number, top: number) => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      div.getBoundingClientRect = () => ({ left, top, width: 100, height: 100 }) as DOMRect
+      return div
+    }
+
+    it('rasterizes an offscreen capture clone via the position-independent pipeline', async () => {
+      const ref = { current: makeEl(-10000, 0) } as React.RefObject<HTMLDivElement>
+      const result = await captureScrollableAsDataUrl(ref)
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(vi.mocked(htmlToImage.toCanvas)).toHaveBeenCalled()
+    })
+
+    it('rasterizes an on-document element via the same clone pipeline (native CDP retired)', async () => {
+      const ref = { current: makeEl(10, 20) } as React.RefObject<HTMLDivElement>
+      const result = await captureScrollableAsDataUrl(ref)
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(vi.mocked(htmlToImage.toCanvas)).toHaveBeenCalled()
+    })
+  })
+
   describe('captureScrollableAsDataUrl', () => {
     it('should return data url when canvas exists', async () => {
       const div = document.createElement('div')
@@ -514,6 +541,57 @@ describe('utils/image', () => {
       const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
       const result = await captureScrollableAsDataUrl(ref)
       expect(result).toBeUndefined()
+    })
+  })
+
+  describe('broken-image placeholder swap', () => {
+    const makeImage = (src: string, complete: boolean, naturalWidth: number) => {
+      const img = document.createElement('img')
+      img.setAttribute('src', src)
+      Object.defineProperty(img, 'complete', { value: complete, configurable: true })
+      Object.defineProperty(img, 'naturalWidth', { value: naturalWidth, configurable: true })
+      return img
+    }
+
+    const makeRoot = (img: HTMLImageElement) => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      div.appendChild(img)
+      return div
+    }
+
+    it('rasterizes through a terminal-failure image (favicon service answered HTML)', async () => {
+      const img = makeImage('https://icon.horse/icon/example.com', true, 0)
+      const ref = { current: makeRoot(img) } as React.RefObject<HTMLDivElement>
+
+      let srcAtRaster: string | undefined
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+        srcAtRaster = img.src
+        return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+      })
+
+      const result = await captureScrollableAsDataUrl(ref)
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(srcAtRaster).toBe('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')
+      // the live element is restored after the capture
+      expect(img.src).toBe('https://icon.horse/icon/example.com')
+    })
+
+    it('leaves healthy images untouched', async () => {
+      const img = makeImage('https://example.com/favicon.png', true, 16)
+      const ref = { current: makeRoot(img) } as React.RefObject<HTMLDivElement>
+
+      let srcAtRaster: string | undefined
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+        srcAtRaster = img.src
+        return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+      })
+
+      await captureScrollableAsDataUrl(ref)
+
+      expect(srcAtRaster).toBe('https://example.com/favicon.png')
     })
   })
 
@@ -546,6 +624,103 @@ describe('utils/image', () => {
       const func = vi.fn()
       await captureScrollableAsBlob(ref, func)
       expect(func).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('waitForCaptureAssets', () => {
+    const makeImage = (complete: boolean): HTMLImageElement => {
+      const img = document.createElement('img')
+      // jsdom never loads resources; drive `complete` explicitly per case.
+      Object.defineProperty(img, 'complete', { value: complete, configurable: true })
+      return img
+    }
+
+    it('returns undefined immediately for a null root', async () => {
+      await expect(waitForCaptureAssets(null)).resolves.toBeUndefined()
+    })
+
+    it('switches lazy images to eager so they can load offscreen', async () => {
+      const root = document.createElement('div')
+      const img = makeImage(true)
+      img.loading = 'lazy'
+      root.appendChild(img)
+
+      await waitForCaptureAssets(root)
+
+      expect(img.loading).toBe('eager')
+    })
+
+    it('waits for in-flight images to fire load', async () => {
+      const root = document.createElement('div')
+      const order: string[] = []
+      const img = makeImage(false)
+      root.appendChild(img)
+
+      const settled = waitForCaptureAssets(root)
+      void settled.then(() => order.push('settled'))
+      setTimeout(() => {
+        img.dispatchEvent(new Event('load'))
+        order.push('load')
+      }, 10)
+      await settled
+
+      expect(order).toEqual(['load', 'settled'])
+    })
+
+    it('treats image error as settled', async () => {
+      const root = document.createElement('div')
+      const order: string[] = []
+      const img = makeImage(false)
+      root.appendChild(img)
+
+      const settled = waitForCaptureAssets(root)
+      void settled.then(() => order.push('settled'))
+      setTimeout(() => {
+        img.dispatchEvent(new Event('error'))
+        order.push('error')
+      }, 10)
+      await settled
+
+      expect(order).toEqual(['error', 'settled'])
+    })
+
+    it('waits for images mounted after the first scan (late favicon waves)', async () => {
+      const root = document.createElement('div')
+      const lateImage = makeImage(false)
+      const order: string[] = []
+
+      const settled = waitForCaptureAssets(root)
+      void settled.then(() => order.push('settled'))
+      // FallbackFavicon swaps its placeholder span for an <img> only after
+      // its source probe resolves — mount late and let the load land well
+      // past the recheck window, so a premature settle fails the ordering.
+      setTimeout(() => {
+        root.appendChild(lateImage)
+        order.push('mount')
+      }, 100)
+      setTimeout(() => {
+        lateImage.dispatchEvent(new Event('load'))
+        order.push('load')
+      }, 700)
+      await settled
+
+      expect(order).toEqual(['mount', 'load', 'settled'])
+    })
+
+    it('resolves via the deadline when an image never settles', async () => {
+      const root = document.createElement('div')
+      root.appendChild(makeImage(false))
+
+      vi.useFakeTimers()
+      try {
+        const settled = waitForCaptureAssets(root, 1000)
+        const assertion = vi.fn()
+        void settled.then(assertion)
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(assertion).toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 
@@ -860,198 +1035,6 @@ describe('utils/image', () => {
 
     it('throws on a data URL with no media type', async () => {
       await expect(getImageBlobFromSource('data:;base64,aGVsbG8=')).rejects.toThrow('Invalid image data URL')
-    })
-  })
-
-  describe('captureScrollableImage (native compositor capture)', () => {
-    const rect = (left: number, top: number, width: number, height: number) =>
-      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top }) as DOMRect
-
-    const stubGeometry = (el: HTMLElement, width: number, height: number) => {
-      Object.defineProperty(el, 'scrollWidth', { value: width, configurable: true })
-      Object.defineProperty(el, 'scrollHeight', { value: height, configurable: true })
-      el.getBoundingClientRect = () => rect(10, 20, width, height)
-    }
-
-    it('returns the native capture result without touching the html-to-image pipeline', async () => {
-      ipcMocks.request.mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,bmF0aXZl' })
-      const div = document.createElement('div')
-      stubGeometry(div, 800, 600)
-      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
-      const result = await captureScrollableAsDataUrl({ current: div })
-
-      expect(result).toBe('data:image/png;base64,bmF0aXZl')
-      expect(ipcMocks.request).toHaveBeenCalledWith('window.capture_screenshot', {
-        clip: { x: 10, y: 20, width: 800, height: 600 },
-        scale: 1
-      })
-      expect(htmlToImage.toCanvas).not.toHaveBeenCalled()
-    })
-
-    it('restores inline styles and the capture marker after a native capture', async () => {
-      ipcMocks.request.mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,bmF0aXZl' })
-      const div = document.createElement('div')
-      stubGeometry(div, 800, 600)
-      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
-      await captureScrollableAsDataUrl({ current: div })
-
-      expect(div.style.overflow).toBe('')
-      expect(div.style.height).toBe('')
-      expect(div.style.maxHeight).toBe('')
-      expect(div.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(false)
-    })
-
-    it('falls back to the html-to-image pipeline when the native path rejects', async () => {
-      ipcMocks.request.mockRejectedValueOnce(new Error('CDP attach failed'))
-      const div = document.createElement('div')
-      stubGeometry(div, 800, 600)
-      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
-      const result = await captureScrollableAsDataUrl({ current: div })
-
-      expect(result).toBe('data:image/png;base64,xxx')
-      expect(htmlToImage.toCanvas).toHaveBeenCalled()
-    })
-
-    it('parks an offscreen capture root at positive page coordinates before the native shot', async () => {
-      const div = document.createElement('div')
-      Object.defineProperty(div, 'scrollWidth', { value: 300, configurable: true })
-      Object.defineProperty(div, 'scrollHeight', { value: 150, configurable: true })
-      // First measure decides the parking (negative origin), second measures
-      // the clip after the element has been repositioned into the document.
-      // In a real browser an absolute child extends the document's scrollHeight
-      // to cover it (CDP-verified), so the mock document is 6150 tall — the
-      // parked element's bottom edge at 6150 stays inside the surface.
-      const rects = [rect(-10000, 0, 300, 150), rect(0, 6000, 300, 150)]
-      div.getBoundingClientRect = vi.fn(() => rects.shift() ?? rect(0, 6000, 300, 150))
-      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 6150)
-      Object.defineProperty(document.documentElement, 'scrollWidth', { value: 4000, configurable: true })
-      Object.defineProperty(document.documentElement, 'scrollHeight', { value: 6150, configurable: true })
-      ipcMocks.request.mockImplementation(async (_route: string, payload: { clip: { x: number; y: number } }) => {
-        // The compositor answers negative-origin clips with the document
-        // origin region (wrong pixels), so the shot must only fire parked.
-        expect(payload.clip).toMatchObject({ x: 0, y: 6000 })
-        expect(div.style.position).toBe('absolute')
-        expect(div.style.width).toBe('300px')
-        return { dataUrl: 'data:image/png;base64,bmF0aXZl' }
-      })
-
-      try {
-        const result = await captureScrollableAsDataUrl({ current: div })
-
-        expect(result).toBe('data:image/png;base64,bmF0aXZl')
-        expect(htmlToImage.toCanvas).not.toHaveBeenCalled()
-        expect(div.style.position).toBe('')
-        expect(div.style.left).toBe('')
-        expect(div.style.top).toBe('')
-        expect(div.style.width).toBe('')
-      } finally {
-        Reflect.deleteProperty(document.documentElement, 'scrollWidth')
-        Reflect.deleteProperty(document.documentElement, 'scrollHeight')
-      }
-    })
-
-    it('falls back to html-to-image when a parked element still measures off-document', async () => {
-      const div = document.createElement('div')
-      Object.defineProperty(div, 'scrollWidth', { value: 300, configurable: true })
-      Object.defineProperty(div, 'scrollHeight', { value: 150, configurable: true })
-      div.getBoundingClientRect = () => rect(-10000, 0, 300, 150)
-      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
-      const result = await captureScrollableAsDataUrl({ current: div })
-
-      expect(ipcMocks.request).not.toHaveBeenCalled()
-      expect(result).toBe('data:image/png;base64,xxx')
-      expect(htmlToImage.toCanvas).toHaveBeenCalled()
-      expect(div.style.position).toBe('')
-      expect(div.style.width).toBe('')
-    })
-
-    it('falls back when the parked clip extends past the document surface', async () => {
-      // A capture root that stays under a positioned/overflow ancestor after
-      // parking measures inside the document but its bottom edge overflows the
-      // composited surface — captureBeyondViewport would return it blank or
-      // clipped, so the native path must fall back instead of shipping a bad shot.
-      const div = document.createElement('div')
-      Object.defineProperty(div, 'scrollWidth', { value: 300, configurable: true })
-      Object.defineProperty(div, 'scrollHeight', { value: 900, configurable: true })
-      // Parked at y=5900 but the document surface only reaches 6000 — the clip
-      // bottom (5900+900=6800) overflows it.
-      div.getBoundingClientRect = () => rect(0, 5900, 300, 900)
-      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 6000)
-      Object.defineProperty(document.documentElement, 'scrollWidth', { value: 4000, configurable: true })
-      Object.defineProperty(document.documentElement, 'scrollHeight', { value: 6000, configurable: true })
-
-      try {
-        const result = await captureScrollableAsDataUrl({ current: div })
-
-        expect(ipcMocks.request).not.toHaveBeenCalled()
-        expect(result).toBe('data:image/png;base64,xxx')
-        expect(htmlToImage.toCanvas).toHaveBeenCalled()
-      } finally {
-        Reflect.deleteProperty(document.documentElement, 'scrollWidth')
-        Reflect.deleteProperty(document.documentElement, 'scrollHeight')
-      }
-    })
-
-    it('hides interactive HTML artifacts during the native capture and restores them afterwards', async () => {
-      const div = document.createElement('div')
-      const artifact = document.createElement('div')
-      artifact.setAttribute('data-html-artifact', '')
-      div.appendChild(artifact)
-      stubGeometry(div, 800, 600)
-      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-      ipcMocks.request.mockImplementation(async () => {
-        expect(artifact.style.display).toBe('none')
-        return { dataUrl: 'data:image/png;base64,bmF0aXZl' }
-      })
-
-      const result = await captureScrollableAsDataUrl({ current: div })
-
-      expect(result).toBe('data:image/png;base64,bmF0aXZl')
-      expect(artifact.style.display).toBe('')
-    })
-
-    it('skips the native path for an element with no measurable size', async () => {
-      const div = document.createElement('div')
-
-      const result = await captureScrollableAsDataUrl({ current: div })
-
-      expect(ipcMocks.request).not.toHaveBeenCalled()
-      expect(result).toBe('data:image/png;base64,xxx')
-    })
-
-    it('skips the native path when the clip would exceed composited-surface limits', async () => {
-      const div = document.createElement('div')
-      stubGeometry(div, 20000, 100)
-      document.documentElement.getBoundingClientRect = () => rect(0, 0, 40000, 3000)
-
-      await captureScrollableAsDataUrl({ current: div })
-
-      expect(ipcMocks.request).not.toHaveBeenCalled()
-      expect(htmlToImage.toCanvas).toHaveBeenCalled()
-    })
-
-    // The renderer CSP has no `data:` in connect-src, so decoding the capture
-    // through fetch() throws — the bytes have to be decoded locally.
-    it('decodes the native data URL into blob bytes without fetch', async () => {
-      ipcMocks.request.mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,bmF0aXZl' })
-      const div = document.createElement('div')
-      stubGeometry(div, 800, 600)
-      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
-
-      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
-
-      const blob = await new Promise<Blob | null>((resolve) =>
-        captureScrollableAsBlob({ current: div }, (result) => resolve(result))
-      )
-
-      expect(fetchSpy).not.toHaveBeenCalled()
-      expect(blob?.type).toBe('image/png')
-      expect(Array.from(await readBlobBytes(blob!))).toEqual([...new TextEncoder().encode('native')])
-      fetchSpy.mockRestore()
     })
   })
 })
