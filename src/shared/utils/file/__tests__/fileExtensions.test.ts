@@ -2,11 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import {
   documentExts,
-  knowledgeDirectoryDefaultExtSet,
   knowledgeFileProcessingExts,
   knowledgeIndexableFileExtSet,
-  knowledgeSupportedFileExts,
-  textExts
+  knowledgePlainTextFileExts,
+  knowledgeSupportedFileExts
 } from '../fileExtensions'
 
 // These three lists are easy to let drift apart (the original bug: artifact reservation keyed
@@ -52,30 +51,35 @@ describe('knowledge file-extension source-of-truth invariants', () => {
     expect(document.has('.ppt')).toBe(false)
   })
 
-  it('indexes every curated reader plus any plaintext extension, and no binary office format', () => {
+  it('indexes every curated reader plus the curated plaintext set', () => {
     for (const ext of knowledgeSupportedFileExts) {
       expect(knowledgeIndexableFileExtSet.has(ext)).toBe(true)
     }
-    // Plaintext needs no extractor — the text reader reads it directly.
-    for (const ext of ['.py', '.log', '.rs', '.yaml']) {
-      expect(textExts.includes(ext)).toBe(true)
+    for (const ext of knowledgePlainTextFileExts) {
       expect(knowledgeIndexableFileExtSet.has(ext)).toBe(true)
     }
-    // Binary formats without a text layer stay out (no plaintext, no curated reader).
+    // A representative slice of the curated plaintext additions the feature is about.
+    for (const ext of ['.py', '.go', '.rs', '.yaml', '.toml', '.sql', '.sh', '.rst']) {
+      expect(knowledgeIndexableFileExtSet.has(ext)).toBe(true)
+    }
+  })
+
+  it('does not admit binary or no-value extensions by membership (they enter only via explicit opt-in)', () => {
+    // The exact extensions the review flagged as binary/ambiguous despite appearing in a text list.
+    for (const ext of ['.pkl', '.pt', '.plist', '.stl', '.mat', '.msg', '.obj', '.raw']) {
+      expect(knowledgeIndexableFileExtSet.has(ext)).toBe(false)
+    }
+    // Binary office formats with no local text layer.
     for (const ext of ['.odt', '.odp', '.ods']) {
       expect(knowledgeIndexableFileExtSet.has(ext)).toBe(false)
     }
   })
 
-  it('drops graphics/UI-layout markup from the bulk directory default but keeps it explicitly pickable', () => {
-    // A folder embed should not sweep in an icon set or a UI layout as raw markup...
-    for (const ext of ['.svg', '.xib', '.storyboard', '.xaml']) {
-      expect(knowledgeIndexableFileExtSet.has(ext)).toBe(true)
-      expect(knowledgeDirectoryDefaultExtSet.has(ext)).toBe(false)
-    }
-    // ...but genuine documents and plaintext stay in the directory default.
-    for (const ext of ['.pdf', '.md', '.yaml', '.py']) {
-      expect(knowledgeDirectoryDefaultExtSet.has(ext)).toBe(true)
+  it('keeps dotfile-style names off the curated set so the renderer/main classifiers cannot disagree', () => {
+    // `.eslintrc`/`.env`/`.bashrc` split-vs-extname differently between renderer and main; admitting
+    // them by name is what lost whole batches to rollback, so none may be curated members.
+    for (const name of ['.env', '.eslintrc', '.bashrc', '.npmrc', '.gitattributes', '.editorconfig', '.prettierrc']) {
+      expect(knowledgeIndexableFileExtSet.has(name)).toBe(false)
     }
   })
 })

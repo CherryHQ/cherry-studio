@@ -1,3 +1,5 @@
+import { open } from 'node:fs/promises'
+
 import { Document, FileReader as VectorStoreFileReader } from '@vectorstores/core'
 
 import { getFileExt } from '@main/utils/legacyFile'
@@ -6,8 +8,24 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { toMaterialRelativePath } from '../../items'
 import { getKnowledgeBaseFilePath } from '../../pathStorage'
+import { BINARY_SNIFF_BYTES, bytesLookBinary } from './binaryText'
 import { AnydocReader } from './files/AnydocReader'
 import { DraftsExportReader } from './files/DraftsExportReader'
+
+/** Read only the leading {@link BINARY_SNIFF_BYTES} of a file and test them for the binary signal. */
+async function filePrefixLooksBinary(filePath: string): Promise<boolean> {
+  const handle = await open(filePath, 'r')
+  try {
+    const buffer = Buffer.alloc(BINARY_SNIFF_BYTES)
+    const { bytesRead } = await handle.read(buffer, 0, BINARY_SNIFF_BYTES, 0)
+    return bytesLookBinary(buffer.subarray(0, bytesRead))
+  } finally {
+    await handle.close()
+  }
+}
+
+const BINARY_CONTENT_ERROR =
+  'This file decoded as binary content, not text, so it cannot be indexed. Only text-based files can be added to a knowledge base.'
 
 class LazyFileReader extends VectorStoreFileReader<Document> {
   private readerPromise: Promise<VectorStoreFileReader<Document>> | undefined
@@ -26,6 +44,10 @@ class LazyFileReader extends VectorStoreFileReader<Document> {
     return reader.loadDataAsContent(fileContent, filename)
   }
 }
+
+// Marker subclass for the factory's `default` (text-fallback) branch, so `usesTextFallbackReader`
+// can ask the factory instead of mirroring its extension list.
+class TextFallbackReader extends LazyFileReader {}
 
 export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorStoreFileReader<Document> {
   const extension = getFileExt(filePath).toLowerCase()
@@ -77,11 +99,18 @@ export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorSto
     case '.draftsexport':
       return new DraftsExportReader()
     default:
-      return new LazyFileReader(async () =>
+      // The text fallback decodes bytes non-fatally, so it is the only path where a binary file
+      // becomes mojibake instead of failing — hence the only path the binary guard runs on.
+      return new TextFallbackReader(async () =>
         import('@vectorstores/readers/text').then(({ TextFileReader }) => new TextFileReader())
       )
   }
 }
+
+/** True when the factory routes {@link filePath} to the non-fatal text fallback, the only reader
+ * that can turn a binary file into mojibake. Derived from the factory itself — no parallel list. */
+export const usesTextFallbackReader = (filePath: string): boolean =>
+  createSupportedFileReader(filePath as AbsoluteFilePath) instanceof TextFallbackReader
 
 /**
  * Read a base-relative file with the extension's reader and tag every document
@@ -94,8 +123,16 @@ export async function loadDocumentsFromKnowledgeBaseFile(
 ): Promise<Document[]> {
   const filePath = getKnowledgeBaseFilePath(baseId, relativePath)
 
+  // Only the text-fallback path can turn a binary file into mojibake (dedicated readers own their
+  // container format). Sniff the raw byte prefix for a NUL — Git's binary heuristic — before
+  // decoding, so an explicitly-picked binary file fails visibly here instead of read as garbage.
+  if (usesTextFallbackReader(filePath) && (await filePrefixLooksBinary(filePath))) {
+    throw new Error(BINARY_CONTENT_ERROR)
+  }
+
   const reader = createSupportedFileReader(filePath)
   const documents = await reader.loadData(filePath)
+
   const sourceMetadata: KnowledgeSourceMetadata = { source }
 
   return documents.map(

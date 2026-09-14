@@ -683,7 +683,15 @@ const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
   // source file and indexes from it directly, skipping the file processor.
   indexedPath: AbsoluteFilePathSchema.optional().describe(
     'Absolute path to an already-processed artifact to copy in and index from, skipping the file processor.'
-  )
+  ),
+  // Set only when the user deliberately picked this file through the "All files" picker option,
+  // opting past the curated extension allow-list. It relaxes the add-time extension gate for THIS
+  // file only; the file must still pass the index-time binary-content guard, so an arbitrary
+  // extension is admitted but a binary file still fails visibly instead of embedding mojibake.
+  allowArbitrary: z
+    .boolean()
+    .optional()
+    .describe('User explicitly opted past the curated extension allow-list for this file.')
 })
 
 const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({

@@ -609,7 +609,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       return input
     }
 
-    assertSupportedKnowledgeFilePath(input.data.path)
+    assertSupportedKnowledgeFilePath(input.data.path, input.data.allowArbitrary === true)
     const fileName = getKnowledgeSourceRelativePath(input.data.path)
     // A restore that carries a processed artifact reserves the artifact slot too, even if
     // the destination base has no processor configured, so the copied `.md` cannot collide.
@@ -677,7 +677,14 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   }
 }
 
-function assertSupportedKnowledgeFilePath(filePath: string): void {
+// `allowArbitrary` is the user's deliberate "All files" opt-in: it skips the curated extension
+// gate for this one file. Safety does not weaken — the index-time binary-content guard
+// (KnowledgeFileReader) still rejects a file that decodes as binary. Without the opt-in the
+// curated allow-list stays the boundary, so bulk/implicit paths cannot admit arbitrary types.
+function assertSupportedKnowledgeFilePath(filePath: string, allowArbitrary: boolean): void {
+  if (allowArbitrary) {
+    return
+  }
   if (!knowledgeIndexableFileExtSet.has(getFileExt(filePath).toLowerCase())) {
     throw new Error(`Unsupported knowledge file type: ${filePath}`)
   }

@@ -192,27 +192,112 @@ export const customTextExts = new Map([
  */
 export const textExts = [...new Set([...Array.from(customTextExts.values()).flat(), ...codeLangExts])]
 
-// Text by format, but graphics/UI-layout markup, not documents — a folder of these
-// (icon sets, Xcode/GTK layouts) would flood a bulk directory embed with useless markup.
-// Excluded from the directory default; still indexable if a user explicitly picks one.
-const knowledgeNonDocumentTextExts = ['.svg', '.xib', '.storyboard', '.glade', '.ui', '.xaml']
+/**
+ * A deliberately curated set of plaintext extensions a knowledge base indexes through the
+ * text-reader fallback (no dedicated extractor). This is NOT the Linguist database: every
+ * entry is a decision — a format whose real-world content is text and carries retrieval
+ * value. Deliberately excluded:
+ * - binary or ambiguous formats that happen to appear in a text list (`.pkl`, `.pt`,
+ *   `.plist`, `.stl`, `.mat`, `.msg`, `.obj`, `.raw`): a bad decode yields non-empty
+ *   replacement-character text that would slip past the empty-chunk guard (#19177);
+ * - text with no retrieval value (source maps, minified bundles, lockfiles);
+ * - dotfile-style names (`.env`, `.eslintrc`, `.bashrc`): the renderer and main classify
+ *   these differently (`split('.')` vs `path.extname`), and the main guard treats a leading
+ *   dot as no extension — so admitting them by name breaks a mixed batch.
+ *
+ * A user who needs an extension outside this set can still pick it explicitly via the
+ * "All files" picker option (see {@link RuntimeFileItemDataSchema} `allowArbitrary`), which
+ * is content-checked at index time rather than gated by membership here.
+ */
+export const knowledgePlainTextFileExts = [
+  // Config / data serialization
+  '.yaml',
+  '.yml',
+  '.toml',
+  '.ini',
+  '.cfg',
+  '.properties',
+  '.xml',
+  '.tsv',
+  // Documentation / prose
+  '.rst',
+  '.org',
+  '.tex',
+  '.adoc',
+  '.asciidoc',
+  '.log',
+  // Shell / scripting
+  '.sh',
+  '.bash',
+  '.zsh',
+  '.fish',
+  '.ps1',
+  '.bat',
+  '.cmd',
+  // Source code
+  '.py',
+  '.pyi',
+  '.go',
+  '.rs',
+  '.java',
+  '.kt',
+  '.kts',
+  '.scala',
+  '.c',
+  '.h',
+  '.cpp',
+  '.cc',
+  '.cxx',
+  '.hpp',
+  '.hh',
+  '.cs',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.ts',
+  '.tsx',
+  '.php',
+  '.rb',
+  '.swift',
+  '.m',
+  '.mm',
+  '.lua',
+  '.pl',
+  '.pm',
+  '.r',
+  '.dart',
+  '.ex',
+  '.exs',
+  '.erl',
+  '.hs',
+  '.clj',
+  '.groovy',
+  '.gradle',
+  '.vue',
+  '.svelte',
+  // Data / query
+  '.sql',
+  '.graphql',
+  '.gql',
+  '.proto',
+  // Build / infra
+  '.dockerfile',
+  '.tf',
+  '.hcl'
+] as const
 
 const toLowerExtSet = (exts: readonly string[]): ReadonlySet<string> => new Set(exts.map((ext) => ext.toLowerCase()))
 
 /**
- * Every extension a knowledge base can index: the curated readers in
- * `knowledgeSupportedFileExts` plus any plaintext extension (`textExts`). Plaintext needs
- * no extractor — the text reader reads it directly, and a file that yields no indexable
- * text now fails the index visibly (#19177) — so there is no reason to reject an explicitly
- * picked file up front. Used on the explicit-pick paths (file picker, single-file ingestion).
+ * Every extension a knowledge base admits without an explicit per-file opt-in: the curated
+ * readers in {@link knowledgeSupportedFileExts} plus the curated plaintext set
+ * {@link knowledgePlainTextFileExts}. Used by both the explicit-pick guard and bulk directory
+ * expansion — the set stays small and curated so anything a user adds is something we know a
+ * reader reads. Arbitrary extensions enter only through the explicit "All files" opt-in, which
+ * is content-checked at index time instead of gated here.
  */
-export const knowledgeIndexableFileExtSet = toLowerExtSet([...knowledgeSupportedFileExts, ...textExts])
-
-/**
- * The conservative default for bulk directory embeds: {@link knowledgeIndexableFileExtSet}
- * minus {@link knowledgeNonDocumentTextExts}, so scanning a folder doesn't sweep in graphics
- * and UI-layout markup the user never singled out.
- */
-export const knowledgeDirectoryDefaultExtSet = toLowerExtSet(
-  [...knowledgeSupportedFileExts, ...textExts].filter((ext) => !knowledgeNonDocumentTextExts.includes(ext))
-)
+export const knowledgeIndexableFileExtSet = toLowerExtSet([
+  ...knowledgeSupportedFileExts,
+  ...knowledgePlainTextFileExts
+])

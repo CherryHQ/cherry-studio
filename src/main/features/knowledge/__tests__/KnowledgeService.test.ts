@@ -1252,6 +1252,45 @@ describe('KnowledgeService', () => {
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(2, 'kb-1', '/Users/me/b/notes.md', 'notes_1.md')
   })
 
+  it('rejects a file whose extension is off the curated allow-list without an explicit opt-in', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+
+    await expect(
+      service.addItems('kb-1', [
+        { type: 'file', data: { source: '/Users/me/archive.7z', path: '/Users/me/archive.7z' as AbsoluteFilePath } }
+      ])
+    ).rejects.toThrow(/Unsupported knowledge file type/)
+    expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts an off-list extension when the user explicitly opted in via allowArbitrary', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/notes.unknownext'))
+    knowledgeItemGetByIdMock.mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/notes.unknownext'))
+
+    await service.addItems('kb-1', [
+      {
+        type: 'file',
+        data: {
+          source: '/Users/me/notes.unknownext',
+          path: '/Users/me/notes.unknownext' as AbsoluteFilePath,
+          allowArbitrary: true
+        }
+      }
+    ])
+
+    // The membership gate is skipped: the file is copied and queued. (A binary such file is caught
+    // later by the index-time reader guard, not here at add time.)
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
+      'kb-1',
+      '/Users/me/notes.unknownext',
+      'notes.unknownext'
+    )
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(1)
+  })
+
   it('auto-renames a file whose processed-markdown name would collide', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
