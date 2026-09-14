@@ -46,11 +46,27 @@ export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType 
   return ''
 }
 
+const AIMLAPI_HOST = 'api.aimlapi.com'
+
+/**
+ * True only when requests actually leave for AI/ML API. A provider copied from
+ * the preset keeps `presetProviderId` after the user points it at another host,
+ * and the partner headers must not follow it there.
+ */
+function isAimlapiDestination(provider: Provider): boolean {
+  if (!matchesPreset(provider, SystemProviderIds.aimlapi)) return false
+  try {
+    return new URL(getBaseUrl(provider)).hostname === AIMLAPI_HOST
+  } catch {
+    return false
+  }
+}
+
 export function getExtraHeaders(provider: Provider): Record<string, string> {
   const headers = { ...provider.settings?.extraHeaders }
   const isTokenDance = matchesPreset(provider, SystemProviderIds.tokendance)
   const isRadeonCloud = matchesPreset(provider, SystemProviderIds['radeon-cloud'])
-  const isAimlapi = matchesPreset(provider, SystemProviderIds.aimlapi)
+  const isAimlapi = isAimlapiDestination(provider)
 
   for (const name of Object.keys(headers)) {
     const normalizedName = name.toLowerCase()
