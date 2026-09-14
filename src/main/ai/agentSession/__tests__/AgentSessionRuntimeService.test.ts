@@ -2664,6 +2664,163 @@ describe('AgentSessionRuntimeService', () => {
       }
     })
 
+    it('keeps the complete parent anchor when a poisoned detached flow rebuilds', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'tool-Agent',
+              toolCallId: 'task-root',
+              state: 'input-available',
+              input: { prompt: 'Audit the codebase' }
+            },
+            { type: 'text', text: 'partial answer', state: 'streaming' }
+          ]
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-delta', id: 'rebuild-a', delta: 'first' }
+      })
+      // Simulate a poisoned accumulator: the next chunk rebuilds from this snapshot.
+      const poisoned = entry.backgroundFlowAccumulators?.get('assistant-1')
+      poisoned.latest = {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-Agent',
+            toolCallId: 'task-root',
+            state: 'input-available',
+            input: { prompt: 'Audit the codebase' }
+          },
+          { type: 'text', text: 'partial answer', state: 'streaming' }
+        ]
+      }
+      poisoned.closed = true
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-delta', id: 'rebuild-b', delta: 'continued' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-end', id: 'rebuild-b' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'tool-Agent',
+              toolCallId: 'task-root',
+              state: 'input-available'
+            })
+          ])
+        )
+      })
+      // Without the fix the rebuild finalized the anchor to output-error.
+      for (const call of mocks.replaceMessageParts.mock.calls) {
+        const parts = call[2] as Array<{ type?: string; toolCallId?: string; state?: string }>
+        const anchor = parts.find((part) => part.toolCallId === 'task-root')
+        expect(anchor?.state).toBe('input-available')
+      }
+    })
+
+    it('keeps an orphan-closed seed part done when later detached chunks arrive', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'tool-Agent',
+              toolCallId: 'task-root',
+              state: 'input-available',
+              input: { prompt: 'Audit the codebase' }
+            },
+            { type: 'text', text: 'partial answer', state: 'streaming' }
+          ]
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-end', id: 'ghost-text' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-delta', id: 'continuum', delta: 'Continued after close' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'text-end', id: 'continuum' }
+      })
+
+      // Without the fix the next snapshot overwrote the in-place close, so the
+      // seed part appeared streaming again in the live overlay.
+      await vi.waitFor(() => {
+        const latest = entry.backgroundFlowAccumulators?.get('assistant-1')?.latest
+        const texts = (latest?.parts ?? []).filter((part: { type?: string }) => part.type === 'text')
+        expect(texts.map((part: { text?: string }) => part.text)).toContain('Continued after close')
+      })
+      const latest = entry.backgroundFlowAccumulators?.get('assistant-1')?.latest
+      const seed = (latest?.parts ?? []).find((part: { text?: string }) => part.text === 'partial answer')
+      expect(seed?.state).toBe('done')
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+    })
+
     it('publishes detached flow overlays under independent message keys', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)

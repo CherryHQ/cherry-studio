@@ -239,6 +239,8 @@ type BackgroundFlowAccumulator = {
   openParts: Set<string>
   /** Tool calls already started in this stream, so orphan input deltas can synthesize their start. */
   openTools: Map<string, { toolName: string; dynamic?: boolean }>
+  /** Seed indexes closed by orphan ends, reapplied after each snapshot so later chunks cannot reopen them. */
+  closedSeedIndexes?: Set<number>
   /** Bounds poisoned-stream warnings to one per accumulator. */
   errorLogged?: boolean
   /** Broadcast throttle for the live overlay — see {@link AgentSessionRuntimeService.publishBackgroundFlowSnapshot}. */
@@ -2102,8 +2104,9 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         return
       }
+      // Reuse flush finalization so the complete parent anchor (`input-available`) survives the rebuild.
       const seedParts = accumulator.latest?.parts
-        ? finalizeInterruptedParts(structuredClone(accumulator.latest.parts), 'error')
+        ? this.closeStreamingFlowParts(structuredClone(accumulator.latest.parts))
         : undefined
       this.evictBackgroundFlowAccumulator(entry, messageId)
       accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId, seedParts)
@@ -2215,8 +2218,22 @@ export class AgentSessionRuntimeService extends BaseService {
     )
     if (matches.length !== 1) return false
     const match = matches[0]
-    parts[parts.indexOf(match)] = { ...match, state: 'done' as const }
+    const index = parts.indexOf(match)
+    parts[index] = { ...match, state: 'done' as const }
+    accumulator.closedSeedIndexes ??= new Set()
+    accumulator.closedSeedIndexes.add(index)
     return true
+  }
+
+  private reapplyClosedSeedParts(accumulator: BackgroundFlowAccumulator): void {
+    const indexes = accumulator.closedSeedIndexes
+    const parts = accumulator.latest?.parts
+    if (!indexes?.size || !parts) return
+    for (const index of indexes) {
+      const part = parts[index]
+      if (part && (part.type === 'text' || part.type === 'reasoning') && part.state === 'streaming')
+        parts[index] = { ...part, state: 'done' as const }
+    }
   }
 
   private closeStreamingFlowParts(parts: CherryMessagePart[]): CherryMessagePart[] {
@@ -2293,6 +2310,7 @@ export class AgentSessionRuntimeService extends BaseService {
         terminateOnError: true
       })) {
         accumulator.latest = snapshot
+        this.reapplyClosedSeedParts(accumulator)
         this.publishBackgroundFlowSnapshot(entry, accumulator)
       }
     } catch (error) {
