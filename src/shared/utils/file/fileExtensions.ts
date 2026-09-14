@@ -191,3 +191,28 @@ export const customTextExts = new Map([
  * The Set ensures there are no duplicates.
  */
 export const textExts = [...new Set([...Array.from(customTextExts.values()).flat(), ...codeLangExts])]
+
+// Text by format, but graphics/UI-layout markup, not documents — a folder of these
+// (icon sets, Xcode/GTK layouts) would flood a bulk directory embed with useless markup.
+// Excluded from the directory default; still indexable if a user explicitly picks one.
+const knowledgeNonDocumentTextExts = ['.svg', '.xib', '.storyboard', '.glade', '.ui', '.xaml']
+
+const toLowerExtSet = (exts: readonly string[]): ReadonlySet<string> => new Set(exts.map((ext) => ext.toLowerCase()))
+
+/**
+ * Every extension a knowledge base can index: the curated readers in
+ * `knowledgeSupportedFileExts` plus any plaintext extension (`textExts`). Plaintext needs
+ * no extractor — the text reader reads it directly, and a file that yields no indexable
+ * text now fails the index visibly (#19177) — so there is no reason to reject an explicitly
+ * picked file up front. Used on the explicit-pick paths (file picker, single-file ingestion).
+ */
+export const knowledgeIndexableFileExtSet = toLowerExtSet([...knowledgeSupportedFileExts, ...textExts])
+
+/**
+ * The conservative default for bulk directory embeds: {@link knowledgeIndexableFileExtSet}
+ * minus {@link knowledgeNonDocumentTextExts}, so scanning a folder doesn't sweep in graphics
+ * and UI-layout markup the user never singled out.
+ */
+export const knowledgeDirectoryDefaultExtSet = toLowerExtSet(
+  [...knowledgeSupportedFileExts, ...textExts].filter((ext) => !knowledgeNonDocumentTextExts.includes(ext))
+)

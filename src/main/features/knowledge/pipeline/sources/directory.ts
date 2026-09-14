@@ -3,11 +3,9 @@ import path from 'node:path'
 
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
-import { knowledgeSupportedFileExts } from '@shared/utils/file'
+import { knowledgeDirectoryDefaultExtSet } from '@shared/utils/file'
 
 import { assertSafeKnowledgeRelativePath, copyFileIntoKnowledgeBaseAt } from '../../pathStorage'
-
-const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 
 /** A scanned filesystem entry under a directory owner — only the fields this module reads. */
 interface DirectoryEntryNode {
@@ -81,7 +79,7 @@ async function expandDirectoryNode(
   onFileCopied: () => void
 ): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
-    if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(path.extname(node.externalPath).toLowerCase())) {
+    if (!knowledgeDirectoryDefaultExtSet.has(path.extname(node.externalPath).toLowerCase())) {
       return null
     }
 
@@ -211,7 +209,7 @@ function countSupportedFiles(nodes: DirectoryEntryNode[]): number {
   let count = 0
   for (const node of nodes) {
     if (node.type === 'file') {
-      if (KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(path.extname(node.externalPath).toLowerCase())) {
+      if (knowledgeDirectoryDefaultExtSet.has(path.extname(node.externalPath).toLowerCase())) {
         count += 1
       }
     } else {
