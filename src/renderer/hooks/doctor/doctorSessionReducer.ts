@@ -1,4 +1,5 @@
-import type { DoctorAction, DoctorCheckId, DoctorFixRequest, DoctorPanel, DoctorRunTier } from '@shared/types/doctor'
+import type { DoctorAction, DoctorCheckId, DoctorFixRequest, DoctorRunTier } from '@shared/types/doctor'
+import type { DoctorPanel } from '@shared/utils/doctor'
 
 export type DoctorInteraction =
   | { readonly kind: 'idle' }

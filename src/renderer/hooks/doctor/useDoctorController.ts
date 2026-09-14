@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
@@ -9,15 +12,12 @@ import {
   DOCTOR_CHECK_CATALOG,
   type DoctorAction,
   type DoctorCheckId,
-  doctorCheckTitleKey,
   type DoctorFixRequest,
   type DoctorNavigateTarget,
-  type DoctorPanel,
   type DoctorRunTier,
   type DoctorState
 } from '@shared/types/doctor'
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { doctorCheckTitleKey, type DoctorPanel } from '@shared/utils/doctor'
 
 import { createDoctorSession, type DoctorInteraction, doctorSessionReducer } from './doctorSessionReducer'
 
