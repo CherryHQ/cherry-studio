@@ -12,7 +12,7 @@ vi.mock('node:child_process', () => ({
   execFile: Object.assign(vi.fn(), { [Symbol.for('nodejs.util.promisify.custom')]: runProcess })
 }))
 vi.mock('node:fs/promises', () => ({ readFile: vi.fn() }))
-vi.mock('electron', () => ({ app: { isPackaged: true, getAppPath: () => '/app/app.asar' } }))
+vi.mock('electron', () => ({ app: { isPackaged: true, getAppPath: () => path.join('/app', 'app.asar') } }))
 
 beforeEach(() => {
   runProcess.mockReset().mockResolvedValue({ stdout: '1.3.14\n' })
@@ -39,7 +39,9 @@ describe('required DSH Bun runtime', () => {
   })
 
   it('returns the packaged on-disk binary, never a user-installed Bun shim', async () => {
-    const paths = vi.spyOn(application, 'getPath').mockReturnValue('/app/app.asar/resources/binaries')
+    const paths = vi
+      .spyOn(application, 'getPath')
+      .mockReturnValue(path.join('/app', 'app.asar', 'resources', 'binaries'))
     try {
       await expect(resolveDshBunRuntime()).resolves.toBe(
         path.join(
