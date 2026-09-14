@@ -14,6 +14,8 @@ export { IdleTimeoutController, type IdleTimeoutHandle } from './IdleTimeoutCont
 export { retry, type RetryOptions } from './retry'
 export { withIdleTimeout } from './withIdleTimeout'
 export {
+  createDeferred,
+  type Deferred,
   raceCancellation,
   createDisposableTimeoutSignal,
   createTimeout,

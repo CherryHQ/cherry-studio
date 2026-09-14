@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
+import { KeyedMutex, onAbort as subscribeToAbort, raceCancellation } from '@shared/utils/async'
 
 import {
   artifactEntryPath,
@@ -244,7 +244,7 @@ export class LocalModelStorageService {
           return
         case 'removing':
           try {
-            await this.awaitWithAbort(admission.removal, signal)
+            await raceCancellation(admission.removal, signal, (aborted) => this.abortError(aborted))
           } catch (error) {
             if (signal.aborted) throw error
           }
@@ -285,7 +285,7 @@ export class LocalModelStorageService {
               break
             case 'removing':
               try {
-                await this.awaitWithAbort(admission.removal, signal)
+                await raceCancellation(admission.removal, signal, (aborted) => this.abortError(aborted))
               } catch (error) {
                 if (signal.aborted) throw error
               }
@@ -315,15 +315,13 @@ export class LocalModelStorageService {
       const existing = this.artifactRemovals.get(id)
       if (existing) return { kind: 'removing' as const, removal: existing }
 
-      let start!: () => void
+      const { promise: operation, resolve, reject } = Promise.withResolvers<void>()
       let started = false
-      const operation = new Promise<void>((resolve, reject) => {
-        start = () => {
-          if (started) return
-          started = true
-          void this.performArtifactRemoval(id).then(resolve, reject)
-        }
-      })
+      const start = () => {
+        if (started) return
+        started = true
+        void this.performArtifactRemoval(id).then(resolve, reject)
+      }
       const removal = operation.finally(() => {
         if (this.artifactRemovals.get(id) === removal) this.artifactRemovals.delete(id)
       })
@@ -350,12 +348,8 @@ export class LocalModelStorageService {
       start: () => {},
       waiters: 0
     }
-    let resolveInstall!: () => void
-    let rejectInstall!: (error: unknown) => void
-    const operation = new Promise<void>((resolve, reject) => {
-      resolveInstall = resolve
-      rejectInstall = reject
-    })
+
+    const { promise: operation, resolve: resolveInstall, reject: rejectInstall } = Promise.withResolvers<void>()
     install.promise = operation.finally(() => {
       if (this.artifactInstalls.get(id) === install) this.artifactInstalls.delete(id)
     })
@@ -392,19 +386,20 @@ export class LocalModelStorageService {
 
     return new Promise<void>((resolve, reject) => {
       let settled = false
+      let disposeAbort = () => {}
       const cleanup = () => {
         if (settled) return
         settled = true
         install.waiters -= 1
         if (listener) install.listeners.delete(listener)
-        signal.removeEventListener('abort', onAbort)
+        disposeAbort()
       }
       const onAbort = () => {
         cleanup()
         this.abandonArtifactInstall(install, signal).catch(reject)
       }
 
-      signal.addEventListener('abort', onAbort, { once: true })
+      disposeAbort = subscribeToAbort(signal, onAbort)
       install.promise.then(
         () => {
           cleanup()
@@ -447,30 +442,6 @@ export class LocalModelStorageService {
       await install.promise.catch(() => {})
     }
     await removeArtifact(getSharedArtifact(id))
-  }
-
-  private awaitWithAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-    if (signal.aborted) return Promise.reject(this.abortError(signal))
-
-    return new Promise<T>((resolve, reject) => {
-      const onAbort = () => {
-        cleanup()
-        reject(this.abortError(signal))
-      }
-      const cleanup = () => signal.removeEventListener('abort', onAbort)
-
-      signal.addEventListener('abort', onAbort, { once: true })
-      promise.then(
-        (value) => {
-          cleanup()
-          resolve(value)
-        },
-        (error) => {
-          cleanup()
-          reject(error)
-        }
-      )
-    })
   }
 }
 

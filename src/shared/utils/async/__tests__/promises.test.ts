@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createDisposableTimeoutSignal, delay, raceCancellation, raceTimeout, withTimeout } from '..'
+import { createDeferred, createDisposableTimeoutSignal, delay, raceCancellation, raceTimeout, withTimeout } from '..'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -225,5 +225,15 @@ describe('raceCancellation', () => {
     ).rejects.toBe(failure)
     task.reject(new Error('late work failure'))
     await vi.advanceTimersByTimeAsync(0)
+  })
+})
+
+describe('createDeferred', () => {
+  it('observes early rejection while preserving the original rejected promise for late waiters', async () => {
+    const deferred = createDeferred<string>()
+    const error = new Error('generation failed before a waiter attached')
+    deferred.reject(error)
+    await vi.advanceTimersByTimeAsync(0)
+    await expect(deferred.promise).rejects.toBe(error)
   })
 })

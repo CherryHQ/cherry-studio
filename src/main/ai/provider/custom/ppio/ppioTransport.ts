@@ -1,7 +1,8 @@
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { createAbortError, createTimeout, onAbort as subscribeToAbort } from '@shared/utils/async'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
-import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
+import { fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
 /**
  * PPIO submit/poll transport.
@@ -121,21 +122,14 @@ class PpioTransport implements ImageGenerationTransport {
     const controller = new AbortController()
     let externallyAborted = false
 
-    const timeoutId = setTimeout(() => {
-      controller.abort()
-    }, timeout)
+    const deadline = createTimeout(timeout, () => controller.abort())
 
     const onExternalAbort = () => {
       externallyAborted = true
       controller.abort()
     }
 
-    if (externalSignal?.aborted) {
-      externallyAborted = true
-      controller.abort()
-    } else {
-      externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
-    }
+    const disposeAbort = subscribeToAbort(externalSignal, onExternalAbort)
 
     const fetchOptions: RequestInit = {
       method,
@@ -170,8 +164,8 @@ class PpioTransport implements ImageGenerationTransport {
       }
       throw error
     } finally {
-      clearTimeout(timeoutId)
-      externalSignal?.removeEventListener('abort', onExternalAbort)
+      deadline.dispose()
+      disposeAbort()
     }
   }
 

@@ -4,6 +4,15 @@ import type { Disposable } from '@shared/types/disposable'
 
 import { onAbort } from './cancellation'
 
+export type Deferred<T> = PromiseWithResolvers<T>
+
+/** Observe early rejection without replacing the original promise or its eventual outcome. */
+export function createDeferred<T>(): Deferred<T> {
+  const deferred = Promise.withResolvers<T>()
+  void deferred.promise.catch(() => {})
+  return deferred
+}
+
 /** Wait for a duration; cancellation rejects with the owner's original reason. */
 export function delay(ms: number, signal?: AbortSignal): Promise<void> {
   return toolkitDelay(ms, { signal }).catch((error) => {
