@@ -112,3 +112,9 @@ event-scoped acquisitions. The main reconciler adapter retains default logging.
 
 `Mutex`, `Semaphore`, `tryAcquire`, `PQueue`, `debounce`, and `throttle` re-export
 the existing libraries; this module does not replace their implementations.
+
+## Deferred completion
+
+`createDeferred` uses native resolvers and observes early rejection without
+replacing the original promise or error. `ProcessHost` owns process exit and
+keeps its execution slot until that resource barrier completes.

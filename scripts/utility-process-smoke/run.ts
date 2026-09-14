@@ -9,6 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { createPackage, listPackage } from '@electron/asar'
+import { parseSync } from 'oxc-parser'
 
 const REPO_ROOT = path.resolve(__dirname, '../..')
 const OUT_ROOT = path.join(REPO_ROOT, 'local', 'utility-process-smoke')
@@ -68,7 +69,10 @@ function assertHermetic(): void {
   }
   for (const file of [mainEntry, ...listJsFiles(entriesDir)]) {
     const source = fs.readFileSync(file, 'utf8')
-    const leaked = ['LoggerService', 'winston', 'ServiceContainer'].filter((symbol) => source.includes(symbol))
+    const code = parseSync(file, source)
+      .comments.toReversed()
+      .reduce((text, { start, end }) => text.slice(0, start) + ' ' + text.slice(end), source)
+    const leaked = ['LoggerService', 'winston', 'ServiceContainer'].filter((symbol) => code.includes(symbol))
     if (leaked.length > 0) {
       throw new Error(`${path.relative(APP_DIR, file)} leaked main-only code: ${leaked.join(', ')}`)
     }

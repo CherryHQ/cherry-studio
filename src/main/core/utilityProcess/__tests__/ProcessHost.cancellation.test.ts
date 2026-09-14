@@ -57,6 +57,65 @@ describe('ProcessHost cancellation (cooperative)', () => {
     expect(adapter.spawns).toHaveLength(0)
   })
 
+  it('cancels after the request when structuredClone aborts reentrantly and tolerates its late result', async () => {
+    const received: MainFrame[] = []
+    const { host, adapter } = createHost({
+      script: scriptedReady((child, frame) => {
+        received.push(frame)
+        if (frame.kind === 'request' && frame.method === 'ping') {
+          child.reply({ kind: 'result', requestId: frame.requestId, output: 'pong' })
+        }
+      })
+    })
+    const controller = new AbortController()
+    const reason = new Error('cancelled while cloning')
+    const input = {
+      get value() {
+        controller.abort(reason)
+        return 'cloneable'
+      }
+    }
+
+    const outcome = host.request('echo', input, { signal: controller.signal }).catch((error) => error)
+    await flushMicrotasks()
+
+    expect(received.map((frame) => frame.kind)).toEqual(['request', 'cancel'])
+    expect(await outcome).toBe(reason)
+    const request = received.find((frame) => frame.kind === 'request')!
+    expect(request.input).toEqual({ value: 'cloneable' })
+    adapter.spawns[0].child.reply({ kind: 'result', requestId: request.requestId, output: 'late result' })
+    await flushMicrotasks()
+
+    await expect(host.request('ping', undefined)).resolves.toBe('pong')
+    expect(adapter.spawns).toHaveLength(1)
+    expect(adapter.spawns[0].child.killed).toBe(false)
+  })
+
+  it.each(['cooperative', 'terminate'] as const)(
+    'preserves serialization failure when structuredClone also aborts in %s mode',
+    async (cancellation) => {
+      const { host, adapter } = createHost({ definition: { cancellation } })
+      const controller = new AbortController()
+      const reason = new Error('cancelled while cloning')
+      const input = {
+        get value() {
+          controller.abort(reason)
+          return () => 'not cloneable'
+        }
+      }
+
+      expectCode(
+        await rejectionOf(host.request('echo', input, { signal: controller.signal })),
+        'PROCESS_SERIALIZATION_FAILED'
+      )
+      expect(controller.signal.reason).toBe(reason)
+      expect(adapter.spawns[0].child.frames).toEqual([])
+      expect(adapter.spawns[0].child.killed).toBe(false)
+      await expect(host.request('ping', undefined)).resolves.toBe('pong')
+      expect(adapter.spawns).toHaveLength(1)
+    }
+  )
+
   it('releases a caller that aborts during the cold start while the generation keeps serving others', async () => {
     const { host, adapter } = createHost()
     const controller = new AbortController()
@@ -111,6 +170,54 @@ describe('ProcessHost cancellation (cooperative)', () => {
 })
 
 describe('ProcessHost cancellation (terminate)', () => {
+  it('waits for actual exit when structuredClone aborts reentrantly before starting a successor', async () => {
+    const delayedExit: MemoryChildScript = (child) => {
+      child.onKill(() => {})
+      child.onFrame(() => {})
+      void child.awaitConnect().then(() => child.reply({ kind: 'ready' }))
+    }
+    const { host, adapter } = createHost({
+      script: firstThenEcho(delayedExit),
+      definition: { cancellation: 'terminate' }
+    })
+    const controller = new AbortController()
+    const reason = new Error('cancelled while cloning')
+    let settled = false
+    const input = {
+      get value() {
+        controller.abort(reason)
+        return 'cloneable'
+      }
+    }
+    const outcome = host.request('echo', input, { signal: controller.signal }).then(
+      (value) => {
+        settled = true
+        return value
+      },
+      (error) => {
+        settled = true
+        return error
+      }
+    )
+    await flushMicrotasks()
+    const child = adapter.spawns[0].child
+
+    expect(child.killed).toBe(true)
+    expect(child.exited).toBe(false)
+    expect(settled).toBe(false)
+    const successor = host.request('ping', undefined)
+    const request = child.frames.find((frame) => frame.kind === 'request')!
+    child.reply({ kind: 'result', requestId: request.requestId, output: 'late result' })
+    await flushMicrotasks()
+    expect(settled).toBe(false)
+    expect(adapter.spawns).toHaveLength(1)
+
+    child.exit(143)
+    expect(await outcome).toBe(reason)
+    await expect(successor).resolves.toBe('pong')
+    expect(adapter.spawns).toHaveLength(2)
+  })
+
   it('kills the generation, releases the canceller only after the exit, and fails other callers as intentional', async () => {
     const { script, states } = echoScript()
     const { host, adapter } = createHost({ script, definition: { cancellation: 'terminate' } })
