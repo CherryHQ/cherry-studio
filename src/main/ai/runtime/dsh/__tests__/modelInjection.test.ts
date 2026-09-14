@@ -155,7 +155,7 @@ describe('buildDshGatewayInjection', () => {
     })
 
     expect(yaml).not.toContain(GATEWAY_KEY)
-    const route = (parse(yaml) as Array<{ id: string; config?: any }>).find((entry) => entry.id === 'llm')?.config
+    const route = (parse(yaml) as Array<{ id: string; config?: any }>).find((entry) => entry.id === 'llm-pi-ai')?.config
       ?.providers?.[injection.providerName]
     expect(route).toMatchObject({
       apiKeyEnv: 'CHERRY_DSH_API_KEY',
