@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, FocusEvent } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -67,6 +67,7 @@ const GeneralSettings: FC = () => {
   const [proxyTestResult, setProxyTestResult] = useState<OutputFor<'proxy.test_connection'> | null>(null)
   const proxyTestGeneration = useRef(0)
   const proxyTestInput = useRef({ mode: storeProxyMode, url: storeProxyUrl, bypassRules: storeProxyBypassRules })
+  const proxyTestButtonRef = useRef<HTMLButtonElement>(null)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
@@ -91,7 +92,12 @@ const GeneralSettings: FC = () => {
     void setTrayPreferences(isLaunchToTray && !tray ? { enabled: true, onLaunch: true } : { onLaunch: isLaunchToTray })
   }
 
-  const onSetProxyUrl = () => {
+  const isProxyTestAction = (event: FocusEvent<HTMLInputElement>) =>
+    event.relatedTarget instanceof Node && proxyTestButtonRef.current?.contains(event.relatedTarget)
+
+  const onSetProxyUrl = (event: FocusEvent<HTMLInputElement>) => {
+    if (isProxyTestAction(event)) return
+
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
       toast.error(t('message.error.invalid.proxy.url'))
       return
@@ -100,7 +106,9 @@ const GeneralSettings: FC = () => {
     void _setProxyUrl(proxyUrl)
   }
 
-  const onSetProxyBypassRules = () => {
+  const onSetProxyBypassRules = (event: FocusEvent<HTMLInputElement>) => {
+    if (isProxyTestAction(event)) return
+
     void _setProxyBypassRules(proxyBypassRules)
   }
 
@@ -296,6 +304,7 @@ const GeneralSettings: FC = () => {
             <SettingDescription className="mt-1.5 leading-5">{getProxyTestDescription()}</SettingDescription>
           </div>
           <Button
+            ref={proxyTestButtonRef}
             type="button"
             variant="outline"
             loading={proxyTestLoading}

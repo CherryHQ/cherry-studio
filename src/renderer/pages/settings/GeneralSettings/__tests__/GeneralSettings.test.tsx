@@ -1,5 +1,6 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -179,6 +180,7 @@ describe('GeneralSettings', () => {
   })
 
   it('tests the edited proxy values without persisting them first', async () => {
+    const user = userEvent.setup()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'app.proxy.mode': 'custom',
       'app.proxy.url': 'http://saved.example:8080',
@@ -186,20 +188,34 @@ describe('GeneralSettings', () => {
     })
     render(<GeneralSettings />)
 
-    fireEvent.change(screen.getByDisplayValue('http://saved.example:8080'), {
-      target: { value: 'socks5://edited.example:1080' }
-    })
-    fireEvent.change(screen.getByDisplayValue('localhost'), { target: { value: 'www.gstatic.com' } })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.proxy.test.action' }))
+    const proxyUrlInput = screen.getByDisplayValue('http://saved.example:8080')
+    const bypassRulesInput = screen.getByDisplayValue('localhost')
+    const testButton = screen.getByRole('button', { name: 'settings.proxy.test.action' })
+
+    await user.clear(proxyUrlInput)
+    await user.type(proxyUrlInput, 'socks5://edited.example:1080')
+    await user.click(testButton)
 
     await waitFor(() => {
       expect(ipcRequestMock).toHaveBeenCalledWith('proxy.test_connection', {
         mode: 'custom',
         url: 'socks5://edited.example:1080',
-        bypassRules: 'www.gstatic.com'
+        bypassRules: 'localhost'
       })
     })
     expect(MockUsePreferenceUtils.getPreferenceValue('app.proxy.url')).toBe('http://saved.example:8080')
+
+    await user.clear(bypassRulesInput)
+    await user.type(bypassRulesInput, 'www.gstatic.com')
+    await user.click(testButton)
+
+    await waitFor(() => {
+      expect(ipcRequestMock).toHaveBeenLastCalledWith('proxy.test_connection', {
+        mode: 'custom',
+        url: 'socks5://edited.example:1080',
+        bypassRules: 'www.gstatic.com'
+      })
+    })
     expect(MockUsePreferenceUtils.getPreferenceValue('app.proxy.bypass_rules')).toBe('localhost')
   })
 
