@@ -1,5 +1,3 @@
-import { webContents } from 'electron'
-
 import { application } from '@application'
 import type { webviewRequestSchemas } from '@shared/ipc/schemas/webview'
 import type { IpcHandlersFor } from '@shared/ipc/types'

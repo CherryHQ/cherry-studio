@@ -129,7 +129,13 @@ export function sanitizeWebviewAnnotationUrl(rawUrl: string): string {
     const url = new URL(rawUrl)
 
     if (url.protocol === 'file:') {
-      const parts = decodeURIComponent(url.pathname).split('/').filter(Boolean)
+      let pathname = url.pathname
+      try {
+        pathname = decodeURIComponent(pathname)
+      } catch {
+        // A malformed escape should not erase the otherwise valid file source.
+      }
+      const parts = pathname.split('/').filter(Boolean)
       return `file:${parts.at(-1) ?? ''}`
     }
 

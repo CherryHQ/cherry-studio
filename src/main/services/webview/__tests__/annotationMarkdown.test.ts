@@ -1,5 +1,6 @@
-import { WebviewAnnotationSchema } from '@shared/types/webviewAnnotation'
 import { describe, expect, it } from 'vitest'
+
+import { WebviewAnnotationSchema } from '@shared/types/webviewAnnotation'
 
 import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from '../annotationMarkdown'
 import type { AnnotationDocument, ResolvedAnnotationDocument } from '../annotationTypes'
@@ -33,6 +34,10 @@ describe('sanitizeWebviewAnnotationUrl', () => {
     expect(sanitizeWebviewAnnotationUrl('file:///Users/example/private/project/index.html?secret=yes')).toBe(
       'file:index.html'
     )
+  })
+
+  it('keeps a valid file source when its path contains a malformed escape', () => {
+    expect(sanitizeWebviewAnnotationUrl('file:///Users/example/100%/index.html')).toBe('file:index.html')
   })
 
   it('reduces non-page schemes and rejects malformed values', () => {
