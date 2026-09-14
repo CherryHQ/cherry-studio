@@ -1,4 +1,3 @@
-import type { ImagePreviewTransformControls } from '@cherrystudio/ui'
 import FlipHorizontal from 'lucide-react/dist/esm/icons/flip-horizontal'
 import FlipVertical from 'lucide-react/dist/esm/icons/flip-vertical'
 import RefreshCcw from 'lucide-react/dist/esm/icons/refresh-ccw'
@@ -7,6 +6,8 @@ import RotateCwSquare from 'lucide-react/dist/esm/icons/rotate-cw-square'
 import ZoomIn from 'lucide-react/dist/esm/icons/zoom-in'
 import ZoomOut from 'lucide-react/dist/esm/icons/zoom-out'
 import { useTranslation } from 'react-i18next'
+
+import type { ImagePreviewTransformControls } from '@cherrystudio/ui'
 
 import { FilePreviewToolbar } from '../../FilePreviewToolbar'
 import { FilePreviewToolbarButton } from '../../FilePreviewToolbarButton'

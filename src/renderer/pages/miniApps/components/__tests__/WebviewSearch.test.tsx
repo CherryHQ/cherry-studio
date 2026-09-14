@@ -1,8 +1,9 @@
-import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 import WebviewSearch from '../WebviewSearch'
 
@@ -29,7 +30,7 @@ vi.mock('@renderer/ipc', () => ({
 const createWebviewMock = (webContentsId = 1) => {
   const findInPageMock = vi.fn()
   const stopFindInPageMock = vi.fn()
-  const webview = document.createElement('webview') as unknown as WebviewTag
+  const webview = document.createElement('webview')
   Object.assign(webview, {
     getWebContentsId: vi.fn(() => webContentsId),
     findInPage: findInPageMock,
@@ -227,7 +228,7 @@ describe('WebviewSearch', () => {
         activeMatchOrdinal: 1,
         selectionArea: undefined as unknown as Electron.Rectangle,
         finalUpdate: false
-      } as Electron.FoundInPageResult)
+      })
     })
 
     const nextButton = screen.getByRole('button', { name: 'Next match' })

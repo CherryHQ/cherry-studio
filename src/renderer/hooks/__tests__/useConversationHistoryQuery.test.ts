@@ -1,7 +1,8 @@
-import { dataApiService } from '@data/DataApiService'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { unstable_serialize } from 'swr'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { dataApiService } from '@data/DataApiService'
 
 import { createSWRTestWrapper as makeWrapper } from '../../data/hooks/__tests__/testUtils'
 

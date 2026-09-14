@@ -29,10 +29,10 @@ function makeCapturingFetch() {
   let captured: { url: string; init?: RequestInit } | undefined
   // The canned `{}` 200 response is lenient enough that every caller's response
   // parser yields nothing *without throwing* — we only care about what went out.
-  const fetch = ((url: RequestInfo | URL, init?: RequestInit) => {
+  const fetch = (url: RequestInfo | URL, init?: RequestInit) => {
     captured = { url: String(url), init }
     return Promise.resolve(new Response('{}', { status: 200 }))
-  }) as typeof globalThis.fetch
+  }
 
   return {
     fetch,

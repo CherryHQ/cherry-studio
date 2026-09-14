@@ -1,8 +1,9 @@
-import type { ActionTool } from '@renderer/components/ActionTools'
-import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { ActionTool } from '@renderer/components/ActionTools'
+import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
 
 interface UseExpandToolProps {
   enabled?: boolean

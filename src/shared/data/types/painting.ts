@@ -22,6 +22,12 @@ export const PaintingSchema = z.strictObject({
   modelId: z.string().nullable().optional(),
   prompt: z.string(),
   files: PaintingFilesSchema,
+  /**
+   * Stable snapshot of the referenced FileEntry rows consumed by painting history hydration.
+   * List/get responses populate it so renderer caches can reject stale file metadata without
+   * repeating per-entry DataApi and physical-path IPC on an unchanged refresh.
+   */
+  fileDataFingerprint: z.string().optional(),
   orderKey: z.string().min(1),
   // ISO 8601 (matches the assistant/topic/tag/note/prompt convention); the
   // service emits these via `timestampToISO`. `id` stays `z.string()` because

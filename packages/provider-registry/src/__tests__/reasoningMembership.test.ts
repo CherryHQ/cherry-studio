@@ -42,7 +42,19 @@ describe('inferReasoningMembership', () => {
     'mimo-v2-5',
     'llama-3-1-nemotron-ultra-253b-v1',
     // Gemini image SKUs ship thinking budgets (catalog: gemini-2-5-flash-image, 3-1-flash-image).
-    'gemini-3-flash-image'
+    'gemini-3-flash-image',
+    // Xunfei MaaS (讯飞星辰) ids omit hyphens/dots (iflytek creator): deepseek-v3.2,
+    // deepseek-v4-pro, kimi-k2.6, qwen3.5-397b / qwen3.6-v35b, glm-4.7-flash,
+    // glm-5.2, spark-x2 / spark-x2-flash.
+    'xopdeepseekv32',
+    'xopdeepseekv4pro',
+    'xopkimik26',
+    'xopqwen35397b',
+    'xopqwen36v35b',
+    'xopglmv47flash',
+    'xopglm52',
+    'xsparkx2',
+    'xsparkx2flash'
   ])('claims %s', (modelId) => {
     expect(inferReasoningMembership(modelId)).toBe(true)
   })
@@ -56,7 +68,11 @@ describe('inferReasoningMembership', () => {
     'grok-4-fast-non-reasoning',
     'claude-3-5-sonnet',
     'hunyuan-lite',
-    'gpt-4o'
+    'gpt-4o',
+    // Xunfei MaaS non-reasoning ids: pre-v3 deepseek, glm below 4.5, embedding/rerank.
+    'xopdeepseekv2pro',
+    'xopglmv42',
+    'xopbge-m3'
   ])('does not claim %s', (modelId) => {
     expect(inferReasoningMembership(modelId)).toBe(false)
   })

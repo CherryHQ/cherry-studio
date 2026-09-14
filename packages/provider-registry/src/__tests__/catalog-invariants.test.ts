@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest'
 import { canonOf, isModelsDevRoutingAlias, prefixHit } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
 import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
+import { PROVIDERS } from '../providers'
 import { SERVER_TOOL } from '../schemas/enums'
 import { ModelListSchema } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
@@ -97,7 +98,8 @@ describe('catalog invariants (data/*.json)', () => {
   const baseIds = new Set(ids)
 
   it.each([
-    ['mai-image-2-5', 'microsoft', 'Microsoft: MAI-Image-2.5'],
+    // OpenRouter renamed the vendor prefix (Microsoft → MicrosoftAI) in the same batch as MiniMax → MiniMaxAI.
+    ['mai-image-2-5', 'microsoft', 'MicrosoftAI: MAI-Image-2.5'],
     ['recraft-v4-1-vector', 'recraft', 'Recraft: Recraft V4.1 Vector'],
     ['riverflow-v2-5-fast', 'sourceful', 'Sourceful: Riverflow V2.5 Fast'],
     ['seedream-4-5', 'bytedance', 'Seedream 4.5']
@@ -196,6 +198,22 @@ describe('catalog invariants (data/*.json)', () => {
     })
     expect(baseIds.has(deepseekLatest!.modelId)).toBe(false)
     expect(deepseekLatest?.pricing).toBeUndefined()
+  })
+
+  it('keeps the declared OpenRouter GPT image route out of the OpenAI creator catalog', () => {
+    expect(PROVIDERS.find((provider) => provider.id === 'openrouter')?.standaloneModelIds).toEqual(['gpt-5-4-image-2'])
+    expect(ids).not.toContain('gpt-5-4-image-2')
+    expect(
+      providerModelOverrides.find(
+        (override) => override.providerId === 'openrouter' && override.apiModelId === 'openai/gpt-5.4-image-2'
+      )
+    ).toMatchObject({
+      modelId: 'gpt-5-4-image-2',
+      capabilities: { add: expect.arrayContaining(['image-generation']) },
+      endpointTypes: expect.arrayContaining(['openai-image-generation']),
+      name: 'OpenAI: GPT-5.4 Image 2',
+      ownedBy: 'openrouter'
+    })
   })
 
   it('drops Vercel OpenAI fast routing aliases without dropping real fast models', () => {
@@ -376,14 +394,19 @@ describe('catalog invariants (data/*.json)', () => {
     expect(pricing('deepseek-v4-flash-latest')).toBeUndefined()
   })
 
-  it('models.json conforms to ModelListSchema', () => {
+  // The list schemas drop entries they cannot parse (forward compatibility), so conformance
+  // means BOTH "parses" and "nothing was silently dropped" — otherwise a broken bundled entry
+  // would vanish from the shipped catalog without failing anything.
+  it('models.json conforms to ModelListSchema with no entry dropped', () => {
     const r = ModelListSchema.safeParse(modelsRaw)
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
+    expect(r.success && r.data.models.length).toBe(modelsRaw.models.length)
   })
 
-  it('provider-models.json conforms to ProviderModelListSchema', () => {
+  it('provider-models.json conforms to ProviderModelListSchema with no entry dropped', () => {
     const r = ProviderModelListSchema.safeParse(providerModelsRaw)
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
+    expect(r.success && r.data.overrides.length).toBe(providerModelsRaw.overrides.length)
   })
 
   it('Fast transports belong only to Codex, Claude Code, and Ark', () => {

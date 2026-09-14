@@ -1,13 +1,14 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { toast } from '@renderer/services/toast'
-import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
+import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import type { Assistant } from '@shared/data/types/assistant'
 
 const {
   bindPromptMock,
@@ -63,7 +64,7 @@ const {
       }
     ]
   },
-  mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
+  mcpStatusState: { current: {} },
   openSettingsTabMock: vi.fn(),
   promptCatalogState: {
     current: {
@@ -386,6 +387,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.context_inherited': 'Following the global settings',
           'library.config.basic.context_count': 'Recent messages kept',
           'library.config.basic.context_truncate_threshold': 'Tool-output truncation threshold',
+          'library.config.basic.context_compress_enabled': 'Compress the context when it fills up',
+          'library.config.basic.context_compress_threshold': 'Compression trigger threshold',
           'library.config.basic.context_count_unlimited': 'Unlimited',
           'library.config.basic.custom_params': 'Custom parameters',
           'library.config.basic.custom_params_add': 'Add parameter',
@@ -1094,6 +1097,20 @@ describe('edit dialogs', () => {
     )
   })
 
+  // The heartbeat is turned off by its switch, so an emptied interval is a retype,
+  // not a value — a persisted 0 would be a heartbeat interval of zero minutes.
+  it('does not persist a zero heartbeat interval when the field is cleared', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    const field = screen.getByLabelText('Heartbeat interval')
+    await user.clear(field)
+    await user.tab()
+
+    expect(field).toHaveValue('30')
+    expect(updateAgentMock).not.toHaveBeenCalled()
+  })
+
   it('does not turn externally refreshed agent fields into stale PATCH values', async () => {
     const props = { open: true, onOpenChange: vi.fn() }
     const { rerender } = render(<AgentEditDialog {...props} resource={AGENT} />)
@@ -1191,7 +1208,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original instructions',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
 
     await waitFor(() =>
@@ -1346,7 +1364,36 @@ describe('edit dialogs', () => {
     selectTab('Model')
 
     expect(await screen.findByRole('textbox', { name: 'Parameter value: stop' })).toHaveValue('END')
-    expect(screen.getByRole('spinbutton', { name: 'Parameter value' })).toHaveValue(0)
+    expect(screen.getByRole('spinbutton', { name: 'Parameter value' })).toHaveValue('0')
+  })
+
+  // `-` and `1e` are viable prefixes the field holds without reporting them, so the
+  // last thing the live callback saw was the clear that preceded them. Abandoning
+  // such an edit has to settle back to what it started from, not keep that clear.
+  it('restores a custom numeric parameter abandoned mid-keystroke', async () => {
+    const user = userEvent.setup()
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: {
+            ...ASSISTANT.settings,
+            customParameters: [{ name: 'temperature', type: 'number', value: 5 }]
+          }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+
+    const input = await screen.findByRole('spinbutton', { name: 'Parameter value: temperature' })
+    await user.clear(input)
+    await user.type(input, '-')
+    await user.tab()
+
+    expect(input).toHaveValue('5')
   })
 
   it('names the context override for what it does and states what is inherited while off', async () => {
@@ -1368,6 +1415,24 @@ describe('edit dialogs', () => {
     expect(screen.queryByText('Following the global settings')).not.toBeInTheDocument()
   })
 
+  // The compression trigger is a three-state override: empty means inherit, and the
+  // unit is a standing label on the field rather than part of any value.
+  it('offers the compression trigger as an inheritable field carrying its unit', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Model')
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Customize context management' }))
+    const compress = await screen.findByRole('switch', { name: 'Compress the context when it fills up' })
+    if (compress.getAttribute('aria-checked') !== 'true') fireEvent.click(compress)
+
+    const threshold = await screen.findByRole('spinbutton', { name: 'Compression trigger threshold' })
+    expect(threshold).toHaveValue('')
+    expect(threshold).toHaveAttribute('aria-valuemin', '20')
+    expect(threshold).toHaveAttribute('aria-valuemax', '100')
+    expect(screen.getByText('%')).toBeVisible()
+  })
+
   it('keeps the message limit outside the override, since scope is not an overflow policy', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
@@ -1386,7 +1451,7 @@ describe('edit dialogs', () => {
 
     const input = await screen.findByLabelText('Recent messages kept')
     // No stored override → unlimited, shown as an empty field with a placeholder.
-    expect(input).toHaveValue(null)
+    expect(input).toHaveValue('')
     expect(input).toHaveAttribute('placeholder', 'Unlimited')
     // The limit is one control, not a switch plus a number.
     expect(screen.queryByRole('switch', { name: 'Recent messages kept' })).not.toBeInTheDocument()
@@ -1394,7 +1459,7 @@ describe('edit dialogs', () => {
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: '5' } })
     fireEvent.blur(input)
-    expect(input).toHaveValue(5)
+    expect(input).toHaveValue('5')
   })
 
   it('repairs invalid legacy max tokens when enabling the limit', async () => {
@@ -1424,6 +1489,33 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('normalizes unsafe max tokens before auto-save persistence', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: { ...ASSISTANT.settings, enableMaxTokens: true }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+    const maxTokensInput = await screen.findByRole('spinbutton', { name: 'Max tokens' })
+
+    fireEvent.focus(maxTokensInput)
+    fireEvent.change(maxTokensInput, { target: { value: String(Number.MAX_SAFE_INTEGER + 1) } })
+    fireEvent.blur(maxTokensInput)
+
+    expect(maxTokensInput).toHaveValue(String(Number.MAX_SAFE_INTEGER))
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: { settings: { maxTokens: Number.MAX_SAFE_INTEGER } }
+      })
+    )
+  })
+
   it('shows the default tool-call cap and clamps custom rounds at 1000', async () => {
     render(
       <AssistantEditDialog
@@ -1447,14 +1539,17 @@ describe('edit dialogs', () => {
 
     fireEvent.click(maxToolCallsSwitch)
     const maxToolCallsInput = await screen.findByDisplayValue('20')
-    expect(maxToolCallsInput).toHaveAttribute('min', '1')
-    expect(maxToolCallsInput).toHaveAttribute('max', '1000')
+
+    fireEvent.focus(maxToolCallsInput)
+    fireEvent.change(maxToolCallsInput, { target: { value: '0' } })
+    fireEvent.blur(maxToolCallsInput)
+    expect(maxToolCallsInput).toHaveValue('1')
 
     fireEvent.focus(maxToolCallsInput)
     fireEvent.change(maxToolCallsInput, { target: { value: '1001' } })
     fireEvent.blur(maxToolCallsInput)
 
-    expect(maxToolCallsInput).toHaveValue(1000)
+    expect(maxToolCallsInput).toHaveValue('1000')
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
@@ -1481,7 +1576,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original prompt',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
 
@@ -1503,7 +1599,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('You are a Prompt Generator.'),
       content: 'Alpha Assistant',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
     expect(fetchGenerateMock.mock.calls[0][0].prompt).not.toContain(
       'Create a useful system prompt from the supplied name or title.'

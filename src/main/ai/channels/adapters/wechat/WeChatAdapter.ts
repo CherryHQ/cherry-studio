@@ -158,7 +158,7 @@ class WeChatAdapter extends ChannelAdapter {
           .map((uri) => {
             const result = parseDataUrl(uri)
             if (!result || !result.isBase64 || !result.mediaType) return null
-            return { media_type: result.mediaType, data: result.data } as ImageAttachment
+            return { media_type: result.mediaType, data: result.data }
           })
           .filter((img): img is ImageAttachment => img !== null)
         if (parsed.length > 0) images = parsed

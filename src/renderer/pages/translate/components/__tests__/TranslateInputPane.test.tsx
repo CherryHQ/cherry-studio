@@ -45,6 +45,7 @@ const baseProps = () => ({
   onPaste: vi.fn(),
   onDrop: vi.fn(),
   onSelectFile: vi.fn(),
+  copied: false,
   onCopy: vi.fn(),
   onCancelOcr: vi.fn(),
   disabled: false,
@@ -92,6 +93,16 @@ describe('TranslateInputPane', () => {
     render(<TranslateInputPane {...baseProps()} />)
 
     expect(screen.queryByRole('button', { name: 'common.clear' })).not.toBeInTheDocument()
+  })
+
+  it('swaps the copy icon for a check once the text has been copied', () => {
+    const { rerender } = render(<TranslateInputPane {...baseProps()} text="hello" />)
+
+    expect(screen.getByRole('button', { name: 'common.copy' }).querySelector('.lucide-check')).toBeNull()
+
+    rerender(<TranslateInputPane {...baseProps()} text="hello" copied />)
+
+    expect(screen.getByRole('button', { name: 'common.copy' }).querySelector('.lucide-check')).not.toBeNull()
   })
 
   it('shows the drop indicator while a file is dragged over the pane', () => {

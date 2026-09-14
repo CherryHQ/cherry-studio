@@ -1,6 +1,7 @@
-import { Button, Spinner } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
+
+import { Button, Spinner } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Spinner> = {
   title: 'Components/Primitives/Spinner',
@@ -61,7 +62,7 @@ export const LoadingStates: Story = {
       <h3 className="text-lg font-medium">不同加载状态</h3>
       <div className="space-y-4">
         <div>
-          <h4 className="font-medium mb-2">文件操作</h4>
+          <h4 className="mb-2 font-medium">文件操作</h4>
           <div className="space-y-2">
             <Spinner text="正在上传文件..." />
             <Spinner text="正在下载文件..." />
@@ -70,7 +71,7 @@ export const LoadingStates: Story = {
         </div>
 
         <div>
-          <h4 className="font-medium mb-2">数据处理</h4>
+          <h4 className="mb-2 font-medium">数据处理</h4>
           <div className="space-y-2">
             <Spinner text="正在加载数据..." />
             <Spinner text="正在保存更改..." />
@@ -79,7 +80,7 @@ export const LoadingStates: Story = {
         </div>
 
         <div>
-          <h4 className="font-medium mb-2">网络请求</h4>
+          <h4 className="mb-2 font-medium">网络请求</h4>
           <div className="space-y-2">
             <Spinner text="正在连接服务器..." />
             <Spinner text="正在获取更新..." />
@@ -114,13 +115,13 @@ export const InteractiveDemo: Story = {
             value={loadingText}
             onChange={(e) => setLoadingText(e.target.value)}
             placeholder="自定义加载文字"
-            className="px-3 py-1 border border-gray-300 rounded text-sm"
+            className="rounded border border-gray-300 px-3 py-1 text-sm"
             disabled={isLoading}
           />
         </div>
 
         {isLoading && (
-          <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
+          <div className="rounded border border-gray-200 p-4 dark:border-gray-700">
             <Spinner text={loadingText} />
           </div>
         )}
@@ -142,9 +143,9 @@ export const InComponents: Story = {
             <input
               type="text"
               placeholder="搜索..."
-              className="w-full px-4 py-2 pr-32 border border-gray-300 rounded-lg"
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 pr-32"
             />
-            <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+            <div className="absolute top-1/2 right-2 -translate-y-1/2 transform">
               <Spinner text="搜索中" />
             </div>
           </div>
@@ -166,7 +167,7 @@ export const InComponents: Story = {
         {/* 卡片加载 */}
         <div className="space-y-2">
           <h4 className="font-medium">卡片加载</h4>
-          <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg text-center">
+          <div className="rounded-lg border border-gray-200 p-6 text-center dark:border-gray-700">
             <Spinner text="正在加载内容..." />
           </div>
         </div>
@@ -175,13 +176,13 @@ export const InComponents: Story = {
         <div className="space-y-2">
           <h4 className="font-medium">列表加载</h4>
           <div className="space-y-2">
-            <div className="p-3 border border-gray-200 dark:border-gray-700 rounded">
+            <div className="rounded border border-gray-200 p-3 dark:border-gray-700">
               <p>已加载的项目 1</p>
             </div>
-            <div className="p-3 border border-gray-200 dark:border-gray-700 rounded">
+            <div className="rounded border border-gray-200 p-3 dark:border-gray-700">
               <p>已加载的项目 2</p>
             </div>
-            <div className="p-3 border border-gray-200 dark:border-gray-700 rounded text-center">
+            <div className="rounded border border-gray-200 p-3 text-center dark:border-gray-700">
               <Spinner text="加载更多..." />
             </div>
           </div>
@@ -236,16 +237,16 @@ export const BackgroundVariations: Story = {
     <div className="space-y-6">
       <h3 className="text-lg font-medium">背景变化</h3>
       <div className="space-y-4">
-        <div className="p-4 bg-white dark:bg-gray-800 rounded border">
+        <div className="rounded border bg-white p-4 dark:bg-gray-800">
           <Spinner text="白色背景" />
         </div>
-        <div className="p-4 bg-gray-100 dark:bg-gray-700 rounded">
+        <div className="rounded bg-gray-100 p-4 dark:bg-gray-700">
           <Spinner text="灰色背景" />
         </div>
-        <div className="p-4 bg-blue-500 text-white rounded">
+        <div className="rounded bg-blue-500 p-4 text-white">
           <Spinner text="蓝色背景" className="text-white" />
         </div>
-        <div className="p-4 bg-green-500 text-white rounded">
+        <div className="rounded bg-green-500 p-4 text-white">
           <Spinner text="绿色背景" className="text-white" />
         </div>
       </div>
@@ -269,9 +270,9 @@ export const LoadingSequence: Story = {
       <div className="space-y-4">
         <Button onClick={nextStep}>{isComplete ? '重新开始' : '下一步'}</Button>
 
-        <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div className="rounded-lg border border-gray-200 p-6 dark:border-gray-700">
           {isComplete ? (
-            <div className="text-center text-green-600 dark:text-green-400 font-medium">✅ {currentStep}</div>
+            <div className="text-center font-medium text-green-600 dark:text-green-400">✅ {currentStep}</div>
           ) : (
             <Spinner text={currentStep} />
           )}
@@ -290,13 +291,13 @@ export const RealWorldUsage: Story = {
     <div className="space-y-6">
       <h3 className="text-lg font-medium">真实场景应用</h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* 表单提交 */}
-        <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
-          <h4 className="font-medium mb-3">表单提交</h4>
+        <div className="rounded border border-gray-200 p-4 dark:border-gray-700">
+          <h4 className="mb-3 font-medium">表单提交</h4>
           <div className="space-y-3">
-            <input type="email" placeholder="邮箱" className="w-full px-3 py-2 border border-gray-300 rounded" />
-            <input type="password" placeholder="密码" className="w-full px-3 py-2 border border-gray-300 rounded" />
+            <input type="email" placeholder="邮箱" className="w-full rounded border border-gray-300 px-3 py-2" />
+            <input type="password" placeholder="密码" className="w-full rounded border border-gray-300 px-3 py-2" />
             <div className="text-center">
               <Spinner text="正在登录..." />
             </div>
@@ -304,33 +305,33 @@ export const RealWorldUsage: Story = {
         </div>
 
         {/* 文件上传 */}
-        <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
-          <h4 className="font-medium mb-3">文件上传</h4>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+        <div className="rounded border border-gray-200 p-4 dark:border-gray-700">
+          <h4 className="mb-3 font-medium">文件上传</h4>
+          <div className="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center">
             <Spinner text="上传中 (75%)" />
-            <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-blue-600 h-2 rounded-full" style={{ width: '75%' }}></div>
+            <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
+              <div className="h-2 rounded-full bg-blue-600" style={{ width: '75%' }}></div>
             </div>
           </div>
         </div>
 
         {/* 数据获取 */}
-        <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
-          <h4 className="font-medium mb-3">数据获取</h4>
+        <div className="rounded border border-gray-200 p-4 dark:border-gray-700">
+          <h4 className="mb-3 font-medium">数据获取</h4>
           <div className="space-y-2">
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/4"></div>
-            <div className="text-center mt-4">
+            <div className="h-4 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+            <div className="h-4 w-3/4 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+            <div className="mt-4 text-center">
               <Spinner text="获取最新数据..." />
             </div>
           </div>
         </div>
 
         {/* 页面切换 */}
-        <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
-          <h4 className="font-medium mb-3">页面切换</h4>
+        <div className="rounded border border-gray-200 p-4 dark:border-gray-700">
+          <h4 className="mb-3 font-medium">页面切换</h4>
           <div className="text-center">
-            <div className="h-32 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center">
+            <div className="flex h-32 items-center justify-center rounded bg-gray-100 dark:bg-gray-700">
               <Spinner text="加载页面..." />
             </div>
           </div>

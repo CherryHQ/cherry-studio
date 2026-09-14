@@ -1,5 +1,6 @@
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
+
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 /**
  * `AbsoluteFilePathSchema` is declared in `@shared/types/file/common` — a purely

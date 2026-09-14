@@ -2,6 +2,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { app } from 'electron'
+
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
@@ -9,9 +14,6 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { createAgent as createAgentCommand } from '@main/ai/agents/createAgent'
 import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -22,7 +24,6 @@ import {
 } from '@shared/utils/diagnostics'
 import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
 import { redactUrlToOrigin } from '@shared/utils/redaction'
-import { app } from 'electron'
 
 const logger = loggerService.withContext('McpServer:Assistant')
 
@@ -277,9 +278,8 @@ const ASSISTANT_TOOLS = {
   prepare_diagnostic_report: PREPARE_DIAGNOSTIC_REPORT_TOOL
 } as const satisfies Record<AssistantToolName, Tool>
 
-// Health check cache: { providerId -> { result, timestamp } }
-const healthCache = new Map<string, { result: unknown; timestamp: number }>()
 const HEALTH_CACHE_TTL = 30_000 // 30 seconds
+const healthCacheKey = (providerId: string) => `assistant:health:${providerId}`
 
 class AssistantServer {
   public mcpServer: McpServer
@@ -681,11 +681,9 @@ class AssistantServer {
       throw new McpError(ErrorCode.InvalidParams, "'provider_id' is required for health action")
     }
 
-    // Check cache first (30s TTL)
-    const cached = healthCache.get(providerId)
-    if (cached && Date.now() - cached.timestamp < HEALTH_CACHE_TTL) {
-      return cached.result as ReturnType<typeof this.diagnoseHealth>
-    }
+    const cacheService = application.get('CacheService')
+    const cached = cacheService.get<unknown>(healthCacheKey(providerId))
+    if (cached) return cached as ReturnType<typeof this.diagnoseHealth>
 
     try {
       let provider: ReturnType<typeof providerService.getByProviderId> | null = null
@@ -725,7 +723,7 @@ class AssistantServer {
             }
           ]
         }
-        healthCache.set(providerId, { result, timestamp: Date.now() })
+        cacheService.set(healthCacheKey(providerId), result, HEALTH_CACHE_TTL)
         return result
       }
 
@@ -761,7 +759,7 @@ class AssistantServer {
             }
           ]
         }
-        healthCache.set(providerId, { result, timestamp: Date.now() })
+        cacheService.set(healthCacheKey(providerId), result, HEALTH_CACHE_TTL)
         return result
       } catch (fetchError) {
         const latency = Date.now() - startTime
@@ -784,7 +782,7 @@ class AssistantServer {
             }
           ]
         }
-        healthCache.set(providerId, { result, timestamp: Date.now() })
+        cacheService.set(healthCacheKey(providerId), result, HEALTH_CACHE_TTL)
         return result
       } finally {
         if (timeout !== undefined) clearTimeout(timeout)

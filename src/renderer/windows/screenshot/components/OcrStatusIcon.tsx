@@ -9,13 +9,14 @@
  * the affordance.
  */
 
+import { CircleAlert, Download, LoaderCircle, ScanText, TextSearch } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ipcApi } from '@renderer/ipc'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { CircleAlert, Download, LoaderCircle, ScanText, TextSearch } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { OcrStatus } from '../hooks/useOcr'
 

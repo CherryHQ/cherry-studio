@@ -4,16 +4,17 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { app } from 'electron'
+
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isLinux } from '@main/core/platform'
+import { isLinux, isPortable, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { app } from 'electron'
 
 import { parseMcpInstallProtocolUrl } from './handlers/mcpInstall'
 import { handleNavigateProtocolUrl } from './handlers/navigate'
@@ -148,6 +149,8 @@ export class ProtocolService extends BaseService {
         const absoluteEntry = path.isAbsolute(entry) ? entry : path.resolve(process.cwd(), entry)
         app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL, process.execPath, [absoluteEntry])
       }
+    } else if (isWin && isPortable && process.env.PORTABLE_EXECUTABLE_FILE) {
+      app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL, process.env.PORTABLE_EXECUTABLE_FILE, [])
     } else {
       app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL)
     }

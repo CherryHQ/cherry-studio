@@ -1,38 +1,35 @@
 /**
- * Runtime-neutral local API Gateway route resolution, shared by every driver
- * whose runtime cannot speak a provider's native wire protocol (claude always,
- * dsh as a fallback). Owns the consent → convergence → key sequence.
+ * Runtime-neutral local API Gateway route resolution, shared by drivers whose
+ * provider policy or wire protocol requires the gateway. Owns the consent →
+ * convergence → key sequence.
  */
 import { createHash } from 'node:crypto'
 
 import { application } from '@application'
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { API_GATEWAY_REQUIRED_I18N_KEY } from '@shared/types/apiGateway'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 
-/**
- * Gateway state a materialized connection is pinned to. It is part of the credentials fingerprint,
- * so disabling (or losing) the gateway makes the next turn rebuild instead of quietly posting to a
- * closed port. Derived and materialized routes MUST build it the same way or every turn rebuilds.
- */
-export function gatewayStateTag(enabled: boolean, running: boolean): string {
-  return `gateway-state:${enabled}:${running}`
+/** Whether Agent traffic for this provider must pass through Cherry's local API Gateway. */
+export function requiresAgentGateway(providerId: string): boolean {
+  return providerId === CHERRY_CLOUD_PROVIDER_ID
 }
 
 /**
- * Rotation-sensitive gateway auth identity for connection signatures: key edits or gateway
- * enable/running flips rebuild the connection instead of quietly posting stale credentials.
- * Read-only by contract — snapshot capture must never generate or persist a key.
+ * Rotation-sensitive gateway identity for connection signatures: address, key, or state changes
+ * rebuild the connection. Read-only by contract — this must never generate or persist a key.
  */
 export function gatewayCredentialsFingerprint(): string {
   const apiGatewayService = application.get('ApiGatewayService')
   const config = apiGatewayService.getCurrentConfig()
-  const gatewayKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
+  const baseUrl = `http://${config.host || '127.0.0.1'}:${config.port || 23333}`
   return createHash('sha256')
     .update(
       JSON.stringify(
         [
-          typeof gatewayKey === 'string' ? gatewayKey : '',
-          gatewayStateTag(config.enabled, apiGatewayService.isRunning())
+          baseUrl,
+          typeof config.apiKey === 'string' ? config.apiKey : '',
+          `gateway-state:${config.enabled}:${apiGatewayService.isRunning()}`
         ].sort()
       )
     )
@@ -58,7 +55,6 @@ export class ApiGatewayNotRunningError extends Error {
 export async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   baseUrl: string
   apiKey: string
-  stateTag: string
   usageHeaders: Record<string, string>
   internalRequestToken: string
 }> {
@@ -80,7 +76,6 @@ export async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   return {
     baseUrl: gatewayClientOrigin(host, port),
     apiKey,
-    stateTag: gatewayStateTag(config.enabled, apiGatewayService.isRunning()),
     usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId),
     internalRequestToken: apiGatewayService.getInternalRequestToken()
   }

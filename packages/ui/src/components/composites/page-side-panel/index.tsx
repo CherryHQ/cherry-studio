@@ -1,11 +1,12 @@
-import { Button } from '@cherrystudio/ui/components/primitives/button'
-import { usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { XIcon } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import * as React from 'react'
 import { useCallback, useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
+
+import { Button } from '@cherrystudio/ui/components/primitives/button'
+import { usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import Scrollbar from '../scrollbar'
 
@@ -54,7 +55,7 @@ function PageSidePanel({
   footerClassName,
   closeButtonClassName
 }: PageSidePanelProps) {
-  const standardTitle = title ? <span className="font-semibold text-base text-foreground">{title}</span> : null
+  const standardTitle = title ? <span className="text-base font-semibold text-foreground">{title}</span> : null
   const headerContent = header ?? standardTitle
   const hasHeader = !!headerContent || showCloseButton
   const headerId = useId()
@@ -127,7 +128,7 @@ function PageSidePanel({
               <div
                 data-slot="page-side-panel-header"
                 className={cn('flex shrink-0 items-center justify-between px-6 pt-6 pb-3', headerClassName)}>
-                <div id={headerContent ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
+                <div id={headerContent ? headerId : undefined} className="flex min-w-0 flex-1 items-center">
                   {headerContent}
                 </div>
                 {showCloseButton && (
@@ -192,7 +193,7 @@ function PageSidePanelSection({ title, actions, children, className, ...props }:
   return (
     <div className={cn('flex flex-col gap-3', className)} {...props}>
       <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-foreground text-sm">{title}</span>
+        <span className="text-sm font-semibold text-foreground">{title}</span>
         {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
       </div>
       {children}
@@ -212,8 +213,8 @@ function PageSidePanelItem({ title, description, action, children, className, ..
     <div className={cn('flex flex-col gap-2', className)} {...props}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-foreground text-sm">{title}</span>
-          {description && <span className="text-muted-foreground text-xs">{description}</span>}
+          <span className="text-sm text-foreground">{title}</span>
+          {description && <span className="text-xs text-muted-foreground">{description}</span>}
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </div>

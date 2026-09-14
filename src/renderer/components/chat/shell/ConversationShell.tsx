@@ -1,8 +1,9 @@
+import type { ReactNode, Ref } from 'react'
+
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode, Ref } from 'react'
 
 import { useOptionalRightPanelState } from '../panes/Shell'
 import { ChatAppShell } from './ChatAppShell'

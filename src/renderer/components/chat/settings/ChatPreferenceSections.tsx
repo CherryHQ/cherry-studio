@@ -1,6 +1,10 @@
+import type { FC, ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
-  EditableNumber,
   Flex,
+  InputNumber,
   Select,
   SelectContent,
   SelectItem,
@@ -26,9 +30,6 @@ import {
 import { isMac } from '@renderer/utils/platform'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   SettingDivider,
@@ -199,7 +200,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
       {renderSection(
         t('settings.messages.input.title'),
         <>
-          <SettingRow>
+          <SettingRow id="setting-appearance-send-shortcuts" className="scroll-mt-6">
             <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
             <Select
               value={composerShortcutId(resolvedSendShortcut)}
@@ -217,7 +218,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             </Select>
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-newline-shortcuts" className="scroll-mt-6">
             <SettingRowTitleSmall>{t('settings.messages.input.newline_shortcuts')}</SettingRowTitleSmall>
             <Select
               value={composerShortcutId(resolvedNewlineShortcut)}
@@ -235,7 +236,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             </Select>
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-steer-shortcuts" className="scroll-mt-6">
             <SettingRowTitleSmall hint={t('settings.messages.input.steer_shortcuts_hint')}>
               {t('settings.messages.input.steer_shortcuts')}
             </SettingRowTitleSmall>
@@ -253,7 +254,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             </Select>
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-spell-check" className="scroll-mt-6">
             <Flex className="mr-4 flex-1 items-center justify-between">
               <SettingRowTitleSmall>{t('settings.general.spell_check.label')}</SettingRowTitleSmall>
               {enableSpellCheck && !isMac && (
@@ -280,7 +281,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             <Switch checked={enableSpellCheck} onCheckedChange={(checked) => void setEnableSpellCheck(checked)} />
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-show-estimated-tokens" className="scroll-mt-6">
             <SettingSwitch
               checked={showInputEstimatedTokens}
               onCheckedChange={setShowInputEstimatedTokens}
@@ -288,7 +289,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             />
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-markdown-rendering-input-message" className="scroll-mt-6">
             <SettingSwitch
               checked={renderInputMessageAsMarkdown}
               onCheckedChange={setRenderInputMessageAsMarkdown}
@@ -296,7 +297,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             />
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow className="scroll-mt-6">
             <SettingSwitch
               checked={pasteLongTextAsFile}
               onCheckedChange={setPasteLongTextAsFile}
@@ -308,7 +309,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_threshold')}</SettingRowTitleSmall>
-                <EditableNumber
+                <InputNumber
                   size="small"
                   className="w-20 text-sm"
                   aria-label={t('settings.messages.input.paste_long_text_threshold')}
@@ -316,13 +317,13 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                   max={10000}
                   step={100}
                   value={pasteLongTextThreshold}
-                  onChange={(value) => setPasteLongTextThreshold(value ?? 500)}
+                  onBlur={(value) => setPasteLongTextThreshold(value ?? 500)}
                 />
               </SettingRow>
             </>
           )}
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-confirm-delete-message" className="scroll-mt-6">
             <SettingSwitch
               checked={confirmDeleteMessage}
               onCheckedChange={setConfirmDeleteMessage}
@@ -334,11 +335,11 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
       {renderSection(
         t('settings.messages.title'),
         <>
-          <SettingRow>
+          <SettingRow id="setting-appearance-wide-mode" className="scroll-mt-6">
             <SettingSwitch checked={wideMode} onCheckedChange={setWideMode} label={t('settings.messages.wide_mode')} />
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-use-serif-font" className="scroll-mt-6">
             <SettingSwitch
               checked={messageFont === 'serif'}
               onCheckedChange={(checked) => setMessageFont(checked ? 'serif' : 'system')}
@@ -346,7 +347,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             />
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-thought-auto-collapse" className="scroll-mt-6">
             <SettingSwitch
               checked={thoughtAutoCollapse}
               onCheckedChange={setThoughtAutoCollapse}
@@ -355,7 +356,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             />
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-show-message-outline" className="scroll-mt-6">
             <SettingSwitch
               checked={showMessageOutline}
               onCheckedChange={(checked) => setShowMessageOutline(checked)}
@@ -363,7 +364,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             />
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-message-style" className="scroll-mt-6">
             <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Select value={messageStyle} onValueChange={setMessageStyle}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
@@ -379,7 +380,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             </Select>
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-multi-model-style" className="scroll-mt-6">
             <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
             <Select value={multiModelMessageStyle} onValueChange={setMultiModelMessageStyle}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
@@ -402,7 +403,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             </Select>
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-message-navigation" className="scroll-mt-6">
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Select value={messageNavigation} onValueChange={setMessageNavigation}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
@@ -418,7 +419,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             </Select>
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-message-font-size" className="scroll-mt-6">
             <SettingRowTitleSmall>{t('settings.font_size.title')}</SettingRowTitleSmall>
           </SettingRow>
           <div className="w-full pt-3">
@@ -441,7 +442,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
       {renderSection(
         t('settings.math.title'),
         <>
-          <SettingRow>
+          <SettingRow id="setting-appearance-math-single-dollar" className="scroll-mt-6">
             <SettingSwitch
               checked={mathEnableSingleDollar}
               onCheckedChange={setMathEnableSingleDollar}
@@ -454,7 +455,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
       {renderSection(
         t('chat.settings.code.title'),
         <>
-          <SettingRow>
+          <SettingRow id="setting-appearance-code-style" className="scroll-mt-6">
             <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
             <Select value={codeStyle} onValueChange={onCodeStyleChange}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
@@ -470,7 +471,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             </Select>
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-code-fancy-block" className="scroll-mt-6">
             <SettingSwitch
               checked={codeFancyBlock}
               onCheckedChange={setCodeFancyBlock}
@@ -479,7 +480,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             />
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-code-editor-enabled" className="scroll-mt-6">
             <SettingSwitch
               checked={codeEditor.enabled}
               onCheckedChange={(checked) => setCodeEditor({ enabled: checked })}
@@ -523,7 +524,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             </>
           )}
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-show-line-numbers" className="scroll-mt-6">
             <SettingSwitch
               checked={codeShowLineNumbers}
               onCheckedChange={setCodeShowLineNumbers}
@@ -531,7 +532,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             />
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-code-collapsible" className="scroll-mt-6">
             <SettingSwitch
               checked={codeCollapsible}
               onCheckedChange={setCodeCollapsible}
@@ -539,7 +540,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             />
           </SettingRow>
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-code-wrappable" className="scroll-mt-6">
             <SettingSwitch
               checked={codeWrappable}
               onCheckedChange={setCodeWrappable}

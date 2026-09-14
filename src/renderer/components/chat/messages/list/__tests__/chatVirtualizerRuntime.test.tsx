@@ -185,7 +185,7 @@ function installResizeObserverMock(callbacks: ResizeObserverCallback[]): () => v
     }
   }
 
-  globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver
+  globalThis.ResizeObserver = ResizeObserverMock
   return () => {
     globalThis.ResizeObserver = originalResizeObserver
   }
@@ -197,14 +197,14 @@ function installQueuedAnimationFrame(): { restore(): void; tick(frames?: number)
   let rafId = 0
   let rafQueue = new Map<number, () => void>()
 
-  globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+  globalThis.requestAnimationFrame = (callback: FrameRequestCallback) => {
     const id = ++rafId
     rafQueue.set(id, () => callback(0))
     return id
-  }) as typeof requestAnimationFrame
-  globalThis.cancelAnimationFrame = ((id: number) => {
+  }
+  globalThis.cancelAnimationFrame = (id: number) => {
     rafQueue.delete(id)
-  }) as typeof cancelAnimationFrame
+  }
 
   return {
     restore() {
@@ -325,7 +325,10 @@ describe('useChatVirtualizerRuntime', () => {
 
   it('does not recreate resize observers on unrelated parent rerenders', () => {
     const originalResizeObserver = globalThis.ResizeObserver
-    const observers: Array<{ disconnect: ReturnType<typeof vi.fn>; observe: ReturnType<typeof vi.fn> }> = []
+    const observers: Array<{
+      disconnect: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+      observe: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }> = []
 
     class ResizeObserverMock {
       disconnect = vi.fn()
@@ -337,7 +340,7 @@ describe('useChatVirtualizerRuntime', () => {
       }
     }
 
-    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver
+    globalThis.ResizeObserver = ResizeObserverMock
 
     try {
       const items = ['message-a']
@@ -364,7 +367,7 @@ describe('useChatVirtualizerRuntime', () => {
       unobserve = vi.fn()
     }
 
-    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver
+    globalThis.ResizeObserver = ResizeObserverMock
 
     try {
       let runtime: ChatVirtualizerRuntime<string> | undefined
@@ -583,7 +586,7 @@ describe('useChatVirtualizerRuntime', () => {
       }
     }
 
-    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver
+    globalThis.ResizeObserver = ResizeObserverMock
 
     try {
       let runtime: ChatVirtualizerRuntime<string> | undefined
@@ -3605,6 +3608,160 @@ describe('useChatVirtualizerRuntime', () => {
       nowSpy.mockRestore()
       restoreResizeObserver()
       raf.restore()
+    }
+  })
+
+  it('does not reassert the reading anchor during confirmed middle-click autoscroll', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+    const nowSpy = vi.spyOn(performance, 'now').mockReturnValue(1_000_000)
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 500
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 2000 })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle()
+      raf.tick(60)
+
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+
+      // Candidate without movement must NOT suppress freeze — streaming growth
+      // while armed still snaps back.
+      act(() => runtime!.armAutoscrollCandidate())
+      scrollTop = 560
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(500)
+
+      // Fresh confirmed autoscroll via real outer-scroller movement.
+      act(() => runtime!.dismissAutoscroll())
+      scrollTop = 500
+      act(() => runtime!.armAutoscrollCandidate())
+      act(() => runtime!.confirmAutoscroll())
+
+      // During active autoscroll, a programmatic drift must NOT be snapped back
+      // — otherwise each Chromium tick would vibrate.
+      scrollTop = 560
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(560)
+    } finally {
+      nowSpy.mockRestore()
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
+  it('resumes the reading freeze after the autoscroll idle window expires', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+    const nowSpy = vi.spyOn(performance, 'now').mockReturnValue(1_000_000)
+
+    try {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 500
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 2000 })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle()
+      raf.tick(60)
+
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+      act(() => runtime!.armAutoscrollCandidate())
+      act(() => runtime!.confirmAutoscroll())
+
+      scrollTop = 560
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(560)
+
+      // Stillness beyond the idle window hands control back to the freeze.
+      void act(() => vi.advanceTimersByTime(300))
+      scrollTop = 570
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(500)
+      vi.useRealTimers()
+    } finally {
+      nowSpy.mockRestore()
+      restoreResizeObserver()
+      raf.restore()
+      try {
+        vi.useRealTimers()
+      } catch {}
+    }
+  })
+
+  it('does not treat a stale candidate plus programmatic scroll as autoscroll', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+    const nowSpy = vi.spyOn(performance, 'now').mockReturnValue(1_000_000)
+
+    try {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let scrollTop = 500
+      const scrollHeight = 2000
+      render(<RuntimeDomProbe items={['message-a']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle()
+      raf.tick(60)
+
+      act(() => runtime!.takeUserControl('user-scrolled-up'))
+      act(() => runtime!.armAutoscrollCandidate())
+
+      // Candidate expires without ever confirming — e.g. macOS middle-click
+      // where Chromium never entered autoscroll.
+      void act(() => vi.advanceTimersByTime(1600))
+
+      // A later programmatic nudge (virtua compensation, streaming layout)
+      // must NOT be mistaken for autoscroll and must NOT suppress the freeze,
+      // and must NOT resume following at the live bottom.
+      scrollTop = 560
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(500)
+
+      // Even if a scroll event arrives late, without a fresh candidate it must
+      // not re-enter autoscroll and must not enter following.
+      act(() => runtime!.confirmAutoscroll())
+      scrollTop = 570
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      expect(scrollTop).toBe(500)
+      vi.useRealTimers()
+    } finally {
+      nowSpy.mockRestore()
+      restoreResizeObserver()
+      raf.restore()
+      try {
+        vi.useRealTimers()
+      } catch {}
     }
   })
 })
