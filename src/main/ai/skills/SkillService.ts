@@ -285,7 +285,19 @@ export class SkillService {
   }
 
   async list(query: ListSkillsQuery = {}): Promise<InstalledSkill[]> {
-    return agentGlobalSkillService.list(query)
+    const skills = agentGlobalSkillService.list(query)
+    if (!query.agentId) return skills
+
+    // Runtime consumers resolve enabled skills as direct child directories. Keep malformed
+    // migrated rows visible to the global catalog/reconcile flow, but never expose them here.
+    return skills.filter((skill) => {
+      if (isSingleFolderName(skill.folderName)) return true
+      logger.warn('Skipping malformed skill from agent runtime projection', {
+        skillId: skill.id,
+        folderName: skill.folderName
+      })
+      return false
+    })
   }
 
   /** Enable or disable a skill for a specific agent. */

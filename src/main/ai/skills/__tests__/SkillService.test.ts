@@ -247,6 +247,32 @@ describe('SkillService', () => {
       expect(two?.isEnabled).toBe(false)
     })
 
+    it('keeps malformed catalog rows out of the agent runtime projection', async () => {
+      const skillService = new SkillService()
+      await seedAgent()
+      await seedSkills()
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: 'malformed-enabled-skill',
+        name: 'Malformed enabled skill',
+        folderName: '../outside',
+        source: 'local',
+        contentHash: 'malformed',
+        isEnabled: true
+      })
+      await dbh.db.insert(agentSkillTable).values({
+        agentId: AGENT_ID,
+        skillId: 'malformed-enabled-skill',
+        isEnabled: true
+      })
+
+      expect(await skillService.list()).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'malformed-enabled-skill' })])
+      )
+      expect(await skillService.list({ agentId: AGENT_ID })).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'malformed-enabled-skill' })])
+      )
+    })
+
     it('keeps the global state separate and lets it override an agent enablement without erasing it', async () => {
       const skillService = new SkillService()
       await seedAgent()
