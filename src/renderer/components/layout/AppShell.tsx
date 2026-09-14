@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { TabsContext, useTabs } from '@renderer/hooks/tab'
@@ -11,7 +13,6 @@ import { cn } from '@renderer/utils/style'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'

@@ -1,4 +1,7 @@
-import type { ChildProcess } from 'node:child_process'
+import { type ChildProcess, execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+
+import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
@@ -12,11 +15,11 @@ import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@sh
 import type { BinaryAvailability } from '@shared/types/binary'
 import type { DeepSeekHarnessPermissionMode, DeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import type { ManagedToolStatus, ManagedToolStatusState } from '@shared/types/managedTool'
 import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { isNonChatModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 import { redactLiteral, redactSecretText } from '@shared/utils/redaction'
-import { Mutex } from 'async-mutex'
 
 import {
   createDeepSeekHarnessDirectIdentity,
@@ -27,6 +30,7 @@ import {
   rollbackDeepSeekHarnessConfig,
   writeDeepSeekHarnessConfig
 } from './config'
+import { checkDshHomeHealth, type DshHomeHealth } from './storageHealth'
 
 const logger = loggerService.withContext('DeepSeekHarnessService')
 
@@ -39,8 +43,7 @@ const NO_KEY_PLACEHOLDER = 'no-key-required'
 const GATEWAY_ROUTE = 'cherry-studio-codemate-gateway'
 const GATEWAY_CREDENTIAL_REF = 'CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY'
 const MANAGED_CREDENTIAL_ENV = /^CHERRY_STUDIO_CODEMATE_(?:[A-F0-9]{12}|GATEWAY)_API_KEY$/i
-
-type DeepSeekHarnessStatus = 'stopped' | 'starting' | 'running' | 'error'
+const execFileAsync = promisify(execFile)
 
 interface DeepSeekHarnessStartInput extends DeepSeekHarnessSettings {
   mode: DeepSeekHarnessMode
@@ -57,35 +60,33 @@ interface DeepSeekHarnessRuntime {
 @DependsOn(['ApiGatewayService'])
 export class DeepSeekHarnessService extends BaseService {
   private readonly operationMutex = new Mutex()
-  private status: DeepSeekHarnessStatus = 'stopped'
+  private status: ManagedToolStatus = 'stopped'
   private url: string | undefined
   private child: ChildProcess | null = null
   private stoppingChild: ChildProcess | null = null
   private runningPermissionMode: DeepSeekHarnessPermissionMode | undefined
   private readonly startupAbortControllers = new Set<AbortController>()
-  // Bumped by every setStatus broadcast; request paths use it to detect no-op completions.
+  // Bumped by every status publication; request paths use it to detect no-op completions.
   private statusTransitionId = 0
+
+  protected onInit(): void {
+    application.get('CacheService').setShared('feature.deepseek_harness.status', this.getStatus())
+  }
 
   protected async onStop(): Promise<void> {
     await this.stop()
   }
 
-  getStatus(): { status: DeepSeekHarnessStatus; url?: string } {
+  getStatus(): ManagedToolStatusState {
     return { status: this.status, ...(this.url ? { url: this.url } : {}) }
   }
 
-  /** Single status-transition point: assign, then broadcast; same-value calls are not transitions. */
-  private setStatus(status: DeepSeekHarnessStatus, options?: { force?: boolean }): void {
+  /** Single status-transition point for the main-owned shared snapshot. */
+  private setStatus(status: ManagedToolStatus, options?: { force?: boolean }): void {
     if (!options?.force && this.status === status) return
     this.status = status
     this.statusTransitionId++
-    try {
-      application.get('IpcApiService').broadcast('deepseek_harness.status_changed', this.getStatus())
-    } catch (err) {
-      // A lost broadcast is corrected by the next transition or a request-completion
-      // rebroadcast; it must never abort the transition itself.
-      logger.warn('Failed to broadcast DeepSeek Harness status change', err as Error)
-    }
+    application.get('CacheService').setShared('feature.deepseek_harness.status', this.getStatus())
   }
 
   async start(
@@ -121,8 +122,8 @@ export class DeepSeekHarnessService extends BaseService {
                   : 'DeepSeek Harness exited while updating its configuration'
               )
             }
-            // Idempotent success broadcasts nothing on its own — rebroadcast so a
-            // renderer that missed an earlier event is corrected by this request.
+            // Idempotent success publishes nothing on its own — republish so a
+            // renderer that missed an earlier update is corrected by this request.
             if (this.statusTransitionId === transitionBefore) this.setStatus('running', { force: true })
             return { success: true, url: this.url }
           } catch (error) {
@@ -142,6 +143,25 @@ export class DeepSeekHarnessService extends BaseService {
           const runtime = await this.resolveRuntime()
           if (startupAbortController.signal.aborted) {
             throw new Error('DeepSeek Harness startup was cancelled')
+          }
+          const homeHealth = await checkDshHomeHealth(
+            AbsoluteFilePathSchema.parse(application.getPath('external.deepseek_harness.storages'))
+          )
+          if (!homeHealth.healthy) {
+            const dshVersion = await readDshVersion(runtime.path)
+            logger.warn('DeepSeek Harness home failed preflight', {
+              reason: homeHealth.reason,
+              detail: homeHealth.detail,
+              ...(dshVersion ? { dshVersion } : {})
+            })
+            this.url = undefined
+            this.setStatus('error')
+            return {
+              success: false,
+              message: sanitizeDiagnostic(
+                `DeepSeek Harness home looks upgraded-incompatible (${homeHealth.detail}). Back it up, delete ${repairTargetForReason(homeHealth.reason)} inside it, then retry. [dsh-home-${homeHealth.reason}]`
+              )
+            }
           }
           const synced = await this.syncConfig(input)
           const projection = synced.projection
@@ -164,7 +184,7 @@ export class DeepSeekHarnessService extends BaseService {
           return { success: true, url }
         } catch (error) {
           // Terminal state first: the cleanup-driven termination handler must not
-          // broadcast 'stopped' for a failed launch on its way to 'error'.
+          // publish 'stopped' for a failed launch on its way to 'error'.
           this.url = undefined
           this.setStatus('error')
           await this.stopOwnedProcessLocked().catch((stopError) => {
@@ -279,14 +299,11 @@ export class DeepSeekHarnessService extends BaseService {
     permissionMode: DeepSeekHarnessPermissionMode,
     signal: AbortSignal
   ): Promise<string> {
-    const env = {
+    const env = stripManagedCredentialEnv({
       ...runtime.env,
       DSH_HOME: application.getPath('external.deepseek_harness.config'),
       DSH_PERMISSION_MODE: permissionMode
-    }
-    for (const name of Object.keys(env)) {
-      if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
-    }
+    })
 
     const child = crossPlatformSpawn(runtime.path, ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
       cwd: application.getPath('feature.deepseek_harness.workspace'),
@@ -349,6 +366,29 @@ function appendBounded(current: string, chunk: Buffer | string): string {
 
 function sanitizeDiagnostic(value: string, secret?: string): string {
   return redactSecretText(redactLiteral(value, secret)).slice(0, DIAGNOSTIC_LIMIT)
+}
+
+function repairTargetForReason(reason: Extract<DshHomeHealth, { healthy: false }>['reason']): string {
+  return reason.startsWith('projcache') ? 'storages/session_projcache.json' : 'storages/workspace.json'
+}
+
+function stripManagedCredentialEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  for (const name of Object.keys(env)) {
+    if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
+  }
+  return env
+}
+
+async function readDshVersion(binaryPath: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync(binaryPath, ['--version'], {
+      timeout: 3000,
+      env: stripManagedCredentialEnv({ ...process.env })
+    })
+    return stdout.split('\n', 1)[0]?.trim().slice(0, 80) || undefined
+  } catch {
+    return undefined
+  }
 }
 
 function parseReadyUrl(output: string): string | undefined {

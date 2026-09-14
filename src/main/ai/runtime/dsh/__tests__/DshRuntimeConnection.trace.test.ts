@@ -1,7 +1,10 @@
+import path from 'node:path'
+
+import { SessionSeq } from '@deepseek-ai/dsh-session'
 import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AgentRuntimeConnectInput, AgentRuntimeTraceContext } from '../../types'
+import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeTraceContext } from '../../types'
 
 interface FakeSpan {
   name: string
@@ -112,14 +115,16 @@ vi.mock('../compositionBuilder', () => ({
   resolveDshRuntimeBinPath: vi.fn(() => '/dsh/bin')
 }))
 vi.mock('../DshBridgeServer', () => ({
-  DshBridgeServer: vi.fn(() => ({
-    socketPath: '/tmp/dsh.sock',
-    authenticationToken: 'bridge-token',
-    listen: vi.fn().mockResolvedValue(undefined),
-    whenReady: vi.fn().mockResolvedValue(undefined),
-    request: runtimeMocks.bridgeRequest,
-    close: vi.fn().mockResolvedValue(undefined)
-  }))
+  DshBridgeServer: vi.fn(function DshBridgeServerMock() {
+    return {
+      socketPath: '/tmp/dsh.sock',
+      authenticationToken: 'bridge-token',
+      listen: vi.fn().mockResolvedValue(undefined),
+      whenReady: vi.fn().mockResolvedValue(undefined),
+      request: runtimeMocks.bridgeRequest,
+      close: vi.fn().mockResolvedValue(undefined)
+    }
+  })
 }))
 vi.mock('../DshCherryToolBridge', () => ({
   buildDshCherryToolBridge: vi.fn().mockResolvedValue({
@@ -135,7 +140,7 @@ vi.mock('../DshCherryToolBridge', () => ({
 }))
 vi.mock('../dshSdk', () => ({
   loadDshSdk: vi.fn().mockResolvedValue({
-    HarnessClient: vi.fn((options: Record<string, unknown>) => {
+    HarnessClient: vi.fn(function HarnessClientMock(options: Record<string, unknown>) {
       runtimeMocks.harnessOptions = options
       return {
         start: vi.fn(),
@@ -186,7 +191,7 @@ beforeEach(() => {
   runtimeMocks.snapshot = baseSnapshot()
   runtimeMocks.harnessOptions = undefined
   runtimeMocks.getShellEnv.mockReset().mockResolvedValue({
-    PATH: '/opt/homebrew/bin:/usr/bin',
+    PATH: ['/opt/homebrew/bin', '/usr/bin'].join(path.delimiter),
     HOME: '/Users/tester',
     SECRET: 'do-not-forward'
   })
@@ -224,14 +229,18 @@ describe('DshRuntimeConnection tracing', () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
 
-    expect(env.PATH?.split(':')).toEqual(['/mock/feature.binary.data/shims', '/opt/homebrew/bin', '/usr/bin'])
+    expect(env.PATH?.split(path.delimiter)).toEqual([
+      path.normalize('/mock/feature.binary.data/shims'),
+      '/opt/homebrew/bin',
+      '/usr/bin'
+    ])
     expect(env).toMatchObject({
       HOME: '/Users/tester',
       MISE_DATA_DIR: '/mock/feature.binary.data',
-      MISE_CONFIG_DIR: '/mock/feature.binary.data/config',
-      MISE_CACHE_DIR: '/mock/feature.binary.data/cache',
-      MISE_STATE_DIR: '/mock/feature.binary.data/state',
-      MISE_SHIMS_DIR: '/mock/feature.binary.data/shims'
+      MISE_CONFIG_DIR: path.normalize('/mock/feature.binary.data/config'),
+      MISE_CACHE_DIR: path.normalize('/mock/feature.binary.data/cache'),
+      MISE_STATE_DIR: path.normalize('/mock/feature.binary.data/state'),
+      MISE_SHIMS_DIR: path.normalize('/mock/feature.binary.data/shims')
     })
     expect(env).not.toHaveProperty('CHERRY_TEST_SECRET')
     expect(env).not.toHaveProperty('SECRET')
@@ -329,39 +338,107 @@ describe('DshRuntimeConnection tracing', () => {
     }
   )
 
-  it('opens the plan-review tool part before its raced tool/call event', async () => {
-    const connection = await new DshRuntimeConnection(connectInput).start()
-    const events = connection.events[Symbol.asyncIterator]()
-    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token' } })
-    await connection.send({ message: {} } as never)
+  it.each([
+    { origin: 'host', nativeCall: true },
+    { origin: 'goal', nativeCall: true },
+    { origin: 'host', nativeCall: false },
+    { origin: 'goal', nativeCall: false }
+  ])(
+    'orders a bridge-first approval after its $origin provenance (native call: $nativeCall)',
+    async ({ origin, nativeCall }) => {
+      const connection = await new DshRuntimeConnection(connectInput).start()
+      const events: AgentRuntimeEvent[] = []
+      const consume = (async () => {
+        for await (const event of connection.events) events.push(event)
+      })()
+      await drain()
+      events.length = 0
+      await connection.send({ message: {} } as never)
 
-    const { emit } = vi.mocked(DshBridgeServer).mock.calls[0][0]
-    emit({
-      type: 'tool-approval-request',
-      request: {
-        approvalId: 'approval-1',
-        toolCallId: 'call-1',
-        toolName: 'exit_plan_mode',
-        input: { plan: '# Ship it' },
-        presentation: 'stream'
+      const { emit } = vi.mocked(DshBridgeServer).mock.calls[0][0]
+      emit(
+        {
+          type: 'tool-approval-request',
+          request: {
+            approvalId: 'approval-1',
+            toolCallId: 'call-1',
+            toolName: 'exit_plan_mode',
+            input: { plan: '# Ship it' },
+            presentation: 'stream'
+          }
+        },
+        { sessionId: 'session-1', seq: SessionSeq(4) }
+      )
+      await drain()
+      expect(events).toEqual([])
+      subscription.push({
+        method: 'session.event',
+        params: {
+          sessionId: 'child-1',
+          event: { type: 'turn/start', seq: 100, time: 0, data: { turn: 1 } }
+        }
+      })
+      await drain()
+      expect(events).toEqual([])
+      for (const [index, event] of [
+        { type: 'turn/start', data: { turn: 1 } },
+        { type: 'step/start', data: { turn: 1, step: 1 } },
+        {
+          type: 'user/message',
+          data: {
+            id: 'input-1',
+            role: 'user',
+            content: [],
+            source: origin === 'host' ? { kind: 'user' } : { kind: 'goal', goalId: 'goal-1', revision: 1, round: 1 }
+          }
+        },
+        nativeCall
+          ? {
+              type: 'tool/call',
+              data: { turn: 1, step: 1, callId: 'call-1', name: 'exit_plan_mode', arguments: '{"plan":"# Ship it"}' }
+            }
+          : {
+              type: 'approval/asked',
+              data: { id: 'native-approval-1', toolName: 'exit_plan_mode' }
+            }
+      ].entries()) {
+        subscription.push({
+          method: 'session.event',
+          params: {
+            sessionId: 'session-1',
+            event: { ...event, seq: index + 1, time: 0 }
+          }
+        })
       }
-    })
-
-    await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'chunk', chunk: { type: 'tool-input-start', toolCallId: 'call-1' } }
-    })
-    await expect(events.next()).resolves.toMatchObject({
-      value: {
-        type: 'chunk',
-        chunk: { type: 'tool-input-available', toolCallId: 'call-1', input: { plan: '# Ship it' } }
-      }
-    })
-    await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'tool-approval-request', request: { approvalId: 'approval-1' } }
-    })
-
-    await connection.close()
-  })
+      await drain()
+      expect(events).toMatchObject([
+        ...(origin === 'goal'
+          ? [{ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } }]
+          : []),
+        { type: 'chunk', chunk: { type: 'tool-input-start', toolCallId: 'call-1' } },
+        { type: 'chunk', chunk: { type: 'tool-input-available', toolCallId: 'call-1', input: { plan: '# Ship it' } } },
+        { type: 'tool-approval-request', request: { approvalId: 'approval-1' } }
+      ])
+      events.length = 0
+      emit(
+        {
+          type: 'tool-approval-request',
+          request: {
+            approvalId: 'approval-2',
+            toolCallId: 'call-1',
+            toolName: 'exit_plan_mode',
+            input: { plan: '# Ship it' },
+            presentation: 'stream'
+          }
+        },
+        { sessionId: 'session-1', seq: SessionSeq(4) }
+      )
+      await drain()
+      expect(events).toEqual([expect.objectContaining({ type: 'tool-approval-request' })])
+      await connection.close()
+      await consume
+    }
+  )
 
   it('sends cross-Session provenance and forged instructions inside the untrusted delivery boundary', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()

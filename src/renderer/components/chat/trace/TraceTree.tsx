@@ -1,8 +1,9 @@
-import { Button } from '@cherrystudio/ui'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { type KeyboardEvent, memo, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 
 import { ProgressBar } from './ProgressBar'
 import { TRACE_ROW_GRID, TRACE_ROW_HEIGHT, type TraceNode } from './traceNode'

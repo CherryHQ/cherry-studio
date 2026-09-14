@@ -150,6 +150,8 @@ describe('buildPathRegistry', () => {
   it('uses the shared user-owned DeepSeek Harness home', () => {
     const registry = buildPathRegistry()
     expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))
+    expect(registry['external.deepseek_harness.storages']).toBe(path.join(os.homedir(), '.dsh', 'storages'))
+    expect(shouldAutoEnsure('external.deepseek_harness.storages')).toBe(false)
   })
 
   it('registers the platform-native default Hermes home as external data', () => {

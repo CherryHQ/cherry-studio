@@ -1,12 +1,12 @@
 import '@testing-library/jest-dom/vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type * as ReactI18next from 'react-i18next'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import type { WebSearchProviderMenuEntry } from '@renderer/utils/webSearchProviderMeta'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type * as ReactI18next from 'react-i18next'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WebSearchProviderSetting } from '../components/WebSearchProviderSetting'
 

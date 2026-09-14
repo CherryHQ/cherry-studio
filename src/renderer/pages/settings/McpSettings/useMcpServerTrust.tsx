@@ -1,8 +1,9 @@
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { popup } from '@renderer/services/popup'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ProtocolInstallWarningContent from './ProtocolInstallWarning'
 import { ensureServerTrusted as ensureServerTrustedCore } from './utils'

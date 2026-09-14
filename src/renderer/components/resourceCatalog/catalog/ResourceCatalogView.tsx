@@ -1,10 +1,11 @@
+import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Alert, Button } from '@cherrystudio/ui'
 import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
 import { cn } from '@renderer/utils/style'
-import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ResourceGrid } from './ResourceGrid'
 
@@ -44,14 +45,14 @@ export function ResourceCatalogView({
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
   const hasActiveDialog = Boolean(
     dialogs.selectedSkill ||
-      dialogs.assistantImportOpen ||
-      (resourceType === 'assistant' && dialogs.assistantLibraryOpen) ||
-      dialogs.skillImportOpen ||
-      dialogs.skillMarketplaceOpen ||
-      (resourceType === 'skill' && dialogs.systemSkillOpen) ||
-      dialogs.createDialogOpen ||
-      dialogs.createDialogKind ||
-      dialogs.editDialogTarget
+    dialogs.assistantImportOpen ||
+    (resourceType === 'assistant' && dialogs.assistantLibraryOpen) ||
+    dialogs.skillImportOpen ||
+    dialogs.skillMarketplaceOpen ||
+    (resourceType === 'skill' && dialogs.systemSkillOpen) ||
+    dialogs.createDialogOpen ||
+    dialogs.createDialogKind ||
+    dialogs.editDialogTarget
   )
   const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
 
@@ -70,7 +71,7 @@ export function ResourceCatalogView({
         {resourceError ? (
           <>
             {toolbarLeading ? (
-              <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 border-border-subtle border-b px-2">
+              <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 border-b border-border-subtle px-2">
                 <div className="flex shrink-0 items-center">{toolbarLeading}</div>
               </div>
             ) : null}

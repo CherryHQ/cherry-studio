@@ -1,3 +1,5 @@
+import { Activity, type CSSProperties, useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { useCache } from '@data/hooks/useCache'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
@@ -14,7 +16,6 @@ import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTi
 import { cn } from '@renderer/utils/style'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { Activity, type CSSProperties, useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { SubWindowTitleBar } from './SubWindowTitleBar'
 
@@ -24,7 +25,7 @@ const WINDOW_FRAME: WindowFrame = { mode: 'window' }
 const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
   <Activity mode={isActive ? 'visible' : 'hidden'}>
     <div className="flex h-full w-full flex-col items-center justify-center bg-background">
-      <div className="mb-2 font-bold text-lg">Webview App</div>
+      <div className="mb-2 text-lg font-bold">Webview App</div>
       <code className="rounded bg-muted p-2">{url}</code>
     </div>
   </Activity>

@@ -1,6 +1,7 @@
-import { Button, ButtonGroup, ButtonGroupItem, Input } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react'
+
+import { Button, ButtonGroup, ButtonGroupItem, Input } from '@cherrystudio/ui'
 
 const meta: Meta<typeof ButtonGroup> = {
   title: 'Components/Primitives/ButtonGroup',
@@ -91,7 +92,7 @@ export const WrappedInputWithButton: Story = {
     <ButtonGroup className="w-80">
       <ButtonGroupItem className="flex-1">
         <Input placeholder="Wrapped input..." className="pr-14" />
-        <span className="-translate-y-1/2 absolute top-1/2 right-3 text-muted-foreground text-xs">Ctrl K</span>
+        <span className="absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted-foreground">Ctrl K</span>
       </ButtonGroupItem>
       <Button>Search</Button>
     </ButtonGroup>

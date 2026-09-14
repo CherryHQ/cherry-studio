@@ -1,6 +1,7 @@
-import { ConfirmDialog } from '@cherrystudio/ui'
 import type { ComponentProps, FC } from 'react'
 import { Fragment } from 'react'
+
+import { ConfirmDialog } from '@cherrystudio/ui'
 
 import { CodeCliContentPanel } from './CodeCliContentPanel'
 import { CodeCliSidebar } from './CodeCliSidebar'
@@ -38,7 +39,7 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
           {contentProps ? (
             <CodeCliContentPanel {...contentProps} />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-foreground-tertiary text-sm">
+            <div className="flex flex-1 items-center justify-center text-sm text-foreground-tertiary">
               {emptyMessage}
             </div>
           )}

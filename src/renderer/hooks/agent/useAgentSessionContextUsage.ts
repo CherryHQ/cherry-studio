@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
@@ -5,7 +7,6 @@ import {
 } from '@shared/ai/agentSessionContextUsage'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
-import { useMemo } from 'react'
 
 const EMPTY_SESSION_ID = '__none__'
 

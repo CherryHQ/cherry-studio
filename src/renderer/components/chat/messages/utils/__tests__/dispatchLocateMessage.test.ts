@@ -1,5 +1,6 @@
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 import type { MessageListRuntime } from '../../types'
 import { dispatchLocateMessage } from '../dispatchLocateMessage'
@@ -18,11 +19,11 @@ function installQueuedAnimationFrame(): { restore(): void; tick(frames?: number)
   let rafId = 0
   let rafQueue = new Map<number, () => void>()
 
-  globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+  globalThis.requestAnimationFrame = (callback: FrameRequestCallback) => {
     const id = ++rafId
     rafQueue.set(id, () => callback(0))
     return id
-  }) as typeof requestAnimationFrame
+  }
 
   return {
     restore() {

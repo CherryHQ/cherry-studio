@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as FsUtils from '@main/utils/file'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 const loggerWarnMock = vi.hoisted(() => vi.fn())

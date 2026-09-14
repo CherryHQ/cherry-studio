@@ -4,6 +4,8 @@
  * can attribute the request without consulting mutable rotation state later.
  */
 
+import { isEmpty } from 'es-toolkit/compat'
+
 import { application } from '@application'
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
@@ -34,7 +36,6 @@ import {
   resolveEndpointDialect
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
-import { isEmpty } from 'es-toolkit/compat'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
@@ -64,7 +65,6 @@ interface BuilderContext {
   model: Model
   baseConfig: BaseConfig
   apiKeyOverride?: string
-  sessionId?: string
   endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
@@ -77,7 +77,6 @@ type ApiKeyBuilderContext = BuilderContext & {
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
   resolvedEndpoint?: ResolvedEndpoint
-  sessionId?: string
 }
 
 export interface ResolvedProviderAiSdkConfig {
@@ -207,7 +206,6 @@ export async function resolveProviderAiSdkConfig(
     // for a key they never serve with.
     baseConfig: { baseURL, apiKey: '' },
     apiKeyOverride: options?.apiKeyOverride,
-    sessionId: options?.sessionId,
     endpointType,
     endpoint,
     aiSdkProviderId
@@ -418,18 +416,16 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
   }
 }
 
+/**
+ * OpenCode Go/Zen requires `x-opencode-session` on every request. The builder only
+ * declares that; the chat pipeline fills it from the request's conversation.
+ */
 function buildOpenCodeGoConfig(ctx: BuilderContext): ProviderConfig {
   const config =
     ctx.aiSdkProviderId === 'openai-compatible' ? buildOpenAICompatibleConfig(ctx) : buildGenericProviderConfig(ctx)
-  const providerSettings = config.providerSettings as { headers?: Record<string, string | undefined> }
-  const headers = providerSettings.headers
+  const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
   const hasExplicitSession = Object.keys(headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
-
-  if (ctx.sessionId && !hasExplicitSession) {
-    providerSettings.headers = { 'x-opencode-session': ctx.sessionId, ...headers }
-  }
-
-  return config
+  return hasExplicitSession ? config : { ...config, conversationHeader: 'x-opencode-session' }
 }
 
 /**

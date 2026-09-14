@@ -1,5 +1,4 @@
 import '../types.js'
-
 import { callOrReturn, getExtensionField, mergeAttributes, Node } from '@tiptap/core'
 import type { DOMOutputSpec, Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { TextSelection } from '@tiptap/pm/state'

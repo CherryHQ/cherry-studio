@@ -1,3 +1,7 @@
+import { isUndefined, omitBy } from 'es-toolkit/compat'
+import { useCallback } from 'react'
+import type { SWRConfiguration } from 'swr'
+
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useDataChange } from '@data/hooks/useDataChange'
 import { usePreference } from '@data/hooks/usePreference'
@@ -11,9 +15,6 @@ import type {
 } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { isUndefined, omitBy } from 'es-toolkit/compat'
-import { useCallback } from 'react'
-import type { SWRConfiguration } from 'swr'
 
 const logger = loggerService.withContext('useModels')
 

@@ -1,13 +1,14 @@
-import { Tooltip, useMarkdownBlockContext } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import CopyIcon from '@renderer/components/icons/CopyIcon'
-import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'
 import React, { memo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { extractTableDataFromElement } from 'streamdown'
 import type { Node } from 'unist'
+
+import { Tooltip, useMarkdownBlockContext } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 
 import { useOptionalMessageListActions } from '../MessageListProvider'
 
@@ -80,12 +81,12 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
   }, [actions, t])
 
   return (
-    <div className="table-wrapper relative my-2 w-full min-w-0 max-w-full hover:[&_.table-toolbar]:opacity-100">
-      <div className="table-scroll-viewport w-full min-w-0 max-w-full overflow-x-auto">
+    <div className="table-wrapper relative my-2 w-full max-w-full min-w-0 hover:[&_.table-toolbar]:opacity-100">
+      <div className="table-scroll-viewport w-full max-w-full min-w-0 overflow-x-auto">
         {/* Fill the available reading width without forcing compact chat panes to scroll. Wide content can still overflow this viewport naturally. */}
         <table
           ref={tableRef}
-          className="[&&_td]:wrap-break-word [&&_th]:wrap-break-word [&&]:my-0 [&&]:w-full [&&]:min-w-full [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:text-foreground [&&]:leading-(--line-height-body-md) [&&_tbody]:bg-transparent [&&_td:last-child]:border-r-0 [&&_td]:border-border-subtle [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th:last-child]:border-r-0 [&&_th]:border-border-subtle [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead]:bg-transparent [&&_tr:last-child_td]:border-b-0 [&&_tr]:bg-transparent"
+          className="[&&]:my-0 [&&]:w-full [&&]:min-w-full [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:leading-(--line-height-body-md) [&&]:text-foreground [&&_tbody]:bg-transparent [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:border-border-subtle [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_td]:wrap-break-word [&&_td:last-child]:border-r-0 [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:border-border-subtle [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_th]:wrap-break-word [&&_th:last-child]:border-r-0 [&&_thead]:bg-transparent [&&_tr]:bg-transparent [&&_tr:last-child_td]:border-b-0"
           style={{
             border: '0.5px solid var(--border)',
             borderRadius: 'var(--radius-md)',
@@ -97,11 +98,11 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
         </table>
       </div>
       {(canCopyTable || canExportExcel) && (
-        <div className="table-toolbar transform-[translateZ(0)] absolute top-2 right-2 z-10 flex gap-1 rounded-lg border border-border-subtle bg-popover p-1 opacity-0 shadow-md transition-opacity duration-200 ease-in-out will-change-[opacity]">
+        <div className="table-toolbar absolute top-2 right-2 z-10 flex transform-[translateZ(0)] gap-1 rounded-lg border border-border-subtle bg-popover p-1 opacity-0 shadow-md transition-opacity duration-200 ease-in-out will-change-[opacity]">
           {canCopyTable && (
             <Tooltip content={t('common.copy')} delay={800}>
               <div
-                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-accent hover:text-foreground hover:shadow-xs"
+                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] select-none hover:bg-accent hover:text-foreground hover:shadow-xs"
                 role="button"
                 aria-label={t('common.copy')}
                 onClick={handleCopyTable}>
@@ -112,7 +113,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
           {canExportExcel && (
             <Tooltip content={t('common.export.excel')} delay={800}>
               <div
-                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-accent hover:text-foreground hover:shadow-xs"
+                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] select-none hover:bg-accent hover:text-foreground hover:shadow-xs"
                 role="button"
                 aria-label={t('common.export.excel')}
                 onClick={handleExportExcel}>
