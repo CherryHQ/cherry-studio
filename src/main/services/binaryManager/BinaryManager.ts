@@ -19,7 +19,8 @@ import {
   getBinaryIsolatedHomeEnv,
   getBinaryShimsDir,
   isPathWithin,
-  mergeBinaryExecutionEnv
+  mergeBinaryExecutionEnv,
+  sanitizeEnvNullBytes
 } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
@@ -845,7 +846,11 @@ export class BinaryManager extends BaseService {
     }
 
     try {
-      const result = execFileSync('which', [binaryName], { encoding: 'utf-8', timeout: 5000 })
+      const result = execFileSync('which', [binaryName], {
+        encoding: 'utf-8',
+        timeout: 5000,
+        env: sanitizeEnvNullBytes({ ...process.env })
+      })
       const systemPath = result.trim().split(/\r?\n/)[0]
       if (systemPath && fs.existsSync(systemPath)) {
         return systemPath

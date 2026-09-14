@@ -929,7 +929,7 @@ export class CodeCliService extends BaseService {
         detached: true,
         stdio: 'ignore',
         cwd: directory,
-        env: processEnv,
+        env: sanitizeEnvNullBytes(processEnv),
         shell: isWin
       })
       // spawn() fails asynchronously (e.g. ENOENT when the fallback terminal is

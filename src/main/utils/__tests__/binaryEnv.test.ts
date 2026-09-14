@@ -97,6 +97,11 @@ describe('sanitizeEnvNullBytes', () => {
     expect(env.PATH).toBe('/usr/bin:/opt/bin')
   })
 
+  it('drops an entry whose name carries a NUL, which spawn rejects too', () => {
+    // Node validates the property name as well: `options.env['BA\0D']`.
+    expect(sanitizeEnvNullBytes({ GOOD: 'x', ['BA\0D']: 'y' })).toEqual({ GOOD: 'x' })
+  })
+
   it('leaves a clean environment and undefined values untouched', () => {
     expect(sanitizeEnvNullBytes({ A: 'x', B: undefined })).toEqual({ A: 'x', B: undefined })
   })

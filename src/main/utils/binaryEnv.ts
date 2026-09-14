@@ -64,13 +64,16 @@ function isPathKey(key: string): boolean {
 
 /**
  * Remove NUL bytes from an environment map so `spawn` cannot reject it (#20344).
- * The check is not PATH-only: Node throws for a NUL in any value. PATH keeps its
- * valid segments; every other value has no partial form, so its entry is dropped,
- * which is why the result makes no promise about which keys survive.
+ * The check is not PATH-only: Node throws for a NUL in any name or value. PATH
+ * keeps its valid segments; every other name and value has no partial form, so
+ * its entry is dropped, which is why the result makes no promise about which
+ * keys survive.
  */
 export function sanitizeEnvNullBytes<V extends string | undefined>(env: Record<string, V>): Record<string, V> {
   const sanitized: Record<string, V> = {}
   for (const [key, value] of Object.entries(env)) {
+    // Node rejects the env from the name too, not only the value.
+    if (key.includes('\0')) continue
     if (typeof value !== 'string' || !value.includes('\0')) {
       sanitized[key] = value
     } else if (isPathKey(key)) {

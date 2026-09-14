@@ -8,6 +8,7 @@ import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sd
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { sanitizeEnvNullBytes } from '@main/utils/binaryEnv'
 
 import {
   type ClaudeCodeProcessDiagnostics,
@@ -178,7 +179,7 @@ export class ClaudeCodeProcessManager extends BaseService {
     resetClaudeCodeProcessDiagnostics(diagnostics)
     const rawChild = this.spawnProcess(options.command, options.args, {
       cwd: options.cwd,
-      env: options.env,
+      env: sanitizeEnvNullBytes(options.env),
       signal: options.signal,
       // Keeping stdin a pipe is also what makes the CLI exit on its own once this app dies.
       stdio: ['pipe', 'pipe', 'pipe'],
