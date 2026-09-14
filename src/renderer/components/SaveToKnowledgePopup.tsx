@@ -33,7 +33,11 @@ import type { NotesTreeNode } from '@renderer/types/note'
 import type { Topic } from '@renderer/types/topic'
 import type { ContentType, MessageContentStats, TopicContentStats } from '@renderer/utils/knowledge'
 import { analyzeMessageContent, CONTENT_TYPES, processMessageContent } from '@renderer/utils/knowledge'
-import { KnowledgeFileResolveError, resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
+import {
+  resolveKnowledgeFileBatch,
+  resolveKnowledgeFileMetadataEntryData,
+  selectKnowledgeFileBatchOutcome
+} from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemInput } from '@shared/data/types/knowledge'
 
 const logger = loggerService.withContext('SaveToKnowledgePopup')
@@ -358,53 +362,41 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
         }
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
-          const fileResults = await Promise.allSettled(result.files.map(resolveKnowledgeFileMetadataEntryData))
-          const probeFailure = fileResults.find(
-            (item): item is PromiseRejectedResult =>
-              item.status === 'rejected' && !(item.reason instanceof KnowledgeFileResolveError)
+          const fileBatch = await resolveKnowledgeFileBatch(
+            result.files,
+            resolveKnowledgeFileMetadataEntryData,
+            (file) => file.origin_name || file.name
           )
-          if (probeFailure) {
-            throw probeFailure.reason
+          const fileOutcome = selectKnowledgeFileBatchOutcome(fileBatch, items.length > 0)
+          if (fileOutcome.fatal !== undefined) {
+            throw fileOutcome.fatal
           }
 
-          const fileData = fileResults.flatMap((item) => (item.status === 'fulfilled' ? [item.value] : []))
-          const failedFiles = fileResults.flatMap((item, index) =>
-            item.status === 'rejected'
-              ? [
-                  {
-                    index,
-                    source: result.files[index]?.origin_name || result.files[index]?.name,
-                    reason: item.reason instanceof Error ? item.reason.message : String(item.reason)
-                  }
-                ]
-              : []
-          )
-          const failedCount = failedFiles.length
-
-          if (failedCount > 0) {
+          if (fileOutcome.skipped.length > 0) {
             logger.warn('Failed to resolve some knowledge file entries', {
-              failedCount,
-              totalCount: fileResults.length,
-              failedFiles
+              failedCount: fileOutcome.skipped.length,
+              totalCount: result.files.length,
+              failedFiles: fileOutcome.skipped.map(({ index, source, reason }) => ({ index, source, reason }))
             })
-            toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: failedCount }))
+            toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: fileOutcome.skipped.length }))
           }
 
           items.push(
-            ...fileData.map((data) => ({
+            ...fileOutcome.resolved.map((data) => ({
               type: 'file' as const,
               data
             }))
           )
-          savedCount += fileData.length
+          savedCount += fileOutcome.resolved.length
         }
       }
 
       if (items.length > 0) {
         await submitKnowledgeItems(items)
+        resolve({ success: true, savedCount })
+      } else {
+        resolve({ success: false, savedCount: 0 })
       }
-
-      resolve({ success: true, savedCount })
     } catch (error) {
       logger.error('save failed:', error as Error)
 
@@ -424,6 +416,8 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
       }
 
       toast.error(errorMessage)
+      resolve({ success: false, savedCount: 0 })
+    } finally {
       setLoading(false)
     }
   }

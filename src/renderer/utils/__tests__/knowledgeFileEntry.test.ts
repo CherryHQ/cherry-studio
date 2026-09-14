@@ -4,9 +4,13 @@ import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import { FILE_TYPE } from '@shared/types/file'
 
 import {
+  KnowledgeFileNotAFileError,
   MissingKnowledgeFileError,
+  resolveFileEntryDataFromFile,
+  resolveKnowledgeFileBatch,
   resolveKnowledgeFileData,
-  resolveKnowledgeFileMetadataEntryData
+  resolveKnowledgeFileMetadataEntryData,
+  selectKnowledgeFileBatchOutcome
 } from '../knowledgeFileEntry'
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
@@ -79,12 +83,40 @@ describe('knowledgeFileEntry', () => {
   it('rejects an absolute path when the file is missing on disk', async () => {
     mocks.request.mockResolvedValue(null)
 
-    await expect(resolveKnowledgeFileData('E:\\Documents\\moved.docx', 'source.docx')).rejects.toThrow(
-      MissingKnowledgeFileError
-    )
+    await expect(resolveKnowledgeFileData('E:\\Documents\\moved.docx', 'source.docx')).rejects.toSatisfy((error) => {
+      return (
+        error instanceof MissingKnowledgeFileError &&
+        error.path === 'E:\\Documents\\moved.docx' &&
+        error.message.includes('E:\\Documents\\moved.docx')
+      )
+    })
     expect(mocks.request).toHaveBeenCalledWith('file.get_metadata', {
       kind: 'path',
       path: 'E:\\Documents\\moved.docx'
+    })
+  })
+
+  it('treats undefined metadata as a skippable missing file', async () => {
+    mocks.request.mockResolvedValue(undefined)
+
+    await expect(resolveKnowledgeFileData('/tmp/report.pdf')).rejects.toBeInstanceOf(MissingKnowledgeFileError)
+  })
+
+  it('rejects a path that resolves to a directory instead of calling it missing', async () => {
+    mocks.request.mockResolvedValue({
+      kind: 'directory',
+      size: 0,
+      createdAt: 0,
+      modifiedAt: 0
+    })
+
+    await expect(resolveKnowledgeFileData('/tmp/docs', 'docs')).rejects.toSatisfy((error) => {
+      return (
+        error instanceof KnowledgeFileNotAFileError &&
+        error.path === '/tmp/docs' &&
+        error.message.includes('/tmp/docs') &&
+        !(error instanceof MissingKnowledgeFileError)
+      )
     })
   })
 
@@ -93,5 +125,106 @@ describe('knowledgeFileEntry', () => {
     mocks.request.mockRejectedValue(probeError)
 
     await expect(resolveKnowledgeFileData('/tmp/report.pdf')).rejects.toBe(probeError)
+  })
+
+  it('rejects a File whose local path cannot be resolved with the knowledge error type', async () => {
+    Object.assign(window, { api: { file: { getPathForFile: vi.fn(() => '') } } })
+
+    await expect(resolveFileEntryDataFromFile(new File(['x'], 'notes.pdf'))).rejects.toThrow(
+      'Failed to resolve a local path for "notes.pdf"'
+    )
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
+  it('settles a mixed batch by skipping missing files and keeping present ones', async () => {
+    mocks.request.mockImplementation(async (_route: string, handle?: { path?: string }) =>
+      handle?.path?.includes('missing') ? null : presentFileMetadata
+    )
+
+    const files = [
+      {
+        id: 'ok',
+        name: 'ok.pdf',
+        origin_name: 'ok.pdf',
+        path: '/tmp/ok.pdf',
+        size: 1,
+        ext: '.pdf',
+        type: 'document' as const,
+        created_at: '2026-05-27T00:00:00.000Z',
+        count: 1
+      },
+      {
+        id: 'missing',
+        name: 'missing.pdf',
+        origin_name: 'missing.pdf',
+        path: '/tmp/missing.pdf',
+        size: 1,
+        ext: '.pdf',
+        type: 'document' as const,
+        created_at: '2026-05-27T00:00:00.000Z',
+        count: 1
+      }
+    ]
+
+    const batch = await resolveKnowledgeFileBatch(files, resolveKnowledgeFileMetadataEntryData, (file) => file.name)
+    const outcome = selectKnowledgeFileBatchOutcome(batch, false)
+
+    expect(outcome.fatal).toBeUndefined()
+    expect(outcome.resolved).toEqual([{ source: '/tmp/ok.pdf', path: '/tmp/ok.pdf' }])
+    expect(outcome.skipped).toHaveLength(1)
+    expect(outcome.skipped[0]?.error).toBeInstanceOf(MissingKnowledgeFileError)
+  })
+
+  it('keeps a malformed entry skippable so a sibling file can still be saved', async () => {
+    const files = [
+      {
+        id: 'ok',
+        name: 'ok.pdf',
+        origin_name: 'ok.pdf',
+        path: '/tmp/ok.pdf',
+        size: 1,
+        ext: '.pdf',
+        type: 'document' as const,
+        created_at: '2026-05-27T00:00:00.000Z',
+        count: 1
+      },
+      null
+    ]
+
+    const batch = await resolveKnowledgeFileBatch(
+      files,
+      (file) => resolveKnowledgeFileMetadataEntryData(file as (typeof files)[0] & object),
+      (file) => file?.name
+    )
+    const outcome = selectKnowledgeFileBatchOutcome(batch, false)
+
+    expect(outcome.fatal).toBeUndefined()
+    expect(outcome.resolved).toEqual([{ source: '/tmp/ok.pdf', path: '/tmp/ok.pdf' }])
+    expect(outcome.skipped[0]?.error).toBeInstanceOf(TypeError)
+  })
+
+  it('treats a transport failure as fatal only when nothing else can be saved', async () => {
+    const probeError = new IpcError(IpcErrorCode.INTERNAL, 'IpcApi returned a malformed result')
+    mocks.request.mockRejectedValue(probeError)
+
+    const files = [
+      {
+        id: 'probe',
+        name: 'probe.pdf',
+        origin_name: 'probe.pdf',
+        path: '/tmp/probe.pdf',
+        size: 1,
+        ext: '.pdf',
+        type: 'document' as const,
+        created_at: '2026-05-27T00:00:00.000Z',
+        count: 1
+      }
+    ]
+
+    const batch = await resolveKnowledgeFileBatch(files, resolveKnowledgeFileMetadataEntryData, (file) => file.name)
+
+    expect(selectKnowledgeFileBatchOutcome(batch, false).fatal).toBe(probeError)
+    expect(selectKnowledgeFileBatchOutcome(batch, true).fatal).toBeUndefined()
+    expect(selectKnowledgeFileBatchOutcome(batch, true).skipped[0]?.error).toBe(probeError)
   })
 })

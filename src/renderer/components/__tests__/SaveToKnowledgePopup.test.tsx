@@ -424,17 +424,103 @@ describe('SaveToKnowledgePopup', () => {
     })
 
     render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessage>
     act(() => {
-      void SaveToKnowledgePopup.showForMessage(createMessageWithFiles(files))
+      promise = SaveToKnowledgePopup.showForMessage(createMessageWithFiles(files))
     })
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
     })
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('chat.save.knowledge.error.save_failed'))
+    await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
+    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
+      {
+        type: 'file',
+        data: {
+          source: '/tmp/ok.pdf',
+          path: '/tmp/ok.pdf'
+        }
+      }
+    ])
+    expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('settles a file-only transport failure instead of leaving the save promise pending', async () => {
+    mocks.ipcRequest.mockRejectedValue(new IpcError(IpcErrorCode.INTERNAL, 'IpcApi returned a malformed result'))
+
+    render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessage>
+    act(() => {
+      promise = SaveToKnowledgePopup.showForMessage(
+        createMessageWithFiles([createFile('/tmp/probe-fail.pdf', 'probe')])
+      )
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    await expect(promise).resolves.toEqual({ success: false, savedCount: 0 })
+    expect(toast.error).toHaveBeenCalledWith('chat.save.knowledge.error.save_failed')
     expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
-    expect(toast.warning).not.toHaveBeenCalled()
+  })
+
+  it('saves conversation notes when a file probe fails with a transport error', async () => {
+    const files = [createFile('/tmp/probe-fail.pdf', 'probe-fail')]
+    const message = {
+      ...createMessageWithFiles(files),
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Keep this conversation note' }]
+    } as MessageExportView
+    mocks.processMessageContent.mockReturnValue({
+      text: 'Keep this conversation note',
+      files
+    })
+    mocks.ipcRequest.mockRejectedValue(new IpcError(IpcErrorCode.INTERNAL, 'IpcApi returned a malformed result'))
+
+    render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessage>
+    act(() => {
+      promise = SaveToKnowledgePopup.showForMessage(message)
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
+      {
+        type: 'note',
+        data: {
+          source: 'All tools are working',
+          content: 'Keep this conversation note'
+        }
+      }
+    ])
+    expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
+    expect(toast.error).not.toHaveBeenCalled()
+    await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
+  })
+
+  it('reports failure when every selected file is missing and nothing else is saved', async () => {
+    const { promise } = renderPopup(createMessageWithFiles([createFile('/tmp/missing.pdf', 'missing')]))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
+    await expect(promise).resolves.toEqual({ success: false, savedCount: 0 })
   })
 })
