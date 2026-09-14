@@ -49,6 +49,44 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
 /** Per-source cap on a remote-image fetch, and the shared budget for the whole inline stage. */
 const REMOTE_INLINE_SOURCE_TIMEOUT_MS = 10_000
 const REMOTE_INLINE_STAGE_BUDGET_MS = 20_000
+/** Cap on waiting for a swapped-in data URL to settle — data URLs decode locally, so this is generous. */
+const INLINE_SWAP_SETTLE_TIMEOUT_MS = 2_000
+
+/**
+ * A subtree the capture filter will omit must not cost a remote fetch; mirrors
+ * filterHiddenElements on the live subtree (the clone re-derives the same result).
+ */
+const isVisibleInCapture = (image: HTMLImageElement, root: HTMLElement): boolean => {
+  for (let node: Element | null = image; node; node = node.parentElement) {
+    if (node === root) return true
+    if (node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE)) return false
+    if (
+      node instanceof HTMLElement &&
+      (node.style.display === 'none' || window.getComputedStyle(node).display === 'none')
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+/**
+ * Resolves once the swapped-in src settles (load/error), so the clone rasterizes the
+ * new intrinsic size — not the 0×0 of a still-loading swap. Bounded for silent decodes.
+ */
+const waitForSwapSettle = (image: HTMLImageElement): Promise<void> =>
+  new Promise((resolve) => {
+    if (image.complete && image.naturalWidth > 0) return resolve()
+    const done = () => {
+      clearTimeout(timer)
+      image.removeEventListener('load', done)
+      image.removeEventListener('error', done)
+      resolve()
+    }
+    const timer = setTimeout(done, INLINE_SWAP_SETTLE_TIMEOUT_MS)
+    image.addEventListener('load', done, { once: true })
+    image.addEventListener('error', done, { once: true })
+  })
 
 /**
  * Pre-inline every remote image with verification — the library's own inline pass
@@ -61,7 +99,9 @@ async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void
   const images = [
     ...(root instanceof HTMLImageElement ? [root] : []),
     ...root.querySelectorAll<HTMLImageElement>('img')
-  ].filter((image) => /^https?:/i.test(image.currentSrc || image.getAttribute('src') || ''))
+  ].filter(
+    (image) => /^https?:/i.test(image.currentSrc || image.getAttribute('src') || '') && isVisibleInCapture(image, root)
+  )
 
   const originalSources = images.map((image) => ({
     image,
@@ -96,6 +136,7 @@ async function inlineVerifiedRemoteImages(root: HTMLElement): Promise<() => void
       image.removeAttribute('srcset')
       image.src = TRANSPARENT_IMAGE_PLACEHOLDER
     }
+    await waitForSwapSettle(image)
   }
 
   return () => {
@@ -139,6 +180,7 @@ async function inlineLocalImageSources(root: HTMLElement): Promise<() => void> {
       try {
         image.removeAttribute('srcset')
         image.src = await dataUrlPromise
+        await waitForSwapSettle(image)
       } catch (error) {
         logger.warn('Failed to inline local image for capture', error as Error, { source })
       }
@@ -1167,7 +1209,7 @@ export async function getImageBlobFromSource(src: string, options?: { signal?: A
     const byteArray = parseResult.isBase64
       ? Base64.toUint8Array(parseResult.data)
       : decodeDataUrlBytes(parseResult.data)
-    return assertImageBlob(new Blob([byteArray.slice()], { type: parseResult.mediaType }), src)
+    return await assertImageBlob(new Blob([byteArray.slice()], { type: parseResult.mediaType }), src)
   }
 
   if (src.startsWith('file://')) {
@@ -1176,7 +1218,7 @@ export async function getImageBlobFromSource(src: string, options?: { signal?: A
       handle: createFilePathHandle(path),
       options: { mode: 'full', encoding: 'binary' }
     })
-    return assertImageBlob(new Blob([content.slice()], { type: mime }), src)
+    return await assertImageBlob(new Blob([content.slice()], { type: mime }), src)
   }
 
   const response = await fetch(src, { signal: options?.signal })
@@ -1185,20 +1227,53 @@ export async function getImageBlobFromSource(src: string, options?: { signal?: A
     throw new Error(`Failed to fetch image: ${response.status} ${src}`)
   }
   const blob = await response.blob()
-  return assertImageBlob(blob, src)
+  return await assertImageBlob(blob, src)
 }
 
-/** A 200 response is still not an image when its content type says otherwise (proxy/login pages). */
-function assertImageBlob(blob: Blob, src: string): Blob {
-  // octet-stream is a mislabel, not a non-image verdict: extension-less local entries and
-  // remote servers that skip MIME land here, and the bytes still decode like <img> does.
+/** Byte count consulted by the format sniff (longest signature is the ftyp brand box). */
+const IMAGE_SNIFF_BYTE_COUNT = 16
+
+/** First bytes of a blob, via FileReader — Blob.arrayBuffer is unavailable in the jsdom test env. */
+const readBlobHead = (blob: Blob, byteCount: number) =>
+  new Promise<Uint8Array>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsArrayBuffer(blob.slice(0, byteCount))
+  })
+
+/** Smell the container/byte signature the way an <img> decoder would, for responses whose MIME is missing or generic. */
+function sniffImageMimeType(bytes: Uint8Array): string | undefined {
+  const ascii = (start: number, text: string) => [...text].every((char, i) => bytes[start + i] === char.charCodeAt(0))
+  if (bytes.length >= 8 && bytes[0] === 0x89 && ascii(1, 'PNG\r\n\x1a\n')) return 'image/png'
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg'
+  if (ascii(0, 'GIF8')) return 'image/gif'
+  if (bytes.length >= 12 && ascii(0, 'RIFF') && ascii(8, 'WEBP')) return 'image/webp'
+  if (bytes.length >= 12 && ascii(4, 'ftyp')) {
+    const brand = String.fromCharCode(...bytes.slice(8, 12))
+    if (brand.startsWith('avi')) return 'image/avif'
+    if (/^(hei|hev|mif|msf)/.test(brand)) return 'image/heic'
+  }
+  if (ascii(0, '<?xm') || ascii(0, '<svg')) return 'image/svg+xml'
+  if (ascii(0, 'BM')) return 'image/bmp'
+  if (bytes.length >= 4 && bytes[0] === 0 && bytes[1] === 0 && bytes[2] === 1 && bytes[3] === 0) return 'image/x-icon'
+  return undefined
+}
+
+/**
+ * A 200 response is still not an image when its content type says otherwise (proxy/login pages),
+ * and an image is unusable as a data URL when its type is missing or generic — sniff those bytes
+ * and re-type the blob so the data URL stays renderable, else reject.
+ */
+async function assertImageBlob(blob: Blob, src: string): Promise<Blob> {
   // Trim first — header params ('text/html; charset=utf-8') and stray OWS must not bypass the check.
   const type = blob.type.trim()
-  const unknown = type === 'application/octet-stream'
-  if (type && !unknown && !type.startsWith('image/')) {
-    throw new Error(`Source is not an image (content type ${type}): ${src}`)
+  if (type.startsWith('image/')) return blob
+  const sniffed = sniffImageMimeType(await readBlobHead(blob, IMAGE_SNIFF_BYTE_COUNT))
+  if (!sniffed) {
+    throw new Error(`Source is not an image (content type ${type || 'missing'}): ${src}`)
   }
-  return blob
+  return type === sniffed ? blob : blob.slice(0, blob.size, sniffed)
 }
 
 export async function copyImageToClipboard(src: string): Promise<void> {

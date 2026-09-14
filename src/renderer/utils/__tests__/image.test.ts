@@ -59,6 +59,8 @@ const readBlobBytes = (blob: Blob) =>
     reader.readAsArrayBuffer(blob)
   })
 
+const PNG_MAGIC = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
 describe('utils/image', () => {
   describe('transformImageToPng', () => {
     const sourcePixels = [
@@ -567,7 +569,22 @@ describe('utils/image', () => {
       return div
     }
 
+    // jsdom never decodes images, so the settle wait would ride its timeout cap;
+    // settle each swapped-in src on the next macrotask the way a browser decode would.
+    const armJsdomImageSettle = (root: HTMLElement) => {
+      for (const img of root.querySelectorAll('img')) {
+        const observer = new MutationObserver(() => {
+          if ((img.getAttribute('src') ?? '').startsWith('data:')) {
+            observer.disconnect()
+            setTimeout(() => img.dispatchEvent(new Event('load')), 0)
+          }
+        })
+        observer.observe(img, { attributes: true, attributeFilter: ['src'] })
+      }
+    }
+
     const captureWithRasterSpy = async (root: HTMLDivElement) => {
+      armJsdomImageSettle(root)
       let srcAtRaster: string | undefined
       vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
         const img = root.querySelector('img') as HTMLImageElement
@@ -622,6 +639,7 @@ describe('utils/image', () => {
         img.setAttribute('src', 'https://icon.horse/icon/same.example')
         root.appendChild(img)
       })
+      armJsdomImageSettle(root)
 
       await captureScrollableAsDataUrl({ current: root })
 
@@ -685,6 +703,7 @@ describe('utils/image', () => {
       const img = document.createElement('img')
       img.setAttribute('src', 'https://stalled.example.com/broken.png')
       const root = makeRoot(img)
+      armJsdomImageSettle(root)
 
       vi.useFakeTimers()
       try {
@@ -704,6 +723,91 @@ describe('utils/image', () => {
         vi.useRealTimers()
         vi.unstubAllGlobals()
       }
+    })
+
+    it('re-types a missing Content-Type response by sniffing the image bytes', async () => {
+      stubFetch('', PNG_BYTES)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://raw.example.com/pixel')
+      const root = makeRoot(img)
+
+      const { result, srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      // An untyped blob encodes to `data:;base64,...`, which no <img> renders.
+      expect(srcAtRaster).toMatch(/^data:image\/png;base64,/)
+      expect(img.getAttribute('src')).toBe('https://raw.example.com/pixel')
+      vi.unstubAllGlobals()
+    })
+
+    it('swaps a no-content-type non-image answer for the placeholder', async () => {
+      stubFetch('', new TextEncoder().encode('Too Many Requests'))
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://icon.horse/icon/example.com')
+      const root = makeRoot(img)
+
+      const { result, srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(srcAtRaster).toBe('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')
+      vi.unstubAllGlobals()
+    })
+
+    it('rasterizes only after the swapped-in data URL has settled', async () => {
+      stubFetch('image/png', PNG_BYTES)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://icon.horse/icon/example.com')
+      // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+      Object.defineProperty(img, 'complete', { value: true, configurable: true })
+      const root = makeRoot(img)
+
+      let loadSeen = false
+      img.addEventListener('load', () => {
+        loadSeen = true
+      })
+      let settledAtRaster: boolean | undefined
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+        settledAtRaster = loadSeen && (img.getAttribute('src') ?? '').startsWith('data:image/png')
+        return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+      })
+      armJsdomImageSettle(root)
+
+      const result = await captureScrollableAsDataUrl({ current: root })
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(settledAtRaster).toBe(true)
+      vi.unstubAllGlobals()
+    })
+
+    it('does not fetch remote images the capture filter omits', async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'image/png' },
+        blob: async () => new Blob([PNG_BYTES], { type: 'image/png' })
+      }))
+      vi.stubGlobal('fetch', fetchMock)
+      const root = document.createElement('div')
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(root, 'scrollHeight', { value: 100, configurable: true })
+      const hidden = document.createElement('img')
+      hidden.setAttribute('src', 'https://icon.horse/icon/hidden.example')
+      const hiddenWrapper = document.createElement('div')
+      hiddenWrapper.style.display = 'none'
+      hiddenWrapper.appendChild(hidden)
+      const visible = document.createElement('img')
+      visible.setAttribute('src', 'https://icon.horse/icon/visible.example')
+      root.appendChild(hiddenWrapper)
+      root.appendChild(visible)
+      armJsdomImageSettle(root)
+
+      await captureWithRasterSpy(root)
+
+      // A swapped img implies its source was fetched, so the fetch count is the proof.
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith('https://icon.horse/icon/visible.example', expect.anything())
+      expect(hidden.getAttribute('src')).toBe('https://icon.horse/icon/hidden.example')
+      vi.unstubAllGlobals()
     })
   })
 
@@ -1094,23 +1198,29 @@ describe('utils/image', () => {
       await expect(getImageBlobFromSource('https://cdn.example.com/wallpaper.png')).rejects.toThrow('not an image')
     })
 
-    it('accepts a remote blob with an empty content type', async () => {
-      fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob(['bytes']) })
+    it('re-types an empty-content-type response from its byte signature', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob([PNG_MAGIC.slice()]) })
 
       const blob = await getImageBlobFromSource('https://example.com/unknown.bin')
 
-      expect(blob.type).toBe('')
+      expect(blob.type).toBe('image/png')
     })
 
-    it('accepts a remote image served as octet-stream (mislabelled, not a non-image)', async () => {
+    it('rejects an empty-content-type response with no image signature', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob(['bytes']) })
+
+      await expect(getImageBlobFromSource('https://example.com/unknown.bin')).rejects.toThrow('not an image')
+    })
+
+    it('re-types a remote image served as octet-stream from its byte signature', async () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
-        blob: async () => new Blob(['imagedata'], { type: 'application/octet-stream' })
+        blob: async () => new Blob([PNG_MAGIC.slice()], { type: 'application/octet-stream' })
       })
 
       const blob = await getImageBlobFromSource('https://cdn.example.com/mislabeled.png')
 
-      expect(blob.type).toBe('application/octet-stream')
+      expect(blob.type).toBe('image/png')
     })
 
     it('trims the content type before judging it (stray whitespace does not reject an image)', async () => {
@@ -1133,16 +1243,16 @@ describe('utils/image', () => {
       await expect(getImageBlobFromSource('https://cdn.example.com/signin')).rejects.toThrow('not an image')
     })
 
-    it('accepts an octet-stream local file (extension-less entries are real images)', async () => {
+    it('re-types an octet-stream local file from its byte signature (extension-less entries are real images)', async () => {
       ipcMocks.request.mockResolvedValueOnce({
-        content: new Uint8Array([1, 2, 3]),
+        content: PNG_MAGIC.slice(),
         mime: 'application/octet-stream',
-        version: { mtime: 1, size: 3 }
+        version: { mtime: 1, size: PNG_MAGIC.length }
       })
 
       const blob = await getImageBlobFromSource('file:///data/Files/noext')
 
-      expect(blob.type).toBe('application/octet-stream')
+      expect(blob.type).toBe('image/png')
     })
 
     it('throws on a data URL with no media type', async () => {
