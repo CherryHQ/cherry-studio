@@ -1,6 +1,7 @@
-import type { FileInfo } from '@shared/types/file'
 import type { LanguageCode } from 'tesseract.js'
 import * as z from 'zod'
+
+import type { FileInfo } from '@shared/types/file'
 
 export const TesseractProcessorOptionsSchema = z.looseObject({
   langs: z.array(z.string()).optional()

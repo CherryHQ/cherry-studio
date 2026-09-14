@@ -17,11 +17,12 @@ import { release, tmpdir } from 'node:os'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 
-import { application } from '@application'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { app } from 'electron'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { saveMigrationDiagnosticBundle } from '../migrationDiagnosticBundle'
 

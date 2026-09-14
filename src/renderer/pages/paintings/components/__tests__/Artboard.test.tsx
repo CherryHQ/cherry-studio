@@ -1,8 +1,9 @@
-import type * as CherryStudioUI from '@cherrystudio/ui'
-import type { FileMetadata } from '@renderer/types/file'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ImgHTMLAttributes, ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUI from '@cherrystudio/ui'
+import type { FileMetadata } from '@renderer/types/file'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
@@ -110,28 +111,26 @@ vi.mock('../../hooks/usePaintingSizeInfo', () => ({
 
 const { default: Artboard } = await import('../Artboard')
 
-const makeFile = (id: string): FileMetadata =>
-  ({
-    id,
-    name: `${id}.png`,
-    origin_name: `${id}.png`,
-    path: `/tmp/${id}.png`,
-    size: 100,
-    ext: '.png',
-    type: 'image',
-    created_at: '2026-01-01T00:00:00.000Z',
-    count: 1
-  }) as FileMetadata
+const makeFile = (id: string): FileMetadata => ({
+  id,
+  name: `${id}.png`,
+  origin_name: `${id}.png`,
+  path: `/tmp/${id}.png`,
+  size: 100,
+  ext: '.png',
+  type: 'image',
+  created_at: '2026-01-01T00:00:00.000Z',
+  count: 1
+})
 
-const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData =>
-  ({
-    id: 'painting-1',
-    providerId: 'openai',
-    mode: 'generate',
-    prompt: '',
-    files: [makeFile('image-1'), makeFile('image-2')],
-    ...overrides
-  }) as PaintingData
+const makePainting = (overrides: Partial<PaintingData> = {}): PaintingData => ({
+  id: 'painting-1',
+  providerId: 'openai',
+  mode: 'generate',
+  prompt: '',
+  files: [makeFile('image-1'), makeFile('image-2')],
+  ...overrides
+})
 
 const firePointer = (element: Element, type: string, init: Record<string, number | string>) => {
   const event = new Event(type, { bubbles: true, cancelable: true })
@@ -520,11 +519,11 @@ describe('Artboard', () => {
         // bar's own measured height (24) comes out of the 400 first, so the binding
         // constraint is (400-24)/1024: contain-fit is 376x376.
         clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800)
-        clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (
-          this: HTMLElement
-        ) {
-          return this.dataset.testid === 'artboard-prompt-bar-measure' ? 24 : 400
-        })
+        clientHeight = vi
+          .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
+          .mockImplementation(function (this: HTMLElement) {
+            return this.dataset.testid === 'artboard-prompt-bar-measure' ? 24 : 400
+          })
         naturalWidth = vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(1024)
         naturalHeight = vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockReturnValue(1024)
       })

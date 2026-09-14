@@ -1,3 +1,9 @@
+import { Link } from '@tanstack/react-router'
+import { TriangleAlert } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Badge, Button, DescriptionSwitch, NormalTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -11,14 +17,10 @@ import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
+import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
 import type { OutputFor } from '@shared/ipc/types'
 import { commandShortcutPreferenceKey } from '@shared/utils/command'
 import { formatShortcutDisplay } from '@shared/utils/shortcut'
-import { Link } from '@tanstack/react-router'
-import { TriangleAlert } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ScreenshotSettings')
 
@@ -62,7 +64,7 @@ const ScreenshotSettings: FC = () => {
   const [screenshotEnabled, setScreenshotEnabled] = usePreference('feature.screenshot.enabled')
   const [autoOcr, setAutoOcr] = usePreference('feature.screenshot.auto_ocr')
   const [captureBinding] = usePreference('shortcut.screenshot.capture')
-  const ocrModel = useLocalModel('ocr')
+  const ocrModel = useLocalModel(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.ocr)
 
   const captureShortcut = formatShortcutDisplay(captureBinding.binding, isMac)
   const captureShortcutEnabled = captureBinding.enabled

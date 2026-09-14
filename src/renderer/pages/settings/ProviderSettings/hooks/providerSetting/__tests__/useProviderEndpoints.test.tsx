@@ -1,6 +1,7 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { useProviderEndpoints } from '../useProviderEndpoints'
 

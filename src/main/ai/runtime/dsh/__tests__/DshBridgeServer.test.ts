@@ -1,12 +1,14 @@
 import net from 'node:net'
+import os from 'node:os'
 
-import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+
 import type { AgentRuntimeEvent } from '../../types'
-import { DshBridgeServer } from '../DshBridgeServer'
+import { DshBridgeServer, type DshBridgeServerOptions } from '../DshBridgeServer'
 
 const SESSION_ID = 'dsh-bridge-test-session'
 
@@ -23,6 +25,7 @@ interface Harness {
   socket: net.Socket
   transport: JsonRpcLineTransport
   events: AgentRuntimeEvent[]
+  eventSources: Array<Parameters<DshBridgeServerOptions['emit']>[1]>
   lifecycleEdges: Array<BridgeNotificationMap['subagent/lifecycle']>
   nextRequest: () => Promise<HostRequest>
 }
@@ -33,19 +36,25 @@ function makeServer(
   userResponse: 'stream' | 'message' | 'unavailable' = 'stream',
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }> = () =>
     Promise.reject(new Error('unexpected tool call')),
-  readyTimeoutMs?: number
-): { server: DshBridgeServer; events: AgentRuntimeEvent[]; lifecycleEdges: Harness['lifecycleEdges'] } {
+  readyTimeoutMs?: number,
+  onGuardCheck: DshBridgeServerOptions['onGuardCheck'] = async () => ({ kind: 'allow' })
+): Pick<Harness, 'server' | 'events' | 'eventSources' | 'lifecycleEdges'> {
   const events: AgentRuntimeEvent[] = []
+  const eventSources: Harness['eventSources'] = []
   const lifecycleEdges: Harness['lifecycleEdges'] = []
   const server = new DshBridgeServer({
     sessionId: SESSION_ID,
-    emit: (event) => events.push(event),
+    emit: (event, source) => {
+      events.push(event)
+      eventSources.push(source)
+    },
     getInteractionState: () => ({ userResponse }),
     onToolCall,
+    onGuardCheck,
     onSubagentLifecycle: (edge) => lifecycleEdges.push(edge),
     ...(readyTimeoutMs === undefined ? {} : { readyTimeoutMs })
   })
-  return { server, events, lifecycleEdges }
+  return { server, events, eventSources, lifecycleEdges }
 }
 
 /** Connect a JSON-RPC peer that records host requests; authenticates unless a token is given. */
@@ -93,13 +102,14 @@ async function connectPlugin(
 
 async function makeHarness(
   userResponse: 'stream' | 'message' | 'unavailable' = 'stream',
-  onToolCall?: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }>
+  onToolCall?: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }>,
+  onGuardCheck?: DshBridgeServerOptions['onGuardCheck']
 ): Promise<Harness> {
-  const { server, events, lifecycleEdges } = makeServer(userResponse, onToolCall)
+  const { server, events, eventSources, lifecycleEdges } = makeServer(userResponse, onToolCall, undefined, onGuardCheck)
   await server.listen()
   const plugin = await connectPlugin(server)
   await server.whenReady()
-  const harness: Harness = { server, events, lifecycleEdges, ...plugin }
+  const harness: Harness = { server, events, eventSources, lifecycleEdges, ...plugin }
   harnesses.push(harness)
   return harness
 }
@@ -279,6 +289,42 @@ describe('DshBridgeServer', () => {
     ).rejects.toThrow('provider unavailable')
   })
 
+  it('authenticates and validates guard/check before dispatching to the Main policy', async () => {
+    const onGuardCheck = vi.fn<DshBridgeServerOptions['onGuardCheck']>(async () => ({
+      kind: 'deny',
+      ruleId: 'user-data-sqlite-write',
+      reason: 'protected'
+    }))
+    const harness = await makeHarness('stream', undefined, onGuardCheck)
+
+    await expect(
+      harness.transport.request('guard/check', {
+        sessionId: SESSION_ID,
+        toolName: 'write',
+        args: { file_path: '/tmp/user-data/app.sqlite' },
+        cwd: os.tmpdir()
+      })
+    ).resolves.toEqual({ kind: 'deny', ruleId: 'user-data-sqlite-write', reason: 'protected' })
+    expect(onGuardCheck).toHaveBeenCalledWith('write', { file_path: '/tmp/user-data/app.sqlite' }, os.tmpdir())
+
+    await expect(
+      harness.transport.request('guard/check', {
+        sessionId: 'other-session',
+        toolName: 'write',
+        args: {},
+        cwd: os.tmpdir()
+      })
+    ).rejects.toThrow('wrong session')
+    await expect(
+      harness.transport.request('guard/check', {
+        sessionId: SESSION_ID,
+        toolName: 'write',
+        args: {},
+        cwd: 'relative-workspace'
+      })
+    ).rejects.toThrow('not absolute')
+  })
+
   it('rejects a tool call addressed to another session', async () => {
     const harness = await makeHarness('stream', async () => ({ text: 'unused' }))
     await expect(
@@ -323,12 +369,14 @@ describe('DshBridgeServer', () => {
     const harness = await makeHarness()
     const ask = harness.transport.request('approval/ask', {
       sessionId: SESSION_ID,
+      sessionEventSeq: 17,
       toolName: 'bash',
       callId: 'call-9',
       args: { command: 'echo hi' }
     })
 
     await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+    expect(harness.eventSources).toEqual([{ sessionId: SESSION_ID, seq: 17 }])
     const event = harness.events[0]
     expect(event.type).toBe('tool-approval-request')
     if (event.type !== 'tool-approval-request') throw new Error('unreachable')
@@ -410,6 +458,7 @@ describe('DshBridgeServer', () => {
     const harness = await makeHarness()
     const ask = harness.transport.request('question/ask', {
       sessionId: SESSION_ID,
+      sessionEventSeq: 21,
       callId: 'exit-plan-call-1',
       questions: [
         {
@@ -426,7 +475,7 @@ describe('DshBridgeServer', () => {
     await vi.waitFor(() => expect(harness.events).toHaveLength(1))
     const event = harness.events[0]
     if (event.type !== 'tool-approval-request') throw new Error('unreachable')
-    // Anchored to the streamed exit_plan_mode call so the card lands on its tool row.
+    expect(harness.eventSources).toEqual([{ sessionId: SESSION_ID, seq: 21 }])
     expect(event.request).toMatchObject({
       toolCallId: 'exit-plan-call-1',
       toolName: 'exit_plan_mode',

@@ -1,8 +1,9 @@
 import { asSchema, safeValidateTypes, type ToolExecutionOptions } from '@ai-sdk/provider-utils'
-import { getLastTerminalToolFailure, stopOnTerminalToolFailure } from '@main/ai/runtime/aiSdk/loop/toolLoopTermination'
-import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 import type { StepResult, ToolSet } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { getLastTerminalToolFailure, stopOnTerminalToolFailure } from '@main/ai/runtime/aiSdk/loop/toolLoopTermination'
+import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
 
 const { fetchUrls, searchKeywords } = vi.hoisted(() => ({
   fetchUrls: vi.fn(),
@@ -29,7 +30,7 @@ function makeOptions(abortSignal = new AbortController().signal): ToolExecutionO
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: { requestId: 'req-1', abortSignal }
-  } as ToolExecutionOptions
+  }
 }
 
 function response() {

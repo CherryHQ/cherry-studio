@@ -1,3 +1,7 @@
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type React from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { analyzeMessagesContent, processMessagesContent } from '@renderer/services/knowledgeContent'
@@ -5,9 +9,6 @@ import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { MessageExportView } from '@renderer/types/messageExport'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getMessageTitle: vi.fn(),
@@ -191,10 +192,10 @@ describe('SaveToKnowledgePopup', () => {
       files: message.testFiles ?? []
     }))
     mocks.getMessageTitle.mockResolvedValue('All tools are working')
-    ;(useKnowledgeBases as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+    ;(useKnowledgeBases as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockReturnValue({
       bases: [{ id: 'base-1', name: 'Knowledge Base', status: 'completed' }]
     })
-    ;(useAddKnowledgeItems as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+    ;(useAddKnowledgeItems as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockReturnValue({
       submit: mocks.submitKnowledgeItems
     })
     mocks.submitKnowledgeItems.mockResolvedValue(undefined)
@@ -236,7 +237,7 @@ describe('SaveToKnowledgePopup', () => {
   it('uses the translated conversation fallback for blank message group source titles', async () => {
     const message = createMessageWithFiles([])
 
-    ;(analyzeMessagesContent as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+    ;(analyzeMessagesContent as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockReturnValueOnce({
       text: 1,
       code: 0,
       thinking: 0,
@@ -248,7 +249,7 @@ describe('SaveToKnowledgePopup', () => {
       errors: 0,
       messages: 1
     })
-    ;(processMessagesContent as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+    ;(processMessagesContent as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockReturnValueOnce({
       text: 'Saved conversation',
       files: []
     })

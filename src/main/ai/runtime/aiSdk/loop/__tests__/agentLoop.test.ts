@@ -23,8 +23,8 @@ vi.mock('@cherrystudio/ai-core', () => ({
 async function makeAgent(overrides: Partial<AgentLoopParams> = {}) {
   const { Agent } = await import('../../Agent')
   return new Agent({
-    providerId: 'openai' as never,
-    providerSettings: {} as never,
+    providerId: 'openai',
+    providerSettings: {},
     modelId: 'test-model',
     ...overrides
   })
@@ -52,6 +52,33 @@ function mockStream(
 describe('Agent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('forwards provider-native URL sources to the UI stream', async () => {
+    const source = {
+      type: 'source-url' as const,
+      sourceId: 'citation-0',
+      url: 'https://example.com/source',
+      title: 'Example source'
+    }
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: ({ sendSources }: { sendSources?: boolean }) =>
+          new ReadableStream({
+            start(controller) {
+              if (sendSources) controller.enqueue(source)
+              controller.close()
+            }
+          }),
+        steps: Promise.resolve([])
+      })
+    })
+
+    const agent = await makeAgent()
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).resolves.toEqual({ value: source, done: false })
+    await expect(reader.read()).resolves.toEqual({ value: undefined, done: true })
   })
 
   describe('generate', () => {

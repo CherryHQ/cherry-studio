@@ -1,5 +1,6 @@
-import type { FileInfo } from '@shared/types/file'
 import * as z from 'zod'
+
+import type { FileInfo } from '@shared/types/file'
 
 export const Doc2xApiResponseSchema = <T extends z.ZodTypeAny>(data: T) =>
   z.object({

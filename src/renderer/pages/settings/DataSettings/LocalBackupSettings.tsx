@@ -1,3 +1,8 @@
+import dayjs from 'dayjs'
+import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -17,10 +22,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
-import dayjs from 'dayjs'
-import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('LocalBackupSettings')
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
@@ -189,7 +190,7 @@ const LocalBackupSettings: React.FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.local.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-local-backup-directory" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.local.directory.label')}</SettingRowTitle>
         <RowFlex className="gap-1.25">
           <Input

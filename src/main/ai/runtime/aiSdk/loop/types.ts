@@ -1,6 +1,4 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import type { AiPlugin } from '@cherrystudio/ai-core'
-import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import type {
   Experimental_DownloadFunction as DownloadFunction,
   ModelMessage,
@@ -12,6 +10,9 @@ import type {
   ToolChoice,
   ToolSet
 } from 'ai'
+
+import type { AiPlugin } from '@cherrystudio/ai-core'
+import type { StringKeys } from '@cherrystudio/ai-core/provider'
 
 import type { MediaCapabilities } from '../../../messages/messageCapabilities'
 import type { AppProviderSettingsMap } from '../../../types'
@@ -106,6 +107,8 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   providerId: T
   providerSettings: AppProviderSettingsMap[T]
   modelId: string
+  /** App provider/model identifiers attached to normalized stream errors. */
+  errorContext?: { providerId: string; modelId: string }
   /** Stable id for the first assistant UIMessage emitted by this execution. */
   messageId?: string
   plugins?: AiPlugin[]

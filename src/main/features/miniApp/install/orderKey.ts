@@ -1,7 +1,8 @@
+import { desc, inArray } from 'drizzle-orm'
+
 import { application } from '@application'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { desc, inArray } from 'drizzle-orm'
 
 /** The key after the LAST visible mini app — an install lands at the end of the launcher list. */
 export function nextMiniAppOrderKey(): string {

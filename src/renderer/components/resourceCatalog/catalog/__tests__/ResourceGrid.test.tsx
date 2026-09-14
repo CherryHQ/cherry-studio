@@ -1,12 +1,13 @@
-import type * as CherryUiModule from '@cherrystudio/ui'
-import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
-import { toast } from '@renderer/services/toast'
-import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryUiModule from '@cherrystudio/ui'
+import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
+import { toast } from '@renderer/services/toast'
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
 
 import { ResourceCardMenu } from '../ResourceCardMenu'
 import { ResourceCard } from '../ResourceCards'
@@ -527,6 +528,35 @@ describe('ResourceGrid empty state copy', () => {
       expect(loadingGrid.parentElement).toHaveClass('pt-4', 'pb-3')
     } finally {
       clientWidthSpy.mockRestore()
+    }
+  })
+
+  it('keeps the layout control aligned with the visible columns after resizing', async () => {
+    const user = userEvent.setup()
+    let width = 900
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => width)
+    vi.stubGlobal('ResizeObserver', undefined)
+    try {
+      renderResourceGrid({ activeResourceType: 'skill', isLoading: true, variant: 'settings', allowColumnToggle: true })
+      const grid = screen.getByTestId('resource-grid-loading')
+      const toggle = screen.getByRole('button', { name: 'common.layout.two_columns' })
+      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
+      await user.click(toggle)
+      expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' })
+      expect(toggle).toHaveAccessibleName('common.layout.single_column')
+      width = 500
+      fireEvent(window, new Event('resize'))
+      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
+      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
+      expect(toggle).toBeDisabled()
+      width = 900
+      fireEvent(window, new Event('resize'))
+      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }))
+      expect(toggle).toBeEnabled()
+      expect(toggle).toHaveAccessibleName('common.layout.single_column')
+    } finally {
+      clientWidthSpy.mockRestore()
+      vi.unstubAllGlobals()
     }
   })
 

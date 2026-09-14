@@ -1,3 +1,5 @@
+import type { TFunction } from 'i18next'
+
 import type { PermissionModeCard } from '@renderer/types/agent'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
@@ -5,7 +7,6 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import type { TFunction } from 'i18next'
 
 export const DEFAULT_AGENT_AVATAR = '🤖'
 

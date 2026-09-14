@@ -1,16 +1,18 @@
-import { Flex } from '@cherrystudio/ui'
-import { createUniqueModelId } from '@shared/data/types/model'
 import { isEmpty } from 'es-toolkit/compat'
 import React from 'react'
+
+import { Flex } from '@cherrystudio/ui'
+import { createUniqueModelId } from '@shared/data/types/model'
 
 import MessagePartsRenderer from '../blocks/MessagePartsRenderer'
 import type { MessageListItem } from '../types'
 
 interface Props {
   message: MessageListItem
+  hoistAttachments?: boolean
 }
 
-const MessageContent: React.FC<Props> = ({ message }) => {
+const MessageContent: React.FC<Props> = ({ message, hoistAttachments }) => {
   return (
     <>
       {!isEmpty(message.mentions) && (
@@ -22,7 +24,7 @@ const MessageContent: React.FC<Props> = ({ message }) => {
           ))}
         </Flex>
       )}
-      <MessagePartsRenderer message={message} />
+      <MessagePartsRenderer message={message} hoistAttachments={hoistAttachments} />
     </>
   )
 }

@@ -1,6 +1,7 @@
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
 import SelectionToolbar from '../SelectionToolbar'
 

@@ -1,6 +1,7 @@
-import { isProd } from '@renderer/utils/platform'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { isProd } from '@renderer/utils/platform'
 
 interface Props {
   fallback?: React.ReactNode
@@ -23,7 +24,7 @@ const ErrorFallback = ({ fallback, error }: { fallback?: React.ReactNode; error?
     fallback || (
       <div
         role="alert"
-        className="rounded-md border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-sm">
+        className="rounded-md border border-error-border bg-error-subtle px-3 py-2 text-sm text-error-subtle-foreground">
         <div className="font-medium">{t('error.render.title')}</div>
         <div className="mt-1">{errorDescription}</div>
       </div>

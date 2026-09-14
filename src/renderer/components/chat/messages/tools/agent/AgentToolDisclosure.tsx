@@ -1,5 +1,6 @@
-import { cn } from '@renderer/utils/style'
 import { type KeyboardEvent, type ReactNode, useId } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 import { useScrollAnchor } from '../../blocks/useScrollAnchor'
 import { useMessageDisclosureState } from '../../hooks/useMessageDisclosureState'
@@ -85,7 +86,7 @@ export function AgentToolDisclosure({
           aria-expanded={canExpand ? isExpanded : undefined}
           aria-controls={canExpand ? contentId : undefined}
           className={cn(
-            'flex w-fit items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left font-semibold text-foreground text-sm leading-4 outline-none hover:no-underline focus-visible:bg-accent/50 disabled:pointer-events-none disabled:opacity-50',
+            'flex w-fit items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm leading-4 font-semibold text-foreground outline-none hover:no-underline focus-visible:bg-accent/50 disabled:pointer-events-none disabled:opacity-50',
             item.classNames?.header
           )}
           onClick={isInteractive ? openOrToggle : undefined}
@@ -98,7 +99,7 @@ export function AgentToolDisclosure({
             data-testid={`collapse-content-${item.key}`}
             hidden={!isExpanded}
             className={cn(
-              'mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] text-muted-foreground leading-5',
+              'mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] leading-5 text-muted-foreground',
               item.classNames?.body
             )}>
             {item.children}

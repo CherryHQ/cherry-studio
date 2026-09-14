@@ -153,23 +153,23 @@ export const SizeComparison: Story = {
       <div className="flex items-center gap-6">
         <div className="text-center">
           <IndicatorLight color="#22c55e" size={6} />
-          <p className="text-xs mt-2">小 (6px)</p>
+          <p className="mt-2 text-xs">小 (6px)</p>
         </div>
         <div className="text-center">
           <IndicatorLight color="#22c55e" size={8} />
-          <p className="text-xs mt-2">默认 (8px)</p>
+          <p className="mt-2 text-xs">默认 (8px)</p>
         </div>
         <div className="text-center">
           <IndicatorLight color="#22c55e" size={12} />
-          <p className="text-xs mt-2">中 (12px)</p>
+          <p className="mt-2 text-xs">中 (12px)</p>
         </div>
         <div className="text-center">
           <IndicatorLight color="#22c55e" size={16} />
-          <p className="text-xs mt-2">大 (16px)</p>
+          <p className="mt-2 text-xs">大 (16px)</p>
         </div>
         <div className="text-center">
           <IndicatorLight color="#22c55e" size={24} />
-          <p className="text-xs mt-2">特大 (24px)</p>
+          <p className="mt-2 text-xs">特大 (24px)</p>
         </div>
       </div>
     </div>
@@ -181,28 +181,28 @@ export const UserStatusList: Story = {
     <div className="space-y-4">
       <h3 className="text-lg font-medium">用户状态列表</h3>
       <div className="space-y-3">
-        <div className="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded">
+        <div className="flex items-center gap-3 rounded border border-gray-200 p-3 dark:border-gray-700">
           <IndicatorLight color="#22c55e" size={10} />
           <div className="flex-1">
             <p className="font-medium">张三</p>
             <p className="text-sm text-gray-500">在线 - 5分钟前活跃</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded">
+        <div className="flex items-center gap-3 rounded border border-gray-200 p-3 dark:border-gray-700">
           <IndicatorLight color="#eab308" size={10} />
           <div className="flex-1">
             <p className="font-medium">李四</p>
             <p className="text-sm text-gray-500">离开 - 30分钟前活跃</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded">
+        <div className="flex items-center gap-3 rounded border border-gray-200 p-3 dark:border-gray-700">
           <IndicatorLight color="#ef4444" size={10} />
           <div className="flex-1">
             <p className="font-medium">王五</p>
             <p className="text-sm text-gray-500">离线 - 2小时前活跃</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded">
+        <div className="flex items-center gap-3 rounded border border-gray-200 p-3 dark:border-gray-700">
           <IndicatorLight color="#3b82f6" size={10} />
           <div className="flex-1">
             <p className="font-medium">赵六</p>
@@ -218,9 +218,9 @@ export const ServiceStatus: Story = {
   render: () => (
     <div className="space-y-4">
       <h3 className="text-lg font-medium">服务状态监控</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
-          <div className="flex items-center justify-between mb-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="rounded border border-gray-200 p-4 dark:border-gray-700">
+          <div className="mb-3 flex items-center justify-between">
             <h4 className="font-medium">Web 服务器</h4>
             <IndicatorLight color="#22c55e" size={12} />
           </div>
@@ -230,8 +230,8 @@ export const ServiceStatus: Story = {
             正常运行时间: 99.9%
           </p>
         </div>
-        <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
-          <div className="flex items-center justify-between mb-3">
+        <div className="rounded border border-gray-200 p-4 dark:border-gray-700">
+          <div className="mb-3 flex items-center justify-between">
             <h4 className="font-medium">数据库</h4>
             <IndicatorLight color="#eab308" size={12} />
           </div>
@@ -241,8 +241,8 @@ export const ServiceStatus: Story = {
             正常运行时间: 98.5%
           </p>
         </div>
-        <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
-          <div className="flex items-center justify-between mb-3">
+        <div className="rounded border border-gray-200 p-4 dark:border-gray-700">
+          <div className="mb-3 flex items-center justify-between">
             <h4 className="font-medium">API 网关</h4>
             <IndicatorLight color="#22c55e" size={12} />
           </div>
@@ -252,8 +252,8 @@ export const ServiceStatus: Story = {
             正常运行时间: 99.8%
           </p>
         </div>
-        <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
-          <div className="flex items-center justify-between mb-3">
+        <div className="rounded border border-gray-200 p-4 dark:border-gray-700">
+          <div className="mb-3 flex items-center justify-between">
             <h4 className="font-medium">缓存服务</h4>
             <IndicatorLight color="#ef4444" size={12} />
           </div>
@@ -275,11 +275,11 @@ export const AnimationComparison: Story = {
       <div className="flex items-center gap-8">
         <div className="text-center">
           <IndicatorLight color="#22c55e" size={16} animation={true} />
-          <p className="text-xs mt-2">有动画</p>
+          <p className="mt-2 text-xs">有动画</p>
         </div>
         <div className="text-center">
           <IndicatorLight color="#22c55e" size={16} animation={false} />
-          <p className="text-xs mt-2">无动画</p>
+          <p className="mt-2 text-xs">无动画</p>
         </div>
       </div>
     </div>
@@ -292,19 +292,19 @@ export const NotificationDot: Story = {
       <h3 className="text-lg font-medium">通知红点示例</h3>
       <div className="flex gap-6">
         <div className="relative">
-          <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">📧</div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-700">📧</div>
           <div className="absolute -top-1 -right-1">
             <IndicatorLight color="#ef4444" size={8} />
           </div>
         </div>
         <div className="relative">
-          <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">🔔</div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-700">🔔</div>
           <div className="absolute -top-1 -right-1">
             <IndicatorLight color="#ef4444" size={10} />
           </div>
         </div>
         <div className="relative">
-          <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">💬</div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-700">💬</div>
           <div className="absolute -top-1 -right-1">
             <IndicatorLight color="#22c55e" size={8} />
           </div>
@@ -335,7 +335,7 @@ export const CustomColors: Story = {
         ].map((color, index) => (
           <div key={index} className="text-center">
             <IndicatorLight color={color} size={14} />
-            <p className="text-xs mt-2 font-mono">{color}</p>
+            <p className="mt-2 font-mono text-xs">{color}</p>
           </div>
         ))}
       </div>

@@ -1,3 +1,7 @@
+import { Settings2, Terminal, ToolCase } from 'lucide-react'
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
@@ -20,11 +24,16 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import {
+  ModelSpeedControl,
+  resolveSupportedReasoningEffort,
+  resolveSupportedServiceTier
+} from '@renderer/components/ModelSpeedControl'
 import {
   type QuickPanelInputAdapter,
   type QuickPanelListItem,
@@ -36,7 +45,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
@@ -72,9 +81,6 @@ import type { OutputFor } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Settings2, Terminal, ToolCase } from 'lucide-react'
-import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { excludeComposerDraftTokens } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
@@ -116,11 +122,6 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
-import {
-  ComposerSpeedControl,
-  resolveComposerReasoningEffort,
-  resolveComposerServiceTier
-} from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -772,10 +773,11 @@ const AgentComposerInner = ({
     isDefault: pinnedToolsAtDefault,
     customizeOpen: customizeToolbarOpen,
     setCustomizeOpen: setCustomizeToolbarOpen,
-    customizePanelItem
+    customizeFooterAction
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
   const agentModelFilter = useAgentModelFilter(agent?.type)
+  const isModelDisabled = useAgentModelDisabled()
   const isModelUnavailable = Boolean(agent) && !model && !modelPending
   const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
@@ -915,6 +917,7 @@ const AgentComposerInner = ({
     )
     setShouldValidateSkills(false)
   }, [
+    actionsRef,
     availableSkillsError,
     draftTokens,
     isAvailableSkillsLoading,
@@ -1031,7 +1034,7 @@ const AgentComposerInner = ({
     }
     const draft = actionsRef.current.getDraft()
     writeAgentDraftCache(draftCacheKey, {
-      text,
+      text: draft.text,
       tokens: draft.tokens,
       files,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
@@ -1057,9 +1060,12 @@ const AgentComposerInner = ({
 
   const persistFinalDraft = useEffectEvent(() => {
     if (!draftPersistenceEnabled || isInputHistoryActive) return
+    // Managed-sync token changes never reach `draftTokens` (isSyncingTokensRef suppresses
+    // onTokensChange), so the cache must come from one surface serialization, not the shadow state.
+    const draft = actionsRef.current.getDraft()
     writeAgentDraftCache(draftCacheKey, {
-      text,
-      tokens: draftTokensRef.current,
+      text: draft.text,
+      tokens: draft.tokens,
       files: filesRef.current,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       workspaceKey,
@@ -1124,18 +1130,19 @@ const AgentComposerInner = ({
     [selectedSkills]
   )
 
-  // Skills live in their own submenu (opened as the `agent-skills` launcher), with a pinned footer
-  // that opens the agent's skills config. The customize-toolbar action stays in the root panel.
-  const skillManageFooterItem = useMemo<QuickPanelListItem>(
-    () => ({
+  const skillManageFooterAction = useMemo<ComposerToolFooterAction>(() => {
+    const label = t('plugins.manage_skills')
+    return {
       id: 'agent-skills:manage',
-      label: t('plugins.manage_skills'),
+      panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
+      order: 10,
+      label,
+      ariaLabel: label,
+      tooltip: label,
       icon: <Settings2 size={16} />,
-      fixedToBottom: true,
       action: () => openResourceEditDialog({ kind: 'agent', id: agentId, initialTab: 'tools.skills' })
-    }),
-    [agentId, t]
-  )
+    }
+  }, [agentId, t])
 
   const skillLabel = t('plugins.skills')
   const skillItems = useMemo<QuickPanelListItem[]>(
@@ -1146,8 +1153,6 @@ const AgentComposerInner = ({
       }),
     [availableSkills, insertSkillToken, skillLabel]
   )
-  const skillPanelItems = useMemo(() => [...skillItems, skillManageFooterItem], [skillItems, skillManageFooterItem])
-
   const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
     return {
       id: AGENT_SKILLS_LAUNCHER_ID,
@@ -1165,7 +1170,7 @@ const AgentComposerInner = ({
         })
         quickPanel.open({
           title: skillLabel,
-          list: skillPanelItems,
+          list: skillItems,
           symbol: AGENT_SKILLS_LAUNCHER_ID,
           parentPanel,
           queryAnchor,
@@ -1174,11 +1179,11 @@ const AgentComposerInner = ({
         })
       }
     }
-  }, [refreshAvailableSkills, skillItems, skillLabel, skillPanelItems])
+  }, [refreshAvailableSkills, skillItems, skillLabel])
 
   useEffect(
-    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher]),
-    [skillsLauncher, toolsRegistry]
+    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction]),
+    [skillManageFooterAction, skillsLauncher, toolsRegistry]
   )
 
   // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
@@ -1187,10 +1192,13 @@ const AgentComposerInner = ({
   const updateQuickPanelList = quickPanel?.updateList
   useEffect(() => {
     if (!skillsPanelVisible || !updateQuickPanelList) return
-    updateQuickPanelList(skillPanelItems)
-  }, [skillsPanelVisible, skillPanelItems, updateQuickPanelList])
+    updateQuickPanelList(skillItems)
+  }, [skillsPanelVisible, skillItems, updateQuickPanelList])
 
-  const rootPanelTrailingItems = useMemo(() => [customizePanelItem], [customizePanelItem])
+  useEffect(
+    () => toolsRegistry.registerLaunchers('composer-toolbar-settings', [], [customizeFooterAction]),
+    [customizeFooterAction, toolsRegistry]
+  )
 
   const handleRootPanelOpen = useCallback(() => {
     void refreshAvailableSkills().catch((error) => {
@@ -1407,8 +1415,8 @@ const AgentComposerInner = ({
         files,
         fileTokenId: agentComposerTokenId.file,
         extra: () => ({
-          reasoningEffort: model ? resolveComposerReasoningEffort(model, reasoningEffort) : reasoningEffort,
-          serviceTier: model ? resolveComposerServiceTier(model, serviceTier) : serviceTier,
+          reasoningEffort: model ? resolveSupportedReasoningEffort(model, reasoningEffort) : reasoningEffort,
+          serviceTier: model ? resolveSupportedServiceTier(model, serviceTier) : serviceTier,
           ...(fastMode && model?.supportsFastMode === true ? { fastMode: true } : {})
         })
       })
@@ -1688,6 +1696,7 @@ const AgentComposerInner = ({
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
+    isModelDisabled,
     renderQuickPanelShortcuts,
     onAgentChange: handleAgentChange,
     onWorkspaceChange,
@@ -1697,7 +1706,7 @@ const AgentComposerInner = ({
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
     <>
       {model ? (
-        <ComposerSpeedControl
+        <ModelSpeedControl
           model={model}
           reasoningEffort={reasoningEffort}
           serviceTier={serviceTier}
@@ -1720,6 +1729,7 @@ const AgentComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
+          showAiDisclaimer
           text={text}
           onTextChange={handleTextChange}
           editable={!isDirectSending}
@@ -1795,7 +1805,6 @@ const AgentComposerInner = ({
           toolLaunchersVersion={toolLaunchersVersion}
           suggestionSources={resourceMentionSources}
           rootPanelLeadingItems={rootPanelNewSessionItems}
-          rootPanelAdditionalItems={rootPanelTrailingItems}
           onRootPanelOpen={handleRootPanelOpen}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           sendAccessory={sendAccessory}
@@ -1880,6 +1889,7 @@ const MissingAgentHomeComposerInner = ({
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={false} extensions={[]}>
       <ComposerSurface
+        showAiDisclaimer
         text={text}
         onTextChange={setText}
         tokens={[]}

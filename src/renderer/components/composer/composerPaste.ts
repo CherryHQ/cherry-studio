@@ -1,7 +1,9 @@
+import type { JSONContent } from '@tiptap/core'
+
+import { getFileExtension } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
-import type { JSONContent } from '@tiptap/core'
 
 import {
   type ComposerTokenMarkerRule,
@@ -16,6 +18,13 @@ import type { ComposerDraftToken } from './tokens'
 /** Pasted text longer than this (in characters) is offered as a file attachment instead of inlined. */
 export const LONG_TEXT_PASTE_THRESHOLD = 1500
 export const PASTED_TEXT_FILE_EXTENSION = '.txt'
+
+export function hasSupportedClipboardImage(
+  files: readonly Pick<File, 'name' | 'type'>[],
+  supportedExts: readonly string[]
+) {
+  return files.some((file) => file.type.startsWith('image/') && supportedExts.includes(getFileExtension(file.name)))
+}
 
 interface ComposerPlainTextPasteOptions {
   inlineLongText?: boolean

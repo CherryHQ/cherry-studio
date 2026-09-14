@@ -1,10 +1,11 @@
-import i18n from '@renderer/i18n/resolver'
-import ApiHost from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/ApiHost'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
+
+import i18n from '@renderer/i18n/resolver'
+import ApiHost from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/ApiHost'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 vi.mock('../../ConnectionSettings/ProviderCustomHeaderDrawer', () => ({ default: () => null }))
 
@@ -30,7 +31,7 @@ beforeEach(async () => {
         defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         endpointConfigs
       }
-    } as typeof result
+    }
   })
   mockUseMutation.mockImplementation((method, path, options) => {
     const result = defaultMutation(method, path, options)

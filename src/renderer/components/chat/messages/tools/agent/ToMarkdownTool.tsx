@@ -1,6 +1,7 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-import { getFilePreviewFileName } from '@renderer/utils/filePreview'
 import { useTranslation } from 'react-i18next'
+
+import { getFilePreviewFileName } from '@renderer/utils/filePreview'
 
 import { TO_MARKDOWN_RUNTIME_TOOL_NAME } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'

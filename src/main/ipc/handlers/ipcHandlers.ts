@@ -7,6 +7,7 @@ import { appHandlers } from './app'
 import { backupHandlers } from './backup'
 import { binaryHandlers } from './binary'
 import { channelHandlers } from './channel'
+import { cherryCloudHandlers } from './cherryCloud'
 import { cherryinHandlers } from './cherryin'
 import { citationHandlers } from './citation'
 import { codeCliHandlers } from './codeCli'
@@ -57,6 +58,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...binaryHandlers,
   ...channelHandlers,
   ...cherryinHandlers,
+  ...cherryCloudHandlers,
   ...citationHandlers,
   ...codeCliHandlers,
   ...deepSeekHarnessHandlers,

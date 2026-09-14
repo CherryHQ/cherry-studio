@@ -1,6 +1,7 @@
+import { useState } from 'react'
+
 import { useProvider, useProviderMutations, useProviderPreset } from '@renderer/hooks/useProvider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
-import { useState } from 'react'
 
 import { useProviderEndpointActions } from '../hooks/providerSetting/useProviderEndpointActions'
 import { useProviderEndpoints } from '../hooks/providerSetting/useProviderEndpoints'
@@ -72,7 +73,7 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
 
   return (
     <>
-      <ApiHostSection>
+      <ApiHostSection id="setting-provider-api-host">
         <ApiHostField
           providerIdForSettings={provider.id}
           apiHost={apiHost}

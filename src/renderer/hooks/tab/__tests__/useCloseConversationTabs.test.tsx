@@ -1,8 +1,9 @@
-// @vitest-environment jsdom
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+// @vitest-environment jsdom
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import {
   CloseConversationTabsContext,
@@ -20,7 +21,6 @@ describe('findClosableConversationTabIds', () => {
     const tabs: Tab[] = [
       { id: 'topic-a-tab', type: 'route', url: '/app/chat?topicId=topic-a', title: 'Topic A' },
       { id: 'topic-b-tab', type: 'route', url: '/app/chat?topicId=topic-b', title: 'Topic B' },
-      { id: 'message', type: 'route', url: '/app/chat?view=message&topicId=topic-a', title: 'Message' },
       { id: 'session', type: 'route', url: '/app/agents?sessionId=topic-a', title: 'Session' }
     ]
 
@@ -41,6 +41,15 @@ describe('findClosableConversationTabIds', () => {
       'session-a-tab',
       'session-b-tab'
     ])
+  })
+
+  it('matches a tab restored with the legacy message-only view param by its conversation key', () => {
+    const tabs: Tab[] = [
+      { id: 'legacy', type: 'route', url: '/app/chat?topicId=topic-a&view=message', title: 'Topic A' },
+      { id: 'active', type: 'route', url: '/app/chat?topicId=topic-b', title: 'Topic B' }
+    ]
+
+    expect(findClosableConversationTabIds(tabs, 'active', 'assistants', ['topic-a'])).toEqual(['legacy'])
   })
 
   it.each(activeConversationCases)('keeps the active matching %s tab open', (_label, appId, key, baseUrl, queryKey) => {

@@ -1,6 +1,7 @@
-import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import type { ToolRenderItem } from '../../tools/toolResponse'
 import { PartsProvider, usePartsMap } from '../MessagePartsContext'

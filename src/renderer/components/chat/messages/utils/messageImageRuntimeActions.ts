@@ -10,8 +10,9 @@ interface FlushPendingMessageImageActionsOptions<TRequest extends MessageImageAc
   targetId: string
 }
 
-interface BindCaptureMessageImageRuntimeOptions<TRequest extends MessageImageActionRequest>
-  extends FlushPendingMessageImageActionsOptions<TRequest> {
+interface BindCaptureMessageImageRuntimeOptions<
+  TRequest extends MessageImageActionRequest
+> extends FlushPendingMessageImageActionsOptions<TRequest> {
   cancelMessage: string
   rejectPendingActions: (targetId: string, reason: unknown) => void
 }

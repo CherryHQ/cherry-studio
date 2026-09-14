@@ -17,6 +17,8 @@ vi.mock('node:fs/promises', () => ({
 
 import { lstat, open, readdir, realpath } from 'node:fs/promises'
 
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import { PromptBuilder } from '../prompt'
@@ -99,6 +101,7 @@ describe('PromptBuilder', () => {
   let builder: PromptBuilder
 
   beforeEach(() => {
+    MockMainCacheServiceUtils.resetMocks()
     builder = new PromptBuilder()
     vi.clearAllMocks()
   })
