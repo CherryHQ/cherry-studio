@@ -342,7 +342,10 @@ export async function resolveProviderAiSdkConfig(
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,
-          headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL) }
+          headers: {
+            ...getProviderAppHeaders(ctx.actualProvider),
+            ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+          }
         }
       }))
     },
@@ -353,7 +356,10 @@ export async function resolveProviderAiSdkConfig(
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,
-          headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL) }
+          headers: {
+            ...getProviderAppHeaders(ctx.actualProvider),
+            ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+          }
         }
       }))
     },
@@ -552,7 +558,10 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
       ...ctx.baseConfig,
       name: ctx.actualProvider.id,
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions,
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL) },
+      headers: {
+        ...getProviderAppHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+      },
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
         const signature = generateSignature({
           method: 'POST',
@@ -665,7 +674,10 @@ function buildVertexConfig(
         // from project+location; a custom host (proxy) passes through untouched.
         ...(ctx.baseConfig.baseURL && { baseURL: ctx.baseConfig.baseURL }),
         ...(creds && { googleCredentials: creds }),
-        headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL) }
+        headers: {
+          ...getProviderAppHeaders(ctx.actualProvider),
+          ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+        }
       }
     } as ProviderConfig<'google-vertex-maas'>
   }
@@ -727,7 +739,10 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
       endpointType: cherryinEndpointType,
       anthropicBaseURL,
       geminiBaseURL,
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL) }
+      headers: {
+        ...getProviderAppHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+      }
     }
   }
 }
@@ -760,7 +775,10 @@ function buildAzureConfig(
       providerSettings: {
         ...ctx.baseConfig,
         baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, true),
-        headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL) }
+        headers: {
+          ...getProviderAppHeaders(ctx.actualProvider),
+          ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+        }
       }
     }
   }
@@ -776,7 +794,10 @@ function buildAzureConfig(
   } = {
     ...ctx.baseConfig,
     baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, false, useCustomGatewayV1),
-    headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL) }
+    headers: {
+      ...getProviderAppHeaders(ctx.actualProvider),
+      ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+    }
   }
 
   if (apiVersion) {
@@ -875,7 +896,10 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
     providerSettings: {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL) }
+      headers: {
+        ...getProviderAppHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+      }
     }
   }
 }
@@ -887,7 +911,10 @@ function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
     providerSettings: {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL) }
+      headers: {
+        ...getProviderAppHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+      }
     }
   }
 }
@@ -898,7 +925,10 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL) },
+      headers: {
+        ...getProviderAppHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+      },
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
   }
@@ -938,7 +968,10 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
       ...ctx.baseConfig,
       baseURL,
       endpointType: mapCherryinEndpointType(endpointType),
-      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL) }
+      headers: {
+        ...getProviderAppHeaders(ctx.actualProvider),
+        ...getExtraHeaders(ctx.actualProvider, ctx.baseConfig.baseURL)
+      }
     }
   }
 }
