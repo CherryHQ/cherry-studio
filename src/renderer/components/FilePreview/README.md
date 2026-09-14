@@ -9,7 +9,8 @@ The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.
 - Accept local absolute `AbsoluteFilePath` values only. POSIX and Windows paths are supported.
 - Do not pass relative paths, `file://` URLs, HTTP URLs, Base64 values, or in-memory data.
 - `FilePreview` lexically normalizes the path before resolving a plugin. It does not resolve symlinks or call `realpath`.
-- `FilePreview` calls `getMetadata` before selecting a plugin. Directories and inaccessible paths never reach a file plugin.
+- `FilePreview` starts the extension plugin module load alongside `getMetadata`, but metadata still decides whether the
+  candidate can render. Directories and inaccessible paths never reach a file plugin component.
 - When a path comes from IPC or another untyped string source, validate it with `normalizeFilePreviewPath`. Do not bypass runtime validation with a type assertion.
 
 ```ts
@@ -59,6 +60,12 @@ The embedded host owns page-level interactions such as back, close, and file sel
 `header` content when they should share the fixed top row with the plugin toolbar. `FilePreview` keeps caller content
 on the left and portals the active plugin toolbar to the right. Do not pass format controls through `header` or add
 `embedded`, `showBackButton`, or page-specific callbacks to `FilePreview`.
+
+When an embedded host owns in-app file navigation, wrap the preview in `FilePreviewNavigationProvider` and provide
+the workspace root and its absolute-path opener. The Markdown plugin then resolves schemeless links relative to that
+workspace root and returns the absolute target to the host. Absolute links and relative links that lexically escape
+with `..` can resolve outside that root; this provider does not enforce workspace containment, so the host owns any
+access policy. Without this capability, previews retain Streamdown's default safe link treatment.
 
 Use `type="artifact"` for an explicit development-artifact surface whose host owns editing. Markdown and HTML then
 stay in rendered preview mode and omit their preview/source switch, while HTML uses the interactive artifact sandbox

@@ -1,7 +1,7 @@
 import type { ConversationNavigationTarget } from './navigation'
 
 export type NotificationType = 'progress' | 'success' | 'error' | 'warning' | 'info' | 'action'
-export type NotificationSource = 'assistant' | 'backup' | 'knowledge' | 'update'
+export type NotificationSource = 'assistant' | 'backup' | 'knowledge' | 'update' | 'mini-app'
 
 export const CONVERSATION_NOTIFICATION_ACTION_KEY = 'conversation.open'
 

@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const inMemoryServerMock = vi.hoisted(() => ({ connect: vi.fn().mockResolvedValue(undefined) }))
 const createInMemoryMcpServer = vi.hoisted(() => vi.fn().mockResolvedValue(inMemoryServerMock))
@@ -15,7 +16,7 @@ vi.mock('@main/ai/mcp/servers/factory', () => ({
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({} as Record<string, unknown>)
+  return mockApplicationFactory({})
 })
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({ PATH: '/shell/bin' }) }))
@@ -38,6 +39,7 @@ class FakeTransport {
 }
 class FakeStdioTransport {
   stderr = { on: vi.fn() }
+  onerror?: (error: Error) => void
   constructor(public params: any) {}
 }
 const sdk = {
@@ -53,7 +55,7 @@ const authProvider = { config: {} } as any
 const create = (config: Partial<McpServer>, extra: Partial<Parameters<typeof createTransport>[0]> = {}) =>
   createTransport({
     sdk,
-    server: { id: 'id', name: 'srv', isActive: true, ...config } as McpServer,
+    server: { id: 'id', name: 'srv', isActive: true, ...config },
     args: [],
     authProvider,
     logger,
@@ -163,6 +165,36 @@ describe('createTransport', () => {
 
     expect(entries).toHaveLength(1)
     expect(entries[0]).toMatchObject({ level: 'stderr', message: 'server crashed', source: 'stdio' })
+  })
+
+  it('forwards the underlying spawn error details to app and server logs', async () => {
+    const entries: McpServerLogEntry[] = []
+    const transport = (await create(
+      { type: 'stdio', command: 'C:\\missing\\uvx.exe' },
+      { onServerLog: (entry) => entries.push(entry) }
+    )) as unknown as FakeStdioTransport
+    const error = Object.assign(new Error('spawn C:\\missing\\uvx.exe ENOENT'), {
+      code: 'ENOENT',
+      errno: -4058,
+      syscall: 'spawn C:\\missing\\uvx.exe',
+      path: 'C:\\missing\\uvx.exe'
+    })
+
+    transport.onerror?.(error)
+
+    expect(logger.error).toHaveBeenCalledWith('Stdio transport error', error, {
+      code: 'ENOENT',
+      errno: -4058,
+      syscall: 'spawn C:\\missing\\uvx.exe',
+      path: 'C:\\missing\\uvx.exe'
+    })
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      level: 'error',
+      message: expect.stringContaining('code=ENOENT'),
+      data: expect.objectContaining({ code: 'ENOENT', path: 'C:\\missing\\uvx.exe' }),
+      source: 'stdio'
+    })
   })
 
   it('runs an in-memory row we cannot start in-process through the connection it declares', async () => {

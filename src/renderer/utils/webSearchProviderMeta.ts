@@ -56,6 +56,12 @@ const WEB_SEARCH_PROVIDER_DISPLAY_META: Record<WebSearchProviderId, WebSearchPro
     officialWebsite: 'https://jina.ai/reader',
     apiKeyWebsite: 'https://jina.ai'
   },
+  parallel: {
+    descriptionKey: 'settings.tool.websearch.provider_description.parallel',
+    iconRef: providerIconRef('parallel'),
+    officialWebsite: 'https://parallel.ai',
+    apiKeyWebsite: 'https://platform.parallel.ai'
+  },
   querit: {
     descriptionKey: 'settings.tool.websearch.provider_description.querit',
     iconRef: providerIconRef('querit'),

@@ -1,3 +1,5 @@
+import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
+
 import {
   getTaskActiveText,
   getTaskId,
@@ -12,6 +14,7 @@ import {
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartParentToolCallId,
+  hasPartParentToolCallId,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
@@ -19,7 +22,6 @@ import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTa
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
-import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 
 export type AgentRightPaneTab = 'files' | 'status' | `flow:${string}`
 
@@ -205,7 +207,7 @@ function createFlowTextMessage(
       createdAt,
       status: role === 'assistant' ? 'success' : undefined
     }
-  } as CherryUIMessage
+  }
 }
 
 function getMessageCreatedAt(message: CherryUIMessage | undefined): string {
@@ -234,7 +236,7 @@ function getOrderedMessageParts(
           status: 'pending',
           createdAt: new Date(0).toISOString()
         }
-      } as CherryUIMessage,
+      },
       parts
     })
   }
@@ -312,7 +314,7 @@ export function buildAgentToolFlowProjection(
     )
     if (promptMessage) {
       flowMessages.push(promptMessage)
-      flowPartsByMessageId[promptMessage.id] = promptMessage.parts as CherryMessagePart[]
+      flowPartsByMessageId[promptMessage.id] = promptMessage.parts
     }
 
     const assistantParts: CherryMessagePart[] = []
@@ -343,7 +345,7 @@ export function buildAgentToolFlowProjection(
     const outputText = isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
       ? undefined
       : selectedOutputText
-    if (outputText) assistantParts.push({ type: 'text', text: outputText } as CherryMessagePart)
+    if (outputText) assistantParts.push({ type: 'text', text: outputText })
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
     )
@@ -549,7 +551,7 @@ export function buildAgentRightPaneStatus(
   const artifactByPath = new Map<string, AgentArtifactFile>()
 
   for (const message of messages) {
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const parts = partsByMessageId[message.id] ?? message.parts ?? []
     parts.forEach((part, partIndex) => {
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
         applyAgentTaskEvent(runTaskMap, part.data, message.id, runTaskOriginMessageIds)
@@ -560,9 +562,12 @@ export function buildAgentRightPaneStatus(
       const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
       // The plan has two writers — the incremental task ledger and full-list todo snapshots —
       // and the most recent writer owns it: a later ledger write invalidates an earlier snapshot.
-      if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName)) todoSnapshotTasks = undefined
-      const todoSnapshot = getTodoSnapshot(part)
-      if (todoSnapshot !== undefined) todoSnapshotTasks = todoSnapshot
+      // Both writers are main-agent-only: spawned-run parts are parented under their Task call.
+      if (!hasPartParentToolCallId(part)) {
+        if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName)) todoSnapshotTasks = undefined
+        const todoSnapshot = getTodoSnapshot(part)
+        if (todoSnapshot !== undefined) todoSnapshotTasks = todoSnapshot
+      }
 
       if (isReportArtifactsTool(toolName)) {
         const parsed = reportArtifactsInputSchema.safeParse(getToolPartInput(part))

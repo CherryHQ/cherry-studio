@@ -1,3 +1,7 @@
+import type { TFunction } from 'i18next'
+import { CircleAlert, FolderPen, Hand, Route, ShieldAlert, ShieldCheck } from 'lucide-react'
+import type { ReactNode } from 'react'
+
 import {
   FormControl,
   NormalTooltip,
@@ -9,9 +13,6 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { PermissionMode, PermissionModeCard } from '@renderer/types/agent'
-import type { TFunction } from 'i18next'
-import { CircleAlert, FolderPen, Hand, Route, ShieldAlert, ShieldCheck } from 'lucide-react'
-import type { ReactNode } from 'react'
 
 /**
  * Shared presentation for the agent permission modes.
@@ -31,7 +32,12 @@ const PERMISSION_MODE_ICONS: Record<PermissionMode, typeof Hand> = {
 
 export function PermissionModeIcon({ mode, size = 18 }: { mode: PermissionMode; size?: number }): ReactNode {
   const Icon = PERMISSION_MODE_ICONS[mode] ?? Hand
-  return <Icon size={size} className={mode === 'bypassPermissions' ? 'text-destructive' : 'text-muted-foreground'} />
+  return (
+    <Icon
+      size={size}
+      className={mode === 'bypassPermissions' ? 'lucide-custom text-destructive' : 'text-muted-foreground'}
+    />
+  )
 }
 
 function getPermissionModeWarning(card: PermissionModeCard, t: TFunction) {

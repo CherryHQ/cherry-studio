@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 interface MockViewerOptions {
   onSlideChange?: (index: number) => void

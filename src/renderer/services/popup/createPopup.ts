@@ -48,5 +48,5 @@ export function createPopup<P extends object, R>(
     }
   }
 
-  return { show, hide } as PopupHandle<P, R>
+  return { show, hide }
 }

@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
 import {
   type AgentSessionsSource,
   AgentSessionsSourceContext,
@@ -9,15 +12,8 @@ import {
   useRawAssistantTopicsSource
 } from '@renderer/hooks/resourceViewSources'
 import { useTabs } from '@renderer/hooks/tab'
-import {
-  getSidebarApp,
-  isMessageOnlyConversationUrl,
-  type SidebarAppId,
-  tabBelongsToApp
-} from '@renderer/utils/sidebar'
+import { getSidebarApp, type SidebarAppId, tabBelongsToApp } from '@renderer/utils/sidebar'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
 
 const EMPTY_PIN_IDS = new Map<string, string>()
 const EMPTY_TOPICS: ReturnType<typeof useRawAssistantTopicsSource>['topics'] = []
@@ -35,12 +31,7 @@ export function shouldLoadResourceViewSource(
   if (!app) return false
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId)
-  return Boolean(
-    activeTab?.type === 'route' &&
-      !activeTab.isDormant &&
-      tabBelongsToApp(app, activeTab.url) &&
-      !isMessageOnlyConversationUrl(activeTab.url)
-  )
+  return Boolean(activeTab?.type === 'route' && !activeTab.isDormant && tabBelongsToApp(app, activeTab.url))
 }
 
 function useCommittedAssistantTopicsSource(enabled: boolean, retainDerivedView: boolean): AssistantTopicsSource {
@@ -207,13 +198,7 @@ export function ResourceViewSourceProvider({ children }: { children: ReactNode }
   const retainAssistantTopicsView = useMemo(() => {
     const app = getSidebarApp('assistants')
     if (!app) return false
-    return tabs.some(
-      (tab) =>
-        tab.type === 'route' &&
-        !tab.isDormant &&
-        tabBelongsToApp(app, tab.url) &&
-        !isMessageOnlyConversationUrl(tab.url)
-    )
+    return tabs.some((tab) => tab.type === 'route' && !tab.isDormant && tabBelongsToApp(app, tab.url))
   }, [tabs])
   const agentSessionsEnabled = useMemo(
     () => shouldLoadResourceViewSource(tabs, activeTabId, 'agents'),

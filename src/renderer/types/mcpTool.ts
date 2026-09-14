@@ -10,12 +10,18 @@ export interface McpConfig {
 
 export type McpToolResponseStatus = 'pending' | 'streaming' | 'cancelled' | 'invoking' | 'done' | 'error'
 
+export interface ToolApprovalOutcome {
+  approved: boolean
+  reason?: string
+}
+
 interface BaseToolResponse {
   id: string // unique id
   tool: BaseTool | McpTool
   arguments: Record<string, unknown> | Record<string, unknown>[] | string | undefined
   status: McpToolResponseStatus
   response?: any
+  approval?: ToolApprovalOutcome
   // Streaming arguments support
   partialArguments?: string // Accumulated partial JSON string during streaming
 }

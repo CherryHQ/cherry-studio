@@ -1,9 +1,13 @@
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
+import type { ChannelStatus } from '@shared/data/types/channel'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
-import type { AutoBackupType } from '@shared/types/backup'
+import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import type { ManagedToolStatusState } from '@shared/types/managedTool'
+import type { StorageHealth } from '@shared/types/storageMonitor'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
@@ -292,11 +296,16 @@ export type SharedCacheSchema = {
   'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
   'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
   'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
+  'agent.session.turn_origin.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionTurnOrigin
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
+  'feature.deepseek_harness.status': ManagedToolStatusState
+  'feature.hermes_dashboard.status': ManagedToolStatusState
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
+  // Main-owned, session-only local model status and download progress.
+  'local_model.statuses': LocalModelStatusSnapshots
   'feature.binary.latest_versions': Record<string, string>
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
@@ -324,6 +333,12 @@ export type SharedCacheSchema = {
   // Nothing evicts an entry — that is the point, and it costs a handful of rows per
   // session. Null is the cache miss (see the `jobs.state` precedent above).
   'mini_app.transient_descriptor.${appId}': TransientMiniApp | null
+  // Apps that want the user's attention, and why (a host-added permission, or an update).
+  // Main-owned runtime state, shared with every renderer window.
+  'mini_app.attention': CacheValueTypes.CacheMiniAppAttention[]
+  'channel.status.${channelId}': ChannelStatus | null
+  'storage.health': StorageHealth
+  'backup.auto_sync.state.${type}': AutoBackupEvent | null
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
@@ -341,10 +356,14 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.background_tasks.${sessionId}': [],
   'agent.session.task_events.${sessionId}': {},
   'agent.session.flow_parts.${sessionId}.${messageId}': [],
+  'agent.session.turn_origin.${sessionId}.${messageId}': null,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
+  'feature.deepseek_harness.status': { status: 'stopped' },
+  'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
+  'local_model.statuses': {},
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
@@ -354,6 +373,10 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'jobs.progress.${jobId}': { progress: 0 },
   'knowledge.item.embedding_progress.${itemId}': null,
   'mini_app.transient_descriptor.${appId}': null,
+  'mini_app.attention': [],
+  'channel.status.${channelId}': null,
+  'storage.health': { level: 'ok', freeBytes: 0, totalBytes: 0, checkedAt: 0 },
+  'backup.auto_sync.state.${type}': null,
   'knowledge.item.directory_copy_progress.${itemId}': null
 }
 
@@ -372,6 +395,9 @@ export type RendererPersistCacheSchema = {
   'ui.sidebar.width': number
   'ui.chat.sidebar.width': number
   'ui.chat.artifact_pane.width': number
+  // Right-pane width for the topic/session list tab. Separate from the artifact pane's key so a
+  // width dragged for an artifact never widens the list (and vice versa).
+  'ui.chat.resource_pane.width': number
   // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
@@ -434,6 +460,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
   'ui.chat.sidebar.width': 275,
   'ui.chat.artifact_pane.width': 460,
+  'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,

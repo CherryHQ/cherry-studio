@@ -1,7 +1,3 @@
-import { dataApiService } from '@data/DataApiService'
-import type { Topic } from '@renderer/types/topic'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import {
   MockUseDataApiUtils,
@@ -13,6 +9,11 @@ import {
 } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+import { dataApiService } from '@data/DataApiService'
+import type { Topic } from '@renderer/types/topic'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { Topic as ApiTopic } from '@shared/data/types/topic'
 
 import {
   getTopicMessages,
@@ -77,14 +78,14 @@ describe('getTopicMessages', () => {
         activeNodeId: 'newer',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
       .mockResolvedValueOnce({
         items: [{ message: apiMessage('older') }],
         nextCursor: undefined,
         activeNodeId: 'newer',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
 
     const messages = await getTopicMessages('topic-a', { maxMessages: 2 })
 
@@ -105,19 +106,57 @@ describe('getTopicMessages', () => {
         activeNodeId: 'awaiting-input',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
       .mockResolvedValueOnce({
         items: [{ message: apiMessage('older') }],
         nextCursor: undefined,
         activeNodeId: 'awaiting-input',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
 
     const messages = await getTopicMessages('topic-a', { maxMessages: 2 })
 
     expect(dataApiService.get).toHaveBeenCalledTimes(2)
     expect(messages.map((message) => message.id)).toEqual(['older', 'newer'])
+  })
+
+  it('lets a later message cite tool results from an earlier page', async () => {
+    const searchPart = {
+      type: 'tool-web_search' as const,
+      toolCallId: 'search-1',
+      state: 'output-available' as const,
+      input: { query: 'q' },
+      output: [{ id: '3f2a1b9c-1', title: 'First', url: 'https://a.com/x', content: 'alpha' }]
+    }
+    const searched = { ...apiMessage('searched'), role: 'assistant' as const, data: { parts: [searchPart] } }
+    const followUp = {
+      ...apiMessage('follow-up'),
+      role: 'assistant' as const,
+      data: { parts: [{ type: 'text' as const, text: 'still [cite:3f2a1b9c-1]' }] }
+    }
+
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce({
+        items: [{ message: followUp }],
+        nextCursor: 'older-page',
+        activeNodeId: 'follow-up',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      })
+      .mockResolvedValueOnce({
+        items: [{ message: searched }],
+        nextCursor: undefined,
+        activeNodeId: 'follow-up',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      })
+
+    const messages = await getTopicMessages('topic-a')
+
+    expect(messages.map((message) => message.id)).toEqual(['searched', 'follow-up'])
+    expect(messages[0].priorCitationParts).toBeUndefined()
+    expect(messages[1].priorCitationParts).toEqual([searchPart])
   })
 
   it('filters awaiting-input messages from sibling groups', async () => {
@@ -141,7 +180,7 @@ describe('getTopicMessages', () => {
       activeNodeId: 'assistant-sibling',
       assistantId: 'assistant-1',
       rootId: 'root'
-    } as never)
+    })
 
     const messages = await getTopicMessages('topic-a')
 
@@ -177,7 +216,7 @@ describe('useTopics', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate: vi.fn().mockResolvedValue(undefined)
-    } as never)
+    })
 
     renderHook(() => useTopics({ loadAll: true }))
 
@@ -223,20 +262,17 @@ describe('useTopics', () => {
     ]
     let hasNext = true
 
-    mockUseInfiniteQuery.mockImplementation(
-      () =>
-        ({
-          pages,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          hasNext,
-          loadNext,
-          refresh: vi.fn().mockResolvedValue(undefined),
-          reset: vi.fn(),
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }) as never
-    )
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext,
+      loadNext,
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
 
     const { rerender } = renderHook(() => useTopics({ loadAll: true, pageSize: 1 }))
 
@@ -269,20 +305,17 @@ describe('useTopics', () => {
     const topicA = createApiTopic({ id: 'topic-a', name: 'Topic A' })
     const topicB = createApiTopic({ id: 'topic-b', name: 'Topic B' })
     let pages = [{ items: [topicA, topicB] }]
-    mockUseInfiniteQuery.mockImplementation(
-      () =>
-        ({
-          pages,
-          isLoading: false,
-          isRefreshing: false,
-          error: undefined,
-          hasNext: false,
-          loadNext: vi.fn(),
-          refresh: vi.fn().mockResolvedValue(undefined),
-          reset: vi.fn(),
-          mutate: vi.fn().mockResolvedValue(undefined)
-        }) as never
-    )
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
 
     const { result, rerender } = renderHook(() => useTopics())
     const firstTopics = result.current.topics
@@ -379,9 +412,7 @@ describe('useTopicMutations', () => {
 
   it('batch updates topics and returns per-topic settled results', async () => {
     const failed = new Error('move failed')
-    vi.mocked(dataApiService.patch)
-      .mockResolvedValueOnce({ id: 'topic-a' } as never)
-      .mockRejectedValueOnce(failed)
+    vi.mocked(dataApiService.patch).mockResolvedValueOnce({ id: 'topic-a' }).mockRejectedValueOnce(failed)
 
     const { result } = renderHook(() => useTopicMutations())
     const settled = await act(async () =>
@@ -427,7 +458,7 @@ describe('useTopicMutations', () => {
   })
 
   it('reorders without an assistant change using only the order write and a list refresh', async () => {
-    const patch = vi.mocked(dataApiService.patch).mockResolvedValueOnce(undefined as never)
+    const patch = vi.mocked(dataApiService.patch).mockResolvedValueOnce(undefined)
 
     const { result } = renderHook(() => useTopicMutations())
     const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock

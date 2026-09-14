@@ -1,10 +1,11 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { type MenuPresentationMode, ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AppearanceSettings, { confirmMenuPresentationModeChange } from '../AppearanceSettings'
 
@@ -90,17 +91,20 @@ vi.mock('@cherrystudio/ui', async () => {
     PopoverTrigger: ({ children, asChild }: any) =>
       asChild && React.isValidElement(children) ? children : React.createElement('div', null, children),
     RowFlex: passthrough('div'),
-    SegmentedControl: ({ options = [], value, onValueChange }: any) =>
+    // Mirrors the real control's radiogroup/radio semantics so tests address it the way
+    // assistive technology does, rather than through whatever DOM the mock happens to emit.
+    SegmentedControl: ({ options = [], value, onValueChange, ...props }: any) =>
       React.createElement(
         'div',
-        null,
+        { 'aria-label': props['aria-label'], role: 'radiogroup' },
         options.map((option: any) =>
           React.createElement(
             'button',
             {
-              'aria-pressed': value === option.value,
+              'aria-checked': value === option.value,
               key: option.value,
               onClick: () => onValueChange?.(option.value),
+              role: 'radio',
               type: 'button'
             },
             option.label
@@ -150,7 +154,8 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
     activeCmTheme: 'light'
-  })
+  }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@renderer/hooks/useUserTheme', () => ({
@@ -362,16 +367,16 @@ describe('AppearanceSettings selectors', () => {
 
     render(<AppearanceSettings />)
 
-    const chatRow = screen.getByText('settings.display.list_position.chat').parentElement as HTMLElement
-    fireEvent.click(within(chatRow).getByRole('button', { name: 'settings.topic.position.right' }))
+    const chatGroup = screen.getByRole('radiogroup', { name: 'settings.display.list_position.chat' })
+    fireEvent.click(within(chatGroup).getByRole('radio', { name: 'settings.topic.position.right' }))
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.position')).toBe('right')
     })
     expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.position')).toBe('left')
 
-    const workRow = screen.getByText('settings.display.list_position.work').parentElement as HTMLElement
-    fireEvent.click(within(workRow).getByRole('button', { name: 'settings.topic.position.right' }))
+    const workGroup = screen.getByRole('radiogroup', { name: 'settings.display.list_position.work' })
+    fireEvent.click(within(workGroup).getByRole('radio', { name: 'settings.topic.position.right' }))
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.position')).toBe('right')

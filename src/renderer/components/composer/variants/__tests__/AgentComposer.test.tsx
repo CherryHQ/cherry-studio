@@ -1,7 +1,15 @@
 import { basename } from 'node:path'
 
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
+import type * as ReactI18nextModule from 'react-i18next'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
@@ -13,12 +21,6 @@ import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
-import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
-import type * as ReactI18nextModule from 'react-i18next'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { installSyncRafMock } from '../../../../../../tests/__mocks__/requestAnimationFrame'
 import * as ComposerDraftModule from '../../composerDraft'
@@ -26,12 +28,12 @@ import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolLauncher } from '../../toolLauncher'
+import type { ComposerToolFooterAction } from '../../toolLauncher'
 import { useAgentResourceMentionSource } from '../agent/useAgentResourceMentionSource'
 import AgentComposerImpl, {
   AgentHomeComposer as AgentHomeComposerImpl,
   MissingAgentHomeComposer
 } from '../AgentComposer'
-import type * as ComposerSpeedControlModule from '../shared/ComposerSpeedControl'
 
 const mocks = vi.hoisted(() => ({
   draftText: 'hello',
@@ -75,6 +77,7 @@ const mocks = vi.hoisted(() => ({
   availableSkillsRefresh: vi.fn(),
   openResourceEditDialog: vi.fn(),
   registeredLaunchers: new Map<string, ComposerToolLauncher[]>(),
+  registeredFooterActions: new Map<string, ComposerToolFooterAction[]>(),
   optionalQuickPanel: null as { isVisible: boolean; symbol: string; updateList: (items: unknown) => void } | null,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   getDraft: vi.fn(),
@@ -110,7 +113,8 @@ const mocks = vi.hoisted(() => ({
   sessionWorkspaceName: 'Workspace 1',
   sessionWorkspacePath: '/workspace',
   runtimeProviderMounts: 0,
-  runtimeProviderUnmounts: 0
+  runtimeProviderUnmounts: 0,
+  providerNames: {} as Record<string, string>
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -164,9 +168,9 @@ const requireFirstResourceMentionSource = (
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
   targets: Set<Element>
-  observe: ReturnType<typeof vi.fn>
-  unobserve: ReturnType<typeof vi.fn>
-  disconnect: ReturnType<typeof vi.fn>
+  observe: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  unobserve: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  disconnect: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
@@ -454,8 +458,13 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     addNewTopic: vi.fn(),
     onTextChange: vi.fn(),
     toolsRegistry: {
-      registerLaunchers: (key: string, entries: ComposerToolLauncher[]) => {
+      registerLaunchers: (
+        key: string,
+        entries: ComposerToolLauncher[],
+        footerActions: ComposerToolFooterAction[] = []
+      ) => {
         mocks.registeredLaunchers.set(key, entries)
+        mocks.registeredFooterActions.set(key, footerActions)
         return vi.fn()
       }
     },
@@ -476,11 +485,11 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerTokenReconcile: () => mocks.reconcileTokens
 }))
 
-vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', async (importOriginal) => {
-  const actual = await importOriginal<typeof ComposerSpeedControlModule>()
+vi.mock('@renderer/components/ModelSpeedControl', async (importOriginal) => {
+  const actual = await importOriginal<typeof ModelSpeedControlModule>()
   return {
     ...actual,
-    ComposerSpeedControl: (props: {
+    ModelSpeedControl: (props: {
       model: Model
       reasoningEffort: string
       serviceTier: string
@@ -500,7 +509,8 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
-  useAgentModelFilter: () => undefined
+  useAgentModelFilter: () => undefined,
+  useAgentModelDisabled: () => undefined
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
@@ -530,6 +540,10 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
     isFulfilled: mocks.topicFulfilled,
     markSeen: mocks.markTopicSeen
   })
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviderDisplayName: (providerId?: string) => (providerId ? mocks.providerNames[providerId] : '')
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -712,15 +726,19 @@ function buildComposerEditorMock() {
 
 // Skills live in the registered `agent-skills` launcher submenu; invoke its action with a capturing
 // quickPanel to read the list it opens (skill rows followed by the pinned "manage skills" footer).
-function getAgentSkillsPanelItems() {
+function getAgentSkillsPanelOptions() {
   const launcher = mocks.registeredLaunchers.get('agent-skills')?.[0]
   if (!launcher) throw new Error('agent-skills launcher not registered')
-  let list: any[] = []
+  let options: any = {}
   launcher.action?.({
     source: 'root-panel',
-    quickPanel: { open: (options: { list: any[] }) => (list = options.list) }
+    quickPanel: { open: (nextOptions: unknown) => (options = nextOptions) }
   } as any)
-  return list
+  return options
+}
+
+function getAgentSkillsPanelItems() {
+  return getAgentSkillsPanelOptions().list ?? []
 }
 
 // `queueContent` is the whole above-input slot, so dock assertions locate the dock child instead of
@@ -744,9 +762,10 @@ describe('AgentComposer', () => {
     }) as never)
     mocks.openResourceEditDialog.mockReset()
     mocks.registeredLaunchers.clear()
+    mocks.registeredFooterActions.clear()
     mocks.optionalQuickPanel = null
     resizeObserverMockInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = {
         callback,
         targets: new Set(),
@@ -766,8 +785,8 @@ describe('AgentComposer', () => {
         observe: instance.observe,
         unobserve: instance.unobserve,
         disconnect: instance.disconnect
-      } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+      }
+    })
 
     mocks.draftText = 'hello'
     mocks.draftTokens = undefined
@@ -882,6 +901,7 @@ describe('AgentComposer', () => {
     mocks.sessionWorkspacePath = '/workspace'
     mocks.runtimeProviderMounts = 0
     mocks.runtimeProviderUnmounts = 0
+    mocks.providerNames = {}
     mocks.sessionLayout = undefined
     mocks.getDraft.mockReset()
     mocks.shortcutHandlers.clear()
@@ -1601,13 +1621,39 @@ describe('AgentComposer', () => {
       />
     )
 
-    const modelLabel = screen.getByText('Claude Sonnet 4.5')
+    const modelLabel = screen.getByText('Claude Sonnet 4.5 | Anthropic')
+    expect(modelLabel).toHaveAttribute('title', 'Claude Sonnet 4.5 | Anthropic')
     expect(modelLabel.closest('button')).toBeDisabled()
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', '')
 
     fireEvent.click(screen.getByText('select model 2'))
 
     expect(mocks.updateModel).not.toHaveBeenCalled()
+  })
+
+  it('shows the configured custom provider name in the inline model label', async () => {
+    const customModel: Model = {
+      ...model,
+      id: 'my-custom::custom-model',
+      providerId: 'my-custom',
+      apiModelId: 'custom-model',
+      name: 'Custom Model'
+    }
+    mocks.providerNames['my-custom'] = 'My Custom Provider'
+    mocks.modelResult = customModel
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const modelLabel = await screen.findByText('Custom Model | My Custom Provider')
+    expect(modelLabel).toHaveAttribute('title', 'Custom Model | My Custom Provider')
   })
 
   it('routes new session shortcuts through the empty session action', () => {
@@ -1695,7 +1741,7 @@ describe('AgentComposer', () => {
     expect(onCreateEmptySession).toHaveBeenCalledTimes(2)
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
     const newSessionSwitch = screen.getByRole('switch', { name: 'agent.session.new' })
     expect(newSessionSwitch).toBeChecked()
@@ -1725,7 +1771,7 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([expect.objectContaining({ id: 'composer:new-session' })])
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
     expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('agent.session.new')
   })
@@ -1962,7 +2008,7 @@ describe('AgentComposer', () => {
             ...pdfSkillToken,
             index: 1,
             textOffset: `summarize ${knowledgePrompt} `.length
-          } as ComposerSerializedToken
+          }
         ]
       })
     })
@@ -2813,7 +2859,7 @@ describe('AgentComposer', () => {
     const { editor, chain, transaction } = buildComposerEditorMock()
 
     await act(async () => {
-      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' } as any)
+      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' })
     })
 
     // The chip is bound to this draft synchronously, still empty of context...
@@ -2876,7 +2922,7 @@ describe('AgentComposer', () => {
     const { editor, transaction } = buildComposerEditorMock()
 
     await act(async () => {
-      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' } as any)
+      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' })
     })
 
     expect(transaction.delete).toHaveBeenCalledWith(0, 1)
@@ -3065,17 +3111,21 @@ describe('AgentComposer', () => {
       />
     )
 
-    // Skills no longer render inline in the root panel; only the customize-toolbar footer does.
-    expect(mocks.surfaceProps?.rootPanelAdditionalItems).toEqual([
-      expect.objectContaining({ id: 'composer:customize-toolbar', fixedToBottom: true })
+    expect(mocks.surfaceProps?.rootPanelAdditionalItems).toBeUndefined()
+    expect(mocks.registeredFooterActions.get('composer-toolbar-settings')).toEqual([
+      expect.objectContaining({ id: 'composer:customize-toolbar', ariaLabel: 'chat.input.toolbar.customize' })
     ])
     const skillsLauncher = mocks.registeredLaunchers.get('agent-skills')?.[0]
     expect(skillsLauncher?.rootPanelPlacement).toBeUndefined()
     expect(skillsLauncher?.order).toBe(40)
-    expect(skillsLauncher?.rootSearchItems).toEqual([expect.objectContaining({ id: 'skill:pdf' })])
+    expect(skillsLauncher?.rootSearchItems).toEqual([
+      expect.objectContaining({ id: 'skill:pdf', suffix: 'plugins.skills' })
+    ])
     expect(mocks.pinnedLauncherIds).toEqual(['composer:new-session', 'agent-skills'])
 
-    const items = getAgentSkillsPanelItems()
+    const panelOptions = getAgentSkillsPanelOptions()
+    expect(panelOptions).not.toHaveProperty('footerActions')
+    const items = panelOptions.list
     expect(items).not.toContainEqual(expect.objectContaining({ id: 'composer:customize-toolbar' }))
     const skillItem = items[0]
     expect(skillItem).toEqual(
@@ -3083,14 +3133,16 @@ describe('AgentComposer', () => {
         id: 'skill:pdf',
         label: 'pdf',
         description: 'Read and analyze PDFs',
-        suffix: 'plugins.skills',
         filterText: 'pdf'
       })
     )
+    expect(skillItem?.suffix).toBeUndefined()
 
-    // The pinned footer opens the agent's skills config.
-    const manageItem = items.at(-1)
-    expect(manageItem).toEqual(expect.objectContaining({ id: 'agent-skills:manage', fixedToBottom: true }))
+    const manageItem = mocks.registeredFooterActions.get('agent-skills')?.[0]
+    expect(items).not.toContainEqual(expect.objectContaining({ id: 'agent-skills:manage' }))
+    expect(manageItem).toEqual(
+      expect.objectContaining({ id: 'agent-skills:manage', ariaLabel: 'plugins.manage_skills' })
+    )
     manageItem?.action?.({} as any)
     expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
       kind: 'agent',
@@ -3735,6 +3787,62 @@ describe('AgentComposer', () => {
     })
   })
 
+  it('persists the surface-serialized draft on unmount, not the shadow token state', async () => {
+    // A managed-sync dispatch (panel pick / hydration) inserts the chip while onTokensChange is
+    // suppressed, so persisting the shadow token state would strand its sentence as visible prose.
+    const draftCacheKey = 'agent.composer_draft.session_session-1'
+    const knowledgePrompt =
+      'The user attached knowledge base "Knowledge One" (id: kb-1). Include "kb-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.'
+    const chipToken: ComposerSerializedToken = {
+      ...knowledgeBaseToken(knowledgeBaseOne),
+      promptText: knowledgePrompt,
+      textOffset: 'hello '.length
+    }
+    const drafts = new Map<string, unknown>()
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+      drafts.set(key, value)
+    })
+    const serializedText = `hello ${knowledgePrompt} tail`
+    mocks.getDraft.mockImplementation(() => ({
+      text: serializedText,
+      tokens: [chipToken]
+    }))
+
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    // The managed-sync upward propagation: editor text changes, tokens never reported.
+    await act(async () => {
+      mocks.surfaceProps?.onTextChange(`hello ${knowledgePrompt}`)
+    })
+
+    // Every writer — periodic and unmount — must store the serialized pair, even where the text
+    // state has fallen behind the editor serialization the pair was captured from.
+    expect(drafts.get(draftCacheKey)).toEqual(
+      expect.objectContaining({
+        text: serializedText,
+        tokens: [chipToken]
+      })
+    )
+
+    view.unmount()
+
+    expect(drafts.get(draftCacheKey)).toEqual(
+      expect.objectContaining({
+        text: serializedText,
+        tokens: [chipToken]
+      })
+    )
+  })
+
   it('seeds cached files before managed file tokens reconcile', () => {
     const cachedFileToken = {
       id: `file:${file.fileTokenSourceId}`,
@@ -4133,7 +4241,7 @@ describe('AgentComposer', () => {
         payload: workspaceFile,
         index: 0,
         textOffset: mocks.draftText.length
-      } as ComposerSerializedToken
+      }
     ]
     mocks.createInternalEntry.mockRejectedValueOnce(new Error('workspace resources should not be internalized'))
 
@@ -4207,17 +4315,14 @@ describe('AgentComposer', () => {
       path: '/workspace/docs/beta.md'
     } as FileMetadata
     mocks.files = [workspaceFileA, localFile, workspaceFileB]
-    mocks.draftTokens = [workspaceFileA, localFile, workspaceFileB].map(
-      (attachedFile, index) =>
-        ({
-          id: `file:${attachedFile.fileTokenSourceId}`,
-          kind: 'file',
-          label: attachedFile.name,
-          payload: attachedFile,
-          index,
-          textOffset: mocks.draftText.length
-        }) as ComposerSerializedToken
-    )
+    mocks.draftTokens = [workspaceFileA, localFile, workspaceFileB].map((attachedFile, index) => ({
+      id: `file:${attachedFile.fileTokenSourceId}`,
+      kind: 'file',
+      label: attachedFile.name,
+      payload: attachedFile,
+      index,
+      textOffset: mocks.draftText.length
+    }))
 
     render(
       <AgentComposer
@@ -4278,7 +4383,7 @@ describe('AgentComposer', () => {
         payload: workspaceFile,
         index: 0,
         textOffset: mocks.draftText.length
-      } as ComposerSerializedToken
+      }
     ]
     mocks.createInternalEntry.mockRejectedValueOnce(new Error('workspace resources should not be internalized'))
 
@@ -4346,7 +4451,7 @@ describe('AgentComposer', () => {
         payload: workspaceFile,
         index: 0,
         textOffset: mocks.draftText.length
-      } as ComposerSerializedToken
+      }
     ]
     mocks.ipcApiRequest.mockResolvedValue({})
 
@@ -4454,7 +4559,7 @@ describe('AgentComposer', () => {
         payload: file,
         index: 0,
         textOffset: mocks.draftText.length
-      } as ComposerSerializedToken
+      }
     ]
 
     render(
@@ -5184,7 +5289,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Claude Sonnet 4.5')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Workspace 1')
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
 
@@ -5192,7 +5297,7 @@ describe('AgentComposer', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Agent')).toHaveClass('sr-only')
-      expect(screen.getByText('Claude Sonnet 4.5')).toHaveClass('sr-only')
+      expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('sr-only')
     })
     expect(screen.getByText('Workspace 1')).toHaveClass('sr-only')
   })

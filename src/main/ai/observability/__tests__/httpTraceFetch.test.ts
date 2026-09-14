@@ -37,7 +37,7 @@ describe('createHttpTraceFetch', () => {
         })
     )
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', modelName: 'gpt-x', tracer })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', modelName: 'gpt-x', tracer })
     const res = await f('https://api.example.com/v1/chat', {
       method: 'POST',
       headers: { authorization: 'Bearer sk-secret', 'content-type': 'application/json' },
@@ -84,7 +84,7 @@ describe('createHttpTraceFetch', () => {
       return new Response('{"ok":true}', { status: 200 })
     })
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer })
     await f('https://api.example.com/v1/responses', {
       method: 'POST',
       body: JSON.stringify({ tools: [{ type: 'web_search' }] })
@@ -98,12 +98,29 @@ describe('createHttpTraceFetch', () => {
     })
   })
 
+  it('clears inputs when the inner fetch drops the request body', async () => {
+    const { tracer, attributes, state } = fakeTracer()
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const slot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
+        HTTP_TRACE_FINAL_BODY_SLOT
+      ]
+      if (slot) slot.body = null
+      return new Response(null, { status: 204 })
+    })
+
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer })
+    await f('https://api.example.com/v1/responses', { method: 'POST', body: '{"before":true}' })
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+
+    expect(attributes.inputs).toBe('')
+  })
+
   it('truncates a request body larger than maxBodyBytes', async () => {
     const { tracer, attributes, state } = fakeTracer()
     const innerFetch = vi.fn(async () => new Response(null, { status: 204 }))
     const big = 'x'.repeat(100)
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer, maxBodyBytes: 10 })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer, maxBodyBytes: 10 })
     await f('https://api.example.com', { method: 'POST', body: big })
     await vi.waitFor(() => expect(state.ended).toBe(true))
 
@@ -115,7 +132,7 @@ describe('createHttpTraceFetch', () => {
     const big = 'y'.repeat(100)
     const innerFetch = vi.fn(async () => new Response(big, { status: 200 }))
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer, maxBodyBytes: 10 })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer, maxBodyBytes: 10 })
     const res = await f('https://api.example.com', {})
 
     expect(await res.text()).toBe(big)
@@ -129,7 +146,7 @@ describe('createHttpTraceFetch', () => {
       throw new Error('network down')
     })
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer })
     await expect(f('https://api.example.com', {})).rejects.toThrow('network down')
     expect(state.ended).toBe(true)
     expect(state.status?.code).toBe(SpanStatusCode.ERROR)
@@ -140,7 +157,7 @@ describe('createHttpTraceFetch', () => {
     const { tracer, attributes, state } = fakeTracer()
     const innerFetch = vi.fn(async () => new Response(null, { status: 204, statusText: 'No Content' }))
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer })
     await f('https://api.example.com', { method: 'GET' })
 
     expect(state.ended).toBe(true)
@@ -159,7 +176,7 @@ describe('createHttpTraceFetch', () => {
     const { tracer, attributes, state } = fakeTracer()
     const innerFetch = vi.fn(async () => new Response(null, { status: 204 }))
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer })
     await f('https://api.example.com', { method: 'POST', headers: headers as HeadersInit, body: '{}' })
     await vi.waitFor(() => expect(state.ended).toBe(true))
 
@@ -172,7 +189,7 @@ describe('createHttpTraceFetch', () => {
     const { tracer, attributes, state } = fakeTracer()
     const innerFetch = vi.fn(async () => new Response(null, { status: 204 }))
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer })
     await f('https://generativelanguage.googleapis.com/v1/models/gemini:generateContent?key=AIzaSECRET&alt=sse', {
       method: 'POST',
       body: '{}'
@@ -190,7 +207,7 @@ describe('createHttpTraceFetch', () => {
     const { tracer, attributes, state } = fakeTracer()
     const innerFetch = vi.fn(async () => new Response(null, { status: 204 }))
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer })
     await f('https://user:s3cret@proxy.internal/v1/chat?key=AIzaSECRET', { method: 'POST', body: '{}' })
     await vi.waitFor(() => expect(state.ended).toBe(true))
 
@@ -219,7 +236,7 @@ describe('createHttpTraceFetch', () => {
     } as unknown as Span
     const tracer = { startSpan: () => span } as unknown as Tracer
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer })
     const res = await f('https://api.example.com/v1', { method: 'POST', body: '{}' })
 
     expect(await res.text()).toBe('inner') // the untraced inner response, intact
@@ -240,7 +257,7 @@ describe('createHttpTraceFetch', () => {
     })
     const innerFetch = vi.fn(async () => real)
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer })
     const res = await f('https://api.example.com/v1', { method: 'POST', body: '{}' })
 
     expect(res).toBe(real) // original handed back untouched — real streaming path preserved
@@ -255,7 +272,7 @@ describe('createHttpTraceFetch', () => {
     Object.defineProperty(real, 'status', { get: () => 199 })
     const innerFetch = vi.fn(async () => real)
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer })
     const res = await f('https://api.example.com/v1', { method: 'POST', body: '{}' })
 
     expect(await res.text()).toBe('body-x') // SDK still gets the body via the minimal Response
@@ -275,7 +292,7 @@ describe('createHttpTraceFetch', () => {
       async () => new Response(body, { status: 200, headers: { 'content-type': 'application/json' } })
     )
 
-    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const f = createHttpTraceFetch(innerFetch, { topicId: 't1', tracer })
     const res = await f('https://api.example.com/v1', { method: 'POST', body: '{}' })
     // The SDK branch reads the same tee'd source and also errors — we only assert the span.
     await res.text().catch(() => {})

@@ -24,11 +24,12 @@
  * @see architecture.md §2 for the reference-vs-data-shape design.
  */
 
+import mime from 'mime'
+
 import { stat as fsStat } from '@main/utils/file'
 import type { FileEntry } from '@shared/data/types/file'
 import { type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import mime from 'mime'
 
 import { resolvePhysicalPath } from './utils/pathResolver'
 

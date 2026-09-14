@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto'
 
-import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { net } from 'electron'
 import * as z from 'zod'
+
+import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 
 import { OAuthServiceError } from '../../errors'
 import { PkceOAuthClient } from '../PkceOAuthClient'

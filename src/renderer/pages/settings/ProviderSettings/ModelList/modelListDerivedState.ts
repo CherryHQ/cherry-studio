@@ -1,3 +1,5 @@
+import { sortBy, toPairs } from 'es-toolkit/compat'
+
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
@@ -11,7 +13,6 @@ import {
   isRerankModel,
   isSpeechToTextModel
 } from '@shared/utils/model'
-import { sortBy, toPairs } from 'es-toolkit/compat'
 
 import { normalizeModelGroupName } from './grouping'
 import { filterProviderSettingModelsByKeywords, getDuplicateProviderSettingModelNames } from './utils'

@@ -7,10 +7,11 @@
 import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetAgent,
@@ -62,6 +63,10 @@ vi.mock('@application', async () => {
     ...module,
     application: {
       ...module.application,
+      get: (name: string) =>
+        name === 'AgentSessionRuntimeService'
+          ? { getTurnTrustedNotifyChannels: () => undefined }
+          : module.application.get(name),
       getPath: mockGetPath
     }
   }
@@ -94,7 +99,7 @@ vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({
-  agentChannelService: { listChannels: vi.fn().mockResolvedValue([]) }
+  agentChannelService: { findBySessionId: vi.fn(() => null), listChannels: vi.fn().mockResolvedValue([]) }
 }))
 
 vi.mock('@data/services/AgentService', () => ({

@@ -1,5 +1,6 @@
-import { getKnowledgeItemConflictKey, getKnowledgeItemDisplayTitle } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { getKnowledgeItemConflictKey, getKnowledgeItemDisplayTitle } from '@shared/data/types/knowledge'
 
 import type * as PathStorage from '../../../pathStorage'
 

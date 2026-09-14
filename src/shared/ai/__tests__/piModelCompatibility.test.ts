@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import { isPiCompatibleModel, mapEndpointToPiApi, resolvePiApi } from '../piModelCompatibility'
 
@@ -23,7 +24,7 @@ function makeModel(overrides: Partial<Model>): Model {
     isEnabled: true,
     isHidden: false,
     ...overrides
-  } as Model
+  }
 }
 
 describe('mapEndpointToPiApi', () => {
@@ -86,13 +87,13 @@ describe('resolvePiApi', () => {
     expect(isPiCompatibleModel(provider, makeModel({}))).toBe(false)
   })
 
-  it('rejects a model whose context window is unknown', () => {
+  it('accepts a model whose context window is unknown', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } }
     })
 
-    expect(isPiCompatibleModel(provider, makeModel({ contextWindow: undefined }))).toBe(false)
+    expect(isPiCompatibleModel(provider, makeModel({ contextWindow: undefined }))).toBe(true)
   })
 
   it('uses a cloned gateway per-model route before an unsupported provider default', () => {

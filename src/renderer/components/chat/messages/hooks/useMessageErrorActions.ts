@@ -1,8 +1,9 @@
+import { useNavigate } from '@tanstack/react-router'
+import { useCallback, useMemo } from 'react'
+
 import { cacheService } from '@data/CacheService'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
-import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useMemo } from 'react'
 
 const AI_CLASSIFY_TTL_MS = 60 * 60 * 1000
 const aiClassifyCacheKey = (message: string, language: string) => `error.classify.${message}:${language}`
@@ -10,12 +11,13 @@ const aiClassifyCacheKey = (message: string, language: string) => `error.classif
 type MessageErrorActions = Pick<MessageListActions, 'diagnoseMessageError' | 'openErrorDetail' | 'navigateErrorTarget'>
 
 interface MessageErrorActionOptions {
+  diagnosticReport?: ErrorDetailContentProps['diagnosticReport']
   persistDiagnosis?: NonNullable<ErrorDetailContentProps['onDiagnosisComplete']>
 }
 
 export function useMessageErrorActions(options: MessageErrorActionOptions = {}): MessageErrorActions {
   const navigate = useNavigate()
-  const { persistDiagnosis } = options
+  const { diagnosticReport, persistDiagnosis } = options
 
   const diagnoseMessageError = useCallback<NonNullable<MessageListActions['diagnoseMessageError']>>(
     ({ error, language }) => {
@@ -46,10 +48,11 @@ export function useMessageErrorActions(options: MessageErrorActionOptions = {}):
         blockId: input.partId,
         cachedDiagnosis: input.cachedDiagnosis,
         diagnosisContext: input.diagnosisContext,
+        diagnosticReport,
         onDiagnosisComplete: persistDiagnosis
       })
     },
-    [persistDiagnosis]
+    [diagnosticReport, persistDiagnosis]
   )
 
   const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(

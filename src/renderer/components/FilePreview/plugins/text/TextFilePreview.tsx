@@ -1,12 +1,13 @@
-import { EmptyState } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import CodeViewer from '@renderer/components/CodeViewer'
-import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { EmptyState } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import CodeViewer from '@renderer/components/CodeViewer'
+import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
@@ -26,7 +27,7 @@ function TextPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>
@@ -91,10 +92,12 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
 
   return (
     <div className="flex min-h-full w-full">
+      {/* The composer inset pads inside the viewer, whose shiki theme paints an opaque
+          background — the code surface then runs to the container bottom under the composer. */}
       <CodeViewer
         value={loadState.content}
         language={getLanguageByFilePath(filePath)}
-        className="min-w-0 flex-1 overflow-hidden"
+        className="min-w-0 flex-1 overflow-hidden pb-[var(--chat-composer-inset,0px)]"
       />
     </div>
   )
@@ -136,7 +139,7 @@ export default function TextFilePreview({ filePath, metadata, refreshKey }: File
 
   return (
     <FilePreviewLayout.Frame>
-      <FilePreviewLayout.Content>
+      <FilePreviewLayout.Content composerInset={loadState.status !== 'ready'}>
         <TextPreviewContent filePath={filePath} loadState={loadState} />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>

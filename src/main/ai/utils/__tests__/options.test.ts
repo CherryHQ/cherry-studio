@@ -1,10 +1,11 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { generateText } from 'ai'
+import { describe, expect, it, vi } from 'vitest'
+
 import type { ResolvedServiceTierControl } from '@data/services/ProviderRegistryService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { generateText } from 'ai'
-import { describe, expect, it, vi } from 'vitest'
 
 import {
   applyFastModeToProviderOptions,
@@ -132,11 +133,7 @@ describe('extractAiSdkStandardParams', () => {
 describe('mergeCustomProviderParameters', () => {
   it('Case 1: key in actualAiSdkProviderIds → merge directly', () => {
     const initial = { openai: { reasoningEffort: 'low' as never } }
-    const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
-      { openai: { customFlag: true } },
-      'openai'
-    )
+    const result = mergeCustomProviderParameters(initial, { openai: { customFlag: true } }, 'openai')
     expect(result).toEqual({
       openai: { reasoningEffort: 'low', customFlag: true }
     })
@@ -145,41 +142,25 @@ describe('mergeCustomProviderParameters', () => {
   it('Case 2 (proxy): key === rawProviderId, not in actualAiSdkProviderIds → map to primary', () => {
     // CherryIn proxy emits `google` as the actual SDK provider; user writes `cherryin: {...}`.
     const initial = { google: {} }
-    const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
-      { cherryin: { proxyOpt: 'val' } },
-      'cherryin'
-    )
+    const result = mergeCustomProviderParameters(initial, { cherryin: { proxyOpt: 'val' } }, 'cherryin')
     expect(result).toEqual({ google: { proxyOpt: 'val' } })
   })
 
   it('Case 2 (gateway): preserves gateway key for routing', () => {
     const initial = { gateway: {} }
-    const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
-      { gateway: { order: ['openai', 'anthropic'] } },
-      'gateway'
-    )
+    const result = mergeCustomProviderParameters(initial, { gateway: { order: ['openai', 'anthropic'] } }, 'gateway')
     expect(result).toEqual({ gateway: { order: ['openai', 'anthropic'] } })
   })
 
   it('Case 3: regular params merged onto primary provider', () => {
     const initial = { google: {} }
-    const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
-      { customKey: 'customVal' },
-      'google'
-    )
+    const result = mergeCustomProviderParameters(initial, { customKey: 'customVal' }, 'google')
     expect(result).toEqual({ google: { customKey: 'customVal' } })
   })
 
   it('renames `reasoning_effort` → `reasoningEffort` for openai-compatible providers', () => {
     const initial = { 'openai-compatible': {} }
-    const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
-      { reasoning_effort: 'high' },
-      'openai-compatible'
-    )
+    const result = mergeCustomProviderParameters(initial, { reasoning_effort: 'high' }, 'openai-compatible')
     // The key should be renamed and applied to the primary (openai-compatible) provider.
     expect(result).toEqual({
       'openai-compatible': { reasoningEffort: 'high' }
@@ -189,7 +170,7 @@ describe('mergeCustomProviderParameters', () => {
   it('does NOT clobber existing reasoningEffort with renamed reasoning_effort', () => {
     const initial = { 'openai-compatible': {} }
     const result = mergeCustomProviderParameters(
-      initial as Record<string, Record<string, never>>,
+      initial,
       { reasoning_effort: 'high', reasoningEffort: 'low' },
       'openai-compatible'
     )
@@ -197,9 +178,39 @@ describe('mergeCustomProviderParameters', () => {
     expect((result['openai-compatible'] as Record<string, unknown>).reasoningEffort).toBe('low')
   })
 
+  it('normalizes reasoning_effort → reasoningEffort for github-copilot-openai-compatible (#11140)', () => {
+    // Mirror the OpenAI-compatible path: AI SDK silently drops snake_case keys, so a
+    // user's custom parameter dictionary carrying `reasoning_effort` must be renamed
+    // to `reasoningEffort` before being merged into the `copilot` provider namespace.
+    const customProviders: Record<string, Record<string, never>> = { copilot: {} }
+    const result = mergeCustomProviderParameters(
+      customProviders,
+      { reasoning_effort: 'high' },
+      'github-copilot-openai-compatible',
+      'github-copilot-openai-compatible'
+    )
+    expect(result).toEqual({ copilot: { reasoningEffort: 'high' } })
+    expect(result.copilot.reasoning_effort).toBeUndefined()
+  })
+
+  it('does NOT clobber existing reasoningEffort with renamed reasoning_effort for github-copilot (#11140)', () => {
+    // Mirror the openai-compatible clobber test: when the user's custom params carry BOTH
+    // `reasoningEffort` (already in the SDK dialect) and `reasoning_effort` (snake_case),
+    // the existing camelCase wins and the snake_case form is dropped.
+    const customProviders: Record<string, Record<string, never>> = { copilot: {} }
+    const result = mergeCustomProviderParameters(
+      customProviders,
+      { reasoning_effort: 'high', reasoningEffort: 'low' },
+      'github-copilot-openai-compatible',
+      'github-copilot-openai-compatible'
+    )
+    expect((result['copilot'] as Record<string, unknown>).reasoningEffort).toBe('low')
+    expect((result['copilot'] as Record<string, unknown>).reasoning_effort).toBeUndefined()
+  })
+
   it('normalizes reasoning_effort into a concrete provider namespace for an openai-compatible adapter', () => {
     const result = mergeCustomProviderParameters(
-      { dashscope: {} } as Record<string, Record<string, never>>,
+      { dashscope: {} },
       { dashscope: { reasoning_effort: 'high' } },
       'dashscope',
       'openai-compatible'
@@ -210,7 +221,7 @@ describe('mergeCustomProviderParameters', () => {
 
   it('does not rewrite a nested extra_body reasoning_effort field', () => {
     const result = mergeCustomProviderParameters(
-      { poe: {} } as Record<string, Record<string, never>>,
+      { poe: {} },
       { extra_body: { reasoning_effort: 'high' } },
       'poe',
       'openai-compatible'
@@ -221,11 +232,7 @@ describe('mergeCustomProviderParameters', () => {
 
   it('preserves unrelated providerOptions entries', () => {
     const initial = { google: { thinkingConfig: { mode: 'auto' as never } }, anthropic: { cacheControl: {} as never } }
-    const result = mergeCustomProviderParameters(
-      initial as unknown as Record<string, Record<string, never>>,
-      { google: { extra: 1 } },
-      'google'
-    )
+    const result = mergeCustomProviderParameters(initial, { google: { extra: 1 } }, 'google')
     expect(result.anthropic).toEqual({ cacheControl: {} })
     expect(result.google).toMatchObject({ thinkingConfig: { mode: 'auto' }, extra: 1 })
   })
@@ -238,11 +245,7 @@ describe('customParameters → providerOptions plugin contract', () => {
   it('splits standardParams to root and providerParams to providerOptions[primaryId]', () => {
     const flat = { topK: 40, customFlag: true }
     const { standardParams, providerParams } = extractAiSdkStandardParams(flat)
-    const providerOptions = mergeCustomProviderParameters(
-      { openai: {} } as Record<string, Record<string, never>>,
-      providerParams,
-      'openai'
-    )
+    const providerOptions = mergeCustomProviderParameters({ openai: {} }, providerParams, 'openai')
     expect(standardParams).toEqual({ topK: 40 })
     expect(providerOptions).toEqual({ openai: { customFlag: true } })
   })
