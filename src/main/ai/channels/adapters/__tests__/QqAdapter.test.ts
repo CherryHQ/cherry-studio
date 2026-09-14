@@ -49,6 +49,11 @@ function mockOkJson(): Response {
   } as unknown as Response
 }
 
+// PNG signature followed by an empty IDAT chunk: the smallest layout file-type sniffs as image/png.
+const PNG_BYTES = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0, 0x49, 0x44, 0x41, 0x54, 0, 0, 0, 0
+])
+
 function groupMessage(id: string, groupOpenid = 'g1', content = 'hi'): any {
   return {
     id,
@@ -85,7 +90,7 @@ describe('QqAdapter.downloadAttachments', () => {
   it('downloads a public attachment URL', async () => {
     const adapter = createAdapter()
     vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
-    mockNetFetch.mockResolvedValue(mockBinaryResponse(Buffer.from('img'), 'image/png'))
+    mockNetFetch.mockResolvedValue(mockBinaryResponse(PNG_BYTES, 'image/png'))
 
     const result = await adapter.downloadAttachments([
       { url: 'https://gchat.qpic.cn/a.png', content_type: 'image/png', filename: 'a.png' }
@@ -93,6 +98,33 @@ describe('QqAdapter.downloadAttachments', () => {
 
     expect(result.images).toHaveLength(1)
     expect(mockNetFetch).toHaveBeenCalled()
+  })
+
+  it('routes a ZIP declared as image/png to files under its sniffed type', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const zipBytes = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(64)])
+    mockNetFetch.mockResolvedValue(mockBinaryResponse(zipBytes, 'image/png'))
+
+    const result = await adapter.downloadAttachments([
+      { url: 'https://gchat.qpic.cn/a.png', content_type: 'image/png', filename: 'a.png' }
+    ])
+
+    expect(result.images).toBeUndefined()
+    expect(result.files).toEqual([expect.objectContaining({ filename: 'a.png', media_type: 'application/zip' })])
+  })
+
+  it('routes PNG bytes declared as application/octet-stream to images', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    mockNetFetch.mockResolvedValue(mockBinaryResponse(PNG_BYTES, 'application/octet-stream'))
+
+    const result = await adapter.downloadAttachments([
+      { url: 'https://gchat.qpic.cn/a.bin', content_type: 'application/octet-stream', filename: 'a.bin' }
+    ])
+
+    expect(result.files).toBeUndefined()
+    expect(result.images).toEqual([expect.objectContaining({ media_type: 'image/png' })])
   })
 })
 

@@ -79,6 +79,19 @@ describe('Sentry log reporting', () => {
     expect(captureExceptionMock.mock.calls).toHaveLength(1)
   })
 
+  it('reports the bounded, redacted message produced by the main logger', async () => {
+    setConsent(true)
+    const error = new Error(`details apiKey = sk-secret123\n${'diagnostic '.repeat(1000)}`)
+    loggerService.withContext('Translation').error('Failed', error)
+    await drainLogs()
+
+    const [reported] = captureExceptionMock.mock.calls[0]
+    expect(reported.message).not.toContain('sk-secret123')
+    expect(reported.message).toContain('details')
+    expect(reported.message.length).toBeLessThanOrEqual(501)
+    expect(reported.stack.length).toBeLessThanOrEqual(4000)
+  })
+
   it('does not recapture renderer logs that are reported through the renderer SDK', async () => {
     setConsent(true)
     const handler = vi.mocked(ipcMain.handle).mock.calls.find(([channel]) => channel === IpcChannel.App_LogToMain)![1]

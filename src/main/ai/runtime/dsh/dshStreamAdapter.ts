@@ -23,7 +23,7 @@
 // merges; dsh-goal loads its MessageSourceMap merge.
 import type {} from '@deepseek-ai/dsh-compaction-basic'
 import type {} from '@deepseek-ai/dsh-goal'
-import type { CallId, ContentBlock, MessageSource, TokenUsage } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, MessageSource, TokenUsage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry'
 import type {} from '@deepseek-ai/dsh-plan-mode'
 import type { SessionEvent, SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
@@ -179,7 +179,7 @@ export class DshStreamAdapter {
   ensureToolCall(callId: string, toolName: string, input: Record<string, unknown>): void {
     if (this.startedTools.has(callId)) return
     this.ensureTurnOpen()
-    this.handleToolCall({ callId: callId as CallId, name: toolName, arguments: JSON.stringify(input) })
+    this.handleToolCall({ callId: callId as ToolCallId, name: toolName, arguments: JSON.stringify(input) })
   }
 
   /** Content with no host-opened turn = the runtime started its own turn. */
