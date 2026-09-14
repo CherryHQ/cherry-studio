@@ -544,6 +544,57 @@ describe('utils/image', () => {
     })
   })
 
+  describe('broken-image placeholder swap', () => {
+    const makeImage = (src: string, complete: boolean, naturalWidth: number) => {
+      const img = document.createElement('img')
+      img.setAttribute('src', src)
+      Object.defineProperty(img, 'complete', { value: complete, configurable: true })
+      Object.defineProperty(img, 'naturalWidth', { value: naturalWidth, configurable: true })
+      return img
+    }
+
+    const makeRoot = (img: HTMLImageElement) => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      div.appendChild(img)
+      return div
+    }
+
+    it('rasterizes through a terminal-failure image (favicon service answered HTML)', async () => {
+      const img = makeImage('https://icon.horse/icon/example.com', true, 0)
+      const ref = { current: makeRoot(img) } as React.RefObject<HTMLDivElement>
+
+      let srcAtRaster: string | undefined
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+        srcAtRaster = img.src
+        return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+      })
+
+      const result = await captureScrollableAsDataUrl(ref)
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(srcAtRaster).toBe('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')
+      // the live element is restored after the capture
+      expect(img.src).toBe('https://icon.horse/icon/example.com')
+    })
+
+    it('leaves healthy images untouched', async () => {
+      const img = makeImage('https://example.com/favicon.png', true, 16)
+      const ref = { current: makeRoot(img) } as React.RefObject<HTMLDivElement>
+
+      let srcAtRaster: string | undefined
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+        srcAtRaster = img.src
+        return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+      })
+
+      await captureScrollableAsDataUrl(ref)
+
+      expect(srcAtRaster).toBe('https://example.com/favicon.png')
+    })
+  })
+
   describe('dataUrlToBlob', () => {
     it('preserves every byte of a binary payload', async () => {
       const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff])

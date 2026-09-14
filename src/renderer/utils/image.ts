@@ -46,6 +46,32 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
+/**
+ * Terminal-failure images (favicon services answering an HTML error page with
+ * 200, dead links) are fatal to the clone raster: html-to-image inlines
+ * whatever a URL serves, so a text/html body becomes a data:text/html src,
+ * and the outer SVG image then fails to decode as a whole — the capture
+ * rejects. Swap settled-but-broken images for the transparent placeholder
+ * (layout preserved, export proceeds) and restore afterwards.
+ */
+function replaceBrokenImagesForCapture(root: HTMLElement): () => void {
+  const broken = [
+    ...(root instanceof HTMLImageElement ? [root] : []),
+    ...root.querySelectorAll<HTMLImageElement>('img')
+  ]
+    .filter((image) => image.complete && image.naturalWidth === 0 && image.getAttribute('src'))
+    .map((image) => ({ image, src: image.getAttribute('src') as string }))
+
+  for (const { image } of broken) {
+    image.src = TRANSPARENT_IMAGE_PLACEHOLDER
+  }
+  return () => {
+    for (const { image, src } of broken) {
+      image.src = src
+    }
+  }
+}
+
 async function inlineLocalImageSources(root: HTMLElement): Promise<() => void> {
   const images = [
     ...(root instanceof HTMLImageElement ? [root] : []),
@@ -183,6 +209,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
   if (el) {
     const htmlToImage = await loadHtmlToImage()
     let restoreLocalImageSources: (() => void) | undefined
+    let restoreBrokenImages: (() => void) | undefined
     const captureMarker = el.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
 
     try {
@@ -229,6 +256,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
       }
 
       restoreLocalImageSources = await inlineLocalImageSources(el)
+      restoreBrokenImages = replaceBrokenImagesForCapture(el)
 
       const fontEmbedCSS = await buildFontEmbedCSS()
       const captureOptions = {
@@ -269,6 +297,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
         el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, captureMarker)
       }
       restoreLocalImageSources?.()
+      restoreBrokenImages?.()
     }
   }
 
