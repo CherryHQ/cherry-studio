@@ -108,6 +108,26 @@ describe('tool_search meta-tool', () => {
     expect(out.value).toMatch(/No tools matched/)
   })
 
+  it.each([
+    ['undefined output', undefined],
+    ['null output', null],
+    ['an unrelated MCP result', { content: [{ type: 'text', text: 'Process started' }], metadata: {} }],
+    ['a non-array namespace value', { matchedNamespaces: {} }],
+    ['a malformed nested namespace', { matchedNamespaces: [{ namespace: 'mcp:s1', tools: null }] }]
+  ])('toModelOutput safely falls back for %s', (_name, output) => {
+    const reg = setup()
+    const tool = createToolSearchTool(reg, new Set(), new Set())
+    const out = tool.toModelOutput!({ toolCallId: 'tc-1', input: {}, output } as never) as {
+      type: string
+      value: string
+    }
+
+    expect(out).toEqual({
+      type: 'text',
+      value: 'The stored tool search result could not be read. Ignore it and run `tool_search` again.'
+    })
+  })
+
   it('advertises inputExamples', () => {
     const reg = setup()
     const tool = createToolSearchTool(reg, new Set(['mcp__s1__a']), new Set())

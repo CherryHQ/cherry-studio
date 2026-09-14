@@ -88,6 +88,14 @@ export function useProviders(
   }
 }
 
+/**
+ * IDs hidden by edition policy (e.g. global-only presets on a cn build),
+ * so the settings UI can explain them instead of silently omitting them.
+ */
+export function useEditionHiddenProviders() {
+  return useQuery('/providers/edition-hidden')
+}
+
 // ─── Layer 2: Single read + write + delete ────────────────────────────
 export function useProviderById(providerId: string | null | undefined) {
   const resolvedProviderId = providerId ?? ''

@@ -13,6 +13,7 @@ import {
   captureScrollableAsDataUrl,
   checkEntityImageSize,
   convertToBase64,
+  dataUrlToBlob,
   getImageBlobFromSource,
   IMAGE_CAPTURE_ATTRIBUTE,
   imageInputToPreviewUrl,
@@ -47,6 +48,15 @@ beforeEach(() => {
     } as unknown as HTMLCanvasElement)
   )
 })
+
+// jsdom's Blob has neither arrayBuffer() nor text().
+const readBlobBytes = (blob: Blob) =>
+  new Promise<Uint8Array>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsArrayBuffer(blob)
+  })
 
 describe('utils/image', () => {
   describe('transformImageToPng', () => {
@@ -507,6 +517,18 @@ describe('utils/image', () => {
     })
   })
 
+  describe('dataUrlToBlob', () => {
+    it('preserves every byte of a binary payload', async () => {
+      const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff])
+      const base64 = btoa(String.fromCharCode(...bytes))
+
+      const blob = dataUrlToBlob(`data:image/png;base64,${base64}`)
+
+      expect(blob.type).toBe('image/png')
+      expect(await readBlobBytes(blob)).toEqual(bytes)
+    })
+  })
+
   describe('captureScrollableAsBlob', () => {
     it('should call func with blob when canvas exists', async () => {
       const div = document.createElement('div')
@@ -851,12 +873,6 @@ describe('utils/image', () => {
       el.getBoundingClientRect = () => rect(10, 20, width, height)
     }
 
-    const originalDocumentElementRect = document.documentElement.getBoundingClientRect.bind(document.documentElement)
-
-    afterEach(() => {
-      document.documentElement.getBoundingClientRect = originalDocumentElementRect
-    })
-
     it('returns the native capture result without touching the html-to-image pipeline', async () => {
       ipcMocks.request.mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,bmF0aXZl' })
       const div = document.createElement('div')
@@ -1018,23 +1034,23 @@ describe('utils/image', () => {
       expect(htmlToImage.toCanvas).toHaveBeenCalled()
     })
 
-    it('feeds the native data URL to the blob callback via fetch', async () => {
+    // The renderer CSP has no `data:` in connect-src, so decoding the capture
+    // through fetch() throws — the bytes have to be decoded locally.
+    it('decodes the native data URL into blob bytes without fetch', async () => {
       ipcMocks.request.mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,bmF0aXZl' })
       const div = document.createElement('div')
       stubGeometry(div, 800, 600)
       document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
 
-      const fetchSpy = vi
-        .spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce({ blob: async () => new Blob(['native'], { type: 'image/png' }) } as Response)
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
 
       const blob = await new Promise<Blob | null>((resolve) =>
         captureScrollableAsBlob({ current: div }, (result) => resolve(result))
       )
 
-      expect(fetchSpy).toHaveBeenCalledWith('data:image/png;base64,bmF0aXZl')
-      expect(blob).toBeInstanceOf(Blob)
+      expect(fetchSpy).not.toHaveBeenCalled()
       expect(blob?.type).toBe('image/png')
+      expect(Array.from(await readBlobBytes(blob!))).toEqual([...new TextEncoder().encode('native')])
       fetchSpy.mockRestore()
     })
   })

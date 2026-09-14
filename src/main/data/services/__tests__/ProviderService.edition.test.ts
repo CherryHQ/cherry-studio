@@ -24,8 +24,32 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
     loadProviders() {
       return [
         {
+          id: 'openai',
+          name: 'OpenAI',
+          availableInEditions: ['global'],
+          endpointConfigs: {}
+        },
+        {
+          id: 'anthropic',
+          name: 'Anthropic',
+          availableInEditions: ['global'],
+          endpointConfigs: {}
+        },
+        {
+          id: 'gemini',
+          name: 'Gemini',
+          availableInEditions: ['global'],
+          endpointConfigs: {}
+        },
+        {
           id: 'global-only',
           availableInEditions: ['global'],
+          endpointConfigs: {}
+        },
+        {
+          id: 'deepseek',
+          name: 'DeepSeek',
+          availableInEditions: ['global', 'cn'],
           endpointConfigs: {}
         }
       ]
@@ -163,5 +187,56 @@ describe('ProviderService edition availability', () => {
     })
 
     expect(providerService.list({}).map((provider) => provider.id)).toEqual(['global-only'])
+  })
+
+  it('seeds the default trio on fresh installs: listed on global, hidden but kept on cn', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      { providerId: 'openai', presetProviderId: 'openai', name: 'OpenAI', orderKey: 'a0' },
+      { providerId: 'anthropic', presetProviderId: 'anthropic', name: 'Anthropic', orderKey: 'a1' },
+      { providerId: 'gemini', presetProviderId: 'gemini', name: 'Gemini', orderKey: 'a2' },
+      { providerId: 'deepseek', presetProviderId: 'deepseek', name: 'DeepSeek', orderKey: 'a3' },
+      { providerId: 'custom-provider', presetProviderId: null, name: 'Custom provider', orderKey: 'a4' }
+    ])
+
+    // cn packaged build: the trio is seeded but filtered, everything else stays.
+    expect(providerService.list({}).map((provider) => provider.id)).toEqual(['deepseek', 'custom-provider'])
+    expect(providerService.listEditionHiddenProviderIds().sort()).toEqual(['anthropic', 'gemini', 'openai'])
+
+    // Same database on a global build: the trio comes back with no data loss.
+    applicationEdition.current = 'global'
+    expect(providerService.list({}).map((provider) => provider.id)).toEqual([
+      'openai',
+      'anthropic',
+      'gemini',
+      'deepseek',
+      'custom-provider'
+    ])
+    expect(providerService.listEditionHiddenProviderIds()).toEqual([])
+  })
+
+  it('reports nothing hidden on global builds or for v1-migrated installs', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'global-only',
+      presetProviderId: 'global-only',
+      name: 'Global only',
+      orderKey: 'a0'
+    })
+
+    applicationEdition.current = 'global'
+    expect(providerService.listEditionHiddenProviderIds()).toEqual([])
+
+    applicationEdition.current = 'cn'
+    migrationOrigin.current = true
+    expect(providerService.listEditionHiddenProviderIds()).toEqual([])
+  })
+
+  it('never reports retired or custom providers as edition-hidden', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      { providerId: 'custom-provider', presetProviderId: null, name: 'Custom provider', orderKey: 'a0' },
+      { providerId: 'deepseek', presetProviderId: 'deepseek', name: 'DeepSeek', orderKey: 'a1' },
+      { providerId: 'yi', presetProviderId: 'yi', name: 'Yi', orderKey: 'a2' }
+    ])
+
+    expect(providerService.listEditionHiddenProviderIds()).toEqual([])
   })
 })
