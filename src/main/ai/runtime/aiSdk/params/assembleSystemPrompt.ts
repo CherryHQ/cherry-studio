@@ -81,16 +81,18 @@ async function buildSkillInstructionsSection(folderNames: readonly string[]): Pr
   let totalBytes = 0
   for (const folderName of folderNames) {
     const state = await skillService.readSkillMdByFolderName(folderName)
-    if (state.status !== 'found') {
-      const key =
-        state.status === 'missing'
-          ? 'skill.attach.missing'
-          : state.reason === 'too-large'
-            ? 'skill.attach.too_large'
-            : state.reason === 'disabled'
-              ? 'skill.attach.disabled'
-              : 'skill.attach.unreadable'
-      throw new Error(t(key, { name: folderName, limit: limitMb }))
+    // Literal keys per branch: the i18n static check only resolves literal translation calls.
+    if (state.status === 'missing') {
+      throw new Error(t('skill.attach.missing', { name: folderName, limit: limitMb }))
+    }
+    if (state.status === 'error') {
+      if (state.reason === 'disabled') {
+        throw new Error(t('skill.attach.disabled', { name: folderName, limit: limitMb }))
+      }
+      if (state.reason === 'too-large') {
+        throw new Error(t('skill.attach.too_large', { name: folderName, limit: limitMb }))
+      }
+      throw new Error(t('skill.attach.unreadable', { name: folderName, limit: limitMb }))
     }
     // Each descriptor alone fits the limit; the combined section must fit it too.
     totalBytes += Buffer.byteLength(state.content)
