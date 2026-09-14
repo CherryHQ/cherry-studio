@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { DoctorAction, DoctorCheckResult, DoctorReport, DoctorState } from '@shared/types/doctor'
 import { DOCTOR_CHECK_CATALOG, DOCTOR_CHECK_IDS } from '@shared/types/doctor'
-import { describe, expect, it } from 'vitest'
 
 import { buildDoctorViewModel, defaultExpandedDoctorDomains } from '../doctorViewModel'
 
@@ -63,8 +64,8 @@ describe('buildDoctorViewModel', () => {
 
     expect(viewModel.runId).toBe('run-1')
     expect(viewModel.rows.map((row) => row.id)).toEqual(DOCTOR_CHECK_IDS)
-    expect(viewModel.rows[0]).toMatchObject({ id: 'install-version-channel', status: 'pass' })
-    expect(viewModel.rows[1]).toMatchObject({ id: 'install-update-available', status: 'pending' })
+    expect(viewModel.rows.find((row) => row.id === 'install-version-channel')).toMatchObject({ status: 'pass' })
+    expect(viewModel.rows.find((row) => row.id === 'install-update-available')).toMatchObject({ status: 'pending' })
     expect(viewModel.groups.find((group) => group.domain === 'permission')?.status).toBe('fail')
   })
 
