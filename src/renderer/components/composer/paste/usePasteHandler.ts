@@ -1,6 +1,7 @@
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
+
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import pasteHandling, { type PasteHandlerLifecycle } from './pasteHandling'
 
@@ -37,11 +38,7 @@ export interface UsePasteHandlerOptions {
  * <textarea onPaste={handlePaste} />
  * ```
  */
-export function usePasteHandler(
-  text: string,
-  setText: (text: string | ((prev: string) => string)) => void,
-  options: UsePasteHandlerOptions
-) {
+export function usePasteHandler(text: string, setText: (text: string) => void, options: UsePasteHandlerOptions) {
   const handlePaste = useCallback(
     async (event: ClipboardEvent, invocationOptions?: PasteHandlerInvocationOptions) => {
       return await pasteHandling.handlePaste(event, options.supportedExts, options.setFiles, {

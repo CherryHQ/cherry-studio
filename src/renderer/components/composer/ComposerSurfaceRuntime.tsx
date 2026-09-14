@@ -690,7 +690,7 @@ export default function ComposerSurfaceRuntime({
     [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
   )
 
-  const { handlePaste } = usePasteHandler(pasteHandlerOptions)
+  const { handlePaste } = usePasteHandler(text, applyComposerText, pasteHandlerOptions)
 
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
     supportedExts,
