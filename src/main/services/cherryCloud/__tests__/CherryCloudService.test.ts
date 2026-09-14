@@ -478,6 +478,29 @@ describe('CherryCloudService', () => {
     ])
   })
 
+  it.each([
+    ['another production region', 'https://cloud.cherryai.com.cn'],
+    ['a development server', 'http://localhost:9084'],
+    ['credentials without a recorded origin', undefined]
+  ] as const)('requires login without sending saved credentials when using %s', async (_label, nextOrigin) => {
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', 'https://cloud.cherryai.com')
+    const service = await createSignedInService()
+    await service._doStop()
+    if (nextOrigin) {
+      vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', nextOrigin)
+    } else {
+      delete mocks.savedSession!.apiOrigin
+    }
+    mocks.netFetch.mockClear()
+    CherryCloudService.resetInstances()
+
+    const restarted = await createService()
+
+    expect(await restarted.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect((await restarted.authenticatedFetch('/v1/models')).status).toBe(401)
+    expect(mocks.netFetch).not.toHaveBeenCalled()
+  })
+
   it('reuses the device key after logout and a service restart', async () => {
     const service = await createSignedInService()
     const firstDevicePublicKey = mocks.savedDevice?.publicKey
