@@ -26,10 +26,8 @@ describe('executeCommand', () => {
   })
 
   it('spawns despite NUL bytes in the caller-supplied env', async () => {
-    // Node rejects the whole env ("must be a string without null bytes") from
-    // normalizeSpawnArguments, before the subprocess starts — so a caller cannot
-    // be trusted to hand over a spawnable env (#20344). Names count too: Node
-    // validates `options.env['<name>']`.
+    // Node rejects an env with a NUL in any name or value before the subprocess
+    // starts, so a caller cannot be trusted to hand over a spawnable env (#20344).
     await expect(
       executeCommand(process.execPath, printStdout, {
         env: { ...process.env, BROKEN: 'a\0b', ['BA\0D']: 'c', Path: 'C:\\x\0y' }

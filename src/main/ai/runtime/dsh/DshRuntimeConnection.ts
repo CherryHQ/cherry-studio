@@ -25,7 +25,7 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { mergeBinaryExecutionEnv, sanitizeEnvNullBytes } from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -390,23 +390,26 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
       // Complete replacement env — deliberate credential scope: the child sees
       // only managed binary locations, the routed API key, and the bridge socket.
+      // Assembled after `binaryExecutionEnv`, so the injected key is sanitized
+      // here too — a NUL in it would abort the spawn (#20344).
+      const clientEnv = sanitizeEnvNullBytes({
+        ...binaryExecutionEnv,
+        ...(loginShellEnv.HOME !== undefined
+          ? { HOME: loginShellEnv.HOME }
+          : process.env.HOME !== undefined
+            ? { HOME: process.env.HOME }
+            : {}),
+        ELECTRON_RUN_AS_NODE: '1',
+        CHERRY_DSH_API_KEY: injection.apiKey,
+        [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
+        [BRIDGE_TOKEN_ENV]: this.bridge.authenticationToken,
+        DSH_HOME: dshRoot
+      })
       const client = new sdk.HarnessClient({
         command: process.execPath,
         args: [resolveDshRuntimeBinPath(), this.compositionPath],
         cwd: workspacePath,
-        env: {
-          ...binaryExecutionEnv,
-          ...(loginShellEnv.HOME !== undefined
-            ? { HOME: loginShellEnv.HOME }
-            : process.env.HOME !== undefined
-              ? { HOME: process.env.HOME }
-              : {}),
-          ELECTRON_RUN_AS_NODE: '1',
-          CHERRY_DSH_API_KEY: injection.apiKey,
-          [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
-          [BRIDGE_TOKEN_ENV]: this.bridge.authenticationToken,
-          DSH_HOME: dshRoot
-        }
+        env: clientEnv
       })
       this.client = client
       client.start()

@@ -296,7 +296,7 @@ let inflight: Promise<Record<string, string>> | null = null
  * raw env handed to system binaries — gets a value `spawn` accepts (#20344).
  */
 function sanitizeCapturedEnv(env: Record<string, string>): Record<string, string> {
-  const affected = Object.keys(env).filter((key) => env[key].includes('\0'))
+  const affected = Object.keys(env).filter((key) => key.includes('\0') || env[key].includes('\0'))
   if (affected.length > 0) {
     // Names only: the values are the user's environment and may carry local paths.
     logger.warn('Dropped NUL bytes from the captured shell environment', { affected })

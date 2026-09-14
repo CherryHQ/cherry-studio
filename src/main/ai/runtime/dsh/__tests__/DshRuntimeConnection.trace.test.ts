@@ -255,6 +255,18 @@ describe('DshRuntimeConnection tracing', () => {
     await connection.close()
   })
 
+  it('strips a NUL from the injected API key before handing the child env over', async () => {
+    // The key is assembled after the managed env is built, so it reaches the
+    // spawn unsanitized unless the final object is guarded (#20344).
+    runtimeMocks.resolveInjection.mockReturnValue({ ...baseInjection(), apiKey: 'sk-\0injected' })
+
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
+
+    expect(Object.values(env).some((value) => value?.includes('\0'))).toBe(false)
+    await connection.close()
+  })
+
   it('feeds runtime session events to the trace recorder', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     subscription.push({

@@ -107,9 +107,8 @@ describe('sanitizeEnvNullBytes', () => {
   })
 
   it('drops a NUL-bearing `Path` on posix, where it is not PATH', () => {
-    // Only Windows treats env keys case-insensitively. On posix `Path` is an
-    // unrelated variable, so segment-splitting it on `:` would mangle a value
-    // that PATH semantics never applied to (#20344 review).
+    // On posix `Path` is an unrelated variable, so splitting it on `:` would
+    // mangle a value PATH semantics never applied to (#20344).
     const env = sanitizeEnvNullBytes({ PATH: '/usr/bin', Path: '/a\0b:/c' })
 
     expect(env.PATH).toBe('/usr/bin')
