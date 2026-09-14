@@ -1181,9 +1181,34 @@ describe('release workflow gates', () => {
     expect(macBuildStep.env).toMatchObject({
       APPLE_ID: '${{ secrets.APPLE_ID }}',
       CSC_LINK: '${{ secrets.CSC_LINK }}',
-      GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
       MAIN_VITE_CHERRYAI_CLIENT_SECRET: '${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}'
     })
+  })
+
+  it('keeps preview packages in Actions artifacts without GitHub release publishing', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+
+    expect(workflow.permissions).toEqual({ contents: 'read' })
+    for (const job of Object.values(workflow.jobs) as {
+      permissions?: { contents?: string }
+      steps: { name?: string; uses?: string; run?: string; env?: Record<string, string> }[]
+    }[]) {
+      expect(job.permissions?.contents).not.toBe('write')
+      for (const step of job.steps) {
+        expect(step.uses ?? '').not.toMatch(/release-action|action-gh-release/)
+        if (step.name?.startsWith('Build ')) {
+          expect(step.run).toContain('--publish never')
+          expect(step.env).not.toHaveProperty('GH_TOKEN')
+        }
+      }
+    }
+    const upload = workflow.jobs.build.steps.find((step: { uses?: string }) =>
+      step.uses?.startsWith('actions/upload-artifact@')
+    )
+    expect(upload.with['if-no-files-found']).toBe('error')
+    expect(upload.with.path).toContain('dist/*.exe')
+    expect(upload.with.path).toContain('dist/*.dmg')
+    expect(upload.with.path).toContain('dist/*.AppImage')
   })
 
   it('builds and stages both editions for every selected preview platform', () => {
