@@ -2608,6 +2608,40 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-pinned-agent'))
   })
 
+  it('does not close Manage Agents when a leftover agentId remains on a bound session', async () => {
+    agentPageMocks.routeSearch = { sessionId: 'session-pinned-agent' }
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.classicLayoutSessions = [
+      {
+        ...agentPageMocks.persistedSession,
+        id: 'session-pinned-agent',
+        agentId: 'agent-a',
+        name: 'Pinned session'
+      }
+    ]
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-pinned-agent',
+      agentId: 'agent-a',
+      name: 'Pinned session'
+    }
+    activeSessionMocks.sessionSource = 'query'
+
+    const { rerender } = render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+
+    agentPageMocks.routeSearch = { agentId: 'agent-a', sessionId: 'session-pinned-agent' }
+    rerender(<AgentPage />)
+
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-pinned-agent')
+  })
+
   it('does not let a stale agentId entry replace a newer Agent conversation', async () => {
     type RouteSessionResult = {
       session: typeof agentPageMocks.persistedSession
