@@ -4,6 +4,22 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
+  it('preserves safe classification fields from a Claude Code API result error', () => {
+    const error = Object.assign(new Error('API Error: 400 Internal server error'), {
+      name: 'ClaudeCodeResultError',
+      apiErrorStatus: 400,
+      errors: ['API Error: 400 Internal server error'],
+      terminalReason: 'api_error'
+    })
+
+    expect(serializeError(error)).toMatchObject({
+      name: 'ClaudeCodeResultError',
+      message: 'API Error: 400 Internal server error',
+      providerErrorCategory: 'server',
+      statusCode: 400
+    })
+  })
+
   it('retains quota diagnosis in serialized retry errors without retaining the payload', () => {
     const error = new APICallError({
       message: 'Rate limit exceeded',
