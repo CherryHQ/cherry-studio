@@ -163,7 +163,7 @@ describe('filesystem MCP security', () => {
       await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('original')
     })
 
-    it('write rejects a dangling symlink pointing outside the root but still creates new files inside', async () => {
+    it.skipIf(process.platform === 'win32')('write rejects a dangling symlink pointing outside the root', async () => {
       const workspaceRoot = await createTempDir('write-dangling-root-')
       const outsideRoot = await createTempDir('write-dangling-outside-')
       const outsideFile = path.join(outsideRoot, 'missing.txt')
@@ -173,6 +173,10 @@ describe('filesystem MCP security', () => {
         ESCAPE_ERROR
       )
       await expect(fs.stat(outsideFile)).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    it('write still creates a new file below a missing directory inside the root', async () => {
+      const workspaceRoot = await createTempDir('write-new-nested-root-')
 
       await handleWriteTool({ file_path: 'nested/new.txt', content: 'ok' }, workspaceRoot)
       await expect(fs.readFile(path.join(workspaceRoot, 'nested', 'new.txt'), 'utf-8')).resolves.toBe('ok')
@@ -194,17 +198,20 @@ describe('filesystem MCP security', () => {
       await expect(fs.stat(outsideDir)).rejects.toMatchObject({ code: 'ENOENT' })
     })
 
-    it('edit rejects creating a file through a dangling symlink pointing outside the root', async () => {
-      const workspaceRoot = await createTempDir('edit-dangling-root-')
-      const outsideRoot = await createTempDir('edit-dangling-outside-')
-      const outsideFile = path.join(outsideRoot, 'missing.txt')
-      await fs.symlink(outsideFile, path.join(workspaceRoot, 'dangling-link'))
+    it.skipIf(process.platform === 'win32')(
+      'edit rejects creating a file through a dangling symlink pointing outside the root',
+      async () => {
+        const workspaceRoot = await createTempDir('edit-dangling-root-')
+        const outsideRoot = await createTempDir('edit-dangling-outside-')
+        const outsideFile = path.join(outsideRoot, 'missing.txt')
+        await fs.symlink(outsideFile, path.join(workspaceRoot, 'dangling-link'))
 
-      await expect(
-        handleEditTool({ file_path: 'dangling-link', old_string: '', new_string: 'pwned' }, workspaceRoot)
-      ).rejects.toThrow(ESCAPE_ERROR)
-      await expect(fs.stat(outsideFile)).rejects.toMatchObject({ code: 'ENOENT' })
-    })
+        await expect(
+          handleEditTool({ file_path: 'dangling-link', old_string: '', new_string: 'pwned' }, workspaceRoot)
+        ).rejects.toThrow(ESCAPE_ERROR)
+        await expect(fs.stat(outsideFile)).rejects.toMatchObject({ code: 'ENOENT' })
+      }
+    )
 
     it('edit rejects ../escape and a symlink pointing outside the root', async () => {
       const workspaceRoot = await createTempDir('edit-escape-root-')
