@@ -63,13 +63,16 @@ describe('useMultiplePreferences', () => {
 
   it('rebinds values and actions when the key map changes', async () => {
     const boundary = installPreferenceBoundary()
-    const initialProps: { keys: Record<'primary' | 'secondary', UnifiedPreferenceKeyType> } = {
-      keys: { primary: KEY_A, secondary: KEY_B }
+    const initialKeys: Record<'primary' | 'secondary', UnifiedPreferenceKeyType> = {
+      primary: KEY_A,
+      secondary: KEY_B
     }
     const { result, rerender } = renderHook(
       ({ keys }: { keys: Record<'primary' | 'secondary', UnifiedPreferenceKeyType> }) => useMultiplePreferences(keys),
       {
-        initialProps
+        initialProps: {
+          keys: initialKeys
+        }
       }
     )
     const initialUpdateValues = result.current[1]
