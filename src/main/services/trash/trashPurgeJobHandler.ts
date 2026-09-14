@@ -155,10 +155,10 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
         ctx.signal.throwIfAborted()
         batch = await domain.purgeExpired(cutoffMs, PURGE_BATCH_SIZE)
         purgedIds.push(...batch.purgedIds)
+        // A later batch may fail after this transaction has already committed.
+        if (batch.purgedIds.length > 0) domain.notifyPurged(batch.purgedIds)
       } while (batch.hasMore)
       purged[domain.name] = purgedIds.length
-      // After the commits, so a listener that re-reads sees the rows already gone.
-      if (purgedIds.length > 0) domain.notifyPurged(purgedIds)
       ctx.reportProgress(Math.round(((index + 1) / totalSteps) * 100))
     }
     const retainedReferencedFileCount = emptyAll ? fileEntryService.getStats().trashTotal : 0

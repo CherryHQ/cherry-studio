@@ -424,6 +424,40 @@ describe('trashPurgeJobHandler', () => {
     }
   })
 
+  it('publishes a committed batch even if the next batch fails', async () => {
+    const { topicService } = await import('@data/services/TopicService')
+
+    const rows = Array.from({ length: 500 }, (_, i) => ({
+      id: `topic-partial-${String(i).padStart(4, '0')}`,
+      name: 'partial',
+      orderKey: `a${i}`,
+      deletedAt: OLD
+    }))
+    for (let i = 0; i < rows.length; i += 100) {
+      await dbh.db.insert(topicTable).values(rows.slice(i, i + 100))
+    }
+
+    const purgeExpiredTx = topicService.purgeExpiredTx.bind(topicService)
+    const spy = vi
+      .spyOn(topicService, 'purgeExpiredTx')
+      .mockImplementationOnce(purgeExpiredTx)
+      .mockImplementationOnce(() => {
+        throw new Error('second topic batch failed')
+      })
+    try {
+      await expect(trashPurgeJobHandler.execute(makeCtx({}))).rejects.toThrow('second topic batch failed')
+
+      expect(dbh.db.select({ id: topicTable.id }).from(topicTable).all()).toEqual([])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/topics/:topicId/messages', kind: 'membership' },
+        { endpoint: '/topics/:topicId/tree' },
+        { endpoint: '/messages/:id' }
+      ])
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('continues Session pagination when a full candidate page purges fewer rows', async () => {
     const firstPage = Array.from({ length: 499 }, (_, index) => `session-first-${index}`)
     agentSessionDeliveryServiceMock.purgeExpiredSessions
