@@ -1,11 +1,12 @@
-import { Button, type RenderRowArgs } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Icon } from '@iconify/react'
-import { CommandContextMenu, type CommandContextMenuExtraItem, type MaybePromise } from '@renderer/components/command'
-import { getFileIconName } from '@renderer/utils/fileIconName'
 import { ChevronRight } from 'lucide-react'
 import type React from 'react'
 import { useState } from 'react'
+
+import { Button, type RenderRowArgs } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { CommandContextMenu, type CommandContextMenuExtraItem, type MaybePromise } from '@renderer/components/command'
+import { getFileIconName } from '@renderer/utils/fileIconName'
 
 import type { FileTreeAnimationSlot, FileTreeNode, FileTreeRenameSlot } from './types'
 

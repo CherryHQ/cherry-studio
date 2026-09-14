@@ -1,3 +1,7 @@
+import { ArrowLeft, MoreHorizontal, Upload } from 'lucide-react'
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   DropdownMenu,
@@ -25,9 +29,6 @@ import type { OutputFor } from '@shared/ipc/types'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
-import { ArrowLeft, MoreHorizontal, Upload } from 'lucide-react'
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
@@ -262,7 +263,7 @@ const FileToolbar = memo(function FileToolbar({
 
   return (
     <div className="flex h-7 shrink-0 items-center gap-1">
-      <span className="text-muted-foreground text-xs">
+      <span className="text-xs text-muted-foreground">
         {t('files.footer_selected_count', { count: selectedCount })}
       </span>
       <DropdownMenu>
@@ -271,7 +272,7 @@ const FileToolbar = memo(function FileToolbar({
             variant="ghost"
             size="icon-sm"
             disabled={deleteDisabled}
-            className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
+            className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-foreground"
             aria-label={t('files.actions')}>
             <MoreHorizontal size={14} />
           </Button>
@@ -885,7 +886,7 @@ function FilesPage() {
           }}>
           <PageHeader
             title={activeFilterLabel}
-            className="relative mb-0 h-9 pb-1 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']"
+            className="relative mb-0 h-9 pb-1 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']"
             action={
               <div className="flex shrink-0 items-center gap-2">
                 {!isImageGrid && selectedIds.size > 0 && (
@@ -900,7 +901,7 @@ function FilesPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => void handleUploadClick()}
-                  className="-translate-y-px h-7 gap-1.5 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground">
+                  className="h-7 -translate-y-px gap-1.5 rounded-md px-2.5 text-xs text-muted-foreground hover:text-foreground">
                   <Upload className="size-3.5 translate-y-px" />
                   <span>{t('files.upload')}</span>
                 </Button>
@@ -909,10 +910,10 @@ function FilesPage() {
           />
 
           {dragOver && (
-            <div className="pointer-events-none absolute inset-0 z-50 m-2 flex items-center justify-center rounded-lg border-2 border-border-strong border-dashed bg-accent/25">
+            <div className="pointer-events-none absolute inset-0 z-50 m-2 flex items-center justify-center rounded-lg border-2 border-dashed border-border-strong bg-accent/25">
               <div className="text-center">
                 <Upload size={28} className="mx-auto mb-2 text-muted-foreground" />
-                <p className="text-muted-foreground text-xs">{t('files.drag_upload')}</p>
+                <p className="text-xs text-muted-foreground">{t('files.drag_upload')}</p>
               </div>
             </div>
           )}
@@ -942,7 +943,7 @@ function FilesPage() {
               // an empty state — otherwise the no-result state flashes before the
               // list arrives.
               isFilesLoading ? (
-                <div className="flex h-full flex-1 items-center justify-center text-muted-foreground text-sm">
+                <div className="flex h-full flex-1 items-center justify-center text-sm text-muted-foreground">
                   {t('common.loading')}
                 </div>
               ) : (
@@ -1009,7 +1010,7 @@ function FilesPage() {
                   onClick={() => setEmbeddedPreview(null)}>
                   <ArrowLeft className="size-3.5" />
                 </Button>
-                <span className="min-w-0 flex-1 truncate text-foreground text-sm">{embeddedPreview.fileName}</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{embeddedPreview.fileName}</span>
               </>
             }
           />

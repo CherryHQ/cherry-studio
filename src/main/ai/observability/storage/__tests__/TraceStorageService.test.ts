@@ -2,14 +2,15 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
-import { BaseService } from '@main/core/lifecycle'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
-import type { SpanEntity } from '@shared/data/types/trace'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { BaseService } from '@main/core/lifecycle'
+import type { SpanEntity } from '@shared/data/types/trace'
 
 import { convertSpanToSpanEntity } from '../../core/spanConvert'
 import { TraceSpanStore } from '../TraceSpanStore'
@@ -64,7 +65,7 @@ function spyOnHistoryReads(service: TraceStorageService) {
 }
 
 function timedEvent(name: string): TimedEvent {
-  return { name, time: [0, 0], attributes: {} } as TimedEvent
+  return { name, time: [0, 0], attributes: {} }
 }
 
 describe('TraceStorageService', () => {
@@ -237,7 +238,7 @@ describe('TraceStorageService', () => {
     )
 
     // The saveEntity path keeps isEnd (addEntity never sets it), so the trace is evictable.
-    service.saveEntity({ ...endedEntity, topicId: 't' } as SpanEntity)
+    service.saveEntity({ ...endedEntity, topicId: 't' })
     expect(service['store'].getSpan('turn-root')?.isEnd).toBe(true)
 
     const cappedStore = new TraceSpanStore(1)
@@ -312,8 +313,11 @@ describe('TraceStorageService', () => {
   it('evicts oldest buffered spans once retained bytes exceed the budget', async () => {
     await service._doInit()
 
-    const bigEvent = (): TimedEvent =>
-      ({ name: 'llm_request', time: [0, 0], attributes: { body: 'x'.repeat(2 * 1024 * 1024) } }) as TimedEvent
+    const bigEvent = (): TimedEvent => ({
+      name: 'llm_request',
+      time: [0, 0],
+      attributes: { body: 'x'.repeat(2 * 1024 * 1024) }
+    })
 
     // 10 spans × ~2 MiB each ≈ 20 MiB > 16 MiB budget → oldest-first eviction, most recent kept.
     for (let i = 0; i < 10; i++) {
@@ -409,8 +413,11 @@ describe('TraceStorageService', () => {
       span({ id: 'big', traceId: 'trace', topicId: 'topic', events: [timedEvent('retained-before-oversized')] })
     )
 
-    const bigEvent = (name: string): TimedEvent =>
-      ({ name, time: [0, 0], attributes: { body: 'x'.repeat(3 * 1024 * 1024) } }) as TimedEvent
+    const bigEvent = (name: string): TimedEvent => ({
+      name,
+      time: [0, 0],
+      attributes: { body: 'x'.repeat(3 * 1024 * 1024) }
+    })
     for (const name of ['body-0', 'body-1', 'body-2']) {
       service.addSpanEvent('trace', 'big', bigEvent(name))
     }

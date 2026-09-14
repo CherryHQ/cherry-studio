@@ -1,6 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   accept: vi.fn(),
@@ -32,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   abortAndDrain: vi.fn(),
   hasTerminalPersistenceInFlight: vi.fn(),
+  whenTerminalDispatchSettled: vi.fn(),
   runtimeBusy: vi.fn(),
   closeSession: vi.fn(),
   logger: {
@@ -123,6 +125,7 @@ const manager = {
   pauseRuntimeTurn: mocks.pauseRuntimeTurn,
   abortAndDrain: mocks.abortAndDrain,
   hasTerminalPersistenceInFlight: mocks.hasTerminalPersistenceInFlight,
+  whenTerminalDispatchSettled: mocks.whenTerminalDispatchSettled,
   send: mocks.send
 }
 const dbService = {
@@ -176,6 +179,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.listRecoverable.mockReturnValue([])
     mocks.hasLiveStream.mockReturnValue(false)
     mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
+    mocks.whenTerminalDispatchSettled.mockResolvedValue(undefined)
     mocks.runtimeBusy.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
     mocks.getMessage.mockReturnValue(accepted)
@@ -225,6 +229,28 @@ describe('AgentSessionDeliveryService', () => {
   })
 
   afterEach(() => BaseService.resetInstances())
+
+  it('waits for the previous terminal dispatch to settle before checking liveness', async () => {
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+    let release!: () => void
+    mocks.whenTerminalDispatchSettled.mockReturnValue(
+      new Promise<void>((resolve) => {
+        release = resolve
+      })
+    )
+    mocks.listAccepted.mockReturnValueOnce([accepted]).mockReturnValue([])
+
+    service.kick('target')
+    await flush()
+    expect(mocks.hasLiveStream).not.toHaveBeenCalled()
+    expect(mocks.validateDispatch).not.toHaveBeenCalled()
+
+    release()
+    await service.drainInFlight({ timeoutMs: 100 })
+    expect(mocks.hasLiveStream).toHaveBeenCalled()
+    expect(mocks.send).toHaveBeenCalled()
+  })
 
   it('keeps an accepted row durable while the target is busy, then starts it on idle', async () => {
     const service = new AgentSessionDeliveryService()

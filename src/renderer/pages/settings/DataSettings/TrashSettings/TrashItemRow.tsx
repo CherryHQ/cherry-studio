@@ -1,7 +1,8 @@
-import { Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { RotateCcw, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 
 import type { TrashItem } from './trashUtils'
 import { computeDaysRemaining, formatDeletedTime } from './trashUtils'

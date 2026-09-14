@@ -1,3 +1,8 @@
+import { Bot, Check, File, Image, type LucideIcon, MessageSquare, MessagesSquare, Sparkles } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, ConfirmDialog, SelectDropdown } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -13,10 +18,6 @@ import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { type FileEntryRefCount, REF_COUNTS_MAX_ENTRY_IDS } from '@shared/data/api/schemas/files'
-import { Bot, Check, File, Image, type LucideIcon, MessageSquare, MessagesSquare, Sparkles } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   AgentTrashSection,

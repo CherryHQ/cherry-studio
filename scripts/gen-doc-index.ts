@@ -1,7 +1,8 @@
 /** Generates docs/README.md from doc frontmatter so the index cannot drift from the tree. `--check` verifies instead of writing. */
 import * as fs from 'fs'
-import matter from 'gray-matter'
 import * as path from 'path'
+
+import matter from 'gray-matter'
 
 import { listMarkdownFiles } from './verify-doc-frontmatter'
 

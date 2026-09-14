@@ -1,8 +1,9 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import AgentComposerSlot from '../AgentComposerSlot'
 

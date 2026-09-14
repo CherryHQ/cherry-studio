@@ -1,3 +1,30 @@
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import type { TFunction } from 'i18next'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bot,
+  CalendarCheck2,
+  CalendarClock,
+  CalendarFold,
+  ChevronDown,
+  ChevronRight,
+  CircleCheck,
+  CircleSlash,
+  CircleStop,
+  CircleX,
+  Clock3,
+  Folder,
+  Loader2,
+  MoreHorizontal,
+  PencilLine,
+  Play,
+  Plus,
+  Trash2
+} from 'lucide-react'
+import { type FC, Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ColumnDef } from '@cherrystudio/ui'
 import {
   Alert,
@@ -93,32 +120,6 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ScheduledTaskEntity, ScheduledTaskListItem, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import type { TFunction } from 'i18next'
-import {
-  ArrowLeft,
-  ArrowRight,
-  Bot,
-  CalendarCheck2,
-  CalendarClock,
-  CalendarFold,
-  ChevronDown,
-  ChevronRight,
-  CircleCheck,
-  CircleSlash,
-  CircleStop,
-  CircleX,
-  Clock3,
-  Folder,
-  Loader2,
-  MoreHorizontal,
-  PencilLine,
-  Play,
-  Plus,
-  Trash2
-} from 'lucide-react'
-import { type FC, Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('TasksSettings')
 const ALL_TASKS_FILTER = 'all'
@@ -196,17 +197,27 @@ const parseScheduleDate = (value: string) => {
   return Number.isNaN(date.getTime()) ? undefined : date
 }
 
-const parseTime = (value: string) => {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
-  if (!match) return null
-  const hour = Number(match[1])
-  const minute = Number(match[2])
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null
-  return { hour, minute }
+// Canonical value for the time presets: a sorted, deduped 'HH:MM,HH:MM…' list
+// sharing one minute — per-entry minutes would cross-product into extra cron firings.
+const parseTimes = (value: string): { hours: string[]; minute: string } | null => {
+  const matches = value.split(',').map((part) => /^(\d{1,2}):(\d{2})$/.exec(part.trim()))
+  if (matches.some((match) => match === null)) return null
+
+  const minute = matches[0]![2]
+  if (Number(minute) > 59 || matches.some((match) => match![2] !== minute)) return null
+
+  const hours = matches.map((match) => Number(match![1]))
+  if (hours.some((hour) => hour > 23)) return null
+
+  const uniqueSorted = [...new Set(hours)].sort((a, b) => a - b)
+  return { hours: uniqueSorted.map((hour) => String(hour).padStart(2, '0')), minute }
 }
 
-const formatTime = (hour: number, minute: number) =>
-  `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+const formatTimes = (hours: string[], minute: string) =>
+  [...new Set(hours)]
+    .sort()
+    .map((hour) => `${hour}:${minute}`)
+    .join(',')
 
 export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 'timeoutMinutes'> {
   if (trigger.kind === 'interval') {
@@ -236,15 +247,23 @@ export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 't
   }
 
   const minute = Number(minutePart)
-  const hour = Number(hourPart)
+  const hourParts = hourPart.split(',')
   const hasValidTime =
-    Number.isInteger(minute) && minute >= 0 && minute <= 59 && Number.isInteger(hour) && hour >= 0 && hour <= 23
+    Number.isInteger(minute) &&
+    minute >= 0 &&
+    minute <= 59 &&
+    hourParts.every((part) => /^\d{1,2}$/.test(part) && Number(part) <= 23)
 
   if (!hasValidTime || dayOfMonth !== '*' || month !== '*') {
     return { kind: 'cron', value: trigger.expr, weekday: '1' }
   }
 
-  const value = formatTime(hour, minute)
+  // Canonical form: sorted, deduped (matches parseTimes/formatTimes so the UI
+  // multi-select never disagrees with the value it renders).
+  const value = formatTimes(
+    hourParts.map((part) => part.padStart(2, '0')),
+    String(minute).padStart(2, '0')
+  )
   if (dayOfWeek === '*') return { kind: 'daily', value, weekday: '1' }
   if (dayOfWeek === '1-5') return { kind: 'weekdays', value, weekday: '1' }
   if (/^[0-6]$/.test(dayOfWeek)) return { kind: 'weekly', value, weekday: dayOfWeek }
@@ -270,9 +289,9 @@ export function formStateToTrigger(schedule: ScheduleFormState): Trigger | null 
     return expr ? { kind: 'cron', expr } : null
   }
 
-  const time = parseTime(schedule.value)
-  if (!time) return null
-  const prefix = `${time.minute} ${time.hour} * *`
+  const times = parseTimes(schedule.value)
+  if (!times || times.hours.length === 0) return null
+  const prefix = `${Number(times.minute)} ${times.hours.map(Number).join(',')} * *`
 
   if (schedule.kind === 'daily') return { kind: 'cron', expr: `${prefix} *` }
   if (schedule.kind === 'weekdays') return { kind: 'cron', expr: `${prefix} 1-5` }
@@ -287,7 +306,7 @@ function scheduleForKind(kind: ScheduleKind, current: ScheduleFormState): Schedu
     case 'daily':
     case 'weekdays':
     case 'weekly':
-      return { ...current, kind, value: parseTime(current.value) ? current.value : '09:00' }
+      return { ...current, kind, value: parseTimes(current.value) ? current.value : '09:00' }
     case 'interval':
     case 'once':
     case 'cron':
@@ -467,17 +486,19 @@ const TaskCardRunStatus: FC<{ task: ScheduledTaskListItem }> = ({ task }) => {
 
 function getTriggerSummary(trigger: Trigger, t: TFunction) {
   const schedule = triggerToFormState(trigger)
+  // Time presets may hold a comma-joined list; space it out for display.
+  const time = schedule.value.split(',').join(', ')
   switch (schedule.kind) {
     case 'hourly':
       return t('agent.tasks.schedule.summary.hourly')
     case 'daily':
-      return t('agent.tasks.schedule.summary.daily', { time: schedule.value })
+      return t('agent.tasks.schedule.summary.daily', { time })
     case 'weekdays':
-      return t('agent.tasks.schedule.summary.weekdays', { time: schedule.value })
+      return t('agent.tasks.schedule.summary.weekdays', { time })
     case 'weekly':
       return t('agent.tasks.schedule.summary.weekly', {
         weekday: getWeekdayLabel(schedule.weekday, t),
-        time: schedule.value
+        time
       })
     case 'interval':
       return t('agent.tasks.schedule.summary.interval', { count: Number(schedule.value) })
@@ -488,40 +509,69 @@ function getTriggerSummary(trigger: Trigger, t: TFunction) {
   }
 }
 
-const TaskTimeSelect: FC<{
+export const TaskTimeSelect: FC<{
   value: string
   disabled?: boolean
   onChange: (value: string) => void
 }> = ({ value, disabled, onChange }) => {
   const { t } = useTranslation()
-  const { hour, minute } = parseTime(value) ?? { hour: 9, minute: 0 }
-  const hourValue = String(hour).padStart(2, '0')
-  const minuteValue = String(minute).padStart(2, '0')
+  // An empty preset means the user cleared every hour; render no selection so the
+  // UI agrees with the empty form value (which blocks saving until repopulated).
+  // A non-empty value that fails to parse is unexpected, so fall back to the
+  // default selection rather than rendering a blank, uneditable control.
+  const { hours, minute } =
+    parseTimes(value) ?? (value === '' ? { hours: [], minute: '00' } : { hours: ['09'], minute: '00' })
+
+  // The minute is encoded inside the comma-joined value, so clearing the last
+  // hour would otherwise discard it (formatTimes([], '30') === ''). Track the
+  // last committed minute in state so re-picking an hour after clearing every
+  // selection keeps the minute the user did not edit (e.g. 18:30 -> clear 18 ->
+  // pick 20 yields 20:30, not 20:00). While no hour is selected the minute
+  // stays a local preview only: the form value remains '' and saving is blocked.
+  // Seed the retained minute from the mounted value: lastValue starts equal to
+  // value, so the update block below never runs on the first render and a
+  // fresh/remounted selector loading a non-zero-minute schedule would otherwise
+  // fall back to 00 once every hour is cleared.
+  const [rememberedMinute, setRememberedMinute] = useState(() => {
+    const parsed = parseTimes(value)
+    return parsed && parsed.hours.length > 0 ? parsed.minute : '00'
+  })
+  const [lastValue, setLastValue] = useState(value)
+  if (value !== lastValue) {
+    setLastValue(value)
+    const parsed = parseTimes(value)
+    if (parsed && parsed.hours.length > 0) setRememberedMinute(parsed.minute)
+  }
+  const displayMinute = hours.length > 0 ? minute : rememberedMinute
 
   return (
     <RowFlex role="group" aria-label={t('agent.tasks.schedule.time')} className="items-center gap-2">
-      <Select
-        value={hourValue}
+      <Combobox
+        multiple
+        searchable={false}
+        width={160}
+        aria-label={t('agent.tasks.schedule.hours')}
+        placeholder={t('agent.tasks.schedule.hours')}
         disabled={disabled}
-        onValueChange={(nextHour) => onChange(`${nextHour}:${minuteValue}`)}>
-        <SelectTrigger aria-label={t('agent.tasks.schedule.hour')}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {SCHEDULE_HOURS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+        options={SCHEDULE_HOURS.map((hour) => ({ value: hour, label: hour }))}
+        value={hours}
+        onChange={(next) => {
+          if (Array.isArray(next)) onChange(formatTimes(next, displayMinute))
+        }}
+      />
       <InputGroupText aria-hidden="true">:</InputGroupText>
       <Select
-        value={minuteValue}
+        value={displayMinute}
         disabled={disabled}
-        onValueChange={(nextMinute) => onChange(`${hourValue}:${nextMinute}`)}>
+        onValueChange={(nextMinute) => {
+          if (hours.length === 0) {
+            // No hour selected: the minute cannot live in the value string, so
+            // keep it only as the preview for the next hour selection.
+            setRememberedMinute(nextMinute)
+            return
+          }
+          onChange(formatTimes(hours, nextMinute))
+        }}>
         <SelectTrigger aria-label={t('agent.tasks.schedule.minute')}>
           <SelectValue />
         </SelectTrigger>
@@ -1439,7 +1489,7 @@ const TasksSettings: FC = () => {
 
   useEffect(() => {
     if (agentsError || tasksError || taskError) {
-      logger.error('Failed to load tasks settings', (agentsError ?? tasksError ?? taskError) as Error)
+      logger.error('Failed to load tasks settings', agentsError ?? tasksError ?? taskError)
       toast.error(t('agent.tasks.error.loadFailed'))
     }
   }, [agentsError, t, taskError, tasksError])

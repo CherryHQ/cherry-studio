@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { TopicArchiveBusyError } from '@main/services/trash'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))

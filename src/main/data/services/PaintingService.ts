@@ -14,6 +14,9 @@
  * from `painting_file_ref.sourceId`.
  */
 
+import type { SQL } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -33,8 +36,6 @@ import type {
 import { PAINTINGS_DEFAULT_LIMIT, PAINTINGS_MAX_LIMIT } from '@shared/data/api/schemas/paintings'
 import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { Painting, PaintingFiles } from '@shared/data/types/painting'
-import type { SQL } from 'drizzle-orm'
-import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 
 import { asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'

@@ -9,12 +9,13 @@
 
 import { randomUUID } from 'node:crypto'
 
-import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { paintingTable } from '@data/db/schemas/painting'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, isNull } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { paintingTable } from '@data/db/schemas/painting'
 
 const TS = 1700000000000
 const DELETED_TS = 1700000001000

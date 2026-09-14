@@ -1,7 +1,8 @@
+import * as z from 'zod'
+
 import type { DeleteAssistantResult } from '@shared/data/api/schemas/assistants'
 import { TerminalJobStatusSchema } from '@shared/data/api/schemas/jobs'
 import type { DeleteTopicsResult } from '@shared/data/api/schemas/topics'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 

@@ -1,5 +1,6 @@
-import { MINI_APP_GUEST_LIMITS } from '@shared/ipc/schemas/miniAppBridge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MINI_APP_GUEST_LIMITS } from '@shared/ipc/schemas/miniAppBridge'
 
 const readText = vi.fn(() => 'from the user')
 const writeText = vi.fn()

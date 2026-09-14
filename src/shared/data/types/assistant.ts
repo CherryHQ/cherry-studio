@@ -5,8 +5,9 @@
  * They store inference parameters, tool references, and context source toggles.
  */
 
-import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
+
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import { ContextSettingsOverrideSchema } from './contextSettings'
 import { GroupIdSchema } from './group'

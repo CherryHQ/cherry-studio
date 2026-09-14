@@ -1,9 +1,10 @@
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ToastAction, ToastConfig } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import i18n, { initI18n } from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   restoreRecycleBinItem,

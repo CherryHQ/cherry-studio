@@ -1,9 +1,10 @@
+import { useId, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Checkbox, ConfirmDialog, Label } from '@cherrystudio/ui'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { useId, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export interface DeleteConversationOwnerConfirmDialogProps {
   type: 'agent' | 'assistant'

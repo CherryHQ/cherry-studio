@@ -10,10 +10,11 @@
  * at its last version, so no Dexie upgrade hooks need to run before export.
  */
 
+import { Dexie, type IndexableType } from 'dexie'
+
 import { loggerService } from '@logger'
 import { type MigrationExportFileWriteMode, MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { clampSurrogateBoundary } from '@shared/utils/text'
-import { Dexie, type IndexableType } from 'dexie'
 
 /** Legacy v1 IndexedDB database name. */
 const DEXIE_DB_NAME = 'CherryStudio'
@@ -146,7 +147,7 @@ class JsonExportWriter {
 
           await this.append('{')
           let emitted = 0
-          for (const key of Object.keys(value as Record<string, unknown>)) {
+          for (const key of Object.keys(value)) {
             const propertyValue = this.prepareValue((value as Record<string, unknown>)[key])
             if (this.isOmitted(propertyValue)) continue
             if (emitted > 0) await this.append(',')

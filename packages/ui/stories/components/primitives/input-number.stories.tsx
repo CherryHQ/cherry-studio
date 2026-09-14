@@ -1,6 +1,7 @@
-import { InputGroup, InputGroupAddon, InputGroupInputNumber, InputGroupText, InputNumber } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
+
+import { InputGroup, InputGroupAddon, InputGroupInputNumber, InputGroupText, InputNumber } from '@cherrystudio/ui'
 
 const meta: Meta<typeof InputNumber> = {
   title: 'Components/Primitives/input-number',
@@ -26,7 +27,7 @@ export const Integer: Story = {
     return (
       <div className="flex items-center gap-3">
         <InputNumber className="w-40" min={1} max={99} step={1} value={value} onBlur={setValue} />
-        <span className="text-muted-foreground text-sm">Value: {value ?? 'null'}</span>
+        <span className="text-sm text-muted-foreground">Value: {value ?? 'null'}</span>
       </div>
     )
   }
@@ -39,7 +40,7 @@ export const Decimal: Story = {
     return (
       <div className="flex items-center gap-3">
         <InputNumber className="w-40" min={0} step={0.1} value={value} onBlur={setValue} />
-        <span className="text-muted-foreground text-sm">Value: {value ?? 'null'}</span>
+        <span className="text-sm text-muted-foreground">Value: {value ?? 'null'}</span>
       </div>
     )
   }
@@ -56,7 +57,7 @@ export const Signed: Story = {
     return (
       <div className="flex items-center gap-3">
         <InputNumber className="w-40" step={0.1} value={value} onValueChange={setValue} onBlur={setValue} />
-        <span className="text-muted-foreground text-sm">Value: {value ?? 'null'}</span>
+        <span className="text-sm text-muted-foreground">Value: {value ?? 'null'}</span>
       </div>
     )
   }

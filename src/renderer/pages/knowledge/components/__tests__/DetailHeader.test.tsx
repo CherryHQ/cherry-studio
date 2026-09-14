@@ -1,7 +1,8 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import DetailHeader from '../DetailHeader'
 

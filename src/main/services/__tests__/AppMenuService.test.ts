@@ -104,7 +104,7 @@ describe('AppMenuService', () => {
       accelerator: 'CommandOrControl+,'
     })
 
-    settingsItem?.click?.(undefined as never, undefined as never, undefined as never)
+    settingsItem?.click?.(undefined as never, undefined, undefined as never)
 
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.settings.open', undefined)
   })
@@ -115,7 +115,7 @@ describe('AppMenuService', () => {
     const appSubmenu = latestTemplate()[0].submenu as MenuItemConstructorOptions[]
     const aboutItem = appSubmenu.find((item) => String(item.label).startsWith('About '))
 
-    aboutItem?.click?.(undefined as never, undefined as never, undefined as never)
+    aboutItem?.click?.(undefined as never, undefined, undefined as never)
 
     expect(openSettingsInMainWindowMock).toHaveBeenCalledWith('/settings/about')
   })

@@ -87,7 +87,6 @@ export class ChannelManager extends BaseService {
     { resolve: (url: string) => void; timer: ReturnType<typeof setTimeout> }
   >()
   private readonly channelLogs = new ChannelLogBuffer()
-  private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
   private readonly agentLifecycleGenerations = new Map<string, number>()
   private readonly agentLifecycleTasks = new Map<string, Promise<void>>()
   private readonly pendingConnections = new Set<Promise<void>>()
@@ -235,20 +234,6 @@ export class ChannelManager extends BaseService {
     return this.channelLogs.get(channelId)
   }
 
-  /** Get live connection status for all active adapters. */
-  getAllStatuses(): ChannelStatusEvent[] {
-    const result: ChannelStatusEvent[] = []
-    for (const [, { adapter }] of this.adapters) {
-      const cached = this.channelStatuses.get(adapter.channelId)
-      result.push({
-        channelId: adapter.channelId,
-        connected: adapter.connected,
-        ...(cached?.error && !adapter.connected ? { error: cached.error } : {})
-      })
-    }
-    return result
-  }
-
   private sendToRenderer<E extends IpcEventName>(event: E, data: EventPayload<E>): void {
     application.get('IpcApiService').broadcastToType(WindowType.Main, event, data)
   }
@@ -336,6 +321,8 @@ export class ChannelManager extends BaseService {
         error: error instanceof Error ? error.message : String(error)
       })
       return false
+    } finally {
+      this.publishStatus({ channelId: ownership.adapter.channelId, connected: false })
     }
   }
 
@@ -368,6 +355,10 @@ export class ChannelManager extends BaseService {
       ownership.guard.managerGeneration <= guard.managerGeneration &&
       ownership.guard.agentGeneration <= guard.agentGeneration
     )
+  }
+
+  private publishStatus(status: ChannelStatusEvent): void {
+    application.get('CacheService').setShared(`channel.status.${status.channelId}`, status)
   }
 
   /** Disconnect the adapter for a single channel without reconnecting. */
@@ -499,7 +490,7 @@ export class ChannelManager extends BaseService {
 
     const config = channel.config as ChannelConfig & Record<string, unknown>
     channelService.updateChannel(channelId, {
-      config: { ...config, app_id: creds.appId, app_secret: creds.appSecret } as ChannelConfig
+      config: { ...config, app_id: creds.appId, app_secret: creds.appSecret }
     })
 
     logger.info('Saved QR registration credentials, reconnecting', { agentId, channelId })
@@ -614,7 +605,7 @@ export class ChannelManager extends BaseService {
         })
       })
 
-      // Forward log & status events to renderer via IPC
+      // Logs remain event-like; connection status is a main-owned shared snapshot.
       adapter.on('log', (entry) => {
         if (!this.isAdapterEventCurrent(key, ownership)) return
         this.channelLogs.append(entry.channelId, entry)
@@ -623,13 +614,13 @@ export class ChannelManager extends BaseService {
 
       adapter.on('statusChange', (status) => {
         if (!this.isAdapterEventCurrent(key, ownership)) return
-        this.channelStatuses.set(status.channelId, status)
-        this.sendToRenderer('channel.status_changed', status)
+        this.publishStatus(status)
       })
 
       // Register adapter immediately so it's discoverable. Callers can either
       // await connect for strict workflows or leave it in the background.
       this.adapters.set(key, ownership)
+      this.publishStatus({ channelId: row.id, connected: adapter.connected })
 
       const connect = async () => {
         try {
@@ -670,8 +661,7 @@ export class ChannelManager extends BaseService {
         connected: false,
         error: error instanceof Error ? error.message : String(error)
       }
-      this.channelStatuses.set(row.id, errorStatus)
-      this.sendToRenderer('channel.status_changed', errorStatus)
+      this.publishStatus(errorStatus)
       throw error
     }
   }

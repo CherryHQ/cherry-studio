@@ -1,3 +1,8 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@renderer/data/CacheService'
 import { dataApiService } from '@renderer/data/DataApiService'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
@@ -6,10 +11,6 @@ import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type VirtualListRenderRow = (item: unknown, index: number) => ReactNode
 
@@ -1197,7 +1198,7 @@ describe('HistoryRecordsView agent mode', () => {
 
   it('deletes a session from the history row action column without selecting the row', async () => {
     hookMocks.restoreSession.mockRejectedValueOnce(DataApiErrorFactory.notFound('Session', 'session-alpha'))
-    const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-alpha' } as never)
+    const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-alpha' })
     const { onClose, onRecordSelect } = setupAgentHistory()
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]')
 

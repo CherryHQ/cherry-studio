@@ -2,8 +2,9 @@
  * Pure helpers for the trash ("Recently Deleted") settings page.
  */
 
-import { formatErrorMessage } from '@renderer/utils/error'
 import dayjs from 'dayjs'
+
+import { formatErrorMessage } from '@renderer/utils/error'
 
 export interface TrashItem {
   id: string

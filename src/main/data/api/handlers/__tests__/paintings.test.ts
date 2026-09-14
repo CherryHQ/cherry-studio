@@ -64,7 +64,7 @@ describe('paintingHandlers', () => {
         query: {
           limit: PAINTINGS_MAX_LIMIT + 1
         } as never
-      } as never)
+      })
     ).rejects.toHaveProperty('name', 'ZodError')
 
     expect(listPaintingsMock).not.toHaveBeenCalled()
@@ -76,7 +76,7 @@ describe('paintingHandlers', () => {
         query: {
           [legacyParentFieldKey]: 'painting-parent'
         } as never
-      } as never)
+      })
     ).rejects.toHaveProperty('name', 'ZodError')
 
     await expect(
@@ -105,7 +105,7 @@ describe('paintingHandlers', () => {
         body: {
           [legacyParentFieldKey]: null
         }
-      } as never)
+      })
     ).rejects.toHaveProperty('name', 'ZodError')
 
     expect(listPaintingsMock).not.toHaveBeenCalled()
@@ -124,12 +124,12 @@ describe('paintingHandlers', () => {
         prompt: 'hello',
         files: { output: [], input: [] }
       }
-    } as never)
+    })
 
     await paintingHandlers['/paintings/:id/order'].PATCH({
       params: { id: 'painting-2' },
       body: { after: 'painting-1' }
-    } as never)
+    })
 
     await paintingHandlers['/paintings/order:batch'].PATCH({
       body: {
@@ -164,7 +164,7 @@ describe('paintingHandlers', () => {
       paintingHandlers['/paintings/:id'].PATCH({
         params: { id: 'painting-1' },
         body: { prompt: 'updated' }
-      } as never)
+      })
     ).resolves.toEqual({
       id: 'painting-1',
       prompt: 'updated'
@@ -207,14 +207,14 @@ describe('paintingHandlers', () => {
       paintingHandlers['/paintings/:id'].DELETE({
         params: { id: 'painting-1' },
         query: { permanent: 'yes' } as never
-      } as never)
+      })
     ).rejects.toHaveProperty('name', 'ZodError')
 
     await expect(
       paintingHandlers['/paintings/:id'].DELETE({
         params: { id: 'painting-1' },
         query: { cascade: true } as never
-      } as never)
+      })
     ).rejects.toHaveProperty('name', 'ZodError')
 
     expect(deletePaintingMock).not.toHaveBeenCalled()

@@ -2,6 +2,10 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, utim
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -10,9 +14,6 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { PiRuntimeDriver } from '@main/ai/runtime/pi/PiRuntimeDriver'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentSessionRuntimeDriver } from '@main/ai/runtime/types'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 const { restoreJournalMock } = vi.hoisted(() => ({ restoreJournalMock: { hasPendingRestore: vi.fn(() => false) } }))
 vi.mock('@data/db/restore/restoreJournal', () => restoreJournalMock)

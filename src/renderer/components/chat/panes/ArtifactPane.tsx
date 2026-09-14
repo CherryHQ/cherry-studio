@@ -1,3 +1,15 @@
+import { AlertCircle, ArrowLeft, Copy, CopySlash, Eye, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, CodeEditor, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
@@ -18,17 +30,6 @@ import { getFileExtension } from '@renderer/utils/file'
 import { joinPath } from '@renderer/utils/path'
 import { isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { AlertCircle, ArrowLeft, Copy, CopySlash, Eye, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
-import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   type ArtifactPaneFileSelection,

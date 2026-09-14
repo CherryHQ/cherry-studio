@@ -1,6 +1,7 @@
+import { useTranslation } from 'react-i18next'
+
 import { useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { useTranslation } from 'react-i18next'
 
 /**
  * Surface a background topic / agent-session auto-naming failure as a toast.

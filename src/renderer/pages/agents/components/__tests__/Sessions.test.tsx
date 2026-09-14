@@ -1,5 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as DndKitUtilities from '@dnd-kit/utilities'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { Activity, type ComponentProps, type ReactNode } from 'react'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { dataApiService } from '@renderer/data/DataApiService'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
@@ -9,9 +13,6 @@ import type { TopicStreamStatus } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { Activity, type ComponentProps, type ReactNode } from 'react'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const conversationOwnerPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
 
@@ -269,7 +270,7 @@ const preferenceMocks = vi.hoisted(() => ({
 }))
 
 const cacheMocks = vi.hoisted(() => ({
-  state: { activeSessionId: 'session-a' as string | null },
+  state: { activeSessionId: 'session-a' },
   values: new Map<string, unknown>(),
   setActiveSessionId: vi.fn(),
   setCache: vi.fn()
@@ -2343,6 +2344,8 @@ describe('Sessions', () => {
     expect(pinnedRow).not.toBeNull()
     const unpinButton = within(pinnedRow as HTMLElement).getByLabelText('Unpin task')
     expect(unpinButton).toBeInTheDocument()
+    expect(unpinButton).toHaveAttribute('aria-pressed', 'true')
+    expect(unpinButton.closest('[data-resource-list-item-actions="true"]')).toHaveAttribute('data-pinned', 'true')
     expect(unpinButton.closest('[data-resource-list-item-actions="true"]')).toBeInTheDocument()
     expect(
       pinnedRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Unpin task"]') ?? null
@@ -2366,7 +2369,7 @@ describe('Sessions', () => {
 
   it('requires the shared Recycle Bin confirmation before deleting a session and offers Undo', async () => {
     sessionDataMocks.restoreSession.mockRejectedValueOnce(DataApiErrorFactory.notFound('Session', 'session-a'))
-    const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-a' } as never)
+    const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-a' })
     render(<SessionsForTest />)
 
     const sessionRow = screen.getByText('Alpha session').closest('[role="option"]')
@@ -3715,7 +3718,7 @@ describe('Sessions', () => {
     })
 
     dataApiMocks.restoreAgent.mockRejectedValueOnce(DataApiErrorFactory.notFound('Agent', 'agent-a'))
-    const getActiveAgent = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'agent-a' } as never)
+    const getActiveAgent = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'agent-a' })
     dataApiMocks.refetchAgents.mockRejectedValueOnce(new Error('Agent refresh failed'))
     sessionDataMocks.reload.mockRejectedValueOnce(new Error('Session refresh failed'))
     const agentRefreshCount = dataApiMocks.refetchAgents.mock.calls.length
@@ -3889,7 +3892,7 @@ describe('Sessions', () => {
     })
 
     sessionDataMocks.restoreSession.mockRejectedValueOnce(DataApiErrorFactory.notFound('Session', 'session-a'))
-    const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-a' } as never)
+    const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-a' })
     const reloadCountBeforeUndo = sessionDataMocks.reload.mock.calls.length
     await expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
       restored: ['session-a', 'session-not-loaded'],

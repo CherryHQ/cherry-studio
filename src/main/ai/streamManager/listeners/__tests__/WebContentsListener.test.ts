@@ -7,16 +7,17 @@
  * renderer always observes the original chunk ordering.
  */
 
-import { IpcChannel } from '@shared/IpcChannel'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { IpcChannel } from '@shared/IpcChannel'
 
 import { WebContentsListener } from '../WebContentsListener'
 
 interface FakeWebContents {
   id: number
-  send: ReturnType<typeof vi.fn>
-  isDestroyed: ReturnType<typeof vi.fn>
+  send: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isDestroyed: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 function fakeWc(): FakeWebContents {

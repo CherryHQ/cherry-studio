@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import i18n from '@renderer/i18n/resolver'
-import { toast } from '@renderer/services/toast'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 
 import TrashSection, { type PendingPermanentDelete } from '../TrashSection'
 import type { TrashBatchOutcome, TrashItem } from '../trashUtils'

@@ -57,7 +57,7 @@ describe('topicHandlers', () => {
 
   describe('trash routing', () => {
     it('exposes only the permanent Topic purge through DataApi', async () => {
-      await topicHandlers['/topics/:id'].DELETE({ params: { id: 'topic-a' }, query: { permanent: true } } as never)
+      await topicHandlers['/topics/:id'].DELETE({ params: { id: 'topic-a' }, query: { permanent: true } })
       expect(deleteMock).toHaveBeenCalledWith('topic-a', { permanent: true })
 
       deleteMock.mockClear()
@@ -69,9 +69,7 @@ describe('topicHandlers', () => {
       const restored = { id: 'topic-a' }
       restoreMock.mockReturnValueOnce(restored)
 
-      await expect(topicHandlers['/topics/:id/restore'].POST({ params: { id: 'topic-a' } } as never)).resolves.toEqual(
-        restored
-      )
+      await expect(topicHandlers['/topics/:id/restore'].POST({ params: { id: 'topic-a' } })).resolves.toEqual(restored)
       expect(restoreMock).toHaveBeenCalledWith('topic-a')
     })
 
@@ -89,13 +87,13 @@ describe('topicHandlers', () => {
       const topic = { id: 'topic-latest' }
       getLatestActiveMock.mockReturnValueOnce(topic)
 
-      await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic })
+      await expect(topicHandlers['/topics/latest'].GET({})).resolves.toEqual({ topic })
     })
 
     it('returns { topic: null } when the library is empty', async () => {
       getLatestActiveMock.mockReturnValueOnce(null)
 
-      await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic: null })
+      await expect(topicHandlers['/topics/latest'].GET({})).resolves.toEqual({ topic: null })
     })
 
     it('narrows the latest lookup to one assistant when assistantId is given', async () => {
@@ -124,7 +122,7 @@ describe('topicHandlers', () => {
       await expect(
         topicHandlers['/topics/reusable-placeholder'].POST({
           body: { assistantId: null, excludeTopicId: 'topic-deleted' }
-        } as never)
+        })
       ).resolves.toBe(response)
 
       expect(reuseOrCreatePlaceholderMock).toHaveBeenCalledWith({
@@ -140,7 +138,7 @@ describe('topicHandlers', () => {
         topicHandlers['/topics/:id/move'].POST({
           params: { id: 'topic-a' },
           body: { assistantId: 'assistant-b', order: { after: 'topic-b' } }
-        } as never)
+        })
       ).rejects.toThrow()
 
       expect(moveMock).not.toHaveBeenCalled()
@@ -165,7 +163,7 @@ describe('topicHandlers', () => {
         topicHandlers['/topics/:id/duplicate'].POST({
           params: { id: 'source-topic' },
           body: { nodeId: 'source-node', name: '  Source (Copy)  ' }
-        } as never)
+        })
       ).resolves.toBe(topic)
 
       expect(duplicateMock).toHaveBeenCalledWith('source-topic', {

@@ -1,10 +1,12 @@
+import { type ChildProcess, execFile, spawn, type SpawnOptions } from 'child_process'
+import path from 'path'
+import { promisify } from 'util'
+
+import crossSpawn from 'cross-spawn'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { type ChildProcess, execFile, spawn, type SpawnOptions } from 'child_process'
-import crossSpawn from 'cross-spawn'
-import path from 'path'
-import { promisify } from 'util'
 
 import { getShellEnv } from './shellEnv'
 

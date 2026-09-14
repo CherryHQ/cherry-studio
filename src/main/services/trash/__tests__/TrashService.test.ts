@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock, assistantDataService, topicService } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
@@ -34,7 +35,7 @@ const { TrashService } = await import('../TrashService')
 
 const jobManager = {
   registerHandler: vi.fn(),
-  getJobSchedule: vi.fn(() => null as unknown),
+  getJobSchedule: vi.fn<() => { id: string; type: string } | null>(() => null),
   registerJobSchedule: vi.fn(() => ({ id: 'schedule-1' })),
   enqueue: vi.fn()
 }

@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ComponentType } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { dataApiService } from '@renderer/data/DataApiService'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import type { ComponentType } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PendingPermanentDelete } from '../TrashSection'
 
@@ -534,7 +534,7 @@ describe('Trash domain batch adapters', () => {
     mocks.mutate.mockImplementation(async (method) => {
       if (method === 'POST') throw DataApiErrorFactory.notFound('Topic', 'topic-1')
     })
-    vi.mocked(dataApiService.get).mockResolvedValueOnce(deletedTopic('topic-1', 'First topic') as never)
+    vi.mocked(dataApiService.get).mockResolvedValueOnce(deletedTopic('topic-1', 'First topic'))
     render(<TopicTrashSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
@@ -660,7 +660,7 @@ describe('Trash domain batch adapters', () => {
         ? { succeeded: [], failed: [{ id: chunkIds[0], error: 'not found' }] }
         : { succeeded: chunkIds, failed: [] }
     })
-    vi.mocked(dataApiService.get).mockResolvedValue({ ...files[500], deletedAt: undefined } as never)
+    vi.mocked(dataApiService.get).mockResolvedValue({ ...files[500], deletedAt: undefined })
     render(<FileTrashSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
     await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
 

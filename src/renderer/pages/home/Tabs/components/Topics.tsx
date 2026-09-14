@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import { FilePenLine, MoreHorizontal, PinIcon, Plus, Trash2, Unlink } from 'lucide-react'
+import type { RefObject } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { useCache, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
@@ -97,11 +103,6 @@ import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
-import dayjs from 'dayjs'
-import { FilePenLine, MoreHorizontal, PinIcon, Plus, Trash2, Unlink } from 'lucide-react'
-import type { RefObject } from 'react'
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   rejectPendingTopicImageActions,
@@ -1596,7 +1597,7 @@ export function Topics({
           activeTopic={activeTopic}
           assistantMoveTargets={assistantMoveTargets}
           displayMode={displayMode}
-          exportMenuOptions={exportMenuOptions as TopicExportMenuOptions}
+          exportMenuOptions={exportMenuOptions}
           isNewlyRenamed={isNewlyRenamed}
           isRenaming={isRenaming}
           listRef={listRef}
@@ -1942,11 +1943,12 @@ const TopicRow = memo(function TopicRow({
           status={conversationRowStatus}
         />
       )}
-      <ResourceList.ItemActions active={deleteDialogOpen}>
+      <ResourceList.ItemActions active={deleteDialogOpen} pinned={topic.pinned && showPinAction}>
         {showPinAction && (
           <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
             <ResourceList.ItemAction
               aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+              aria-pressed={topic.pinned}
               className={cn(topic.pinned && 'text-foreground')}
               onClick={(event) => {
                 event.stopPropagation()

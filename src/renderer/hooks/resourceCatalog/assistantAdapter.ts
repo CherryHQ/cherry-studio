@@ -1,3 +1,6 @@
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import {
@@ -8,8 +11,6 @@ import {
   type UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
 import type { Assistant } from '@shared/data/types/assistant'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 

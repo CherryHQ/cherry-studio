@@ -1,10 +1,11 @@
-import { Button, Checkbox } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { toast } from '@renderer/services/toast'
 import { Loader } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Checkbox } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 
 import TrashItemRow from './TrashItemRow'
 import type { TrashBatchOutcome, TrashItem } from './trashUtils'

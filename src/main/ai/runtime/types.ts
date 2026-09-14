@@ -1,10 +1,13 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
+import type { UIMessageChunk } from 'ai'
+
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -13,7 +16,6 @@ import type { MessageSnapshot } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import type { UIMessageChunk } from 'ai'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
 
@@ -161,9 +163,11 @@ export type AgentRuntimeEvent =
    *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
   | { type: 'background-flow-chunk'; rootToolCallId: string; chunk: UIMessageChunk }
   /** Runtime-generated content started without a host-admitted user turn. `started` atomically
-   *  transfers generation ownership and asks the host to open a receive-only transcript turn;
-   *  `finished` releases ownership after the SDK result, independently from turn completion. */
-  | { type: 'autonomous-turn-state'; state: 'started' | 'finished' }
+   *  transfers generation ownership and asks the host to open a receive-only transcript turn,
+   *  carrying why the runtime opened it so the transcript can say so; `finished` releases
+   *  ownership after the SDK result, independently from turn completion. */
+  | { type: 'autonomous-turn-state'; state: 'started'; origin: AutonomousTurnOrigin }
+  | { type: 'autonomous-turn-state'; state: 'finished' }
   | { type: 'error'; error: unknown }
 
 /**

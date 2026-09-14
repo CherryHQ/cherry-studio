@@ -1,5 +1,10 @@
 // Load the sibling so TopicService can purge topic messages through the data-service registry.
 import '@data/services/MessageService'
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { asc, eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
@@ -23,11 +28,6 @@ import {
 } from '@shared/data/api/schemas/assistants'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { asc, eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -47,7 +47,7 @@ describe('AssistantDataService', () => {
     // Reset preference state between tests so one test's
     // `chat.default_model_id` override does not leak into the next.
     MockMainPreferenceServiceUtils.resetMocks()
-    MockMainDbServiceExport.dbService.withWriteTx.mockImplementation((fn) => dbh.db.transaction(fn as never))
+    MockMainDbServiceExport.dbService.withWriteTx.mockImplementation((fn) => dbh.db.transaction(fn))
     await seedModelRefs()
   })
 
@@ -1573,7 +1573,7 @@ describe('AssistantDataService', () => {
         const events: string[] = []
         const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
         withWriteTx.mockImplementationOnce((fn) => {
-          const result = dbh.db.transaction(fn as never)
+          const result = dbh.db.transaction(fn)
           events.push('committed')
           return result
         })

@@ -1,5 +1,10 @@
 // Registers MessageService in the data-service registry (topic purge resolves it).
 import '@data/services/MessageService'
+import { rootRow, setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -15,11 +20,6 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { JobContext } from '@main/core/job/types'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { rootRow, setupTestDatabase } from '@test-helpers/db'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   agentJobsServiceMock,

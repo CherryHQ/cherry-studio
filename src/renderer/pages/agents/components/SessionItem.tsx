@@ -1,3 +1,8 @@
+import { PinIcon, Trash2 } from 'lucide-react'
+import type { MouseEvent } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { ActionConfirmDialog } from '@renderer/components/chat/actions/ActionConfirmDialog'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
@@ -21,10 +26,6 @@ import { cn } from '@renderer/utils/style'
 import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { PinIcon, Trash2 } from 'lucide-react'
-import type { MouseEvent } from 'react'
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface SessionItemProps {
   active?: boolean
@@ -294,11 +295,12 @@ const SessionItem = ({
         />
       )}
 
-      <ResourceList.ItemActions active={deleteDialogOpen}>
+      <ResourceList.ItemActions active={deleteDialogOpen} pinned={pinned && showPinAction}>
         {showPinAction && (
           <Tooltip title={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')} delay={500}>
             <ResourceList.ItemAction
               aria-label={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')}
+              aria-pressed={pinned}
               className={cn(pinned && 'text-foreground')}
               onClick={handleTogglePinClick}>
               <PinIcon size={14} className={cn('size-3.5!', pinned && 'fill-current')} />

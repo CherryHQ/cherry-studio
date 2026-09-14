@@ -1,3 +1,8 @@
+import { Sparkles, Trash2 } from 'lucide-react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm, type UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   FormControl,
@@ -47,10 +52,6 @@ import {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
-import { Sparkles, Trash2 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, type UseFormReturn } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import {
   AvatarField,
@@ -1190,7 +1191,7 @@ function CustomParametersField({
               portalContainer={portalContainer}
               onNameChange={(name) => updateField(index, { name })}
               onTypeChange={(type) => updateField(index, { type })}
-              onValueChange={(nextValue) => updateField(index, { value: nextValue } as Partial<CustomParameter>)}
+              onValueChange={(nextValue) => updateField(index, { value: nextValue })}
               onDelete={() => remove(index)}
             />
           ))}

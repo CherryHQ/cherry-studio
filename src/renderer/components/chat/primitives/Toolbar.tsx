@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ComponentProps, ReactNode } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 type ToolbarDensity = 'compact' | 'default'
 type ToolbarVariant = 'plain' | 'surface'

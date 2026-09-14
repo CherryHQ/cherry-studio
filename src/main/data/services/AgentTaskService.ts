@@ -6,6 +6,8 @@
  * transaction primitives used by workspace deletion.
  */
 
+import { and, inArray, isNull } from 'drizzle-orm'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
@@ -31,7 +33,6 @@ import {
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { ListOptions } from '@shared/data/api/types'
-import { and, inArray, isNull } from 'drizzle-orm'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 
@@ -336,7 +337,9 @@ export class AgentTaskService {
   }
 
   private toTaskRunLogEntity(job: JobSnapshot): TaskRunLogEntity {
-    const output = job.output as { sessionId?: string; result?: string } | null
+    const output = job.output as { result?: string; sessionId?: string } | null
+    // New runs persist the link before execution; older v2 job rows only have it in output.
+    const sessionId = job.metadata.sessionId ?? output?.sessionId
     const startedAt = job.startedAt ?? job.scheduledAt
     // A cancel-requested row's fate is sealed (live cancel and startup recovery
     // both end it as cancelled) — show the outcome before the row settles.
@@ -363,7 +366,7 @@ export class AgentTaskService {
     return {
       id: job.id,
       scheduleId: job.scheduleId ?? '',
-      sessionId: output?.sessionId ?? null,
+      sessionId: typeof sessionId === 'string' ? sessionId : null,
       startedAt,
       durationMs,
       status,

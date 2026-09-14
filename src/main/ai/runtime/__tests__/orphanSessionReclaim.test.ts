@@ -14,8 +14,9 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync }
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+import { application } from '@application'
 
 import { DshRuntimeDriver } from '../dsh/DshRuntimeDriver'
 import { PiRuntimeDriver } from '../pi/PiRuntimeDriver'

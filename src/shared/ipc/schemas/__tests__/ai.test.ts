@@ -1,5 +1,6 @@
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { describe, expect, it } from 'vitest'
+
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 
 import { aiRequestSchemas } from '../ai'
 

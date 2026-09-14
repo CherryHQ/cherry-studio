@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
@@ -8,7 +10,6 @@ import AgentComposer, {
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Model } from '@shared/data/types/model'
-import { memo } from 'react'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
 

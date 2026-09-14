@@ -1,3 +1,7 @@
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
@@ -5,9 +9,6 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResourceDeleteConfirmDialog } from '../ResourceDeleteConfirmDialog'
 

@@ -1,3 +1,7 @@
+import type { FC } from 'react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
 import {
@@ -14,9 +18,6 @@ import { toast } from '@renderer/services/toast'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
-import type { FC } from 'react'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import TrashSection, { type PendingPermanentDelete } from './TrashSection'
 import type { TrashBatchOutcome, TrashItem } from './trashUtils'

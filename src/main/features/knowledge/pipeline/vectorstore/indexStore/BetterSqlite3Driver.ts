@@ -1,9 +1,10 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-import { toAsarUnpackedPath } from '@main/utils/asar'
 import Database from 'better-sqlite3'
 import { getLoadablePath } from 'sqlite-vec'
+
+import { toAsarUnpackedPath } from '@main/utils/asar'
 
 import type { SqliteDriver, SqliteReclaimOutcome, SqliteTransaction, SqlQueryResult, SqlValue } from './types'
 

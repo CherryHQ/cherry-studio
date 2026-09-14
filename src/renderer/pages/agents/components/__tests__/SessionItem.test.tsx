@@ -1,10 +1,11 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { ResourceList } from '@renderer/components/chat/resourceList/base'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { ResourceList } from '@renderer/components/chat/resourceList/base'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import SessionItem, { type SessionItemMenuActions } from '../SessionItem'
 

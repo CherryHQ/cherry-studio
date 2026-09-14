@@ -1,7 +1,8 @@
-import { dataApiService } from '@data/DataApiService'
-import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { dataApiService } from '@data/DataApiService'
+import { toast } from '@renderer/services/toast'
 
 import TopicBranchPanel from '../TopicBranchPanel'
 
@@ -366,7 +367,6 @@ describe('TopicBranchPanel', () => {
               id: 'assistant-live',
               parentId: 'message-1',
               role: 'assistant',
-              hasContent: true,
               preview: 'streaming live preview',
               modelId: 'provider/model',
               status: 'pending',

@@ -1,3 +1,7 @@
+import type { FC } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ConfirmDialog } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { DeleteConversationOwnerConfirmDialog } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
@@ -21,9 +25,6 @@ import { getErrorMessage } from '@renderer/utils/error'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
-import type { FC } from 'react'
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ResourceDeleteConfirmDialog')
 

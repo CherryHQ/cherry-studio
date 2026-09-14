@@ -1,9 +1,10 @@
-import { agentTable } from '@data/db/schemas/agent'
-import { agentTaskService } from '@data/services/AgentTaskService'
-import { jobScheduleService } from '@data/services/JobScheduleService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { agentTable } from '@data/db/schemas/agent'
+import { agentTaskService } from '@data/services/AgentTaskService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 
 describe('AgentTaskService active-Agent read contract', () => {
   const dbh = setupTestDatabase()
