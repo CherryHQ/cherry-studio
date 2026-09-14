@@ -1,8 +1,13 @@
+import type * as SentryRenderer from '@sentry/electron/renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { initMock, captureExceptionMock } = vi.hoisted(() => ({ initMock: vi.fn(), captureExceptionMock: vi.fn() }))
 
-vi.mock('@sentry/electron/renderer', () => ({ init: initMock, captureException: captureExceptionMock }))
+vi.mock('@sentry/electron/renderer', async (importOriginal) => ({
+  ...(await importOriginal<typeof SentryRenderer>()),
+  init: initMock,
+  captureException: captureExceptionMock
+}))
 vi.unmock('@logger')
 
 import { loggerService } from '../LoggerService'
@@ -19,6 +24,24 @@ afterEach(() => {
 })
 
 describe('renderer Sentry initialization', () => {
+  it('opts into error capture and IPC bridging without enabling ambient data collection', () => {
+    initSentry()
+
+    const options = initMock.mock.calls[0][0]
+    expect(options.defaultIntegrations).toBe(false)
+    expect(options.integrations.map((integration: { name: string }) => integration.name).sort()).toEqual(
+      [
+        'EventFilters',
+        'FunctionToString',
+        'BrowserApiErrors',
+        'GlobalHandlers',
+        'LinkedErrors',
+        'Dedupe',
+        'ScopeToMain'
+      ].sort()
+    )
+  })
+
   it('does not install renderer capture in development', () => {
     vi.stubEnv('DEV', true)
 

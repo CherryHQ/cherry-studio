@@ -1,4 +1,14 @@
-import { captureException, init } from '@sentry/electron/renderer'
+import {
+  browserApiErrorsIntegration,
+  captureException,
+  dedupeIntegration,
+  eventFiltersIntegration,
+  functionToStringIntegration,
+  globalHandlersIntegration,
+  init,
+  linkedErrorsIntegration,
+  scopeToMainIntegration
+} from '@sentry/electron/renderer'
 
 import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from '@shared/utils/sentry'
 
@@ -17,6 +27,16 @@ export function initSentry(): void {
 
   init({
     release: buildContext.release,
+    defaultIntegrations: false,
+    integrations: [
+      eventFiltersIntegration(),
+      functionToStringIntegration(),
+      browserApiErrorsIntegration(),
+      globalHandlersIntegration(),
+      linkedErrorsIntegration(),
+      dedupeIntegration(),
+      scopeToMainIntegration()
+    ],
     beforeSend: (event) =>
       sanitizeSentryEvent({
         ...event,
