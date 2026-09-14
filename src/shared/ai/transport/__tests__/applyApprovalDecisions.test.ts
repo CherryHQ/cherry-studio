@@ -1,5 +1,6 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { applyApprovalDecisions } from '../applyApprovalDecisions'
 import type { ApprovalDecision } from '../stream'

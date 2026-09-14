@@ -34,8 +34,17 @@
  * @see {@link https://swr.vercel.app SWR Documentation}
  */
 
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
+import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
+import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infinite'
+import useSWRInfinite from 'swr/infinite'
+import type { SWRMutationConfiguration } from 'swr/mutation'
+import useSWRMutation from 'swr/mutation'
+
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { isDev } from '@renderer/utils/platform'
 import type {
   ApiPath,
@@ -52,15 +61,9 @@ import {
   type OffsetPaginationResponse,
   type PaginationResponse
 } from '@shared/data/api/types'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
-import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
-import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infinite'
-import useSWRInfinite from 'swr/infinite'
-import type { SWRMutationConfiguration } from 'swr/mutation'
-import useSWRMutation from 'swr/mutation'
 
 export { useDataChange } from './useDataChange'
+export { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 
 const logger = loggerService.withContext('useDataApi')
 
@@ -94,9 +97,8 @@ const EMPTY_ITEMS: readonly never[] = Object.freeze([])
 // ============================================================================
 
 /** Infer item type from paginated response path */
-type InferPaginatedItem<TPath extends ApiPath> = ResponseForPath<TPath, 'GET'> extends PaginationResponse<infer T>
-  ? T
-  : unknown
+type InferPaginatedItem<TPath extends ApiPath> =
+  ResponseForPath<TPath, 'GET'> extends PaginationResponse<infer T> ? T : unknown
 
 /**
  * Path constrained to endpoints whose GET response is a cursor-paginated shape.
@@ -116,17 +118,15 @@ type InferPaginatedItem<TPath extends ApiPath> = ResponseForPath<TPath, 'GET'> e
  * `useInfiniteQuery<'/some-path'>(...)`) may still bypass when `TPath` itself
  * is widened — always let TypeScript infer `TPath` from the path argument.
  */
-type CursorPaginatedPath<TPath extends ApiPath> = InferPaginationMode<ResponseForPath<TPath, 'GET'>> extends 'cursor'
-  ? TPath
-  : never
+type CursorPaginatedPath<TPath extends ApiPath> =
+  InferPaginationMode<ResponseForPath<TPath, 'GET'>> extends 'cursor' ? TPath : never
 
 /**
  * Path constrained to endpoints whose GET response is an offset-paginated shape.
  * Same `any`-fallback caveat as {@link CursorPaginatedPath}.
  */
-type OffsetPaginatedPath<TPath extends ApiPath> = InferPaginationMode<ResponseForPath<TPath, 'GET'>> extends 'offset'
-  ? TPath
-  : never
+type OffsetPaginatedPath<TPath extends ApiPath> =
+  InferPaginationMode<ResponseForPath<TPath, 'GET'>> extends 'offset' ? TPath : never
 
 /**
  * Map a path to the shape of its `params` option.
@@ -323,9 +323,7 @@ export function useQuery<TPath extends ApiPath>(
   }
 ): UseQueryResult<TPath> {
   const isEnabled = options?.enabled !== false
-  const resolvedPath = isEnabled
-    ? resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
-    : null
+  const resolvedPath = isEnabled ? resolveTemplate(path, options?.params) : null
   const key =
     isEnabled && resolvedPath ? buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined) : null
 
@@ -535,10 +533,6 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
           params: paramsRecord,
           body: capturedArgs?.body,
           query: capturedArgs?.query
-        } as {
-          params?: Record<string, string | number>
-          body?: BodyForPath<TPath, TMethod>
-          query?: QueryParamsForPath<TPath, TMethod>
         })
 
         // Run refresh after the mutation resolves. We do this in `trigger`
@@ -674,7 +668,7 @@ export function prefetch<TPath extends ApiPath>(
     query?: QueryParamsForPath<TPath, 'GET'>
   }
 ): Promise<ResponseForPath<TPath, 'GET'>> {
-  const resolvedPath = resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
+  const resolvedPath = resolveTemplate(path, options?.params)
   const key = buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined)
   return preload(key, getFetcher)
 }
@@ -840,7 +834,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
 
   // Resolve template once per render; key dependencies include the resolved
   // value so identity changes propagate to SWR cache keys.
-  const resolvedPath = resolveTemplate(path as string, options?.params as Record<string, string | number> | undefined)
+  const resolvedPath = resolveTemplate(path, options?.params)
 
   const getKey = useCallback(
     (_pageIndex: number, previousPageData: CursorPaginationResponse<unknown> | null) => {
@@ -1347,38 +1341,6 @@ async function invalidatePathPatterns(cache: Cache, globalMutate: ScopedMutator,
   if (infiniteKeys.length > 0) {
     await Promise.all(infiniteKeys.map((k) => globalMutate(k)))
   }
-}
-
-/**
- * Replace Express-style `:name` and greedy `:name*` placeholders in a path
- * template with values from `params`.
- *
- * This is the single canonical path-replacement point for all data hooks — both
- * `useQuery`/`useMutation` (via `params` option) and internal key building go
- * through here. This guarantees a template path + params and a pre-resolved
- * path (e.g., `providerPath(id)`) produce byte-for-byte identical cache keys.
- *
- * Greedy params (`:name*`) consume the rest of the path segment, allowing IDs
- * that themselves contain `/` (e.g., `/models/:uniqueModelId*` where the id is
- * `openai:gpt-4/variant`).
- *
- * The leading `/` anchor in the placeholder regex distinguishes path params
- * (`/:providerId`) from verb-style RPC suffixes (`models:resolve`,
- * `models:reconcile`) — the latter are static literal segments and must not be
- * substituted, even when other params are supplied.
- *
- * @internal
- * @throws Error if a placeholder has no corresponding value in `params`
- */
-function resolveTemplate(path: string, params?: Record<string, string | number>): string {
-  if (!params || !path.includes(':')) return path
-  return path.replace(/(?<=\/):([a-zA-Z][a-zA-Z0-9]*)\*?/g, (_match, key) => {
-    const value = params[key]
-    if (value === undefined || value === null) {
-      throw new Error(`Missing param "${key}" for path "${path}"`)
-    }
-    return String(value)
-  })
 }
 
 /**

@@ -1,8 +1,9 @@
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useResourceCatalogController } from '../useResourceCatalogController'
 
@@ -12,6 +13,7 @@ const controllerMocks = vi.hoisted(() => ({
   createAgent: vi.fn(),
   createAssistant: vi.fn(),
   createGroup: vi.fn(),
+  dataApiGet: vi.fn(),
   duplicateAssistant: vi.fn(),
   groups: [] as Array<{
     id: string
@@ -34,6 +36,10 @@ const controllerMocks = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
+}))
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: { get: controllerMocks.dataApiGet }
 }))
 
 vi.mock('../useResourceLibrary', () => ({
@@ -96,6 +102,7 @@ describe('useResourceCatalogController', () => {
     vi.clearAllMocks()
     controllerMocks.createAssistant.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.createAgent.mockResolvedValue({ id: 'agent-created' })
+    controllerMocks.dataApiGet.mockResolvedValue([])
     controllerMocks.refetch.mockResolvedValue(undefined)
     controllerMocks.resourceLibraryOptions.length = 0
     controllerMocks.groups.length = 0
@@ -208,6 +215,17 @@ describe('useResourceCatalogController', () => {
   })
 
   it('counts non-empty groups and resolves the exported assistant group name', async () => {
+    controllerMocks.dataApiGet.mockResolvedValueOnce([
+      {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        title: 'Context prompt',
+        content: 'Context body',
+        visibility: 'restricted',
+        orderKey: 'a0',
+        createdAt: '2026-04-20T00:00:00.000Z',
+        updatedAt: '2026-04-20T00:00:00.000Z'
+      }
+    ])
     controllerMocks.groups.push(
       {
         id: 'group-work',
@@ -246,7 +264,13 @@ describe('useResourceCatalogController', () => {
 
     await waitFor(() => expect(controllerMocks.saveFile).toHaveBeenCalledOnce())
     const exportedBytes = controllerMocks.saveFile.mock.calls[0][1] as Uint8Array
-    expect(JSON.parse(new TextDecoder().decode(exportedBytes))).toMatchObject([{ group: ['Work'] }])
+    expect(controllerMocks.dataApiGet).toHaveBeenCalledWith('/prompt-bindings/assistant/assistant-to-duplicate')
+    expect(JSON.parse(new TextDecoder().decode(exportedBytes))).toMatchObject([
+      {
+        group: ['Work'],
+        regularPhrases: [{ title: 'Context prompt', content: 'Context body', order: 0 }]
+      }
+    ])
   })
 
   it('clears the active group when the resource type changes', async () => {

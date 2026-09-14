@@ -2,13 +2,14 @@ import { mkdtemp, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse } from 'yaml'
+
 import type * as FileUtils from '@main/utils/file'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { parse } from 'yaml'
 
 const mocks = vi.hoisted(() => ({
   failSettingsWrite: false
@@ -40,38 +41,36 @@ const {
   writeDeepSeekHarnessConfig
 } = await import('../config')
 
-const model = (partial: Partial<Model> = {}): Model =>
-  ({
-    id: 'anthropic::claude-sonnet',
-    providerId: 'anthropic',
-    apiModelId: 'claude-sonnet',
-    name: 'Claude Sonnet',
-    capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.IMAGE_RECOGNITION],
-    inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
-    supportsStreaming: true,
-    isEnabled: true,
-    isHidden: false,
-    reasoning: { selectableEfforts: ['none', 'low', 'high', 'auto'] },
-    contextWindow: 200_000,
-    maxOutputTokens: 8192,
-    ...partial
-  }) as Model
+const model = (partial: Partial<Model> = {}): Model => ({
+  id: 'anthropic::claude-sonnet',
+  providerId: 'anthropic',
+  apiModelId: 'claude-sonnet',
+  name: 'Claude Sonnet',
+  capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+  inputModalities: [MODALITY.TEXT, MODALITY.IMAGE],
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false,
+  reasoning: { selectableEfforts: ['none', 'low', 'high', 'auto'] },
+  contextWindow: 200_000,
+  maxOutputTokens: 8192,
+  ...partial
+})
 
-const provider = (partial: Partial<Provider> = {}): Provider =>
-  ({
-    id: 'anthropic',
-    name: 'Anthropic',
-    authType: 'api-key',
-    apiKeys: [{ id: 'key', isEnabled: true }],
-    isEnabled: true,
-    reportsActualCost: false,
-    settings: {},
-    endpointConfigs: {
-      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com/' },
-      [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/' }
-    },
-    ...partial
-  }) as Provider
+const provider = (partial: Partial<Provider> = {}): Provider => ({
+  id: 'anthropic',
+  name: 'Anthropic',
+  authType: 'api-key',
+  apiKeys: [{ id: 'key', isEnabled: true }],
+  isEnabled: true,
+  reportsActualCost: false,
+  settings: {},
+  endpointConfigs: {
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com/' },
+    [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/' }
+  },
+  ...partial
+})
 
 const projection = () => ({
   ...createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages'),
@@ -248,6 +247,25 @@ describe('DeepSeek Harness config transaction', () => {
     })
   })
 
+  it('heals every stale managed key at top-level of a version: 1 document while preserving user keys', async () => {
+    const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
+    const staleHex = 'CHERRY_STUDIO_CODEMATE_AAAAAAAAAAAA_API_KEY'
+    const staleGateway = 'CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY'
+    await writeFile(
+      path.join(dir, '.credentials.yaml'),
+      `version: 1\nrefs:\n  OTHER_KEY: keep\n${staleHex}: sk-stale-a\n${staleGateway}: sk-stale-b\nDEEPSEEK_API_KEY: sk-user\n`,
+      { mode: 0o600 }
+    )
+
+    await writeDeepSeekHarnessConfig(dir, projection())
+
+    expect(parse(await readFile(path.join(dir, '.credentials.yaml'), 'utf8'))).toEqual({
+      version: 1,
+      refs: { OTHER_KEY: 'keep', [identity.credentialRef]: 'sk-sensitive' },
+      DEEPSEEK_API_KEY: 'sk-user'
+    })
+  })
+
   it('keeps the flat layout pre-0.1.1 DSH reads, including a credential named version', async () => {
     const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
 
@@ -357,12 +375,12 @@ describe('DeepSeek Harness config transaction', () => {
   it('reclaims a managed lock after its owner process has exited', async () => {
     const lockPath = path.join(dir, '.credentials.yaml.lock')
     await writeFile(lockPath, JSON.stringify({ version: 1, pid: 424242, token: 'orphaned-owner' }), { mode: 0o600 })
-    vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: NodeJS.Signals | number) => {
+    vi.spyOn(process, 'kill').mockImplementation((pid: number, signal?: string | number) => {
       if (pid === 424242 && signal === 0) {
         throw Object.assign(new Error('process not found'), { code: 'ESRCH' })
       }
       return true
-    }) as typeof process.kill)
+    })
 
     await expect(writeDeepSeekHarnessConfig(dir, projection())).resolves.toBeDefined()
     await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })

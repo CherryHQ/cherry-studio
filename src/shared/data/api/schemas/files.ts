@@ -49,6 +49,8 @@
  * call File IPC `getMetadata(id)` which performs a single `fs.stat`.
  */
 
+import * as z from 'zod'
+
 import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/types'
 import type { FileEntry, FileEntryId, FileRef } from '@shared/data/types/file'
 import {
@@ -57,7 +59,7 @@ import {
   FileEntryOriginSchema,
   FileRefSourceTypeSchema
 } from '@shared/data/types/file'
-import * as z from 'zod'
+import { FileTypeSchema } from '@shared/types/file'
 
 /**
  * Per-entry reference-count record produced by `GET /files/entries/ref-counts`.
@@ -90,6 +92,7 @@ export const ListFilesQuerySchema = z
   .strictObject({
     origin: FileEntryOriginSchema.optional(),
     inTrash: z.boolean().optional(),
+    fileType: FileTypeSchema.optional(),
     sortBy: z.enum(['name', 'createdAt', 'updatedAt', 'size', 'ext']).optional(),
     sortOrder: z.enum(['asc', 'desc']).optional(),
     cursor: z.string().optional(),

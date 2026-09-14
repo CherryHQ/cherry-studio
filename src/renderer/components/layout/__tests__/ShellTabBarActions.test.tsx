@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -209,7 +208,7 @@ describe('ShellTabBarActions', () => {
 
     await user.click(screen.getByRole('button', { name: /settings/i }))
 
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/general')
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith()
   })
 
   it('does not render the theme toggle in the sidebar footer action', () => {

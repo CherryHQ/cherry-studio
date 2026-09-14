@@ -1,8 +1,9 @@
-import type { ActionTool } from '@renderer/components/ActionTools'
-import { useToolManager } from '@renderer/components/ActionTools'
 import { act, renderHook } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
+
+import type { ActionTool } from '@renderer/components/ActionTools'
+import { useToolManager } from '@renderer/components/ActionTools'
 
 const createTool = (id: string, order: number, tooltip = id): ActionTool => ({
   id,

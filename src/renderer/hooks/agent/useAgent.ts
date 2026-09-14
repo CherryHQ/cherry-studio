@@ -6,10 +6,12 @@
  * configuration) lives here, not on sessions.
  */
 
-import { loggerService } from '@logger'
-import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import { ipcApi } from '@renderer/ipc'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
+import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
@@ -17,14 +19,9 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
-const logger = loggerService.withContext('useAgent')
-
 type UpdateAgentModelInput = {
   agentId: string
   modelId: UniqueModelId
@@ -72,17 +69,19 @@ export const useAgent = (id: string | null) => {
  */
 export const useAgents = (options: { enabled?: boolean } = {}) => {
   const { t } = useTranslation()
+  const enabled = options.enabled ?? true
   const { data, isLoading, error, refetch } = useQuery('/agents', {
-    enabled: options.enabled ?? true,
+    enabled,
     query: { limit: AGENTS_MAX_LIMIT }
   })
-  const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
+  useDataChange(enabled ? '/agents' : [], () => void refetch())
+  const agents = useMemo<AgentEntity[]>(() => data?.items ?? [], [data])
   const invalidate = useInvalidateCache()
 
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<AgentEntity>> => {
       try {
-        const result = await createAgentAndRefresh(form as unknown as CreateAgentCommand, () => invalidate('/agents'))
+        const result = await createAgentAndRefresh(form, () => invalidate('/agents'))
         toast.success(t('common.add_success'))
         return { success: true, data: result }
       } catch (error) {
@@ -97,12 +96,7 @@ export const useAgents = (options: { enabled?: boolean } = {}) => {
   const deleteAgent = useCallback(
     async (id: string) => {
       try {
-        await ipcApi.request('ai.agent.delete', { agentId: id, deleteSessions: false })
-        try {
-          await Promise.all([invalidate('/agents'), invalidate('/agent-sessions'), invalidate('/pins')])
-        } catch (error) {
-          logger.warn('Failed to refresh after deleting Agent', error as Error, { agentId: id })
-        }
+        await deleteAgentAndRefresh(id, invalidate)
         toast.success(t('common.delete_success'))
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
@@ -134,7 +128,7 @@ export const useUpdateAgent = () => {
         }
 
         return {
-          ...(result as unknown as AgentEntity),
+          ...result,
           configuration: parseAgentConfiguration(result.configuration, { entityId: result.id, entityType: 'agent' })
         }
       } catch (error) {

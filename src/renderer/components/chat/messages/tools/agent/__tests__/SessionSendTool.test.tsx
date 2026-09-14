@@ -32,23 +32,21 @@ describe('SessionSendTool', () => {
     render(
       <Harness
         input={{ target_session_id: 'session-build', message: 'Implement the reviewed plan.' }}
-        output={
-          {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  ok: true,
-                  status: 'accepted',
-                  delivery: {
-                    receiver: { agentId: 'agent-builder', sessionId: 'session-build' },
-                    receiverSnapshot: { agentName: 'Builder', sessionName: 'Build session' }
-                  }
-                })
-              }
-            ]
-          } as never
-        }
+        output={{
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                ok: true,
+                status: 'accepted',
+                delivery: {
+                  receiver: { agentId: 'agent-builder', sessionId: 'session-build' },
+                  receiverSnapshot: { agentName: 'Builder', sessionName: 'Build session' }
+                }
+              })
+            }
+          ]
+        }}
       />
     )
 
@@ -69,22 +67,20 @@ describe('SessionSendTool', () => {
     render(
       <Harness
         input={{ target_session_id: 'opaque-id', message: 'Implement it.' }}
-        output={
-          {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  ok: true,
-                  delivery: {
-                    receiver: { sessionId: 'opaque-id' },
-                    receiverSnapshot: { sessionName: '' }
-                  }
-                })
-              }
-            ]
-          } as never
-        }
+        output={{
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                ok: true,
+                delivery: {
+                  receiver: { sessionId: 'opaque-id' },
+                  receiverSnapshot: { sessionName: '' }
+                }
+              })
+            }
+          ]
+        }}
       />
     )
 

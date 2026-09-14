@@ -1,9 +1,10 @@
-import { ResourcePaneCountButton } from '@renderer/components/chat/panes/Shell'
-import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ResourcePaneCountButton } from '@renderer/components/chat/panes/Shell'
+import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 import { TopicRightPane } from '../TopicRightPane'
 

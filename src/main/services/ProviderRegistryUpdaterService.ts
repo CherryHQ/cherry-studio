@@ -1,3 +1,5 @@
+import { app, net } from 'electron'
+
 import {
   type CatalogManifest,
   CatalogManifestSchema,
@@ -17,7 +19,6 @@ import { writeProviderRegistrySnapshot } from '@main/services/providerRegistrySn
 import { regionService } from '@main/services/RegionService'
 import { generateUserAgent } from '@main/utils/systemInfo'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
-import { app, net } from 'electron'
 
 const logger = loggerService.withContext('ProviderRegistryUpdaterService')
 

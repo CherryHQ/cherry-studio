@@ -1,4 +1,4 @@
-import { Parser } from 'htmlparser2'
+import { DomUtils, parseDocument, Parser } from 'htmlparser2'
 
 const ACTIVE_CONTENT_ELEMENTS = new Set(['script', 'iframe', 'object', 'embed'])
 const URL_ATTRIBUTES = new Set([
@@ -103,4 +103,24 @@ export function htmlArtifactRequiresUserConsent(html: string): boolean {
   } catch {
     return true
   }
+}
+
+/** Removes `<meta http-equiv="refresh">` tags from html. The static preview tier must
+ * never auto-navigate: the navigation meta-refresh triggers needs no scripts (the
+ * script-less sandbox cannot stop it) and CSP governs fetches, not navigations. */
+export function stripMetaRefresh(html: string): string {
+  if (!/<meta[\s/>]/i.test(html)) return html
+
+  // Browsers close a comment at `--!>` (WHATWG comment-end-bang) while htmlparser2 only
+  // recognizes `-->`: break the sequence so a comment-hidden meta cannot re-open on the
+  // browser side. The zero-width space is invisible in rendered comment text.
+  const normalized = html.replace(/--!>/g, '--!\u200b>')
+  const document = parseDocument(normalized)
+  for (const meta of DomUtils.findAll(
+    (element) => element.name === 'meta' && element.attribs['http-equiv']?.toLowerCase() === 'refresh',
+    document.children
+  )) {
+    DomUtils.removeElement(meta)
+  }
+  return DomUtils.getOuterHTML(document)
 }

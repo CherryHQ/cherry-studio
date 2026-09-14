@@ -7,10 +7,11 @@
  * Shortcuts while visible: Shift toggles HEX / RGB, C copies the current value.
  */
 
-import { usePersistCache } from '@data/hooks/useCache'
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
+
+import { usePersistCache } from '@data/hooks/useCache'
 
 import { ACCENT_COLOR, BORDER_WIDTH, Z_INDEX } from '../constants'
 import type { SelectionRect } from '../types'

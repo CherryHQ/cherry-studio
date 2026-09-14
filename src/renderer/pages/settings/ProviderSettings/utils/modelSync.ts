@@ -1,3 +1,5 @@
+import { isEmpty } from 'es-toolkit/compat'
+
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
@@ -7,7 +9,6 @@ import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { type EndpointType as RuntimeEndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNewApiProvider } from '@shared/utils/provider'
-import { isEmpty } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('ProviderModelSync')
 
@@ -163,7 +164,10 @@ export async function fetchResolvedProviderModels(providerId: string): Promise<M
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
     return await enrichFetchedModels(providerId, fetched)
   } catch (error) {
-    logger.error('Failed to fetch and resolve provider models', { providerId, error })
+    logger.error('Failed to fetch and resolve provider models', {
+      providerId,
+      errorType: error instanceof Error ? error.name : typeof error
+    })
     throw error
   }
 }

@@ -1,9 +1,19 @@
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
-import type { Model } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
 import { Plus, Trash2 } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import {
+  Button,
+  InputNumber,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip
+} from '@cherrystudio/ui'
+import type { Model } from '@shared/data/types/model'
 
 import ProviderField from '../../primitives/ProviderField'
 import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
@@ -40,7 +50,7 @@ interface TierPriceFieldProps {
   error?: string
   optional?: boolean
   onChange: (field: ModelPricingDraftField, value: string) => void
-  onBlur: () => void
+  onCommit: (field: ModelPricingDraftField, value: string) => void
 }
 
 function TierPriceField({
@@ -53,7 +63,7 @@ function TierPriceField({
   error,
   optional = false,
   onChange,
-  onBlur
+  onCommit
 }: TierPriceFieldProps) {
   const { t } = useTranslation()
   const errorId = `model-pricing-tier-${tierIndex}-${field}-error`
@@ -71,19 +81,17 @@ function TierPriceField({
         ) : null
       }>
       <div className={drawerClasses.responsiveValueRow}>
-        <Input
-          type="number"
-          min="0"
-          step="any"
+        <InputNumber
+          min={0}
           required={!optional}
           aria-label={ariaLabel}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : undefined}
-          value={value}
+          value={value === '' ? null : Number(value)}
           placeholder={optional ? t('models.price.use_input_price') : '0.00'}
           className={drawerClasses.input}
-          onChange={(event) => onChange(field, event.target.value)}
-          onBlur={onBlur}
+          onValueChange={(next) => onChange(field, next === null ? '' : String(next))}
+          onBlur={(next) => onCommit(field, next === null ? '' : String(next))}
         />
         <span className={drawerClasses.valueSuffix}>
           {currencySymbol} / {t('models.price.million_tokens')}
@@ -99,7 +107,7 @@ interface ModelPricingTierFieldsProps {
   currencySymbol: ModelPricingCurrencySymbol
   errors: Partial<Record<ModelPricingDraftField, string>>
   onChange: (tierIndex: number, field: ModelPricingDraftField, value: string) => void
-  onBlur: () => void
+  onCommit: (tierIndex: number, field: ModelPricingDraftField, value: string) => void
   onRemove: (tierIndex: number) => void
 }
 
@@ -109,7 +117,7 @@ function ModelPricingTierFields({
   currencySymbol,
   errors,
   onChange,
-  onBlur,
+  onCommit,
   onRemove
 }: ModelPricingTierFieldsProps) {
   const { t } = useTranslation()
@@ -166,19 +174,19 @@ function ModelPricingTierFields({
               {errors.minInputTokens ?? t('models.price.min_input_tokens_help')}
             </div>
           }>
-          <Input
-            type="number"
-            min="1"
-            step="1"
+          {/* No `min`: the real floor is the previous tier's boundary, which the field cannot
+              know, so `buildModelPricingDraft` stays the only judge of what is valid here. */}
+          <InputNumber
+            step={1}
             required
             aria-label={minInputTokensAriaLabel}
             aria-invalid={Boolean(errors.minInputTokens)}
             aria-describedby={minInputTokensHelpId}
-            value={tier.minInputTokens}
+            value={tier.minInputTokens === '' ? null : Number(tier.minInputTokens)}
             placeholder="0"
             className={drawerClasses.input}
-            onChange={(event) => onChange(tierIndex, 'minInputTokens', event.target.value)}
-            onBlur={onBlur}
+            onValueChange={(value) => onChange(tierIndex, 'minInputTokens', value === null ? '' : String(value))}
+            onBlur={(value) => onCommit(tierIndex, 'minInputTokens', value === null ? '' : String(value))}
           />
         </ProviderField>
       ) : null}
@@ -192,7 +200,7 @@ function ModelPricingTierFields({
         currencySymbol={currencySymbol}
         error={errors.inputPrice}
         onChange={(field, value) => onChange(tierIndex, field, value)}
-        onBlur={onBlur}
+        onCommit={(field, value) => onCommit(tierIndex, field, value)}
       />
       <TierPriceField
         tierIndex={tierIndex}
@@ -203,7 +211,7 @@ function ModelPricingTierFields({
         currencySymbol={currencySymbol}
         error={errors.outputPrice}
         onChange={(field, value) => onChange(tierIndex, field, value)}
-        onBlur={onBlur}
+        onCommit={(field, value) => onCommit(tierIndex, field, value)}
       />
       <TierPriceField
         tierIndex={tierIndex}
@@ -215,7 +223,7 @@ function ModelPricingTierFields({
         error={errors.cacheReadPrice}
         optional
         onChange={(field, value) => onChange(tierIndex, field, value)}
-        onBlur={onBlur}
+        onCommit={(field, value) => onCommit(tierIndex, field, value)}
       />
       <TierPriceField
         tierIndex={tierIndex}
@@ -227,7 +235,7 @@ function ModelPricingTierFields({
         error={errors.cacheWritePrice}
         optional
         onChange={(field, value) => onChange(tierIndex, field, value)}
-        onBlur={onBlur}
+        onCommit={(field, value) => onCommit(tierIndex, field, value)}
       />
     </div>
   )
@@ -278,6 +286,18 @@ export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProp
     setDraft((current) => updateModelPricingTier(current, tierIndex, field, value))
     setErrors((current) => clearModelPricingDraftError(current, tierIndex, field))
   }, [])
+
+  const handleTierCommit = useCallback(
+    (tierIndex: number, field: ModelPricingDraftField, value: string) => {
+      // Commit the next draft rather than the rendered one: `setDraft` above has
+      // not taken effect yet in this tick.
+      const nextDraft = updateModelPricingTier(draft, tierIndex, field, value)
+      setDraft(nextDraft)
+      setErrors((current) => clearModelPricingDraftError(current, tierIndex, field))
+      commitDraft(nextDraft)
+    },
+    [commitDraft, draft]
+  )
 
   const handleAddTier = useCallback(() => {
     setDraft((current) => appendModelPricingTier(current))
@@ -335,7 +355,7 @@ export function ModelPricingFields({ pricing, onCommit }: ModelPricingFieldsProp
             currencySymbol={currencySymbol}
             errors={translatedErrors[tierIndex] ?? {}}
             onChange={handleTierChange}
-            onBlur={() => commitDraft(draft)}
+            onCommit={handleTierCommit}
             onRemove={handleRemoveTier}
           />
         ))}

@@ -1,9 +1,10 @@
-import { Box, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
-import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { X } from 'lucide-react'
 import type { ComponentProps, CSSProperties, KeyboardEvent, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Box, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 
 type PromptTextAreaProps = Omit<
   ComponentProps<typeof Textarea.Input>,
@@ -80,6 +81,11 @@ const PromptPopupContainer: React.FC<Props> = ({
     if (event.defaultPrevented) {
       return
     }
+
+    // IME candidate confirmation still emits keydown; submitting there would resolve with the raw
+    // pinyin buffer instead of the composed text. `keyCode === 229` is the legacy fallback.
+    // oxlint-disable-next-line no-deprecated
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return
 
     const isEnterPressed = event.key === 'Enter'
     if (isEnterPressed) {

@@ -1,3 +1,10 @@
+import dayjs from 'dayjs'
+import { Check, ExternalLink, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { type FileStat } from 'webdav'
+
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
@@ -24,12 +31,6 @@ import {
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
-import dayjs from 'dayjs'
-import { Check, ExternalLink, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { type FileStat } from 'webdav'
 
 import NutstorePathPopup from './NutstorePathPopup'
 
@@ -64,8 +65,13 @@ const NutstoreSettings: FC = () => {
     window.open(ssoUrl, '_blank')
     const nutstoreToken = await nutstoreSsoHandler()
 
+    if (!nutstoreToken) {
+      toast.error(t('settings.data.nutstore.login.failed'))
+      return
+    }
+
     void setNutstoreToken(nutstoreToken)
-  }, [nutstoreSsoHandler, setNutstoreToken])
+  }, [nutstoreSsoHandler, setNutstoreToken, t])
 
   useEffect(() => {
     async function decryptTokenEffect() {
@@ -102,19 +108,25 @@ const NutstoreSettings: FC = () => {
   const handleCheckConnection = async () => {
     if (!nutstoreToken) return
     setCheckConnectionLoading(true)
-    const isConnectedToNutstore = await checkConnection()
+    try {
+      const isConnectedToNutstore = await checkConnection()
 
-    toast[isConnectedToNutstore ? 'success' : 'error']({
-      timeout: 2000,
-      title: isConnectedToNutstore
-        ? t('settings.data.nutstore.checkConnection.success')
-        : t('settings.data.nutstore.checkConnection.fail')
-    })
+      toast[isConnectedToNutstore ? 'success' : 'error']({
+        timeout: 2000,
+        title: isConnectedToNutstore
+          ? t('settings.data.nutstore.checkConnection.success')
+          : t('settings.data.nutstore.checkConnection.fail')
+      })
 
-    setNsConnected(isConnectedToNutstore)
-    setCheckConnectionLoading(false)
+      setNsConnected(isConnectedToNutstore)
 
-    setTimeoutTimer('handleCheckConnection', () => setNsConnected(false), 3000)
+      setTimeoutTimer('handleCheckConnection', () => setNsConnected(false), 3000)
+    } catch (error) {
+      toast.error({ timeout: 2000, title: t('settings.data.nutstore.checkConnection.fail') })
+      setNsConnected(false)
+    } finally {
+      setCheckConnectionLoading(false)
+    }
   }
 
   const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =

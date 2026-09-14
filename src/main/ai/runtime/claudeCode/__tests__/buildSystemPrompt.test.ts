@@ -6,8 +6,9 @@
 
 import type * as NodeFs from 'node:fs'
 
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const {
   mockFindBySessionId,
@@ -84,10 +85,12 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({
-    buildPromptParts: mockBuildPrompt,
-    buildMemoriesSection: mockBuildMemoriesSection
-  }))
+  PromptBuilder: vi.fn(function () {
+    return {
+      buildPromptParts: mockBuildPrompt,
+      buildMemoriesSection: mockBuildMemoriesSection
+    }
+  })
 }))
 
 vi.mock('@main/utils/prompt', () => ({
@@ -305,6 +308,40 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
     })
     const result = await buildSystemPrompt(agent, '/tmp/cwd')
     expect(promptText(result)).toContain(ARTIFACTS_MARKER)
+  })
+})
+
+describe('buildSystemPrompt — cache-stable segment order', () => {
+  it('keeps static Cherry policy before configurable and runtime-derived context', async () => {
+    mockApplicationGet.mockReturnValue({ get: vi.fn(() => 'English') })
+    mockBuildPrompt.mockResolvedValueOnce({
+      base: { kind: 'native' },
+      context: 'PERSONA_AND_MEMORY_CONTEXT'
+    })
+
+    const text = promptText(
+      await buildSystemPrompt(
+        makeAgent({ instructions: 'CONFIGURED_AGENT_INSTRUCTIONS' }),
+        '/tmp/cwd',
+        undefined,
+        [],
+        [],
+        'WORKSPACE_INSTRUCTIONS'
+      )
+    )
+
+    const orderedMarkers = [
+      '## Instruction Precedence',
+      ARTIFACTS_MARKER,
+      'CONFIGURED_AGENT_INSTRUCTIONS',
+      'WORKSPACE_INSTRUCTIONS',
+      'PERSONA_AND_MEMORY_CONTEXT',
+      'By default, respond in English.'
+    ]
+    const offsets = orderedMarkers.map((marker) => text.indexOf(marker))
+
+    expect(offsets.every((offset) => offset >= 0)).toBe(true)
+    expect(offsets).toEqual([...offsets].sort((a, b) => a - b))
   })
 })
 

@@ -1,7 +1,11 @@
 import type { Provider } from './types'
 import { openaiCompatible } from './types'
 
-export const minimaxImageOverrides = [
+export const minimaxOverrides = [
+  {
+    modelId: 'minimax-m3',
+    endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+  },
   {
     modelId: 'image-01',
     imageGeneration: {
@@ -85,6 +89,7 @@ export const minimaxImageOverrides = [
 export default openaiCompatible({
   id: 'minimax',
   name: 'MiniMax',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.minimaxi.com/v1/',
   anthropic: 'https://api.minimaxi.com/anthropic',
   website: {
@@ -93,5 +98,5 @@ export default openaiCompatible({
     models: 'https://platform.minimaxi.com/document/Models',
     official: 'https://platform.minimaxi.com/'
   },
-  overrides: minimaxImageOverrides
+  overrides: minimaxOverrides
 })

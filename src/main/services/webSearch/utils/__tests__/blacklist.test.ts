@@ -1,5 +1,6 @@
-import type { WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
 import { describe, expect, it } from 'vitest'
+
+import type { WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
 
 import { filterWebSearchResponseWithBlacklist } from '../blacklist'
 

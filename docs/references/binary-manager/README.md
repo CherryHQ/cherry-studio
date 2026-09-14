@@ -1,7 +1,8 @@
 ---
 description: Lifecycle service that acquires third-party CLI binaries through mise, with tool registry, snapshots, and IPC
 sources:
-  - src/main/services/BinaryManager.ts
+  - src/main/services/binaryManager/BinaryManager.ts
+  - src/main/services/binaryManager/pythonRuntime.ts
   - src/shared/data/presets/binaryTools.ts
   - src/main/ipc/handlers/binary.ts
   - scripts/download-binaries.js
@@ -83,7 +84,13 @@ Removal publishes `removing` and chooses its cleanup path from the live `applica
 
 Runtime dependencies have one extra rule. If an existing `node` or `python` shim satisfies the requested version, an install adopts it at its observed version rather than reinstalling. A version mismatch runs mise installation instead. This avoids silently replacing a usable runtime.
 
-Removing a runtime is guarded symmetrically. Under the mutation lock, removal of a `node` runtime is rejected while any installed `npm:` tool remains, and a `python` runtime while any installed `pipx:` tool remains — those package tools depend on the runtime's interpreter, so pulling it would strand them. The rejection names the blocking tools; the check reuses the install-side backend→runtime map (npm→node, pipx→python) rather than a dependency graph.
+Removing a runtime is guarded symmetrically. Under the mutation lock, removal of a `node` runtime is rejected while any installed `npm:` tool remains, and a `python` runtime while any installed `pipx:` tool remains — those package tools depend on the runtime's interpreter, so pulling it would strand them. The rejection names the blocking tools; the check reuses the install-side backend→runtime map (npm→node, pipx→python) rather than a dependency graph. The `pipx` half of that guard now covers only tools an earlier Cherry version installed: their virtual environments were built against mise's Python and still bind to it, while a tool installed since gets the Cherry-provisioned interpreter below and does not.
+
+### Python for the pipx backend
+
+Python is the one runtime BinaryManager does not ask mise for. mise installs Python from GitHub releases, which is unreachable from mainland China, and naming a Python runtime in `mise use` is what triggers that download — so `pythonRuntime.ts` provisions the interpreter with the bundled `uv` into `feature.binary.data.uv_python`, and `mise use` is given the `pipx:` tool alone. `UV_PYTHON` carries the interpreter into mise's pipx backend, which shells out to uv. In China the archive comes from npmmirror's `python-build-standalone` mirror first, the official source second; uv verifies both against its built-in catalog's checksums. Provisioning first asks `uv python find` for an interpreter and spawns it with `--version` — a half-written download is otherwise indistinguishable from a working one. Every install then passes `--reinstall` unconditionally: a plain `uv python install` treats any version uv still lists as already satisfied, and `uv python find` reports an interpreter it cannot inspect exactly as it reports an absent one, so there is no state in which the flag can be skipped safely. On an empty install directory it simply downloads.
+
+After a successful `pipx:` install, BinaryManager drops the global `python` selection with `mise unuse -g --no-prune python`: earlier versions wrote that entry for themselves and leaving it behind keeps mise reporting a runtime it no longer owns as active. `--no-prune` is required, not cosmetic — plain `mise unuse` uninstalls the version as well, and a `pipx:` tool installed by an earlier version has a `pyvenv.cfg` pointing straight into that install directory. The step is skipped when the user added Python as a custom tool, since that selection is theirs, and a failure is logged rather than failing an install that already succeeded.
 
 ### Failure outcomes
 
@@ -135,7 +142,9 @@ For a built-in Dependency settings preset, add an entry to `PRESETS_BINARY_TOOLS
 
 For a Code CLI, add its executable/specification to the Code CLI preset source. `getToolSnapshots()` already includes those candidates, so no BinaryManager adapter is needed.
 
-To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
+Fixed npm presets that require lifecycle scripts must list the exact packages in `npmAllowBuilds`. BinaryManager passes that list to mise's per-tool `allow_builds` option; packages not listed keep mise's default script blocking, and broad allow-all execution is not exposed.
+
+To ship a bundled executable, add its platform download/checksum definition to `scripts/download-binaries.js` and its executable names/version marker to `BUNDLED_TOOLS` in `src/main/services/binaryManager/BinaryManager.ts`. Both entries are required: one supplies the artifact and the other makes extraction and snapshot availability aware of it.
 
 `scripts/download-binaries.js` fills `resources/binaries/<platform>-<arch>/`, which is what the app extracts from at boot. During packaging (`before-pack.js` passes `--packaging`) it downloads there directly.
 

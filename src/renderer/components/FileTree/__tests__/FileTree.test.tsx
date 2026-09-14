@@ -1,7 +1,8 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 vi.mock('@iconify/react', () => ({
@@ -58,6 +59,31 @@ describe('FileTree - read-only form (no callbacks)', () => {
     expect(screen.queryByText('A.md')).toBeNull()
     await user.click(screen.getByText('Root'))
     expect(screen.getByText('A.md')).toBeInTheDocument()
+  })
+
+  it('exposes tree semantics and supports keyboard expansion and selection', async () => {
+    const onSelectedChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <FileTree
+        nodes={nodes}
+        ariaLabel="Source files"
+        onSelectedChange={onSelectedChange}
+        renderList={passthroughRenderList}
+      />
+    )
+
+    expect(screen.getByRole('tree', { name: 'Source files' })).toBeInTheDocument()
+    const rootRow = screen.getByRole('treeitem', { name: 'Root' })
+    rootRow.focus()
+    await user.keyboard('{Enter}')
+
+    expect(rootRow).toHaveAttribute('aria-expanded', 'true')
+    const markdownRow = screen.getByRole('treeitem', { name: 'A.md' })
+    markdownRow.focus()
+    await user.keyboard(' ')
+
+    expect(onSelectedChange).toHaveBeenLastCalledWith('a')
   })
 
   it('reports selection through onSelectedChange', async () => {

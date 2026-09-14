@@ -1,10 +1,12 @@
-// Original: src/renderer/components/scrollbar/index.tsx
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { throttle } from 'es-toolkit/compat'
 import * as React from 'react'
 
+// Original: src/renderer/components/scrollbar/index.tsx
+import { cn } from '@cherrystudio/ui/lib/utils'
+
 export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
   onScroll?: () => void
+  showOnHover?: boolean
 }
 
 const Scrollbar = ({
@@ -13,6 +15,7 @@ const Scrollbar = ({
   className,
   onScroll: externalOnScroll,
   style,
+  showOnHover = false,
   ...htmlProps
 }: ScrollbarProps & { ref?: React.Ref<HTMLDivElement> }) => {
   const [isScrolling, setIsScrolling] = React.useState(false)
@@ -55,12 +58,19 @@ const Scrollbar = ({
     <div
       {...htmlProps}
       ref={ref}
-      className={cn('overflow-y-auto [scrollbar-gutter:stable]', className)}
+      className={cn(
+        'overflow-y-auto [scrollbar-gutter:stable]',
+        showOnHover &&
+          '[scrollbar-color:transparent_transparent] hover:[scrollbar-color:var(--scrollbar-thumb-hover)_transparent] data-[scrolling=true]:[scrollbar-color:var(--scrollbar-thumb)_transparent]',
+        className
+      )}
       data-scrolling={isScrolling ? 'true' : 'false'}
       onScroll={combinedOnScroll}
       style={{
         ...style,
-        scrollbarColor: isScrolling ? 'var(--scrollbar-thumb) transparent' : 'transparent transparent'
+        ...(!showOnHover && {
+          scrollbarColor: isScrolling ? 'var(--scrollbar-thumb) transparent' : 'transparent transparent'
+        })
       }}>
       {children}
     </div>

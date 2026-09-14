@@ -1,6 +1,7 @@
-import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },

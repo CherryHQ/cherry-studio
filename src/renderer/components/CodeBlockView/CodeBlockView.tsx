@@ -1,6 +1,20 @@
+import { Icon } from '@iconify/react'
+import dayjs from 'dayjs'
+import React, {
+  memo,
+  startTransition,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
-import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import type { ActionTool } from '@renderer/components/ActionTools'
 import {
@@ -17,26 +31,13 @@ import {
 import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { toast } from '@renderer/services/toast'
 import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { cn } from '@renderer/utils/style'
-import dayjs from 'dayjs'
-import React, {
-  memo,
-  startTransition,
-  Suspense,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { MAX_COLLAPSED_CODE_HEIGHT, SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
@@ -51,6 +52,7 @@ interface Props {
   language: string
   onSave?: (newContent: string) => void
   editable?: boolean
+  allowExecution?: boolean
   isStreaming?: boolean
   showToolbar?: boolean
   maxHeight?: string | number
@@ -74,7 +76,16 @@ interface Props {
  * - core 工具
  */
 export const CodeBlockView: React.FC<Props> = memo((props) => {
-  const { children, language, onSave, editable = true, isStreaming = false, showToolbar = true, maxHeight } = props
+  const {
+    children,
+    language,
+    onSave,
+    editable = true,
+    allowExecution = true,
+    isStreaming = false,
+    showToolbar = true,
+    maxHeight
+  } = props
   const { t } = useTranslation()
 
   const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
@@ -94,7 +105,6 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     themeDark: 'chat.code.editor.theme_dark'
   })
 
-  const { activeCmTheme } = useCodeStyle()
   const canEdit = codeEditor.enabled && editable
   const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
   const startedStreamingRef = useRef(isStreaming)
@@ -134,8 +144,8 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const [tools, setTools] = useState<ActionTool[]>([])
 
   const isExecutable = useMemo(() => {
-    return codeExecutionEnabled && language === 'python'
-  }, [codeExecutionEnabled, language])
+    return allowExecution && codeExecutionEnabled && language === 'python'
+  }, [allowExecution, codeExecutionEnabled, language])
 
   const sourceViewRef = useRef<CodeEditorHandles>(null)
   const specialViewRef = useRef<BasicPreviewHandles>(null)
@@ -149,6 +159,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     return hasSpecialView && viewMode === 'special'
   }, [hasSpecialView, viewMode])
   const isEditing = canEdit && (viewMode === 'edit' || (viewMode === 'split' && viewState.previousMode === 'edit'))
+  const activeCmTheme = useCmTheme(isEditing)
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
   const [wrapOverride, setWrapOverride] = useState(codeWrappable)
@@ -364,23 +375,23 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
     return (
       <Suspense fallback={null}>
-        <SpecialView ref={specialViewRef} enableToolbar={codeImageTools}>
+        <SpecialView ref={specialViewRef} enableToolbar={codeImageTools} isStreaming={isStreaming}>
           {children}
         </SpecialView>
       </Suspense>
     )
-  }, [children, codeImageTools, language])
+  }, [children, codeImageTools, isStreaming, language])
 
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
       return (
-        <div className="code-block-header mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 font-medium text-muted-foreground text-xs leading-none" />
+        <div className="code-block-header mt-1.5 flex h-4 items-center rounded-t-lg bg-transparent px-2.5 text-xs leading-none font-medium text-muted-foreground" />
       )
     }
     const ext = getExtensionByLanguage(language)
     const iconName = getFileIconName(`file${ext}`)
     return (
-      <div className="code-block-header flex h-8 items-center border-border-subtle border-b-[0.5px] bg-background-subtle px-2.5 font-medium text-muted-foreground text-xs leading-none">
+      <div className="code-block-header flex h-8 items-center border-b-[0.5px] border-border-subtle bg-background-subtle px-2.5 text-xs leading-none font-medium text-muted-foreground">
         <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
         {language.toUpperCase()}
       </div>
@@ -395,12 +406,12 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     return (
       <div
         className={cn(
-          'split-view-wrapper flex *:w-full *:flex-[1_1_auto]',
+          'split-view-wrapper flex *:min-w-0 *:flex-1',
           !hasStatusBar && (showSpecialView && !showSourceView ? 'rounded-lg' : 'rounded-b-lg'),
           !hasStatusBar && '[&_.code-viewer]:rounded-[inherit]',
           showSpecialView &&
             showSourceView &&
-            "before:-translate-x-1/2 relative before:absolute before:top-0 before:bottom-0 before:left-1/2 before:z-[1] before:w-px before:bg-muted before:content-['']"
+            "relative before:absolute before:top-0 before:bottom-0 before:left-1/2 before:z-[1] before:w-px before:-translate-x-1/2 before:bg-muted before:content-['']"
         )}>
         {showSpecialView && specialView}
         {showSourceView && sourceView}
@@ -414,7 +425,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       className={cn(
         'code-block relative w-full min-w-0 overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle',
         '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
-        '[&:hover_.code-toolbar]:opacity-100 [&_.code-toolbar.show]:opacity-100',
+        '[&_.code-toolbar.show]:opacity-100 [&:hover_.code-toolbar]:opacity-100',
         isInSpecialView
           ? '[&_.code-toolbar]:rounded-none [&_.code-toolbar]:bg-transparent'
           : '[&_.code-toolbar]:rounded-[4px] [&_.code-toolbar]:bg-muted'

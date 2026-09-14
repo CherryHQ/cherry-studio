@@ -1,3 +1,8 @@
+import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
+import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import { ErrorBoundary } from 'react-error-boundary'
+import { useTranslation } from 'react-i18next'
+
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
@@ -6,10 +11,6 @@ import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
-import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
-import { ErrorBoundary } from 'react-error-boundary'
-import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from './FilePreviewLayout'
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
@@ -92,7 +93,7 @@ function FilePreviewLoading() {
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content>
-        <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+        <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle className="size-4 animate-spin" aria-hidden />
           <span>{t('file_preview.loading')}</span>
         </div>
@@ -109,9 +110,21 @@ interface FilePreviewPluginRendererProps {
   fileName: string
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
-  plugin: FilePreviewPlugin
+  plugin: PreloadedFilePreviewPlugin
   refreshKey: number
   type: FilePreviewType
+}
+
+interface PreloadedFilePreviewPlugin {
+  descriptor: FilePreviewPlugin
+  modulePromise: ReturnType<FilePreviewPlugin['load']>
+}
+
+function preloadFilePreviewPlugin(descriptor: FilePreviewPlugin): PreloadedFilePreviewPlugin {
+  const modulePromise = Promise.resolve().then(() => descriptor.load())
+  // React.lazy observes the original rejection only when metadata accepts this candidate.
+  void modulePromise.catch(() => {})
+  return { descriptor, modulePromise }
 }
 
 interface FilePreviewShellProps {
@@ -127,7 +140,7 @@ function FilePreviewShell({ children, header }: FilePreviewShellProps) {
       <FilePreviewLayout.Frame>
         <div
           data-testid="file-preview-header"
-          className="relative flex h-11 min-h-11 shrink-0 items-center px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']">
+          className="relative flex h-11 min-h-11 shrink-0 items-center px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']">
           <div className="flex min-w-0 flex-1 items-center gap-2">{header}</div>
           <FilePreviewToolbarPortalHost />
         </div>
@@ -145,13 +158,13 @@ function FilePreviewPluginRenderer({
   refreshKey,
   type
 }: FilePreviewPluginRendererProps) {
-  const PluginPreview = useMemo(() => lazy(plugin.load), [plugin])
+  const PluginPreview = useMemo(() => lazy(() => plugin.modulePromise), [plugin])
 
   return (
     <ErrorBoundary
-      key={`${plugin.id}:${filePath}:${refreshKey}`}
+      key={`${plugin.descriptor.id}:${filePath}:${refreshKey}`}
       FallbackComponent={PluginErrorFallback}
-      onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.id}`, error)}>
+      onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error)}>
       <Suspense fallback={<FilePreviewLoading />}>
         <PluginPreview
           filePath={filePath}
@@ -184,7 +197,7 @@ type FilePreviewResolution =
   | {
       file: NormalizedFilePreviewTarget
       metadata: FilePreviewFileMetadata
-      plugin: FilePreviewPlugin | null
+      plugin: PreloadedFilePreviewPlugin | null
       requestKey: string
       status: 'ready'
     }
@@ -209,7 +222,10 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
 
     void (async () => {
       try {
-        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+        const metadataPromise = ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+        const candidateDescriptor = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
+        const candidatePlugin = candidateDescriptor ? preloadFilePreviewPlugin(candidateDescriptor) : null
+        const metadata = await metadataPromise
         if (cancelled) return
 
         if (!metadata) {
@@ -222,12 +238,12 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
           return
         }
 
-        let plugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
-        if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.id)) {
+        let plugin = candidatePlugin
+        if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.descriptor.id)) {
           const isText = metadata.type === 'text'
 
           if (!plugin && isText) {
-            plugin = textFilePreviewPlugin
+            plugin = preloadFilePreviewPlugin(textFilePreviewPlugin)
           } else if (plugin && !isText) {
             plugin = null
           }

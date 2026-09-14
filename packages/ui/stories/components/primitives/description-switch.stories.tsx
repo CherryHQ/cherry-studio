@@ -1,7 +1,8 @@
-import { DescriptionSwitch } from '@cherrystudio/ui/components/primitives/switch'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Bell, Eye, Lock, Moon, Shield, Wifi, Zap } from 'lucide-react'
 import { useState } from 'react'
+
+import { DescriptionSwitch } from '@cherrystudio/ui/components/primitives/switch'
 
 const meta: Meta<typeof DescriptionSwitch> = {
   title: 'Components/Primitives/DescriptionSwitch',

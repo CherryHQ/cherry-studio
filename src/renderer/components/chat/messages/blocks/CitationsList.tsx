@@ -1,9 +1,10 @@
-import { Button } from '@cherrystudio/ui'
-import Favicon from '@renderer/components/icons/FallbackFavicon'
-import type { Citation } from '@renderer/types/message'
 import { FileSearch } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
+import Favicon from '@renderer/components/icons/FallbackFavicon'
+import type { Citation } from '@renderer/types/message'
 
 import { getCitationHostname } from '../../citations/common'
 import { useOptionalMessageListActions } from '../MessageListProvider'

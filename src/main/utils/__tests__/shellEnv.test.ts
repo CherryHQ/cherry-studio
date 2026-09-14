@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'child_process'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { enumerateValuesSafeMock } = vi.hoisted(() => ({
@@ -50,7 +51,7 @@ vi.mock('../bundledGit', () => ({
 
 // Import AFTER mocks are registered so the module binds to mocked values.
 import { getBundledGitDir } from '../bundledGit'
-import { getRawShellEnv, getShellEnv, refreshShellEnv } from '../shellEnv'
+import { getPathFromEnvironment, getRawShellEnv, getShellEnv, refreshShellEnv } from '../shellEnv'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -273,5 +274,13 @@ describe('shellEnv – Windows registry PATH', () => {
 
     const second = await getShellEnv()
     expect(second[pathKey as string]).toBeDefined()
+  })
+})
+
+describe('getPathFromEnvironment', () => {
+  it('reads PATH keys case-insensitively without copying unrelated values', () => {
+    expect(getPathFromEnvironment({ Path: 'C:\\Users\\tester\\bin', SECRET: 'hidden' })).toBe('C:\\Users\\tester\\bin')
+    expect(getPathFromEnvironment({ PATH: '/opt/homebrew/bin' })).toBe('/opt/homebrew/bin')
+    expect(getPathFromEnvironment({ HOME: '/Users/tester' })).toBeUndefined()
   })
 })

@@ -1,11 +1,12 @@
-import { EmptyState, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { formatFileSize } from '@renderer/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import FileSpreadsheet from 'lucide-react/dist/esm/icons/file-spreadsheet'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { EmptyState, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { formatFileSize } from '@renderer/utils/file'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
@@ -220,8 +221,6 @@ export default function SpreadsheetFilePreview({ filePath, fileName, metadata, r
             onZoomIn={zoomIn}
           />
         </div>
-
-        <div aria-hidden className="hidden h-24 shrink-0 [[data-shell-maximized-overlay]_&]:block" />
       </div>
     )
   }

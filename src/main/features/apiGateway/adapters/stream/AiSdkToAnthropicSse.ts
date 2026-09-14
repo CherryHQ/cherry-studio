@@ -36,8 +36,9 @@ import type {
   ToolUseBlock,
   Usage
 } from '@anthropic-ai/sdk/resources/messages'
-import { loggerService } from '@logger'
 import type { FinishReason, UIMessageChunk } from 'ai'
+
+import { loggerService } from '@logger'
 
 import { googleReasoningCache, openRouterReasoningCache } from '../../reasoningCache'
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
@@ -158,7 +159,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         const meta = chunk.providerMetadata as Record<string, any> | undefined
         const thoughtSignature = meta?.google?.thoughtSignature
         if (googleReasoningCache && typeof thoughtSignature === 'string') {
-          googleReasoningCache.set(`google-${toolName}`, thoughtSignature)
+          googleReasoningCache.set(`google-${chunk.toolCallId}`, thoughtSignature)
         }
         const reasoningDetails = meta?.openrouter?.reasoning_details
         if (openRouterReasoningCache && Array.isArray(reasoningDetails)) {
@@ -521,7 +522,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
             type: 'text',
             text: block.content,
             citations: null
-          } as TextBlock)
+          })
           break
         case 'thinking':
           content.push({
@@ -530,7 +531,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
             // Real signature when the upstream provided one; '' matches the empty
             // signature used when the block is opened.
             signature: block.signature ?? ''
-          } as ThinkingBlock)
+          })
           break
         case 'tool_use':
           content.push({

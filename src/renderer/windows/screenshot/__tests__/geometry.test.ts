@@ -1,7 +1,8 @@
-import type { DetectedWindow } from '@shared/types/screenshot'
 import { render, screen } from '@testing-library/react'
 import { createElement } from 'react'
 import { describe, expect, it } from 'vitest'
+
+import type { DetectedWindow } from '@shared/types/screenshot'
 
 import { OcrTextOverlay } from '../components/OcrTextOverlay'
 import { Toolbar } from '../components/Toolbar'
@@ -11,7 +12,7 @@ import { buildAnnotation, isSignificantAnnotation } from '../utils/annotation'
 import { findWindowAtPoint } from '../utils/findWindowAtPoint'
 
 function makeWindow(overrides: Partial<DetectedWindow>): DetectedWindow {
-  return { title: 'w', appName: 'app', x: 0, y: 0, width: 100, height: 100, ...overrides }
+  return { title: 'w', x: 0, y: 0, width: 100, height: 100, ...overrides }
 }
 
 describe('findWindowAtPoint', () => {

@@ -1,9 +1,11 @@
+import { getToolName, isToolUIPart } from 'ai'
+
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { getToolName, isToolUIPart } from 'ai'
 
+import { agentInlineResultPresentationRegistry } from '../tools/agent'
 import { isChannelAuthQrPart } from '../tools/channelConfigTool'
 import { isGeneratedImageResultPart } from '../tools/painting/generateImageTool'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
@@ -133,7 +135,11 @@ function isAskUserQuestionPart(part: CherryMessagePart): boolean {
 }
 
 function isInlineResultToolPart(part: CherryMessagePart): boolean {
-  return isChannelAuthQrPart(part) || isGeneratedImageResultPart(part)
+  return (
+    isChannelAuthQrPart(part) ||
+    agentInlineResultPresentationRegistry.isResultPart(part) ||
+    isGeneratedImageResultPart(part)
+  )
 }
 
 function isVisibleReasoningPart(part: CherryMessagePart): boolean {

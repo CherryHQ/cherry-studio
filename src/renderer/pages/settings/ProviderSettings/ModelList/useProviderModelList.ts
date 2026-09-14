@@ -1,8 +1,9 @@
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import {
@@ -83,10 +84,11 @@ const withPrunedModelIds = <T>(entries: Record<string, T>, validIds: Set<string>
 }
 
 export function useProviderModelList({ providerId, disabled = false }: UseProviderModelListArgs) {
-  const { models, isLoading: isModelsLoading } = useModels(
-    { providerId },
-    { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS }
-  )
+  const {
+    models,
+    isLoading: isModelsLoading,
+    refetch: refetchModels
+  } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { deleteModel, deleteModels } = useModelMutations()
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [quickAssistantModelId] = usePreference('feature.quick_assistant.model_id')
@@ -151,6 +153,21 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     setEditingModel(null)
   }, [])
 
+  const confirmModelsDeleted = useCallback(
+    async (modelIds: readonly UniqueModelId[]) => {
+      try {
+        const refreshedModels = (await refetchModels()) as readonly Model[] | undefined
+        if (!refreshedModels) return false
+
+        const refreshedModelIds = new Set(refreshedModels.map((model) => model.id))
+        return modelIds.every((modelId) => !refreshedModelIds.has(modelId))
+      } catch {
+        return false
+      }
+    },
+    [refetchModels]
+  )
+
   const onDeleteModel = useCallback(
     async (model: Model) => {
       if (disabled) return
@@ -166,13 +183,15 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       try {
         await deleteModel(model.providerId, modelId)
       } catch (error) {
+        const deletionConfirmed = await confirmModelsDeleted([model.id])
+
         setOptimisticDeletedByModelId((current) => {
           const next = { ...current }
           delete next[model.id]
           return next
         })
 
-        throw error
+        if (!deletionConfirmed) throw error
       } finally {
         setPendingModelIdMap((current) => {
           const next = { ...current }
@@ -181,7 +200,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [defaultModelIds, deleteModel, disabled]
+    [confirmModelsDeleted, defaultModelIds, deleteModel, disabled]
   )
 
   const onDeleteModels = useCallback(
@@ -191,6 +210,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       if (deletableModels.length === 0) {
         return
       }
+      const deletableModelIds = deletableModels.map((model) => model.id)
 
       setOptimisticDeletedByModelId((current) => {
         const next = { ...current }
@@ -212,19 +232,21 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       })
 
       try {
-        await deleteModels(deletableModels.map((model) => model.id))
+        await deleteModels(deletableModelIds)
       } catch (error) {
+        const deletionConfirmed = await confirmModelsDeleted(deletableModelIds)
+
         setOptimisticDeletedByModelId((current) => {
           const next = { ...current }
 
-          for (const model of deletableModels) {
-            delete next[model.id]
+          for (const modelId of deletableModelIds) {
+            delete next[modelId]
           }
 
           return next
         })
 
-        throw error
+        if (!deletionConfirmed) throw error
       } finally {
         setPendingModelIdMap((current) => {
           const next = { ...current }
@@ -237,7 +259,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [defaultModelIds, deleteModels, disabled]
+    [confirmModelsDeleted, defaultModelIds, deleteModels, disabled]
   )
 
   const enabledSections = useMemo(() => toGroupSections(displayState.groups), [displayState.groups])

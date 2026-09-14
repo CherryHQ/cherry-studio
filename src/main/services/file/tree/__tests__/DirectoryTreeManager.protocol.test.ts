@@ -1,3 +1,6 @@
+import type { WebContents } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * `DirectoryTreeManager` state machine, exercised against a fake builder.
  *
@@ -16,8 +19,6 @@ import type {
   TreeMutationEvent,
   TreeMutationPushPayload
 } from '@shared/utils/file'
-import type { WebContents } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await (importOriginal as () => Promise<typeof lifecycleModule>)()

@@ -1,6 +1,7 @@
+import type { ComponentProps, ReactNode } from 'react'
+
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComponentProps, ReactNode } from 'react'
 
 export interface DisclosureProps extends Omit<ComponentProps<'div'>, 'children' | 'title' | 'onToggle'> {
   children: ReactNode
@@ -42,7 +43,7 @@ export function Disclosure({
             <span className="min-w-0 text-left">
               <span className="block truncate">{title}</span>
               {description && (
-                <span className="mt-0.5 block text-muted-foreground text-xs leading-5">{description}</span>
+                <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{description}</span>
               )}
             </span>
           </AccordionTrigger>

@@ -1,11 +1,12 @@
+import { NotebookPen } from 'lucide-react'
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Checkbox } from '@cherrystudio/ui'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { projectNotesTree } from '@renderer/services/NotesService'
 import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
-import { NotebookPen } from 'lucide-react'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { NoteItem } from '../types'
 

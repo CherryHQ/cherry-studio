@@ -6,6 +6,7 @@ import { ExaProvider } from './api/ExaProvider'
 import { FetchProvider } from './api/FetchProvider'
 import { FirecrawlProvider } from './api/FirecrawlProvider'
 import { JinaProvider } from './api/JinaProvider'
+import { ParallelProvider } from './api/ParallelProvider'
 import { QueritProvider } from './api/QueritProvider'
 import { SearxngProvider } from './api/SearxngProvider'
 import { TavilyProvider } from './api/TavilyProvider'
@@ -28,5 +29,6 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   querit: QueritProvider,
   fetch: FetchProvider,
   jina: JinaProvider,
-  firecrawl: FirecrawlProvider
+  firecrawl: FirecrawlProvider,
+  parallel: ParallelProvider
 } as const satisfies Record<WebSearchProvider['id'], WebSearchProviderConstructor>

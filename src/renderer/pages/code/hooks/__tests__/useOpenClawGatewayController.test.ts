@@ -1,7 +1,9 @@
-import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@data/CacheService'
+import type { Provider } from '@shared/data/types/provider'
+import { CodeCli } from '@shared/types/codeCli'
 
 const mocks = vi.hoisted(() => ({
   gatewayPort: undefined as number | undefined,
@@ -13,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [mocks.gatewayPort, vi.fn()]
 }))
+vi.mock('@data/hooks/useCache', async (importOriginal) => importOriginal())
 
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openSmartMiniApp: mocks.openSmartMiniApp })
@@ -43,6 +46,7 @@ const enabledProvider = { id: 'anthropic', name: 'Anthropic' } as Provider
 describe('useOpenClawGatewayController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cacheService.deleteShared('feature.openclaw.gateway_status')
     vi.spyOn(Date, 'now').mockReturnValue(1_774_560_000_000)
     mocks.gatewayPort = undefined
     mocks.requestMock.mockImplementation((route: string) => {
@@ -107,6 +111,9 @@ describe('useOpenClawGatewayController', () => {
     })
 
     expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', { port: 18888 })
+
+    act(() => cacheService.setShared('feature.openclaw.gateway_status', 'running'))
+    expect(result.current.running).toBe(true)
   })
 
   // Regression: sync_config writes openclaw.json's gateway.port from the service's in-memory
