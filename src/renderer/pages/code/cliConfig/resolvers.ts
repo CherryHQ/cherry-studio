@@ -1,8 +1,7 @@
-import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
-import { resolveEndpointBaseUrl } from '@shared/utils/endpoint'
+import { resolveCanonicalEndpoint, resolveEndpointBaseUrl } from '@shared/utils/endpoint'
 import { resolveGeminiBaseUrl } from '@shared/utils/gemini'
 
 import {
@@ -83,46 +82,27 @@ function resolveSupportedEndpointType(
   fallbackEndpoint: EndpointType,
   model?: Model
 ): EndpointType {
-  const hasEndpoint = (type: EndpointType) => Boolean(resolveEndpointBaseUrl(provider, type))
-  const isSupported = (type: EndpointType | undefined): type is EndpointType =>
-    Boolean(type && supportedEndpoints.includes(type))
-  const isModelCapable = (type: EndpointType) => !modelEndpointTypes?.length || modelEndpointTypes.includes(type)
+  const effectiveModelEndpointTypes = modelEndpointTypes ?? model?.endpointTypes
+  const selectionModel =
+    model ??
+    ({
+      id: 'cli-config-model',
+      providerId: provider.id,
+      name: 'CLI config model',
+      endpointTypes: effectiveModelEndpointTypes
+    } as unknown as Model)
+  const canonicalSelection = resolveCanonicalEndpoint(provider, selectionModel, undefined, supportedEndpoints)
 
-  const gatewayEndpoint =
-    !modelEndpointTypes?.length && model ? resolveGatewayChatRoute(provider, model)?.endpointType : undefined
-  const configuredGatewayEndpoint =
-    isSupported(gatewayEndpoint) && hasEndpoint(gatewayEndpoint) ? gatewayEndpoint : undefined
+  if (canonicalSelection.endpointType) return canonicalSelection.endpointType
 
-  if (configuredGatewayEndpoint) return configuredGatewayEndpoint
+  // Keep CLI materialization behavior for a declared but currently unconfigured
+  // endpoint: the adapter can then emit a config that clearly reports the missing
+  // host instead of silently switching protocols. Selection and precedence remain
+  // owned by the shared resolver above.
+  const declaredSupportedEndpoint = effectiveModelEndpointTypes?.find((type) => supportedEndpoints.includes(type))
+  if (declaredSupportedEndpoint) return declaredSupportedEndpoint
 
-  const providerDefault =
-    isSupported(provider.defaultChatEndpoint) &&
-    isModelCapable(provider.defaultChatEndpoint) &&
-    hasEndpoint(provider.defaultChatEndpoint)
-      ? provider.defaultChatEndpoint
-      : undefined
-  const configuredModelEndpoint = modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type))
-
-  if (providerDefault) return providerDefault
-  if (configuredModelEndpoint) return configuredModelEndpoint
-
-  if (modelEndpointTypes?.length) {
-    // endpointTypes is a capability constraint, not merely a preference. Keep
-    // an unconfigured but CLI-supported declaration so the caller can report
-    // the missing credential/host, but never fall back to a protocol the model
-    // does not advertise. If the model exposes no protocol this CLI supports,
-    // fail explicitly instead of generating a misleading config.
-    const declaredSupportedEndpoint = modelEndpointTypes.find(isSupported)
-    if (declaredSupportedEndpoint) return declaredSupportedEndpoint
-    throw new Error(`Model does not advertise a ${supportedEndpoints.join(' or ')} endpoint for this CLI`)
-  }
-
-  // With no model capability metadata, prefer an endpoint that is explicitly
-  // configured before considering the Responses-over-Chat compatibility host.
-  const directlyConfiguredEndpoint = supportedEndpoints.find((type) =>
-    Boolean(provider.endpointConfigs?.[type]?.baseUrl)
-  )
-  return directlyConfiguredEndpoint ?? supportedEndpoints.find(hasEndpoint) ?? fallbackEndpoint
+  return fallbackEndpoint
 }
 
 /** Reverse lookup of `toOpenCodeNpmInfo`, used when re-deriving info from an already-written opencode.json draft. */

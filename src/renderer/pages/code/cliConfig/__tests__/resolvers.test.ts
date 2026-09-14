@@ -126,6 +126,24 @@ describe('resolveHermesProviderInfo', () => {
     expect(resolvePiProviderInfo(gateway, undefined, model).endpointType).toBe('openai-responses')
   })
 
+  it('keeps a legacy gateway-routed model ahead of a competing provider default', () => {
+    const gateway = provider({
+      id: 'dmxapi',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://dmxapi.example/v1' },
+        'anthropic-messages': { baseUrl: 'https://dmxapi.example/anthropic' }
+      }
+    })
+    const legacyModel = { id: 'claude-3-7-sonnet', apiModelId: 'claude-3-7-sonnet' } as unknown as Model
+
+    expect(resolveHermesProviderInfo(gateway, undefined, legacyModel)).toEqual({
+      apiMode: 'anthropic_messages',
+      baseUrl: 'https://dmxapi.example/anthropic',
+      endpointType: 'anthropic-messages'
+    })
+  })
+
   // anthropic-messages is configured AND first in HERMES_ENDPOINTS, so a catalog-order
   // fallback would pick it; the model supports only openai-responses (a later catalog
   // entry), so selecting it proves model preference beats catalog order rather than
