@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mcpServers = vi.hoisted(() => ({ list: vi.fn(), getById: vi.fn() }))
 const runtime = vi.hoisted(() => ({ isReady: true, restartServer: vi.fn() }))
@@ -18,7 +19,7 @@ const signal = new AbortController().signal
 const ctx = { signal, share: <T>(_key: string, factory: (signal: AbortSignal) => Promise<T>) => factory(signal) }
 
 function server(id: string, overrides: Partial<McpServer> = {}): McpServer {
-  return { id, name: id, type: 'stdio', command: 'npx', isActive: true, ...overrides } as McpServer
+  return { id, name: id, type: 'stdio', command: 'npx', isActive: true, ...overrides }
 }
 
 beforeEach(() => {
