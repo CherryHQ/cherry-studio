@@ -998,6 +998,52 @@ describe('PiRuntimeConnection', () => {
     expect(invocation.metrics?.timeCompletionMs ?? 0).toBeGreaterThanOrEqual(invocation.metrics?.timeFirstTokenMs ?? 0)
   })
 
+  it('treats toolcall events as first semantic output for tool-only responses', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    mocks.providerResult = {
+      role: 'assistant',
+      responseId: 'response-toolcall-timing',
+      model: 'm',
+      stopReason: 'toolUse',
+      timestamp: 123,
+      usage: { input: 10, output: 4, cacheRead: 0, cacheWrite: 0, totalTokens: 14 }
+    }
+    let emitted = false
+    mocks.providerStreamSimple.mockImplementationOnce(() => {
+      let resolveResult!: (value: unknown) => void
+      const resultPromise = new Promise((resolve) => {
+        resolveResult = resolve
+      })
+      const stream = {
+        push: (event: { type?: string; [key: string]: unknown }) => {
+          if (event.type === 'done') resolveResult(mocks.providerResult)
+        },
+        result: () => resultPromise
+      }
+      // Pure tool-use stream: no text_* or thinking_* events ever arrive.
+      setTimeout(() => {
+        emitted = true
+        const partial = mocks.providerResult
+        stream.push({ type: 'start', partial })
+        stream.push({ type: 'toolcall_start', contentIndex: 0, partial })
+        stream.push({ type: 'toolcall_delta', contentIndex: 0, delta: '{}', partial })
+        stream.push({ type: 'done', reason: 'toolUse', message: mocks.providerResult })
+      }, 15)
+      return stream
+    })
+    const providerConfig = mocks.registerProvider.mock.calls[0][1]
+    providerConfig.streamSimple({}, {})
+    await vi.waitFor(() => expect(emitted).toBe(true))
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const usageEvents = events.filter((event) => event.type === 'usage')
+    expect(usageEvents).toHaveLength(1)
+    const toolInvocation = usageEvents[0].invocation
+    expect(toolInvocation.metrics?.timeFirstTokenMs).toEqual(expect.any(Number))
+    expect(toolInvocation.metrics?.timeCompletionMs).toEqual(expect.any(Number))
+  })
+
   it('does not emit invocation usage for failed assistant responses', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     mocks.providerResult = {
