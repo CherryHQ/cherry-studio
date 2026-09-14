@@ -6,12 +6,12 @@ vi.mock('@renderer/utils/platform', () => ({
 
 describe('DataApiDevtools', () => {
   afterEach(async () => {
-    const { dataApiDevtoolsTesting } = await import('../dataApiDevtools')
+    const { dataApiDevtoolsTesting } = await import('../../services/dataApiDevtools')
     dataApiDevtoolsTesting.reset()
   })
 
   it('truncates deep, wide, and long payload previews', async () => {
-    const { DataApiDevtools, dataApiDevtoolsTesting } = await import('../dataApiDevtools')
+    const { DataApiDevtools, dataApiDevtoolsTesting } = await import('../../services/dataApiDevtools')
     DataApiDevtools.exposeControlSurface()
     window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: true })
 
@@ -36,7 +36,7 @@ describe('DataApiDevtools', () => {
   })
 
   it('keeps payloads out of polling summaries and exposes them only by request id', async () => {
-    const { DataApiDevtools } = await import('../dataApiDevtools')
+    const { DataApiDevtools } = await import('../../services/dataApiDevtools')
     DataApiDevtools.exposeControlSurface()
     window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: true })
 
@@ -66,7 +66,7 @@ describe('DataApiDevtools', () => {
   })
 
   it('stops client timing before sanitizing the response preview', async () => {
-    const { DataApiDevtools } = await import('../dataApiDevtools')
+    const { DataApiDevtools } = await import('../../services/dataApiDevtools')
     let sanitizing = false
     const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => (sanitizing ? 100 : 10))
     DataApiDevtools.exposeControlSurface()
@@ -94,7 +94,7 @@ describe('DataApiDevtools', () => {
   })
 
   it('strips request, response, and error payloads by default', async () => {
-    const { DataApiDevtools } = await import('../dataApiDevtools')
+    const { DataApiDevtools } = await import('../../services/dataApiDevtools')
     DataApiDevtools.exposeControlSurface()
 
     DataApiDevtools.recordStart({
@@ -142,7 +142,7 @@ describe('DataApiDevtools', () => {
   })
 
   it('does not throw when payload accessors throw', async () => {
-    const { DataApiDevtools } = await import('../dataApiDevtools')
+    const { DataApiDevtools } = await import('../../services/dataApiDevtools')
     DataApiDevtools.exposeControlSurface()
     window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: true })
     const throwingPayload = {
