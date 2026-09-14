@@ -94,7 +94,7 @@ Anchor shapes:
 | xlsx | `{"format":"xlsx","sheet":"Sheet1","range":"A1:C10"}` (range may be one cell) |
 | docx | `{"format":"docx","paragraph":3,"charRange":[0,12]}` (`charRange` optional; ordinal counts body-level paragraphs only, tables excluded) |
 | pdf | `{"format":"pdf","page":3,"charRange":[0,120]}` (`charRange` optional, applies to extracted text) |
-| pptx | `{"format":"pptx","slide":2,"nodeId":"4","paragraph":0,"tableCell":{"row":1,"col":0}}` (`slide` is one-based; `nodeId` is the OOXML shape id — omit for the whole slide; `paragraph` and `tableCell` are optional, mutually exclusive, and only valid together with `nodeId`) |
+| pptx | `{"format":"pptx","slide":2,"nodeId":"4","paragraph":0}` or `{"format":"pptx","slide":2,"nodeId":"7","tableCell":{"row":1,"col":0}}` (`slide` is one-based; `nodeId` is the OOXML shape id — omit for the whole slide; `paragraph` and `tableCell` are optional, mutually exclusive, and only valid together with `nodeId`) |
 
 ## Operations
 
