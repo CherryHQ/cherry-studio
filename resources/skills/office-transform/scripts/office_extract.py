@@ -168,6 +168,13 @@ def slice_char_range(text: str, char_range) -> str:
     return text[start:end]
 
 
+def time_precision(value) -> str:
+    """The finest isoformat timespec that still spells out a datetime's or time's whole value."""
+    if value.microsecond == 0:
+        return "seconds"
+    return "milliseconds" if value.microsecond % 1000 == 0 else "microseconds"
+
+
 def cell_display(value) -> str:
     """Render a cell in a shape a spreadsheet reader recognises, not the way Python prints it.
 
@@ -175,7 +182,9 @@ def cell_display(value) -> str:
     `str()` form only Python uses is wrong on both counts: `True` where every spreadsheet writes
     `TRUE`, `2024-01-03 00:00:00` for a cell the user sees as `2024-01-03` (openpyxl hands back a
     datetime for date-only cells too, never a bare date), and `1 day, 2:30:00` for a duration Excel
-    counts the hours through as `26:30:00`. Numbers keep their stored value (`0.4567`, not `45.67%`):
+    counts the hours through as `26:30:00`. A sub-second value keeps its fraction (`12:34:56.789`,
+    `26:30:00.005`) rather than rounding to a moment the workbook does not hold, and a whole-second
+    one prints none. Numbers keep their stored value (`0.4567`, not `45.67%`):
     presenting them any other way means implementing number formats, which SKILL.md documents as an
     accepted asymmetry between the extract and the excerpt.
 
@@ -193,16 +202,18 @@ def cell_display(value) -> str:
     if isinstance(value, datetime.datetime):
         if value.time() == datetime.time(0):
             return value.date().isoformat()
-        return value.isoformat(sep=" ", timespec="seconds")
+        return value.isoformat(sep=" ", timespec=time_precision(value))
     if isinstance(value, datetime.time):
-        return value.isoformat(timespec="seconds")
+        return value.isoformat(timespec=time_precision(value))
     if isinstance(value, datetime.timedelta):
-        # Floor division on a negative total borrows an hour (-30 minutes would print -1:30:00), so
-        # split the sign off first and format the magnitude.
-        seconds = int(value.total_seconds())
-        sign = "-" if seconds < 0 else ""
-        seconds = abs(seconds)
-        return f"{sign}{seconds // 3600}:{seconds // 60 % 60:02d}:{seconds % 60:02d}"
+        # Floor division on a negative total borrows an hour, so split the sign off first — decided
+        # after rounding to ms, or a magnitude that rounds to 0 (e.g. -1us) still prints "-0:00:00".
+        total = value.total_seconds()
+        total_ms = round(abs(total) * 1000)
+        sign = "-" if total < 0 and total_ms else ""
+        seconds, milliseconds = divmod(total_ms, 1000)
+        fraction = f".{milliseconds:03d}" if milliseconds else ""
+        return f"{sign}{seconds // 3600}:{seconds // 60 % 60:02d}:{seconds % 60:02d}{fraction}"
     return str(value)
 
 
