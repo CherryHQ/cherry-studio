@@ -38,6 +38,7 @@ import {
   assertPiProviderUsable,
   buildPiGatewayInjection,
   buildPiProviderInjection,
+  materializePiProviderStream,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
   PiUnsupportedProviderError,
@@ -207,6 +208,53 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.api).toBe('openai-completions')
     expect(injection.providerConfig.baseUrl).toBe('https://api.deepseek.com/v1')
     expect(injection.modelId).toBe('deepseek-chat')
+  })
+
+  it('keeps a catalog output limit out of the default OpenAI-compatible request', async () => {
+    const provider = makeProvider({
+      id: 'deepseek',
+      name: 'DeepSeek',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'deepseek', baseUrl: 'https://gateway.example.com' }
+      }
+    })
+    const injection = buildPiProviderInjection(
+      provider,
+      makeModel({ id: 'deepseek::deepseek-v4', apiModelId: 'deepseek-v4', maxOutputTokens: 393_216 }),
+      REAL_KEY
+    )
+    const { streamSimple } = await materializePiProviderStream(injection)
+    const configuredModel = injection.providerConfig.models?.[0]
+    if (!configuredModel) throw new Error('Pi model configuration is incomplete')
+
+    const requestBodies: Record<string, unknown>[] = []
+    const send = (maxTokens?: number) =>
+      streamSimple(
+        {
+          ...configuredModel,
+          api: 'openai-completions',
+          provider: injection.providerName,
+          baseUrl: injection.providerConfig.baseUrl!
+        },
+        { messages: [{ role: 'user', content: 'hello', timestamp: 1 }] },
+        {
+          apiKey: REAL_KEY,
+          maxTokens,
+          maxRetries: 0,
+          fetch: async (_input, init) => {
+            requestBodies.push(JSON.parse(String(init?.body)))
+            return Response.json({ error: { message: 'expected test rejection' } }, { status: 400 })
+          }
+        }
+      ).result()
+
+    await send()
+    await send(2_048)
+
+    expect(requestBodies[0]).not.toHaveProperty('max_tokens')
+    expect(requestBodies[0]).not.toHaveProperty('max_completion_tokens')
+    expect(requestBodies[1].max_tokens ?? requestBodies[1].max_completion_tokens).toBe(2_048)
   })
 
   it('maps a Gemini provider', () => {
