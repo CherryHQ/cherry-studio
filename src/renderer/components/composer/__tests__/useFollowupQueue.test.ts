@@ -1528,4 +1528,57 @@ describe('useFollowupQueue', () => {
     expect(result.current.drainingId).toBeNull()
     expect(result.current.items).toEqual([])
   })
+
+  it('removing an in-flight head whose send fails continues with the next item', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+      .mockResolvedValue(true)
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      result.current.removeId('h1')
+    })
+
+    await act(async () => {
+      resolveDrain(false)
+    })
+
+    // The removed head consumed the completion edge, so the next head drains
+    // now instead of stalling until some future turn — with no failure recorded.
+    expect(onDrain).toHaveBeenCalledTimes(2)
+    expect(onDrain).toHaveBeenLastCalledWith(payload('second'))
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
+    expect(result.current.items).toEqual([])
+  })
+
+  it('drops live state whose cache entry expired instead of resurrecting it', () => {
+    seedQueue('s1', [item('h1', 'first')])
+    const { result } = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
+    )
+    expect(result.current.items).toHaveLength(1)
+
+    MockCacheUtils.simulateTTLExpiration(keyFor('s1'))
+
+    act(() => {
+      expect(result.current.enqueue(draft('new'), payload('new'))).toBe('ok')
+    })
+
+    // The expired item is gone from the view and the entry — only the new send persists.
+    expect(result.current.items.map((i) => i.draft.text)).toEqual(['new'])
+    expect(persistedTexts('s1')).toEqual(['new'])
+  })
 })

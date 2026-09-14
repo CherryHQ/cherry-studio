@@ -129,6 +129,7 @@ import { useComposerSelectionReferenceInsertion } from './shared/useComposerSele
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
+import { useSteerQueuedFollowup } from './shared/useQueuedFollowupSteer'
 
 const logger = loggerService.withContext('AgentComposer')
 
@@ -839,7 +840,6 @@ const AgentComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
-  const steeringIdsRef = useRef<Set<string>>(new Set())
   const draftTokensRef = useRef(draftTokens)
   const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
   const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
@@ -1539,6 +1539,13 @@ const AgentComposerInner = ({
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload
   })
+  const steerQueuedFollowup = useSteerQueuedFollowup({
+    items: queuedFollowups,
+    tryClaimSend: tryClaimFollowupSend,
+    releaseSend: releaseFollowupSend,
+    removeFollowup,
+    sendPayload: sendQueuedPayload
+  })
 
   // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
   // state and the managed file/knowledge/skill selections before dropping it from the queue.
@@ -1794,24 +1801,7 @@ const AgentComposerInner = ({
                   items={queuedFollowups}
                   paused={followupPaused}
                   onTogglePause={() => setFollowupPaused(!followupPaused)}
-                  onSteer={async (id) => {
-                    if (steeringIdsRef.current.has(id)) return
-                    const item = queuedFollowups.find((entry) => entry.id === id)
-                    if (!item) return
-                    // Claim the queue's shared send slot so a concurrent auto-drain
-                    // cannot submit the same payload twice.
-                    if (!tryClaimFollowupSend(id)) return
-                    steeringIdsRef.current.add(id)
-                    try {
-                      // Only drop the item once the send actually succeeds; a failed manual
-                      // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                      const sent = await sendQueuedPayload(item.payload)
-                      if (sent) removeFollowup(id)
-                    } finally {
-                      releaseFollowupSend(id)
-                      steeringIdsRef.current.delete(id)
-                    }
-                  }}
+                  onSteer={steerQueuedFollowup}
                   onEdit={(id) => {
                     const item = queuedFollowups.find((entry) => entry.id === id)
                     if (!item) return

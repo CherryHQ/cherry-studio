@@ -1,33 +1,61 @@
 import { render, screen } from '@testing-library/react'
+import type { ComponentType, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ReorderableList } from '@cherrystudio/ui'
+import { ReorderableList as FakeReorderableList } from '@cherrystudio/ui'
+import { ReorderableList as RealReorderableList } from '@cherrystudio/ui/components/composites/reorderable-list'
 
-// Parity coverage for the global ReorderableList fake (tests/renderer.setup.ts):
-// it mirrors the real component's rendering contract
-// (packages/ui/src/components/composites/reorderable-list/index.tsx — same
-// `visibleItems = items` default, same visible-index renderItem args), so these
-// cases mirror the real component's own test. Drag wiring (onReorder, dnd-kit)
-// is intentionally not faked and stays covered by the real component's tests.
-describe('ReorderableList test fake', () => {
-  const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }, { id: 'e' }]
-  const renderList = (props: { visibleItems?: typeof items }) =>
-    render(
-      <ReorderableList
-        items={items}
-        visibleItems={props.visibleItems}
-        getId={(item) => item.id}
-        onReorder={vi.fn()}
-        renderItem={(item, index, state) => (
-          <div>
-            {item.id}:{index}:{state.dragging ? 'dragging' : 'idle'}
-          </div>
-        )}
-      />
-    )
+// The real component renders through dnd-kit's Sortable; stand it in with a
+// minimal ordered renderer so these cases execute the real subset/index logic.
+vi.mock('@cherrystudio/ui/components/composites/sortable', () => ({
+  Sortable: ({ items, itemKey, renderItem }: any) => (
+    <div data-testid="sortable">
+      {items.map((item: any) => (
+        <div key={String(itemKey(item))}>{renderItem(item, { dragging: false })}</div>
+      ))}
+    </div>
+  )
+}))
 
-  it('renders only the visible items with their visible index, like the real component', () => {
-    renderList({ visibleItems: [items[0], items[2], items[4]] })
+interface ContractItem {
+  id: string
+}
+
+interface ContractListProps {
+  items: ContractItem[]
+  visibleItems?: ContractItem[]
+  getId: (item: ContractItem) => string
+  onReorder: (nextItems: ContractItem[]) => void
+  renderItem: (item: ContractItem, index: number, state: { dragging: boolean }) => ReactNode
+}
+
+// Rendering contract both implementations must honor (same `visibleItems =
+// items` default, same visible-index renderItem args). Drag wiring (onReorder,
+// dnd-kit) is intentionally out of scope and stays with the real component's tests.
+const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }, { id: 'e' }]
+
+function renderContractList(List: ComponentType<ContractListProps>, visibleItems?: ContractItem[]) {
+  render(
+    <List
+      items={items}
+      visibleItems={visibleItems}
+      getId={(item) => item.id}
+      onReorder={vi.fn()}
+      renderItem={(item, index, state) => (
+        <div>
+          {item.id}:{index}:{state.dragging ? 'dragging' : 'idle'}
+        </div>
+      )}
+    />
+  )
+}
+
+describe.each([
+  ['test fake', FakeReorderableList],
+  ['real component', RealReorderableList]
+] as const)('ReorderableList %s', (_name, List) => {
+  it('renders only the visible items with their visible index', () => {
+    renderContractList(List as ComponentType<ContractListProps>, [items[0], items[2], items[4]])
 
     expect(screen.getByText('a:0:idle')).toBeInTheDocument()
     expect(screen.getByText('c:1:idle')).toBeInTheDocument()
@@ -37,7 +65,7 @@ describe('ReorderableList test fake', () => {
   })
 
   it('renders every item when visibleItems is omitted', () => {
-    renderList({})
+    renderContractList(List as ComponentType<ContractListProps>)
 
     items.forEach((item, index) => {
       expect(screen.getByText(`${item.id}:${index}:idle`)).toBeInTheDocument()
