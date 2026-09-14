@@ -1,7 +1,8 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { render, screen } from '@testing-library/react'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import ChatMarkdownRuntime from '../ChatMarkdownRuntime'
 

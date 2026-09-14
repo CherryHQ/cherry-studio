@@ -2,8 +2,6 @@ export { isKnownNavigationPath } from '@shared/utils/navigationPath'
 import { Compass } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
-
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 
 interface NavigateToolInput {

@@ -1,9 +1,10 @@
+import type { ComponentProps, CSSProperties, JSX } from 'react'
+import type { Components, ExtraProps } from 'streamdown'
+
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import { MarkdownImageRenderer } from '@renderer/components/markdown'
 import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
-import type { ComponentProps, CSSProperties, JSX } from 'react'
-import type { Components, ExtraProps } from 'streamdown'
 
 import { useChatMarkdownRenderContext } from './ChatMarkdownRenderContext'
 import CitationSup from './CitationSup'

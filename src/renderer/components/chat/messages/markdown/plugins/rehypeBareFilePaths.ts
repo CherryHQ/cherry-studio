@@ -1,6 +1,7 @@
-import { isKnownNavigationPath } from '@shared/utils/navigationPath'
 import type { Element, Root, RootContent, Text } from 'hast'
 import type { Plugin } from 'unified'
+
+import { isKnownNavigationPath } from '@shared/utils/navigationPath'
 
 export type BareFilePathPlatform = 'posix' | 'windows'
 
