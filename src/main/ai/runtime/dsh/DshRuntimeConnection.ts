@@ -104,8 +104,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private readonly committedInvocationIds = new Set<string>()
   private readonly adapter = new DshStreamAdapter({
     enqueue: (chunk) => {
-      this.subagents.noteMainChunk(chunk)
       this.eventQueue.push({ type: 'chunk', chunk })
+      this.subagents.noteMainChunk(chunk)
     },
     onAssistantUsage: (info) => this.recordProviderInvocation(info),
     onTurnEnd: (reason) => this.handleTurnEnd(reason),
@@ -828,7 +828,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       invocation: {
         requestId,
         model: info.model?.trim() || this.modelId,
-        messageAssociation: 'current-turn',
+        // Child sessions can outlive the spawning turn and have no stable host-message association.
+        messageAssociation: sessionId === this.input.sessionId ? 'current-turn' : 'stateless',
         usage: {
           inputTokens,
           outputTokens,

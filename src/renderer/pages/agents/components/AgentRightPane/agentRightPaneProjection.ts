@@ -722,7 +722,8 @@ function projectAgentRightPaneStatus(
   lateTaskEvents: AgentSessionTaskEvents,
   backgroundTasks: AgentSessionBackgroundTasks,
   liveness?: AgentRunLiveness,
-  shellOutputs = new WeakMap<CherryMessagePart, BashTaskOutput>()
+  shellOutputs = new WeakMap<CherryMessagePart, BashTaskOutput>(),
+  previousRunTasks?: ReadonlyMap<string, AgentRunTask>
 ): AgentRightPaneStatus {
   const { todoSnapshotTasks, runTaskOriginMessageIds, toolPartByCallId, artifacts } = transcript
   const taskMap = new Map(transcript.taskMap)
@@ -777,9 +778,15 @@ function projectAgentRightPaneStatus(
         continue
       }
       const workflow = task.workflow ? settleActiveWorkflowAgents(task.workflow, 'interrupted') : undefined
+      const previous = previousRunTasks?.get(id)
+      const completedAt =
+        task.completedAt ??
+        (previous?.status === 'error' ? previous.completedAt : undefined) ??
+        new Date().toISOString()
       runTaskMap.set(id, {
         ...task,
         status: 'error',
+        completedAt,
         activeText: undefined,
         ...(workflow ? { workflow } : {})
       })
@@ -874,16 +881,17 @@ export function createAgentRightPaneStatusProjector(): typeof buildAgentRightPan
     }
     if (transcriptChanged) transcript = buildAgentStatusTranscript(sources)
 
+    const previousTasks = new Map(previousStatus?.runTasks.map((task) => [task.id, task]))
     const status = projectAgentRightPaneStatus(
       transcript,
       currentTaskEvents,
       currentBackgroundTasks,
       liveness,
-      shellOutputs
+      shellOutputs,
+      previousTasks
     )
     if (previousStatus) {
       const previousRunTasks = previousStatus.runTasks
-      const previousTasks = new Map(previousRunTasks.map((task) => [task.id, task]))
       status.runTasks = status.runTasks.map((task) => {
         const previous = previousTasks.get(task.id)
         if (!previous) return task

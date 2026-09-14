@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -128,6 +128,76 @@ describe('cached agent right pane status', () => {
     const laterTurn = project(messages, {}, {}, [], { activeMessageIds: new Set(['m2']) })
     expect(laterTurn.runTasks.map((task) => task.status)).toEqual(['error', 'error'])
     expect(running.runTasks.map((task) => task.status)).toEqual(['in_progress', 'in_progress'])
+  })
+
+  it('freezes elapsed time when detached membership disappears until an authoritative completion arrives', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime('2026-08-12T01:00:05.000Z')
+      const project = createAgentRightPaneStatusProjector()
+      const messages = [
+        message('m1', [
+          event('async', {
+            taskType: 'subagent',
+            isBackgrounded: true,
+            createdAt: '2026-08-12T01:00:00.000Z'
+          })
+        ])
+      ]
+      const liveness = { activeMessageIds: new Set(['m1']) }
+      const running = project(
+        messages,
+        {},
+        {},
+        [{ id: 'async', type: 'subagent', description: 'Async agent' }],
+        liveness
+      )
+      expect(running.runTasks[0].status).toBe('in_progress')
+      expect(running.runTasks[0].completedAt).toBeUndefined()
+
+      vi.setSystemTime('2026-08-12T01:00:08.000Z')
+      const removed = project(messages, {}, {}, [], liveness)
+      expect(removed.runTasks[0]).toMatchObject({
+        status: 'error',
+        createdAt: '2026-08-12T01:00:00.000Z',
+        completedAt: '2026-08-12T01:00:08.000Z'
+      })
+
+      vi.setSystemTime('2026-08-12T01:00:20.000Z')
+      const progressed = project(
+        messages,
+        {},
+        { async: { event: 'progress', taskId: 'async', status: 'in_progress', usage: { totalTokens: 123 } } },
+        [],
+        liveness
+      )
+      expect(progressed.runTasks[0]).toMatchObject({
+        status: 'error',
+        completedAt: '2026-08-12T01:00:08.000Z',
+        usage: { totalTokens: 123 }
+      })
+
+      const completed = project(
+        messages,
+        {},
+        {
+          async: {
+            event: 'notification',
+            taskId: 'async',
+            status: 'completed',
+            completedAt: '2026-08-12T01:00:06.000Z'
+          }
+        },
+        [],
+        liveness
+      )
+      expect(completed.runTasks[0]).toMatchObject({
+        status: 'completed',
+        completedAt: '2026-08-12T01:00:06.000Z'
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('refreshes background command output and preserves a deferred result until it is requested', () => {
