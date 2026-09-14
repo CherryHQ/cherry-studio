@@ -37,7 +37,8 @@ const h = vi.hoisted(() => ({
   normalizedExe: vi.fn((): string => '/current/exe'),
   bootGet: vi.fn((): unknown => undefined),
   bootSet: vi.fn(),
-  bootPersist: vi.fn()
+  bootPersist: vi.fn(),
+  devProfileRoot: undefined as string | undefined
 }))
 
 vi.mock('node:fs', async () => {
@@ -70,6 +71,9 @@ vi.mock('@main/core/paths/constants', () => ({
   CHERRY_HOME: '/mock/home/.cherrystudio',
   CHERRY_HOME_DIRNAME: '.cherrystudio',
   BOOT_CONFIG_PATH: '/mock/home/.cherrystudio/boot-config.json',
+  get DEV_PROFILE_ROOT() {
+    return h.devProfileRoot
+  },
   LOGS_DIR: '/mock/logs',
   resolveDevUserDataPath: () => '/mock/userDataDev'
 }))
@@ -357,9 +361,35 @@ beforeEach(() => {
   h.getVersion.mockReturnValue('2.0.0')
   h.normalizedExe.mockReturnValue('/current/exe')
   h.bootGet.mockReturnValue(undefined)
+  h.devProfileRoot = undefined
 })
 
 describe('resolveMigrationPaths — legacy custom userData recovery', () => {
+  it('keeps a dev profile migration isolated from legacy paths outside the profile root', () => {
+    const profileUserData = '/mock/profile/userData'
+    const externalUserData = '/external/legacy-data'
+    h.devProfileRoot = '/mock/profile'
+    h.getPath.mockImplementation((key: string) => (key === 'userData' ? profileUserData : '/mock/unknown'))
+    applyFs({
+      dirs: [profileUserData, externalUserData],
+      contents: {
+        [CONFIG_FILE]: JSON.stringify({ appDataPath: externalUserData }),
+        [marker(profileUserData, 'version.log')]: GOOD_VERSION_LOG,
+        [marker(externalUserData, 'version.log')]: GOOD_VERSION_LOG
+      }
+    })
+
+    const result = resolveMigrationPaths()
+
+    expect(result.paths.userData).toBe(profileUserData)
+    expect(result.userDataChanged).toBe(false)
+    expect(result.legacyDataConfirmed).toBe(true)
+    expect(h.bootGet).not.toHaveBeenCalled()
+    expect(h.setPath).not.toHaveBeenCalled()
+    expect(h.bootSet).not.toHaveBeenCalled()
+    expect(h.bootPersist).not.toHaveBeenCalled()
+  })
+
   it('places v2-managed data under Data while retaining explicit v1 source paths', () => {
     applyFs({ dirs: [DEFAULT_USER_DATA] })
 

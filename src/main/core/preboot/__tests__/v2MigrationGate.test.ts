@@ -121,6 +121,7 @@ function stubElectron() {
 function stubApplication() {
   vi.doMock('@application', () => ({
     application: {
+      getPath: vi.fn((key: string) => (key === 'cherry.home' ? '/mock/cherry-home' : undefined)),
       quit: appQuitMock,
       relaunch: appRelaunchMock
     }
@@ -663,6 +664,7 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      expect(showErrorBoxMock.mock.calls[0][1]).toContain('/mock/cherry-home')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
       expect(initializeMock).not.toHaveBeenCalled()
     })

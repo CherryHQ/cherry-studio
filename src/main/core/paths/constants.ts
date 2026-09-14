@@ -19,7 +19,24 @@ import path from 'node:path'
 import { app } from 'electron'
 
 export const CHERRY_HOME_DIRNAME = '.cherrystudio'
-export const CHERRY_HOME = path.join(os.homedir(), CHERRY_HOME_DIRNAME)
+
+function resolveDevProfileRoot(): string | undefined {
+  if (app.isPackaged) return undefined
+
+  const configured = process.env.CS_DEV_PROFILE_ROOT?.trim()
+  if (!configured) return undefined
+
+  const normalized = path.normalize(configured)
+  if (!path.isAbsolute(normalized) || normalized === path.parse(normalized).root) {
+    throw new Error('CS_DEV_PROFILE_ROOT must be an absolute directory other than the filesystem root.')
+  }
+  return normalized
+}
+
+export const DEV_PROFILE_ROOT = resolveDevProfileRoot()
+export const CHERRY_HOME = DEV_PROFILE_ROOT
+  ? path.join(DEV_PROFILE_ROOT, CHERRY_HOME_DIRNAME)
+  : path.join(os.homedir(), CHERRY_HOME_DIRNAME)
 export const BOOT_CONFIG_PATH = path.join(CHERRY_HOME, 'boot-config.json')
 
 const DEFAULT_DEV_USER_DATA_SUFFIX = 'Dev'
@@ -62,6 +79,7 @@ function resolveDevUserDataSuffix(): string {
  * derive from one definition.
  */
 export function resolveDevUserDataPath(): string {
+  if (DEV_PROFILE_ROOT) return path.join(DEV_PROFILE_ROOT, 'userData')
   return app.getPath('userData') + resolveDevUserDataSuffix()
 }
 
@@ -72,9 +90,11 @@ export function resolveDevUserDataPath(): string {
 // its logs with a packaged install's.
 if (!app.isPackaged) {
   app.setAppLogsPath(
-    process.platform === 'darwin'
-      ? app.getPath('logs') + resolveDevUserDataSuffix()
-      : path.join(resolveDevUserDataPath(), 'logs')
+    DEV_PROFILE_ROOT
+      ? path.join(DEV_PROFILE_ROOT, 'logs')
+      : process.platform === 'darwin'
+        ? app.getPath('logs') + resolveDevUserDataSuffix()
+        : path.join(resolveDevUserDataPath(), 'logs')
   )
 }
 

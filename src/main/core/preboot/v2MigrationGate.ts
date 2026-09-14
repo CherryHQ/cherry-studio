@@ -61,7 +61,7 @@ async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGat
   dialog.showErrorBox(
     'Data Location Error - Application Cannot Start',
     `Could not save the application data directory:\n\n  ${(cause as Error).message}\n\n` +
-      `Check that there is free disk space and that ~/.cherrystudio is writable, then try again. The application will now exit.`
+      `Check that there is free disk space and that ${application.getPath('cherry.home')} is writable, then try again. The application will now exit.`
   )
   application.quit()
   return 'handled'
