@@ -8,7 +8,9 @@ const { initI18nMock } = vi.hoisted(() => ({ initI18nMock: vi.fn(async () => {})
 vi.mock('@renderer/i18n/resolver', () => ({ initI18n: initI18nMock }))
 
 const { exposeControlSurfaceMock } = vi.hoisted(() => ({ exposeControlSurfaceMock: vi.fn() }))
-vi.mock('@data/utils/dataApiDevtools', () => ({ DataApiDevtools: { exposeControlSurface: exposeControlSurfaceMock } }))
+vi.mock('@data/services/dataApiDevtools', () => ({
+  DataApiDevtools: { exposeControlSurface: exposeControlSurfaceMock }
+}))
 
 describe('prepareWindow', () => {
   beforeEach(() => {
@@ -31,10 +33,10 @@ describe('prepareWindow', () => {
     expect(initI18nMock).toHaveBeenCalledTimes(1)
   })
 
-  it('exposes the DataApi DevTools control surface synchronously, before any awaited warm-up', () => {
+  it('exposes the DataApi DevTools control surface synchronously in development', () => {
     const pending = prepareWindow({ preference: 'all' })
 
-    expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(1)
+    expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(import.meta.env.DEV ? 1 : 0)
     return pending
   })
 
