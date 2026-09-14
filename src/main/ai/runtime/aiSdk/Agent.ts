@@ -18,6 +18,7 @@ import { isAbortError } from '@main/utils/error'
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
+import { serializeError } from '../../utils/serializeError'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
 import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
@@ -250,7 +251,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       if (!hooks.onError) return undefined
       try {
         return await hooks.onError({
-          error: err instanceof Error ? err : new Error(String(err))
+          error: err instanceof Error ? err : new Error(serializeError(err).message ?? 'Unknown AI error')
         })
       } catch (hookErr) {
         logger.error('hooks.onError threw; aborting run', hookErr as Error)
@@ -412,12 +413,13 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
           params.errorContext?.modelId ?? params.modelId
         )
         const action = await invokeOnError(streamError)
+        const logError = streamError instanceof Error ? streamError : serializeError(streamError)
         if (action === 'retry') {
           // TODO: retry logic
           // retry is reserved for a future implementation — today the loop logs and aborts.
-          logger.warn('agentLoop onError returned retry; retry not implemented — aborting', streamError as Error)
+          logger.warn('agentLoop onError returned retry; retry not implemented — aborting', logError)
         } else {
-          logger.error('agentLoop error', streamError as Error)
+          logger.error('agentLoop error', logError)
         }
         await settleWriter({ error: streamError })
       })

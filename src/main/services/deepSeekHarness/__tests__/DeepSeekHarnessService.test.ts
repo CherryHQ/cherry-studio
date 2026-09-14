@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   spawn: vi.fn(),
   writeConfig: vi.fn(),
   rollbackConfig: vi.fn(),
+  checkHomeHealth: vi.fn(),
   providerGet: vi.fn(),
   providerGetApiKeys: vi.fn(),
   modelGet: vi.fn(),
@@ -69,6 +70,7 @@ vi.mock('../config', async () => {
     rollbackDeepSeekHarnessConfig: mocks.rollbackConfig
   }
 })
+vi.mock('../storageHealth', () => ({ checkDshHomeHealth: mocks.checkHomeHealth }))
 
 const { DeepSeekHarnessService } = await import('../DeepSeekHarnessService')
 
@@ -134,6 +136,7 @@ describe('DeepSeekHarnessService', () => {
     children.length = 0
     mocks.appGetPath.mockImplementation((key: string) => {
       if (key === 'external.deepseek_harness.config') return '/mock/home/.dsh'
+      if (key === 'external.deepseek_harness.storages') return '/mock/home/.dsh/storages'
       if (key === 'feature.deepseek_harness.workspace') return '/mock/userData/Data/DeepSeekHarness/Workspace'
       throw new Error(`Unexpected application.getPath(${key})`)
     })
@@ -172,6 +175,7 @@ describe('DeepSeekHarnessService', () => {
       settings: { path: '/mock/home/.dsh/settings.yaml', written: 'written settings' }
     })
     mocks.rollbackConfig.mockResolvedValue(true)
+    mocks.checkHomeHealth.mockResolvedValue({ healthy: true })
     mocks.gatewayStart.mockResolvedValue(undefined)
     mocks.gatewayEnsureKey.mockResolvedValue('gateway-key')
     mocks.gatewayGetConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
@@ -366,6 +370,57 @@ describe('DeepSeekHarnessService', () => {
     expect(result).toEqual({ success: false, message: 'This provider must be used through the Unified Gateway' })
     expect(mocks.writeConfig).not.toHaveBeenCalled()
     expect(mocks.spawn).not.toHaveBeenCalled()
+  })
+
+  it('fails fast without spawning when a populated home fails the upgrade preflight', async () => {
+    mocks.checkHomeHealth.mockResolvedValue({
+      healthy: false,
+      reason: 'workspace-inconsistent',
+      detail:
+        'storages/workspace.json lists 3 workspace(s) with empty sessionIds while archivedSessionIds holds 4 session(s)'
+    })
+    const service = new DeepSeekHarnessService()
+
+    const result = await service.start(startInput)
+
+    expect(result).toEqual({ success: false, message: expect.stringContaining('[dsh-home-workspace-inconsistent]') })
+    expect(result).toEqual({
+      success: false,
+      message: expect.stringContaining('delete storages/workspace.json inside it')
+    })
+    expect(mocks.checkHomeHealth).toHaveBeenCalledWith('/mock/home/.dsh/storages')
+    expect(mocks.spawn).not.toHaveBeenCalled()
+    expect(mocks.writeConfig).not.toHaveBeenCalled()
+    expect(service.getStatus()).toEqual({ status: 'error' })
+  })
+
+  it('scrubs managed credential env from the diagnostic version probe', async () => {
+    process.env.CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY = 'probe-secret'
+    try {
+      mocks.checkHomeHealth.mockResolvedValue({
+        healthy: false,
+        reason: 'projcache-unreadable',
+        detail: 'storages/session_projcache.json is not valid JSON'
+      })
+
+      const result = await new DeepSeekHarnessService().start(startInput)
+
+      expect(result).toEqual({
+        success: false,
+        message: expect.stringContaining('[dsh-home-projcache-unreadable]')
+      })
+      expect(result).toEqual({
+        success: false,
+        message: expect.stringContaining('delete storages/session_projcache.json inside it')
+      })
+      expect(mocks.execFile).toHaveBeenCalledOnce()
+      const options = mocks.execFile.mock.calls[0][2] as { env: NodeJS.ProcessEnv }
+      expect(options.env).not.toHaveProperty('CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY')
+      expect(options.env).not.toHaveProperty('CHERRY_STUDIO_CODEMATE_481BD06FDD6C_API_KEY')
+      expect(mocks.spawn).not.toHaveBeenCalled()
+    } finally {
+      delete process.env.CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY
+    }
   })
 
   it('starts the global gateway and projects its current address, key, and gateway model id', async () => {
