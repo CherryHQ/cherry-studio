@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import { mkdtemp } from 'node:fs/promises'
 import path from 'node:path'
 
-import { Mutex } from 'async-mutex'
 import { dialog } from 'electron'
 
 import { application } from '@application'
@@ -24,6 +23,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { InputFor, OutputFor, WindowId } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { Mutex } from '@shared/utils/async'
 import { normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
 
 import {

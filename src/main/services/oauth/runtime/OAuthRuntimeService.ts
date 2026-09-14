@@ -4,6 +4,7 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { WindowId } from '@shared/ipc/types'
+import { timeoutSignal } from '@shared/utils/async'
 
 import { describeOAuthError, OAuthServiceError, OAuthSignInCancelledError, OAuthTransientError } from '../errors'
 import { DeepLinkCallbackTransport } from './DeepLinkCallbackTransport'
@@ -168,7 +169,7 @@ export class OAuthRuntimeService extends BaseService {
     transport: LoopbackCallbackTransport,
     operation: ActiveSignIn['operation']
   ): Promise<OAuthAccount> => {
-    const signal = AbortSignal.any([operation.controller.signal, AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)])
+    const signal = timeoutSignal(SIGN_IN_TIMEOUT_MS, operation.controller.signal)
     try {
       const client = await definition.createClient({ signal })
       if (operation.controller.signal.aborted) {

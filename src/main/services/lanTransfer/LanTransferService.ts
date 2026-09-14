@@ -18,6 +18,7 @@ import type {
   LanTransferState
 } from '@shared/types/lanTransfer'
 import { LAN_TRANSFER_GLOBAL_TIMEOUT_MS } from '@shared/types/lanTransfer'
+import { createTimeout } from '@shared/utils/async'
 
 import {
   abortTransfer,
@@ -431,14 +432,14 @@ export class LanTransferService extends BaseService {
 
     const DISCONNECT_TIMEOUT_MS = 3000
     await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
+      const timeout = createTimeout(DISCONNECT_TIMEOUT_MS, () => {
         logger.warn('Disconnect timeout, forcing cleanup')
         socket.removeAllListeners()
         resolve()
-      }, DISCONNECT_TIMEOUT_MS)
+      })
 
       socket.once('close', () => {
-        clearTimeout(timeout)
+        timeout.dispose()
         resolve()
       })
 
@@ -477,10 +478,10 @@ export class LanTransferService extends BaseService {
 
     // Global timeout
     const globalTimeoutError = new Error('Transfer timed out (global timeout exceeded)')
-    const globalTimeoutHandle = setTimeout(() => {
+    const globalTimeoutHandle = createTimeout(LAN_TRANSFER_GLOBAL_TIMEOUT_MS, () => {
       logger.warn('Global transfer timeout exceeded, aborting transfer', { transferId, fileName })
       abortTransfer(this.activeTransfer, globalTimeoutError)
-    }, LAN_TRANSFER_GLOBAL_TIMEOUT_MS)
+    })
 
     try {
       const result = await this.performFileTransfer(filePath, transferId, fileName)
@@ -500,7 +501,7 @@ export class LanTransferService extends BaseService {
 
       throw error
     } finally {
-      clearTimeout(globalTimeoutHandle)
+      globalTimeoutHandle.dispose()
       cleanupTransfer(this.activeTransfer)
       this.activeTransfer = undefined
     }

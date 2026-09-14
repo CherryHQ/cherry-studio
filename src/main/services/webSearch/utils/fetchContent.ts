@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import { readableContentService } from '@main/services/readableContent'
-import { isAbortError } from '@main/utils/error'
 import { fetchRemoteText } from '@main/utils/remoteFetch'
 import type { WebSearchResult } from '@shared/data/types/webSearch'
+import { isAbortError } from '@shared/utils/async'
 
 const logger = loggerService.withContext('MainWebSearchContentFetcher')
 
