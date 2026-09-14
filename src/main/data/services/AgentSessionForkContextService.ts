@@ -20,7 +20,6 @@ import {
 } from '@data/services/agentSessionForkContext'
 
 import { getAgentSessionForkAvailability } from './agentSessionFork'
-import { agentSessionMessageService } from './AgentSessionMessageService'
 import {
   collectForkContextGarbage,
   createForkContextSnapshot,
@@ -28,7 +27,8 @@ import {
   forkContextSegment,
   nativeForkContextText,
   selectForkContextSummary
-} from './utils/forkContext'
+} from './agentSessionForkContextContent'
+import { agentSessionMessageService } from './AgentSessionMessageService'
 
 export class ForkContextFailure extends Error {
   constructor(readonly detail: ForkContextError) {

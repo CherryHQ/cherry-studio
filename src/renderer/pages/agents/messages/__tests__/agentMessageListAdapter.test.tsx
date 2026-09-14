@@ -1,7 +1,11 @@
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
+import type {
+  MessageListItem,
+  MessageListProviderValue,
+  MessageListRuntime
+} from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -202,8 +206,8 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
-  it.each(['native', 'rebuild', 'workspace-error'] as const)(
-    'forks without confirmation and only rebuilds when the checkpoint is unavailable: %s',
+  it.each(['success', 'workspace_changed', 'checkpoint_failed'] as const)(
+    'makes one native-first fork request without a confirmation or renderer retry: %s',
     async (scenario) => {
       let value: MessageListProviderValue | undefined
       const Probe = () => {
@@ -222,33 +226,60 @@ describe('useAgentMessageListProviderValue', () => {
         return null
       }
       ipcApiRequest.mockReset()
-      if (scenario === 'native') ipcApiRequest.mockResolvedValueOnce({ sessionId: 'child' })
+      if (scenario === 'success') ipcApiRequest.mockResolvedValueOnce({ sessionId: 'child' })
       else
         ipcApiRequest.mockRejectedValueOnce(
           new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, 'fork failed', {
-            reason: scenario === 'workspace-error' ? 'workspace_changed' : 'legacy_history'
+            reason: scenario
           })
         )
-      if (scenario === 'rebuild') ipcApiRequest.mockResolvedValueOnce({ sessionId: 'child' })
       render(<Probe />)
-      const action = value!.actions.forkSession!('selected-message')
-      if (scenario === 'workspace-error') await expect(action).rejects.toThrow()
+      const capability = value!.actions.forkSession!
+      const selectedMessage = { id: 'selected-message', role: 'assistant', status: 'success' } as MessageListItem
+      expect(capability.label).toBe('agent_session_fork.label')
+      expect(capability.availability(selectedMessage)).toMatchObject({ visible: true, enabled: true })
+      expect(capability.availability({ ...selectedMessage, forkAvailability: { status: 'available' } })).toMatchObject({
+        visible: true,
+        enabled: true
+      })
+      for (const reason of [
+        'legacy_history',
+        'checkpoint_failed',
+        'history_missing',
+        'history_corrupt',
+        'unsupported_checkpoint',
+        'history_changed'
+      ] as const) {
+        expect(
+          capability.availability({ ...selectedMessage, forkAvailability: { status: 'unavailable', reason } })
+        ).toMatchObject({
+          visible: true,
+          enabled: true
+        })
+      }
+      expect(
+        capability.availability({
+          ...selectedMessage,
+          forkAvailability: { status: 'unavailable', reason: 'not_turn_boundary' }
+        })
+      ).toEqual({
+        visible: true,
+        enabled: false,
+        reason: 'agent_session_fork.not_turn_boundary'
+      })
+      expect(capability.availability({ ...selectedMessage, status: 'pending' })).toMatchObject({ enabled: false })
+      expect(capability.availability({ ...selectedMessage, role: 'user' })).toBe(false)
+      const action = value!.actions.forkSession!.run('selected-message')
+      if (scenario !== 'success') await expect(action).rejects.toThrow()
       else await action
       expect(ipcApiRequest).toHaveBeenNthCalledWith(1, 'ai.agent.session.fork', {
         sourceSessionId: 'source',
         messageId: 'selected-message',
-        allowHistoryRebuild: false
+        allowHistoryRebuild: true
       })
       expect(confirmFork).not.toHaveBeenCalled()
-      if (scenario === 'rebuild')
-        expect(ipcApiRequest).toHaveBeenNthCalledWith(2, 'ai.agent.session.fork', {
-          sourceSessionId: 'source',
-          messageId: 'selected-message',
-          allowHistoryRebuild: true
-        })
-      else expect(ipcApiRequest).toHaveBeenCalledTimes(1)
-      if (scenario === 'native' || scenario === 'rebuild')
-        expect(openRouteMock).toHaveBeenCalledWith('/app/agents', { sessionId: 'child' })
+      expect(ipcApiRequest).toHaveBeenCalledTimes(1)
+      if (scenario === 'success') expect(openRouteMock).toHaveBeenCalledWith('/app/agents', { sessionId: 'child' })
       else expect(openRouteMock).not.toHaveBeenCalled()
     }
   )

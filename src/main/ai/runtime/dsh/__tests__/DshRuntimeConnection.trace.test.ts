@@ -4,6 +4,7 @@ import { SessionSeq } from '@deepseek-ai/dsh-session'
 import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AgentSessionForkError, type RuntimeForkInput } from '../../forkCheckpoint'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeTraceContext } from '../../types'
 
 interface FakeSpan {
@@ -179,6 +180,7 @@ vi.mock('@main/ai/steerReminder', () => ({ wrapSteerReminder: vi.fn((text: strin
 
 const { DshBridgeServer } = await import('../DshBridgeServer')
 const { DshRuntimeConnection } = await import('../DshRuntimeConnection')
+const { DshRuntimeDriver } = await import('../DshRuntimeDriver')
 
 const traceContext: AgentRuntimeTraceContext = {
   topicId: 'topic-1',
@@ -223,6 +225,40 @@ afterEach(() => {
 })
 
 describe('DshRuntimeConnection tracing', () => {
+  it.each([
+    ['DSH connection is closed', 'checkpoint_failed'],
+    ['session/fork-snapshot timed out after 60000ms', 'checkpoint_failed'],
+    ['history_changed', 'history_changed'],
+    ['history_corrupt', 'history_corrupt']
+  ])('classifies a live snapshot failure for history reconstruction: %s', async (message, reason) => {
+    const driver = new DshRuntimeDriver()
+    const connection = await driver.connect(connectInput)
+    const checkpoint = { runtime: 'dsh' as const, runtimeSessionId: 'session-1', boundary: 7 }
+    const controller = new AbortController()
+    const input: RuntimeForkInput = {
+      sourceSessionId: 'session-1',
+      targetSessionId: 'child',
+      targetCwd: '/child',
+      artifactDirectory: '/owned',
+      checkpoint,
+      checkpoints: [checkpoint],
+      signal: controller.signal
+    }
+    try {
+      runtimeMocks.bridgeRequest.mockRejectedValueOnce(new Error(message))
+      const failure = driver.fork(input)
+      await expect(failure).rejects.toBeInstanceOf(AgentSessionForkError)
+      await expect(failure).rejects.toMatchObject({ reason })
+      expect(runtimeMocks.clientClose).not.toHaveBeenCalled()
+      const cancelled = new Error('cancelled by user')
+      controller.abort(cancelled)
+      runtimeMocks.bridgeRequest.mockRejectedValueOnce(new Error(message))
+      await expect(driver.fork(input)).rejects.toBe(cancelled)
+    } finally {
+      await connection.close()
+    }
+  })
+
   it('bounds fork snapshots without closing the source connection', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     const events = [{ type: 'turn/end', seq: 7 }]

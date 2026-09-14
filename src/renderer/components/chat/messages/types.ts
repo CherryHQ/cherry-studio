@@ -29,6 +29,8 @@ import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { FileUrlString } from '@shared/types/file'
 
+import type { ActionAvailabilityInput } from '../actions/actionTypes'
+
 export type { MessageUiState } from '@renderer/types/message'
 
 export type SelectAllState = boolean | 'indeterminate'
@@ -434,7 +436,11 @@ export interface MessageListActions {
   getMessageDeleteAvailability?: (messageId: string) => MessageDeleteAvailability
   deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
-  forkSession?: (messageId: string) => void | Promise<void>
+  forkSession?: {
+    label: string
+    availability: (message: MessageListItem) => ActionAvailabilityInput
+    run: (messageId: string) => void | Promise<void>
+  }
   copyBranchToNewTopic?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
   deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>

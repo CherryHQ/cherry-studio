@@ -2,7 +2,7 @@
 title: Independent Agent session forks
 category: changed
 severity: notice
-introduced_in_pr: N/A (uncommitted implementation)
+introduced_in_pr: #20340
 date: 2026-09-10
 ---
 

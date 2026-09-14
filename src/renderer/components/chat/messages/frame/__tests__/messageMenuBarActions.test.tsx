@@ -190,21 +190,26 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
 }
 
 describe('messageMenuBarActions', () => {
-  it('permits history reconstruction while busy but rejects incomplete boundaries', async () => {
+  it('uses the injected fork label and availability without owning session policy', async () => {
     const forkSession = vi.fn()
-    const context = createActionContext({ actions: { forkSession }, isProcessing: true, isLastMessage: false })
+    const availability = vi.fn(() => ({ visible: true, enabled: true, reason: undefined as string | undefined }))
+    const context = createActionContext({
+      actions: { forkSession: { label: 'Fork this conversation', availability, run: forkSession } },
+      isProcessing: true,
+      isLastMessage: false
+    })
     const forkAction = () => resolveMessageMenuBarMenuActions(context).find((action) => action.id === 'fork-session')!
     expect(forkAction().availability.enabled).toBe(true)
-    context.message.forkAvailability = { status: 'unavailable', reason: 'checkpoint_failed' }
-    expect(forkAction().availability.enabled).toBe(true)
+    expect(forkAction().label).toBe('Fork this conversation')
     await executeMessageMenuBarAction('fork-session', context)
     expect(forkSession).toHaveBeenCalledWith(context.message.id)
     forkSession.mockClear()
-    context.message.forkAvailability = { status: 'unavailable', reason: 'not_turn_boundary' }
+    availability.mockReturnValue({ visible: true, enabled: false, reason: 'Wait for the turn to finish' })
     expect(forkAction().availability.enabled).toBe(false)
+    expect(forkAction().availability.reason).toBe('Wait for the turn to finish')
     await executeMessageMenuBarAction('fork-session', context)
     expect(forkSession).not.toHaveBeenCalled()
-    context.message.forkAvailability = { status: 'available' }
+    availability.mockReturnValue({ visible: true, enabled: true, reason: undefined })
     expect(forkAction().availability.enabled).toBe(true)
     await executeMessageMenuBarAction('fork-session', context)
     expect(forkSession).toHaveBeenCalledWith(context.message.id)

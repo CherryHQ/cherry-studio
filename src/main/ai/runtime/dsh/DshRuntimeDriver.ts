@@ -2,11 +2,12 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
+import { canRebuildAgentSessionFork } from '@shared/ai/agentSessionFork'
 import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import type { RuntimeForkInput } from '../forkCheckpoint'
+import { AgentSessionForkError, type RuntimeForkInput } from '../forkCheckpoint'
 import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
 import { buildDshCherryToolName, DSH_AUTO_APPROVED_BRIDGED_TOOLS } from './DshCherryToolBridge'
 import { forkDshSession } from './dshFork'
@@ -17,10 +18,18 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
   private readonly forkSources = new Map<string, DshRuntimeConnection>()
 
   async fork(input: RuntimeForkInput) {
-    const events =
-      input.checkpoint.runtime === 'dsh'
-        ? await this.forkSources.get(input.sourceSessionId)?.snapshotForFork(input.checkpoint.boundary)
-        : undefined
+    let events: unknown[] | undefined
+    try {
+      if (input.checkpoint.runtime === 'dsh')
+        events = await this.forkSources.get(input.sourceSessionId)?.snapshotForFork(input.checkpoint.boundary)
+    } catch (error) {
+      input.signal.throwIfAborted()
+      if (error instanceof AgentSessionForkError) throw error
+      const reason =
+        error instanceof Error && canRebuildAgentSessionFork(error.message) ? error.message : 'checkpoint_failed'
+      throw new AgentSessionForkError(reason, error instanceof Error ? error.message : reason)
+    }
+    input.signal.throwIfAborted()
     return forkDshSession(input, events)
   }
   readonly type = 'dsh'

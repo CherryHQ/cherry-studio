@@ -452,7 +452,12 @@ export function apply(ctx: Context): void {
       fileCalls.delete(exec)
       // SDK dispatch awaits the tool body even after cancellation; never release on abort alone.
       if (call.leaseId) {
-        await link.request('file-write/release', { sessionId: call.sessionId, leaseId: call.leaseId })
+        await link
+          .request('file-write/release', { sessionId: call.sessionId, leaseId: call.leaseId })
+          .catch((error) => {
+            // The host retains leases until process exit; a lost bridge must not rewrite the tool result.
+            if (link.connected) throw error
+          })
       }
     }
   })

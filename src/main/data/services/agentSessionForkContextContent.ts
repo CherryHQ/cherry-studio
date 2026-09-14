@@ -1,13 +1,14 @@
 import { createHash, randomUUID } from 'node:crypto'
 
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
+
 import type {
   ForkContextCompatibility,
   ForkContextDocument,
   ForkContextSegment,
   ForkContextSnapshot,
   ForkContextSummary
-} from '@data/services/agentSessionForkContext'
+} from './agentSessionForkContext'
 
 export function forkContextHash(value: unknown): string {
   const canonical = (input: unknown): unknown => {

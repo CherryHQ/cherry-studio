@@ -72,6 +72,7 @@ async function startHost(
   return {
     socketPath,
     requests,
+    disconnect: () => peer?.destroy(),
     request: (method: string, params: object) => {
       if (!transport) throw new Error('plugin has not connected')
       return transport.request(method, params)
@@ -489,7 +490,7 @@ describe('cherry bridge plugin', () => {
     }
   })
 
-  it('executes fork file tools while a source SDK write holds its target lock', async () => {
+  it.each([false, true])('executes fork I/O while the source writes (disconnect=%s)', async (disconnectOnRelease) => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-fork-io-'))
     cleanup.push(() => rm(directory, { recursive: true, force: true }))
     const sourceCwd = path.join(directory, 'source')
@@ -535,7 +536,10 @@ describe('cherry bridge plugin', () => {
         if (params.sessionId !== child.id) throw new Error('wrong session')
         if (method === 'guard/check') return { kind: 'allow' }
         if (method === 'file-write/acquire') return { acquired: true }
-        if (method === 'file-write/release') return {}
+        if (method === 'file-write/release') {
+          if (disconnectOnRelease) host.disconnect()
+          return {}
+        }
         throw new Error(`unexpected request ${method}`)
       })
       process.env[BRIDGE_SOCKET_ENV] = host.socketPath
@@ -591,8 +595,19 @@ describe('cherry bridge plugin', () => {
         agent: child,
         signal
       })
-      expect(write.isError).toBe(false)
+      expect(write.isError, JSON.stringify(write.content)).toBe(false)
       expect(await readFile(path.join(childCwd, 'test2.txt'), 'utf8')).toBe('child created')
+      if (disconnectOnRelease) {
+        const blocked = await childContext.tools.execute({
+          callId: ToolCallId('write-after-disconnect'),
+          name: 'write',
+          arguments: { file_path: 'blocked.txt', content: 'must not be written' },
+          agent: child,
+          signal
+        })
+        expect(blocked.isError).toBe(true)
+        await expect(readFile(path.join(childCwd, 'blocked.txt'))).rejects.toMatchObject({ code: 'ENOENT' })
+      }
       expect(writeFinished).toBe(false)
       releaseWrite()
       await pendingWrite

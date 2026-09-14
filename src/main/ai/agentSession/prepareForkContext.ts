@@ -10,14 +10,14 @@ import type {
   ForkContextSummary,
   PreparedForkContext
 } from '@data/services/agentSessionForkContext'
-import { agentSessionForkContextService, ForkContextFailure } from '@data/services/AgentSessionForkContextService'
 import {
   forkContextHash,
   forkContextSegment,
   hasCompleteForkContextCoverage,
   selectForkContextSummary,
   validForkContextSegment
-} from '@data/services/utils/forkContext'
+} from '@data/services/agentSessionForkContextContent'
+import { agentSessionForkContextService, ForkContextFailure } from '@data/services/AgentSessionForkContextService'
 
 import type { CompressionModelDescriptor } from '../contextBuild/resolveCompressionModel'
 import { serializeForkContext } from './forkHistory'

@@ -21,6 +21,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import type { ForkContextCompatibility } from '@data/services/agentSessionForkContext'
+import { forkContextHash } from '@data/services/agentSessionForkContextContent'
 import { agentSessionForkContextService } from '@data/services/AgentSessionForkContextService'
 import type { AgentSessionForkJournal } from '@data/services/agentSessionForkJournal'
 import { agentSessionForkService } from '@data/services/AgentSessionForkService'
@@ -29,7 +30,6 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
-import { forkContextHash } from '@data/services/utils/forkContext'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/AgentSessionForkOperations'
 import { forkFileIdentity } from '@main/ai/agentSession/forkFiles'
 import { buildForkHistory } from '@main/ai/agentSession/forkHistory'
@@ -743,11 +743,13 @@ describe('AgentSessionMessageService', () => {
               })
               .where(eq(agentSessionMessageTable.id, grandchildMessage.id))
               .run()
-            await expect(operations.fork(grandchildId, grandchildMessage.id, false)).rejects.toMatchObject({
-              reason: 'history_missing'
-            })
             const fallbackId = await operations.fork(grandchildId, grandchildMessage.id, true)
             expect(fork).toHaveBeenCalledOnce()
+            expect(agentSessionMessageService.getForkHistory(grandchildId)![0].runtimeForkState).toEqual({
+              version: 1,
+              status: 'available',
+              checkpoint
+            })
             expect(agentSessionMessageService.getForkHistory(fallbackId)?.[0].data.parts?.[0]).toEqual({
               type: 'text',
               text: 'included amber'
@@ -757,14 +759,7 @@ describe('AgentSessionMessageService', () => {
               checkpoints: [{ ...checkpoint, runtimeSessionId: 'native-child' }],
               publish: []
             })
-            dbh.db
-              .update(agentSessionMessageTable)
-              .set({
-                runtimeForkState: { version: 1, status: 'available', checkpoint }
-              })
-              .where(eq(agentSessionMessageTable.id, grandchildMessage.id))
-              .run()
-            const nativeId = await operations.fork(grandchildId, grandchildMessage.id, false)
+            const nativeId = await operations.fork(grandchildId, grandchildMessage.id, true)
             expect(agentSessionMessageService.getForkHistory(nativeId)).toBeUndefined()
             expect(agentSessionMessageService.getLastRuntimeResumeToken(nativeId)).toBe('native-child')
             fork.mockRejectedValue(new Error('disk full'))

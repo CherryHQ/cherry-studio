@@ -5,6 +5,8 @@ sources:
   - src/main/data/db/seeding/SeedRunner.ts
   - src/main/data/migration/v2/core/MigrationEngine.ts
   - src/main/services/file/tasks/contentMetadataGeneration.ts
+  - src/main/data/services/AgentSessionForkService.ts
+  - src/main/data/services/agentSessionForkJournal.ts
 ---
 
 # App State System Overview
@@ -77,6 +79,7 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | Key                   | Owner            | Value shape             | Notes                                                                                                                                                                                                       |
 | --------------------- | ---------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `seed:<name>`         | `SeedRunner`     | `{ version: string }`   | Seeding journal, one row per seeder. See [Database Seeding Guide](./database-seeding-guide.md).                                                                                                              |
+| `agent-session-fork:<operationId>` | `AgentSessionForkService` | `AgentSessionForkJournal` (v1/v2) | Operation-owned SDK artifacts, publication/commit status, cleanup claims and permanent workspace retention. Recovery preserves files when ownership is uncertain; other domains query the owner's API, never the key directly. |
 | `seedRunner:bootstrapCompleted` | `SeedRunner` | `{ completedAt: number }` | Bootstrap-window marker — set after the first fully-successful seeding pass; `bootstrap-only` seeders never run once present. Done-event key (see Disposability exception): never rename once shipped. |
 | `fileManager:contentMetadataGeneration` | `FileManager` | `{ version: number }` | Trust generation for internal-file `size` / `contentHash`; a version change atomically invalidates old hashes before background reconciliation. |
 | `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |

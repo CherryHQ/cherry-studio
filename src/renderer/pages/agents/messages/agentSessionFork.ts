@@ -1,6 +1,22 @@
 import type { TFunction } from 'i18next'
 
-import type { AgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
+import type { ActionAvailabilityInput } from '@renderer/components/chat/actions/actionTypes'
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import { type AgentSessionForkFailureReason, canRebuildAgentSessionFork } from '@shared/ai/agentSessionFork'
+
+export function agentSessionForkAvailability(t: TFunction, message: MessageListItem): ActionAvailabilityInput {
+  if (message.role !== 'assistant') return false
+  const state = message.forkAvailability
+  const reason = state?.status === 'unavailable' ? state.reason : 'legacy_history'
+  const enabled = message.status === 'success' && (state?.status === 'available' || canRebuildAgentSessionFork(reason))
+  return {
+    visible: true,
+    enabled,
+    reason: enabled
+      ? undefined
+      : agentSessionForkReasonLabel(t, message.status !== 'success' ? 'not_turn_boundary' : reason)
+  }
+}
 
 /** Static keys keep all unavailable states visible to the translation tooling. */
 export function agentSessionForkReasonLabel(t: TFunction, reason: AgentSessionForkFailureReason): string {
