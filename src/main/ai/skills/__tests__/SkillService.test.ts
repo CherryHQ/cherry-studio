@@ -2341,8 +2341,15 @@ describe('SkillService', () => {
       const skillDir = path.join(mirrorRoot, 'growing')
       await fs.promises.mkdir(skillDir, { recursive: true })
       await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'x'.repeat(SKILL_FILE_PREVIEW_MAX_SIZE_BYTES + 1))
-      // Simulate the stat/read race: stat underreports while the real content is oversized.
-      const statSpy = vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1 } as unknown as fs.Stats)
+      // Simulate the stat/read race on the same handle the read goes through: fstat
+      // underreports while the real content is oversized.
+      const openOriginal = fs.promises.open.bind(fs.promises)
+      const openSpy = vi.spyOn(fs.promises, 'open').mockImplementation(async (pathArg, flags) => {
+        const handle = await openOriginal(pathArg, flags)
+        return Object.assign(handle, {
+          stat: async () => ({ size: 1 }) as unknown as Awaited<ReturnType<typeof handle.stat>>
+        })
+      })
 
       try {
         await expect(new SkillService().readSkillMdByFolderName('growing')).resolves.toEqual({
@@ -2350,7 +2357,58 @@ describe('SkillService', () => {
           reason: 'too-large'
         })
       } finally {
-        statSpy.mockRestore()
+        openSpy.mockRestore()
+      }
+    })
+
+    it('fails the read for a globally disabled catalog row even though the mirror survives', async () => {
+      const skillDir = path.join(mirrorRoot, 'off')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'instructions')
+      const getSpy = vi
+        .spyOn(agentGlobalSkillService, 'getByFolderName')
+        .mockReturnValue({ folderName: 'off', isEnabled: false } as unknown as ReturnType<
+          typeof agentGlobalSkillService.getByFolderName
+        >)
+
+      try {
+        await expect(new SkillService().readSkillMdByFolderName('off')).resolves.toEqual({
+          status: 'error',
+          reason: 'disabled'
+        })
+      } finally {
+        getSpy.mockRestore()
+      }
+    })
+
+    it('reads an enabled catalog row and a row-less local skill alike', async () => {
+      const enabledDir = path.join(mirrorRoot, 'on')
+      const localDir = path.join(mirrorRoot, 'local-only')
+      for (const dir of [enabledDir, localDir]) {
+        await fs.promises.mkdir(dir, { recursive: true })
+        await fs.promises.writeFile(path.join(dir, 'SKILL.md'), 'instructions')
+      }
+      const getSpy = vi
+        .spyOn(agentGlobalSkillService, 'getByFolderName')
+        .mockImplementation((folderName: string) =>
+          folderName === 'on'
+            ? ({ folderName: 'on', isEnabled: true } as unknown as ReturnType<
+                typeof agentGlobalSkillService.getByFolderName
+              >)
+            : null
+        )
+
+      try {
+        await expect(new SkillService().readSkillMdByFolderName('on')).resolves.toEqual({
+          status: 'found',
+          content: 'instructions'
+        })
+        await expect(new SkillService().readSkillMdByFolderName('local-only')).resolves.toEqual({
+          status: 'found',
+          content: 'instructions'
+        })
+      } finally {
+        getSpy.mockRestore()
       }
     })
 

@@ -55,7 +55,7 @@ const BUILTIN_VERSION_FILE = '.version'
 export type SkillMdReadState =
   | { status: 'found'; content: string }
   | { status: 'missing' }
-  | { status: 'error'; reason?: 'too-large' }
+  | { status: 'error'; reason?: 'too-large' | 'disabled' }
 
 export class SkillService {
   private readonly installer: SkillInstaller
@@ -110,42 +110,74 @@ export class SkillService {
    * `LocalSkill.filename`) is the storage identity the renderer attaches; unlike
    * `readFile(skillId, …)` it needs no catalog row, so a chat turn whose skill was
    * uninstalled mid-flight still gets the same found/missing/error verdict (#19773).
+   * A catalog row that is globally disabled fails here: the mirror outlives the
+   * switch, so the read itself must enforce it (local workdir skills have no row).
    * Containment, not name rewriting: reconcile adopts agent-authored directories under
    * their original (never install-sanitized) names, so a rename-style guard would turn
    * legitimate attachments into guaranteed turn failures.
    */
   async readSkillMdByFolderName(folderName: string): Promise<SkillMdReadState> {
+    const globalSkill = agentGlobalSkillService.getByFolderName(folderName)
+    if (globalSkill && !globalSkill.isEnabled) return { status: 'error', reason: 'disabled' }
+
     const root = path.resolve(this.getMirrorRoot())
     const target = path.resolve(this.getMirrorPath(folderName))
     if (target !== root && !target.startsWith(root + path.sep)) return { status: 'missing' }
-    // The descriptor is inlined into the system prompt, so guard the read itself: resolved paths
-    // must stay inside the mirror root or the skill storage root (non-builtin mirrors are
-    // intentionally symlinked to storage on POSIX), and an oversized SKILL.md fails the turn
-    // before it is ever loaded (limit shared with file previews).
+
+    // Containment is judged on the resolved path and the read opens that same file: only
+    // mirror-root or storage-root links pass (POSIX mirrors symlink into storage).
+    let realRoot: string
+    let realStorageRoot: string
     try {
-      const [realRoot, realStorageRoot] = await Promise.all([
+      ;[realRoot, realStorageRoot] = await Promise.all([
         fs.promises.realpath(root),
         fs.promises.realpath(path.resolve(application.getPath('feature.agents.skills')))
       ])
-      const isAllowed = (realFile: string) =>
-        realFile.startsWith(realRoot + path.sep) || realFile.startsWith(realStorageRoot + path.sep)
-      for (const variant of ['SKILL.md', 'skill.md']) {
-        const realFile = await fs.promises.realpath(path.join(target, variant)).catch(() => null)
-        if (!realFile) continue
-        if (!isAllowed(realFile)) return { status: 'missing' }
-        const { size } = await fs.promises.stat(realFile)
-        if (size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return { status: 'error', reason: 'too-large' }
+    } catch (error) {
+      // Neither root existing yet means no mirror was ever created for this skill.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { status: 'missing' }
+      return { status: 'error' }
+    }
+    const isAllowed = (realFile: string) =>
+      realFile.startsWith(realRoot + path.sep) || realFile.startsWith(realStorageRoot + path.sep)
+
+    for (const variant of ['SKILL.md', 'skill.md']) {
+      let realFile: string
+      try {
+        realFile = await fs.promises.realpath(path.join(target, variant))
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+        return { status: 'error' }
       }
-    } catch {
-      // An unreadable mirror root falls through to the shared three-state read.
+      if (!isAllowed(realFile)) return { status: 'missing' }
+
+      let handle: fs.promises.FileHandle
+      try {
+        handle = await fs.promises.open(realFile, 'r')
+      } catch {
+        return { status: 'error' }
+      }
+      try {
+        // One handle for stat and read (limit shared with file previews): a file swapped or
+        // grown past the check can still only yield size+1 bytes, never an unbounded read.
+        const { size } = await handle.stat()
+        if (size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return { status: 'error', reason: 'too-large' }
+        const buffer = Buffer.alloc(size + 1)
+        let read = 0
+        while (read < buffer.length) {
+          const { bytesRead } = await handle.read(buffer, read, buffer.length - read, read)
+          if (bytesRead === 0) break
+          read += bytesRead
+        }
+        if (read > size) return { status: 'error', reason: 'too-large' }
+        return { status: 'found', content: buffer.subarray(0, read).toString('utf-8') }
+      } catch {
+        return { status: 'error' }
+      } finally {
+        await handle.close()
+      }
     }
-    const state = await this.readSkillMdState(target)
-    // Re-check after the read: the file can grow between stat and readFile, and the
-    // content must never reach the system prompt over the limit.
-    if (state.status === 'found' && Buffer.byteLength(state.content) > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) {
-      return { status: 'error', reason: 'too-large' }
-    }
-    return state
+    return { status: 'missing' }
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {
