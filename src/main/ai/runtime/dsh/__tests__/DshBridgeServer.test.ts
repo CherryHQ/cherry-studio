@@ -46,13 +46,15 @@ function makeServer(
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }> = () =>
     Promise.reject(new Error('unexpected tool call')),
   readyTimeoutMs?: number,
-  onGuardCheck: DshBridgeServerOptions['onGuardCheck'] = async () => ({ kind: 'allow' })
+  onGuardCheck: DshBridgeServerOptions['onGuardCheck'] = async () => ({ kind: 'allow' }),
+  runtimeSessionId?: string
 ): Pick<Harness, 'server' | 'events' | 'eventSources' | 'lifecycleEdges'> {
   const events: AgentRuntimeEvent[] = []
   const eventSources: Harness['eventSources'] = []
   const lifecycleEdges: Harness['lifecycleEdges'] = []
   const server = new DshBridgeServer({
     sessionId: SESSION_ID,
+    runtimeSessionId,
     emit: (event, source) => {
       events.push(event)
       eventSources.push(source)
@@ -112,9 +114,16 @@ async function connectPlugin(
 async function makeHarness(
   userResponse: 'stream' | 'message' | 'unavailable' = 'stream',
   onToolCall?: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }>,
-  onGuardCheck?: DshBridgeServerOptions['onGuardCheck']
+  onGuardCheck?: DshBridgeServerOptions['onGuardCheck'],
+  runtimeSessionId?: string
 ): Promise<Harness> {
-  const { server, events, eventSources, lifecycleEdges } = makeServer(userResponse, onToolCall, undefined, onGuardCheck)
+  const { server, events, eventSources, lifecycleEdges } = makeServer(
+    userResponse,
+    onToolCall,
+    undefined,
+    onGuardCheck,
+    runtimeSessionId
+  )
   await server.listen()
   const plugin = await connectPlugin(server)
   await server.whenReady()
@@ -168,6 +177,29 @@ describe('DSH cross-connection file write protection', () => {
     await expect(acquire(child, 'child', file)).resolves.toEqual({ acquired: true })
     parent.server.runtimeExited()
     child.server.runtimeExited()
+  })
+
+  it('keeps file locks isolated between native generations of the same application session', async () => {
+    const original = await makeHarness()
+    const nativeId = 'edited-native-generation'
+    const edited = await makeHarness('stream', undefined, undefined, nativeId)
+    const file = path.join(directory, 'shared.txt')
+    const claim = { sessionId: nativeId, leaseId: 'write', path: file }
+    try {
+      await expect(acquire(original, 'write', file)).resolves.toEqual({ acquired: true })
+      await expect(edited.transport.request('file-write/acquire', claim)).rejects.toThrow('FILE_WRITE_BUSY')
+      await expect(
+        edited.transport.request('file-write/release', { sessionId: nativeId, leaseId: 'write' })
+      ).resolves.toEqual({})
+      const retry = { ...claim, leaseId: 'retry-write' }
+      await expect(edited.transport.request('file-write/acquire', retry)).rejects.toThrow('FILE_WRITE_BUSY')
+      await release(original, 'write')
+      await expect(edited.transport.request('file-write/acquire', retry)).resolves.toEqual({ acquired: true })
+      await expect(acquire(edited, 'wrong-identity', file)).rejects.toThrow('Invalid file write session')
+    } finally {
+      original.server.runtimeExited()
+      edited.server.runtimeExited()
+    }
   })
 
   it('retains a disconnected writer until its process has exited', async () => {
@@ -640,6 +672,34 @@ describe('DshBridgeServer', () => {
     await vi.waitFor(() => expect(signals).toHaveLength(3))
     await closed.server.close()
     expect(signals[2].aborted).toBe(true)
+  })
+
+  it('separates native tool routing from application approval ownership after an edit', async () => {
+    const nativeId = 'edited-native-generation'
+    const base = makeServer('stream', async () => ({ text: 'native tool completed' }), undefined, undefined, nativeId)
+    await base.server.listen()
+    const peer = await connectPlugin(base.server)
+    const harness = { ...base, ...peer }
+    harnesses.push(harness)
+    const call = { sessionId: nativeId, callId: 'native-tool', name: 'fixture', args: {} }
+    await expect(peer.transport.request('tool/call', call)).resolves.toEqual({ text: 'native tool completed' })
+    await expect(peer.transport.request('tool/call', { ...call, sessionId: SESSION_ID })).rejects.toThrow(
+      'wrong session'
+    )
+    const approval = peer.transport.request('approval/ask', {
+      sessionId: nativeId,
+      sessionEventSeq: 2,
+      toolName: 'write',
+      callId: 'write-after-edit',
+      args: {}
+    })
+    await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+    const event = harness.events[0]
+    if (event.type !== 'tool-approval-request') throw new Error('Expected an approval')
+    expect(toolApprovalRegistry.peek(event.request.approvalId)?.sessionId).toBe(SESSION_ID)
+    expect(harness.eventSources).toEqual([{ sessionId: nativeId, seq: 2 }])
+    toolApprovalRegistry.abort(SESSION_ID, 'user-stopped')
+    await expect(approval).resolves.toEqual({ outcome: 'rejected', rejectionReason: 'user-stopped' })
   })
 
   it('round-trips approval/ask through the registry to allowed-once', async () => {

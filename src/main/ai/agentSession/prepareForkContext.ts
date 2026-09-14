@@ -5,6 +5,7 @@ import { estimateTokenCount } from 'tokenx'
 import { resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import type {
   ForkContextCompatibility,
+  ForkContextDocument,
   ForkContextError,
   ForkContextSegment,
   ForkContextSummary,
@@ -94,14 +95,46 @@ async function summarizeBounded(
 }
 
 export async function prepareForkContext(input: PrepareForkContextInput): Promise<PreparedForkContext | undefined> {
-  const countTokens = input.countTokens ?? estimateTokenCount
   agentSessionForkContextService.reconcileReceipt(input.sessionId)
   const stored = agentSessionForkContextService.ensure(input.sessionId)
   if (!stored) return undefined
   const { document } = stored
-  let revision = stored.revision
   if (document.state === 'sent') return undefined
   if (document.state === 'sending' || document.error?.category === 'needs_reconciliation')
+    throw new ForkContextFailure({ code: 'native_uncertain', category: 'needs_reconciliation' })
+  document.state = 'contextPreparing'
+  document.error = undefined
+  const revision = agentSessionForkContextService.save(input.sessionId, stored.revision, document)
+  try {
+    const prepared = await prepareForkContextDocument(input, document)
+    agentSessionForkContextService.save(input.sessionId, revision, prepared)
+    return prepared.prepared
+  } catch (error) {
+    const failure = contextPreparationFailure(input.signal, error)
+    agentSessionForkContextService.fail(input.sessionId, failure.detail)
+    throw failure
+  }
+}
+
+/** Prepare against an immutable prefix before committing an edit of the live conversation. */
+export async function prepareForkContextDocument(
+  input: Omit<PrepareForkContextInput, 'sessionId'>,
+  source: ForkContextDocument
+): Promise<ForkContextDocument> {
+  try {
+    return await prepareContextDocument(input, structuredClone(source))
+  } catch (error) {
+    throw contextPreparationFailure(input.signal, error)
+  }
+}
+
+async function prepareContextDocument(
+  input: Omit<PrepareForkContextInput, 'sessionId'>,
+  document: ForkContextDocument
+): Promise<ForkContextDocument> {
+  input.signal.throwIfAborted()
+  const countTokens = input.countTokens ?? estimateTokenCount
+  if (document.state === 'sent' || document.state === 'sending' || document.error?.category === 'needs_reconciliation')
     throw new ForkContextFailure({ code: 'native_uncertain', category: 'needs_reconciliation' })
   const snapshot = document.snapshot
   if (snapshot.hash !== forkContextHash(snapshot.entries))
@@ -121,105 +154,99 @@ export async function prepareForkContext(input: PrepareForkContextInput): Promis
   ) {
     document.state = 'contextReady'
     document.error = undefined
-    agentSessionForkContextService.save(input.sessionId, revision, document)
-    return cached
+    return document
   }
   document.prepared = undefined
   document.state = 'contextPreparing'
   document.error = undefined
-  revision = agentSessionForkContextService.save(input.sessionId, revision, document)
-  try {
-    input.signal.throwIfAborted()
-    const history = (start: number) =>
-      snapshot.entries
-        .slice(start)
-        .map((entry) => forkContextSegment(snapshot, entry.ordinal, entry.ordinal + 1, entry.text, 'history'))
-    let segments: ForkContextSegment[] = summary
-      ? [
-          ...summary.layout.map((id) =>
-            [...summary.segments, ...summary.retainedSegments].find((part) => part.segmentId === id)!
-          ),
-          ...history(summary.coveredEnd)
-        ]
-      : history(0)
-    let summaryId = summary?.summaryId
-    let coveredEnd = summary?.coveredEnd ?? 0
-    let compressor: CompressionModelDescriptor | null | undefined
-    for (let round = 0; round < 3; round++) {
-      if (
-        countTokens(serializeForkContext(segments)) <= input.budget &&
-        !(round === 0 && snapshot.hadCompaction && !summary)
-      )
-        break
-      compressor ??= await input.resolveCompressor()
-      if (!compressor) throw new ForkContextFailure({ code: 'configuration', category: 'not_retryable' })
-      let keepStart = snapshot.entries.length
-      let tailTokens = 0
-      for (let i = snapshot.entries.length - 1; i >= 0; i--) {
-        tailTokens += countTokens(snapshot.entries[i].text)
-        if (tailTokens > input.budget / (4 * (round + 1))) break
-        if (i === 0 || snapshot.entries[i].turnId !== snapshot.entries[i - 1].turnId) keepStart = i
-      }
-      if (keepStart === 0) keepStart = snapshot.entries.length
-      keepStart = Math.max(keepStart, coveredEnd)
-      const prefix = segments.filter((segment) => segment.sourceRanges.every((range) => range.end <= keepStart))
-      const text = await summarizeBounded(
-        serializeForkContext(prefix),
-        compressor,
-        Math.floor(input.budget / (3 * (round + 1))),
-        input.signal
-      )
-      const compacted = forkContextSegment(snapshot, 0, keepStart, text, 'summary')
-      const record: ForkContextSummary = {
-        summaryId: randomUUID(),
-        parentSummaryId: summaryId,
-        sourceType: 'regenerated',
-        compatibility: input.compatibility,
-        coveredStart: 0,
-        coveredEnd: keepStart,
-        inputSnapshotId: snapshot.snapshotId,
-        inputSnapshotHash: forkContextHash(snapshot.entries.slice(0, keepStart)),
-        inputMessageIds: snapshot.entries.slice(0, keepStart).map((entry) => entry.messageId),
-        segments: [compacted],
-        retainedSegments: [],
-        layout: [compacted.segmentId]
-      }
-      document.summaries.push(record)
-      document.headSummaryId = record.summaryId
-      summaryId = record.summaryId
-      coveredEnd = keepStart
-      segments = [compacted, ...history(keepStart)]
+  input.signal.throwIfAborted()
+  const history = (start: number) =>
+    snapshot.entries
+      .slice(start)
+      .map((entry) => forkContextSegment(snapshot, entry.ordinal, entry.ordinal + 1, entry.text, 'history'))
+  let segments: ForkContextSegment[] = summary
+    ? [
+        ...summary.layout.map((id) =>
+          [...summary.segments, ...summary.retainedSegments].find((part) => part.segmentId === id)!
+        ),
+        ...history(summary.coveredEnd)
+      ]
+    : history(0)
+  let summaryId = summary?.summaryId
+  let coveredEnd = summary?.coveredEnd ?? 0
+  let compressor: CompressionModelDescriptor | null | undefined
+  for (let round = 0; round < 3; round++) {
+    if (
+      countTokens(serializeForkContext(segments)) <= input.budget &&
+      !(round === 0 && snapshot.hadCompaction && !summary)
+    )
+      break
+    compressor ??= await input.resolveCompressor()
+    if (!compressor) throw new ForkContextFailure({ code: 'configuration', category: 'not_retryable' })
+    let keepStart = snapshot.entries.length
+    let tailTokens = 0
+    for (let i = snapshot.entries.length - 1; i >= 0; i--) {
+      tailTokens += countTokens(snapshot.entries[i].text)
+      if (tailTokens > input.budget / (4 * (round + 1))) break
+      if (i === 0 || snapshot.entries[i].turnId !== snapshot.entries[i - 1].turnId) keepStart = i
     }
-    input.signal.throwIfAborted()
-    const serialized = serializeForkContext(segments)
-    if (!hasCompleteForkContextCoverage(segments, snapshot.entries.length))
-      throw new ForkContextFailure({ code: 'boundary', category: 'not_retryable' })
-    if (countTokens(serialized) > input.budget)
-      throw new ForkContextFailure({ code: 'budget', category: 'not_retryable' })
-    const prepared: PreparedForkContext = {
-      preparedContextId: randomUUID(),
+    if (keepStart === 0) keepStart = snapshot.entries.length
+    keepStart = Math.max(keepStart, coveredEnd)
+    const prefix = segments.filter((segment) => segment.sourceRanges.every((range) => range.end <= keepStart))
+    const text = await summarizeBounded(
+      serializeForkContext(prefix),
+      compressor,
+      Math.floor(input.budget / (3 * (round + 1))),
+      input.signal
+    )
+    const compacted = forkContextSegment(snapshot, 0, keepStart, text, 'summary')
+    const record: ForkContextSummary = {
+      summaryId: randomUUID(),
+      parentSummaryId: summaryId,
+      sourceType: 'regenerated',
       compatibility: input.compatibility,
-      summaryId,
-      segments,
-      historyHash: forkContextHash(serialized),
-      budget: input.budget
+      coveredStart: 0,
+      coveredEnd: keepStart,
+      inputSnapshotId: snapshot.snapshotId,
+      inputSnapshotHash: forkContextHash(snapshot.entries.slice(0, keepStart)),
+      inputMessageIds: snapshot.entries.slice(0, keepStart).map((entry) => entry.messageId),
+      segments: [compacted],
+      retainedSegments: [],
+      layout: [compacted.segmentId]
     }
-    document.prepared = prepared
-    document.state = 'contextReady'
-    agentSessionForkContextService.save(input.sessionId, revision, document)
-    return prepared
-  } catch (error) {
-    const statusCode = error && typeof error === 'object' && 'statusCode' in error ? error.statusCode : undefined
-    const detail: ForkContextError = input.signal.aborted
-      ? { code: 'cancelled', category: 'cancelled' }
-      : error instanceof ForkContextFailure
-        ? error.detail
-        : typeof statusCode === 'number' && [400, 401, 403, 404].includes(statusCode)
-          ? { code: 'configuration', category: 'not_retryable' }
-          : { code: 'network', category: 'retryable' }
-    agentSessionForkContextService.fail(input.sessionId, detail)
-    // Preserve the category across the runtime admission layer instead of relabeling
-    // a transient compressor failure as a configuration error.
-    throw error instanceof ForkContextFailure ? error : new ForkContextFailure(detail)
+    document.summaries.push(record)
+    document.headSummaryId = record.summaryId
+    summaryId = record.summaryId
+    coveredEnd = keepStart
+    segments = [compacted, ...history(keepStart)]
   }
+  input.signal.throwIfAborted()
+  const serialized = serializeForkContext(segments)
+  if (!hasCompleteForkContextCoverage(segments, snapshot.entries.length))
+    throw new ForkContextFailure({ code: 'boundary', category: 'not_retryable' })
+  if (countTokens(serialized) > input.budget)
+    throw new ForkContextFailure({ code: 'budget', category: 'not_retryable' })
+  const prepared: PreparedForkContext = {
+    preparedContextId: randomUUID(),
+    compatibility: input.compatibility,
+    summaryId,
+    segments,
+    historyHash: forkContextHash(serialized),
+    budget: input.budget
+  }
+  document.prepared = prepared
+  document.state = 'contextReady'
+  return document
+}
+
+function contextPreparationFailure(signal: AbortSignal, error: unknown): ForkContextFailure {
+  const statusCode = error && typeof error === 'object' && 'statusCode' in error ? error.statusCode : undefined
+  const detail: ForkContextError = signal.aborted
+    ? { code: 'cancelled', category: 'cancelled' }
+    : error instanceof ForkContextFailure
+      ? error.detail
+      : typeof statusCode === 'number' && [400, 401, 403, 404].includes(statusCode)
+        ? { code: 'configuration', category: 'not_retryable' }
+        : { code: 'network', category: 'retryable' }
+  return new ForkContextFailure(detail)
 }

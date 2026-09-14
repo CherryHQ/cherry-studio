@@ -223,6 +223,80 @@ afterEach(() => {
 })
 
 describe('DshRuntimeConnection tracing', () => {
+  it('creates rebuilt history under a fresh native id without trying to resume the old conversation', async () => {
+    const nativeSessionId = 'rebuilt-native-generation'
+    const connection = await new DshRuntimeConnection({
+      ...connectInput,
+      nativeSessionId,
+      requireExistingHistory: false
+    }).start()
+    try {
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+        'session/open',
+        expect.objectContaining({ sessionId: nativeSessionId, resume: false, requireExistingHistory: false })
+      )
+      const iterator = connection.events[Symbol.asyncIterator]()
+      await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'resume-token', token: nativeSessionId } })
+      expect(vi.mocked(DshBridgeServer).mock.calls[0][0].sessionId).toBe(connectInput.sessionId)
+    } finally {
+      await connection.close()
+    }
+  })
+
+  it('resumes a new native generation inside the same application conversation', async () => {
+    const nativeId = 'edited-native-generation'
+    const connection = await new DshRuntimeConnection({ ...connectInput, resumeToken: nativeId }).start()
+    const events: AgentRuntimeEvent[] = []
+    const collect = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+    try {
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+        'session/open',
+        expect.objectContaining({
+          sessionId: nativeId,
+          resume: true,
+          requireExistingHistory: true
+        })
+      )
+      expect(vi.mocked(DshBridgeServer).mock.calls[0][0]).toMatchObject({
+        sessionId: 'session-1',
+        runtimeSessionId: nativeId
+      })
+      await connection.send({ message: { data: { parts: [{ type: 'text', text: 'edited input' }] } } } as never)
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+        'session/prompt',
+        expect.objectContaining({ sessionId: nativeId })
+      )
+      subscription.push({
+        method: 'session.event',
+        params: {
+          sessionId: nativeId,
+          event: { type: 'turn/end', seq: 7, time: 0, data: { turn: 1, reason: { kind: 'completed' } } }
+        }
+      })
+      await vi.waitFor(() =>
+        expect(events).toContainEqual({
+          type: 'turn-complete',
+          forkState: {
+            version: 1,
+            status: 'available',
+            checkpoint: { runtime: 'dsh', runtimeSessionId: nativeId, boundary: 7 }
+          }
+        })
+      )
+      expect(events).not.toContainEqual({ type: 'resume-token', token: 'session-1' })
+    } finally {
+      await connection.close()
+      await collect
+    }
+    expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+      'session/cancel',
+      { sessionId: nativeId },
+      expect.anything()
+    )
+  })
+
   it.each([false, true])('uses durable preparation state for fork resume strictness (unsent=%s)', async (unsent) => {
     runtimeMocks.isFork.mockReturnValue(true)
     runtimeMocks.needsPreparation.mockReturnValue(unsent)
@@ -274,7 +348,7 @@ describe('DshRuntimeConnection tracing', () => {
   it('retains file-write ownership when SDK process shutdown cannot be confirmed', async () => {
     runtimeMocks.clientClose.mockRejectedValue(new Error('process is still alive'))
     const connection = await new DshRuntimeConnection(connectInput).start()
-    await connection.close()
+    await expect(connection.close()).rejects.toThrow('process is still alive')
     expect(runtimeMocks.runtimeExited).not.toHaveBeenCalled()
   })
 

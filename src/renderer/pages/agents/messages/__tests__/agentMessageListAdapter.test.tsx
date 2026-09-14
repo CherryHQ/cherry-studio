@@ -202,6 +202,39 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
+  it.each([false, true])('offers edit-resend only on the last user message, busy=%s', async (editBusy) => {
+    let value: MessageListProviderValue | undefined
+    const startEditing = vi.fn()
+    const messages = ['user', 'assistant', 'user', 'assistant'].map((role, index) => ({
+      id: `message-${index}`,
+      role,
+      parts: [{ type: 'text', text: `content-${index}` }]
+    })) as CherryUIMessage[]
+    function Probe() {
+      value = useAgentMessageListProviderValue({
+        topic: { id: 'agent-session:source', assistantId: 'agent', name: 'Source', messages: [] } as unknown as Topic,
+        messages,
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor',
+        startEditing,
+        editBusy
+      })
+      return null
+    }
+    render(<Probe />)
+    expect(value!.actions.getMessageEditAvailability!('message-0').visible).toBe(false)
+    expect(value!.actions.getMessageEditAvailability!('message-3').visible).toBe(false)
+    expect(value!.actions.getMessageEditAvailability!('message-2')).toEqual({
+      visible: true,
+      disabledReason: editBusy ? 'agent.edit_resend.error.busy' : undefined
+    })
+    if (!editBusy) {
+      value!.actions.startEditing!(value!.state.messages[2], messages[2].parts)
+      expect(startEditing).toHaveBeenCalledWith('message-2')
+    }
+  })
+
   it.each(['native', 'rebuild', 'workspace-error'] as const)(
     'forks without confirmation and only rebuilds when the checkpoint is unavailable: %s',
     async (scenario) => {

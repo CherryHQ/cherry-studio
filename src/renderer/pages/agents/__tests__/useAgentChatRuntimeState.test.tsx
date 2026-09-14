@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   chatStop: vi.fn(),
   chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
+  editSnapshot: vi.fn(),
   invalidateMessages: vi.fn(),
   toastWarning: vi.fn()
 }))
@@ -26,7 +27,11 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.tool.respond_approval' ? mocks.respondToolApproval(input) : Promise.resolve(undefined),
+      route === 'ai.tool.respond_approval'
+        ? mocks.respondToolApproval(input)
+        : route === 'ai.agent.session.edit_snapshot'
+          ? mocks.editSnapshot(input)
+          : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))
@@ -146,6 +151,10 @@ describe('useAgentChatRuntimeState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
+    mocks.editSnapshot.mockResolvedValue({
+      version: 'snapshot-v1',
+      parts: [{ type: 'text', text: 'original request' }]
+    })
     mocks.refresh.mockResolvedValue([assistantMessage])
     mocks.seedReservedMessages.mockResolvedValue(undefined)
     mocks.deleteSessionMessage.mockResolvedValue(undefined)
@@ -196,6 +205,44 @@ describe('useAgentChatRuntimeState', () => {
         warning: mocks.toastWarning
       }
     })
+  })
+
+  it('keeps an edit on failure, reuses the operation for retry, and clears it only after success', async () => {
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    await act(async () => result.current.startEditing('last-user'))
+    expect(result.current.editing).toMatchObject({ messageId: 'last-user', version: 'snapshot-v1' })
+    mocks.sendTurn.mockRejectedValueOnce(new Error('network unavailable'))
+    await act(async () => {
+      expect(await result.current.resendEditedMessage({ text: 'changed request' })).toBe(false)
+    })
+    const first = mocks.sendTurn.mock.calls.at(-1)![0]
+    expect(result.current.editing?.messageId).toBe('last-user')
+    await act(async () => {
+      expect(await result.current.resendEditedMessage({ text: 'changed request' })).toBe(true)
+    })
+    expect(mocks.sendTurn.mock.calls.at(-1)![0].edit).toEqual(first.edit)
+    expect(result.current.editing).toBeUndefined()
+  })
+
+  it('cancel does not send or delete any messages', async () => {
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    await act(async () => result.current.startEditing('last-user'))
+    act(() => result.current.cancelEditing())
+    expect(result.current.editing).toBeUndefined()
+    expect(mocks.sendTurn).not.toHaveBeenCalled()
+    expect(mocks.deleteSessionMessage).not.toHaveBeenCalled()
   })
 
   it('reports a blocked stream open as not sent', async () => {

@@ -20,6 +20,7 @@ import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionEditService } from '@data/services/AgentSessionEditService'
 import type { ForkContextCompatibility } from '@data/services/agentSessionForkContext'
 import { agentSessionForkContextService } from '@data/services/AgentSessionForkContextService'
 import type { AgentSessionForkJournal } from '@data/services/agentSessionForkJournal'
@@ -30,12 +31,24 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { forkContextHash } from '@data/services/utils/forkContext'
+import { AgentSessionEditOperations } from '@main/ai/agentSession/AgentSessionEditOperations'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/AgentSessionForkOperations'
+import * as forkContextEnvironment from '@main/ai/agentSession/forkContextEnvironment'
 import { forkFileIdentity } from '@main/ai/agentSession/forkFiles'
 import { buildForkHistory } from '@main/ai/agentSession/forkHistory'
-import { ForkContextPreparer, prepareForkContext } from '@main/ai/agentSession/prepareForkContext'
-import { AgentSessionForkError } from '@main/ai/runtime/forkCheckpoint'
+import {
+  ForkContextPreparer,
+  prepareForkContext,
+  prepareForkContextDocument
+} from '@main/ai/agentSession/prepareForkContext'
+import { prepareRuntimeHistory } from '@main/ai/agentSession/prepareRuntimeHistory'
+import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/forkCheckpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import type { AgentRuntimeConnectInput, AgentRuntimeConnection } from '@main/ai/runtime/types'
+import {
+  AgentChatContextProvider,
+  type ValidatedAgentDispatch
+} from '@main/ai/streamManager/context/AgentChatContextProvider'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
@@ -107,6 +120,470 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(true)
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID, USER_MESSAGE_ID)).toBe(false)
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
+  })
+
+  describe('edit-resend transactions', () => {
+    const editedId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'
+    const replyId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d011'
+
+    it.each(
+      ['pi', 'claude-code', 'dsh'].flatMap((runtime) =>
+        ['native', 'rebuilt', 'first'].map((mode) => ({ runtime, mode }))
+      )
+    )(
+      'replaces a $runtime $mode tail without creating a session, and never replays an uncertain send',
+      async ({ runtime, mode }) => {
+        const root = await mkdtemp(path.join(tmpdir(), 'cherry-edit-'))
+        const originalGetPath = application.getPath.bind(application)
+        vi.spyOn(application, 'getPath').mockImplementation((key, ...args) =>
+          key === 'feature.agents.forks' ? root : originalGetPath(key, ...args)
+        )
+        vi.spyOn(forkContextEnvironment, 'resolveForkContextInput').mockImplementation(async (input) => ({
+          sessionId: input.sessionId,
+          signal: input.signal,
+          budget: 8000,
+          countTokens: (text) => text.length,
+          compatibility: {
+            runtime,
+            schemaVersion: 1,
+            sdkVersion: 'test',
+            systemPromptHash: 'a'.repeat(64),
+            toolsetHash: 'b'.repeat(64),
+            compressorHash: 'c'.repeat(64),
+            modelHash: 'd'.repeat(64)
+          },
+          resolveCompressor: async () => {
+            throw new Error('Unexpected compression')
+          }
+        }))
+        const host = {
+          assertIdleForEdit: () => {},
+          closeForEdit: async () => {},
+          adoptEditConnection: vi.fn(),
+          connectForEdit: (input: AgentRuntimeConnectInput, runtime: string) =>
+            runtimeDriverRegistry.getAgentSessionDriver(runtime)!.connect(input)
+        }
+        const connection = {
+          close: vi.fn(async () => {}),
+          events: { async *[Symbol.asyncIterator]() {} },
+          send: vi.fn(),
+          reconcile: vi.fn(async () => 'current' as const)
+        }
+        const connect = vi.fn<(input: AgentRuntimeConnectInput) => Promise<typeof connection>>(async () => connection)
+        const fork = vi.fn(async (input: RuntimeForkInput) => {
+          expect(input.checkpoint.runtimeSessionId).toBe('old-native-session')
+          expect(JSON.stringify(input)).not.toContain(replyId)
+          return {
+            resumeToken: input.targetSessionId,
+            publish: [],
+            checkpoints: input.checkpoints.map((checkpoint) => ({
+              ...checkpoint,
+              runtimeSessionId: input.targetSessionId
+            }))
+          }
+        })
+        runtimeDriverRegistry.clearForTest()
+        runtimeDriverRegistry.register({
+          type: runtime,
+          capabilities: ['agent-session'],
+          connect,
+          fork: mode === 'native' ? fork : undefined,
+          validateSession: () => {},
+          listAvailableTools: async () => []
+        })
+        try {
+          dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'p0' }).run()
+          dbh.db
+            .insert(userModelTable)
+            .values({
+              id: 'test::model',
+              providerId: 'test',
+              modelId: 'model',
+              name: 'Model',
+              orderKey: 'm0',
+              capabilities: [],
+              supportsStreaming: true
+            })
+            .run()
+          seedEditHistory(mode === 'first')
+          if (mode === 'native') {
+            dbh.db.update(agentSessionMessageTable).set({ runtimeForkState: null }).run()
+            const checkpoint =
+              runtime === 'pi'
+                ? { runtime, runtimeSessionId: 'old-native-session', leafId: 'leaf-before-edit' }
+                : runtime === 'dsh'
+                  ? { runtime, runtimeSessionId: 'old-native-session', boundary: 7 }
+                  : {
+                      runtime,
+                      runtimeSessionId: 'old-native-session',
+                      messageUuid: randomUUID(),
+                      configDir: root,
+                      sourceCwd: root,
+                      prefixBytes: 500,
+                      prefixHash: 'a'.repeat(64)
+                    }
+            dbh.db
+              .update(agentSessionMessageTable)
+              .set({ runtimeForkState: { version: 1, status: 'available', checkpoint } })
+              .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+              .run()
+          }
+          const snapshot = agentSessionMessageService.readEditSnapshotTx(dbh.db, SESSION_ID, editedId)
+          const target = { messageId: editedId, version: snapshot.version, operationId: randomUUID() }
+          const validated: ValidatedAgentDispatch = {
+            sessionId: SESSION_ID,
+            topicId: `agent-session:${SESSION_ID}`,
+            agentId: 'agent',
+            agentUpdatedAt: '',
+            agentType: runtime,
+            agentName: 'Agent',
+            uniqueModelId: 'test::model',
+            reasoningEffort: 'default',
+            serviceTier: 'standard',
+            headless: false,
+            messageSnapshot: { id: 'agent', name: 'Agent', model: { id: 'model', name: 'Model', provider: 'test' } },
+            userMessageId: randomUUID(),
+            userMessageParts: [{ type: 'text', text: 'edited request' }],
+            shouldAutoNameInitialTurn: false
+          }
+          const provider = new AgentChatContextProvider()
+          const operations = new AgentSessionEditOperations(host)
+          const activate = vi.fn((persisted) => ({
+            topicId: validated.topicId,
+            models: [],
+            listeners: [],
+            reservedMessages: persisted.savedMessages.map((row) => ({
+              id: row.id,
+              role: row.role,
+              parts: row.data.parts
+            }))
+          }))
+          const run = () =>
+            operations.run(target, validated, (tx) => provider.persistDispatchTx(tx, validated), activate)
+          const sessionsBefore = dbh.db.select().from(agentSessionTable).all()
+          await run()
+          const rows = dbh.db.select().from(agentSessionMessageTable).all()
+          if (mode !== 'first') {
+            expect(rows.map((row) => row.id)).toContain(USER_MESSAGE_ID)
+            expect(rows.map((row) => row.id)).toContain(ASSISTANT_MESSAGE_ID)
+          }
+          expect(rows.map((row) => row.id)).not.toContain(editedId)
+          expect(rows.map((row) => row.id)).not.toContain(replyId)
+          expect(rows.filter((row) => row.role === 'user').at(-1)?.data.parts).toEqual(validated.userMessageParts)
+          expect(
+            dbh.db
+              .select()
+              .from(agentSessionTable)
+              .all()
+              .map((row) => [row.id, row.name, row.workspaceId])
+          ).toEqual(sessionsBefore.map((row) => [row.id, row.name, row.workspaceId]))
+          const operation = agentSessionEditService.get(target.operationId)!
+          expect(operation.nativeSessionId).not.toBe(SESSION_ID)
+          expect(connect.mock.calls[0][0]).toMatchObject({
+            sessionId: SESSION_ID,
+            nativeSessionId: operation.nativeSessionId
+          })
+          expect(host.adoptEditConnection).toHaveBeenCalledWith(SESSION_ID, connection)
+          expect(connection.close).not.toHaveBeenCalled()
+          const context = agentSessionForkContextService.get(SESSION_ID)?.document
+          if (mode === 'rebuilt') {
+            expect(context?.state).toBe('contextReady')
+            const history = buildForkHistory(context!.prepared!)
+            expect(history).toContain('retained request')
+            expect(history).toContain('retained answer')
+            expect(history).not.toContain('old request')
+            expect(history).not.toContain('old answer')
+            expect(history).not.toContain('edited request')
+          } else {
+            expect(context).toBeUndefined()
+            if (mode === 'native')
+              expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe(operation.nativeSessionId)
+            else expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBeNull()
+          }
+          await run()
+          const retriedRows = dbh.db.select().from(agentSessionMessageTable).all()
+          expect(retriedRows.map((row) => ({ ...row, updatedAt: 0 }))).toEqual(
+            rows.map((row) => ({ ...row, updatedAt: 0 }))
+          )
+          agentSessionEditService.beginSend(SESSION_ID, operation.assistantMessageId!)
+          await expect(run()).rejects.toMatchObject({ reason: 'send_uncertain' })
+          expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(retriedRows)
+          agentSessionMessageService.saveMessage({
+            sessionId: SESSION_ID,
+            runtimeResumeToken: 'new-native',
+            message: { id: operation.assistantMessageId, role: 'assistant', status: 'success', data: { parts: [] } }
+          })
+          const result = await run()
+          expect(result.models).toEqual([])
+          expect(agentSessionEditService.get(target.operationId)?.status).toBe('sent')
+        } finally {
+          runtimeDriverRegistry.clearForTest()
+          await rm(root, { recursive: true, force: true })
+        }
+      }
+    )
+
+    it.each(['prepare', 'commit'] as const)(
+      'keeps the original history on %s failure and blocks writes during preparation',
+      async (failure) => {
+        const root = await mkdtemp(path.join(tmpdir(), 'cherry-edit-failure-'))
+        const originalGetPath = application.getPath.bind(application)
+        vi.spyOn(application, 'getPath').mockImplementation((key, ...args) =>
+          key === 'feature.agents.forks' ? root : originalGetPath(key, ...args)
+        )
+        const snapshot = seedEditHistory(true)
+        const before = dbh.db.select().from(agentSessionMessageTable).all()
+        const connection: AgentRuntimeConnection = {
+          close: vi.fn(async () => {}),
+          send: vi.fn(),
+          events: { async *[Symbol.asyncIterator]() {} },
+          reconcile: vi.fn(async () => 'current' as const)
+        }
+        runtimeDriverRegistry.clearForTest()
+        runtimeDriverRegistry.register({
+          type: 'pi',
+          capabilities: ['agent-session'],
+          validateSession: () => {},
+          listAvailableTools: async () => [],
+          connect: async () => {
+            expect(() => agentSessionService.deleteTx(dbh.db, SESSION_ID)).toThrow('busy')
+            expect(() => agentSessionMessageService.deleteSessionMessage(SESSION_ID, editedId)).toThrow('busy')
+            expect(() =>
+              agentSessionMessageService.saveMessage({
+                sessionId: SESSION_ID,
+                message: {
+                  id: randomUUID(),
+                  role: 'user',
+                  data: { parts: [{ type: 'text', text: 'concurrent input' }] }
+                }
+              })
+            ).toThrow('busy')
+            if (failure === 'prepare') throw new Error('prepare failed')
+            return connection
+          }
+        })
+        const validated: ValidatedAgentDispatch = {
+          sessionId: SESSION_ID,
+          topicId: `agent-session:${SESSION_ID}`,
+          agentId: 'agent',
+          agentUpdatedAt: '',
+          agentType: 'pi',
+          agentName: 'Agent',
+          uniqueModelId: 'test::model',
+          reasoningEffort: 'default',
+          serviceTier: 'standard',
+          headless: false,
+          messageSnapshot: { id: 'agent', name: 'Agent', model: { id: 'model', name: 'Model', provider: 'test' } },
+          userMessageId: randomUUID(),
+          userMessageParts: [{ type: 'text', text: 'edited request' }],
+          shouldAutoNameInitialTurn: false
+        }
+        const operations = new AgentSessionEditOperations({
+          assertIdleForEdit: () => {},
+          closeForEdit: async () => {},
+          adoptEditConnection: () => {},
+          connectForEdit: (input: AgentRuntimeConnectInput, runtime: string) =>
+            runtimeDriverRegistry.getAgentSessionDriver(runtime)!.connect(input)
+        })
+        const target = { messageId: editedId, version: snapshot.version, operationId: randomUUID() }
+        try {
+          await expect(
+            operations.run(
+              target,
+              validated,
+              () => {
+                throw new Error('commit failed')
+              },
+              () => {
+                throw new Error('must not activate')
+              }
+            )
+          ).rejects.toThrow(`${failure} failed`)
+          expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(before)
+          expect(agentSessionEditService.current(SESSION_ID)).toBeUndefined()
+          expect(agentSessionEditService.get(target.operationId)).toMatchObject({
+            status: 'failed',
+            cleanupComplete: true
+          })
+        } finally {
+          runtimeDriverRegistry.clearForTest()
+          await rm(root, { recursive: true, force: true })
+        }
+      }
+    )
+
+    function seedEditHistory(first = false) {
+      const entries = (
+        [
+          { id: USER_MESSAGE_ID, role: 'user', text: 'retained request' },
+          { id: ASSISTANT_MESSAGE_ID, role: 'assistant', text: 'retained answer' },
+          { id: editedId, role: 'user', text: 'old request' },
+          { id: replyId, role: 'assistant', text: 'old answer' }
+        ] as const
+      ).slice(first ? 2 : 0)
+      for (const [i, entry] of entries.entries()) {
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          runtimeResumeToken: 'old-native-session',
+          runtimeForkState: {
+            version: 1,
+            status: 'available',
+            checkpoint: { runtime: 'pi', runtimeSessionId: 'old-native-session', leafId: entry.id }
+          },
+          message: {
+            id: entry.id,
+            role: entry.role,
+            status: 'success',
+            data: { parts: [{ type: 'text', text: entry.text }] }
+          }
+        })
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ createdAt: i })
+          .where(eq(agentSessionMessageTable.id, entry.id))
+          .run()
+      }
+      return agentSessionMessageService.readEditSnapshotTx(dbh.db, SESSION_ID, editedId)
+    }
+
+    it.each([false, true])(
+      'replaces only the selected tail and clears old native tokens (first message: %s)',
+      (first) => {
+        seedEditHistory(first)
+        aiUsageRecordService.recordInvocation({
+          requestId: 'edit-existing-bill',
+          context: createAiUsageCaptureContext({
+            providerId: 'fixture',
+            providerName: 'Fixture',
+            modelId: 'fixture',
+            modelName: 'Fixture',
+            credentialReceipt: { attribution: 'unknown' },
+            source: { type: 'agent', id: 'fixture', name: 'Fixture', icon: null },
+            messageRef: { kind: 'agent-session', id: replyId }
+          }),
+          modality: 'language',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          completedAt: 1000
+        })
+        const snapshot = agentSessionMessageService.readEditSnapshotTx(dbh.db, SESSION_ID, editedId)
+        const sessionBefore = agentSessionService.getById(SESSION_ID)
+        const bills = dbh.db.select().from(aiUsageRecordTable).all()
+        const newId = randomUUID()
+        application.get('DbService').withWriteTx((tx) => {
+          agentSessionMessageService.replaceEditTailTx(
+            tx,
+            snapshot,
+            snapshot.prefix.map((row) => ({ id: row.id, runtimeResumeToken: null, runtimeForkState: null }))
+          )
+          agentSessionMessageService.saveMessagesTx(tx, {
+            sessionId: SESSION_ID,
+            messages: [
+              {
+                id: newId,
+                role: 'user',
+                status: 'success',
+                data: { parts: [{ type: 'text', text: 'edited request' }] }
+              }
+            ]
+          })
+        })
+        const rows = agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, newId)
+        expect(rows.map((row) => row.id)).toEqual([...snapshot.prefix.map((row) => row.id), newId])
+        expect(rows.slice(0, -1).map((row) => row.data)).toEqual(snapshot.prefix.map((row) => row.data))
+        expect(rows.at(-1)?.data.parts).toEqual([{ type: 'text', text: 'edited request' }])
+        expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBeNull()
+        expect(dbh.db.select().from(aiUsageRecordTable).all()).toEqual(bills)
+        expect(agentSessionService.getById(SESSION_ID)).toMatchObject({
+          id: sessionBefore.id,
+          name: sessionBefore.name,
+          agentId: sessionBefore.agentId,
+          workspaceId: sessionBefore.workspaceId
+        })
+        expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
+      }
+    )
+
+    it('rolls back native mapping and old answers if inserting the replacement fails', () => {
+      const snapshot = seedEditHistory()
+      const messages = dbh.db.select().from(agentSessionMessageTable).all()
+      const sessions = dbh.db.select().from(agentSessionTable).all()
+      expect(() =>
+        application.get('DbService').withWriteTx((tx) => {
+          agentSessionMessageService.replaceEditTailTx(
+            tx,
+            snapshot,
+            snapshot.prefix.map((row) => ({
+              id: row.id,
+              runtimeResumeToken: 'replacement-native',
+              runtimeForkState: null
+            }))
+          )
+          tx.insert(agentSessionMessageTable)
+            .values({
+              id: USER_MESSAGE_ID,
+              sessionId: SESSION_ID,
+              role: 'user',
+              status: 'success',
+              data: { parts: [] }
+            })
+            .run()
+        })
+      ).toThrow()
+      expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(messages)
+      expect(dbh.db.select().from(agentSessionTable).all()).toEqual(sessions)
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('old-native-session')
+    })
+
+    it.each(['edit', 'delete', 'append', 'workspace'] as const)(
+      'rejects a stale editor after %s without deleting further history',
+      (change) => {
+        const snapshot = seedEditHistory()
+        if (change === 'edit')
+          agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+            data: { parts: [{ type: 'text', text: 'changed' }] }
+          })
+        if (change === 'delete') agentSessionMessageService.deleteSessionMessage(SESSION_ID, replyId)
+        if (change === 'append')
+          agentSessionMessageService.saveMessage({
+            sessionId: SESSION_ID,
+            message: { id: randomUUID(), role: 'user', status: 'success', data: { parts: [] } }
+          })
+        if (change === 'workspace')
+          dbh.db
+            .update(agentWorkspaceTable)
+            .set({ path: '/changed-workspace' })
+            .where(eq(agentWorkspaceTable.id, `workspace-${SESSION_ID}`))
+            .run()
+        const before = dbh.db.select().from(agentSessionMessageTable).all()
+        expect(() =>
+          application
+            .get('DbService')
+            .withWriteTx((tx) => agentSessionMessageService.replaceEditTailTx(tx, snapshot, snapshot.prefix))
+        ).toThrow()
+        expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(before)
+      }
+    )
+
+    it('rejects earlier messages, assistant targets, pending work and incomplete native mapping', () => {
+      const snapshot = seedEditHistory()
+      for (const id of [USER_MESSAGE_ID, ASSISTANT_MESSAGE_ID]) {
+        expect(() => agentSessionMessageService.readEditSnapshotTx(dbh.db, SESSION_ID, id)).toThrow(
+          'not_last_user_message'
+        )
+      }
+      expect(() =>
+        application.get('DbService').withWriteTx((tx) => agentSessionMessageService.replaceEditTailTx(tx, snapshot, []))
+      ).toThrow('invalid_mapping')
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, replyId).data.parts).toEqual([
+        { type: 'text', text: 'old answer' }
+      ])
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ status: 'pending' })
+        .where(eq(agentSessionMessageTable.id, replyId))
+        .run()
+      expect(() => agentSessionMessageService.readEditSnapshotTx(dbh.db, SESSION_ID, editedId)).toThrow('busy')
+    })
   })
 
   describe('native fork persistence', () => {
@@ -378,6 +855,116 @@ describe('AgentSessionMessageService', () => {
       const resolveCompressor = vi.fn(async () => ({ languageModel: model, contextWindow: 8192 }))
       return { prompts, resolveCompressor }
     }
+
+    it.each(['pi', 'claude-code', 'dsh'])(
+      'prepares detached %s edit history without exposing later input or modifying the live conversation',
+      async (runtime) => {
+        await contextSource()
+        const config = compatibility(runtime)
+        recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
+          identity: 'past-compaction',
+          messages: [{ role: 'user', content: 'COMPACTED_PAST' }]
+        })
+        const rows = agentSessionMessageService.readForkPrefixTx(dbh.db, 'context-source', ASSISTANT_MESSAGE_ID)
+        const futureId = randomUUID()
+        agentSessionMessageService.saveMessage({
+          sessionId: 'context-source',
+          message: {
+            id: futureId,
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'OLD_REQUEST_CANARY' }] }
+          }
+        })
+        const futureReply = randomUUID()
+        agentSessionMessageService.saveMessage({
+          sessionId: 'context-source',
+          runtimeForkState: rows[0].runtimeForkState,
+          message: {
+            id: futureReply,
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'OLD_ANSWER_CANARY' }] }
+          }
+        })
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ createdAt: rows[0].createdAt + 1 })
+          .where(eq(agentSessionMessageTable.id, futureId))
+          .run()
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ createdAt: rows[0].createdAt + 2 })
+          .where(eq(agentSessionMessageTable.id, futureReply))
+          .run()
+        recordNative('context-source', futureReply, [], config, {
+          identity: 'future-compaction',
+          messages: [{ role: 'user', content: 'FUTURE_SUMMARY_CANARY' }]
+        })
+        const messagesBefore = dbh.db.select().from(agentSessionMessageTable).all()
+        const contextsBefore = dbh.db.select().from(agentSessionForkContextTable).all()
+        const detached = agentSessionForkContextService.createDocumentTx(dbh.db, rows, 'context-source', rows)
+        const original = structuredClone(detached)
+        const compress = compressor()
+        const input = {
+          compatibility: config,
+          budget: 2000,
+          resolveCompressor: compress.resolveCompressor,
+          signal: new AbortController().signal
+        }
+        const result = await prepareForkContextDocument(input, detached)
+        expect(result.state).toBe('contextReady')
+        expect(result.snapshot.entries.map((entry) => entry.messageId)).toEqual([ASSISTANT_MESSAGE_ID])
+        const history = buildForkHistory(result.prepared!)
+        expect(history).not.toContain('CANARY')
+        expect(JSON.stringify(compress.prompts)).not.toContain('CANARY')
+        if (runtime !== 'claude-code') {
+          expect(history).toContain('COMPACTED_PAST')
+          expect(compress.prompts).toHaveLength(0)
+        } else {
+          expect(history).toContain('Past work was completed.')
+          expect(compress.prompts.length).toBeGreaterThan(0)
+        }
+        const calls = compress.prompts.length
+        const retry = await prepareForkContextDocument(input, result)
+        expect(retry.prepared?.preparedContextId).toBe(result.prepared?.preparedContextId)
+        expect(compress.prompts).toHaveLength(calls)
+        expect(detached).toEqual(original)
+        expect(dbh.db.select().from(agentSessionMessageTable).all()).toEqual(messagesBefore)
+        expect(dbh.db.select().from(agentSessionForkContextTable).all()).toEqual(contextsBefore)
+        expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(2)
+      }
+    )
+
+    it.each(['network', 'cancelled'] as const)(
+      'keeps live history untouched after detached preparation is %s',
+      async (failure) => {
+        await contextSource()
+        const rows = agentSessionMessageService.readForkPrefixTx(dbh.db, 'context-source', ASSISTANT_MESSAGE_ID)
+        const detached = agentSessionForkContextService.createDocumentTx(dbh.db, rows, 'context-source', rows)
+        const original = structuredClone(detached)
+        const controller = new AbortController()
+        if (failure === 'cancelled') controller.abort()
+        await expect(
+          prepareForkContextDocument(
+            {
+              compatibility: compatibility('pi'),
+              budget: 1500,
+              resolveCompressor: async () => {
+                throw new Error('compressor unavailable')
+              },
+              signal: controller.signal
+            },
+            detached
+          )
+        ).rejects.toMatchObject({ detail: { code: failure } })
+        expect(detached).toEqual(original)
+        expect(agentSessionMessageService.readForkPrefixTx(dbh.db, 'context-source', ASSISTANT_MESSAGE_ID)).toEqual(
+          rows
+        )
+        expect(dbh.db.select().from(agentSessionForkContextTable).all()).toEqual([])
+      }
+    )
 
     it.each(['pi', 'dsh'])(
       'serves %s compacted context without a model call after source and child deletion',
@@ -802,6 +1389,95 @@ describe('AgentSessionMessageService', () => {
         reason: 'history_changed'
       })
     })
+
+    it.each(['pi', 'claude-code', 'dsh'] as const)(
+      'prepares an independent %s prefix without creating or modifying an application session',
+      async (runtime) => {
+        const checkpoint =
+          runtime === 'pi'
+            ? { runtime, runtimeSessionId: 'native', leafId: 'leaf-before-edit' }
+            : runtime === 'dsh'
+              ? { runtime, runtimeSessionId: 'native', boundary: 10 }
+              : {
+                  runtime,
+                  runtimeSessionId: 'native',
+                  messageUuid: ASSISTANT_MESSAGE_ID,
+                  configDir: '/config',
+                  sourceCwd: '/workspace',
+                  prefixBytes: 100,
+                  prefixHash: 'a'.repeat(64)
+                }
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          runtimeResumeToken: 'native',
+          runtimeForkState: { version: 1, status: 'available', checkpoint },
+          message: {
+            id: ASSISTANT_MESSAGE_ID,
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'retained history' }] }
+          }
+        })
+        const rows = agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, ASSISTANT_MESSAGE_ID, [])
+        const original = structuredClone(rows)
+        const fork = vi.fn(async (input: RuntimeForkInput) => ({
+          resumeToken: input.targetSessionId,
+          checkpoints: input.checkpoints.map((value) => ({
+            ...value,
+            runtimeSessionId: input.targetSessionId
+          })),
+          publish: []
+        }))
+        vi.spyOn(runtimeDriverRegistry, 'getAgentSessionDriver').mockReturnValue({
+          type: runtime,
+          capabilities: ['agent-session'],
+          validateSession: vi.fn(),
+          listAvailableTools: vi.fn(async () => []),
+          connect: vi.fn(),
+          fork
+        })
+        const input = {
+          sourceSessionId: SESSION_ID,
+          runtime,
+          messages: rows,
+          targetSessionId: 'new-native-generation',
+          targetCwd: '/workspace',
+          artifactDirectory: '/owned-staging',
+          allowHistoryRebuild: true,
+          signal: new AbortController().signal
+        }
+        await expect(prepareRuntimeHistory(input)).resolves.toMatchObject({
+          resumeToken: 'new-native-generation',
+          checkpoints: [{ ...checkpoint, runtimeSessionId: 'new-native-generation' }]
+        })
+        expect(
+          dbh.db
+            .select()
+            .from(agentSessionTable)
+            .all()
+            .map((row) => row.id)
+        ).toEqual([SESSION_ID])
+        expect(agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, ASSISTANT_MESSAGE_ID, [])).toEqual(
+          original
+        )
+        expect(rows).toEqual(original)
+
+        // A later user row is not permission to reuse an earlier assistant checkpoint.
+        const callsBeforeRebuild = fork.mock.calls.length
+        await expect(
+          prepareRuntimeHistory({ ...input, messages: [...rows, { ...rows[0], role: 'user' }] })
+        ).resolves.toBeUndefined()
+        await expect(prepareRuntimeHistory({ ...input, messages: [] })).resolves.toBeUndefined()
+        expect(fork.mock.calls.length).toBe(callsBeforeRebuild)
+        fork.mockRejectedValueOnce(new AgentSessionForkError('history_missing'))
+        await expect(prepareRuntimeHistory(input)).resolves.toBeUndefined()
+        fork.mockRejectedValueOnce(new Error('disk full'))
+        await expect(prepareRuntimeHistory(input)).rejects.toThrow('disk full')
+        const controller = new AbortController()
+        controller.abort(new Error('cancelled'))
+        await expect(prepareRuntimeHistory({ ...input, signal: controller.signal })).rejects.toThrow('cancelled')
+      }
+    )
 
     it.each([
       ['Source', 'Source (1)', 'Source (2)'],

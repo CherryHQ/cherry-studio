@@ -36,6 +36,7 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 
+import { agentSessionEditService } from './AgentSessionEditService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
@@ -966,6 +967,12 @@ export class AgentSessionService {
   }
 
   deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): string[] {
+    for (const row of tx
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, workspaceId))
+      .all())
+      agentSessionEditService.assertMutableTx(tx, row.id)
     const deletedSessions = tx
       .delete(sessionsTable)
       .where(eq(sessionsTable.workspaceId, workspaceId))
@@ -1034,6 +1041,7 @@ export class AgentSessionService {
   }
 
   private cascadeDeleteSessionRowsTx(tx: DbOrTx, rows: JoinedSessionRow[]): AgentSessionDeletionOutcome {
+    for (const row of rows) agentSessionEditService.assertMutableTx(tx, row.session.id)
     const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(
       tx,
       rows.map((row) => row.session.id)

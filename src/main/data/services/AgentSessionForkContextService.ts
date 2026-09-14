@@ -19,6 +19,7 @@ import {
   upgradeForkContextDocument
 } from '@data/services/agentSessionForkContext'
 
+import { agentSessionEditService } from './AgentSessionEditService'
 import { getAgentSessionForkAvailability } from './agentSessionFork'
 import { agentSessionMessageService } from './AgentSessionMessageService'
 import {
@@ -46,6 +47,13 @@ export interface NativeForkContextCapture {
 }
 
 export class AgentSessionForkContextService {
+  replaceForEditTx(tx: DbOrTx, sessionId: string, document?: ForkContextDocument): void {
+    tx.delete(table).where(eq(table.sessionId, sessionId)).run()
+    if (document)
+      tx.insert(table)
+        .values({ sessionId, document: ForkContextDocumentSchema.parse(document) })
+        .run()
+  }
   captureNativePrefix(
     sessionId: string,
     messageId: string,
@@ -159,6 +167,17 @@ export class AgentSessionForkContextService {
     sourceSessionId?: string,
     sourceRows?: readonly AgentSessionMessageRow[]
   ): void {
+    const document = this.createDocumentTx(tx, rows, sourceSessionId, sourceRows)
+    tx.insert(table).values({ sessionId, document }).run()
+  }
+
+  /** Build a bounded, detached context without replacing the live session's send receipts. */
+  createDocumentTx(
+    tx: DbOrTx,
+    rows: readonly AgentSessionMessageRow[],
+    sourceSessionId?: string,
+    sourceRows?: readonly AgentSessionMessageRow[]
+  ): ForkContextDocument {
     const snapshot = createForkContextSnapshot(rows)
     const document: ForkContextDocument = { version: 2, snapshot, summaries: [], state: 'forkCreated', audits: [] }
     const parentRow = sourceSessionId
@@ -220,7 +239,7 @@ export class AgentSessionForkContextService {
         document.headSummaryId = headId ? ids.get(headId) : undefined
       }
     }
-    tx.insert(table).values({ sessionId, document }).run()
+    return document
   }
 
   get(sessionId: string): { document: ForkContextDocument; revision: number } | undefined {
@@ -306,6 +325,7 @@ export class AgentSessionForkContextService {
 
   /** An initialization token never proves that the inherited context was delivered. */
   needsPreparation(sessionId: string): boolean {
+    const edit = agentSessionEditService.current(sessionId)
     const source = application
       .get('DbService')
       .getDb()
@@ -313,7 +333,7 @@ export class AgentSessionForkContextService {
       .from(agentSessionTable)
       .where(eq(agentSessionTable.id, sessionId))
       .get()
-    if (!source?.source?.historyMessageId) return false
+    if (edit ? !edit.rebuilt : !source?.source?.historyMessageId) return false
     this.reconcileReceipt(sessionId)
     const current = this.ensure(sessionId)
     if (!current) throw new ForkContextFailure({ code: 'corrupt', category: 'not_retryable' })

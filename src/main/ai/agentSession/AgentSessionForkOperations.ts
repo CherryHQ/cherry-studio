@@ -11,15 +11,11 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { canRebuildAgentSessionFork } from '@shared/ai/agentSessionFork'
 
-import {
-  AgentSessionForkError,
-  type RuntimeForkCheckpoint,
-  type RuntimeForkResult,
-  RuntimeForkStateSchema
-} from '../runtime/forkCheckpoint'
+import { AgentSessionForkError, type RuntimeForkCheckpoint, RuntimeForkStateSchema } from '../runtime/forkCheckpoint'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import { copyForkWorkspace, forkFileIdentity, publishForkArtifact } from './forkFiles'
 import { workspaceHasReferences } from './forkWorkspaceCleanup'
+import { prepareRuntimeHistory } from './prepareRuntimeHistory'
 
 const logger = loggerService.withContext('AgentSessionForkOperations')
 
@@ -127,11 +123,6 @@ export class AgentSessionForkOperations {
     if (!driver) throw new AgentSessionForkError('unsupported_checkpoint')
     if ((!checkpoint || source.agent.type !== checkpoint.runtime || !driver.fork) && !allowHistoryRebuild)
       throw new AgentSessionForkError('unsupported_checkpoint')
-    const checkpoints: RuntimeForkCheckpoint[] = []
-    for (const row of source.messages) {
-      const parsed = RuntimeForkStateSchema.safeParse(row.runtimeForkState)
-      if (parsed.success && parsed.data.status === 'available') checkpoints.push(parsed.data.checkpoint)
-    }
     const root = application.getPath('feature.agents.forks')
     const operationId = randomUUID()
     const journal: AgentSessionForkJournal = {
@@ -169,31 +160,16 @@ export class AgentSessionForkOperations {
         })
       }
       signal.throwIfAborted()
-      let result: RuntimeForkResult | undefined
-      if (checkpoint && source.agent.type === checkpoint.runtime && driver.fork) {
-        try {
-          result = await driver.fork({
-            sourceSessionId,
-            checkpoint,
-            checkpoints,
-            targetSessionId: journal.targetSessionId,
-            targetCwd,
-            artifactDirectory: journal.artifactDirectory,
-            signal
-          })
-          if (result.checkpoints.length !== checkpoints.length) throw new AgentSessionForkError('history_corrupt')
-        } catch (error) {
-          if (
-            !allowHistoryRebuild ||
-            signal.aborted ||
-            !(error instanceof AgentSessionForkError) ||
-            !canRebuildAgentSessionFork(error.reason)
-          )
-            throw error
-          result = undefined
-          logger.info('Rebuilding fork from message history', { operationId, reason: error.reason })
-        }
-      }
+      const result = await prepareRuntimeHistory({
+        sourceSessionId,
+        runtime: source.agent.type,
+        messages: source.messages,
+        targetSessionId: journal.targetSessionId,
+        targetCwd,
+        artifactDirectory: journal.artifactDirectory,
+        allowHistoryRebuild,
+        signal
+      })
       signal.throwIfAborted()
       const messages = cloneMessages(
         source.messages,

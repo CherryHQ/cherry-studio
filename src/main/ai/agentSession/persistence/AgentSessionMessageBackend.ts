@@ -7,6 +7,7 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
+import { agentSessionEditService } from '@data/services/AgentSessionEditService'
 import { agentSessionForkContextService } from '@data/services/AgentSessionForkContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
@@ -80,6 +81,11 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     }
     if (status === 'success' && runtimeResumeToken) {
       try {
+        agentSessionEditService.confirmSend(
+          this.opts.sessionId,
+          finalMessage?.id ?? this.opts.assistantMessageId,
+          runtimeResumeToken
+        )
         agentSessionForkContextService.confirmSend(
           this.opts.sessionId,
           runtimeResumeToken,

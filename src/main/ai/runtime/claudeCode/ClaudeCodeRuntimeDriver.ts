@@ -379,6 +379,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
+    if (this.input.requireExistingHistory && !this.resumeToken)
+      throw new Error('history_missing: a replacement conversation requires its native history')
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
     // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
@@ -406,6 +408,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
     const options: Options = {
       ...request.options,
+      ...(!this.resumeToken && this.input.nativeSessionId ? { sessionId: this.input.nativeSessionId } : {}),
       ...(traceEnv
         ? {
             env: {
@@ -420,16 +423,19 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
     // which is exactly what tracing needs (env is fixed at spawn). No trace branch required here.
-    const consumedWarmQuery = await application.get('ClaudeCodeWarmQueryManager').consume({
-      key: request.key,
-      options,
-      initializeTimeoutMs: request.initializeTimeoutMs,
-      connectionRebuildSignature: request.connectionConfig?.rebuildSignature,
-      credentialsFingerprint: request.credentialsFingerprint,
-      usageCapture: request.usageCapture,
-      knowledgeBaseIds: request.knowledgeBaseIds,
-      notificationContext: request.notificationContext
-    })
+    const consumedWarmQuery =
+      this.input.nativeSessionId || this.input.requireExistingHistory
+        ? undefined
+        : await application.get('ClaudeCodeWarmQueryManager').consume({
+            key: request.key,
+            options,
+            initializeTimeoutMs: request.initializeTimeoutMs,
+            connectionRebuildSignature: request.connectionConfig?.rebuildSignature,
+            credentialsFingerprint: request.credentialsFingerprint,
+            usageCapture: request.usageCapture,
+            knowledgeBaseIds: request.knowledgeBaseIds,
+            notificationContext: request.notificationContext
+          })
 
     // A matching warm process may have selected a different rotated key when
     // it was started. Its receipt, not the freshly materialized request's,
@@ -688,6 +694,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private async closeQuery(): Promise<void> {
     const query = this.query
+    const exited = this.processDiagnostics?.exited
+    const failures: unknown[] = []
     this.settlePendingInvocations()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
@@ -699,12 +707,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       query.close()
     } catch (error) {
       logger.warn('Claude Code query close failed', { sessionId: this.input.sessionId, error })
+      failures.push(error)
     }
     try {
       await query.return(undefined)
     } catch (error) {
       logger.warn('Claude Code query cleanup failed', { sessionId: this.input.sessionId, error })
+      failures.push(error)
     }
+    await exited
+    if (!exited && failures.length) throw new AggregateError(failures, 'Claude Code connection did not close cleanly')
   }
 
   private async runQueryLoop(): Promise<void> {
@@ -831,7 +843,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     ) {
       return false
     }
-    if (agentSessionService.isFork(this.input.sessionId)) return false
+    if (
+      this.input.requireExistingHistory ||
+      this.input.nativeSessionId ||
+      agentSessionService.isFork(this.input.sessionId)
+    )
+      return false
     const reason = getResumeRecoveryReason(error)
     if (!reason) return false
     // Error results advance `resumeToken` before throwing. The pending input's session id proves the

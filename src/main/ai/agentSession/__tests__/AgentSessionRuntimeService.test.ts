@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   getForkHistory: vi.fn(),
+  currentEdit: vi.fn(),
   prepareForkContext: vi.fn(),
   needsPreparation: vi.fn(() => true),
   findCrashOrphanedAssistantMessages: vi.fn(),
@@ -47,6 +48,15 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@data/services/AgentSessionForkService', () => ({
   agentSessionForkService: { journals: vi.fn(() => []), resetCleanupClaims: vi.fn() }
+}))
+
+vi.mock('@data/services/AgentSessionEditService', () => ({
+  agentSessionEditService: {
+    current: mocks.currentEdit,
+    beginSend: vi.fn(),
+    confirmSend: vi.fn(),
+    list: vi.fn(() => [])
+  }
 }))
 
 vi.mock('../prepareForkContext', () => ({
@@ -289,6 +299,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
     mocks.getForkHistory.mockReturnValue(undefined)
+    mocks.currentEdit.mockReturnValue(undefined)
     mocks.prepareForkContext.mockReset()
     mocks.needsPreparation.mockReset().mockReturnValue(true)
     mocks.prepareForkContext.mockImplementation(async () => {
@@ -311,6 +322,7 @@ describe('AgentSessionRuntimeService', () => {
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
     mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'DbService') return { withWriteTx: (fn: () => unknown) => fn() }
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
@@ -4239,10 +4251,18 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
-  it.each(['pi', 'claude-code', 'dsh'])(
-    'injects reconstructed history once at the %s runtime boundary',
-    async (agentType) => {
+  it.each(['pi', 'claude-code', 'dsh'].flatMap((agentType) => ['fork', 'edit'].map((kind) => ({ agentType, kind }))))(
+    'injects reconstructed $kind history once at the $agentType runtime boundary',
+    async ({ agentType, kind }) => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: agentType, model: baseTurnInput.modelId })
+      if (kind === 'edit')
+        mocks.currentEdit.mockReturnValue({
+          runtime: agentType,
+          rebuilt: true,
+          status: 'committed',
+          nativeSessionId: 'new-edit-generation',
+          assistantMessageId: 'assistant-1'
+        })
       mocks.getForkHistory.mockReturnValue([
         {
           role: 'assistant',
@@ -4302,6 +4322,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(text).not.toContain('old-approval')
       expect(text).not.toContain('SECRET')
       expect(input.data.parts.every((part: any) => part.type === 'text')).toBe(true)
+      expect(JSON.stringify(input).match(/hello/g)).toHaveLength(1)
       expect(firstMessage.data.parts).toEqual([{ type: 'text', text: 'hello' }])
       events.push({ type: 'turn-complete' })
       await reader.read()

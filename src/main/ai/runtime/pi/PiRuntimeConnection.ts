@@ -435,19 +435,26 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
    */
   private resolveSessionManager(pi: Awaited<ReturnType<typeof loadPiSdk>>, workspacePath: string, sessionDir: string) {
     if (!this.resumeToken) {
-      return pi.SessionManager.create(workspacePath, sessionDir, { id: this.input.sessionId })
+      if (this.input.requireExistingHistory)
+        throw new ForkContextFailure({ code: 'native_uncertain', category: 'needs_reconciliation' })
+      return pi.SessionManager.create(workspacePath, sessionDir, {
+        id: this.input.nativeSessionId ?? this.input.sessionId
+      })
     }
     const file = resolveResumeTokenSessionFile(this.resumeToken, sessionDir)
     if (file) return pi.SessionManager.open(file, sessionDir, workspacePath)
     if (
-      agentSessionService.isFork(this.input.sessionId) &&
-      !agentSessionForkContextService.needsPreparation(this.input.sessionId)
+      this.input.requireExistingHistory ??
+      (agentSessionService.isFork(this.input.sessionId) &&
+        !agentSessionForkContextService.needsPreparation(this.input.sessionId))
     )
       throw new ForkContextFailure({ code: 'native_uncertain', category: 'needs_reconciliation' })
     logger.warn('pi resume token has no session file on disk; creating a fresh session with the same id', {
       sessionId: this.input.sessionId
     })
-    return pi.SessionManager.create(workspacePath, sessionDir, { id: this.input.sessionId })
+    return pi.SessionManager.create(workspacePath, sessionDir, {
+      id: this.input.nativeSessionId ?? this.input.sessionId
+    })
   }
 
   async getForkContextEnvironment() {

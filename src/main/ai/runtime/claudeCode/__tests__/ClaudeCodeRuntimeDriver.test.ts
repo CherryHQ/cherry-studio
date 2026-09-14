@@ -498,6 +498,61 @@ function userMessage() {
 }
 
 describe('ClaudeCodeRuntimeDriver', () => {
+  it('uses an isolated native id when rebuilding the original application conversation', async () => {
+    const queue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const nativeSessionId = 'fcd92c99-044b-4381-9c73-ecf5cfdedc23'
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      nativeSessionId
+    })
+    try {
+      expect(mocks.createClaudeQuery.mock.calls[0][0].options.sessionId).toBe(nativeSessionId)
+      expect(mocks.createClaudeQuery.mock.calls[0][0].options.resume).toBeUndefined()
+    } finally {
+      queue.close()
+      await connection.close()
+    }
+  })
+
+  it('does not retry a missing replacement history as an empty Claude conversation', async () => {
+    const queue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      resumeToken: 'missing-replacement',
+      requireExistingHistory: true
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+    try {
+      await connection.send({ message: userMessage() })
+      queue.push({
+        type: 'result',
+        subtype: 'error_during_execution',
+        session_id: 'missing-replacement',
+        usage: {},
+        errors: ['No conversation found with session ID: missing-replacement']
+      })
+      const seen: any[] = []
+      while (true) {
+        const event = await events.next()
+        if (event.done) break
+        seen.push(event.value)
+        if (event.value.type === 'error') break
+      }
+      expect(seen.some((event) => event.type === 'error')).toBe(true)
+      expect(seen.some((event) => event.chunk?.type === 'data-conversation-reset')).toBe(false)
+      expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    } finally {
+      queue.close()
+      await connection.close()
+    }
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.adapterInstances.length = 0

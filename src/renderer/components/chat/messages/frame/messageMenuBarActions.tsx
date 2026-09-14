@@ -332,13 +332,25 @@ registerCommand('message.useful', ({ message, onSelectContext }) => {
 registerToolbarAction({
   id: 'user-edit',
   commandId: 'message.edit',
-  label: ({ t }) => t('common.edit'),
+  label: ({ t, actions }) => actions.editMessageLabel ?? t('common.edit'),
   icon: <EditIcon size={15} />,
-  availability: toolbarAvailability(
-    'user-edit',
-    ({ actions, isTranslating, isUserMessage, startEditingMessage }) =>
-      !isTranslating && isUserMessage && !!actions.editMessage && !!startEditingMessage
-  )
+  availability: (context) => {
+    const availability = context.actions.getMessageEditAvailability?.(context.message.id)
+    const visible =
+      !context.isTranslating &&
+      context.isUserMessage &&
+      !!context.actions.editMessage &&
+      !!context.startEditingMessage &&
+      (availability?.visible ?? true)
+    return {
+      visible,
+      enabled:
+        visible &&
+        !availability?.disabledReason &&
+        !(context.isProcessing && STREAMING_DISABLED_BUTTON_IDS.has('user-edit')),
+      reason: availability?.disabledReason
+    }
+  }
 })
 
 registerToolbarAction({
@@ -459,17 +471,30 @@ registerToolbarAction({
 registerAction({
   id: 'edit',
   commandId: 'message.edit',
-  label: ({ t }) => t('common.edit'),
+  label: ({ t, actions }) => actions.editMessageLabel ?? t('common.edit'),
   icon: <FilePenLine size={15} />,
   group: 'write',
   order: 10,
   surface: 'menu',
-  availability: ({ actions, isAssistantMessage, isEditable, isTranslating, isUserMessage, startEditingMessage }) =>
-    !isTranslating &&
-    isEditable &&
-    !!actions.editMessage &&
-    !!startEditingMessage &&
-    (isUserMessage || isAssistantMessage)
+  availability: ({
+    actions,
+    message,
+    isAssistantMessage,
+    isEditable,
+    isTranslating,
+    isUserMessage,
+    startEditingMessage
+  }) => {
+    const availability = actions.getMessageEditAvailability?.(message.id)
+    const visible =
+      !isTranslating &&
+      isEditable &&
+      !!actions.editMessage &&
+      !!startEditingMessage &&
+      (isUserMessage || isAssistantMessage) &&
+      (availability?.visible ?? true)
+    return { visible, enabled: visible && !availability?.disabledReason, reason: availability?.disabledReason }
+  }
 })
 
 registerAction({

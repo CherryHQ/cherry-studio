@@ -425,6 +425,8 @@ export interface MessageListActions {
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
   editMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
+  getMessageEditAvailability?: (messageId: string) => { visible: boolean; disabledReason?: string }
+  editMessageLabel?: string
   /** Open the inline editor for a message. Absent = editing unavailable (read-only embeds). */
   startEditing?: (
     message: MessageListItem,

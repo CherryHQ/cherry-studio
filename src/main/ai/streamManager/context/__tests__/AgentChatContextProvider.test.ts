@@ -136,6 +136,7 @@ describe('AgentChatContextProvider', () => {
       if (name === 'AgentSessionRuntimeService') {
         return {
           beginTurn: mocks.runtimeBeginTurn,
+          assertDispatchAllowed: vi.fn(),
           enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
           isSessionBusy: mocks.runtimeIsSessionBusy
         }

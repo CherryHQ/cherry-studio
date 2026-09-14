@@ -91,7 +91,9 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const [isMessageMenuOpen, setIsMessageMenuOpen] = useState(false)
   const editingMessageId = useMessageListEditingId()
   const { setTimeoutTimer } = useTimer()
-  const canEditMessage = !!actions.editMessage
+  const editAvailability = actions.getMessageEditAvailability?.(message.id)
+  const canEditMessage =
+    !!actions.editMessage && (editAvailability?.visible ?? true) && !editAvailability?.disabledReason
   const isAssistantMessage = message.role === 'assistant'
   const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
   const canStartEditing =

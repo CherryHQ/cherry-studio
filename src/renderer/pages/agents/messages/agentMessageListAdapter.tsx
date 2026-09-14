@@ -108,6 +108,8 @@ interface AgentMessageListParams {
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   diagnosticReport?: DiagnosticReportConfig
   deleteMessage?: MessageListActions['deleteMessage']
+  startEditing?: (messageId: string) => Promise<void>
+  editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
   imageActionConsumer?: 'capture'
   messageNavigation: string
@@ -166,6 +168,8 @@ export function useAgentMessageListProviderValue({
   openDiagnosticReport,
   diagnosticReport,
   deleteMessage,
+  startEditing,
+  editBusy,
   respondToolApproval,
   imageActionConsumer,
   messageNavigation,
@@ -443,6 +447,7 @@ export function useAgentMessageListProviderValue({
     ]
   )
 
+  const lastUserMessageId = visibleMessages.findLast((message) => message.role === 'user')?.id
   const actions = useMemo<MessageListActions>(
     () => ({
       forkSession: normalInteractionsEnabled ? forkSession : undefined,
@@ -452,6 +457,18 @@ export function useAgentMessageListProviderValue({
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
+      editMessage: normalInteractionsEnabled && startEditing ? (id) => startEditing(id) : undefined,
+      startEditing:
+        normalInteractionsEnabled && startEditing
+          ? (message) => {
+              void startEditing(message.id)
+            }
+          : undefined,
+      editMessageLabel: t('agent.edit_resend.label'),
+      getMessageEditAvailability: (id) => ({
+        visible: id === lastUserMessageId,
+        disabledReason: editBusy ? t('agent.edit_resend.error.busy') : undefined
+      }),
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
@@ -472,6 +489,10 @@ export function useAgentMessageListProviderValue({
     }),
     [
       forkSession,
+      startEditing,
+      editBusy,
+      lastUserMessageId,
+      t,
       abortTool,
       bindRuntime,
       bindMessageGroupRuntime,

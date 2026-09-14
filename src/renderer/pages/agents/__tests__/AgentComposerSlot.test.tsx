@@ -1,5 +1,4 @@
-import { render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -15,14 +14,17 @@ vi.mock('@renderer/components/chat/panes/Shell', () => ({
   useRightPanelPresentationMaximized: () => rightPanelPresentationMock.maximized
 }))
 
-vi.mock('@renderer/components/composer/ConversationComposerSlot', () => ({
-  default: ({ fallback }: { fallback?: ReactNode }) => fallback
-}))
-
 vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
   default: (props: any) => {
     agentComposerPropsMock.last = props
-    return <div data-testid="agent-composer" />
+    return (
+      <div data-testid="agent-composer">
+        <input
+          aria-label={props.launchOptions?.editing ? 'edit draft' : 'normal draft'}
+          defaultValue={props.launchOptions?.initialParts?.[0]?.text ?? ''}
+        />
+      </div>
+    )
   }
 }))
 
@@ -34,6 +36,8 @@ const baseProps = {
   session,
   sessionId: session.id,
   sendMessage: vi.fn(),
+  cancelEditing: vi.fn(),
+  resendEditedMessage: vi.fn(),
   stop: vi.fn(),
   isStreaming: false,
   sendDisabled: true,
@@ -57,6 +61,27 @@ describe('AgentComposerSlot', () => {
         sendDisabled: true
       })
     )
+  })
+
+  it('keeps the normal draft mounted while edit mode replaces only the active composer', () => {
+    const view = render(<AgentComposerSlot {...baseProps} sendDisabled={false} />)
+    const ordinary = screen.getByRole('textbox', { name: 'normal draft' })
+    fireEvent.change(ordinary, { target: { value: 'unsent ordinary draft' } })
+    const editing = {
+      sessionId: session.id,
+      messageId: 'last-user',
+      operationId: 'operation',
+      version: 'snapshot',
+      parts: [{ type: 'text' as const, text: 'old request' }]
+    }
+    view.rerender(<AgentComposerSlot {...baseProps} sendDisabled={false} editing={editing} />)
+    expect(screen.getByRole('textbox', { name: 'edit draft' })).toHaveValue('old request')
+    expect(ordinary).toHaveValue('unsent ordinary draft')
+    expect(ordinary.closest('[inert]')).not.toBeNull()
+    expect(agentComposerPropsMock.last.sendMessage).toBe(baseProps.resendEditedMessage)
+    view.rerender(<AgentComposerSlot {...baseProps} sendDisabled={false} />)
+    expect(screen.getByRole('textbox', { name: 'normal draft' })).toBe(ordinary)
+    expect(ordinary).toHaveValue('unsent ordinary draft')
   })
 
   it('mounts the real composer after agent metadata resolves', async () => {

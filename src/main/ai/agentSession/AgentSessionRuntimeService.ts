@@ -4,6 +4,8 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { AgentSessionEditError } from '@data/services/agentSessionEdit'
+import { agentSessionEditService } from '@data/services/AgentSessionEditService'
 import { agentSessionForkContextService, ForkContextFailure } from '@data/services/AgentSessionForkContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -40,6 +42,7 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
+import { AGENT_SESSION_PENDING_INPUT_COUNT_KEY } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
@@ -63,6 +66,7 @@ import type { RuntimeForkState } from '../runtime/forkCheckpoint'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
+  AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
@@ -81,6 +85,7 @@ import {
 } from '../streamManager'
 import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
+import { AgentSessionEditOperations, validateEditedInput } from './AgentSessionEditOperations'
 import { AgentSessionForkOperations } from './AgentSessionForkOperations'
 import {
   type AgentSessionRuntimeConnectionTarget,
@@ -344,6 +349,40 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // these entries are closed — do not drop it as unused. Covered by a stop-order test.
 @DependsOn(['ClaudeCodeProcessManager', 'AgentFileWriteService'])
 export class AgentSessionRuntimeService extends BaseService {
+  readonly edits = new AgentSessionEditOperations(this)
+  private readonly unconfirmedEditClosures = new Set<string>()
+  private readonly composerQueues = new Map<
+    Electron.WebContents,
+    { counts: Map<string, number>; dispose: () => void }
+  >()
+
+  setPendingInputCount(sessionId: string, sender: Electron.WebContents, count: number): void {
+    if (sender.isDestroyed()) return
+    let record = this.composerQueues.get(sender)
+    if (!record) {
+      const onDestroyed = () => {
+        const sessions = [...(this.composerQueues.get(sender)?.counts.keys() ?? [])]
+        this.composerQueues.delete(sender)
+        sessions.forEach((id) => this.publishPendingInputCount(id))
+      }
+      sender.once('destroyed', onDestroyed)
+      record = { counts: new Map(), dispose: () => sender.removeListener('destroyed', onDestroyed) }
+      this.composerQueues.set(sender, record)
+    }
+    if (count > 0) record.counts.set(sessionId, count)
+    else record.counts.delete(sessionId)
+    this.publishPendingInputCount(sessionId)
+  }
+
+  private pendingInputCount(sessionId: string): number {
+    return [...this.composerQueues.values()].reduce((total, record) => total + (record.counts.get(sessionId) ?? 0), 0)
+  }
+
+  private publishPendingInputCount(sessionId: string): void {
+    application
+      .get('CacheService')
+      .setShared(AGENT_SESSION_PENDING_INPUT_COUNT_KEY(sessionId), this.pendingInputCount(sessionId))
+  }
   private readonly forks = new AgentSessionForkOperations()
   private readonly forkContextPreparer = new ForkContextPreparer()
 
@@ -353,11 +392,104 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   cancelSessionForks(sourceSessionId: string): Promise<void> {
-    return this.forks.cancel(sourceSessionId)
+    return Promise.all([this.forks.cancel(sourceSessionId), this.edits.cancel(sourceSessionId)]).then(() => undefined)
   }
 
   recoverSessionForks(): Promise<void> {
-    return this.forks.recover()
+    return Promise.all([this.forks.recover(), this.edits.recover()]).then(() => undefined)
+  }
+
+  assertIdleForEdit(sessionId: string, ignoreOwnEdit = false): void {
+    const entry = this.entries.get(sessionId)
+    if (
+      this.isShuttingDown ||
+      this.isWriteQuiesced ||
+      (!ignoreOwnEdit && this.edits.pending.has(sessionId)) ||
+      this.pendingInputCount(sessionId) > 0 ||
+      this.unconfirmedEditClosures.has(sessionId) ||
+      this.closingSessions.has(sessionId) ||
+      this.connectionAttempts.has(sessionId) ||
+      this.inFlightTurnStarts.has(sessionId) ||
+      [...this.inFlightBackgroundFlowFlushes.values()].includes(sessionId) ||
+      (entry &&
+        (isAgentSessionRuntimeBusy(entry.runtimeState) || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))) ||
+      application.get('AiStreamManager').hasLiveStream(`agent-session:${sessionId}`)
+    )
+      throw new AgentSessionEditError('busy')
+    const operation = agentSessionEditService.current(sessionId)
+    if (operation?.executionUncertain) throw new AgentSessionEditError('close_failed')
+    if (operation && agentSessionEditService.reconcile(operation).status === 'sending')
+      throw new AgentSessionEditError('send_uncertain')
+  }
+
+  async getEditSnapshot(sessionId: string, messageId: string) {
+    this.assertIdleForEdit(sessionId)
+    const snapshot = application
+      .get('DbService')
+      .withWriteTx((tx) => agentSessionMessageService.readEditSnapshotTx(tx, sessionId, messageId))
+    const parts = snapshot.tail[0].data.parts ?? []
+    await validateEditedInput(parts, false)
+    return { version: snapshot.version, parts }
+  }
+
+  assertDispatchAllowed(sessionId: string): void {
+    if (this.unconfirmedEditClosures.has(sessionId)) throw new AgentSessionEditError('close_failed')
+    if (this.edits.pending.has(sessionId)) throw new AgentSessionEditError('busy')
+    const operation = agentSessionEditService.current(sessionId)
+    if (operation?.executionUncertain) throw new AgentSessionEditError('close_failed')
+    if (operation && !this.isSessionBusy(sessionId)) {
+      agentSessionEditService.reconcile(operation)
+      if (operation.status === 'sending' || operation.status === 'committed')
+        throw new AgentSessionEditError('send_uncertain')
+    }
+  }
+
+  async closeForEdit(sessionId: string): Promise<void> {
+    const entry = this.entries.get(sessionId)
+    if (!entry) return
+    const connection = this.currentConnection(entry)
+    const loop = entry.connectionLoop
+    try {
+      await connection?.close()
+      await loop
+      await Promise.all(
+        [...this.inFlightBackgroundFlowFlushes].filter(([, id]) => id === sessionId).map(([promise]) => promise)
+      )
+    } catch {
+      this.unconfirmedEditClosures.add(sessionId)
+      throw new AgentSessionEditError('close_failed')
+    }
+    await this.closeSession(sessionId)
+  }
+
+  async connectForEdit(input: AgentRuntimeConnectInput, runtime: string): Promise<AgentRuntimeConnection> {
+    const traceId = agentSessionService.ensureTraceId(input.sessionId)
+    const connection = await runtimeDriverRegistry.getAgentSessionDriver(runtime)!.connect({
+      ...input,
+      trace: {
+        topicId: buildAgentSessionTopicId(input.sessionId),
+        traceId,
+        rootSpanId: deriveRootSpanId(traceId),
+        sessionId: input.sessionId,
+        turnId: '',
+        modelName: parseUniqueModelId(input.modelId).modelId
+      },
+      onSteerInjected: (inputs) => {
+        const entry = this.entries.get(input.sessionId)
+        if (!entry || this.currentConnection(entry) !== connection) throw new AgentSessionEditError('busy')
+        this.reserveSteerContinuation(entry, inputs)
+      }
+    })
+    return connection
+  }
+
+  adoptEditConnection(sessionId: string, connection: AgentRuntimeConnection): void {
+    const entry = this.entries.get(sessionId)
+    if (!entry || this.currentConnection(entry)) throw new AgentSessionEditError('busy')
+    this.hydrateResumeToken(entry)
+    const attemptId = crypto.randomUUID()
+    this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
+    this.attachConnection(entry, connection, attemptId)
   }
 
   private readonly _onApprovalRequested = new Emitter<ApprovalRequestedEvent>()
@@ -400,6 +532,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // any agent session runs) instead of relying on an import-time side effect.
     registerRuntimeDrivers()
     await this.forks.recover(true)
+    await this.edits.recover()
 
     // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
     // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
@@ -509,6 +642,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
+    if (this.edits.pending.has(input.sessionId)) throw new AgentSessionEditError('busy')
     const turnId = crypto.randomUUID()
     const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
@@ -642,6 +776,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
    */
   async primeConnection(sessionId: string): Promise<void> {
+    if (this.edits.pending.has(sessionId) || this.unconfirmedEditClosures.has(sessionId)) return
     try {
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -1135,6 +1270,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * `beginTurn`.
    */
   isSessionBusy(sessionId: string): boolean {
+    if (this.edits.pending.has(sessionId)) return true
     const entry = this.entries.get(sessionId)
     if (!entry) return false
     return isAgentSessionRuntimeBusy(entry.runtimeState)
@@ -1149,6 +1285,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
   hasBusySessions(): boolean {
+    if (this.edits.pending.size > 0) return true
     if (this.closingSessions.size > 0) return true
     if (this.inFlightBackgroundFlowFlushes.size > 0) return true
     for (const sessionId of this.entries.keys()) {
@@ -1252,6 +1389,13 @@ export class AgentSessionRuntimeService extends BaseService {
     const seen = new WeakSet<Promise<unknown>>()
     const pending = new Map<Promise<unknown>, string>()
     const collect = (): void => {
+      for (const [sessionId, edit] of this.edits.pending) {
+        if (seen.has(edit.promise)) continue
+        seen.add(edit.promise)
+        pending.set(edit.promise, sessionId)
+        const remove = () => pending.delete(edit.promise)
+        edit.promise.then(remove, remove)
+      }
       for (const fork of this.forks.pending.values()) {
         if (seen.has(fork.promise)) continue
         seen.add(fork.promise)
@@ -1419,6 +1563,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
+    await this.edits.cancel()
     await this.forks.cancel()
     this.disposeWarmLeases()
     const streamManager = application.get('AiStreamManager')
@@ -1434,6 +1579,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
+    await this.edits.cancel()
+    for (const record of this.composerQueues.values()) record.dispose()
+    this.composerQueues.clear()
     await this.forks.cancel()
     this._onApprovalRequested.dispose()
     this.disposeWarmLeases()
@@ -1647,6 +1795,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
 
+    const edit = agentSessionEditService.current(entry.sessionId)
     const connection = await driver.connect({
       sessionId: entry.sessionId,
       agentId: entry.agentId,
@@ -1656,6 +1805,12 @@ export class AgentSessionRuntimeService extends BaseService {
       knowledgeBaseIds: target.knowledgeBaseIds,
       fastMode: target.fastMode,
       resumeToken: entry.lastResumeToken,
+      ...(edit
+        ? {
+            nativeSessionId: edit.nativeSessionId,
+            requireExistingHistory: !!entry.lastResumeToken || edit.status !== 'committed'
+          }
+        : {}),
       trace: this.sessionTraceContext(entry, target.modelId),
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
@@ -1664,10 +1819,19 @@ export class AgentSessionRuntimeService extends BaseService {
       return false
     }
 
+    this.attachConnection(entry, connection, attemptId)
+    return true
+  }
+
+  private attachConnection(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection,
+    attemptId: string
+  ): void {
     this.applyRuntimeStateEvent(entry, { type: 'connection-connected', attemptId, connection })
     if (this.currentConnection(entry) !== connection) {
-      await this.closeRuntimeConnection(connection, entry.sessionId)
-      return false
+      void this.closeRuntimeConnection(connection, entry.sessionId)
+      throw new AgentSessionEditError('busy')
     }
     entry.usageCapture = connection.usageCapture
     this.resetConnectionRuntimeState(entry, connection)
@@ -1688,19 +1852,24 @@ export class AgentSessionRuntimeService extends BaseService {
       if (entry.connectionLoop === connectionLoop) entry.connectionLoop = undefined
     })
     entry.connectionLoop = connectionLoop
-    return true
   }
 
   private hydrateResumeToken(entry: AgentSessionRuntimeEntry): void {
+    const edit = agentSessionEditService.current(entry.sessionId)
+    if (edit && edit.runtime !== entry.agentType) throw new AgentSessionEditError('history_changed')
     const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
-    if (runtimeResumeToken && !entry.lastResumeToken) entry.lastResumeToken = runtimeResumeToken
+    if (!entry.lastResumeToken) entry.lastResumeToken = runtimeResumeToken ?? edit?.resumeToken
     if (entry.forkContextPending === undefined) {
-      entry.forkContextPending = Boolean(agentSessionMessageService.getForkHistory(entry.sessionId))
+      entry.forkContextPending = edit
+        ? edit.rebuilt
+        : Boolean(agentSessionMessageService.getForkHistory(entry.sessionId))
     }
     // Validate before a driver can mint a new, empty initialization token.
-    const requiresNativeHistory = entry.forkContextPending
-      ? !agentSessionForkContextService.needsPreparation(entry.sessionId)
-      : agentSessionService.isFork(entry.sessionId)
+    const requiresNativeHistory = edit
+      ? edit.status !== 'committed' || !!edit.resumeToken
+      : entry.forkContextPending
+        ? !agentSessionForkContextService.needsPreparation(entry.sessionId)
+        : agentSessionService.isFork(entry.sessionId)
     if (requiresNativeHistory && !entry.lastResumeToken)
       throw new ForkContextFailure({ code: 'native_uncertain', category: 'needs_reconciliation' })
   }
@@ -2491,6 +2660,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = this.currentConnection(entry)
     if (!connection) throw new Error('Agent runtime connection unavailable')
     let history: string | undefined
+    let preparedContextId: string | undefined
     if (entry.forkContextPending) {
       try {
         if (!agentSessionForkContextService.needsPreparation(entry.sessionId)) {
@@ -2529,12 +2699,7 @@ export class AgentSessionRuntimeService extends BaseService {
             turn.abortController.signal.throwIfAborted()
             if (!this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
             history = buildForkHistory(prepared)
-            turn.forkContextAttempt = agentSessionForkContextService.beginSend(
-              entry.sessionId,
-              prepared.preparedContextId,
-              turn.userMessage.id,
-              turn.assistantMessageId
-            )
+            preparedContextId = prepared.preparedContextId
           }
         }
       } catch (error) {
@@ -2549,6 +2714,16 @@ export class AgentSessionRuntimeService extends BaseService {
         throw error
       }
     }
+    application.get('DbService').withWriteTx(() => {
+      if (preparedContextId)
+        turn.forkContextAttempt = agentSessionForkContextService.beginSend(
+          entry.sessionId,
+          preparedContextId,
+          turn.userMessage.id,
+          turn.assistantMessageId
+        )
+      agentSessionEditService.beginSend(entry.sessionId, turn.assistantMessageId)
+    })
     try {
       await connection.send({
         message: withForkHistory(turn.userMessage, history),
@@ -2627,6 +2802,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private requestRuntimeLaunch(entry: AgentSessionRuntimeEntry, target: AgentSessionRuntimeLaunchTarget): void {
+    if (this.edits.pending.has(entry.sessionId)) return
     this.applyRuntimeStateEvent(entry, { type: 'launch-requested', target })
   }
 

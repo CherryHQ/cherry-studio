@@ -70,6 +70,10 @@ export interface AgentRuntimeConnectInput {
   /** Whether this connection's turn requests Fast processing. */
   fastMode?: boolean
   resumeToken?: string
+  /** Main-owned identity for a fresh native history; the application session remains unchanged. */
+  nativeSessionId?: string
+  /** Replacement histories must never silently recover as an empty conversation. */
+  requireExistingHistory?: boolean
   trace?: AgentRuntimeTraceContext
   /**
    * Synchronous host hook fired when a pending steer is actually injected. The host uses this

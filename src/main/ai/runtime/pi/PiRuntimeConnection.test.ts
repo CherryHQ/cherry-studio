@@ -871,6 +871,29 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.createAgentSession).not.toHaveBeenCalled()
   })
 
+  it('uses a separate native id for a rebuilt conversation without changing its application id', async () => {
+    const nativeSessionId = '6b385588-52b7-44a6-b621-b90329b6e69e'
+    const connection = await new PiRuntimeConnection({ ...input, nativeSessionId }).start()
+    try {
+      expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: nativeSessionId })
+      expect(mocks.sessionOpen).not.toHaveBeenCalled()
+    } finally {
+      await connection.close()
+    }
+  })
+
+  it.each([undefined, 'missing-native-history'])(
+    'never creates empty replacement history when resume token is %s',
+    async (resumeToken) => {
+      mocks.readdirSync.mockReturnValue([])
+      await expect(
+        new PiRuntimeConnection({ ...input, resumeToken, requireExistingHistory: true }).start()
+      ).rejects.toThrow('native_uncertain')
+      expect(mocks.sessionCreate).not.toHaveBeenCalled()
+      expect(mocks.createAgentSession).not.toHaveBeenCalled()
+    }
+  )
+
   it('falls back to a fresh session with the same id when a valid token has no file on disk', async () => {
     // pi flushes the JSONL lazily, so a token can point at a session that never persisted. That must
     // degrade to a new empty session (same id) instead of bricking every future turn.
