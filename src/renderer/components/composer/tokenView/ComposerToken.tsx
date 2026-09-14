@@ -1001,7 +1001,11 @@ export function QuoteComposerToken(props: ComposerTokenProps) {
   const [editDialogLoaded, setEditDialogLoaded] = useState(false)
   const [editMaxLength, setEditMaxLength] = useState(0)
   const quoteTooltipContent = getQuoteTooltipContent(props.token.description, props.token.promptText)
-  const canEdit = !props.readOnly && Boolean(quoteTooltipContent && props.onEdit && props.getEditMaxLength)
+  const quoteEditContent =
+    props.token.description !== undefined && props.token.description !== null
+      ? props.token.description
+      : getQuoteTooltipContent(undefined, props.token.promptText)
+  const canEdit = !props.readOnly && Boolean(quoteEditContent && props.onEdit && props.getEditMaxLength)
   const editLabel = `${t('common.edit')} ${props.token.label}`
 
   const openEditor = () => {
@@ -1079,10 +1083,10 @@ export function QuoteComposerToken(props: ComposerTokenProps) {
   return (
     <>
       {previewElement}
-      {editDialogLoaded && quoteTooltipContent !== undefined && (
+      {editDialogLoaded && quoteEditContent !== undefined && (
         <Suspense fallback={null}>
           <QuoteTokenEditDialog
-            content={quoteTooltipContent}
+            content={quoteEditContent}
             label={props.token.label}
             maxLength={editMaxLength}
             open={editDialogOpen}

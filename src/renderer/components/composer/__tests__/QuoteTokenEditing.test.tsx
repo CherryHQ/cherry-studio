@@ -106,6 +106,29 @@ describe('quote token editing', () => {
     expect(await screen.findByRole('textbox', { name: 'Quote' })).toHaveValue('Updated first line\nUpdated second line')
   })
 
+  it('preserves quote content that literally matches the canonical blockquote wrapper', async () => {
+    const user = userEvent.setup()
+    const content = '<blockquote>\n\nliteral quote\n</blockquote>'
+    let editor: Editor | null = null
+    render(<ComposerEditorHarness draft={createQuoteDraft(content)} onEditor={(nextEditor) => (editor = nextEditor)} />)
+
+    await user.click(await screen.findByRole('button', { name: 'common.edit Quote' }))
+    const input = await screen.findByRole('textbox', { name: 'Quote' })
+    expect(input).toHaveValue(content)
+
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      const serialized = serializeComposerDocument(editor!)
+      expect(serialized.tokens[0]).toEqual(
+        expect.objectContaining({
+          description: content,
+          promptText: formatQuoteTokenPromptText(content)
+        })
+      )
+    })
+  })
+
   it('opens from the keyboard and discards both cancelled and escaped drafts', async () => {
     const user = userEvent.setup()
     const originalDraft = createQuoteDraft('Keep this quote')
