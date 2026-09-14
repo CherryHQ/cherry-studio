@@ -1,4 +1,11 @@
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
+import { AISDKError, APICallError, type NoSuchToolError } from 'ai'
+import { InvalidToolInputError } from 'ai'
+import { type AxiosError, isAxiosError } from 'axios'
+import { t } from 'i18next'
+import type * as z from 'zod'
+import { ZodError } from 'zod'
+
 import { type AgentServerError, AgentServerErrorSchema } from '@renderer/types/agent'
 import type {
   AiSdkErrorUnion,
@@ -11,12 +18,6 @@ import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@ren
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
-import { AISDKError, APICallError, type NoSuchToolError } from 'ai'
-import { InvalidToolInputError } from 'ai'
-import { type AxiosError, isAxiosError } from 'axios'
-import { t } from 'i18next'
-import type * as z from 'zod'
-import { ZodError } from 'zod'
 
 import { formatErrorDetails } from './errorDetails'
 import { parseJSON } from './json'
@@ -151,7 +152,8 @@ const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuch
 }
 
 export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
-  if (APICallError.isInstance(error as unknown)) return serializeNestedProviderError(error) as SerializedError
+  const unknownError: unknown = error
+  if (APICallError.isInstance(unknownError)) return serializeNestedProviderError(unknownError) as SerializedError
 
   // 统一所有可能的错误字段
   const serializedError: SerializedError = {

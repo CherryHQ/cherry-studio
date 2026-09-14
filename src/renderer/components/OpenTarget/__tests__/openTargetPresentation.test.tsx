@@ -1,6 +1,7 @@
-import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import type { TFunction } from 'i18next'
 import { describe, expect, it } from 'vitest'
+
+import type { ExternalOpenTarget } from '@shared/types/externalApp'
 
 import { getOpenTargetLabel } from '../openTargetPresentation'
 

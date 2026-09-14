@@ -2,12 +2,13 @@ import type * as NodeChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle'
 import type * as ProcessRunner from '@main/utils/processRunner'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import type * as DeepSeekHarnessConfigModule from '../config'
 
@@ -178,11 +179,12 @@ describe('DeepSeekHarnessService', () => {
       'fetch',
       vi.fn(async () => ({ status: 200, body: { cancel: vi.fn(async () => undefined) } }))
     )
-    processKill = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: NodeJS.Signals) => {
+    processKill = vi.spyOn(process, 'kill').mockImplementation((pid: number, signal?: string | number) => {
       const child = children.find((candidate) => -candidate.pid === pid)
-      if (child) queueMicrotask(() => child.close(null, signal ?? 'SIGTERM'))
+      const closeSignal = signal === 'SIGKILL' ? 'SIGKILL' : 'SIGTERM'
+      if (child) queueMicrotask(() => child.close(null, closeSignal))
       return true
-    }) as typeof process.kill)
+    })
   })
 
   afterEach(() => {
@@ -196,7 +198,7 @@ describe('DeepSeekHarnessService', () => {
     children.push(child)
     mocks.spawn.mockImplementationOnce(() => {
       queueMicrotask(() => action(child))
-      return child as unknown as NodeChildProcess.ChildProcess
+      return child
     })
     return child
   }

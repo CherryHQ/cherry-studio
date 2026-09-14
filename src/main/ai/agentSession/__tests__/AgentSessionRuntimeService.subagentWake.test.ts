@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Incident repro (2026-08-15): a dsh subagent settlement wake opened a
  * receive-only turn whose persisted row ended up with ZERO parts while the
@@ -5,7 +7,6 @@
  * event order and assert the receive-only stream actually carries the chunks.
  */
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),

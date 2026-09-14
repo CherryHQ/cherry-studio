@@ -1,8 +1,9 @@
+import { useNavigate } from '@tanstack/react-router'
+import { useCallback, useMemo } from 'react'
+
 import { cacheService } from '@data/CacheService'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
-import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useMemo } from 'react'
 
 const AI_CLASSIFY_TTL_MS = 60 * 60 * 1000
 const aiClassifyCacheKey = (message: string, language: string) => `error.classify.${message}:${language}`

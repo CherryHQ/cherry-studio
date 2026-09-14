@@ -18,7 +18,7 @@ function opts(): ImageModelV3CallOptions {
     abortSignal: undefined,
     files: undefined,
     mask: undefined
-  } as ImageModelV3CallOptions
+  }
 }
 
 const config = {

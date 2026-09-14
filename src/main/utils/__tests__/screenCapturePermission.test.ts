@@ -9,9 +9,8 @@ vi.mock('electron', () => ({
 }))
 vi.mock('@main/core/platform', () => ({ isMac: true }))
 
-const { getScreenCapturePermissionStatus, openScreenCaptureSettings } = await import(
-  '@main/utils/screenCapturePermission'
-)
+const { getScreenCapturePermissionStatus, openScreenCaptureSettings } =
+  await import('@main/utils/screenCapturePermission')
 
 describe('screen capture permission', () => {
   beforeEach(() => {

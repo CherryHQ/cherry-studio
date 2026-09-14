@@ -1,3 +1,6 @@
+import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCurrentTabId } from '@renderer/hooks/tab'
@@ -7,8 +10,6 @@ import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
-import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import MessageItem from '../frame/MessageFrame'
 import {
@@ -414,6 +415,7 @@ const GridContainer = ({
 
   return (
     <Scrollbar
+      showOnHover={isHorizontal}
       className={classNames(
         '[&.multi-select-mode_.message-content-container]:overflow-y-hidden! grid w-full gap-4 overflow-y-visible [&.fold]:gap-2 [&.grid]:grid-rows-[auto] [&.horizontal]:overflow-x-auto [&.horizontal]:overflow-y-hidden [&.horizontal]:pb-1 [&.multi-select-mode]:gap-2.5 [&.multi-select-mode_.MessageFooter]:hidden [&.multi-select-mode_.grid]:h-auto [&.multi-select-mode_.message-content-container]:pointer-events-none [&.multi-select-mode_.message-content-container]:max-h-[200px] [&.multi-select-mode_.message]:rounded-[10px] [&.multi-select-mode_.message]:border-[0.5px] [&.multi-select-mode_.message]:border-border [&.multi-select-mode_.message]:p-2.5',
         className

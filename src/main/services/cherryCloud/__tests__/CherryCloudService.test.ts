@@ -1,7 +1,8 @@
 import { createHmac } from 'node:crypto'
 
-import type { Model } from '@shared/data/types/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
 
 const mocks = vi.hoisted(() => ({
   appEdition: 'global' as 'cn' | 'global',
@@ -103,8 +104,9 @@ vi.mock('../CherryCloudLoopbackCallback', () => ({
   CherryCloudLoopbackCallback: { open: mocks.loopbackOpen }
 }))
 
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { uuid } from 'systeminformation'
+
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 
 import { CherryCloudLoginUnavailableError, CherryCloudService } from '../CherryCloudService'
 

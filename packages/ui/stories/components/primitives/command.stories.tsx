@@ -1,3 +1,7 @@
+import type { Meta, StoryObj } from '@storybook/react'
+import { Calculator, Calendar, CreditCard, Settings, Smile, User } from 'lucide-react'
+import { useEffect, useState } from 'react'
+
 import {
   Command,
   CommandDialog,
@@ -10,9 +14,6 @@ import {
   CommandShortcut
 } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import type { Meta, StoryObj } from '@storybook/react'
-import { Calculator, Calendar, CreditCard, Settings, Smile, User } from 'lucide-react'
-import { useEffect, useState } from 'react'
 
 const meta: Meta<typeof Command> = {
   title: 'Components/Primitives/Command',

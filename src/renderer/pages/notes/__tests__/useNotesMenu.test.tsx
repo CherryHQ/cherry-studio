@@ -1,6 +1,7 @@
-import type { NotesTreeNode } from '@renderer/types/note'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { NotesTreeNode } from '@renderer/types/note'
 
 import { useNotesMenu } from '../hooks/useNotesMenu'
 

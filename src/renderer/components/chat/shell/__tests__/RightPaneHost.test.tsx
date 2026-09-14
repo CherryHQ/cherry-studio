@@ -1,8 +1,9 @@
-import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 
 import {
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
@@ -207,7 +208,7 @@ function stubRect(element: HTMLElement, { top, bottom }: { top: number; bottom: 
     x: 0,
     y: top,
     toJSON: () => ({})
-  } as DOMRect)
+  })
 }
 
 describe('RightPaneHost', () => {
@@ -917,7 +918,7 @@ describe('RightPaneHost', () => {
       window.requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
         rafCallbacks.push(callback)
         return nextRafId++
-      }) as typeof window.requestAnimationFrame
+      })
       window.cancelAnimationFrame = vi.fn()
     })
 

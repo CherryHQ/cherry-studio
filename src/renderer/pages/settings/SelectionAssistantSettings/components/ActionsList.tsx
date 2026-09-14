@@ -1,7 +1,8 @@
 import type { DroppableProvided } from '@hello-pangea/dnd'
 import { Draggable, Droppable } from '@hello-pangea/dnd'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { memo } from 'react'
+
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
 import ActionsListItemComponent from './ActionsListItem'
 

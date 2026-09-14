@@ -1,9 +1,10 @@
+import { statfs } from 'fs/promises'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { StorageHealth, StorageHealthLevel } from '@shared/types/storageMonitor'
 import { GB } from '@shared/utils/constants'
-import { statfs } from 'fs/promises'
 
 const logger = loggerService.withContext('StorageMonitorService')
 

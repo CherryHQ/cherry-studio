@@ -1,6 +1,7 @@
-import ProviderSpecificSettings from '@renderer/pages/settings/ProviderSettings/ProviderSpecific/ProviderSpecificSettings'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import ProviderSpecificSettings from '@renderer/pages/settings/ProviderSettings/ProviderSpecific/ProviderSpecificSettings'
 
 const useProviderMock = vi.fn()
 const useProviderMetaMock = vi.fn()

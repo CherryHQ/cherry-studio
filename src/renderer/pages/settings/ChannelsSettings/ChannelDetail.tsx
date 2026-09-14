@@ -1,3 +1,8 @@
+import { ChevronDown, CircleSlash, FileText, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Button,
@@ -36,10 +41,6 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelStatus } from '@shared/data/types/channel'
-import { ChevronDown, CircleSlash, FileText, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { getFormForType } from './ChannelForms'
 import type { AvailableChannel, ChannelData } from './channelTypes'
@@ -511,7 +512,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
       if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode
 
-      await updateChannel(channelId, apiUpdates as never)
+      await updateChannel(channelId, apiUpdates)
     },
     [channelList, updateChannel]
   )

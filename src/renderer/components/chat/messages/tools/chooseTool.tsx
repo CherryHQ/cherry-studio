@@ -1,3 +1,5 @@
+import React, { Suspense } from 'react'
+
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
@@ -11,7 +13,6 @@ import {
   PROVIDER_WEB_SEARCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
-import React, { Suspense } from 'react'
 
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
 import MessageMetaTool, { isMetaToolName } from './meta/MessageMetaTool'
