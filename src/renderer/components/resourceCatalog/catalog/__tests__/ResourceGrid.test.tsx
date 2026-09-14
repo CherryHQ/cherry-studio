@@ -13,11 +13,18 @@ import { ResourceCardMenu } from '../ResourceCardMenu'
 import { ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
-const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobalEnabledMock } = vi.hoisted(() => ({
+const {
+  deleteGroupMock,
+  updateGroupMock,
+  updateAssistantMock,
+  updateSkillGlobalEnabledMock,
+  updateSkillMirrorEnabledMock
+} = vi.hoisted(() => ({
   deleteGroupMock: vi.fn(),
   updateGroupMock: vi.fn(),
   updateAssistantMock: vi.fn(),
-  updateSkillGlobalEnabledMock: vi.fn()
+  updateSkillGlobalEnabledMock: vi.fn(),
+  updateSkillMirrorEnabledMock: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -356,6 +363,7 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
   }),
   useSkillMutationsById: () => ({
     updateGlobalEnabled: updateSkillGlobalEnabledMock,
+    setMirrorEnabled: updateSkillMirrorEnabledMock,
     isUpdating: false
   })
 }))
@@ -432,7 +440,7 @@ function createSkillResource(version: string | null = null, isGlobalEnabled = tr
     avatar: 'S',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: { version, isGlobalEnabled } as Extract<ResourceItem, { type: 'skill' }>['raw']
+    raw: { version, isGlobalEnabled, mirrorEnabled: true } as Extract<ResourceItem, { type: 'skill' }>['raw']
   }
 }
 

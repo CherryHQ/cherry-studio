@@ -103,7 +103,9 @@ export class SkillService {
     const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) return null
 
-    const skillRoot = this.getMirrorPath(skill.folderName)
+    // Read from the managed library, not the ~/.agents/skills mirror: the mirror is
+    // an optional, user-controlled projection (mirrorEnabled) and may not exist.
+    const skillRoot = this.getSkillStoragePath(skill.folderName)
     const filePath = path.resolve(skillRoot, filename)
 
     // Prevent path traversal
@@ -134,7 +136,8 @@ export class SkillService {
     const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) return []
 
-    const skillRoot = this.getMirrorPath(skill.folderName)
+    // Library path — see readFile above; the mirror is optional and may be opted out.
+    const skillRoot = this.getSkillStoragePath(skill.folderName)
     try {
       return await buildFileTree(skillRoot, skillRoot)
     } catch {
@@ -558,7 +561,13 @@ export class SkillService {
 
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await this.installer.install(skillDir, destPath)
-    await this.linkMirror(destFolderName)
+    if (existing?.mirrorEnabled === false) {
+      // A persisted opt-out survives reinstalls: refresh the library copy but keep
+      // the ~/.agents/skills projection removed.
+      await this.unlinkMirror(destFolderName)
+    } else {
+      await this.linkMirror(destFolderName)
+    }
 
     const tags = metadata.tags ?? []
 
@@ -658,14 +667,14 @@ export class SkillService {
   }
 
   /** Mirror `Data/Skills/<folderName>` into CLAUDE_CONFIG_DIR/skills. Idempotent. */
-  async linkMirror(folderName: string): Promise<void> {
+  async linkMirror(folderName: string): Promise<boolean> {
     const sourceDir = this.getSkillStoragePath(folderName)
     const rootDir = path.resolve(this.getMirrorRoot())
     const targetDir = path.resolve(rootDir, folderName)
     const relativeTarget = path.relative(rootDir, targetDir)
     if (!relativeTarget || relativeTarget.startsWith('..') || path.isAbsolute(relativeTarget)) {
       logger.warn('Refusing to mirror skill outside Claude config root', { folderName, targetDir })
-      return
+      return false
     }
 
     let catalogSkill: InstalledSkill | null
@@ -677,7 +686,7 @@ export class SkillService {
         folderName,
         error: error instanceof Error ? error.message : String(error)
       })
-      return
+      return false
     }
 
     // Accept either casing so a lowercase-only skill still mirrors (reconcile normalizes to
@@ -691,7 +700,7 @@ export class SkillService {
         sourceDir,
         status: descriptor.status
       })
-      return
+      return false
     }
 
     const builtinSkill = catalogSkill?.source === 'builtin' ? catalogSkill : null
@@ -702,7 +711,7 @@ export class SkillService {
         if (actualHash !== builtinSkill.contentHash) {
           await this.unlinkMirror(folderName)
           logger.warn('Refusing to mirror modified built-in skill content', { folderName })
-          return
+          return false
         }
       } catch (error) {
         await this.unlinkMirror(folderName)
@@ -710,7 +719,7 @@ export class SkillService {
           folderName,
           error: error instanceof Error ? error.message : String(error)
         })
-        return
+        return false
       }
     }
 
@@ -726,7 +735,7 @@ export class SkillService {
             fs.promises.realpath(targetDir).catch(() => null),
             fs.promises.realpath(sourceDir)
           ])
-          if (targetRealPath === sourceRealPath) return
+          if (targetRealPath === sourceRealPath) return true
         }
       }
 
@@ -740,17 +749,45 @@ export class SkillService {
       }
     } catch (error) {
       logger.warn('Failed to mirror skill to Claude config', { folderName, sourceDir, targetDir, error })
+      return false
     }
+    return true
   }
 
   /** Remove the CLAUDE_CONFIG_DIR/skills mirror entry for a skill. */
-  async unlinkMirror(folderName: string): Promise<void> {
+  async unlinkMirror(folderName: string): Promise<boolean> {
     const targetDir = this.getMirrorPath(folderName)
     try {
       await fs.promises.rm(targetDir, { recursive: true, force: true })
+      return true
     } catch (error) {
       logger.warn('Failed to remove skill mirror', { folderName, targetDir, error })
+      return false
     }
+  }
+
+  /**
+   * Toggle whether a skill is projected into the ~/.agents/skills mirror and apply the
+   * change to the filesystem immediately (no reconcile wait). Default for every skill is
+   * enabled; disabling keeps the skill installed and enabled for Cherry agents, it only
+   * stops exporting it to external agents reading CLAUDE_CONFIG_DIR/skills.
+   */
+  async setMirrorEnabled(skillId: string, mirrorEnabled: boolean): Promise<InstalledSkill | null> {
+    return this.mutationLock.runExclusive(async () => {
+      const skill = agentGlobalSkillService.getById(skillId)
+      if (!skill) return null
+
+      // Filesystem first, persist second: if the projection fails we throw with the
+      // database untouched, so the persisted state always matches what is on disk.
+      const applied = mirrorEnabled
+        ? await this.linkMirror(skill.folderName)
+        : await this.unlinkMirror(skill.folderName)
+      if (!applied) {
+        throw new Error(`Failed to update the ~/.agents/skills mirror for skill: ${skill.folderName}`)
+      }
+
+      return agentGlobalSkillService.updateMirrorEnabled(skillId, mirrorEnabled)
+    })
   }
 
   /**
@@ -997,7 +1034,14 @@ export class SkillService {
         }
         continue
       }
-      await this.linkMirror(group[0].folderName)
+      const skill = group[0]
+      if (!skill.mirrorEnabled) {
+        // User opted this skill out of the ~/.agents/skills projection — clear any
+        // mirror a previous reconcile (or the default-on install flow) left behind.
+        await this.unlinkMirror(skill.folderName)
+        continue
+      }
+      await this.linkMirror(skill.folderName)
     }
 
     const root = this.getMirrorRoot()
@@ -1200,7 +1244,13 @@ export class SkillService {
         })
       }
 
-      await this.linkMirror(destFolderName)
+      if (existing?.mirrorEnabled === false) {
+        // A persisted opt-out survives builtin refreshes: keep the library copy
+        // current but leave the ~/.agents/skills projection removed.
+        await this.unlinkMirror(destFolderName)
+      } else {
+        await this.linkMirror(destFolderName)
+      }
       logger.info('Built-in skill synced to DB', { folderName: destFolderName, firstInstall: !existing, filesUpdated })
       return filesUpdated
     })
