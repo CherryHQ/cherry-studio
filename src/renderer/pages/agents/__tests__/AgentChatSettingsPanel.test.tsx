@@ -129,14 +129,19 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
   )
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [false],
-  useSharedCache: (key: string) =>
-    key === 'agent.model_switch_confirmation.skipped'
-      ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
-      : [null, vi.fn()],
-  usePersistCache: () => [undefined, vi.fn()]
-}))
+vi.mock('@renderer/data/hooks/useCache', async () => {
+  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+
+  return {
+    ...MockUseCache,
+    useCache: () => [false],
+    useSharedCache: (key: string) =>
+      key === 'agent.model_switch_confirmation.skipped'
+        ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
+        : [null, vi.fn()],
+    usePersistCache: () => [undefined, vi.fn()]
+  }
+})
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => vi.fn(),
