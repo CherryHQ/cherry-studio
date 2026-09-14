@@ -1,4 +1,5 @@
-import type { ChildProcess } from 'node:child_process'
+import { type ChildProcess, execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 
 import { Mutex } from 'async-mutex'
 
@@ -29,6 +30,7 @@ import {
   rollbackDeepSeekHarnessConfig,
   writeDeepSeekHarnessConfig
 } from './config'
+import { checkDshHomeHealth, type DshHomeHealth } from './storageHealth'
 
 const logger = loggerService.withContext('DeepSeekHarnessService')
 
@@ -41,6 +43,7 @@ const NO_KEY_PLACEHOLDER = 'no-key-required'
 const GATEWAY_ROUTE = 'cherry-studio-codemate-gateway'
 const GATEWAY_CREDENTIAL_REF = 'CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY'
 const MANAGED_CREDENTIAL_ENV = /^CHERRY_STUDIO_CODEMATE_(?:[A-F0-9]{12}|GATEWAY)_API_KEY$/i
+const execFileAsync = promisify(execFile)
 
 interface DeepSeekHarnessStartInput extends DeepSeekHarnessSettings {
   mode: DeepSeekHarnessMode
@@ -140,6 +143,25 @@ export class DeepSeekHarnessService extends BaseService {
           const runtime = await this.resolveRuntime()
           if (startupAbortController.signal.aborted) {
             throw new Error('DeepSeek Harness startup was cancelled')
+          }
+          const homeHealth = await checkDshHomeHealth(
+            AbsoluteFilePathSchema.parse(application.getPath('external.deepseek_harness.storages'))
+          )
+          if (!homeHealth.healthy) {
+            const dshVersion = await readDshVersion(runtime.path)
+            logger.warn('DeepSeek Harness home failed preflight', {
+              reason: homeHealth.reason,
+              detail: homeHealth.detail,
+              ...(dshVersion ? { dshVersion } : {})
+            })
+            this.url = undefined
+            this.setStatus('error')
+            return {
+              success: false,
+              message: sanitizeDiagnostic(
+                `DeepSeek Harness home looks upgraded-incompatible (${homeHealth.detail}). Back it up, delete ${repairTargetForReason(homeHealth.reason)} inside it, then retry. [dsh-home-${homeHealth.reason}]`
+              )
+            }
           }
           const synced = await this.syncConfig(input)
           const projection = synced.projection
@@ -277,14 +299,11 @@ export class DeepSeekHarnessService extends BaseService {
     permissionMode: DeepSeekHarnessPermissionMode,
     signal: AbortSignal
   ): Promise<string> {
-    const env = {
+    const env = stripManagedCredentialEnv({
       ...runtime.env,
       DSH_HOME: application.getPath('external.deepseek_harness.config'),
       DSH_PERMISSION_MODE: permissionMode
-    }
-    for (const name of Object.keys(env)) {
-      if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
-    }
+    })
 
     const child = crossPlatformSpawn(runtime.path, ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
       cwd: application.getPath('feature.deepseek_harness.workspace'),
@@ -347,6 +366,29 @@ function appendBounded(current: string, chunk: Buffer | string): string {
 
 function sanitizeDiagnostic(value: string, secret?: string): string {
   return redactSecretText(redactLiteral(value, secret)).slice(0, DIAGNOSTIC_LIMIT)
+}
+
+function repairTargetForReason(reason: Extract<DshHomeHealth, { healthy: false }>['reason']): string {
+  return reason.startsWith('projcache') ? 'storages/session_projcache.json' : 'storages/workspace.json'
+}
+
+function stripManagedCredentialEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  for (const name of Object.keys(env)) {
+    if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
+  }
+  return env
+}
+
+async function readDshVersion(binaryPath: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync(binaryPath, ['--version'], {
+      timeout: 3000,
+      env: stripManagedCredentialEnv({ ...process.env })
+    })
+    return stdout.split('\n', 1)[0]?.trim().slice(0, 80) || undefined
+  } catch {
+    return undefined
+  }
 }
 
 function parseReadyUrl(output: string): string | undefined {
