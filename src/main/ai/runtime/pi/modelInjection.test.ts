@@ -245,7 +245,9 @@ describe('buildPiProviderInjection', () => {
     const modelRegistry = ModelRegistry.inMemory(authStorage)
     modelRegistry.registerProvider(injection.providerName, {
       ...materialized.providerConfig,
-      streamSimple: materialized.streamSimple
+      // AgentSession may materialize the model default in options before the provider boundary.
+      streamSimple: (model, context, options) =>
+        materialized.streamSimple(model, context, { ...options, maxTokens: options?.maxTokens ?? model.maxTokens })
     })
     const configuredModel = modelRegistry.find(injection.providerName, injection.modelId)
     if (!configuredModel) throw new Error('Pi model configuration is incomplete')
@@ -284,6 +286,7 @@ describe('buildPiProviderInjection', () => {
     } finally {
       session.dispose()
       modelRegistry.unregisterProvider(injection.providerName)
+      vi.unstubAllGlobals()
     }
 
     expect(fetch).toHaveBeenCalledTimes(3)
