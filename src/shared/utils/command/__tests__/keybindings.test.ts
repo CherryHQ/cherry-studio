@@ -14,6 +14,7 @@ import {
 } from '../definitions'
 import {
   findKeybindingConflicts,
+  getCommandAccelerator,
   getCommandDefaultShortcutPreference,
   resolveCommandByKeybinding,
   resolveCommandKeybinding,
@@ -485,6 +486,10 @@ describe('findKeybindingConflicts', () => {
         conflictingTrigger: 'primary'
       })
     ])
+  })
+
+  it('registers keypad-Enter bindings under the canonical Electron accelerator', () => {
+    expect(getCommandAccelerator(['CommandOrControl', 'numenter'])).toBe('CommandOrControl+Enter')
   })
 
   it('treats keypad Enter and main Return as one trigger when matching', () => {

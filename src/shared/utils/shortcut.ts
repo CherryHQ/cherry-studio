@@ -340,6 +340,13 @@ export const convertAcceleratorToHotkey = (accelerator: ShortcutBinding): string
     .join('+')
 }
 
+/**
+ * Keypad Enter and main Return are one trigger: matching and accelerator
+ * generation canonicalize `numenter` to `Enter`, while display keeps the
+ * keypad's own label (its printed key says "Enter" on every platform).
+ */
+export const canonicalTriggerToken = (token: ShortcutToken): ShortcutToken => (token === 'numenter' ? 'Enter' : token)
+
 export const formatKeyDisplay = (key: ShortcutToken, isMac: boolean): string => {
   switch (key.toLowerCase()) {
     case 'ctrl':

@@ -7,7 +7,7 @@ import type {
   RegisteredKeybindingRule,
   SupportedPlatform
 } from '@shared/types/command'
-import { normalizeShortcutBinding, type ShortcutBinding, type ShortcutToken } from '@shared/utils/shortcut'
+import { canonicalTriggerToken, normalizeShortcutBinding, type ShortcutBinding } from '@shared/utils/shortcut'
 
 import { canContextExprsOverlap, evaluateContextExpr } from './contextExpr'
 import { type CommandId, findKeybindingRule, REGISTERED_KEYBINDINGS } from './definitions'
@@ -97,8 +97,6 @@ const platformsOverlap = (
 
 // Keypad Enter and main Return are one trigger: a binding recorded from either
 // key must fire commands bound to the other spelling.
-const canonicalTriggerToken = (token: ShortcutToken): ShortcutToken => (token === 'numenter' ? 'Enter' : token)
-
 const shortcutBindingMatches = (left: ShortcutBinding, right: ShortcutBinding): boolean => {
   if (left.length !== right.length) {
     return false
@@ -124,7 +122,8 @@ export const getCommandAccelerator = (binding: ShortcutBinding): string | undefi
   if (!binding.length) {
     return undefined
   }
-  return binding.join('+')
+  // Electron has no keypad-Enter accelerator; register the canonical spelling.
+  return binding.map(canonicalTriggerToken).join('+')
 }
 
 const isPlatformBindingMap = (
