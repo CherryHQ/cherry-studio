@@ -41,14 +41,11 @@ function allowedIntegrations() {
   ]
 }
 
-/**
- * Read consent at send time instead of caching it: the preference is the single
- * source of truth, and a stale copy here would be a privacy bug. Returns false
- * during preboot, when no preference store exists yet.
- */
+// Read current consent without instantiating services during preboot.
+// An existing preference store may still be initializing or already stopped.
 function consentGranted(): boolean {
   const preferenceService = application.getExisting('PreferenceService')
-  if (!preferenceService) return false
+  if (!preferenceService?.isReady) return false
 
   return isDataCollectionConsented(
     preferenceService.get('app.privacy.data_collection.enabled'),

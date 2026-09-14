@@ -4,7 +4,7 @@ sources:
   - src/main/core/logger/LoggerService.ts
   - src/renderer/services/LoggerService.ts
   - src/main/services/sentry.ts
-  - src/main/services/AnalyticsService.ts
+  - src/main/services/SentryLogService.ts
   - src/renderer/services/sentry.ts
   - src/shared/utils/sentry.ts
 ---
@@ -20,6 +20,18 @@ CherryStudio uses a unified logging service to print and record logs. **Unless t
 Production Sentry uploads require data collection to be enabled and the current
 privacy policy to be accepted. Disabling collection blocks outbound reporting;
 local logging continues.
+
+The main-process SDK initializes during preboot in `sentry.ts`, so automatic
+exception capture is installed before lifecycle services start. Reporting stays
+blocked until `PreferenceService` is ready and consent is valid; the same check
+runs before sending each envelope, including after preferences stop.
+
+`SentryLogService` owns the main logger's Sentry transport. It starts in
+`BeforeReady`, after `PreferenceService`, and removes the transport on stop or
+destroy. Restarting the service attaches a fresh transport. `AnalyticsService`
+owns only its analytics client; stopping it does not remove the Sentry bridge.
+Stopping `SentryLogService` leaves the SDK's automatic exception capture installed.
+Logged errors before the bridge starts or after it stops remain local.
 
 Pass the original `Error` as the first data argument and use a fixed operation identifier:
 

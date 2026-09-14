@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import winston from 'winston'
 
+import { BaseService } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
@@ -24,15 +26,20 @@ vi.mock('@sentry/electron/main', () => ({ captureException: captureExceptionMock
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    PreferenceService: { get: (key: string) => preferences[key] }
+    PreferenceService: {
+      isReady: true,
+      get: (key: string) => preferences[key],
+      subscribeChange: () => () => {}
+    }
   })
 })
 
 import { loggerService } from '@logger'
 
-import { attachSentryLogTransport } from '../sentry'
+import { AnalyticsService } from '../AnalyticsService'
+import { SentryLogService } from '../SentryLogService'
 
-let detach: () => void
+let service: SentryLogService
 const drainLogs = () => new Promise((resolve) => setImmediate(resolve))
 
 function setConsent(granted: boolean) {
@@ -40,16 +47,19 @@ function setConsent(granted: boolean) {
   preferences['app.privacy.policy_version'] = granted ? LATEST_PRIVACY_POLICY_VERSION : ''
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  BaseService.resetInstances()
   captureExceptionMock.mockReset()
   vi.stubEnv('DEV', false)
   setConsent(false)
   loggerService.getBaseLogger().clear()
-  detach = attachSentryLogTransport()
+  loggerService.getBaseLogger().add(new winston.transports.Console({ silent: true }))
+  service = new SentryLogService()
+  await service._doInit()
 })
 
-afterEach(() => {
-  detach()
+afterEach(async () => {
+  await service._doDestroy()
   vi.unstubAllEnvs()
 })
 
@@ -127,24 +137,55 @@ describe('Sentry log reporting', () => {
   })
 
   it('does not capture development errors even with consent enabled', async () => {
+    await service._doStop()
     vi.stubEnv('DEV', true)
+    await service._doInit()
     setConsent(true)
     loggerService.withContext('Translation').error('Failed', new Error('development error'))
     await drainLogs()
     expect(captureExceptionMock).not.toHaveBeenCalled()
   })
 
-  it('removes its transport on cleanup and does not duplicate it when reattached', async () => {
-    const base = loggerService.getBaseLogger()
-    expect(base.transports).toHaveLength(1)
-    detach()
-    expect(base.transports).toHaveLength(0)
-    detach = attachSentryLogTransport()
+  it('stops reporting on stop and reports once per error after restart', async () => {
     setConsent(true)
-    loggerService.withContext('Translation').error('Failed', new Error('disk full'))
+    const logger = loggerService.withContext('Translation')
+    logger.error('Failed', new Error('before stop'))
     await drainLogs()
-    expect(base.transports).toHaveLength(1)
-    expect(captureExceptionMock.mock.calls).toHaveLength(1)
+    await service._doStop()
+    logger.error('Failed', new Error('while stopped'))
+    await drainLogs()
+    await service._doInit()
+    logger.error('Failed', new Error('after restart'))
+    await drainLogs()
+    expect(captureExceptionMock.mock.calls.map(([error]) => error.message)).toEqual(['before stop', 'after restart'])
+  })
+
+  it('removes the bridge when destroyed without a preceding stop', async () => {
+    setConsent(true)
+    await service._doDestroy()
+    loggerService.withContext('Translation').error('Failed', new Error('after destroy'))
+    await drainLogs()
+    expect(captureExceptionMock).not.toHaveBeenCalled()
+  })
+
+  it('reports independently of AnalyticsService initialization and shutdown', async () => {
+    const analytics = new AnalyticsService()
+    await analytics._doInit()
+    try {
+      setConsent(true)
+      const logger = loggerService.withContext('Translation')
+      logger.error('Failed', new Error('before analytics stop'))
+      await drainLogs()
+      await analytics._doStop()
+      logger.error('Failed', new Error('after analytics stop'))
+      await drainLogs()
+      expect(captureExceptionMock.mock.calls.map(([error]) => error.message)).toEqual([
+        'before analytics stop',
+        'after analytics stop'
+      ])
+    } finally {
+      await analytics._doDestroy()
+    }
   })
 
   it('keeps logging usable if the SDK throws during capture', async () => {

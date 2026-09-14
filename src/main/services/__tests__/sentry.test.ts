@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
-const { initMock, makeElectronTransportMock, sendMock, flushMock, preferences } = vi.hoisted(() => ({
+const { initMock, makeElectronTransportMock, sendMock, flushMock, preferences, preferenceState } = vi.hoisted(() => ({
   initMock: vi.fn(),
   makeElectronTransportMock: vi.fn(),
   sendMock: vi.fn(async () => ({ statusCode: 200 })),
   flushMock: vi.fn(async () => true),
-  preferences: {} as Record<string, unknown>
+  preferences: {} as Record<string, unknown>,
+  preferenceState: { ready: true }
 }))
 
 // `@sentry/electron/main` is externalized, so the real module cannot load under
@@ -37,7 +38,12 @@ vi.mock('@sentry/electron/main', () => {
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    PreferenceService: { get: (key: string) => preferences[key] }
+    PreferenceService: {
+      get isReady() {
+        return preferenceState.ready
+      },
+      get: (key: string) => preferences[key]
+    }
   })
 })
 
@@ -62,6 +68,7 @@ beforeEach(() => {
   makeElectronTransportMock.mockReturnValue({ send: sendMock, flush: flushMock })
   preferences['app.privacy.data_collection.enabled'] = false
   preferences['app.privacy.policy_version'] = ''
+  preferenceState.ready = true
 })
 
 afterEach(() => {
@@ -117,6 +124,28 @@ describe('Sentry consent gate', () => {
 
     expect(JSON.stringify(event)).not.toContain('real-api-key')
   })
+
+  it('blocks events and envelopes while an existing preference store is not ready', async () => {
+    grantConsent()
+    const options = initOptions()
+    const transport = options.transport({})
+    const envelope = [{}, []]
+
+    preferenceState.ready = false
+    expect(options.beforeSend({ message: 'starting' })).toBeNull()
+    await transport.send(envelope)
+    expect(sendMock).not.toHaveBeenCalled()
+
+    preferenceState.ready = true
+    expect(options.beforeSend({ message: 'ready' })).not.toBeNull()
+    await transport.send(envelope)
+    expect(sendMock).toHaveBeenCalledExactlyOnceWith(envelope)
+
+    preferenceState.ready = false
+    expect(options.beforeSend({ message: 'stopped' })).toBeNull()
+    await transport.send(envelope)
+    expect(sendMock).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('Sentry instrumentation surface', () => {
@@ -146,7 +175,7 @@ describe('Sentry instrumentation surface', () => {
     expect(configured).toContain('Dedupe')
   })
 
-  it('leaves process termination to the app so a crash still runs graceful shutdown', () => {
+  it('preserves the default uncaught-exception handler without a custom fatal-error callback', () => {
     expect(initOptions().onFatalError).toBeUndefined()
   })
 })

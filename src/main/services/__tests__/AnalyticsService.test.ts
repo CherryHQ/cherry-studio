@@ -44,10 +44,6 @@ vi.mock('@main/utils/systemInfo', () => ({
   generateUserAgent: vi.fn(() => 'test-user-agent')
 }))
 
-vi.mock('../sentry', () => ({
-  attachSentryLogTransport: () => () => {}
-}))
-
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
