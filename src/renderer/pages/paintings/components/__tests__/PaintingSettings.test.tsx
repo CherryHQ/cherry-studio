@@ -43,9 +43,49 @@ describe('PaintingSettings operations', () => {
 
   it('requires an explicit independent-operation choice and clears incompatible params', () => {
     support({
-      modes: {
-        generate: { supports: { quality: { type: 'enum', options: ['high'] }, seed: { type: 'text' } } },
-        remix: { supports: { seed: { type: 'text' }, strength: { type: 'range', min: 0, max: 1, default: 0.5 } } }
+      supports: {
+        quality: {
+          type: 'enum',
+          options: ['high']
+        },
+        seed: {
+          type: 'text'
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      },
+      operations: {
+        remix: {
+          supports: {
+            strength: {
+              type: 'range',
+              min: 0,
+              max: 1,
+              default: 0.5
+            },
+            quality: null
+          },
+          inputs: {
+            images: {
+              min: 1,
+              max: {
+                kind: 'unknown'
+              }
+            },
+            prompt: 'required'
+          }
+        }
       }
     })
     render(<Draft />)
@@ -59,7 +99,29 @@ describe('PaintingSettings operations', () => {
   })
 
   it('does not present reference-image input as a separate edit operation', () => {
-    support({ modes: { generate: { supports: {} }, edit: { supports: { seed: { type: 'text' } } } } })
+    support({
+      supports: {},
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      },
+      withImages: {
+        supports: {
+          seed: {
+            type: 'text'
+          }
+        }
+      }
+    })
     render(<Draft />)
     expect(screen.queryByRole('button', { name: 'paintings.mode.edit' })).not.toBeInTheDocument()
     expect(JSON.parse(screen.getByLabelText('request').textContent).operation).toBe('generate')

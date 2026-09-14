@@ -1137,11 +1137,24 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         apiModelId: 'qwen-image',
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
         imageGeneration: {
-          modes: {
-            generate: {
-              supports: {},
-              vendorTransport: { endpoint: '/v3/async/qwen-image' }
+          supports: {},
+          inputs: {
+            images: {
+              min: 0,
+              max: {
+                kind: 'unknown'
+              }
+            },
+            prompt: 'required',
+            mask: 'unknown',
+            mediaTypes: {
+              kind: 'unknown'
             }
+          },
+          protocol: {
+            kind: 'custom',
+            endpoint: '/v3/async/qwen-image',
+            isSync: false
           }
         }
       })

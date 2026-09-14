@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
-import { resolveLegacyImageCapability } from '@cherrystudio/provider-registry'
+import { resolveImageCapability } from '@cherrystudio/provider-registry'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
@@ -61,7 +61,7 @@ describe('image capability registry-to-database boundary', () => {
       const support = providerRegistryService.getImageGenerationSupport(providerId, apiModelId)
       expect(support).not.toBeNull()
       expect(model.imageGeneration).toEqual(support)
-      const resolution = resolveLegacyImageCapability(model.imageGeneration, 'generate')
+      const resolution = resolveImageCapability(model.imageGeneration, 'generate', false)
       expect(resolution.kind).toBe('supported')
       if (resolution.kind !== 'supported') throw new Error('Catalog fixture has no generation capability')
       expect(resolution.capability.inputs.images.min).toBe(0)
@@ -97,6 +97,6 @@ describe('image capability registry-to-database boundary', () => {
 
     expect(providerRegistryService.getImageGenerationSupport(providerId, 'unregistered-image')).toBeNull()
     const model = modelService.getByKey(providerId, 'unregistered-image')
-    expect(resolveLegacyImageCapability(model.imageGeneration, 'generate')).toEqual({ kind: 'unconfigured' })
+    expect(resolveImageCapability(model.imageGeneration, 'generate', false)).toEqual({ kind: 'unconfigured' })
   })
 })

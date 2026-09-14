@@ -1,4 +1,3 @@
-import { ImageGenerationSupportSchema } from '@cherrystudio/provider-registry'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import providerModels from '../../../../../packages/provider-registry/data/provider-models.json'
@@ -10,6 +9,7 @@ import {
   type NativeImageTarget
 } from '../custom/imageTransportRegistry'
 import { resolveImageExecutionTarget } from '../imageExecutionTarget'
+import { registryImageSupport } from './imageCatalogFixtures'
 
 describe('image execution target', () => {
   it.each(['ppio', 'dashscope', 'tokenhub'] as const)(
@@ -34,7 +34,8 @@ describe('image execution target', () => {
       (entry) => entry.providerId === 'dashscope' && entry.modelId === 'wanx2-1-t2i-turbo'
     )
     if (!row?.apiModelId) throw new Error('Missing distinct canonical/API id fixture')
-    const support = ImageGenerationSupportSchema.parse(row.imageGeneration)
+    const support = registryImageSupport(row.providerId, row.apiModelId)
+    if (support?.protocol?.kind !== 'custom') throw new Error('Missing custom protocol fixture')
     const provider = makeProvider({ id: 'private-dashscope', presetProviderId: 'dashscope' })
     const model = makeModel({
       id: 'private-dashscope::wanx2-1-t2i-turbo',
@@ -48,7 +49,7 @@ describe('image execution target', () => {
       modelId: row.apiModelId,
       protocol: {
         providerId: 'dashscope',
-        modelDescriptor: { id: row.apiModelId, ...support.modes.generate?.vendorTransport, mode: 'generate' }
+        modelDescriptor: { id: row.apiModelId, endpoint: support.protocol.endpoint, isSync: support.protocol.isSync }
       }
     })
     expect(resolveImageExecutionTarget(provider, model, 'upscale', support).kind).toBe('unavailable')

@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import tokenhub from '../providers/tokenhub'
-import { ImageGenerationSupportSchema } from '../schemas/model'
 import { buildImageRequestParamsSchema } from '../utils/buildImageRequestParamsSchema'
-import { resolveLegacyImageCapability } from '../utils/imageCapabilities'
+import { resolveImageCapability, resolveImageGenerationSupport } from '../utils/imageCapabilities'
 
-const declaration = ImageGenerationSupportSchema.parse(
-  tokenhub.overrides?.find((entry) => entry.apiModelId === 'hy-image-v3')?.imageGeneration
-)
-const resolution = resolveLegacyImageCapability(declaration, 'generate')
+const row = tokenhub.overrides?.find((entry) => entry.apiModelId === 'hy-image-v3')
+if (!row) throw new Error('Missing Hunyuan declaration')
+const declaration = resolveImageGenerationSupport(null, row)
+const resolution = resolveImageCapability(declaration, 'generate', false)
 if (resolution.kind !== 'supported') throw new Error('Hunyuan fixture missing')
 const schema = buildImageRequestParamsSchema(resolution.capability)
 

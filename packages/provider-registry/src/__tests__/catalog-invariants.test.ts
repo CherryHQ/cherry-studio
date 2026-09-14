@@ -21,40 +21,14 @@ import { ModelListSchema } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
 import { ReasoningWireProfileSchema } from '../schemas/reasoningWire'
+import { resolveImageCapability } from '../utils/imageCapabilities'
 import { getServiceTierCatalogErrors } from '../utils/serviceTierCatalog'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const modelsRaw = JSON.parse(readFileSync(join(dataDir, 'models.json'), 'utf8'))
 const providerModelsRaw = JSON.parse(readFileSync(join(dataDir, 'provider-models.json'), 'utf8'))
 const providersRaw = JSON.parse(readFileSync(join(dataDir, 'providers.json'), 'utf8'))
-const models = modelsRaw.models as Array<{
-  id: string
-  name: string
-  contextWindow?: number
-  maxOutputTokens?: number
-  capabilities?: string[]
-  inputModalities?: string[]
-  outputModalities?: string[]
-  ownedBy?: string
-  pricing?: {
-    cacheRead?: { currency: string; perMillionTokens: number }
-    input?: { currency: string; perMillionTokens: number }
-    output?: { currency: string; perMillionTokens: number }
-  }
-  imageGeneration?: {
-    modes?: {
-      generate?: {
-        supports?: {
-          aspectRatio?: { default?: string; options?: string[]; render?: string; type?: string }
-          imageResolution?: { default?: string; options?: string[]; render?: string; type?: string }
-        }
-      }
-    }
-  }
-  reasoning?: {
-    controls?: Array<{ kind: string; values?: string[] }>
-  }
-}>
+const models = ModelListSchema.parse(modelsRaw).models
 const overrides = providerModelsRaw.overrides as Array<{
   providerId: string
   modelId: string
@@ -113,7 +87,10 @@ describe('catalog invariants (data/*.json)', () => {
   it.each(GEMINI_IMAGE_ASPECT_RATIO_OPTIONS)(
     'keeps smart aspect ratio and explicit resolution controls for $modelId',
     ({ modelId, options }) => {
-      const supports = models.find((model) => model.id === modelId)?.imageGeneration?.modes?.generate?.supports
+      const model = models.find((model) => model.id === modelId)
+      const resolution = resolveImageCapability(model?.imageGeneration, 'generate', false)
+      if (resolution.kind !== 'supported') throw new Error(`Missing generation capability for ${modelId}`)
+      const { supports } = resolution.capability
 
       expect(supports?.aspectRatio).toEqual({
         default: 'auto',
@@ -264,7 +241,7 @@ describe('catalog invariants (data/*.json)', () => {
   })
 
   it('does not encode provider-native web search as a generic model capability', () => {
-    expect(models.filter((model) => model.capabilities?.includes('web-search')).map((model) => model.id)).toEqual([])
+    expect(models.flatMap((model) => model.capabilities ?? [])).not.toContain('web-search')
   })
 
   // Image-generation models must not inherit web-search eligibility — it leaks a server tool onto image rows.
@@ -340,15 +317,25 @@ describe('catalog invariants (data/*.json)', () => {
   // doubao-seedream-4-0/4-5 had this; dmxapi's doubao model already declares it
   // correctly as the reference shape).
   it('sequentialImageGeneration is never declared as a switch (must be the string enum)', () => {
-    type Row = { id?: string; modelId?: string; providerId?: string; imageGeneration?: unknown }
-    const allRows: Row[] = [...(modelsRaw.models as Row[]), ...(providerModelsRaw.overrides as Row[])]
+    const allRows = [
+      ...models.map((model) => ({ label: `base/${model.id}`, support: model.imageGeneration })),
+      ...providerModelOverrides.map((override) => ({
+        label: `${override.providerId}/${override.modelId}`,
+        support: override.imageGeneration
+      }))
+    ]
     const offenders: string[] = []
-    for (const row of allRows) {
-      const modes = (row.imageGeneration as { modes?: Record<string, unknown> } | undefined)?.modes ?? {}
-      for (const [modeName, def] of Object.entries(modes)) {
-        const spec = (def as { supports?: Record<string, { type?: string }> }).supports?.sequentialImageGeneration
+    for (const { label, support } of allRows) {
+      if (!support) continue
+      const declarations = [
+        ['base', support],
+        ['withImages', support.withImages],
+        ...Object.entries(support.operations ?? {})
+      ] as const
+      for (const [variant, declaration] of declarations) {
+        const spec = declaration?.supports?.sequentialImageGeneration
         if (spec?.type === 'switch') {
-          offenders.push(`${row.providerId ?? 'base'}/${row.modelId ?? row.id}:${modeName}`)
+          offenders.push(`${label}:${variant}`)
         }
       }
     }

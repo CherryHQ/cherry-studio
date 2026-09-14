@@ -1,7 +1,8 @@
 import { resolve } from 'node:path'
 
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
-import { readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
+import { resolveImageGenerationSupport } from '@cherrystudio/provider-registry'
+import { readModelRegistry, readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
@@ -75,20 +76,51 @@ function callExecute(
 }
 
 const generateSupport = {
-  modes: {
-    generate: {
-      supports: {
-        size: { type: 'enum', options: ['1024x1024', '1792x1024'] },
-        numImages: { type: 'range', min: 1, max: 3 }
+  supports: {
+    size: {
+      type: 'enum',
+      options: ['1024x1024', '1792x1024']
+    },
+    numImages: {
+      type: 'range',
+      min: 1,
+      max: 3
+    }
+  },
+  inputs: {
+    images: {
+      min: 0,
+      max: {
+        kind: 'unknown'
       }
+    },
+    prompt: 'required',
+    mask: 'unknown',
+    mediaTypes: {
+      kind: 'unknown'
     }
   }
 } satisfies ImageGenerationSupport
 
 const editableSupport = {
-  modes: {
-    generate: { supports: { quality: { type: 'enum', options: ['low', 'high'] } } },
-    edit: { supports: { quality: { type: 'enum', options: ['low', 'high'] } } }
+  supports: {
+    quality: {
+      type: 'enum',
+      options: ['low', 'high']
+    }
+  },
+  inputs: {
+    images: {
+      min: 0,
+      max: {
+        kind: 'unknown'
+      }
+    },
+    prompt: 'required',
+    mask: 'unknown',
+    mediaTypes: {
+      kind: 'unknown'
+    }
   }
 } satisfies ImageGenerationSupport
 
@@ -103,9 +135,11 @@ function getRegistrySupport(providerId: string, modelId: string): ImageGeneratio
   const registry = readProviderModelRegistry(
     resolve(process.cwd(), 'packages/provider-registry/data/provider-models.json')
   )
-  const support = registry.overrides.find(
-    (entry) => entry.providerId === providerId && entry.modelId === modelId
-  )?.imageGeneration
+  const override = registry.overrides.find((entry) => entry.providerId === providerId && entry.modelId === modelId)
+  if (!override) throw new Error('Missing provider-model registry fixture')
+  const models = readModelRegistry(resolve(process.cwd(), 'packages/provider-registry/data/models.json'))
+  const base = models.models.find((model) => model.id === modelId)
+  const support = resolveImageGenerationSupport(base ?? null, override)
   if (!support) throw new Error('Missing imageGeneration registry fixture')
   return support
 }
@@ -230,7 +264,37 @@ describe('generate_image', () => {
 
   it('returns a permanent note when the configured model does not support ordinary generation', async () => {
     getPreference.mockReturnValue('openai::dall-e-3')
-    getImageGenerationSupport.mockReturnValue({ modes: { upscale: { supports: {} } } })
+    getImageGenerationSupport.mockReturnValue({
+      supports: {},
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      },
+      operations: {
+        generate: null,
+        upscale: {
+          supports: {},
+          inputs: {
+            images: {
+              min: 1,
+              max: {
+                kind: 'unknown'
+              }
+            },
+            prompt: 'required'
+          }
+        }
+      }
+    })
 
     const result = await generateImageFromPrompt({ prompt: 'edit it', image_ids: ['f1'] })
 

@@ -1,3 +1,4 @@
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import { paintingOperation } from '../../utils/paintingProviderMode'
@@ -5,14 +6,24 @@ import { imageGenerationToFields } from '../imageGenerationToFields'
 import { resolveRatio, resolveSizeLabel } from '../paintingSize'
 
 /** Minimal registry support declaring a single size-bearing field. */
-const supportWith = (key: string, options: string[], def: string) => ({
-  modes: { generate: { supports: { [key]: { type: 'enum', options, default: def } } } }
+const supportWith = (
+  key: keyof ImageGenerationSupport['supports'],
+  options: string[],
+  def: string
+): ImageGenerationSupport => ({
+  supports: { [key]: { type: 'enum', options, default: def } },
+  inputs: {
+    images: { min: 0, max: { kind: 'unknown' } },
+    prompt: 'required',
+    mask: 'unknown',
+    mediaTypes: { kind: 'unknown' }
+  }
 })
 
 // The same config items the components derive internally, so the resolvers see
 // the fields (including registry defaults) they would at runtime.
-const fieldsFor = (support: unknown) =>
-  imageGenerationToFields(support as never, { operation: paintingOperation('generate') })
+const fieldsFor = (support: ImageGenerationSupport | undefined) =>
+  imageGenerationToFields(support, { operation: paintingOperation('generate') })
 
 describe('resolveRatio', () => {
   it('derives the aspect ratio from a stored size', () => {
@@ -97,7 +108,7 @@ describe('size option label consistency', () => {
   // The composer chips (SizeChipsField) and the prompt bar (resolveSizeLabel)
   // both localize through this same option `labelKey`, so wiring it on every
   // size-bearing key keeps the two from drifting back to the raw `auto` enum.
-  it.each(['size', 'aspectRatio', 'imageResolution'])(
+  it.each(['size', 'aspectRatio', 'imageResolution'] as const)(
     'marks the %s field `auto` option with the shared localization key',
     (key) => {
       const [field] = fieldsFor(supportWith(key, ['auto', '1024x1024'], '1024x1024'))

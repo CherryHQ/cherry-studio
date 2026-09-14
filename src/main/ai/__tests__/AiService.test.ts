@@ -1,10 +1,10 @@
-import { ImageGenerationSupportSchema } from '@cherrystudio/provider-registry'
+import { resolveImageCapability } from '@cherrystudio/provider-registry'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import providerModelCatalog from '../../../../packages/provider-registry/data/provider-models.json'
+import { registryImageSupport } from '../provider/__tests__/imageCatalogFixtures'
 import { resolveWireRegistration } from '../provider/custom/wire/wireProfile'
 import { resolveProviderOptionsKey } from '../provider/endpoint'
 import type * as ListModelsModule from '../provider/listModels'
@@ -558,10 +558,7 @@ describe('AiService', () => {
 
   it('rejects undeclared parameters before selecting credentials or executing a provider', async () => {
     const service = createService()
-    const row = providerModelCatalog.overrides.find(
-      (entry) => entry.providerId === 'tokenhub' && entry.apiModelId === 'hy-image-v3'
-    )
-    mockGetImageGenerationSupport.mockReturnValueOnce(ImageGenerationSupportSchema.parse(row?.imageGeneration))
+    mockGetImageGenerationSupport.mockReturnValueOnce(registryImageSupport('tokenhub', 'hy-image-v3'))
     const execute = vi
       .spyOn(imageSdk, 'resolveSdkImageConfig')
       .mockRejectedValue(new Error('unexpected provider execution'))
@@ -1987,10 +1984,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       name: 'Image Assistant',
       emoji: '🎨'
     })
-    const row = providerModelCatalog.overrides.find(
-      (entry) => entry.providerId === 'ppio' && entry.modelId === 'qwen-image'
-    )
-    mockGetImageGenerationSupport.mockReturnValue(ImageGenerationSupportSchema.parse(row?.imageGeneration))
+    mockGetImageGenerationSupport.mockReturnValue(registryImageSupport('ppio', 'qwen-image-txt2img'))
     return vi
       .spyOn(imageSdk, 'resolveSdkImageConfig')
       .mockRejectedValue(new Error('job path must not select a serving key before execution'))
@@ -2057,7 +2051,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     )
   })
 
-  it('derives modelDescriptor { id, endpoint, isSync, mode } from the registry vendorTransport (non-default mode)', async () => {
+  it('binds the registry protocol for generation with images without putting the operation in the descriptor', async () => {
     const service = createService()
     stubResolution()
     mockModelGetByKey.mockReturnValue({
@@ -2065,12 +2059,12 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       providerId: 'ppio',
       apiModelId: 'qwen-image-edit'
     })
-    const row = providerModelCatalog.overrides.find(
-      (entry) => entry.providerId === 'ppio' && entry.modelId === 'qwen-image-edit'
-    )
-    const support = ImageGenerationSupportSchema.parse(row?.imageGeneration)
-    const transport = support.modes.edit?.vendorTransport
-    if (!transport) throw new Error('PPIO edit fixture missing')
+    const support = registryImageSupport('ppio', 'qwen-image-edit')
+    const resolution = resolveImageCapability(support, 'generate', true)
+    if (resolution.kind !== 'supported' || resolution.capability.protocol?.kind !== 'custom') {
+      throw new Error('PPIO image-input fixture missing')
+    }
+    const transport = resolution.capability.protocol
     mockGetImageGenerationSupport.mockReturnValueOnce(support)
     const createInternalEntry = vi.fn().mockResolvedValue({ id: 'input-image' })
     const enqueue = vi.fn().mockReturnValue({
@@ -2096,8 +2090,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       requestOptions: { signal: new AbortController().signal }
     })
 
-    // The descriptor is derived from the registry (main-hosted), keyed by the
-    // resolved mode — NOT laundered through paramValues.
+    // Routing comes from the effective registry protocol, not user parameters.
     expect(mockGetImageGenerationSupport).toHaveBeenCalledWith('ppio', 'qwen-image-edit')
     expect(enqueue).toHaveBeenCalledWith(
       'image-generation.generate',
@@ -2107,8 +2100,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
           modelDescriptor: {
             id: 'qwen-image-edit',
             endpoint: transport.endpoint,
-            isSync: transport.isSync,
-            mode: 'edit'
+            isSync: transport.isSync
           }
         }
       })

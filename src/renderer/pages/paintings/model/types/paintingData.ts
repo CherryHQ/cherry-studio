@@ -7,16 +7,10 @@ export type PaintingGenerationStatus = 'running' | 'failed' | 'canceled'
 /**
  * Renderer-side painting draft / display state.
  *
- * Unified shape: every model's tunable params live in `params` keyed by the
- * canonical name declared on the registry's
- * `imageGeneration.modes[mode].supports.{key}`. The 8 vendor-specific
- * variants that used to enumerate ad-hoc fields (`SiliconPaintingData`,
- * `OvmsPaintingData`, `AihubmixPaintingData`, etc.) are gone — vendor
- * differences flow through the registry's `supports` map and (where they
- * carry wire-format quirks) the AI SDK adapter in
- * `aiCore/provider/custom/`.
+ * Tunable params use canonical keys from the effective image capability's
+ * `supports`. Main's SDK/protocol boundary owns vendor wire encoding.
  *
- * `mode` is a live form/draft concern only — the persisted painting record
+ * `mode` is live UI draft state, not protocol — the persisted painting record
  * (`Painting` in `@shared/data/types/painting`) does NOT carry mode.
  * `mediaType` is similarly not persisted; image vs video is derived from
  * `files` at display time when needed.
@@ -41,12 +35,8 @@ export interface PaintingData {
   generationError?: string | null
   generationProgress?: number | null
   /**
-   * Free-form bag of canonical param values. Keys correspond to registry
-   * `imageGeneration.modes[currentMode].supports.{key}`. The form writes
-   * each control's value here; `canonicalGenerate` partitions entries into
-   * `aiSdkParams` (AI SDK native fields) and `providerOptions[providerId]`
-   * (vendor-specific) at request time. Empty / undefined entries are
-   * omitted from the wire — server applies its default.
+   * Draft canonical values; `canonicalGenerate` validates against the effective
+   * capability and sends one `paramValues` bag. Main owns SDK/protocol encoding.
    */
   params?: Record<string, unknown>
 }

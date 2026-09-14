@@ -1,5 +1,5 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
-import type { ImageGenerationMode } from '@shared/data/types/model'
+import type { ImageOperation } from '@shared/data/types/model'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveAihubmixImageBinding } from '../aihubmix/aihubmixImageBinding'
@@ -27,7 +27,7 @@ function options(overrides: Partial<ImageModelV3CallOptions> = {}): ImageModelV3
 
 function model(
   modelId: string,
-  operation: ImageGenerationMode,
+  operation: ImageOperation,
   response: unknown = { data: [{ url: 'https://images.example/output.png' }] }
 ) {
   const binding = resolveAihubmixImageBinding(modelId, operation, undefined)

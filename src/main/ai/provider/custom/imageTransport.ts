@@ -1,23 +1,25 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
+import { resolveImageCapability } from '@cherrystudio/provider-registry'
 import type { ImageSizeToken } from '@main/ai/utils/aiSdkNativeBindings'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
-import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
+import type { ImageGenerationSupport, ImageOperation } from '@shared/data/types/model'
 
 export interface ImageTransportDescriptor {
   id: string
   endpoint: string
   isSync?: boolean
-  mode?: ImageGenerationMode
 }
 
 export function imageTransportDescriptorFor(
   modelId: string,
-  mode: ImageGenerationMode,
-  support: ImageGenerationSupport | null | undefined
+  operation: ImageOperation,
+  support: ImageGenerationSupport | null | undefined,
+  hasImages = false
 ): ImageTransportDescriptor | undefined {
-  const vendorTransport = support?.modes[mode]?.vendorTransport
-  if (!vendorTransport) return undefined
-  return { id: modelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode }
+  const resolution = resolveImageCapability(support ?? undefined, operation, hasImages)
+  if (resolution.kind !== 'supported' || resolution.capability.protocol?.kind !== 'custom') return undefined
+  const { endpoint, isSync } = resolution.capability.protocol
+  return { id: modelId, endpoint, isSync }
 }
 
 export interface ImageTransportInputSupport {

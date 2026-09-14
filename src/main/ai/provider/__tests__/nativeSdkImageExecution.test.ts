@@ -1,6 +1,6 @@
 import { generateImage } from '@cherrystudio/ai-core'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
-import { ImageGenerationSupportSchema, type ParamValues } from '@cherrystudio/provider-registry'
+import type { ParamValues } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { net } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +12,7 @@ import type { AppProviderSettingsMap } from '../../types'
 import { extensions } from '../extensions'
 import { resolveImageExecutionTarget } from '../imageExecutionTarget'
 import { buildSdkImageOptions, resolveSdkImageConfig } from '../imageSdk'
+import { registryImageSupport } from './imageCatalogFixtures'
 
 const { resolveApiKey } = vi.hoisted(() => ({ resolveApiKey: vi.fn() }))
 vi.mock('@main/data/services/ProviderService', () => ({ providerService: { resolveApiKey } }))
@@ -88,7 +89,7 @@ describe('native ImageModelV3 adapters execute prepared protocols', () => {
     const row = providerModels.overrides.find(
       (row) => row.providerId === entry.providerId && (row.apiModelId ?? row.modelId) === entry.modelId
     )
-    const support = row?.imageGeneration ? ImageGenerationSupportSchema.parse(row.imageGeneration) : undefined
+    const support = row ? registryImageSupport(entry.providerId, entry.modelId) : undefined
     const model = makeModel({
       id: `${provider.id}::${entry.modelId}`,
       providerId: provider.id,

@@ -1,4 +1,3 @@
-import type { ImageGenerationMode } from '@shared/data/types/model'
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
@@ -24,7 +23,6 @@ const host = 'https://api.ppio.com'
 interface Case {
   name: string
   endpoint: string
-  mode: ImageGenerationMode
   input: ImageGenerationSubmitInput<PpioBag> & { modelDescriptor: ImageTransportDescriptor }
   schema: z.ZodTypeAny
 }
@@ -33,18 +31,15 @@ function fixture(opts: {
   name: string
   id: string
   endpoint: string
-  mode?: ImageGenerationMode
   size?: string
   seed?: number
   files?: ImageGenerationSubmitInput<PpioBag>['files']
   params?: PpioBag
   schema: z.ZodTypeAny
 }): Case {
-  const mode = opts.mode ?? 'generate'
   return {
     name: opts.name,
     endpoint: opts.endpoint,
-    mode,
     schema: opts.schema,
     input: {
       ...base,
@@ -53,7 +48,7 @@ function fixture(opts: {
       size: opts.size,
       seed: opts.seed,
       files: opts.files,
-      modelDescriptor: registryImageDescriptor('ppio', opts.id, mode),
+      modelDescriptor: registryImageDescriptor('ppio', opts.id, 'generate', Boolean(opts.files?.length)),
       providerParams: { ...opts.params }
     }
   }
@@ -111,7 +106,6 @@ const CASES: Case[] = [
     name: 'qwen-image-edit-2509 — image from files + output_format + seed',
     id: 'qwen-image-edit',
     endpoint: '/v3/async/qwen-image-edit-2509',
-    mode: 'edit',
     seed: 5,
     files: editFiles,
     params: { outputFormat: 'png', addWatermark: false },
@@ -166,7 +160,6 @@ const CASES: Case[] = [
     name: 'seedream-4.0 edit — plural images[]',
     id: 'seedream-4-0',
     endpoint: '/v3/seedream-4.0',
-    mode: 'edit',
     size: '2048x2048',
     files: editFiles,
     params: { addWatermark: true },

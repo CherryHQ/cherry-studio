@@ -1,5 +1,6 @@
 import type { FileMetadata } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file'
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { canonicalGenerate } from '../canonicalGenerate'
@@ -72,10 +73,26 @@ describe('canonicalGenerate', () => {
   })
 
   it('submits the same effective slider value rendered from a numeric string', async () => {
-    const support = {
-      modes: {
-        generate: {
-          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
+    const support: ImageGenerationSupport = {
+      supports: {
+        strength: {
+          type: 'range',
+          min: 0,
+          max: 10,
+          default: 4
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     }
@@ -86,7 +103,28 @@ describe('canonicalGenerate', () => {
   })
 
   it.each([true, false, [], ['4.5']])('rejects invalid numeric input %# before submitting', async (value) => {
-    const support = { modes: { generate: { supports: { strength: { type: 'range' as const, min: 0, max: 10 } } } } }
+    const support: ImageGenerationSupport = {
+      supports: {
+        strength: {
+          type: 'range',
+          min: 0,
+          max: 10
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      }
+    }
     await expect(canonicalGenerate(makeInput({ strength: value }), { support })).rejects.toMatchObject({
       code: 'OPERATION_FAILED'
     })
@@ -125,10 +163,36 @@ describe('canonicalGenerate', () => {
   )
 
   it('removes input-inapplicable parameters while retaining explicit zero and false', async () => {
-    const support = {
-      modes: {
-        generate: { supports: { quality: { type: 'enum' as const, options: ['high'] } } },
-        edit: { supports: { seed: { type: 'text' as const }, addWatermark: { type: 'switch' as const } } }
+    const support: ImageGenerationSupport = {
+      supports: {
+        quality: {
+          type: 'enum',
+          options: ['high']
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      },
+      withImages: {
+        supports: {
+          seed: {
+            type: 'text'
+          },
+          addWatermark: {
+            type: 'switch'
+          },
+          quality: null
+        }
       }
     }
     window.api.file.binaryImage = vi.fn().mockResolvedValue({ data: [1], mime: 'image/png' })
@@ -172,7 +236,23 @@ describe('canonicalGenerate', () => {
     await expect(
       canonicalGenerate(makeInput({}, { inputFiles }), {
         operation: 'generate',
-        support: { modes: { edit: { supports: {}, maxInputImages: 1 } } }
+        support: {
+          supports: {},
+          inputs: {
+            images: {
+              min: 1,
+              max: {
+                kind: 'known',
+                value: 1
+              }
+            },
+            prompt: 'required',
+            mask: 'unknown',
+            mediaTypes: {
+              kind: 'unknown'
+            }
+          }
+        }
       })
     ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'INPUT_IMAGE_LIMIT_EXCEEDED' })
 
@@ -198,7 +278,25 @@ describe('canonicalGenerate', () => {
 
   it('throws EDIT_IMAGE_REQUIRED for an image-requiring mode with no image input', async () => {
     await expect(
-      canonicalGenerate(makeInput({}), { operation: 'generate', support: { modes: { edit: { supports: {} } } } })
+      canonicalGenerate(makeInput({}), {
+        operation: 'generate',
+        support: {
+          supports: {},
+          inputs: {
+            images: {
+              min: 1,
+              max: {
+                kind: 'unknown'
+              }
+            },
+            prompt: 'required',
+            mask: 'unknown',
+            mediaTypes: {
+              kind: 'unknown'
+            }
+          }
+        }
+      })
     ).rejects.toMatchObject({
       code: 'EDIT_IMAGE_REQUIRED'
     })
@@ -209,7 +307,22 @@ describe('canonicalGenerate', () => {
     await expect(
       canonicalGenerate(makeInput({}, { inputFiles }), {
         operation: 'generate',
-        support: { modes: { edit: { supports: {} } } }
+        support: {
+          supports: {},
+          inputs: {
+            images: {
+              min: 1,
+              max: {
+                kind: 'unknown'
+              }
+            },
+            prompt: 'required',
+            mask: 'unknown',
+            mediaTypes: {
+              kind: 'unknown'
+            }
+          }
+        }
       })
     ).rejects.toMatchObject({
       code: 'EDIT_IMAGE_REQUIRED'

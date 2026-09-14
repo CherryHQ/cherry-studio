@@ -30,9 +30,15 @@ function bindImageRequest(
   model: Model,
   support: ImageGenerationSupport | null | undefined
 ) {
-  const { legacyMode, ...normalized } = prepareImageRequest(request, support ?? undefined)
+  const normalized = prepareImageRequest(request, support ?? undefined)
   const preparedRequest = { ...request, ...normalized }
-  const target = resolveImageExecutionTarget(provider, model, legacyMode, support)
+  const target = resolveImageExecutionTarget(
+    provider,
+    model,
+    normalized.operation,
+    support,
+    Boolean(normalized.inputImages?.length)
+  )
   if (target.kind === 'unavailable') throw new Error(target.message)
   return { request: preparedRequest, provider, model, target }
 }
@@ -103,7 +109,7 @@ export function prepareImageRequest(
       throw createPaintingGenerateError('INPUT_IMAGE_LIMIT_EXCEEDED')
     }
     if (imageCount > 0 && images.max.kind === 'unknown') {
-      logger.warn('Legacy image declaration has no input count limit', { operation })
+      logger.warn('Image input count limit is unknown', { operation })
     }
   } else {
     logger.warn('Image capability is unconfigured; only the canonical input contract can be validated')
@@ -129,6 +135,6 @@ export function prepareImageRequest(
     paramValues: params.data,
     inputImages,
     mask: request.mask,
-    legacyMode: resolution.kind === 'supported' ? resolution.mode : operation
+    operation
   }
 }

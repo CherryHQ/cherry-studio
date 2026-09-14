@@ -5,10 +5,45 @@ import { prepareImageRequest } from '../prepareImageRequest'
 
 const inputImage = 'data:image/png;base64,AQI='
 const declaration = ImageGenerationSupportSchema.parse({
-  modes: {
-    generate: { maxInputImages: 2, supports: { seed: { type: 'text' }, addWatermark: { type: 'switch' } } },
-    edit: { maxInputImages: 2, supports: { seed: { type: 'text' }, addWatermark: { type: 'switch' } } },
-    upscale: { requirePrompt: false, maxInputImages: 1, supports: {} }
+  supports: {
+    seed: {
+      type: 'text'
+    },
+    addWatermark: {
+      type: 'switch'
+    }
+  },
+  inputs: {
+    images: {
+      min: 0,
+      max: {
+        kind: 'known',
+        value: 2
+      }
+    },
+    prompt: 'required',
+    mask: 'unknown',
+    mediaTypes: {
+      kind: 'unknown'
+    }
+  },
+  operations: {
+    upscale: {
+      supports: {
+        seed: null,
+        addWatermark: null
+      },
+      inputs: {
+        images: {
+          min: 1,
+          max: {
+            kind: 'known',
+            value: 1
+          }
+        },
+        prompt: 'optional'
+      }
+    }
   }
 })
 
@@ -23,7 +58,7 @@ describe('prepareImageRequest', () => {
       ...input,
       prompt: 'a fox',
       mask: undefined,
-      legacyMode: 'edit'
+      operation: 'generate'
     })
     expect(input.prompt).toBe('  a fox  ')
   })
@@ -34,13 +69,16 @@ describe('prepareImageRequest', () => {
       paramValues: {},
       inputImages: undefined,
       mask: undefined,
-      legacyMode: 'generate'
+      operation: 'generate'
     })
   })
 
   it('enforces image minimum and maximum before execution', () => {
     expect(() =>
-      prepareImageRequest({ prompt: 'a fox', paramValues: {} }, { modes: { edit: declaration.modes.edit } })
+      prepareImageRequest(
+        { prompt: 'a fox', paramValues: {} },
+        { ...declaration, inputs: { ...declaration.inputs, images: { ...declaration.inputs.images, min: 1 } } }
+      )
     ).toThrowError(expect.objectContaining({ code: 'EDIT_IMAGE_REQUIRED' }))
     expect(() =>
       prepareImageRequest(

@@ -1,4 +1,4 @@
-import type { ImageGenerationSupport, ImageModeDef } from '@shared/data/types/model'
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { mockPrefetch as prefetchMock, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -15,8 +15,14 @@ function mockSupportPerModel(byModelId: Record<string, ImageGenerationSupport | 
   })
 }
 
-const generateSupport = (supports: ImageModeDef['supports']): ImageGenerationSupport => ({
-  modes: { generate: { supports } }
+const generateSupport = (supports: ImageGenerationSupport['supports']): ImageGenerationSupport => ({
+  supports,
+  inputs: {
+    images: { min: 0, max: { kind: 'unknown' } },
+    prompt: 'required',
+    mask: 'unknown',
+    mediaTypes: { kind: 'unknown' }
+  }
 })
 
 describe('computeModelFieldReset', () => {
@@ -160,9 +166,34 @@ describe('computeModelFieldReset', () => {
   it('uses the live input branch when switching models', async () => {
     mockSupportPerModel({
       next: {
-        modes: {
-          generate: { supports: { seed: { type: 'text' } } },
-          edit: { supports: { strength: { type: 'range', min: 0, max: 1, default: 0.5 } } }
+        supports: {
+          seed: {
+            type: 'text'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        withImages: {
+          supports: {
+            strength: {
+              type: 'range',
+              min: 0,
+              max: 1,
+              default: 0.5
+            },
+            seed: null
+          }
         }
       }
     })

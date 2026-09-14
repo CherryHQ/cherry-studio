@@ -11,20 +11,20 @@ import { createPpioTransport } from '../ppio/ppioTransport'
  */
 describe('PpioTransport', () => {
   it.each([
-    ['jimeng-txt2img-v3.1', 'generate'],
-    ['hunyuan-image-3', 'generate'],
-    ['qwen-image-txt2img', 'generate'],
-    ['qwen-image-edit', 'edit'],
-    ['glm-image', 'generate'],
-    ['z-image-turbo', 'generate'],
-    ['z-image-turbo-lora', 'generate'],
-    ['seedream-4-0', 'generate'],
-    ['seedream-4-5', 'generate']
-  ] as const)('does not turn omitted %s parameters into user choices', async (modelId, mode) => {
+    ['jimeng-txt2img-v3.1', false],
+    ['hunyuan-image-3', false],
+    ['qwen-image-txt2img', false],
+    ['qwen-image-edit', true],
+    ['glm-image', false],
+    ['z-image-turbo', false],
+    ['z-image-turbo-lora', false],
+    ['seedream-4-0', false],
+    ['seedream-4-5', false]
+  ] as const)('does not turn omitted %s parameters into user choices', async (modelId, hasImages) => {
     const requests: Request[] = []
     const transport = createPpioTransport({
       apiKey: 'token',
-      modelDescriptor: registryImageDescriptor('ppio', modelId, mode),
+      modelDescriptor: registryImageDescriptor('ppio', modelId, 'generate', hasImages),
       fetch: async (url, init) => {
         requests.push(new Request(url, init))
         return Response.json({ task_id: 'accepted', images: ['https://images.example/result.png'] })
@@ -36,7 +36,7 @@ describe('PpioTransport', () => {
       n: 1,
       size: undefined,
       seed: undefined,
-      files: mode === 'edit' ? [{ type: 'url', url: 'https://images.example/reference.png' }] : undefined,
+      files: hasImages ? [{ type: 'url', url: 'https://images.example/reference.png' }] : undefined,
       mask: undefined,
       providerParams: {}
     })
@@ -344,7 +344,7 @@ describe('PpioTransport', () => {
   it('uses Seedream 4.0 plural images field for edit requests', async () => {
     const transport = createPpioTransport({
       apiKey: 'token',
-      modelDescriptor: registryImageDescriptor('ppio', 'seedream-4-0', 'edit')
+      modelDescriptor: registryImageDescriptor('ppio', 'seedream-4-0', 'generate', true)
     })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -363,8 +363,7 @@ describe('PpioTransport', () => {
       modelDescriptor: {
         id: 'seedream-4.0',
         endpoint: '/v3/seedream-4.0',
-        isSync: true,
-        mode: 'edit'
+        isSync: true
       },
       providerParams: {}
     })
@@ -391,7 +390,7 @@ describe('PpioTransport', () => {
       seed: undefined,
       files: undefined,
       mask: undefined,
-      modelDescriptor: { id: 'glm-image', endpoint: '/v3/async/glm-image', mode: 'generate' },
+      modelDescriptor: { id: 'glm-image', endpoint: '/v3/async/glm-image' },
       providerParams: {
         addWatermark: false
       }

@@ -14,8 +14,8 @@ import { CHERRYAI_PROVIDER_ID, isManagedCherryCloudModel } from '@shared/data/pr
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
-import type { EndpointType, ImageGenerationMode, Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE, ImageGenerationModeSchema } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, ImageOperationSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
   formatApiHost,
@@ -48,7 +48,7 @@ import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
-import { type ImageTransportDescriptor, imageTransportDescriptorFor } from './custom/imageTransport'
+import { imageTransportDescriptorFor } from './custom/imageTransport'
 import { type NativeImageTarget, resolveNativeImageTarget } from './custom/imageTransportRegistry'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
@@ -202,8 +202,7 @@ export async function resolveProviderAiSdkConfig(
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
   const imageExtensionPreset = IMAGE_EXTENSION_PRESETS.find((preset) => matchesPreset(provider, preset))
-  const imageTransportDescriptors = buildImageTransportDescriptors(model)
-  const hasDeclaredImageTransport = imageTransportDescriptors !== undefined
+  const hasDeclaredImageTransport = hasDeclaredImageProtocol(model)
   const nativeImageRoute = resolveNativeImageTarget(
     provider.presetProviderId ?? provider.id,
     model.apiModelId ?? model.id,
@@ -213,9 +212,6 @@ export async function resolveProviderAiSdkConfig(
   const ctx: BuilderContext = {
     actualProvider: provider,
     model,
-    // Credential selection is intentionally deferred until a key-backed builder
-    // wins dispatch. OAuth/IAM/no-credential routes must not advance rotation
-    // for a key they never serve with.
     baseConfig: { baseURL, apiKey: '' },
     apiKeyOverride: options?.apiKeyOverride,
     sessionId: options?.sessionId,
@@ -920,16 +916,13 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
   }
 }
 
-function buildImageTransportDescriptors(
-  model: Pick<Model, 'id' | 'apiModelId' | 'imageGeneration'>
-): Partial<Record<ImageGenerationMode, ImageTransportDescriptor>> | undefined {
+function hasDeclaredImageProtocol(model: Pick<Model, 'id' | 'apiModelId' | 'imageGeneration'>): boolean {
   const modelId = model.apiModelId ?? model.id
-  const descriptors: Partial<Record<ImageGenerationMode, ImageTransportDescriptor>> = {}
-  for (const mode of ImageGenerationModeSchema.options) {
-    const descriptor = imageTransportDescriptorFor(modelId, mode, model.imageGeneration)
-    if (descriptor) descriptors[mode] = descriptor
-  }
-  return Object.keys(descriptors).length > 0 ? descriptors : undefined
+  return ImageOperationSchema.options.some((operation) =>
+    [false, true].some(
+      (hasImages) => imageTransportDescriptorFor(modelId, operation, model.imageGeneration, hasImages) !== undefined
+    )
+  )
 }
 
 function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {

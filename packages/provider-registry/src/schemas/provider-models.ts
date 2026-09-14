@@ -10,7 +10,7 @@ import * as z from 'zod'
 import { ModelIdSchema, ProviderIdSchema, VersionSchema } from './common'
 import { ENDPOINT_TYPE } from './enums'
 import {
-  ImageGenerationSupportSchema,
+  ImageGenerationOverrideSchema,
   ModalitySchema,
   ModelCapabilityTypeSchema,
   ModelPricingSchema,
@@ -112,7 +112,7 @@ export const ProviderModelOverrideSchema = z.object({
   // Painting-page metadata. When set on the override, takes precedence over
   // `ModelConfig.imageGeneration` (so the same model id can declare different
   // params per provider — useful for vendor-flavored variants).
-  imageGeneration: ImageGenerationSupportSchema.optional(),
+  imageGeneration: ImageGenerationOverrideSchema.optional(),
 
   // Status control
   disabled: z.boolean().optional(),

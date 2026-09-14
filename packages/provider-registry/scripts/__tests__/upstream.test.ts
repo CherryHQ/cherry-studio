@@ -85,27 +85,47 @@ describe('parseOrImageGeneration', () => {
         }
       })
     ).toEqual({
-      modes: {
-        generate: {
-          supports: {
-            aspectRatio: { type: 'enum', options: ['1:1', '16:9'] },
-            numImages: { type: 'range', min: 1, max: 10, step: 1 },
-            outputCompression: { type: 'range', min: 0, max: 100, step: 1 },
-            outputFormat: { type: 'enum', options: ['png', 'webp'] },
-            resolution: { type: 'enum', options: ['1K', '2K'] },
-            seed: { type: 'text' }
+      supports: {
+        aspectRatio: {
+          type: 'enum',
+          options: ['1:1', '16:9']
+        },
+        numImages: {
+          type: 'range',
+          min: 1,
+          max: 10,
+          step: 1
+        },
+        outputCompression: {
+          type: 'range',
+          min: 0,
+          max: 100,
+          step: 1
+        },
+        outputFormat: {
+          type: 'enum',
+          options: ['png', 'webp']
+        },
+        resolution: {
+          type: 'enum',
+          options: ['1K', '2K']
+        },
+        seed: {
+          type: 'text'
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'known',
+            value: 16
           }
         },
-        edit: {
-          maxInputImages: 16,
-          supports: {
-            aspectRatio: { type: 'enum', options: ['1:1', '16:9'] },
-            numImages: { type: 'range', min: 1, max: 10, step: 1 },
-            outputCompression: { type: 'range', min: 0, max: 100, step: 1 },
-            outputFormat: { type: 'enum', options: ['png', 'webp'] },
-            resolution: { type: 'enum', options: ['1K', '2K'] },
-            seed: { type: 'text' }
-          }
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     })
@@ -119,9 +139,20 @@ describe('parseOrImageGeneration', () => {
         }
       })
     ).toEqual({
-      modes: {
-        generate: { supports: {} },
-        edit: { supports: {}, maxInputImages: 1 }
+      supports: {},
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'known',
+            value: 1
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
       }
     })
   })
@@ -135,7 +166,25 @@ describe('parseOrImageGeneration', () => {
         }
       })
     ).toEqual({
-      modes: { generate: { supports: { quality: { type: 'enum', options: ['auto', 'high'] } } } }
+      supports: {
+        quality: {
+          type: 'enum',
+          options: ['auto', 'high']
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      }
     })
   })
 
@@ -148,7 +197,25 @@ describe('parseOrImageGeneration', () => {
         }
       })
     ).toEqual({
-      modes: { generate: { supports: { quality: { type: 'enum', options: ['auto', 'high'] } } } }
+      supports: {
+        quality: {
+          type: 'enum',
+          options: ['auto', 'high']
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      }
     })
   })
 
@@ -162,19 +229,28 @@ describe('parseOrImageGeneration', () => {
         }
       })
     ).toEqual({
-      modes: {
-        generate: {
-          supports: {
-            background: { type: 'enum', options: ['auto', 'opaque'] },
-            outputFormat: { type: 'enum', options: ['jpeg'] }
+      supports: {
+        background: {
+          type: 'enum',
+          options: ['auto', 'opaque']
+        },
+        outputFormat: {
+          type: 'enum',
+          options: ['jpeg']
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'known',
+            value: 4
           }
         },
-        edit: {
-          maxInputImages: 4,
-          supports: {
-            background: { type: 'enum', options: ['auto', 'opaque'] },
-            outputFormat: { type: 'enum', options: ['jpeg'] }
-          }
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     })
@@ -182,7 +258,20 @@ describe('parseOrImageGeneration', () => {
 
   it('keeps an empty generate mode for image models that advertise no optional parameters', () => {
     expect(parseOrImageGeneration({ supported_parameters: {} })).toEqual({
-      modes: { generate: { supports: {} } }
+      supports: {},
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      }
     })
   })
 })

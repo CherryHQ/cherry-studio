@@ -85,16 +85,16 @@ export type ServerToolModelScope = (typeof SERVER_TOOL_MODEL_SCOPE)[keyof typeof
 
 /**
  * The closed vocabulary of image-generation param keys. A model declares a
- * subset of these under `imageGeneration.modes[mode].supports` (see
- * `ImageModeDefSchema`), and they flow end-to-end as `painting.params` keys.
+ * subset through base `imageGeneration.supports` and capability differences;
+ * the effective keys flow end-to-end as `painting.params` keys.
  *
  * Unlike the other enums, the VALUES are camelCase on purpose: they ARE the
  * runtime param-bag keys and must match `painting.params`/registry data
  * verbatim — do NOT kebab-case them (it would break the wire contract).
  *
  * This is the single source of truth that ties together the registry schema,
- * the form's `KEY_LABELS`/`OPTION_LABELS`, and `canonicalGenerate`'s
- * `POSITIONAL_RENAME`. Adding a new canonical param is a deliberate change:
+ * the form's `KEY_LABELS`/`OPTION_LABELS`, and `IMAGE_PARAM_CATALOG`.
+ * Adding a new canonical param is a deliberate change:
  * add the member here, give it a label in `KEY_LABELS`, and declare it on the
  * relevant models in registry data.
  */

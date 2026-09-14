@@ -64,7 +64,22 @@ describe('painting capability to IPC', () => {
   })
 
   it('rejects a missing reference on an image-only model before file IO and IPC', async () => {
-    seedSupport({ modes: { edit: { supports: {} } } })
+    seedSupport({
+      supports: {},
+      inputs: {
+        images: {
+          min: 1,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      }
+    })
     const requestInput = input()
     requestInput.painting.inputFiles = []
     await expect(paintingGenerate(requestInput)).rejects.toMatchObject({ code: 'EDIT_IMAGE_REQUIRED' })
@@ -73,7 +88,37 @@ describe('painting capability to IPC', () => {
   })
 
   it('does not silently substitute an upscale-only operation for generate', async () => {
-    seedSupport({ modes: { upscale: { supports: {}, requirePrompt: false } } })
+    seedSupport({
+      supports: {},
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      },
+      operations: {
+        generate: null,
+        upscale: {
+          supports: {},
+          inputs: {
+            images: {
+              min: 1,
+              max: {
+                kind: 'unknown'
+              }
+            },
+            prompt: 'optional'
+          }
+        }
+      }
+    })
     await expect(paintingGenerate(input())).rejects.toMatchObject({ code: 'OPERATION_FAILED' })
     expect(request).not.toHaveBeenCalled()
   })

@@ -25,7 +25,7 @@ type Case = {
   protocolHeader?: [string, string]
 }
 const ppio = registryImageDescriptor('ppio', 'jimeng-txt2img-v3.1')
-const dashscope = registryImageDescriptor('dashscope', 'qwen-mt-image', 'edit')
+const dashscope = registryImageDescriptor('dashscope', 'qwen-mt-image', 'generate', true)
 const tokenhub = registryImageDescriptor('tokenhub', 'vidu-image-q2')
 const cases: Case[] = [
   // Response fixtures: https://ppio.com/docs/models/reference-get-async-task-result (retrieved 2026-07-27).

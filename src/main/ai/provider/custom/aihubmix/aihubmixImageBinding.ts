@@ -1,4 +1,4 @@
-import type { ImageGenerationMode } from '@shared/data/types/model'
+import type { ImageOperation } from '@shared/data/types/model'
 
 import type { ImageTransportDescriptor } from '../imageTransport'
 
@@ -21,14 +21,15 @@ type Resolution =
 /** Bind the protocol before constructing a model; an operation alone never chooses a vendor family. */
 export function resolveAihubmixImageBinding(
   modelId: string,
-  operation: ImageGenerationMode,
-  descriptor: ImageTransportDescriptor | undefined
+  operation: ImageOperation,
+  descriptor: ImageTransportDescriptor | undefined,
+  requiresImages = false
 ): Resolution {
   const unavailable = (reason: string): Resolution => ({
     kind: 'unavailable',
     message: `AiHubMix image model '${modelId}': ${reason}`
   })
-  const ordinary = operation === 'generate' || operation === 'edit'
+  const ordinary = operation === 'generate'
   if (modelId === 'ideogram/V3') {
     if (operation === 'generate' || operation === 'remix') {
       return { kind: 'custom', binding: { kind: 'ideogram-v3', operation } }
@@ -52,7 +53,7 @@ export function resolveAihubmixImageBinding(
     return { kind: 'sdk', binding: { kind: 'google-gemini' } }
   }
   if (descriptor?.endpoint.startsWith('/v1/models/qianfan/')) {
-    return { kind: 'custom', binding: { kind: 'qianfan', descriptor, requiresImages: operation === 'edit' } }
+    return { kind: 'custom', binding: { kind: 'qianfan', descriptor, requiresImages } }
   }
   if (modelId.startsWith('qwen-image') || modelId.startsWith('irag-') || modelId.startsWith('ernie-irag')) {
     return unavailable('missing Qianfan prediction descriptor')

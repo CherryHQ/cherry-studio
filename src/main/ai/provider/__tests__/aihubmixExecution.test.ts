@@ -1,7 +1,7 @@
 import { generateImage } from '@cherrystudio/ai-core'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
 import { ImageGenerationSupportSchema, type ParamValues } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, type ImageGenerationMode } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type ImageOperation } from '@shared/data/types/model'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +15,7 @@ import { prepareImageRequest } from '../../utils/prepareImageRequest'
 import { extensions } from '../extensions'
 import { resolveImageExecutionTarget } from '../imageExecutionTarget'
 import { buildSdkImageOptions, resolveSdkImageConfig } from '../imageSdk'
+import { registryImageSupport } from './imageCatalogFixtures'
 
 const { resolveApiKey } = vi.hoisted(() => ({ resolveApiKey: vi.fn() }))
 vi.mock('@main/data/services/ProviderService', () => ({ providerService: { resolveApiKey } }))
@@ -34,7 +35,7 @@ beforeEach(() => {
   })
 })
 
-async function execute(modelId: string, mode: ImageGenerationMode, paramValues: ParamValues, inputImages?: string[]) {
+async function execute(modelId: string, operation: ImageOperation, paramValues: ParamValues, inputImages?: string[]) {
   const provider = makeProvider({
     id: 'private-aihubmix',
     presetProviderId: 'aihubmix',
@@ -43,9 +44,14 @@ async function execute(modelId: string, mode: ImageGenerationMode, paramValues: 
       [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://aihubmix.example/v1', adapterFamily: 'aihubmix' }
     }
   })
-  const row = providerModels.overrides.find((entry) => entry.providerId === 'aihubmix' && entry.apiModelId === modelId)
-  const declaration = row ? row.imageGeneration : openai.models?.find((entry) => entry.id === modelId)?.imageGeneration
-  const support = declaration ? ImageGenerationSupportSchema.parse(declaration) : undefined
+  const row = providerModels.overrides.find(
+    (entry) => entry.providerId === 'aihubmix' && (entry.apiModelId ?? entry.modelId) === modelId
+  )
+  const support = row
+    ? registryImageSupport('aihubmix', modelId)
+    : ImageGenerationSupportSchema.optional().parse(
+        openai.models?.find((entry) => entry.id === modelId)?.imageGeneration
+      )
   const model = makeModel({
     id: `${provider.id}::${row ? row.modelId : modelId}`,
     providerId: provider.id,
@@ -53,14 +59,20 @@ async function execute(modelId: string, mode: ImageGenerationMode, paramValues: 
   })
   const request: AiImageRequest = {
     prompt: 'a red circle',
-    operation: mode === 'edit' || mode === 'merge' ? 'generate' : mode,
+    operation,
     paramValues,
     inputImages,
     cleanupPolicy: 'delete_when_unreferenced'
   }
-  const { legacyMode, ...normalized } = prepareImageRequest(request, support)
+  const normalized = prepareImageRequest(request, support)
   const prepared = { ...request, ...normalized }
-  const target = resolveImageExecutionTarget(provider, model, legacyMode, support)
+  const target = resolveImageExecutionTarget(
+    provider,
+    model,
+    normalized.operation,
+    support,
+    Boolean(normalized.inputImages?.length)
+  )
   if (target.kind === 'unavailable') throw new Error(target.message)
   if (target.scheduling !== 'direct') throw new Error('AiHubMix must preserve direct scheduling')
   const { sdkConfig } = await resolveSdkImageConfig(provider, model, target, undefined)
@@ -93,10 +105,10 @@ describe('AiHubMix prepared request execution', () => {
     expect(await requests[0].json()).toEqual({ input: { prompt: 'a red circle', seed: 0, safety_tolerance: 0 } })
   })
 
-  it.each(['generate', 'edit'] as const)('keeps GPT %s on the SDK generation/edit protocol', async (mode) => {
-    const result = await execute('gpt-image-1', mode, { quality: 'high' }, mode === 'edit' ? [INPUT] : undefined)
-    expect(requests[0].url).toBe(`https://aihubmix.example/v1/images/${mode === 'edit' ? 'edits' : 'generations'}`)
-    if (mode === 'edit') {
+  it.each([false, true])('keeps GPT generation on the SDK protocol (images=%s)', async (hasImages) => {
+    const result = await execute('gpt-image-1', 'generate', { quality: 'high' }, hasImages ? [INPUT] : undefined)
+    expect(requests[0].url).toBe(`https://aihubmix.example/v1/images/${hasImages ? 'edits' : 'generations'}`)
+    if (hasImages) {
       const body = await requests[0].formData()
       expect(body.get('quality')).toBe('high')
       const file = body.get('image')
@@ -109,16 +121,16 @@ describe('AiHubMix prepared request execution', () => {
   })
 
   it.each([
-    ['qwen-image', 'generate'],
-    ['qwen-image-edit', 'edit'],
-    ['irag-1.0', 'generate'],
-    ['ernie-irag-edit', 'edit']
-  ] as const)('executes %s with the saved registry prediction binding', async (modelId, mode) => {
-    const result = await execute(modelId, mode, { seed: 0 }, mode === 'edit' ? [INPUT] : undefined)
+    ['qwen-image', false],
+    ['qwen-image-edit', true],
+    ['irag-1.0', false],
+    ['ernie-irag-edit', true]
+  ] as const)('executes %s with the saved registry prediction binding', async (modelId, hasImages) => {
+    const result = await execute(modelId, 'generate', { seed: 0 }, hasImages ? [INPUT] : undefined)
     expect(requests[0].url).toBe(`https://aihubmix.example/v1/models/qianfan/${modelId}/predictions`)
     const body = await requests[0].json()
     expect(body).toEqual({
-      input: { prompt: 'a red circle', n: 1, seed: 0, ...(mode === 'edit' && { images: [INPUT] }) }
+      input: { prompt: 'a red circle', n: 1, seed: 0, ...(hasImages && { images: [INPUT] }) }
     })
     expect(result.images[0].base64).toBe(PNG)
   })

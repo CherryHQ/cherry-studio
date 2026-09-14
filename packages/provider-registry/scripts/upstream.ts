@@ -292,7 +292,7 @@ export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | n
   const p = OrEntry.safeParse(raw)
   if (!p.success || Array.isArray(p.data.supported_parameters) || !p.data.supported_parameters) return null
 
-  const supports: NonNullable<ImageGenerationSupport['modes']['generate']>['supports'] = {}
+  const supports: ImageGenerationSupport['supports'] = {}
   for (const [wireKey, canonicalKey] of Object.entries(OR_IMAGE_PARAM_KEYS)) {
     const parsed = OrParamDescriptor.safeParse(p.data.supported_parameters[wireKey])
     if (parsed.success) supports[canonicalKey] = toSupportSpec(wireKey as keyof typeof OR_IMAGE_PARAM_KEYS, parsed.data)
@@ -330,9 +330,15 @@ export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | n
       : undefined
 
   return {
-    modes: {
-      generate: { supports },
-      ...(maxInputImages !== undefined ? { edit: { supports, maxInputImages } } : {})
+    supports,
+    inputs: {
+      images: {
+        min: 0,
+        max: maxInputImages === undefined ? { kind: 'unknown' } : { kind: 'known', value: maxInputImages }
+      },
+      prompt: 'required',
+      mask: 'unknown',
+      mediaTypes: { kind: 'unknown' }
     }
   }
 }

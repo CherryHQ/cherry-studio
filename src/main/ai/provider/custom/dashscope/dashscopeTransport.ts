@@ -300,7 +300,7 @@ function buildWan25I2IBody(
 /**
  * Family D2 — qwen-mt-image translates text rendered in an input image. No
  * prompt; `input.image_url` + `source_lang` + `target_lang` are the only
- * required fields (pipeline must thread `requirePrompt: false`).
+ * required fields (`inputs.prompt: 'optional'` in the registry capability).
  */
 function buildQwenMtImageBody(
   input: ImageGenerationSubmitInput<DashScopeProviderParams>,

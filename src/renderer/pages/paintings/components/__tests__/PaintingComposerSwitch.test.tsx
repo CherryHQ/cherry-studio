@@ -69,7 +69,21 @@ describe('PaintingComposer painting switch', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/providers/:providerId/models/:modelId*/image-generation-support', {
-      modes: { generate: { supports: {}, maxInputImages: 2 } }
+      supports: {},
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'known',
+            value: 2
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      }
     })
     window.api = {
       ...window.api,
@@ -113,7 +127,25 @@ describe('PaintingComposer painting switch', () => {
     )
     await waitFor(() => expect(filesCount()).toBe('1'))
 
-    MockUseDataApiUtils.mockQueryData('/providers/:providerId/models/:modelId*/image-generation-support', { modes: {} })
+    MockUseDataApiUtils.mockQueryData('/providers/:providerId/models/:modelId*/image-generation-support', {
+      supports: {},
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      },
+      operations: {
+        generate: null
+      }
+    })
     rerender(<PaintingComposer {...handlers} painting={makePainting('A', [], 'generate-model')} />)
     await waitFor(() => expect(filesCount()).toBe('0'))
   })

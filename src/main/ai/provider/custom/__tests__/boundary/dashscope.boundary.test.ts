@@ -1,4 +1,3 @@
-import type { ImageGenerationMode } from '@shared/data/types/model'
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
@@ -28,7 +27,7 @@ const base = {
   mask: undefined
 } satisfies Partial<ImageGenerationSubmitInput<DashScopeProviderParams>>
 
-const descriptor = (id: string, mode: ImageGenerationMode) => registryImageDescriptor('dashscope', id, mode)
+const descriptor = (id: string, hasImages = false) => registryImageDescriptor('dashscope', id, 'generate', hasImages)
 
 const messagePart = z.union([z.strictObject({ text: z.string() }), z.strictObject({ image: z.string() })])
 
@@ -47,7 +46,7 @@ const CASES: Case[] = [
       prompt: 'a fox',
       size: '1024x1024',
       seed: 42,
-      modelDescriptor: descriptor('qwen-image', 'generate'),
+      modelDescriptor: descriptor('qwen-image'),
       providerParams: {}
     },
     schema: z.strictObject({
@@ -63,7 +62,7 @@ const CASES: Case[] = [
       modelId: 'qwen-image-edit',
       prompt: 'a fox',
       files: file([1, 2, 3]),
-      modelDescriptor: descriptor('qwen-image-edit', 'edit'),
+      modelDescriptor: descriptor('qwen-image-edit', true),
       providerParams: {}
     },
     schema: z.strictObject({
@@ -81,7 +80,7 @@ const CASES: Case[] = [
       prompt: 'a fox',
       n: 2,
       size: '1328x1328',
-      modelDescriptor: descriptor('qwen-image-3.0', 'generate'),
+      modelDescriptor: descriptor('qwen-image-3.0'),
       providerParams: { addWatermark: false, negativePrompt: 'blurry', promptExtend: true }
     },
     schema: z.strictObject({
@@ -107,7 +106,7 @@ const CASES: Case[] = [
       size: '1024x1024',
       seed: 7,
       files: file([9]),
-      modelDescriptor: descriptor('wanx-v1', 'generate'),
+      modelDescriptor: descriptor('wanx-v1'),
       providerParams: {
         style: '<photography>',
         refStrength: 0.5,
@@ -137,7 +136,7 @@ const CASES: Case[] = [
         { type: 'file', mediaType: 'image/png', data: new Uint8Array([1]) },
         { type: 'file', mediaType: 'image/jpeg', data: new Uint8Array([2]) }
       ],
-      modelDescriptor: descriptor('wan2.5-i2i-preview', 'edit'),
+      modelDescriptor: descriptor('wan2.5-i2i-preview', true),
       providerParams: {}
     },
     schema: z.strictObject({
@@ -153,7 +152,7 @@ const CASES: Case[] = [
       modelId: 'qwen-mt-image',
       prompt: undefined,
       files: file([4, 5, 6]),
-      modelDescriptor: descriptor('qwen-mt-image', 'edit'),
+      modelDescriptor: descriptor('qwen-mt-image', true),
       providerParams: { sourceLang: 'auto', targetLang: 'en' }
     },
     schema: z.strictObject({
@@ -169,7 +168,7 @@ const CASES: Case[] = [
       prompt: 'a fox',
       files: file([7, 8]),
       seed: 3,
-      modelDescriptor: descriptor('wanx2.1-imageedit', 'edit'),
+      modelDescriptor: descriptor('wanx2.1-imageedit', true),
       providerParams: {
         function: 'super_resolution',
         upscaleFactor: 2,
@@ -189,7 +188,7 @@ describe('DashScope request boundary', () => {
     const requests: Request[] = []
     const transport = createDashScopeTransport({
       apiKey: 'key',
-      modelDescriptor: descriptor('qwen-image', 'generate'),
+      modelDescriptor: descriptor('qwen-image'),
       fetch: async (url, init) => {
         requests.push(new Request(url, init))
         return Response.json({ output: { task_id: 'accepted' } })
@@ -199,7 +198,7 @@ describe('DashScope request boundary', () => {
     await transport.submit({
       ...base,
       modelId: 'not-the-bound-model',
-      modelDescriptor: descriptor('qwen-mt-image', 'edit'),
+      modelDescriptor: descriptor('qwen-mt-image', true),
       prompt: 'a fox',
       seed: 0,
       providerParams: { promptExtend: false, addWatermark: false }
@@ -234,7 +233,7 @@ describe('DashScope request boundary', () => {
     )
     const globalFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('global fetch used'))
     const injectedTransport = createDashScopeTransport({
-      modelDescriptor: descriptor('qwen-image', 'generate'),
+      modelDescriptor: descriptor('qwen-image'),
       apiKey: 'ds-key',
       imageBaseURL: host,
       headers: {
@@ -324,7 +323,7 @@ describe('DashScope poll resume (restart-safe response family)', () => {
     const transport = createDashScopeTransport({
       apiKey: 'ds-key',
       imageBaseURL: host,
-      modelDescriptor: descriptor('qwen-mt-image', 'edit')
+      modelDescriptor: descriptor('qwen-mt-image', true)
     })
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
@@ -333,7 +332,7 @@ describe('DashScope poll resume (restart-safe response family)', () => {
       if (transport.task.kind !== 'supported') throw new Error('expected task transport')
       const state = await transport.task.query('task-resumed', {
         signal: new AbortController().signal,
-        modelDescriptor: descriptor('qwen-mt-image', 'edit'),
+        modelDescriptor: descriptor('qwen-mt-image', true),
         headers: undefined,
         providerParams: {}
       })
@@ -347,7 +346,7 @@ describe('DashScope poll resume (restart-safe response family)', () => {
     const transport = createDashScopeTransport({
       apiKey: 'ds-key',
       imageBaseURL: host,
-      modelDescriptor: descriptor('qwen-mt-image', 'edit')
+      modelDescriptor: descriptor('qwen-mt-image', true)
     })
     if (transport.task.kind !== 'supported') throw new Error('expected task transport')
     await expect(
@@ -367,14 +366,14 @@ describe('DashScope poll resume (restart-safe response family)', () => {
         apiKey: 'ds-key',
         imageBaseURL: host,
         fetch,
-        modelDescriptor: descriptor('qwen-mt-image', 'edit')
+        modelDescriptor: descriptor('qwen-mt-image', true)
       })
       if (transport.task.kind !== 'supported') throw new Error('expected task transport')
 
       await expect(
         transport.task.query('task-resumed', {
           signal: new AbortController().signal,
-          modelDescriptor: descriptor('qwen-mt-image', 'edit'),
+          modelDescriptor: descriptor('qwen-mt-image', true),
           headers: undefined,
           providerParams: {}
         })
@@ -385,7 +384,7 @@ describe('DashScope poll resume (restart-safe response family)', () => {
   it('POSTs the documented remote cancel endpoint with resolved headers', async () => {
     const fetch = vi.fn().mockResolvedValue(new Response('', { status: 200 }))
     const transport = createDashScopeTransport({
-      modelDescriptor: descriptor('qwen-image', 'generate'),
+      modelDescriptor: descriptor('qwen-image'),
       apiKey: 'ds-key',
       imageBaseURL: host,
       headers: { 'x-provider': 'one' },
@@ -399,7 +398,7 @@ describe('DashScope poll resume (restart-safe response family)', () => {
     // Retrieved 2026-07-27. Only PENDING tasks can be cancelled.
     await transport.task.cancel.cancelRemote('task-1', {
       signal: undefined,
-      modelDescriptor: descriptor('qwen-mt-image', 'edit'),
+      modelDescriptor: descriptor('qwen-mt-image', true),
       headers: { 'x-request': 'two' },
       providerParams: {}
     })

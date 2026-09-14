@@ -24,14 +24,40 @@ const mockMaterializeInputs = vi.hoisted(() => vi.fn())
 const composerState = vi.hoisted(() => ({ files: [] as ComposerAttachment[] }))
 
 const imageGenerationSupportWithFields = {
-  modes: {
-    generate: {
-      supports: {
-        background: { type: 'enum', options: ['auto', 'transparent', 'opaque'], default: 'auto' },
-        numImages: { type: 'range', min: 1, max: 10, default: 1 },
-        quality: { type: 'enum', options: ['auto', 'low', 'medium', 'high'], default: 'auto' },
-        size: { type: 'enum', options: ['auto', '1024x1024', '1536x1024', '1024x1536'], default: '1024x1024' }
+  supports: {
+    background: {
+      type: 'enum',
+      options: ['auto', 'transparent', 'opaque'],
+      default: 'auto'
+    },
+    numImages: {
+      type: 'range',
+      min: 1,
+      max: 10,
+      default: 1
+    },
+    quality: {
+      type: 'enum',
+      options: ['auto', 'low', 'medium', 'high'],
+      default: 'auto'
+    },
+    size: {
+      type: 'enum',
+      options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
+      default: '1024x1024'
+    }
+  },
+  inputs: {
+    images: {
+      min: 0,
+      max: {
+        kind: 'unknown'
       }
+    },
+    prompt: 'required',
+    mask: 'unknown',
+    mediaTypes: {
+      kind: 'unknown'
     }
   }
 }
@@ -179,7 +205,22 @@ const imageAttachment = (id: string): ComposerAttachment => ({
 })
 
 /** Edit-only: an `edit` mode and no `generate` mode ⇒ an image is mandatory. */
-const editOnlySupport = { modes: { edit: { supports: {} } } }
+const editOnlySupport = {
+  supports: {},
+  inputs: {
+    images: {
+      min: 1,
+      max: {
+        kind: 'unknown'
+      }
+    },
+    prompt: 'required',
+    mask: 'unknown',
+    mediaTypes: {
+      kind: 'unknown'
+    }
+  }
+}
 
 describe('PaintingComposer', () => {
   beforeEach(() => {
@@ -241,7 +282,20 @@ describe('PaintingComposer', () => {
 
   it('does not gate on image for edit models that can also generate from text', () => {
     mockUseImageGenerationSupport.mockReturnValue({
-      modes: { generate: { supports: {} }, edit: { supports: {} } }
+      supports: {},
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      }
     })
     renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
     expect(screen.getByRole('button', { name: 'send' })).toBeEnabled()
@@ -249,7 +303,23 @@ describe('PaintingComposer', () => {
   })
 
   it('enforces the reference limit from the capability, including a generate-only declaration', () => {
-    mockUseImageGenerationSupport.mockReturnValue({ modes: { generate: { supports: {}, maxInputImages: 2 } } })
+    mockUseImageGenerationSupport.mockReturnValue({
+      supports: {},
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'known',
+            value: 2
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      }
+    })
     composerState.files = [imageAttachment('a'), imageAttachment('b'), imageAttachment('c')]
     const { rerenderPainting } = renderComposer({ painting: makePainting({ prompt: 'a fox' }) })
     expect(screen.getByRole('button', { name: 'send' })).toBeDisabled()
@@ -259,7 +329,37 @@ describe('PaintingComposer', () => {
   })
 
   it('permits an empty prompt only when the selected operation declares it optional', () => {
-    mockUseImageGenerationSupport.mockReturnValue({ modes: { upscale: { supports: {}, requirePrompt: false } } })
+    mockUseImageGenerationSupport.mockReturnValue({
+      supports: {},
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      },
+      operations: {
+        generate: null,
+        upscale: {
+          supports: {},
+          inputs: {
+            images: {
+              min: 1,
+              max: {
+                kind: 'unknown'
+              }
+            },
+            prompt: 'optional'
+          }
+        }
+      }
+    })
     composerState.files = [imageAttachment('a')]
     renderComposer({ painting: makePainting({ mode: 'upscale' }) })
     expect(screen.getByRole('button', { name: 'send' })).toBeEnabled()
@@ -321,11 +421,24 @@ describe('PaintingComposer', () => {
 
   it('renders the image params button when imageGeneration support produces fields', () => {
     mockUseImageGenerationSupport.mockReturnValue({
-      modes: {
-        generate: {
-          supports: {
-            size: { type: 'enum', options: ['1024x1024'], render: 'chips' }
+      supports: {
+        size: {
+          type: 'enum',
+          options: ['1024x1024'],
+          render: 'chips'
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     })

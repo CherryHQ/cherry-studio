@@ -1,5 +1,5 @@
 import {
-  ImageGenerationModeSchema,
+  ImageGenerationOverrideSchema,
   ImageGenerationSupportSchema,
   resolveImageGenerationSupport
 } from '@cherrystudio/provider-registry'
@@ -10,6 +10,7 @@ import providerModels from '../../../../../packages/provider-registry/data/provi
 import { captureImageRequest } from '../custom/__tests__/boundary/captureRequest'
 import { imageTransportDescriptorFor } from '../custom/imageTransport'
 import { createNativeImageTransport, resolveNativeImageTarget } from '../custom/imageTransportRegistry'
+import { imageCapabilityCases } from './imageCatalogFixtures'
 
 const nativeProviders = new Set(['ppio', 'dashscope', 'tokenhub', 'modelscope'])
 const settings = { apiKey: 'test', baseURL: 'https://example.invalid', imageBaseURL: 'https://example.invalid' }
@@ -19,44 +20,51 @@ const declarations = providerModels.overrides.flatMap((override) => {
   const preset = presetById.get(override.modelId)
   const support = resolveImageGenerationSupport(
     { imageGeneration: ImageGenerationSupportSchema.optional().parse(preset?.imageGeneration) },
-    { imageGeneration: ImageGenerationSupportSchema.optional().parse(override.imageGeneration) }
+    { imageGeneration: ImageGenerationOverrideSchema.optional().parse(override.imageGeneration) }
   )
   if (!support) return []
   // ProviderRegistryService materializes absent apiModelId from the canonical modelId.
   const modelId = override.apiModelId ?? override.modelId
-  return Object.keys(support.modes).map((key) => {
-    const mode = ImageGenerationModeSchema.parse(key)
+  return imageCapabilityCases(support).map(({ operation, hasImages, capability }) => {
     return {
       providerId: override.providerId,
       modelId,
-      mode,
-      descriptor: imageTransportDescriptorFor(modelId, mode, support)
+      operation,
+      hasImages,
+      inputCount: hasImages ? Math.max(1, capability.inputs.images.min) : 0,
+      descriptor: imageTransportDescriptorFor(modelId, operation, support, hasImages)
     }
   })
 })
 
 describe('every served native image operation is executable', () => {
   // This is catalog reachability, not a vendor-response oracle; protocol tests validate wire contracts separately.
-  it.each(declarations)('$providerId / $modelId ($mode)', async ({ providerId, modelId, descriptor }) => {
-    const resolution = resolveNativeImageTarget(providerId, modelId, descriptor)
-    expect(resolution.kind).toBe('custom')
-    if (resolution.kind !== 'custom') throw new Error(`Unexecutable registry operation: ${providerId}/${modelId}`)
-    const transport = await createNativeImageTransport({
-      ...resolution.target,
-      settings
-    })
-    const request = await captureImageRequest(transport, {
-      modelId,
-      modelDescriptor: descriptor,
-      prompt: 'a cat',
-      n: 1,
-      size: undefined,
-      seed: undefined,
-      files: undefined,
-      mask: undefined,
-      providerParams: {}
-    })
-    expect(request.url).toBe(`https://example.invalid${descriptor ? descriptor.endpoint : '/v1/images/generations'}`)
-    expect(request.method).toBe('POST')
-  })
+  it.each(declarations)(
+    '$providerId / $modelId ($operation, images=$hasImages)',
+    async ({ providerId, modelId, descriptor, inputCount }) => {
+      const resolution = resolveNativeImageTarget(providerId, modelId, descriptor)
+      expect(resolution.kind).toBe('custom')
+      if (resolution.kind !== 'custom') throw new Error(`Unexecutable registry operation: ${providerId}/${modelId}`)
+      const transport = await createNativeImageTransport({
+        ...resolution.target,
+        settings
+      })
+      const request = await captureImageRequest(transport, {
+        modelId,
+        modelDescriptor: descriptor,
+        prompt: 'a cat',
+        n: 1,
+        size: undefined,
+        seed: undefined,
+        files: Array.from({ length: inputCount }, () => ({
+          type: 'url' as const,
+          url: 'https://images.example/input.png'
+        })),
+        mask: undefined,
+        providerParams: {}
+      })
+      expect(request.url).toBe(`https://example.invalid${descriptor ? descriptor.endpoint : '/v1/images/generations'}`)
+      expect(request.method).toBe('POST')
+    }
+  )
 })

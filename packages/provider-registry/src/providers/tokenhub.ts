@@ -7,10 +7,8 @@ import { defineProvider } from './types'
 // cloud.tencent.com/document/product/1823/130079 (note the date suffixes on hunyuan-2.0-*). No per-model
 // pricing is published.
 //
-// Image models (cloud.tencent.com/document/product/1823/130080) are NOT OpenAI-compatible: each family has
-// its own `/v1/wand/*` endpoint (hunyuan / seedream sync, vidu async submit+poll), carried here as
-// `vendorTransport` and executed by main's tokenhub image transport. The full `imageGeneration` block is
-// restated per row because the runtime replaces it wholesale (Design B).
+// Image families use provider-specific `protocol` bindings, executed by Main's TokenHub transport.
+// Capability differences merge with creator defaults; see cloud.tencent.com/document/product/1823/130080.
 export default defineProvider({
   id: 'tokenhub',
   name: 'TokenHub',
@@ -60,22 +58,48 @@ export default defineProvider({
       apiModelId: 'hy-image-v3',
       inputModalities: ['text', 'image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            maxInputImages: 3,
-            supports: {
-              size: {
-                type: 'enum',
-                options: ['1024x1024', '1280x768', '768x1280', '1024x768', '768x1024', 'custom'],
-                default: '1024x1024',
-                render: 'chips'
-              },
-              customSize: { type: 'size', minSide: 512, maxSide: 2048, pairedEnumKey: 'size' },
-              seed: { type: 'text' },
-              promptEnhancement: { type: 'switch', default: false }
-            },
-            vendorTransport: { endpoint: '/v1/wand/hunyuan-image/v3-generation', isSync: true }
+        supports: {
+          size: {
+            type: 'enum',
+            options: ['1024x1024', '1280x768', '768x1280', '1024x768', '768x1024', 'custom'],
+            default: '1024x1024',
+            render: 'chips'
+          },
+          customSize: {
+            type: 'size',
+            minSide: 512,
+            maxSide: 2048,
+            pairedEnumKey: 'size'
+          },
+          seed: {
+            type: 'text'
+          },
+          promptEnhancement: {
+            type: 'switch',
+            default: false
+          },
+          aspectRatio: null,
+          negativePrompt: null,
+          addWatermark: null
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'known',
+              value: 3
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/wand/hunyuan-image/v3-generation',
+          isSync: true
         }
       }
     },
@@ -83,16 +107,40 @@ export default defineProvider({
       modelId: 'doubao-seedream-5-0-pro',
       apiModelId: 'seedream-image-v5.0-pro',
       imageGeneration: {
-        modes: {
-          generate: {
-            maxInputImages: 10,
-            supports: {
-              imageResolution: { type: 'enum', options: ['1K', '1.5K', '2K'], default: '2K', render: 'chips' },
-              outputFormat: { type: 'enum', options: ['jpeg', 'png'], default: 'jpeg' },
-              addWatermark: { type: 'switch' }
-            },
-            vendorTransport: { endpoint: '/v1/wand/si-image/generation', isSync: true }
+        supports: {
+          imageResolution: {
+            type: 'enum',
+            options: ['1K', '1.5K', '2K'],
+            default: '2K',
+            render: 'chips'
+          },
+          outputFormat: {
+            type: 'enum',
+            options: ['jpeg', 'png'],
+            default: 'jpeg'
+          },
+          addWatermark: {
+            type: 'switch'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'known',
+              value: 10
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/wand/si-image/generation',
+          isSync: true
         }
       }
     },
@@ -100,18 +148,51 @@ export default defineProvider({
       modelId: 'doubao-seedream-5-0-lite',
       apiModelId: 'seedream-image-v5.0-lite',
       imageGeneration: {
-        modes: {
-          generate: {
-            maxInputImages: 14,
-            supports: {
-              imageResolution: { type: 'enum', options: ['2K', '3K', '4K'], default: '2K', render: 'chips' },
-              outputFormat: { type: 'enum', options: ['jpeg', 'png'], default: 'jpeg' },
-              addWatermark: { type: 'switch' },
-              sequentialImageGeneration: { type: 'enum', options: ['disabled', 'auto'], default: 'disabled' },
-              maxImages: { type: 'range', min: 1, max: 15, default: 15 }
-            },
-            vendorTransport: { endpoint: '/v1/wand/si-image/generation', isSync: true }
+        supports: {
+          imageResolution: {
+            type: 'enum',
+            options: ['2K', '3K', '4K'],
+            default: '2K',
+            render: 'chips'
+          },
+          outputFormat: {
+            type: 'enum',
+            options: ['jpeg', 'png'],
+            default: 'jpeg'
+          },
+          addWatermark: {
+            type: 'switch'
+          },
+          sequentialImageGeneration: {
+            type: 'enum',
+            options: ['disabled', 'auto'],
+            default: 'disabled'
+          },
+          maxImages: {
+            type: 'range',
+            min: 1,
+            max: 15,
+            default: 15
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'known',
+              value: 14
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/wand/si-image/generation',
+          isSync: true
         }
       }
     },
@@ -120,21 +201,41 @@ export default defineProvider({
       apiModelId: 'vidu-image-q2',
       inputModalities: ['text', 'image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            maxInputImages: 7,
-            supports: {
-              aspectRatio: {
-                type: 'enum',
-                options: ['16:9', '9:16', '1:1', '3:4', '4:3', '21:9', '2:3', '3:2'],
-                default: '16:9',
-                render: 'chips'
-              },
-              resolution: { type: 'enum', options: ['1080p', '2K', '4K'], default: '1080p', render: 'chips' },
-              seed: { type: 'text' }
-            },
-            vendorTransport: { endpoint: '/v1/wand/vidu-image/generation' }
+        supports: {
+          aspectRatio: {
+            type: 'enum',
+            options: ['16:9', '9:16', '1:1', '3:4', '4:3', '21:9', '2:3', '3:2'],
+            default: '16:9',
+            render: 'chips'
+          },
+          resolution: {
+            type: 'enum',
+            options: ['1080p', '2K', '4K'],
+            default: '1080p',
+            render: 'chips'
+          },
+          seed: {
+            type: 'text'
           }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'known',
+              value: 7
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
+        },
+        protocol: {
+          kind: 'custom',
+          endpoint: '/v1/wand/vidu-image/generation',
+          isSync: false
         }
       }
     }

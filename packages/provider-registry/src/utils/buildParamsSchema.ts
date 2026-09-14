@@ -14,8 +14,8 @@ import * as z from 'zod'
 
 import type { CanonicalParamKey } from '../schemas/enums'
 import { IMAGE_PARAM_CATALOG, normalizeImageParamNumber } from '../schemas/imageParamCatalog'
-import type { ImageGenerationMode, ImageGenerationSupport, SupportSpec } from '../schemas/model'
-import { resolveLegacyImageCapability } from './imageCapabilities'
+import type { ImageGenerationSupport, ImageOperation, SupportSpec } from '../schemas/model'
+import { resolveImageCapability } from './imageCapabilities'
 
 /** Layer the per-model constraint onto the catalog's base value schema. */
 function applyConstraints(base: z.ZodTypeAny, spec: SupportSpec): z.ZodTypeAny {
@@ -36,9 +36,10 @@ function applyConstraints(base: z.ZodTypeAny, spec: SupportSpec): z.ZodTypeAny {
 
 export function buildParamsSchema(
   support: ImageGenerationSupport | undefined,
-  mode: ImageGenerationMode = 'generate'
+  operation: ImageOperation = 'generate',
+  hasImages = false
 ): z.ZodType<Record<string, unknown>> {
-  const resolution = resolveLegacyImageCapability(support, mode)
+  const resolution = resolveImageCapability(support, operation, hasImages)
   if (resolution.kind === 'unsupported') return z.never()
 
   // Base: EVERY catalog key coerced with `.catch(undefined)`. A canonical value left

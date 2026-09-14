@@ -1,6 +1,7 @@
 import { resolve } from 'node:path'
 
-import { readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
+import { resolveImageGenerationSupport } from '@cherrystudio/provider-registry'
+import { readModelRegistry, readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
@@ -22,7 +23,10 @@ describe('generate_image input contract', () => {
       (entry) => entry.providerId === 'tokenhub' && entry.apiModelId === 'hy-image-v3'
     )
     if (!row?.imageGeneration) throw new Error('TokenHub producer fixture missing')
-    const schema = buildGenerateImageToolSchema(row.imageGeneration)
+    const models = readModelRegistry(resolve(process.cwd(), 'packages/provider-registry/data/models.json'))
+    const base = models.models.find((model) => model.id === row.modelId)
+    const support = resolveImageGenerationSupport(base ?? null, row)
+    const schema = buildGenerateImageToolSchema(support)
     expect(schema.safeParse({ prompt: 'a cat' }).success).toBe(true)
     expect(schema.safeParse({ prompt: 'a cat', image_ids: ['one', 'two', 'three'] }).success).toBe(true)
     expect(schema.safeParse({ prompt: 'a cat', image_ids: ['one', 'two', 'three', 'four'] }).success).toBe(false)
@@ -30,9 +34,38 @@ describe('generate_image input contract', () => {
 
   it('does not union input-specific parameters into the ordinary tool subset', () => {
     const schema = buildGenerateImageToolSchema({
-      modes: {
-        generate: { supports: { seed: { type: 'range', min: 0, max: 10 }, size: { type: 'text' } } },
-        edit: { supports: { seed: { type: 'range', min: 0, max: 10 }, strength: { type: 'range', min: 0, max: 1 } } }
+      supports: {
+        seed: {
+          type: 'range',
+          min: 0,
+          max: 10
+        },
+        size: {
+          type: 'text'
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      },
+      withImages: {
+        supports: {
+          strength: {
+            type: 'range',
+            min: 0,
+            max: 1
+          },
+          size: null
+        }
       }
     })
     expect(schema.safeParse({ prompt: 'edit', image_ids: ['f1'], seed: 0 }).success).toBe(true)
@@ -42,7 +75,21 @@ describe('generate_image input contract', () => {
 
   it('requires images and permits an empty prompt only when the capability declares it', () => {
     const schema = buildGenerateImageToolSchema({
-      modes: { edit: { supports: {}, requirePrompt: false, maxInputImages: 1 } }
+      supports: {},
+      inputs: {
+        images: {
+          min: 1,
+          max: {
+            kind: 'known',
+            value: 1
+          }
+        },
+        prompt: 'optional',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
+      }
     })
     expect(schema.safeParse({ prompt: '', image_ids: ['f1'] }).success).toBe(true)
     expect(schema.safeParse({ prompt: '' }).success).toBe(false)

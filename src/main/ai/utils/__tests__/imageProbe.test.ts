@@ -1,15 +1,14 @@
 import { application } from '@application'
 import { extensionRegistry } from '@cherrystudio/ai-core/provider'
-import { ImageGenerationSupportSchema } from '@cherrystudio/provider-registry'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import providerModels from '../../../../../packages/provider-registry/data/provider-models.json'
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { type AiImageRequest, AiService, type AsInProcess } from '../../AiService'
+import { registryImageSupport } from '../../provider/__tests__/imageCatalogFixtures'
 import { extensions } from '../../provider/extensions'
 import { executeImageRequest, probeImageRequest } from '../executeImageRequest'
 import { prepareImageExecution } from '../prepareImageRequest'
@@ -37,8 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   BaseService.resetInstances()
   requests.length = 0
-  const row = providerModels.overrides.find((row) => row.providerId === 'dashscope' && row.modelId === 'qwen-mt-image')
-  getSupport.mockReturnValue(ImageGenerationSupportSchema.parse(row?.imageGeneration))
+  getSupport.mockReturnValue(registryImageSupport('dashscope', 'qwen-mt-image'))
   getProvider.mockReturnValue(
     makeProvider({
       id: 'private-dashscope',

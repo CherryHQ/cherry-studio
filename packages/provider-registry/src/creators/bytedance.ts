@@ -319,9 +319,6 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['vector']
     },
-    // Seedream image line — params per the image-gen API (docs/82379/1541523): size tiers differ per
-    // model, `seed` is no longer an API param, and 5.0 adds output_format. Group-image generation
-    // (sequential_image_generation + max_images) is 5.0-lite/4.5/4.0 only — 5.0 pro is single-image.
     {
       id: 'doubao-seedream-5-0-pro',
       name: 'Doubao Seedream 5.0 Pro',
@@ -329,25 +326,34 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            maxInputImages: 10,
-            supports: {
-              addWatermark: {
-                type: 'switch'
-              },
-              imageResolution: {
-                default: '2K',
-                options: ['1K', '2K'],
-                render: 'chips',
-                type: 'enum'
-              },
-              outputFormat: {
-                default: 'jpeg',
-                options: ['jpeg', 'png'],
-                type: 'enum'
-              }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          imageResolution: {
+            default: '2K',
+            options: ['1K', '2K'],
+            render: 'chips',
+            type: 'enum'
+          },
+          outputFormat: {
+            default: 'jpeg',
+            options: ['jpeg', 'png'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'known',
+              value: 10
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -359,36 +365,45 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            maxInputImages: 14,
-            supports: {
-              addWatermark: {
-                type: 'switch'
-              },
-              imageResolution: {
-                default: '2K',
-                options: ['2K', '3K', '4K'],
-                render: 'chips',
-                type: 'enum'
-              },
-              maxImages: {
-                default: 15,
-                max: 15,
-                min: 1,
-                type: 'range'
-              },
-              outputFormat: {
-                default: 'jpeg',
-                options: ['jpeg', 'png'],
-                type: 'enum'
-              },
-              sequentialImageGeneration: {
-                default: 'disabled',
-                options: ['disabled', 'auto'],
-                type: 'enum'
-              }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          imageResolution: {
+            default: '2K',
+            options: ['2K', '3K', '4K'],
+            render: 'chips',
+            type: 'enum'
+          },
+          maxImages: {
+            default: 15,
+            max: 15,
+            min: 1,
+            type: 'range'
+          },
+          outputFormat: {
+            default: 'jpeg',
+            options: ['jpeg', 'png'],
+            type: 'enum'
+          },
+          sequentialImageGeneration: {
+            default: 'disabled',
+            options: ['disabled', 'auto'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'known',
+              value: 14
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -400,31 +415,40 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            maxInputImages: 14,
-            supports: {
-              addWatermark: {
-                type: 'switch'
-              },
-              imageResolution: {
-                default: '2K',
-                options: ['2K', '4K'],
-                render: 'chips',
-                type: 'enum'
-              },
-              maxImages: {
-                default: 15,
-                max: 15,
-                min: 1,
-                type: 'range'
-              },
-              sequentialImageGeneration: {
-                default: 'disabled',
-                options: ['disabled', 'auto'],
-                type: 'enum'
-              }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          imageResolution: {
+            default: '2K',
+            options: ['2K', '4K'],
+            render: 'chips',
+            type: 'enum'
+          },
+          maxImages: {
+            default: 15,
+            max: 15,
+            min: 1,
+            type: 'range'
+          },
+          sequentialImageGeneration: {
+            default: 'disabled',
+            options: ['disabled', 'auto'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'known',
+              value: 14
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -436,31 +460,40 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            maxInputImages: 14,
-            supports: {
-              addWatermark: {
-                type: 'switch'
-              },
-              imageResolution: {
-                default: '2K',
-                options: ['1K', '2K', '4K'],
-                render: 'chips',
-                type: 'enum'
-              },
-              maxImages: {
-                default: 15,
-                max: 15,
-                min: 1,
-                type: 'range'
-              },
-              sequentialImageGeneration: {
-                default: 'disabled',
-                options: ['disabled', 'auto'],
-                type: 'enum'
-              }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          imageResolution: {
+            default: '2K',
+            options: ['1K', '2K', '4K'],
+            render: 'chips',
+            type: 'enum'
+          },
+          maxImages: {
+            default: 15,
+            max: 15,
+            min: 1,
+            type: 'range'
+          },
+          sequentialImageGeneration: {
+            default: 'disabled',
+            options: ['disabled', 'auto'],
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'known',
+              value: 14
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }

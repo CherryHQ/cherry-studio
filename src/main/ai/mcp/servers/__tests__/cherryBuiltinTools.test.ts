@@ -645,12 +645,28 @@ describe('cherryBuiltinTools', () => {
 
   it('advertises provider-accurate generate_image params from the configured model', () => {
     const support = {
-      modes: {
-        generate: {
-          supports: {
-            size: { type: 'enum', options: ['1024x1024', '1792x1024'] },
-            numImages: { type: 'range', min: 1, max: 3 }
+      supports: {
+        size: {
+          type: 'enum',
+          options: ['1024x1024', '1792x1024']
+        },
+        numImages: {
+          type: 'range',
+          min: 1,
+          max: 3
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
           }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
         }
       }
     } satisfies ImageGenerationSupport
@@ -669,9 +685,24 @@ describe('cherryBuiltinTools', () => {
 
   it('resolves references independently of the ordinary generation operation', async () => {
     const support = {
-      modes: {
-        generate: { supports: { quality: { type: 'enum', options: ['low', 'high'] } } },
-        edit: { supports: { quality: { type: 'enum', options: ['low', 'high'] } } }
+      supports: {
+        quality: {
+          type: 'enum',
+          options: ['low', 'high']
+        }
+      },
+      inputs: {
+        images: {
+          min: 0,
+          max: {
+            kind: 'unknown'
+          }
+        },
+        prompt: 'required',
+        mask: 'unknown',
+        mediaTypes: {
+          kind: 'unknown'
+        }
       }
     } satisfies ImageGenerationSupport
     getPreference.mockReturnValue('openai::gpt-image-1')

@@ -58,33 +58,42 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: [
-                  'ASPECT_1_1',
-                  'ASPECT_4_3',
-                  'ASPECT_3_4',
-                  'ASPECT_16_9',
-                  'ASPECT_9_16',
-                  'ASPECT_21_9',
-                  'ASPECT_9_21'
-                ],
-                render: 'chips',
-                type: 'enum'
-              },
-              safetyTolerance: {
-                default: 2,
-                max: 6,
-                min: 0,
-                type: 'range'
-              },
-              seed: {
-                type: 'text'
-              }
+        supports: {
+          aspectRatio: {
+            default: 'ASPECT_1_1',
+            options: [
+              'ASPECT_1_1',
+              'ASPECT_4_3',
+              'ASPECT_3_4',
+              'ASPECT_16_9',
+              'ASPECT_9_16',
+              'ASPECT_21_9',
+              'ASPECT_9_21'
+            ],
+            render: 'chips',
+            type: 'enum'
+          },
+          safetyTolerance: {
+            default: 2,
+            max: 6,
+            min: 0,
+            type: 'range'
+          },
+          seed: {
+            type: 'text'
+          }
+        },
+        inputs: {
+          images: {
+            min: 1,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -97,33 +106,42 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: [
-                  'ASPECT_1_1',
-                  'ASPECT_4_3',
-                  'ASPECT_3_4',
-                  'ASPECT_16_9',
-                  'ASPECT_9_16',
-                  'ASPECT_21_9',
-                  'ASPECT_9_21'
-                ],
-                render: 'chips',
-                type: 'enum'
-              },
-              safetyTolerance: {
-                default: 2,
-                max: 6,
-                min: 0,
-                type: 'range'
-              },
-              seed: {
-                type: 'text'
-              }
+        supports: {
+          aspectRatio: {
+            default: 'ASPECT_1_1',
+            options: [
+              'ASPECT_1_1',
+              'ASPECT_4_3',
+              'ASPECT_3_4',
+              'ASPECT_16_9',
+              'ASPECT_9_16',
+              'ASPECT_21_9',
+              'ASPECT_9_21'
+            ],
+            render: 'chips',
+            type: 'enum'
+          },
+          safetyTolerance: {
+            default: 2,
+            max: 6,
+            min: 0,
+            type: 'range'
+          },
+          seed: {
+            type: 'text'
+          }
+        },
+        inputs: {
+          images: {
+            min: 1,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -136,33 +154,42 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: [
-                  'ASPECT_1_1',
-                  'ASPECT_4_3',
-                  'ASPECT_3_4',
-                  'ASPECT_16_9',
-                  'ASPECT_9_16',
-                  'ASPECT_21_9',
-                  'ASPECT_9_21'
-                ],
-                render: 'chips',
-                type: 'enum'
-              },
-              safetyTolerance: {
-                default: 2,
-                max: 6,
-                min: 0,
-                type: 'range'
-              },
-              seed: {
-                type: 'text'
-              }
+        supports: {
+          aspectRatio: {
+            default: 'ASPECT_1_1',
+            options: [
+              'ASPECT_1_1',
+              'ASPECT_4_3',
+              'ASPECT_3_4',
+              'ASPECT_16_9',
+              'ASPECT_9_16',
+              'ASPECT_21_9',
+              'ASPECT_9_21'
+            ],
+            render: 'chips',
+            type: 'enum'
+          },
+          safetyTolerance: {
+            default: 2,
+            max: 6,
+            min: 0,
+            type: 'range'
+          },
+          seed: {
+            type: 'text'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -175,33 +202,42 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: 'ASPECT_1_1',
-                options: [
-                  'ASPECT_1_1',
-                  'ASPECT_4_3',
-                  'ASPECT_3_4',
-                  'ASPECT_16_9',
-                  'ASPECT_9_16',
-                  'ASPECT_21_9',
-                  'ASPECT_9_21'
-                ],
-                render: 'chips',
-                type: 'enum'
-              },
-              safetyTolerance: {
-                default: 2,
-                max: 6,
-                min: 0,
-                type: 'range'
-              },
-              seed: {
-                type: 'text'
-              }
+        supports: {
+          aspectRatio: {
+            default: 'ASPECT_1_1',
+            options: [
+              'ASPECT_1_1',
+              'ASPECT_4_3',
+              'ASPECT_3_4',
+              'ASPECT_16_9',
+              'ASPECT_9_16',
+              'ASPECT_21_9',
+              'ASPECT_9_21'
+            ],
+            render: 'chips',
+            type: 'enum'
+          },
+          safetyTolerance: {
+            default: 2,
+            max: 6,
+            min: 0,
+            type: 'range'
+          },
+          seed: {
+            type: 'text'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }

@@ -1,4 +1,5 @@
-import type { ImageGenerationMode, ImageGenerationSupport, Model } from '@shared/data/types/model'
+import { resolveImageCapability } from '@cherrystudio/provider-registry'
+import type { ImageGenerationSupport, ImageOperation, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import {
@@ -32,16 +33,19 @@ export type ImageExecutionTarget = ImageExecutionIdentity &
 export function resolveImageExecutionTarget(
   provider: Provider,
   model: Model,
-  mode: ImageGenerationMode,
-  support: ImageGenerationSupport | null | undefined
+  operation: ImageOperation,
+  support: ImageGenerationSupport | null | undefined,
+  hasImages = false
 ): ImageExecutionTarget {
   const endpoint = resolveEffectiveEndpoint(provider, model)
   const modelId = resolveWireModelId(model, endpoint.endpointType)
   const identity = { providerInstanceId: provider.id, modelId, endpoint }
-  const descriptor = imageTransportDescriptorFor(modelId, mode, support)
+  const descriptor = imageTransportDescriptorFor(modelId, operation, support, hasImages)
   const sdkProviderId = resolveAiSdkProviderId(provider, endpoint.endpointType)
   if (sdkProviderId === 'aihubmix' || (provider.presetProviderId ?? provider.id) === 'aihubmix') {
-    const resolution = resolveAihubmixImageBinding(modelId, mode, descriptor)
+    const capability = resolveImageCapability(support ?? undefined, operation, hasImages)
+    const requiresImages = capability.kind === 'supported' && capability.capability.inputs.images.min > 0
+    const resolution = resolveAihubmixImageBinding(modelId, operation, descriptor, requiresImages)
     if (resolution.kind === 'unavailable') return { ...identity, ...resolution }
     return { ...identity, ...resolution, scheduling: 'direct', providerId: 'aihubmix' }
   }

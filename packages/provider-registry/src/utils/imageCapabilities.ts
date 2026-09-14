@@ -1,88 +1,74 @@
-import type * as z from 'zod'
-
-import type { ImageGenerationMode, ImageGenerationSupport, ImageModeDef, ModelConfig } from '../schemas/model'
-import { ImageGenerationModeSchema } from '../schemas/model'
+import {
+  applyImageCapabilityDelta,
+  type ImageCapability,
+  type ImageCapabilityDelta,
+  type ImageGenerationSupport,
+  ImageGenerationSupportSchema,
+  type ImageOperation,
+  ImageOperationSchema,
+  type ModelConfig
+} from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 
-export const ImageOperationSchema = ImageGenerationModeSchema.exclude(['edit', 'merge'])
-export type ImageOperation = z.infer<typeof ImageOperationSchema>
-
-export interface EffectiveImageCapability {
-  supports: ImageModeDef['supports']
-  inputs: {
-    images: { min: number; max: { kind: 'known'; value: number } | { kind: 'unknown' } }
-    prompt: 'required' | 'optional'
-  }
-}
+export type { ImageOperation } from '../schemas/model'
+export { ImageOperationSchema } from '../schemas/model'
+export type EffectiveImageCapability = ImageCapability
 
 export type ImageCapabilityResolution =
   | { kind: 'unconfigured' }
   | { kind: 'unsupported' }
   | { kind: 'supported'; capability: EffectiveImageCapability }
 
-/** Ordinary image input selects a legacy binding, not a different business operation. */
+/** Image inputs refine ordinary generation; they do not invent another operation. */
 export function resolveImageCapability(
   support: ImageGenerationSupport | undefined,
   operation: ImageOperation,
   hasImages: boolean
-):
-  | Exclude<ImageCapabilityResolution, { kind: 'supported' }>
-  | {
-      kind: 'supported'
-      capability: EffectiveImageCapability
-      mode: ImageGenerationMode
-    } {
+): ImageCapabilityResolution {
   if (support === undefined) return { kind: 'unconfigured' }
-  let mode: ImageGenerationMode = operation
-  if (operation === 'generate') {
-    if (support.modes.edit && (hasImages || !support.modes.generate)) mode = 'edit'
-    else if (!support.modes.generate && support.modes.merge) mode = 'merge'
+  const operationDelta = support.operations?.[operation]
+  if (operationDelta === null || (operation !== 'generate' && operationDelta === undefined)) {
+    return { kind: 'unsupported' }
   }
-  const resolution = resolveLegacyImageCapability(support, mode)
-  if (resolution.kind !== 'supported') return resolution
-  const capability = resolution.capability
-  if (operation === 'generate' && support.modes.generate) {
-    capability.inputs.images.min = 0
-    const imageMode = support.modes.edit ? 'edit' : 'generate'
-    const withImages = resolveLegacyImageCapability(support, imageMode)
-    if (withImages.kind === 'supported') capability.inputs.images.max = withImages.capability.inputs.images.max
+  let capability: ImageCapability = { supports: support.supports, inputs: support.inputs, protocol: support.protocol }
+  if (operation === 'generate' && hasImages && support.withImages) {
+    capability = applyImageCapabilityDelta(capability, support.withImages)
   }
-  return { ...resolution, mode }
+  if (operationDelta) capability = applyImageCapabilityDelta(capability, operationDelta)
+  return { kind: 'supported', capability }
 }
 
-/** Select the sole declaration under the current catalog's whole-block override contract. */
+function mergeDifference(base: ImageCapabilityDelta | null | undefined, override: ImageCapabilityDelta | null) {
+  if (override === null) return null
+  return {
+    ...base,
+    ...override,
+    supports: { ...base?.supports, ...override.supports },
+    inputs: { ...base?.inputs, ...override.inputs, images: { ...base?.inputs?.images, ...override.inputs?.images } }
+  }
+}
+
+/** Only image capabilities merge here; unrelated provider configuration keeps its own contract. */
 export function resolveImageGenerationSupport(
   model: Pick<ModelConfig, 'imageGeneration'> | null,
   override: Pick<ProviderModelOverride, 'imageGeneration'> | null
 ): ImageGenerationSupport | undefined {
-  if (override?.imageGeneration !== undefined) return override.imageGeneration
-  return model?.imageGeneration
-}
-
-/** Interpret the legacy catalog at one boundary; an absent operation is never another operation. */
-export function resolveLegacyImageCapability(
-  support: ImageGenerationSupport | undefined,
-  mode: ImageGenerationMode
-): ImageCapabilityResolution {
-  if (support === undefined) return { kind: 'unconfigured' }
-  const declaration = support.modes[mode]
-  if (declaration === undefined) return { kind: 'unsupported' }
-
-  return {
-    kind: 'supported',
-    capability: {
-      supports: declaration.supports,
-      inputs: {
-        images: {
-          min: mode === 'generate' ? 0 : mode === 'merge' ? 2 : 1,
-          max:
-            declaration.maxInputImages === undefined
-              ? { kind: 'unknown' }
-              : { kind: 'known', value: declaration.maxInputImages }
-        },
-        // The legacy schema explicitly defines omitted requirePrompt as true.
-        prompt: declaration.requirePrompt === false ? 'optional' : 'required'
-      }
-    }
+  const base = model?.imageGeneration
+  const patch = override?.imageGeneration
+  if (patch === undefined) return base
+  if (base === undefined) {
+    const empty = ImageGenerationSupportSchema.parse({ ...patch, supports: {} })
+    return ImageGenerationSupportSchema.parse({ ...empty, ...applyImageCapabilityDelta(empty, patch) })
   }
+  const capability = applyImageCapabilityDelta(base, patch)
+  const operations = { ...base.operations }
+  for (const operation of ImageOperationSchema.options) {
+    const delta = patch.operations?.[operation]
+    if (delta !== undefined) operations[operation] = mergeDifference(operations[operation], delta)
+  }
+  return ImageGenerationSupportSchema.parse({
+    ...capability,
+    withImages: patch.withImages === undefined ? base.withImages : mergeDifference(base.withImages, patch.withImages),
+    operations
+  })
 }

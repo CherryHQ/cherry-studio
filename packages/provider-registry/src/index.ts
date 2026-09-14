@@ -28,15 +28,14 @@ export {
   parseImageParamValue,
   wireName
 } from './schemas/imageParamCatalog'
-export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'
+export { ImageGenerationOverrideSchema, ImageGenerationSupportSchema } from './schemas/model'
 export { buildImageRequestParamsSchema } from './utils/buildImageRequestParamsSchema'
 export { buildParamsSchema } from './utils/buildParamsSchema'
 export type { EffectiveImageCapability, ImageCapabilityResolution, ImageOperation } from './utils/imageCapabilities'
 export {
   ImageOperationSchema,
   resolveImageCapability,
-  resolveImageGenerationSupport,
-  resolveLegacyImageCapability
+  resolveImageGenerationSupport
 } from './utils/imageCapabilities'
 
 // Enum types (PascalCase, derived from const objects)
@@ -59,9 +58,9 @@ export {
   selectFormatWire
 } from './reasoningProfiles'
 export type {
-  ImageGenerationMode,
+  ImageCapability,
+  ImageGenerationOverride,
   ImageGenerationSupport,
-  ImageModeDef,
   ModelConfig,
   ModelPricing,
   ModelConfig as ProtoModelConfig,

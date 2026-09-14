@@ -54,7 +54,7 @@ declared. Neither is automatically advertised on every model. Legacy `edit` mean
 image input; legacy `merge` is a multiple-image alias only where its declared
 parameter and protocol contracts agree with the image-input path.
 
-The source declaration will use base `supports` and `inputs`, optional
+The v2 source declaration now uses base `supports` and `inputs`, optional
 `withImages` differences, optional `operations` differences, and a separate
 `protocol` binding. A difference contains only changed facts. Input presence may
 select a protocol endpoint, but an endpoint difference does not create a UI mode.
@@ -67,21 +67,26 @@ Override rules, limited to `imageGeneration`:
 - Explicit input fields override, then the complete constraints are validated.
 - A supplied protocol binding replaces the complete binding. Partial endpoints
   cannot inherit a response parser from a different protocol.
-- Operation/input differences apply to that effective base. Invalid differences
-  fail generation, not silently disappear at runtime.
+- Operation/input differences apply to that effective base. Only `generate` with
+  images applies `withImages`, followed by `operations.generate`; `remix` and
+  `upscale` use their own differences without `withImages`. The exact inheritance
+  and `null` rules are documented in the [registry architecture](../../../packages/provider-registry/docs/architecture.md#override-rules).
 
-Until the catalog format migration, the old declaration is the only persisted
-source. One registry resolver retains its whole-block override behavior and one
-legacy interpreter produces the new capability view. No second hand-maintained
-capability table or permanent dual reader is allowed.
+The catalog schema and runtime resolver now use v2 directly; there is no legacy
+whole-block reader or second hand-maintained capability table. C12 acceptance is
+still pending: the frozen v2 compatibility baseline, execution of the migrated
+tests, and validation of combined input/operation differences must be completed. The
+schema currently validates each difference against the base separately; rejecting
+every invalid combination before publication remains an acceptance requirement.
 
 ## Catalog and protocol acceptance matrix
 
 This is a family-level migration inventory, not a second routing table. The exact
 model IDs, parameter sets and limits come from the linked source declarations.
-All current base/override declarations that contain both `generate` and `edit`
-have identical `supports`; the DMXAPI `merge` declarations likewise share their
-image-input parameter set. A later difference must be represented, not unioned.
+In the pre-v2 migration baseline, declarations containing both `generate` and
+`edit` had identical `supports`; the DMXAPI `merge` declarations likewise shared
+their image-input parameter set. These are historical aliases, not current
+operation values. A later difference must be represented, not unioned.
 
 | Source / current family | Input and operation distinction | Execution acceptance |
 | --- | --- | --- |

@@ -9,348 +9,179 @@ sources:
 
 # Image-Generation Parameterized Architecture
 
-## Refactoring contract
+## Scope and migration status
 
-The [capability and execution contract](image-generation-contract.md) supersedes
-the mode-based routing design below. The remaining sections describe the migration
-baseline, not the completed target architecture. In particular, an input image is
-not an operation or a protocol, and a missing native binding is not permission to
-fall back to an SDK. The migration keeps one catalog reader until its consumers
-have moved; the catalog format changes atomically afterward.
+This page describes the current v2 capability and request pipeline. The
+[capability and execution contract](image-generation-contract.md) records the
+accepted target, including delivery work that is not implemented yet.
 
-How the paintings page renders a per-model parameter form, collects the user's
-values, and turns them into a vendor-correct image-generation request — **all
-driven by registry + catalog data, with zero per-vendor UI code and the
-canonical→wire rename declared exactly once**.
+The catalog and resolver now use base capabilities plus differences, not
+`modes` or whole-block provider overrides. C12 acceptance still requires the
+v2 compatibility baseline, validation of combined input/operation differences
+and execution of the migrated tests. Consumers and fixtures now use v2;
+typechecking alone does not complete behavioral acceptance.
 
-The goal: adding a new image model (or a whole new vendor) should be a **data**
-change. A new param that several models share is a one-row catalog addition that
-flows to the form, the validation, the wire body, and the static types at once.
-Vendor wire-format quirks live in exactly one declarative place each.
+## Current request flow
 
----
-
-## The data chain at a glance
-
-One canonical param set (`paramValues`) is the trunk. It forks into two delivery
-adapters only at the very end — the canonical param bag is the same; only how each
-adapter turns it into a wire request differs (a WireProfile `providerOptions` body
-for SDK delivery vs. a bespoke envelope the transport builds).
-
-```
-┌─ RENDERER ────────────────────────────────────────────────────────────────────┐
-│ registry per-model `supports`  ──useImageGenerationSupport──▶ form              │
-│    imageGenerationToFields: SupportSpec.type → control (one map)                │
-│        user edits → painting.params  (canonical camelCase bag)                  │
-│    canonicalGenerate: buildParamsSchema(support,mode) validate / coerce         │
-│        → paramValues  (pure canonical bag; blanks dropped, customSize composed) │
-└──────────────────────────── ipcApi.request('ai.image.generate') ───────────────┘
-                                       │  { uniqueModelId, prompt, mode, paramValues, inputImages?, mask? }
-                                       ▼   (model routing is dynamic; paramValues validated + coerced by the catalog imageParamsSchema)
-┌─ MAIN · AiService.generateImage ───────────────────────────────────────────────┐
-│   splitParamValues(paramValues)  ──via AI_SDK_NATIVE_BINDINGS──▶                │
-│        structured = { n, size, seed, aspectRatio, … }   (typed ParamValues & {n})│
-│        vendorBag  = { the non-native canonical params, camelCase }              │
-│                                                                                 │
-│   resolveImageTransport(config, modelId)?                                       │
-│     ├─ NO  → SDK delivery                  ├─ YES → transport delivery           │
-│     ▼                                       ▼                                    │
-│   buildVendorProviderOptions               getImageGenerationSupport(provider,   │
-│     (WireProfile + wireName)                 model).modes[mode].vendorTransport  │
-│     → providerOptions[id] = WIRE body        → modelDescriptor (typed routing)   │
-│     native → imageParams (n/size/seed)      generateImageViaJob(structured,      │
-│                                               vendorBag, modelDescriptor)        │
-└────────┼────────────────────────────────────────────┼──────────────────────────┘
-         ▼                                              ▼ JobManager → imageGenerationJobHandler
-   AI SDK image model                             transport.submit(input)
-   (SiliconImageModel / @ai-sdk/openai-compatible  reads canonical camelCase params
-    / @ai-sdk/google / aihubmix custom)             + input.{n,size,seed} + input.modelDescriptor
-   spreads providerOptions[id] → HTTP body          builds its own envelope (input.* /
-                                                     parameters.* / messages[]), POST, poll
-         │                                              │
-         ▼ parse response                               ▼ poll → parse response
-       image data URLs ◀────────────── back through IPC ──────────▶ renderer
+```text
+creator base + provider differences
+  → resolveImageGenerationSupport
+  → resolveImageCapability(operation, hasImages)
+      ├─ renderer fields and request preflight
+      └─ tool schema and Main authoritative validation
+  → prepareImageExecution → fixed ImageExecutionTarget
+      ├─ scheduling: job → existing Job → custom transport
+      └─ scheduling: direct → SDK model or custom ImageModelV3 adapter
+  → Main persists generated output → AiImageResult.files
 ```
 
-Two halves, one canonical vocabulary in the middle:
+`operation` is `generate`, `remix` or `upscale`; `inputImages` is independent
+input. Ordinary generation may accept no images, optional references or require
+images. Those distinctions come from `inputs`, not an inferred `edit` mode.
+Protocol kind and Job scheduling are also separate: a custom protocol can run
+directly without a Job.
 
-- **Read half** — registry `supports` ⊗ catalog → form fields → `painting.params`.
-- **Write half** — `paramValues` → `splitParamValues` → the WireProfile engine /
-  the transport → vendor wire body.
+## Capability declarations and ownership
 
-The contract between them is the **catalog** (the canonical key set + each key's
-value type and wire name). The form, the validation, the partition, and
-the static types all project from it.
+The exact shapes live in [the registry schema](../../../packages/provider-registry/src/schemas/model.ts),
+not a duplicate interface in this document.
 
-> **The two delivery adapters take the bag in different spellings — by design.**
-> The SDK adapter's body *is* the HTTP body, so it is **wire-named** (`negative_prompt`).
-> A transport builds its own per-model envelope with field names the catalog can't
-> predict (nested `parameters.*`, `messages[]`), so it takes the bag **canonical**
-> (`negativePrompt`) and names each field itself. `AiService.generateImage` picks the
-> branch *before* building a body, so the two never both run.
->
-> Consequence — **a transport-only provider must not have a `WIRE_REGISTRY` row**: it
-> would never be read, while reading like a live declaration. `dashscope` was exactly
-> that dead row (its profile said `negative_prompt`, its transport read
-> `negativePrompt`); `wireRegistryReachability.test.ts` now fails on the next one.
-
----
-
-## The single sources — each fact declared once
-
-| Fact | Declared in | Consumed by |
-| --- | --- | --- |
-| param value type + wire name | `IMAGE_PARAM_CATALOG` (`ParamValues`, `wireName`) | form, validation, wire engine, `structured` type |
-| per-model: which params + constraints (options/range/default) | registry `supports` | form + `buildParamsSchema` |
-| canonical → AI-SDK-native (`numImages→n`, `aspectRatio` normalize, …) | `AI_SDK_NATIVE_BINDINGS` | `splitParamValues` |
-| canonical → vendor wire name (`negativePrompt→negative_prompt`) | `wireName()` (catalog `wire` or auto snake_case) | WireProfiles + aihubmix DEFAULT |
-| which delivery adapter a request takes | `imageTransportRegistry` (transport ⇒ job path; else SDK) | `AiService.generateImage` |
-| whether a transport reads `files` / `mask` for a model | `ImageGenerationTransport.supportsInput` | the warning at both submit call sites |
-| per-provider SDK delivery (dual-key / passthrough / sibling key) | `WIRE_REGISTRY` (SDK id; the openai-compatible fallback wire-names its passthrough) — **SDK branch only** | the SDK adapter |
-| providerOptions namespace the SDK model reads | `sdkConfig.providerOptionsKey` (`resolveProviderOptionsKey`, attached by `providerToAiSdkConfig`) | SDK delivery + chat options |
-| per-model endpoint routing (endpoint / sync / response family) | registry `vendorTransport` → `modelDescriptor` | the transports |
-
-Nothing in this list is repeated. A canonical param is **one** catalog row; a
-provider's wire shape is **one** profile / transport.
-
----
-
-## Layer 1 — the param catalog (the atom)
-
-Source of truth: [`packages/provider-registry/src/schemas/imageParamCatalog.ts`](../../../packages/provider-registry/src/schemas/imageParamCatalog.ts).
-
-Each `CanonicalParamKey` is declared **once**, with everything the pipeline needs
-to project from:
-
-```ts
-interface ImageParamCatalogEntry {
-  schema: z.ZodTypeAny   // SINGLE source of the value type → form validation + ParamValues type
-  wire?: string          // vendor wire name override; omit for the auto camelCase→snake_case form
-}
-
-const IMAGE_PARAM_CATALOG = {
-  negativePrompt:    { schema: optString },                // → 'negative_prompt' (auto)
-  numInferenceSteps: { schema: optInt },                   // → 'num_inference_steps' (auto)
-  imageResolution:   { schema: optString, wire: 'size' },  // irregular → explicit
-  addWatermark:      { schema: optBool,   wire: 'watermark' },
-  // … exhaustive over CanonicalParamKey (a missing/extra key is a compile error)
-} as const satisfies Record<CanonicalParamKey, ImageParamCatalogEntry>
-
-type ParamValues = { [K in CanonicalParamKey]?: ParamValue<K> } // z.infer of each schema
-```
-
-Three projections fall out of the atom, so they can never drift:
-
-- **`buildParamsSchema(support, mode)`** ([`.../utils/buildParamsSchema.ts`](../../../packages/provider-registry/src/utils/buildParamsSchema.ts)) — catalog value schemas ⊗ the per-model `supports` constraints (enum members / range bounds) → the zod schema that validates a model's form bag. `.loose()` during migration.
-- **`ParamValues`** — `z.infer` of the catalog. The typed canonical bag; there is no hand-maintained param-shape type.
-- **`wireName(key)`** — `catalog.wire ?? autoSnakeCase(key)`. The **single** canonical→wire rename. Every flat-body provider derives its field name from here; no provider repeats `negativePrompt → negative_prompt`.
-
-> Native params (`numImages`/`size`/`seed`/`aspectRatio`) do **not** go through
-> `wireName` — they're routed by `AI_SDK_NATIVE_BINDINGS` (app layer, see below),
-> because their target is an AI SDK call option, not a body field name.
-
----
-
-## Registry schema — per-model `supports` + routing
-
-Source: [`packages/provider-registry/src/schemas/model.ts`](../../../packages/provider-registry/src/schemas/model.ts) (`ImageGenerationSupportSchema`).
-
-```ts
-interface ImageGenerationSupport {
-  modes: Partial<Record<ImageGenerationMode, ModeDef>> // generate | edit | remix | upscale | merge
-}
-
-interface ModeDef {
-  supports: Partial<Record<CanonicalParamKey, SupportSpec>> // which params + their per-model constraints
-  vendorTransport?: { endpoint: string; isSync?: boolean }  // async / non-OpenAI routing
-  requirePrompt?: boolean                                   // default true; false for qwen-mt-image, upscalers
-}
-
-type SupportSpec =
-  | { type: 'switch'; default?: boolean }
-  | { type: 'enum';   options: string[]; default?: string; render?: 'select' | 'chips'; columns?: number }
-  | { type: 'range';  min: number; max: number; default?: number; step?: number }
-  | { type: 'size';   minSide: number; maxSide: number; pairedEnumKey?: string }
-  | { type: 'text';   multiline?: boolean }
-```
-
-`supports` carries **only** the per-model constraints (which params, their
-options/range/default); the value type and wire name live in the catalog, and the
-control kind derives from `SupportSpec.type` in the form
-(`imageGenerationToFields`). A model's block resolves **override-wins** in
-`ProviderRegistryService.getImageGenerationSupport` ([`src/main/data/services/ProviderRegistryService.ts`](../../../src/main/data/services/ProviderRegistryService.ts)):
-
-```
-registryOverride.imageGeneration  ??  presetModel.imageGeneration  ??  null   // null → empty form
-```
-
-- Base entry → [`packages/provider-registry/data/models.json`](../../../packages/provider-registry/data/models.json) (provider-agnostic official contract).
-- Provider override → [`packages/provider-registry/data/provider-models.json`](../../../packages/provider-registry/data/provider-models.json), keyed by `{ providerId, modelId }` (vendor-flavored params / vendor-exclusive SKUs). Id normalization tolerates dotted vs sanitized ids.
-
----
-
-## Read half — registry + catalog → form
-
-1. **Fetch** — `useImageGenerationSupport(providerId, modelId)` ([`.../hooks/useImageGenerationSupport.ts`](../../../src/renderer/pages/paintings/hooks/useImageGenerationSupport.ts)) queries `GET /providers/:providerId/models/:modelId*/image-generation-support` (DataApi → the same `ProviderRegistryService` main hosts; SWR-cached).
-2. **Map** — `imageGenerationToFields(support, { mode })` ([`.../form/imageGenerationToFields.ts`](../../../src/renderer/pages/paintings/form/imageGenerationToFields.ts)) iterates `modes[mode].supports` and dispatches each entry through `specToField` by `spec.type` — no per-vendor branches:
-
-   | `SupportSpec.type` | widget |
-   | --- | --- |
-   | `switch` | toggle |
-   | `enum` (`render:'chips'`) | chip row (size / aspectRatio / imageResolution) |
-   | `enum` (default) | select dropdown |
-   | `range` | slider |
-   | `size` | custom width×height inputs (gated on `pairedEnumKey === 'custom'`) |
-   | `text` | input / textarea (`multiline`) |
-
-3. **Label** — `KEY_LABELS` (same file) maps each `CanonicalParamKey` → i18n title/tooltip (exhaustive over the key set).
-
-Form edits write into **`painting.params`** — a flat canonical-keyed bag. Defaults
-are committed when the model is selected by `computeModelFieldReset`
-([`.../utils/computeModelFieldReset.ts`](../../../src/renderer/pages/paintings/utils/computeModelFieldReset.ts)).
-
----
-
-## Write half — `paramValues` → vendor request
-
-### 1. Validate + collapse to one IPC bag (`canonicalGenerate`)
-
-[`.../model/canonicalGenerate.ts`](../../../src/renderer/pages/paintings/model/canonicalGenerate.ts) validates `painting.params` through `buildParamsSchema(support, mode)` (soft-fail to raw on a bad value), drops blanks, composes `customSize_*` → `size`, and ships one canonical **`paramValues`** bag plus `mode` (a request property, not a param — see §5) over IPC (`ai.image.generate`, [`src/shared/ipc/schemas/ai.ts`](../../../src/shared/ipc/schemas/ai.ts)). The IPC schema types `paramValues` as the catalog's `imageParamsSchema` — the router's `safeParse` yields a strict, coerced `ParamValues` (non-catalog keys stripped). Per-model option/range constraints already ran in the renderer's `buildParamsSchema`; this is the value-type gate.
-
-### 2. Partition in main (`splitParamValues` + `AI_SDK_NATIVE_BINDINGS`)
-
-[`AiService.generateImage`](../../../src/main/ai/AiService.ts) calls `splitParamValues` ([`src/main/ai/utils/imageOptions.ts`](../../../src/main/ai/utils/imageOptions.ts)), which uses `AI_SDK_NATIVE_BINDINGS` ([`src/main/ai/utils/aiSdkNativeBindings.ts`](../../../src/main/ai/utils/aiSdkNativeBindings.ts)) to split the bag:
-
-- **native** (`numImages→n`, `size`, `seed`, `aspectRatio` normalized once) → `structured` (typed `ParamValues & { n?: number }`), the AI SDK call options.
-- **everything else** → `vendorBag` (canonical camelCase).
-
-Blank / `null` / `undefined` are dropped here (the byte-identical-wire guard); the
-`'auto'` sentinel survives and is resolved to "omit the field" at the wire layer.
-
-### 3. The WireProfile engine (SDK delivery)
-
-For SDK-delivered providers, `buildVendorProviderOptions` ([`src/main/ai/provider/custom/wire/buildImageRequest.ts`](../../../src/main/ai/provider/custom/wire/buildImageRequest.ts)) maps the canonical bag to the wire body via `wireName`, then packages it per the provider's registration in `WIRE_REGISTRY` ([`src/main/ai/provider/custom/wire/wireProfile.ts`](../../../src/main/ai/provider/custom/wire/wireProfile.ts)):
-
-```ts
-interface WireProfile  { fields: Partial<Record<CanonicalParamKey, WireRule>> } // forward / map / contribute
-interface WireRegistration {
-  profile: WireProfile
-  dualOpenAI?: boolean            // mirror the clean body under `openai` too (gpt-image family)
-                                  // (no delivery-key field — that is `sdkConfig.providerOptionsKey`)
-  passthrough?: boolean | 'wire'  // forward unmapped vendor-bag fields: raw camelCase (custom
-                                  // models read them) or wire-named ('wire' — the body IS the HTTP body)
-  also?: { key; profile }[]       // a sibling provider key (multi-backend gateways);
-                                  // no live consumer since the dmxapi row was deleted
-}
-```
-
-A profile declares **which** canonical params ride in the body; the **name**
-comes from `wireName`. Delivery (which key(s), passthrough, sibling, nesting) is
-the registration's job — not the profile's, and never a repeated rename.
-
-The registration is looked up by `resolveWireRegistration(sdkId)`: providers
-with their own SDK adapter resolve via `WIRE_REGISTRY[sdkId]` (falling back to
-`DEFAULT_DIFFUSION_REGISTRATION`); the **generic `openai-compatible` adapter**
-gets `OPENAI_COMPAT_FALLBACK_REGISTRATION` — the diffusion profile with a
-**wire-named** passthrough, since `@ai-sdk/openai-compatible` spreads the bag
-into the HTTP body verbatim. A provider on that path needing a bespoke body
-shape is routed to its own provider id instead (config.ts builders — doubao →
-`WIRE_REGISTRY.doubao` / `@ai-sdk/bytedance` is the precedent).
-
-The result is delivered under **`sdkConfig.providerOptionsKey`** — the `providerOptions`
-namespace the SDK image model actually reads, resolved by
-`resolveProviderOptionsKey` ([`src/main/ai/provider/endpoint.ts`](../../../src/main/ai/provider/endpoint.ts)), the
-single source for that fact across chat and image: the concrete provider id for
-the openai-compatible family, the upstream family for an aggregator on an
-anthropic/google/responses endpoint, a table entry for the ids whose SDK package
-names its own namespace (`google-vertex → vertex`, `doubao → bytedance`,
-`cherryin-chat → cherryin`, the openai/anthropic/xai variants), else the SDK id.
-The AI SDK image model spreads that body into the request; `structured` becomes
-the typed call options (`imageParams`).
-
-A registry `supports` entry that has **no** route to the wire — not native, not
-in the provider's profile, not carried by its passthrough or a transport — is a
-control that renders and does nothing (#17394). `imageParamDeliverability.test.ts`
-([`src/main/ai/provider/__tests__/`](../../../src/main/ai/provider/__tests__/imageParamDeliverability.test.ts))
-walks every declared (provider, model, mode) through the real resolution path and
-fails on one. It catches the *dropped* class only: `passthrough` and transport
-providers satisfy it for the whole provider at once, so a key with the wrong
-vendor field name still passes — that layer is the boundary snapshots' job.
-
-The SDK image model is one of: a custom `ImageModelV3` (e.g.
-[`silicon/SiliconImageModel.ts`](../../../src/main/ai/provider/custom/silicon/SiliconImageModel.ts), [`aihubmix/aihubmixImageModel.ts`](../../../src/main/ai/provider/custom/aihubmix/aihubmixImageModel.ts)), `@ai-sdk/openai-compatible`, or `@ai-sdk/google`. It **reads** the wire body — it does not re-rename it.
-
-### 4. Transport delivery (async / bespoke wire shape)
-
-When `resolveImageTransport(config, modelId)` ([`.../custom/imageTransportRegistry.ts`](../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / DMXAPI-custom / TokenHub families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`). The shared transport runtime owns submit, task-id persistence before the first query, polling and remote cancellation; the handler owns queueing, durable input references, progress bridging and output persistence.
-
-The job is deliberately **not** restart-durable (`recovery: 'abandon'`): its only consumer is the in-process awaiter in `generateImageViaJob`, and the payload records no consumer identity, so a job resumed after a restart would have nobody to hand its result to. Non-terminal jobs are cancelled at startup instead of resumed.
-
-Unlike the SDK path (whose bag IS the body), a transport builds its **own** per-model
-envelope, so it receives the **canonical camelCase params directly** — native
-`n/size/seed` via the typed `ImageGenerationSubmitInput.{n,size,seed}`, the rest
-via `providerParams` (the `vendorBag`). No wire-naming, no casing probes: each
-transport reads `params.negativePrompt`, `params.promptExtend`, … and places them
-into its structure (`input.*` / `parameters.*` / `messages[]`) with the field name
-its API wants. See [`imageGenerationModel.ts`](../../../src/main/ai/provider/custom/imageGenerationModel.ts) for the `ImageGenerationTransport` contract and each `<vendor>/<vendor>Transport.ts`.
-
-### 5. Routing — `modelDescriptor` (derived in main)
-
-A transport routes by `modelDescriptor = { id, endpoint, isSync, mode }` — which
-endpoint to POST, whether to poll, and which response-family parser to use.
-
-This is **backend routing data**, derived where routing happens: `AiService`,
-holding the resolved `(providerId, modelId, mode)`, calls
-`providerRegistryService.getImageGenerationSupport(...)` → `modes[mode].vendorTransport`
-and builds the descriptor, threading it as a **typed field** on the job payload /
-`ImageGenerationSubmitInput.modelDescriptor` — never through the param bag. The
-registry is the source of `vendorTransport`, and main already hosts it (the
-renderer's support fetch is an IPC round-trip to the same service), so the
-descriptor is a pure derivation, not a param.
-
----
-
-## Recipes
-
-### Add a parameter to a model
-
-1. Pick (or reuse) the **canonical key**. If new, add one row to `IMAGE_PARAM_CATALOG` (`{ schema, wire? }`) — set `wire` **only** if the vendor name isn't the auto snake_case form. Add its `KEY_LABELS` row, then complete every locale and validation step in the [i18n workflow](../i18n/README.md#translation-completion-in-pull-requests).
-2. Declare it in the model's `supports` with the right `SupportSpec` (options/range/default).
-3. That's it for a flat-body provider — the form, validation, types, and wire name all flow from the catalog row. Only add a `WireProfile` field / transport line if the param needs bespoke placement (a nested block, a sibling provider key, a transport envelope).
-
-### Add a model
-
-- Provider-agnostic official model → `imageGeneration` block in **`models.json`**.
-- Vendor-flavored / exclusive → `{ providerId, modelId, imageGeneration }` override in **`provider-models.json`**.
-- Async / non-OpenAI wire shape → add `vendorTransport.endpoint` (+ `isSync`) and ensure the vendor's transport recognizes the model family.
-
-### Add a vendor
-
-- OpenAI-compatible → nothing custom: `OPENAI_COMPAT_FALLBACK_REGISTRATION` (wire-named passthrough) + `@ai-sdk/openai-compatible` cover it. An irregular body shape means routing the provider to its own id (config.ts builders) with a `WIRE_REGISTRY` row, like doubao.
-- Native SDK (OpenAI/Google) → register a `WireProfile` with the right delivery flags (`dualOpenAI` / `also` / `passthrough`).
-- Bespoke / async wire shape → implement an `ImageGenerationTransport`, register it on the provider's `imageModel(...)`, and read canonical camelCase params + `input.modelDescriptor`.
-
----
-
-## Critical files
-
-| Concern | File |
+| Fact | Owner |
 | --- | --- |
-| **Param catalog** (value + wire) | `packages/provider-registry/src/schemas/imageParamCatalog.ts` |
-| Per-model validation schema | `packages/provider-registry/src/utils/buildParamsSchema.ts` |
-| Registry schema (`supports` / `vendorTransport`) | `packages/provider-registry/src/schemas/model.ts` |
-| Base / override model data | `packages/provider-registry/data/{models,provider-models}.json` |
-| Resolver (override ?? base) | `src/main/data/services/ProviderRegistryService.ts` |
-| Support fetch hook | `src/renderer/pages/paintings/hooks/useImageGenerationSupport.ts` |
-| Registry → form fields + `KEY_LABELS` | `src/renderer/pages/paintings/form/imageGenerationToFields.ts` |
-| Default population on switch | `src/renderer/pages/paintings/utils/computeModelFieldReset.ts` |
-| Validate + build the IPC `paramValues` bag | `src/renderer/pages/paintings/model/canonicalGenerate.ts` |
-| Transport routing hint (→ backend, see §5) | `src/renderer/pages/paintings/model/paintingPipeline.ts` |
-| IPC payload schema | `src/shared/ipc/schemas/ai.ts` |
-| Main entry + native split + job dispatch | `src/main/ai/AiService.ts` |
-| `splitParamValues` (native vs vendorBag) | `src/main/ai/utils/imageOptions.ts` |
-| AI-SDK native binding table | `src/main/ai/utils/aiSdkNativeBindings.ts` |
-| WireProfile engine + delivery registry | `src/main/ai/provider/custom/wire/{buildImageRequest,wireProfile}.ts` |
-| Custom transport contract | `src/main/ai/provider/custom/imageGenerationModel.ts` |
-| Vendor provider + transport | `src/main/ai/provider/custom/<vendor>/{<vendor>Provider,<vendor>Transport}.ts` |
-| Shared transport helpers | `src/main/ai/provider/custom/transportUtils.ts` |
+| Canonical parameter value type and default wire spelling | `IMAGE_PARAM_CATALOG` |
+| Available parameters and their constraints | Effective capability `supports` |
+| Image count, prompt, mask and media-type facts | Capability `inputs`; unknown facts remain explicit |
+| Input-specific or genuine operation differences | `withImages` / `operations` |
+| Provider-specific endpoint and sync/task declaration | `protocol` |
+| Provider instance, API model ID and executable binding | Main preparation and `ImageExecutionTarget` |
+| Vendor field placement and response parsing | SDK adapter or custom transport |
+
+`ProviderRegistryService.getImageGenerationSupport` resolves a creator base plus
+the provider-model override through `resolveImageGenerationSupport`. Only this
+capability block uses its field-level merge contract. Each supplied
+`SupportSpec` and protocol replaces the complete prior value; arrays do not
+append. Standalone provider models need enough input facts to form a complete
+capability.
+
+The [registry override rules](../../../packages/provider-registry/docs/architecture.md#override-rules)
+define inheritance and the distinct meanings of `null`: removing a parameter,
+removing a protocol declaration, clearing an image-input difference, or disabling
+an operation are not interchangeable. In particular, `withImages: null` does not
+forbid images, and `protocol: null` does not select an SDK.
+
+After provider-model merging, `resolveImageCapability` applies `withImages`
+**only for `generate` with images**, then applies `operations.generate` last.
+`remix` and `upscale` inherit the base plus their own declared differences,
+without `withImages`. Missing support is `unconfigured`; an undeclared
+non-generate operation or an explicitly disabled operation is `unsupported`.
+
+## Read half — effective capability to form
+
+[`useImageGenerationSupport`](../../../src/renderer/pages/paintings/hooks/useImageGenerationSupport.ts)
+reads the provider-model capability through DataApi.
+[`imageGenerationToFields`](../../../src/renderer/pages/paintings/form/imageGenerationToFields.ts)
+takes `{ operation, hasImages }`, resolves the effective capability, and maps its
+`supports` through `SupportSpec.type` and the canonical-key label map.
+
+The form writes draft values to `painting.params`.
+[`computeModelFieldReset`](../../../src/renderer/pages/paintings/utils/computeModelFieldReset.ts)
+handles parameter resets/defaults when selection changes. Draft representation
+is not the vendor request representation.
+
+[`IMAGE_PARAM_CATALOG`](../../../packages/provider-registry/src/schemas/imageParamCatalog.ts)
+owns canonical value types and `wireName`; `SupportSpec` contributes the
+model-specific options and constraints. The loose
+[`buildParamsSchema`](../../../packages/provider-registry/src/utils/buildParamsSchema.ts)
+is a draft parser, not the authoritative submit validator.
+
+## Write half — canonical request to execution
+
+### 1. Renderer preflight and IPC
+
+[`canonicalGenerate`](../../../src/renderer/pages/paintings/model/canonicalGenerate.ts)
+resolves the effective capability, checks prompt/image-count requirements,
+removes empty or inactive draft fields and composes custom dimensions. It uses
+[`buildImageRequestParamsSchema`](../../../packages/provider-registry/src/utils/buildImageRequestParamsSchema.ts)
+for strict submitted-value validation. Invalid explicit values fail; there is
+no soft fallback to the raw draft.
+
+It sends `operation`, `paramValues` and independent `inputImages` through
+`ai.image.generate`. The [IPC schema](../../../src/shared/ipc/schemas/ai.ts)
+validates the canonical input shape; it does not replace Main's model-specific
+validation.
+
+### 2. Main preparation
+
+[`AiService.generateImage`](../../../src/main/ai/AiService.ts) resolves provider
+and model, then delegates to
+[`prepareImageExecution`](../../../src/main/ai/utils/prepareImageRequest.ts).
+Preparation validates operation, prompt, image count, input representation and
+canonical parameters before credential resolution or execution.
+
+[`resolveImageExecutionTarget`](../../../src/main/ai/provider/imageExecutionTarget.ts)
+binds the API model ID, endpoint and SDK/custom execution choice. Native protocols
+without a required binding fail as unavailable rather than silently becoming
+SDK calls. Capability declarations alone do not prove an endpoint is executable.
+
+For registry custom protocols,
+[`imageTransportDescriptorFor`](../../../src/main/ai/provider/custom/imageTransport.ts)
+derives `{ id, endpoint, isSync }` from the effective protocol. The descriptor is
+typed backend routing data, not a user parameter, and contains no `mode`.
+
+### 3. Terminal encoding and dispatch
+
+[`executeImageRequest`](../../../src/main/ai/utils/executeImageRequest.ts)
+dispatches the prepared scheduling choice. The current branches partition
+canonical parameters independently; they do not both encode one request:
+
+- The direct path uses [`buildSdkImageOptions`](../../../src/main/ai/provider/imageSdk.ts).
+  `splitParamValues` and `AI_SDK_NATIVE_BINDINGS` map native options such as
+  `numImages → n`; the remaining canonical bag reaches the selected SDK adapter.
+- SDK provider-options encoding uses
+  [`buildVendorProviderOptions`](../../../src/main/ai/provider/custom/wire/buildImageRequest.ts)
+  and [`WIRE_REGISTRY`](../../../src/main/ai/provider/custom/wire/wireProfile.ts).
+  Profiles describe forwarding or nested placement, and `wireName` supplies the
+  default field spelling. Delivery uses `sdkConfig.providerOptionsKey`, the
+  namespace the actual SDK model reads, not necessarily the provider ID.
+- The Job path currently calls `splitParamValues` before enqueueing. Its payload
+  carries the fixed native target, structured values and canonical
+  `providerParams`. The custom transport builds its vendor-specific envelope;
+  it must not read SDK wire spellings from this bag.
+
+WireProfile currently skips `'auto'` for mapped fields, while passthrough takes
+a separate path. Unified omission/default/sentinel handling and further
+terminal-encoding consolidation remain follow-up work, not current guarantees.
+
+### 4. Task and output ownership
+
+The [transport contract](../../../src/main/ai/provider/custom/imageTransport.ts)
+owns submission and protocol states. The
+[shared runtime](../../../src/main/ai/provider/custom/imageTransportRuntime.ts)
+awaits task-ID persistence before polling and owns retry, timeout and remote
+cancellation. The
+[Job handler](../../../src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts)
+bridges durable inputs, task metadata, progress and output persistence.
+
+Existing scheduling and `recovery: 'abandon'` remain unchanged. Runtime query
+resumption does not imply Jobs automatically resume after restart. The direct
+path and Job path return persisted output files through `AiImageResult.files`,
+not raw data URLs across IPC.
+
+Output staging with complete failed-delivery compensation and painting
+association-before-response remain targets in the
+[execution and delivery contract](image-generation-contract.md#execution-and-delivery-invariants).
+This page does not claim those guarantees are implemented.
+
+## Changing a model or parameter
+
+1. Edit creator/provider **source declarations**, never generated `data/*.json`.
+   Declare provider differences rather than copying the base support block.
+2. Reuse a canonical parameter key. A new key needs catalog value/wire metadata,
+   a form label and the [i18n workflow](../i18n/README.md#translation-completion-in-pull-requests).
+3. Trace the effective capability through its actual SDK or custom transport.
+   A field declaration or passthrough flag alone is not proof of delivery.
+4. Regenerate from the reviewed inputs and keep the catalog diff in scope.
+   The v2 image migration does not import upstream model or pricing updates.
+5. Validate the promised behavior with producer-derived fixtures and independent
+   protocol evidence. A snapshot of a self-authored payload is not a protocol
+   oracle. The staged migration still needs its remaining acceptance checks.

@@ -1,18 +1,4 @@
-import type { ImageModeDef } from '../schemas/model'
 import { defineCreator } from './types'
-
-/** qwen-image-3.0 / -pro serve text-to-image and editing off one model id, so both modes share a set. */
-const qwenImage3Supports: ImageModeDef['supports'] = {
-  negativePrompt: { multiline: true, type: 'text' },
-  numImages: { default: 1, max: 6, min: 1, type: 'range' },
-  seed: { type: 'text' },
-  size: {
-    default: 'auto',
-    options: ['auto', '1328x1328', '1664x928', '928x1664', '1472x1140', '1140x1472'],
-    render: 'chips',
-    type: 'enum'
-  }
-}
 
 export default defineCreator({
   id: 'alibaba',
@@ -124,22 +110,31 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              numImages: {
-                default: 1,
-                max: 1,
-                min: 1,
-                type: 'range'
-              },
-              size: {
-                default: '1664x928',
-                options: ['1664x928', '1472x1140', '1328x1328', '1140x1472', '928x1664'],
-                render: 'chips',
-                type: 'enum'
-              }
+        supports: {
+          numImages: {
+            default: 1,
+            max: 1,
+            min: 1,
+            type: 'range'
+          },
+          size: {
+            default: '1664x928',
+            options: ['1664x928', '1472x1140', '1328x1328', '1140x1472', '928x1664'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -152,9 +147,39 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          edit: { supports: qwenImage3Supports },
-          generate: { supports: qwenImage3Supports }
+        supports: {
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 6,
+            min: 1,
+            type: 'range'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: 'auto',
+            options: ['auto', '1328x1328', '1664x928', '928x1664', '1472x1140', '1140x1472'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
         }
       }
     },
@@ -166,9 +191,39 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          edit: { supports: qwenImage3Supports },
-          generate: { supports: qwenImage3Supports }
+        supports: {
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          numImages: {
+            default: 1,
+            max: 6,
+            min: 1,
+            type: 'range'
+          },
+          seed: {
+            type: 'text'
+          },
+          size: {
+            default: 'auto',
+            options: ['auto', '1328x1328', '1664x928', '928x1664', '1472x1140', '1140x1472'],
+            render: 'chips',
+            type: 'enum'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
+            }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
+          }
         }
       }
     },
@@ -180,20 +235,29 @@ export default defineCreator({
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              addWatermark: {
-                type: 'switch'
-              },
-              outputFormat: {
-                options: ['jpeg', 'png', 'webp'],
-                type: 'enum'
-              },
-              seed: {
-                type: 'text'
-              }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          outputFormat: {
+            options: ['jpeg', 'png', 'webp'],
+            type: 'enum'
+          },
+          seed: {
+            type: 'text'
+          }
+        },
+        inputs: {
+          images: {
+            min: 1,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -204,30 +268,39 @@ export default defineCreator({
       capabilities: ['image-generation'],
       inputModalities: ['text', 'image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: {
-                type: 'switch'
-              },
-              imageResolution: {
-                default: '1K',
-                options: ['1K', '2K'],
-                render: 'chips',
-                type: 'enum'
-              },
-              negativePrompt: {
-                multiline: true,
-                type: 'text'
-              },
-              promptExtend: {
-                default: true,
-                type: 'switch'
-              },
-              seed: {
-                type: 'text'
-              }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          imageResolution: {
+            default: '1K',
+            options: ['1K', '2K'],
+            render: 'chips',
+            type: 'enum'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          promptExtend: {
+            default: true,
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -239,26 +312,35 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: {
-                type: 'switch'
-              },
-              imageResolution: {
-                default: '1K',
-                options: ['1K', '2K'],
-                render: 'chips',
-                type: 'enum'
-              },
-              seed: {
-                type: 'text'
-              },
-              thinkingMode: {
-                default: true,
-                type: 'switch'
-              }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          imageResolution: {
+            default: '1K',
+            options: ['1K', '2K'],
+            render: 'chips',
+            type: 'enum'
+          },
+          seed: {
+            type: 'text'
+          },
+          thinkingMode: {
+            default: true,
+            type: 'switch'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -270,26 +352,35 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: {
-                type: 'switch'
-              },
-              imageResolution: {
-                default: '2K',
-                options: ['1K', '2K', '4K'],
-                render: 'chips',
-                type: 'enum'
-              },
-              seed: {
-                type: 'text'
-              },
-              thinkingMode: {
-                default: true,
-                type: 'switch'
-              }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          imageResolution: {
+            default: '2K',
+            options: ['1K', '2K', '4K'],
+            render: 'chips',
+            type: 'enum'
+          },
+          seed: {
+            type: 'text'
+          },
+          thinkingMode: {
+            default: true,
+            type: 'switch'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
@@ -301,30 +392,39 @@ export default defineCreator({
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              addWatermark: {
-                type: 'switch'
-              },
-              imageResolution: {
-                default: '1K',
-                options: ['1K', '2K'],
-                render: 'chips',
-                type: 'enum'
-              },
-              negativePrompt: {
-                multiline: true,
-                type: 'text'
-              },
-              promptExtend: {
-                default: true,
-                type: 'switch'
-              },
-              seed: {
-                type: 'text'
-              }
+        supports: {
+          addWatermark: {
+            type: 'switch'
+          },
+          imageResolution: {
+            default: '1K',
+            options: ['1K', '2K'],
+            render: 'chips',
+            type: 'enum'
+          },
+          negativePrompt: {
+            multiline: true,
+            type: 'text'
+          },
+          promptExtend: {
+            default: true,
+            type: 'switch'
+          },
+          seed: {
+            type: 'text'
+          }
+        },
+        inputs: {
+          images: {
+            min: 0,
+            max: {
+              kind: 'unknown'
             }
+          },
+          prompt: 'required',
+          mask: 'unknown',
+          mediaTypes: {
+            kind: 'unknown'
           }
         }
       }
