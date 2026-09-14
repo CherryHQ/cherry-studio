@@ -195,7 +195,7 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
   if (viewModel.report) {
     const summary =
       viewModel.summary.userFixable > 0
-        ? t('settings.doctor.summary.problems', { count: viewModel.summary.userFixable })
+        ? null
         : viewModel.summary.error > 0 || viewModel.summary.skip > 0
           ? t('settings.doctor.summary.incomplete')
           : t(
@@ -218,13 +218,15 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
         }
         bodyClassName="space-y-3 px-4 py-3">
         <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5">
-          <span className="text-success">
-            {t('settings.doctor.summary.fixed', { count: session.fixedCheckIds.length })}
-          </span>
+          {session.fixedCheckIds.length > 0 ? (
+            <span className="text-success">
+              {t('settings.doctor.summary.fixed', { count: session.fixedCheckIds.length })}
+            </span>
+          ) : null}
           <span className="text-warning">
             {t('settings.doctor.summary.needs_attention', { count: viewModel.summary.userFixable })}
           </span>
-          <span className="text-muted-foreground">{summary}</span>
+          {summary ? <span className="text-muted-foreground">{summary}</span> : null}
         </p>
         <DoctorCheckNotices controller={controller} />
       </DiagnosticsPanel>

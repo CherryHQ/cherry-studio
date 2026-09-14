@@ -1,5 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
+import { initReactI18next } from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Dialog, DialogContent } from '@cherrystudio/ui'
@@ -7,8 +9,6 @@ import type * as DoctorComponents from '@renderer/components/doctor'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorCheckResult, DoctorState } from '@shared/types/doctor'
-import i18next from 'i18next'
-import { initReactI18next } from 'react-i18next'
 
 import type { ErrorDetailContentProps } from '../ErrorDetailModal'
 
@@ -143,7 +143,6 @@ const translations: Record<string, string> = {
   'settings.doctor.messages.relaunch_required': 'Restart Cherry Studio to apply the repair.',
   'settings.doctor.status.fail': 'Failed',
   'settings.doctor.status.pass': 'Passed',
-  'settings.doctor.summary.problems': '{{count}} items need attention',
   'settings.doctor.summary.progress': '{{completed}} of {{total}} completed',
   'settings.doctor.stale.description': 'This diagnostic result is out of date.',
   'settings.doctor.title': 'System diagnostics'

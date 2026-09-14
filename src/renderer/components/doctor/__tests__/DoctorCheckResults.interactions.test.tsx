@@ -7,6 +7,7 @@ import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { Accordion, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import type { DoctorInteraction } from '@renderer/hooks/doctor/doctorSessionReducer'
+import { buildDoctorViewModel } from '@renderer/utils/doctor'
 
 vi.unmock('@cherrystudio/ui')
 
@@ -20,9 +21,12 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, params?: { name?: string }) => {
+    t: (key: string, params?: { name?: string; check?: string; count?: number }) => {
       if (key === 'settings.doctor.fixes.restart_mcp') return `Restart ${params?.name}`
       if (key === 'settings.doctor.fixes.restart_mcp_generic') return 'Restart MCP service'
+      if (key === 'error.diagnostics.checking_progress') return `Checking: ${params?.check}`
+      if (key === 'settings.doctor.summary.needs_attention') return `Needs attention: ${params?.count}`
+      if (key === 'settings.doctor.summary.fixed') return `Fixed: ${params?.count}`
       return key
     }
   })
@@ -241,6 +245,91 @@ describe('DoctorCheckAccordionItems interactions', () => {
       'data-variant',
       'sectioned'
     )
+  })
+
+  it('shows one active-check announcement and hides finding rows while running', () => {
+    const controller = createCompletedPanelController()
+    controller.viewModel.status = 'running'
+    controller.viewModel.activeCheckIds = ['runtime-claude-login']
+    render(<DoctorChecksPanel controller={controller} />)
+
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(screen.getByRole('status')).toHaveTextContent('Checking: settings.doctor.checks.runtime-claude-login.title')
+    expect(screen.queryByRole('region', { name: 'error.diagnostics.action_required' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /settings\.doctor\.checks\.runtime-claude-login\.title/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('counts and displays only actionable findings, then reflects the repaired report', () => {
+    const controller = createCompletedPanelController()
+    const report = controller.viewModel.report!
+    const actionable = report.results[0]
+    const mixedReport = {
+      ...report,
+      results: [
+        actionable,
+        { id: 'install-version-channel', status: 'pass', durationMs: 1 },
+        {
+          id: 'logs-recent-findings',
+          status: 'warn',
+          durationMs: 1,
+          attribution: 'app-bug',
+          detail: { variant: 'findings' },
+          actions: [{ kind: 'report' }]
+        },
+        {
+          id: 'network-online',
+          status: 'warn',
+          durationMs: 1,
+          attribution: 'transient',
+          detail: { variant: 'offline' },
+          actions: []
+        }
+      ],
+      summary: { pass: 1, warn: 3, fail: 0, skip: 0, error: 0 }
+    } satisfies NonNullable<DoctorController['viewModel']['report']>
+    const viewModel = buildDoctorViewModel({ status: 'completed', report: mixedReport }, Date.parse(report.finishedAt))
+    const view = render(<DoctorChecksPanel controller={{ ...controller, viewModel }} />)
+
+    expect(screen.getByText('Needs attention: 1')).toBeVisible()
+    expect(screen.queryByText('Fixed: 0')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.doctor.summary.problems')).not.toBeInTheDocument()
+    const findings = screen.getByRole('region', { name: 'error.diagnostics.action_required' })
+    expect(
+      within(findings).getByRole('button', { name: /settings\.doctor\.checks\.runtime-claude-login\.title/ })
+    ).toBeVisible()
+    for (const id of ['install-version-channel', 'logs-recent-findings', 'network-online']) {
+      expect(
+        within(findings).queryByRole('button', { name: new RegExp(`settings.doctor.checks.${id}.title`) })
+      ).not.toBeInTheDocument()
+    }
+
+    view.rerender(
+      <DoctorChecksPanel
+        controller={{
+          ...controller,
+          session: { ...controller.session, fixedCheckIds: [actionable.id] },
+          viewModel: buildDoctorViewModel(
+            {
+              status: 'completed',
+              report: {
+                ...report,
+                results: [{ id: 'runtime-claude-login', status: 'pass', durationMs: 1 }],
+                summary: { pass: 1, warn: 0, fail: 0, skip: 0, error: 0 }
+              }
+            },
+            Date.parse(report.finishedAt)
+          )
+        }}
+      />
+    )
+
+    expect(screen.getByText('Fixed: 1')).toBeVisible()
+    expect(screen.getByText('Fixed: 1')).toHaveClass('text-success')
+    expect(screen.getByText('Needs attention: 0')).toBeVisible()
+    expect(screen.getByText('settings.doctor.summary.basic_healthy')).toBeVisible()
+    expect(screen.queryByRole('region', { name: 'error.diagnostics.action_required' })).not.toBeInTheDocument()
   })
 
   it('exposes local evidence through an accessible accordion trigger', async () => {
