@@ -4,7 +4,6 @@
 
 import * as z from 'zod'
 
-import type { ForkContextView } from '@shared/ai/agentSessionForkContext'
 import { TraceIdSchema } from '@shared/data/types/trace'
 
 import type { CursorPaginationResponse } from '../types'
@@ -117,9 +116,6 @@ export interface ReusableAgentSessionPlaceholdersResponse {
 // ============================================================================
 
 export type AgentSessionSchemas = {
-  '/agent-sessions/:sessionId/fork-context': {
-    GET: { params: { sessionId: string }; response: ForkContextView | null }
-  }
   '/agent-sessions': {
     GET: {
       query?: ListAgentSessionsQueryParams

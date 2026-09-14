@@ -319,6 +319,18 @@ export class AgentSessionService {
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
   }
 
+  isFork(id: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ source: sessionsTable.forkedFrom })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.id, id))
+        .get()?.source
+    )
+  }
+
   getById(id: string): AgentSessionEntity {
     const db = application.get('DbService').getDb()
     const [row] = db

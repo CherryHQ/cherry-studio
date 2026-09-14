@@ -14,6 +14,7 @@ import path from 'node:path'
 import type { JsonRpcLineTransport, SessionEventNotification } from '@deepseek-ai/dsh-sdk-protocol'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 
+import { application } from '@application'
 import type {
   BridgeCommandResult,
   BridgeContextUsage,
@@ -26,6 +27,7 @@ import { loggerService } from '@logger'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
+import type { AgentFileWriteService } from '../AgentFileWriteService'
 import type { AgentRuntimeEvent } from '../types'
 import { loadDshSdkProtocol } from './dshSdk'
 import { DSH_TRANSPORT } from './dshStreamAdapter'
@@ -55,6 +57,7 @@ export interface DshBridgeServerOptions {
   /** One subagent residency-epoch edge from the plugin's lifecycle listeners. */
   onSubagentLifecycle?: (edge: BridgeNotificationMap['subagent/lifecycle']) => void
   /** Deadline for an accepted socket to authenticate; also bounds `whenReady()`. */
+  onDisconnect?: () => void
   readyTimeoutMs?: number
 }
 
@@ -77,6 +80,8 @@ export class DshBridgeServer {
   private readonly readyWaiters: Array<{ resolve: () => void; reject: (error: Error) => void }> = []
   private closed = false
   private readonly readyTimeoutMs: number
+  private fileWriteLocks?: AgentFileWriteService
+  private runtimeHasExited = false
 
   constructor(private readonly options: DshBridgeServerOptions) {
     this.readyTimeoutMs = options.readyTimeoutMs ?? READY_TIMEOUT_MS
@@ -187,6 +192,26 @@ export class DshBridgeServer {
     }
   }
 
+  runtimeExited(): void {
+    this.runtimeHasExited = true
+    this.fileWriteLocks?.runtimeExited(this)
+  }
+
+  private async handleFileWrite(method: 'file-write/acquire' | 'file-write/release', params: Record<string, unknown>) {
+    if (params.sessionId !== this.options.sessionId || typeof params.leaseId !== 'string' || !params.leaseId) {
+      throw new Error('Invalid file write session or lease id.')
+    }
+    if (method === 'file-write/release') {
+      this.fileWriteLocks?.release(this, params.leaseId)
+      return {}
+    }
+    if (this.closed || this.runtimeHasExited || typeof params.path !== 'string')
+      throw new Error('File write connection is unavailable.')
+    this.fileWriteLocks ??= application.get('AgentFileWriteService')
+    await this.fileWriteLocks.acquire(this, params.leaseId, params.path)
+    return { acquired: true }
+  }
+
   private handleConnection(socket: net.Socket, Transport: typeof JsonRpcLineTransport): void {
     if (this.closed || this.connection) {
       socket.destroy()
@@ -204,6 +229,7 @@ export class DshBridgeServer {
         this.connection = undefined
         this.transport = undefined
         this.abortToolCalls()
+        if (!this.closed) this.options.onDisconnect?.()
       }
     })
     transport.onRequest(async (method, params) => {
@@ -251,6 +277,9 @@ export class DshBridgeServer {
 
   private handleRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
     switch (method) {
+      case 'file-write/acquire':
+      case 'file-write/release':
+        return this.handleFileWrite(method, params)
       case 'tool/call':
         return this.handleToolCall(params as BridgePluginRequestMap['tool/call']['params'])
       case 'guard/check':

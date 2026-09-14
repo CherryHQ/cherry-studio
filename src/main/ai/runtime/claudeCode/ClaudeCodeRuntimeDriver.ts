@@ -1,5 +1,3 @@
-import { homedir } from 'node:os'
-import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import type {
@@ -16,6 +14,7 @@ import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 type BetaUsage = SDKResultMessage['usage']
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
@@ -67,6 +66,7 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { withClaudeFileWriteProtection } from './claudeFileWrites'
 import { captureClaudeForkCheckpoint, forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import {
@@ -74,6 +74,7 @@ import {
   createClaudeCodeProcessExitError,
   isClaudeCodeProcessFailure
 } from './processExitDiagnostics'
+import { resolveClaudeConfigDirectory } from './queryOptions'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -443,7 +444,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.createQuery = createClaudeQuery
     this.query = consumedWarmQuery
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
-      : createClaudeQuery({ prompt: this.sdkInputQueue, options })
+      : createClaudeQuery({ prompt: this.sdkInputQueue, options: withClaudeFileWriteProtection(options) })
     this.adapterModelId = request.sdkModelId
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
@@ -770,9 +771,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           const forkState = await captureClaudeForkCheckpoint(
             result.sessionId,
             this.lastMainAssistantUuid,
-            this.spawnOptions?.env?.CLAUDE_CONFIG_DIR ??
-              process.env.CLAUDE_CONFIG_DIR ??
-              path.join(homedir(), '.claude'),
+            resolveClaudeConfigDirectory(this.spawnOptions?.env),
             this.spawnOptions?.cwd ?? '',
             this.abortController.signal
           )
@@ -832,6 +831,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     ) {
       return false
     }
+    if (agentSessionService.isFork(this.input.sessionId)) return false
     const reason = getResumeRecoveryReason(error)
     if (!reason) return false
     // Error results advance `resumeToken` before throwing. The pending input's session id proves the
@@ -864,7 +864,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
     this.query = createClaudeQuery({
       prompt: this.sdkInputQueue,
-      options: { ...this.spawnOptions, resume: undefined }
+      options: withClaudeFileWriteProtection({ ...this.spawnOptions, resume: undefined })
     })
     return true
   }

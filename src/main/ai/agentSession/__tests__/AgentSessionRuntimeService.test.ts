@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   getLastRuntimeResumeToken: vi.fn(),
   getForkHistory: vi.fn(),
   prepareForkContext: vi.fn(),
+  needsPreparation: vi.fn(() => true),
   findCrashOrphanedAssistantMessages: vi.fn(),
   resolveCrashOrphanedMessages: vi.fn(),
   updateSessionDeliveryStatus: vi.fn(),
@@ -45,7 +46,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/services/AgentSessionForkService', () => ({
-  agentSessionForkService: { journals: vi.fn(() => []) }
+  agentSessionForkService: { journals: vi.fn(() => []), resetCleanupClaims: vi.fn() }
 }))
 
 vi.mock('../prepareForkContext', () => ({
@@ -58,11 +59,18 @@ vi.mock('../forkContextEnvironment', () => ({
 }))
 vi.mock('@data/services/AgentSessionForkContextService', () => ({
   ForkContextFailure: class extends Error {},
-  agentSessionForkContextService: { beginSend: vi.fn(), confirmSend: vi.fn(), fail: vi.fn() }
+  agentSessionForkContextService: {
+    needsPreparation: mocks.needsPreparation,
+    captureNativePrefix: vi.fn(),
+    beginSend: vi.fn(),
+    confirmSend: vi.fn(),
+    fail: vi.fn()
+  }
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
+    isFork: vi.fn(() => false),
     getById: mocks.getSessionById,
     ensureTraceId: mocks.ensureTraceId
   }
@@ -282,6 +290,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
     mocks.getForkHistory.mockReturnValue(undefined)
     mocks.prepareForkContext.mockReset()
+    mocks.needsPreparation.mockReset().mockReturnValue(true)
     mocks.prepareForkContext.mockImplementation(async () => {
       const rows = mocks.getForkHistory()?.map((row: any, index: number) => ({ ...row, id: `history-${index}` })) ?? []
       const snapshot = createForkContextSnapshot(rows)
@@ -4297,6 +4306,7 @@ describe('AgentSessionRuntimeService', () => {
       events.push({ type: 'turn-complete' })
       await reader.read()
       await terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+      mocks.needsPreparation.mockReturnValue(false)
       const secondMessage = userMessage('second-user')
       const second = service.beginTurn({
         ...baseTurnInput,
@@ -4321,9 +4331,7 @@ describe('AgentSessionRuntimeService', () => {
 
   it('hydrates the persisted resume token before connecting a cold historical session', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue('resume-db')
-    mocks.getForkHistory.mockImplementation(() => {
-      throw new Error('Must not re-inject a resumed history')
-    })
+    mocks.getForkHistory.mockReturnValue(undefined)
     const events = createAsyncQueue<any>()
     const connection = {
       events: events.iterable,

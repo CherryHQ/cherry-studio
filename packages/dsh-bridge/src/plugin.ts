@@ -5,9 +5,12 @@
  * approvals round-trip to the host. Named exports only — a default export
  * would be unwrapped by the loader and drop `inject` (dsh postmortem 0001).
  */
+import { randomUUID } from 'node:crypto'
+
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-commands'
+import type { FsObservation, FsTarget } from '@deepseek-ai/dsh-fs'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-plan-mode'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
@@ -34,7 +37,7 @@ import {
 } from './protocol'
 
 export const name = 'cherry-bridge'
-export const inject = ['approval', 'agents', 'tools', 'tokenMeter', 'subagents', 'userQuestions', 'planMode']
+export const inject = ['approval', 'agents', 'tools', 'fs', 'tokenMeter', 'subagents', 'userQuestions', 'planMode']
 
 /** Canonical value a bridged execute resolves; `output.schema` states the same contract. */
 interface BridgeToolOutputValue {
@@ -46,6 +49,15 @@ interface RegisteredBridgeTool {
   descriptorKey: string
   sessions: Set<string>
   dispose: () => void
+}
+
+interface FileToolCall {
+  agent: Agent
+  sessionId: string
+  signal: AbortSignal
+  observations?: ReadonlyMap<string, FsObservation>
+  leaseId?: string
+  targetKey?: string
 }
 
 // No Config schema: env is the channel (a YAML `config` would need a Schemastery schema).
@@ -72,7 +84,18 @@ export function apply(ctx: Context): void {
   // Upstream advertises escalation targets globally; remove this projection when schemas become session-aware.
   // Track the embedding limitation in CherryHQ/cherry-studio#19801; execution permissions remain unchanged.
   ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
-    const assembly = await next()
+    const assembled = await next()
+    const assembly = {
+      ...assembled,
+      tools: assembled.tools.map((tool) =>
+        tool.name === 'write' || tool.name === 'edit'
+          ? {
+              ...tool,
+              description: `${tool.description}\nRead existing files with the read tool before modifying them. If another writer is active or the version changed, wait and read again before merging changes; never bypass a conflict using shell or other tools.`
+            }
+          : tool
+      )
+    }
     if (!context.agent || !isFullAccess(context.agent)) return assembly
     return {
       ...assembly,
@@ -189,6 +212,8 @@ export function apply(ctx: Context): void {
   }
 
   async function openSession(params: BridgeHostParams<'session/open'>): Promise<Record<string, never>> {
+    if (params.requireExistingHistory && !params.resume)
+      throw new Error('history_missing: this fork requires its existing native history.')
     policies.set(params.sessionId, params.policy)
     const agentOptions = {
       provider: params.provider,
@@ -208,6 +233,13 @@ export function apply(ctx: Context): void {
           }
         } catch (error) {
           if (!isMissingSessionError(error)) throw error
+          if (params.requireExistingHistory)
+            throw new Error(
+              'history_missing: the native fork history is unavailable; restore it or create a new fork.',
+              {
+                cause: error
+              }
+            )
           // No persisted log for this id yet — degrade to a fresh create (pi parity).
           await ctx.agents.create({
             sessionId: SessionId(params.sessionId),
@@ -401,6 +433,70 @@ export function apply(ctx: Context): void {
       current = parent
     }
   }
+
+  const observations = new WeakMap<Agent, Map<string, FsObservation>>()
+  const fileCalls = new WeakMap<object, FileToolCall>()
+  ctx.on('tools/execute', async (exec, next) => {
+    if (!exec.agent) return next()
+    const call: FileToolCall = {
+      agent: exec.agent,
+      sessionId: rootSessionOf(exec.agent),
+      signal: exec.signal,
+      // A concurrent read must not refresh the version behind an already-submitted mutation.
+      observations: exec.name === 'write' || exec.name === 'edit' ? new Map(observations.get(exec.agent)) : undefined
+    }
+    fileCalls.set(exec, call)
+    try {
+      return await next()
+    } finally {
+      fileCalls.delete(exec)
+      // SDK dispatch awaits the tool body even after cancellation; never release on abort alone.
+      if (call.leaseId) {
+        await link.request('file-write/release', { sessionId: call.sessionId, leaseId: call.leaseId })
+      }
+    }
+  })
+  ctx.on('fs/observed', (target, observation, actor) => {
+    const call = actor && fileCalls.get(actor)
+    if (!call) return
+    let records = observations.get(call.agent)
+    if (!records) observations.set(call.agent, (records = new Map()))
+    records.set(target.targetKey, observation)
+  })
+  async function acquireFileWrite(target: FsTarget, actor: object | undefined): Promise<FsObservation | undefined> {
+    const call = actor && fileCalls.get(actor)
+    if (!call) throw new Error('File writes require a verified agent execution context.')
+    call.signal.throwIfAborted()
+    if (call.targetKey && call.targetKey !== target.targetKey) throw new Error('A file write cannot change its target.')
+    if (!call.leaseId) {
+      const fs = ctx.get('fs')
+      if (!fs) throw new Error('File write protection requires the filesystem service.')
+      const leaseId = randomUUID()
+      call.leaseId = leaseId
+      call.targetKey = target.targetKey
+      // Do not abort this RPC: an acknowledged acquisition must always reach the finally release.
+      const result = await link.request('file-write/acquire', {
+        sessionId: call.sessionId,
+        leaseId,
+        path: fs.processPath(target)
+      })
+      if (result.acquired !== true) throw new Error('The host did not confirm file write protection.')
+    }
+    call.signal.throwIfAborted()
+    return call.observations?.get(target.targetKey)
+  }
+  ctx.on('fs/write-intent', async (target, actor) => {
+    const observed = await acquireFileWrite(target, actor)
+    return observed?.kind === 'present'
+      ? { kind: 'replaceIfVersion', version: observed.version }
+      : { kind: 'createIfAbsent' }
+  })
+  ctx.on('fs/edit-intent', async (target, actor) => {
+    const observed = await acquireFileWrite(target, actor)
+    if (observed?.kind !== 'present')
+      throw new Error('Read the current file before editing it; do not bypass this check using another tool.')
+    return { version: observed.version }
+  })
 
   ctx.on('tools/pre-execute', async (exec, next) => {
     const agent = exec.agent

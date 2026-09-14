@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto'
-import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
+import { Worker } from 'node:worker_threads'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,11 +12,76 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
+import type { RuntimeForkResult } from '../../forkCheckpoint'
 import { captureClaudeForkCheckpoint } from '../claudeFork'
 import type * as SettingsBuilderModule from '../settingsBuilder'
 import type * as StreamAdapterModule from '../streamAdapter'
 
 describe('Claude fork checkpoint persistence', () => {
+  it('maps UUIDs once in isolated SDK workers through a child and grandchild', async () => {
+    const userUuid = '20249b48-e174-4610-84c2-af6224228290'
+    let entries = [
+      { type: 'user', uuid: userUuid, parentUuid: null, sessionId, message: { role: 'user', content: 'PAST_ONLY' } },
+      {
+        type: 'assistant',
+        uuid: messageUuid,
+        parentUuid: userUuid,
+        sessionId,
+        message: { role: 'assistant', content: [{ type: 'text', text: 'PAST_ONLY' }] }
+      }
+    ]
+    let currentId = sessionId
+    let currentUuid = messageUuid
+    const parentEnv = process.env.CLAUDE_CONFIG_DIR
+    for (const name of ['child', 'grandchild']) {
+      const checkpoint = {
+        runtime: 'claude-code',
+        runtimeSessionId: currentId,
+        messageUuid: currentUuid,
+        configDir: directory,
+        sourceCwd: directory,
+        prefixBytes: 1,
+        prefixHash: '0'.repeat(64)
+      }
+      const worker = new Worker(new URL('../../forkWorker.ts', import.meta.url), {
+        workerData: {
+          runtime: 'claude-code',
+          entries,
+          checkpoint,
+          checkpoints: [checkpoint],
+          artifactDirectory: path.join(directory, name),
+          targetCwd: directory
+        },
+        env: { ...process.env }
+      })
+      let result: RuntimeForkResult
+      try {
+        result = await new Promise<RuntimeForkResult>((resolve, reject) => {
+          worker.once('message', (message) =>
+            message.error ? reject(new Error(message.error)) : resolve(message.result)
+          )
+          worker.once('error', reject)
+          worker.once('exit', (code) => reject(new Error('worker exited: ' + code)))
+        })
+      } finally {
+        await worker.terminate()
+      }
+      const output = (await readFile(result.publish[0].source, 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      const mapped = output.find((entry) => entry.forkedFrom?.messageUuid === currentUuid)
+      expect(mapped).toBeDefined()
+      expect(mapped.uuid).not.toBe(currentUuid)
+      expect(result.checkpoints[0]).toMatchObject({ messageUuid: mapped.uuid, configDir: directory })
+      expect(JSON.stringify(output)).toContain('PAST_ONLY')
+      expect(process.env.CLAUDE_CONFIG_DIR).toBe(parentEnv)
+      entries = output
+      currentId = result.resumeToken
+      currentUuid = mapped.uuid
+      await rm(result.publish[0].source)
+    }
+  })
   const sessionId = '374c8467-e787-4c67-b890-a3d91b50dba6'
   const messageUuid = '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03'
   let directory: string
@@ -121,7 +187,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet }
+  application: { get: mocks.applicationGet, getPath: vi.fn(() => '/mock-claude-config') }
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -138,6 +204,10 @@ vi.mock('../agentSessionWarmup', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { isFork: vi.fn(() => false) }
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -617,7 +687,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         category: 'auth',
         exitCode: 1
       })
-      return {}
+      return { once: vi.fn() }
     })
 
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -3177,8 +3247,13 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(retrySpawn.options).toMatchObject({
       model: 'sonnet',
       resume: undefined,
-      spawnClaudeCodeProcess: mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
+      spawnClaudeCodeProcess: expect.any(Function),
+      hooks: { PreToolUse: expect.any(Array), PostToolBatch: expect.any(Array) }
     })
+    // Each replacement process needs a fresh lease owner; it must not reuse the old wrapper.
+    expect(retrySpawn.options.spawnClaudeCodeProcess).not.toBe(
+      mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
+    )
     const replayed = await retrySpawn.prompt[Symbol.asyncIterator]().next()
     expect(replayed.value).toMatchObject({ type: 'user', session_id: '' })
 
@@ -3241,8 +3316,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(retrySpawn.options).toMatchObject({
       model: 'sonnet',
       resume: undefined,
-      spawnClaudeCodeProcess: mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
+      spawnClaudeCodeProcess: expect.any(Function),
+      hooks: { PreToolUse: expect.any(Array), PostToolBatch: expect.any(Array) }
     })
+    expect(retrySpawn.options.spawnClaudeCodeProcess).not.toBe(
+      mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
+    )
     await expect(retrySpawn.prompt[Symbol.asyncIterator]().next()).resolves.toMatchObject({
       value: { type: 'user', session_id: '' },
       done: false

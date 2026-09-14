@@ -1,6 +1,4 @@
-import * as z from 'zod'
-
-export const AgentSessionForkUnavailableReasonSchema = z.enum([
+export const AGENT_SESSION_FORK_UNAVAILABLE_REASONS = [
   'legacy_history',
   'not_turn_boundary',
   'checkpoint_failed',
@@ -8,36 +6,33 @@ export const AgentSessionForkUnavailableReasonSchema = z.enum([
   'history_corrupt',
   'unsupported_checkpoint',
   'history_changed'
-])
+] as const
 
-export type AgentSessionForkUnavailableReason = z.infer<typeof AgentSessionForkUnavailableReasonSchema>
+export type AgentSessionForkUnavailableReason = (typeof AGENT_SESSION_FORK_UNAVAILABLE_REASONS)[number]
+
+export function isAgentSessionForkUnavailableReason(value: unknown): value is AgentSessionForkUnavailableReason {
+  return typeof value === 'string' && AGENT_SESSION_FORK_UNAVAILABLE_REASONS.some((reason) => reason === value)
+}
 
 export function canRebuildAgentSessionFork(reason: string): boolean {
-  return AgentSessionForkUnavailableReasonSchema.safeParse(reason).success && reason !== 'not_turn_boundary'
+  return isAgentSessionForkUnavailableReason(reason) && reason !== 'not_turn_boundary'
 }
 
-export const AgentSessionForkFailureReasonSchema = z.enum([
-  ...AgentSessionForkUnavailableReasonSchema.options,
+export const AGENT_SESSION_FORK_FAILURE_REASONS = [
+  ...AGENT_SESSION_FORK_UNAVAILABLE_REASONS,
   'workspace_changed',
   'workspace_unsupported_file',
+  'source_missing',
+  'source_changed',
   'operation_failed'
-])
-export type AgentSessionForkFailureReason = z.infer<typeof AgentSessionForkFailureReasonSchema>
+] as const
 
-export const AgentSessionForkAvailabilitySchema = z.discriminatedUnion('status', [
-  z.strictObject({ status: z.literal('available') }),
-  z.strictObject({ status: z.literal('unavailable'), reason: AgentSessionForkUnavailableReasonSchema })
-])
+export type AgentSessionForkFailureReason = (typeof AGENT_SESSION_FORK_FAILURE_REASONS)[number]
 
-export type AgentSessionForkAvailability = z.infer<typeof AgentSessionForkAvailabilitySchema>
-
-/** Project only availability; native checkpoint identifiers must never leave Main. */
-export function getAgentSessionForkAvailability(value: unknown): AgentSessionForkAvailability {
-  if (value == null) return { status: 'unavailable', reason: 'legacy_history' }
-  if (typeof value !== 'object' || !('version' in value) || value.version !== 1) {
-    return { status: 'unavailable', reason: 'unsupported_checkpoint' }
-  }
-  if ('status' in value && value.status === 'available') return { status: 'available' }
-  const reason = AgentSessionForkUnavailableReasonSchema.safeParse('reason' in value ? value.reason : undefined)
-  return { status: 'unavailable', reason: reason.success ? reason.data : 'unsupported_checkpoint' }
+export function isAgentSessionForkFailureReason(value: unknown): value is AgentSessionForkFailureReason {
+  return typeof value === 'string' && AGENT_SESSION_FORK_FAILURE_REASONS.some((reason) => reason === value)
 }
+
+export type AgentSessionForkAvailability =
+  | { status: 'available' }
+  | { status: 'unavailable'; reason: AgentSessionForkUnavailableReason }

@@ -14,6 +14,8 @@ import type {
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
 import { application } from '@application'
+import { agentSessionForkContextService, ForkContextFailure } from '@data/services/AgentSessionForkContextService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -72,6 +74,7 @@ import {
   type PiConnectionSnapshot,
   PiInvalidConnectionSnapshotError
 } from './piConnectionSignature'
+import { createPiFileTools } from './piFileTools'
 import {
   buildMcpToolDefinitions,
   buildPiMcpToolName,
@@ -148,10 +151,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private session?: AgentSession
   private mcpBridge?: PiMcpToolBridge
   private unsubscribe?: () => void
+  private fileTools?: ReturnType<typeof createPiFileTools>
   private resumeToken?: string
   private lastStopReason?: string
   private lastAgentError?: string
   private closed = false
+  private closePromise?: Promise<void>
   /** Injected model id (pi `apiModelId`), stamped on context-usage so the renderer's
    *  per-model usage filter matches the composer's model candidates. */
   private modelId = ''
@@ -385,6 +390,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       }
       this.connectionSignature = initialSnapshot.signature
 
+      this.fileTools = createPiFileTools(pi, workspacePath)
       const created = await pi.createAgentSession({
         cwd: workspacePath,
         agentDir,
@@ -396,7 +402,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         model,
         // pi treats `tools` as the complete active-tool allowlist, not just a built-in selector.
         tools: [...PI_BUILTIN_TOOL_NAMES, ...customTools.map((tool) => tool.name)],
-        customTools: [managedBashTool, ...customTools],
+        customTools: [managedBashTool, ...this.fileTools.tools, ...customTools],
         // Bake disabled tools out of built-in and custom tool sets; the approval gate also blocks
         // them live so a mid-session disable is enforced.
         ...(this.disabledTools.size > 0 ? { excludeTools: [...this.disabledTools] } : {})
@@ -410,7 +416,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     } catch (error) {
       const bridge = this.mcpBridge
       this.mcpBridge = undefined
-      const cleanup = await Promise.allSettled([bridge?.close(), this.unregisterApiProvider()])
+      const cleanup = await Promise.allSettled([bridge?.close(), this.unregisterApiProvider(), this.fileTools?.close()])
       for (const result of cleanup) {
         if (result.status === 'rejected') logger.warn('Pi startup cleanup failed', { error: result.reason })
       }
@@ -420,11 +426,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   /**
    * Pick the session manager for this connection. A fresh session (no resume token) is created with
-   * the Cherry session id. On resume, a format-valid token whose file is missing on disk falls back
+   * the Cherry session id. For a normal or unsent rebuilt session, a format-valid missing file falls back
    * to a fresh session with the SAME id — pi flushes the JSONL lazily (nothing until the first
    * assistant message), so a token emitted before that flush points at a never-persisted session; a
    * hard failure here would brick the session forever (e.g. a first turn of `/compact` or a preflight
-   * rejection). A malformed token still throws — that's the resume-dir attack-surface guard.
+   * rejection). Native forks and already-sent rebuilds must never take this empty-history fallback.
+   * A malformed token still throws — that's the resume-dir attack-surface guard.
    */
   private resolveSessionManager(pi: Awaited<ReturnType<typeof loadPiSdk>>, workspacePath: string, sessionDir: string) {
     if (!this.resumeToken) {
@@ -432,6 +439,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
     const file = resolveResumeTokenSessionFile(this.resumeToken, sessionDir)
     if (file) return pi.SessionManager.open(file, sessionDir, workspacePath)
+    if (
+      agentSessionService.isFork(this.input.sessionId) &&
+      !agentSessionForkContextService.needsPreparation(this.input.sessionId)
+    )
+      throw new ForkContextFailure({ code: 'native_uncertain', category: 'needs_reconciliation' })
     logger.warn('pi resume token has no session file on disk; creating a fresh session with the same id', {
       sessionId: this.input.sessionId
     })
@@ -597,9 +609,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return usage && usage.tokens != null ? this.projectContextUsage(usage) : null
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return
+  close(): Promise<void> {
     this.closed = true
+    return (this.closePromise ??= Promise.resolve().then(() => this.finishClose()))
+  }
+
+  private async finishClose(): Promise<void> {
     // Deny any approval still awaiting a renderer decision so its held tool
     // promise resolves instead of hanging past teardown (plan Phase 3).
     toolApprovalRegistry.abort(this.input.sessionId, 'pi-session-closed')
@@ -612,6 +627,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     } catch (error) {
       logger.warn('pi session abort failed during close', { error })
     }
+    await this.fileTools?.close()
     this.session?.dispose()
     this.session = undefined
     this.endOpenTraceSpans('pi connection closed')

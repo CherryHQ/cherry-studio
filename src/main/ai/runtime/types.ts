@@ -192,7 +192,6 @@ export interface AgentRuntimeConnection {
     contextWindow?: number
     opaqueEnvelope: boolean
   }>
-  snapshotForFork?(boundary: number): Promise<unknown[]>
   readonly events: AsyncIterable<AgentRuntimeEvent>
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>

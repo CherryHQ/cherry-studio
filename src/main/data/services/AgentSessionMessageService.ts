@@ -36,7 +36,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
-import { AgentSessionForkUnavailableReasonSchema, getAgentSessionForkAvailability } from '@shared/ai/agentSessionFork'
+import { isAgentSessionForkUnavailableReason } from '@shared/ai/agentSessionFork'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -61,6 +61,7 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
+import { AgentSessionForkSourceError, getAgentSessionForkAvailability } from './agentSessionFork'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -305,14 +306,13 @@ export class AgentSessionMessageService {
   }
 
   markForkUnavailable(sessionId: string, messageId: string, value: string): void {
-    const reason = AgentSessionForkUnavailableReasonSchema.safeParse(value)
-    if (!reason.success) return
+    if (!isAgentSessionForkUnavailableReason(value)) return
     application
       .get('DbService')
       .getDb()
       .update(sessionMessagesTable)
       .set({
-        runtimeForkState: { version: 1, status: 'unavailable', reason: reason.data },
+        runtimeForkState: { version: 1, status: 'unavailable', reason: value },
         updatedAt: Date.now()
       })
       .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
@@ -341,7 +341,7 @@ export class AgentSessionMessageService {
       .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
       .all()
     const end = rows.findIndex((row) => row.id === messageId)
-    if (end < 0) throw new Error('history_missing')
+    if (end < 0) throw new AgentSessionForkSourceError('source_missing')
     const excluded = new Set(excludedIds)
     return rows.slice(0, end + 1).filter((row) => !excluded.has(row.id))
   }
@@ -706,7 +706,7 @@ export class AgentSessionMessageService {
     }
 
     const result = withSqliteErrors(
-      () => this.deleteSessionMessageTx(database, sessionId, messageId),
+      () => application.get('DbService').withWriteTx((tx) => this.deleteSessionMessageTx(tx, sessionId, messageId)),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {

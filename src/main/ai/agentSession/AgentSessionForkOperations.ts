@@ -2,14 +2,14 @@ import { randomUUID } from 'node:crypto'
 import { lstat, mkdir, readdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 
-import * as z from 'zod'
-
 import { application } from '@application'
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
+import { getAgentSessionForkAvailability } from '@data/services/agentSessionFork'
+import { AgentSessionForkJournalSchema } from '@data/services/agentSessionForkJournal'
 import { type AgentSessionForkJournal, agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
-import { canRebuildAgentSessionFork, getAgentSessionForkAvailability } from '@shared/ai/agentSessionFork'
+import { canRebuildAgentSessionFork } from '@shared/ai/agentSessionFork'
 
 import {
   AgentSessionForkError,
@@ -19,22 +19,9 @@ import {
 } from '../runtime/forkCheckpoint'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import { copyForkWorkspace, forkFileIdentity, publishForkArtifact } from './forkFiles'
+import { workspaceHasReferences } from './forkWorkspaceCleanup'
 
 const logger = loggerService.withContext('AgentSessionForkOperations')
-const journalSchema = z.strictObject({
-  version: z.literal(1),
-  operationId: z.uuid(),
-  sourceSessionId: z.uuid(),
-  messageId: z.uuid(),
-  targetSessionId: z.uuid(),
-  createdAt: z.number().int(),
-  artifactDirectory: z.string(),
-  artifactIdentity: z.string().optional(),
-  workspace: z.string().optional(),
-  workspaceIdentity: z.string().optional(),
-  published: z.array(z.strictObject({ source: z.string(), target: z.string(), identity: z.string().optional() })),
-  committed: z.boolean()
-})
 
 function isInside(root: string, file: string): boolean {
   const relative = path.relative(root, file)
@@ -81,12 +68,15 @@ export class AgentSessionForkOperations {
   }
 
   private async recoverOnce(includeUncommitted: boolean): Promise<void> {
+    if (includeUncommitted) agentSessionForkService.resetCleanupClaims()
     for (const value of agentSessionForkService.journals()) {
-      const parsed = journalSchema.safeParse(value)
+      const parsed = AgentSessionForkJournalSchema.safeParse(value)
       if (!parsed.success) {
         logger.warn('Invalid fork recovery record retained')
         continue
       }
+      if (parsed.data.cleanupComplete) continue
+      if (parsed.data.version === 1) parsed.data.workspaceDisposition = 'retained'
       if (!includeUncommitted && !parsed.data.committed) continue
       if (agentSessionForkService.hasCommittedChild(parsed.data)) continue
       try {
@@ -145,7 +135,7 @@ export class AgentSessionForkOperations {
     const root = application.getPath('feature.agents.forks')
     const operationId = randomUUID()
     const journal: AgentSessionForkJournal = {
-      version: 1,
+      version: 2,
       operationId,
       sourceSessionId,
       messageId,
@@ -182,17 +172,10 @@ export class AgentSessionForkOperations {
       let result: RuntimeForkResult | undefined
       if (checkpoint && source.agent.type === checkpoint.runtime && driver.fork) {
         try {
-          const snapshotEvents =
-            checkpoint.runtime === 'dsh'
-              ? await application
-                  .get('AgentSessionRuntimeService')
-                  .snapshotForFork(sourceSessionId, checkpoint.boundary)
-              : undefined
           result = await driver.fork({
             sourceSessionId,
             checkpoint,
             checkpoints,
-            snapshotEvents,
             targetSessionId: journal.targetSessionId,
             targetCwd,
             artifactDirectory: journal.artifactDirectory,
@@ -258,6 +241,18 @@ export class AgentSessionForkOperations {
   }
 
   private async cleanup(journal: AgentSessionForkJournal): Promise<void> {
+    if (journal.cleanupComplete || agentSessionForkService.hasCommittedChild(journal)) return
+    // This claim also covers rollback of unpublished products, which can already have been adopted.
+    agentSessionForkService.beginCleanup(journal)
+    try {
+      await this.cleanupOwned(journal)
+      journal.cleanupComplete = true
+    } finally {
+      agentSessionForkService.finishCleanup(journal)
+    }
+  }
+
+  private async cleanupOwned(journal: AgentSessionForkJournal): Promise<void> {
     const root = application.getPath('feature.agents.forks')
     if (path.resolve(journal.artifactDirectory) !== path.resolve(root, journal.operationId))
       throw new Error('Unowned fork directory')
@@ -272,7 +267,7 @@ export class AgentSessionForkOperations {
         if (!isMissing(error)) throw error
       }
     }
-    if (journal.workspace) {
+    if (journal.workspace && journal.workspaceDisposition !== 'retained') {
       const expected = agentWorkspaceService.buildSystemWorkspacePath(
         application.getPath('feature.agents.system_workspaces'),
         journal.targetSessionId,
@@ -283,7 +278,22 @@ export class AgentSessionForkOperations {
         if (!journal.workspaceIdentity || (await forkFileIdentity(expected)) !== journal.workspaceIdentity) {
           throw new Error('Fork workspace ownership is unproven; retained for recovery')
         }
-        await rm(expected, { recursive: true, force: true })
+        if (
+          await workspaceHasReferences(
+            expected,
+            agentWorkspaceService.list({ includeSystem: true }).map((row) => row.path)
+          )
+        ) {
+          // Terminal retention: releasing the other workspace later must never resurrect deletion.
+          journal.workspaceDisposition = 'retained'
+          agentSessionForkService.writeJournal(journal)
+        } else {
+          if (application.get('AgentFileWriteService').hasWritesInside(expected))
+            throw new Error('Fork workspace still has active file writes; retained for recovery')
+          if ((await forkFileIdentity(expected)) !== journal.workspaceIdentity)
+            throw new Error('Fork workspace ownership changed')
+          await rm(expected, { recursive: true, force: true })
+        }
       } catch (error) {
         if (!isMissing(error)) throw error
       }
@@ -300,7 +310,6 @@ export class AgentSessionForkOperations {
     } catch (error) {
       if (!isMissing(error)) throw error
     }
-    agentSessionForkService.removeJournal(journal.operationId)
   }
 }
 

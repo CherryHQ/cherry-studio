@@ -7,7 +7,6 @@
  * session relation.
  */
 
-import { agentSessionForkContextService } from '@data/services/AgentSessionForkContextService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
@@ -22,9 +21,6 @@ import {
 import type { HandlersFor } from '@shared/data/api/types'
 
 export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
-  '/agent-sessions/:sessionId/fork-context': {
-    GET: async ({ params }) => agentSessionForkContextService.getView(params.sessionId)
-  },
   '/agent-sessions': {
     GET: async ({ query }) => {
       const parsed = ListAgentSessionsQuerySchema.safeParse(query ?? {})

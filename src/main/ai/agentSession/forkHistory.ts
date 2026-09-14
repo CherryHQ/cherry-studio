@@ -1,5 +1,5 @@
+import type { ForkContextSegment, PreparedForkContext } from '@data/services/agentSessionForkContext'
 import { defangSystemReminderTags } from '@main/ai/untrustedContent'
-import type { ForkContextSegment, PreparedForkContext } from '@shared/ai/agentSessionForkContext'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 
 /** No system/developer roles, executable tool objects or approval state cross this boundary. */

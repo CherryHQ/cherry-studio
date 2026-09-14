@@ -1,9 +1,9 @@
 import { application } from '@application'
+import type { ForkContextCompatibility } from '@data/services/agentSessionForkContext'
 import { ForkContextFailure } from '@data/services/AgentSessionForkContextService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { forkContextHash } from '@data/services/utils/forkContext'
-import type { ForkContextCompatibility } from '@shared/ai/agentSessionForkContext'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 

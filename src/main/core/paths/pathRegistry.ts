@@ -67,6 +67,7 @@ export function buildPathRegistry() {
 
     // -- B. sys.* — OS directories (prefer app.* or cherry.* for Cherry-owned paths) --
     'sys.home': sysHome,
+    'external.claude.config': path.join(sysHome, '.claude'),
     'sys.temp': sysTemp, // OS-wide; prefer app.temp for Cherry-specific temp
     'sys.downloads': getUserSystemPath('downloads', path.join(sysHome, 'Downloads')),
     'sys.documents': getUserSystemPath('documents', path.join(sysHome, 'Documents')),

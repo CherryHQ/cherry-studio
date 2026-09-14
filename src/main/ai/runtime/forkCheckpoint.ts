@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { AgentSessionForkUnavailableReasonSchema } from '@shared/ai/agentSessionFork'
+import { AGENT_SESSION_FORK_UNAVAILABLE_REASONS } from '@shared/ai/agentSessionFork'
 
 const identity = { runtimeSessionId: z.string().min(1) }
 export const RuntimeForkCheckpointSchema = z.discriminatedUnion('runtime', [
@@ -27,7 +27,7 @@ export const RuntimeForkStateSchema = z.discriminatedUnion('status', [
   z.strictObject({
     version: z.literal(1),
     status: z.literal('unavailable'),
-    reason: AgentSessionForkUnavailableReasonSchema
+    reason: z.enum(AGENT_SESSION_FORK_UNAVAILABLE_REASONS)
   })
 ])
 
@@ -46,7 +46,6 @@ export const NOT_FORK_BOUNDARY: RuntimeForkState = {
 }
 
 export interface RuntimeForkInput {
-  snapshotEvents?: unknown[]
   sourceSessionId: string
   checkpoint: RuntimeForkCheckpoint
   checkpoints: RuntimeForkCheckpoint[]

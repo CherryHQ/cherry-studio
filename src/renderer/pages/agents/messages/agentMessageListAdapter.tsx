@@ -32,7 +32,6 @@ import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailMod
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
-import { popup } from '@renderer/services/popup'
 import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
@@ -191,12 +190,6 @@ export function useAgentMessageListProviderValue({
         } catch (error) {
           const reason = agentSessionForkFailureReason(error)
           if (!reason || !canRebuildAgentSessionFork(reason)) throw error
-          const confirmed = await popup.confirm({
-            title: t('agent_session_fork.label'),
-            content: t('agent_session_fork.confirm'),
-            centered: true
-          })
-          if (!confirmed) return
           result = await ipcApi.request('ai.agent.session.fork', {
             sourceSessionId: sessionId,
             messageId,

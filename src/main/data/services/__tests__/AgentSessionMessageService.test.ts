@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -20,20 +20,23 @@ import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
+import type { ForkContextCompatibility } from '@data/services/agentSessionForkContext'
 import { agentSessionForkContextService } from '@data/services/AgentSessionForkContextService'
+import type { AgentSessionForkJournal } from '@data/services/agentSessionForkJournal'
 import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { forkContextHash } from '@data/services/utils/forkContext'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/AgentSessionForkOperations'
+import { forkFileIdentity } from '@main/ai/agentSession/forkFiles'
 import { buildForkHistory } from '@main/ai/agentSession/forkHistory'
 import { ForkContextPreparer, prepareForkContext } from '@main/ai/agentSession/prepareForkContext'
 import { AgentSessionForkError } from '@main/ai/runtime/forkCheckpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import type { ForkContextCompatibility } from '@shared/ai/agentSessionForkContext'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -117,11 +120,26 @@ describe('AgentSessionMessageService', () => {
       modelHash: forkContextHash('model')
     })
 
+    function recordNative(
+      ...args: Parameters<typeof agentSessionForkContextService.recordNative> extends [...infer P, unknown] ? P : never
+    ) {
+      const state = agentSessionMessageService
+        .readForkPrefixTx(dbh.db, args[0], args[1], args[2])
+        .at(-1)!.runtimeForkState
+      const capture = agentSessionForkContextService.captureNativePrefix(args[0], args[1], args[2], state)!
+      agentSessionForkContextService.recordNative(...args, capture)
+    }
+
     async function contextSource() {
       await seedAgent('context-agent', 'Context Agent')
       await seedSession({ id: 'context-source', agentId: 'context-agent', name: 'History', orderKey: 'context-a' })
       agentSessionMessageService.saveMessage({
         sessionId: 'context-source',
+        runtimeForkState: {
+          version: 1,
+          status: 'available',
+          checkpoint: { runtime: 'pi', runtimeSessionId: 'fixture', leafId: 'leaf' }
+        },
         message: {
           id: ASSISTANT_MESSAGE_ID,
           role: 'assistant',
@@ -150,6 +168,189 @@ describe('AgentSessionMessageService', () => {
       agentSessionForkContextService.createTx(dbh.db, childId, rows, sourceId, source)
       return rows
     }
+
+    it.each(['edit', 'delete', 'append'] as const)('validates the frozen native capture after %s', async (change) => {
+      await contextSource()
+      const state = agentSessionMessageService
+        .readForkPrefixTx(dbh.db, 'context-source', ASSISTANT_MESSAGE_ID)
+        .at(-1)!.runtimeForkState
+      const capture = agentSessionForkContextService.captureNativePrefix(
+        'context-source',
+        ASSISTANT_MESSAGE_ID,
+        [],
+        state
+      )!
+      if (change === 'edit')
+        agentSessionMessageService.updateSessionMessage('context-source', ASSISTANT_MESSAGE_ID, {
+          data: { parts: [{ type: 'text', text: 'changed' }] }
+        })
+      if (change === 'delete') agentSessionMessageService.deleteSessionMessage('context-source', ASSISTANT_MESSAGE_ID)
+      if (change === 'append')
+        agentSessionMessageService.saveMessage({
+          sessionId: 'context-source',
+          message: {
+            id: randomUUID(),
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'FUTURE_SECRET' }] }
+          }
+        })
+      const save = () =>
+        agentSessionForkContextService.recordNative(
+          'context-source',
+          ASSISTANT_MESSAGE_ID,
+          [],
+          compatibility('pi'),
+          { identity: 'capture', messages: [{ role: 'user', content: 'BOUNDARY_ONLY' }] },
+          capture
+        )
+      if (change === 'delete') expect(save).toThrow('source_missing')
+      else save()
+      const document = agentSessionForkContextService.get('context-source')?.document
+      if (change === 'append') {
+        expect(document?.summaries).toHaveLength(1)
+        expect(JSON.stringify(document)).not.toContain('FUTURE_SECRET')
+        expect(document?.summaries[0].captureProof).toBeDefined()
+      } else expect(document).toBeUndefined()
+    })
+
+    it('rolls back checkpoint invalidation and deletion together on a real SQLite failure', async () => {
+      await contextSource()
+      const remove = agentSessionMessageService.deleteSessionMessageTx.bind(agentSessionMessageService)
+      vi.spyOn(agentSessionMessageService, 'deleteSessionMessageTx').mockImplementation((...args) => {
+        remove(...args)
+        throw new Error('transaction failed after delete')
+      })
+      expect(() => agentSessionMessageService.deleteSessionMessage('context-source', ASSISTANT_MESSAGE_ID)).toThrow(
+        'transaction failed'
+      )
+      expect(
+        agentSessionMessageService.getSessionMessage('context-source', ASSISTANT_MESSAGE_ID).forkAvailability
+      ).toEqual({ status: 'available' })
+    })
+
+    it('uses durable receipts rather than initialization tokens and preserves sent state during v1 upgrade', async () => {
+      await contextSource()
+      recordNative('context-source', ASSISTANT_MESSAGE_ID, [], compatibility('pi'), {
+        identity: 'native',
+        messages: [{ role: 'user', content: 'PAST_ONLY' }]
+      })
+      await contextChild('context-source', 'receipt-child', ASSISTANT_MESSAGE_ID)
+      const compress = compressor()
+      const input = {
+        sessionId: 'receipt-child',
+        compatibility: compatibility('pi'),
+        budget: 2000,
+        resolveCompressor: compress.resolveCompressor,
+        signal: new AbortController().signal
+      }
+      const prepared = (await prepareForkContext(input))!
+      expect(agentSessionForkContextService.needsPreparation('receipt-child')).toBe(true)
+      agentSessionForkContextService.fail('receipt-child', { code: 'network', category: 'retryable' })
+      expect((await prepareForkContext(input))!.preparedContextId).toBe(prepared.preparedContextId)
+      const receiptId = randomUUID()
+      agentSessionForkContextService.beginSend('receipt-child', prepared.preparedContextId, randomUUID(), receiptId)
+      expect(() => agentSessionForkContextService.needsPreparation('receipt-child')).toThrow('native_uncertain')
+      agentSessionMessageService.saveMessage({
+        sessionId: 'receipt-child',
+        runtimeResumeToken: 'native-child',
+        message: {
+          id: receiptId,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'received' }] }
+        }
+      })
+      expect(agentSessionForkContextService.needsPreparation('receipt-child')).toBe(false)
+      const sent = agentSessionForkContextService.get('receipt-child')!.document
+      dbh.db
+        .update(agentSessionForkContextTable)
+        .set({ document: { ...sent, version: 1 } })
+        .where(eq(agentSessionForkContextTable.sessionId, 'receipt-child'))
+        .run()
+      const upgraded = agentSessionForkContextService.get('receipt-child')!.document
+      expect(upgraded.version).toBe(2)
+      expect(upgraded.state).toBe('sent')
+      expect(upgraded.summaries).toHaveLength(0)
+      expect(upgraded.audits[0]).toMatchObject({ outcome: 'sent', resumeToken: 'native-child' })
+      expect(agentSessionForkContextService.needsPreparation('receipt-child')).toBe(false)
+      expect(compress.resolveCompressor).not.toHaveBeenCalled()
+      dbh.db
+        .delete(agentSessionForkContextTable)
+        .where(eq(agentSessionForkContextTable.sessionId, 'receipt-child'))
+        .run()
+      expect(() => agentSessionForkContextService.needsPreparation('receipt-child')).toThrow('native_uncertain')
+    })
+
+    it.each(['owned', 'adopted', 'legacy'] as const)(
+      'safely recovers %s workspace cleanup and registration claims',
+      async (kind) => {
+        dbh.db.update(agentWorkspaceTable).set({ orderKey: 'a0' }).run()
+        const root = await mkdtemp(path.join(tmpdir(), 'cherry-fork-cleanup-'))
+        const originalGetPath = application.getPath.bind(application)
+        vi.spyOn(application, 'getPath').mockImplementation((key, ...args) =>
+          key === 'feature.agents.forks'
+            ? path.join(root, 'forks')
+            : key === 'feature.agents.system_workspaces'
+              ? path.join(root, 'system')
+              : originalGetPath(key, ...args)
+        )
+        const container = application.getContainer()
+        const originalGet = container.get.bind(container)
+        vi.spyOn(container, 'get').mockImplementation((name) =>
+          name === 'AgentFileWriteService' ? { hasWritesInside: () => false } : originalGet(name)
+        )
+        const operationId = randomUUID()
+        const targetSessionId = randomUUID()
+        const createdAt = Date.now()
+        const workspace = agentWorkspaceService.buildSystemWorkspacePath(
+          path.join(root, 'system'),
+          targetSessionId,
+          createdAt
+        )
+        const artifactDirectory = path.join(root, 'forks', operationId)
+        try {
+          await mkdir(path.join(workspace, 'adopted'), { recursive: true })
+          await mkdir(artifactDirectory, { recursive: true })
+          await writeFile(path.join(workspace, 'adopted', 'keep.txt'), 'keep')
+          const journal: AgentSessionForkJournal = {
+            version: kind === 'legacy' ? 1 : 2,
+            operationId,
+            sourceSessionId: randomUUID(),
+            messageId: randomUUID(),
+            targetSessionId,
+            createdAt,
+            artifactDirectory,
+            artifactIdentity: await forkFileIdentity(artifactDirectory),
+            workspace,
+            workspaceIdentity: await forkFileIdentity(workspace),
+            published: [],
+            committed: true
+          }
+          const adopted =
+            kind === 'adopted' ? agentWorkspaceService.findOrCreateByPath(path.join(workspace, 'adopted')) : undefined
+          agentSessionForkService.writeJournal(journal)
+          agentSessionForkService.beginCleanup(journal)
+          expect(() => agentWorkspaceService.findOrCreateByPath(path.join(root, 'new'))).toThrow('fork cleanup')
+          // Simulate a crash with the claim persisted: startup recovery must first release it.
+          await new AgentSessionForkOperations().recover(true)
+          const registered = agentWorkspaceService.findOrCreateByPath(path.join(root, 'new'))
+          expect(registered.path).toBe(path.join(root, 'new'))
+          if (kind === 'owned') await expect(readFile(path.join(workspace, 'adopted', 'keep.txt'))).rejects.toThrow()
+          else {
+            expect(await readFile(path.join(workspace, 'adopted', 'keep.txt'), 'utf8')).toBe('keep')
+            expect(agentSessionForkService.journals()).toContainEqual(
+              expect.objectContaining({ operationId, workspaceDisposition: 'retained', cleanupComplete: true })
+            )
+            if (adopted) agentWorkspaceService.deleteByIdTx(dbh.db, adopted.id)
+            await new AgentSessionForkOperations().recover(true)
+            expect(await readFile(path.join(workspace, 'adopted', 'keep.txt'), 'utf8')).toBe('keep')
+          }
+        } finally {
+          await rm(root, { recursive: true, force: true })
+        }
+      }
+    )
 
     function compressor() {
       const prompts: unknown[] = []
@@ -183,7 +384,7 @@ describe('AgentSessionMessageService', () => {
       async (runtime) => {
         await contextSource()
         const config = compatibility(runtime)
-        agentSessionForkContextService.recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
+        recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
           identity: 'native-compaction',
           messages: [{ role: 'user', content: 'COMPACTED_PAST' }]
         })
@@ -226,7 +427,7 @@ describe('AgentSessionMessageService', () => {
     it.each(['damaged', 'missing'])('recompresses a %s summary without including future input', async (damage) => {
       await contextSource()
       const config = compatibility('pi')
-      agentSessionForkContextService.recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
+      recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
         identity: 'native-compaction',
         messages: [{ role: 'user', content: 'COMPACTED_PAST' }]
       })
@@ -327,7 +528,7 @@ describe('AgentSessionMessageService', () => {
     it('rebuilds malformed summary records without discarding the verified input snapshot', async () => {
       await contextSource()
       const config = compatibility('pi')
-      agentSessionForkContextService.recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
+      recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
         identity: 'native',
         messages: [{ role: 'user', content: 'COMPACTED_PAST' }]
       })
@@ -392,11 +593,11 @@ describe('AgentSessionMessageService', () => {
     it('rejects corrupt ancestry even when the most recent summary is valid', async () => {
       await contextSource()
       const config = compatibility('pi')
-      agentSessionForkContextService.recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
+      recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
         identity: 'first',
         messages: [{ role: 'user', content: 'ANCESTOR' }]
       })
-      agentSessionForkContextService.recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
+      recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
         identity: 'second',
         messages: [{ role: 'user', content: 'LATEST_VALID_SUMMARY' }]
       })
@@ -724,9 +925,9 @@ describe('AgentSessionMessageService', () => {
         }
       }
       agentSessionMessageService.updateSessionMessage('fork-source', ASSISTANT_MESSAGE_ID, { data: { parts: [] } })
-      expect(() => agentSessionForkService.commit(input)).toThrow('history_changed')
+      expect(() => agentSessionForkService.commit(input)).toThrow('source_changed')
       agentSessionService.deleteTx(dbh.db, 'fork-source')
-      expect(() => agentSessionForkService.commit(input)).toThrow('history_missing')
+      expect(() => agentSessionForkService.commit(input)).toThrow('source_missing')
       expect(
         dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'fork-child')).get()
       ).toBeUndefined()

@@ -14,6 +14,8 @@ import {
   type BridgePermissionMode,
   type BridgePolicy
 } from '@cherrystudio/dsh-bridge'
+import { agentSessionForkContextService } from '@data/services/AgentSessionForkContextService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -130,6 +132,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private compositionPath?: string
   private resumeToken?: string
   private closed = false
+  private closePromise?: Promise<void>
   private turnActive = false
   /** Monotonic host-turn identity; child items pin it at open so they never split across streams. */
   private turnEpoch = 0
@@ -161,7 +164,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     return this._usageCapture
   }
 
-  constructor(private readonly input: AgentRuntimeConnectInput) {
+  constructor(
+    private readonly input: AgentRuntimeConnectInput,
+    private readonly onClosed: () => void = () => undefined
+  ) {
     this.resumeToken = input.resumeToken
     this.traceContext = input.trace
     // Constructor-body creation: parameter properties are not yet assigned while
@@ -235,6 +241,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   async start(): Promise<this> {
     if (this.input.resumeToken) assertValidDshResumeToken(this.input.resumeToken)
+    const requireExistingHistory =
+      agentSessionService.isFork(this.input.sessionId) &&
+      !agentSessionForkContextService.needsPreparation(this.input.sessionId)
+    if (requireExistingHistory && !this.input.resumeToken)
+      throw new Error('history_missing: this fork requires its existing native history.')
     const resolveInjection = async (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> => {
       try {
         return await resolveDshProviderInjectionFromSnapshot(
@@ -372,6 +383,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
+        onDisconnect: () => {
+          this.eventQueue.push({
+            type: 'error',
+            error: new Error('dsh bridge disconnected; runtime execution is stopping')
+          })
+          void this.close().catch((error) => logger.warn('dsh disconnected runtime close failed', { error }))
+        },
         onGuardCheck: async (toolName, args, cwd) => {
           const decision = await evaluateUserDataSqliteGuard({
             runtime: 'dsh',
@@ -422,8 +440,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         provider: injection.providerName,
         model: injection.modelId,
         cwd: workspacePath,
-        // The plugin degrades resume to a fresh create when no session log exists yet.
+        // Only an unsent history rebuild may recreate missing native fork storage.
         resume: Boolean(this.input.resumeToken),
+        requireExistingHistory,
         policy: this.buildPolicy(),
         tools: toolBridge.tools
       })
@@ -641,9 +660,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     return result.events
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return
+  close(): Promise<void> {
     this.closed = true
+    return (this.closePromise ??= Promise.resolve().then(() => this.finishClose()))
+  }
+
+  private async finishClose(): Promise<void> {
+    this.onClosed()
     this.pendingBridgeEvents.length = 0
     this.sessionEventSeqs.clear()
     this.subagents.close()
@@ -667,6 +690,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.traceRecorder = undefined
     try {
       await this.client?.close()
+      this.bridge?.runtimeExited()
     } catch (error) {
       logger.warn('dsh client close failed', { error })
     }

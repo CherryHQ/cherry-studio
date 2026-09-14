@@ -1,12 +1,21 @@
+import { EventEmitter } from 'node:events'
+import { link, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import net from 'node:net'
 import os from 'node:os'
+import path from 'node:path'
 
+import type { HookCallback, Options } from '@anthropic-ai/claude-agent-sdk'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { BaseService } from '@main/core/lifecycle'
 
+import { AgentFileWriteService } from '../../AgentFileWriteService'
+import { withClaudeFileWriteProtection } from '../../claudeCode/claudeFileWrites'
+import { createPiFileTools } from '../../pi/piFileTools'
 import type { AgentRuntimeEvent } from '../../types'
 import { DshBridgeServer, type DshBridgeServerOptions } from '../DshBridgeServer'
 
@@ -120,6 +129,274 @@ afterEach(async () => {
     harness.socket.destroy()
     await harness.server.close()
   }
+})
+
+describe('DSH cross-connection file write protection', () => {
+  let directory: string
+  let locks: AgentFileWriteService
+  beforeEach(async () => {
+    BaseService.resetInstances()
+    locks = new AgentFileWriteService()
+    directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-write-lock-'))
+    const container = application.getContainer()
+    const original = container.get.bind(container)
+    vi.spyOn(container, 'get').mockImplementation((name) => (name === 'AgentFileWriteService' ? locks : original(name)))
+  })
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    await rm(directory, { recursive: true, force: true })
+  })
+  const acquire = (peer: Harness, leaseId: string, target: string) =>
+    peer.transport.request('file-write/acquire', { sessionId: SESSION_ID, leaseId, path: target })
+  const release = (peer: Harness, leaseId: string) =>
+    peer.transport.request('file-write/release', { sessionId: SESSION_ID, leaseId })
+
+  it('rejects a competing writer but admits independent files and releases idempotently', async () => {
+    const parent = await makeHarness()
+    const child = await makeHarness()
+    const file = path.join(directory, 'shared.txt')
+    await writeFile(file, 'original')
+    await expect(acquire(parent, 'parent', file)).resolves.toEqual({ acquired: true })
+    await expect(acquire(child, 'child', file)).rejects.toThrow('FILE_WRITE_BUSY')
+    await expect(acquire(child, 'independent', path.join(directory, 'new', 'file.txt'))).resolves.toEqual({
+      acquired: true
+    })
+    await release(child, 'parent')
+    await expect(acquire(child, 'child', file)).rejects.toThrow('FILE_WRITE_BUSY')
+    await release(parent, 'parent')
+    await release(parent, 'parent')
+    await expect(acquire(child, 'child', file)).resolves.toEqual({ acquired: true })
+    parent.server.runtimeExited()
+    child.server.runtimeExited()
+  })
+
+  it('retains a disconnected writer until its process has exited', async () => {
+    const parent = await makeHarness()
+    const child = await makeHarness()
+    const file = path.join(directory, 'shared.txt')
+    await acquire(parent, 'parent', file)
+    await parent.server.close()
+    await expect(acquire(child, 'child', file)).rejects.toThrow('FILE_WRITE_BUSY')
+    parent.server.runtimeExited()
+    parent.server.runtimeExited()
+    await expect(acquire(child, 'child', file)).resolves.toEqual({ acquired: true })
+    child.server.runtimeExited()
+  })
+
+  it('does not grant a late acquisition after the owner exits', async () => {
+    const owner = {}
+    const pending = locks.acquire(owner, 'late', path.join(directory, 'new.txt'))
+    locks.runtimeExited(owner)
+    await expect(pending).rejects.toThrow('FILE_WRITE_OWNER_STOPPED')
+    const other = {}
+    await locks.acquire(other, 'next', path.join(directory, 'new.txt'))
+    locks.runtimeExited(other)
+  })
+
+  it('merges path aliases and hard links into the same conflict domain', async () => {
+    const owner = {}
+    const other = {}
+    const file = path.join(directory, 'shared.txt')
+    await writeFile(file, 'original')
+    const hardLink = path.join(directory, 'alias.txt')
+    await link(file, hardLink)
+    await locks.acquire(owner, 'write', file)
+    await expect(locks.acquire(other, 'alias', hardLink)).rejects.toThrow('FILE_WRITE_BUSY')
+    if (process.platform === 'win32') {
+      await expect(locks.acquire(other, 'case', file.toUpperCase())).rejects.toThrow('FILE_WRITE_BUSY')
+    }
+    const realDirectory = path.join(directory, 'real')
+    const aliasDirectory = path.join(directory, 'linked')
+    await mkdir(realDirectory)
+    await symlink(realDirectory, aliasDirectory, process.platform === 'win32' ? 'junction' : 'dir')
+    await locks.acquire(owner, 'new', path.join(realDirectory, 'new.txt'))
+    await expect(locks.acquire(other, 'alias-new', path.join(aliasDirectory, 'new.txt'))).rejects.toThrow(
+      'FILE_WRITE_BUSY'
+    )
+    locks.runtimeExited(owner)
+    locks.runtimeExited(other)
+  })
+
+  it('rejects foreign sessions and relative paths', async () => {
+    const peer = await makeHarness()
+    await expect(
+      peer.transport.request('file-write/acquire', {
+        sessionId: 'other',
+        leaseId: 'wrong',
+        path: path.join(directory, 'file.txt')
+      })
+    ).rejects.toThrow('Invalid file write session')
+    await expect(acquire(peer, 'relative', 'file.txt')).rejects.toThrow('FILE_TARGET_UNVERIFIABLE')
+    peer.server.runtimeExited()
+  })
+
+  it.each([
+    ['pi', 'claude'],
+    ['claude', 'pi'],
+    ['pi', 'dsh'],
+    ['dsh', 'pi'],
+    ['claude', 'dsh'],
+    ['dsh', 'claude']
+  ])('excludes %s versus %s writes without blocking reads or different files', async (firstType, secondType) => {
+    const sdk = await import('@earendil-works/pi-coding-agent')
+    const disposers: Array<() => Promise<void> | void> = []
+    const writer = async (type: string, hold = false) => {
+      const id = crypto.randomUUID()
+      if (type === 'dsh') {
+        const peer = await makeHarness()
+        disposers.push(() => peer.server.runtimeExited())
+        return {
+          begin: async (file: string) => {
+            await acquire(peer, id, file)
+          },
+          finish: async () => {
+            await release(peer, id)
+          }
+        }
+      }
+      if (type === 'claude') {
+        const process = new EventEmitter()
+        const options = withClaudeFileWriteProtection({
+          cwd: directory,
+          permissionMode: 'bypassPermissions',
+          spawnClaudeCodeProcess: () => process as never
+        })
+        options.spawnClaudeCodeProcess!({} as never)
+        disposers.push(() => {
+          process.emit('exit', 0)
+        })
+        const hook = (name: 'PreToolUse' | 'PostToolUse') => options.hooks![name]!.at(-1)!.hooks[0]
+        const event = {
+          session_id: SESSION_ID,
+          transcript_path: '',
+          cwd: directory,
+          tool_name: 'Write',
+          tool_use_id: id,
+          tool_input: {}
+        }
+        return {
+          begin: async (file: string) => {
+            const result = await hook('PreToolUse')(
+              { ...event, hook_event_name: 'PreToolUse', tool_input: { file_path: file } },
+              id,
+              { signal: new AbortController().signal }
+            )
+            if (
+              'hookSpecificOutput' in result &&
+              result.hookSpecificOutput?.hookEventName === 'PreToolUse' &&
+              result.hookSpecificOutput.permissionDecision === 'deny'
+            )
+              throw new Error(result.hookSpecificOutput.permissionDecisionReason)
+          },
+          finish: async () => {
+            await hook('PostToolUse')({ ...event, hook_event_name: 'PostToolUse', tool_response: {} }, id, {
+              signal: new AbortController().signal
+            })
+          }
+        }
+      }
+      const entered = Promise.withResolvers<void>()
+      const gate = Promise.withResolvers<void>()
+      const tools = createPiFileTools(
+        {
+          ...sdk,
+          createWriteToolDefinition: (cwd, options) =>
+            sdk.createWriteToolDefinition(
+              cwd,
+              options
+                ? {
+                    operations: {
+                      ...options.operations!,
+                      writeFile: async (file, content) => {
+                        await options.operations!.writeFile(file, content)
+                        entered.resolve()
+                        if (hold) await gate.promise
+                      }
+                    }
+                  }
+                : undefined
+            )
+        },
+        directory
+      )
+      let pending: Promise<unknown> | undefined
+      disposers.push(async () => {
+        gate.resolve()
+        await pending?.catch(() => undefined)
+        await tools.close()
+      })
+      return {
+        begin: async (file: string) => {
+          pending = tools.tools[0].execute(
+            id,
+            { path: file, content: 'native write' },
+            undefined,
+            undefined,
+            {} as never
+          )
+          await (hold ? Promise.race([entered.promise, pending]) : pending)
+        },
+        finish: async () => {
+          gate.resolve()
+          await pending
+        }
+      }
+    }
+    try {
+      const file = path.join(directory, 'matrix.txt')
+      await writeFile(file, 'original')
+      const first = await writer(firstType, true)
+      await first.begin(file)
+      const second = await writer(secondType)
+      await expect(second.begin(file)).rejects.toThrow('FILE_WRITE_BUSY')
+      expect(await readFile(file, 'utf8')).toBeTruthy()
+      const independent = await writer(secondType)
+      await independent.begin(path.join(directory, 'independent.txt'))
+      await independent.finish()
+      await first.finish()
+      const retry = await writer(secondType)
+      // No prior read is required for the Pi/Claude write adapters.
+      await retry.begin(file)
+      await retry.finish()
+    } finally {
+      for (const dispose of disposers.reverse()) await dispose()
+    }
+  })
+
+  it('holds Claude leases through approval/abort and isolates late callbacks by process generation', async () => {
+    const child = new EventEmitter()
+    const controller = new AbortController()
+    const options: Options = withClaudeFileWriteProtection({
+      cwd: directory,
+      abortController: controller,
+      spawnClaudeCodeProcess: () => child as never
+    })
+    options.spawnClaudeCodeProcess!({} as never)
+    const run = async (name: 'PreToolUse' | 'PostToolBatch', event: Parameters<HookCallback>[0]) =>
+      options.hooks![name]!.at(-1)!.hooks[0](event, 'call', { signal: new AbortController().signal })
+    const file = path.join(directory, 'approval.txt')
+    const event = {
+      session_id: SESSION_ID,
+      transcript_path: '',
+      cwd: directory,
+      tool_use_id: 'call',
+      tool_name: 'Write',
+      tool_input: { file_path: file }
+    }
+    expect(await run('PreToolUse', { ...event, hook_event_name: 'PreToolUse' })).toEqual({})
+    controller.abort()
+    const replacement = {}
+    await expect(locks.acquire(replacement, 'new', file)).rejects.toThrow('FILE_WRITE_BUSY')
+    child.emit('exit', 1)
+    await locks.acquire(replacement, 'new', file)
+    await run('PostToolBatch', {
+      ...event,
+      hook_event_name: 'PostToolBatch',
+      tool_calls: [{ tool_use_id: 'call' }]
+    } as never)
+    await expect(locks.acquire({}, 'third', file)).rejects.toThrow('FILE_WRITE_BUSY')
+    locks.runtimeExited(replacement)
+  })
 })
 
 describe('DshBridgeServer authentication gate', () => {

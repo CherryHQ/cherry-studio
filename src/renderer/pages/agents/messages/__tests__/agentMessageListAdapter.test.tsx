@@ -202,8 +202,8 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
-  it.each(['native', 'confirm', 'cancel', 'workspace-error'] as const)(
-    'fork confirmation follows the main-process checkpoint result: %s',
+  it.each(['native', 'rebuild', 'workspace-error'] as const)(
+    'forks without confirmation and only rebuilds when the checkpoint is unavailable: %s',
     async (scenario) => {
       let value: MessageListProviderValue | undefined
       const Probe = () => {
@@ -229,8 +229,7 @@ describe('useAgentMessageListProviderValue', () => {
             reason: scenario === 'workspace-error' ? 'workspace_changed' : 'legacy_history'
           })
         )
-      confirmFork.mockResolvedValue(scenario === 'confirm')
-      if (scenario === 'confirm') ipcApiRequest.mockResolvedValueOnce({ sessionId: 'child' })
+      if (scenario === 'rebuild') ipcApiRequest.mockResolvedValueOnce({ sessionId: 'child' })
       render(<Probe />)
       const action = value!.actions.forkSession!('selected-message')
       if (scenario === 'workspace-error') await expect(action).rejects.toThrow()
@@ -240,16 +239,15 @@ describe('useAgentMessageListProviderValue', () => {
         messageId: 'selected-message',
         allowHistoryRebuild: false
       })
-      if (scenario === 'native' || scenario === 'workspace-error') expect(confirmFork).not.toHaveBeenCalled()
-      else expect(confirmFork).toHaveBeenCalledOnce()
-      if (scenario === 'confirm')
+      expect(confirmFork).not.toHaveBeenCalled()
+      if (scenario === 'rebuild')
         expect(ipcApiRequest).toHaveBeenNthCalledWith(2, 'ai.agent.session.fork', {
           sourceSessionId: 'source',
           messageId: 'selected-message',
           allowHistoryRebuild: true
         })
       else expect(ipcApiRequest).toHaveBeenCalledTimes(1)
-      if (scenario === 'native' || scenario === 'confirm')
+      if (scenario === 'native' || scenario === 'rebuild')
         expect(openRouteMock).toHaveBeenCalledWith('/app/agents', { sessionId: 'child' })
       else expect(openRouteMock).not.toHaveBeenCalled()
     }

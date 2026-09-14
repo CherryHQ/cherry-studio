@@ -4,7 +4,6 @@ import { and, eq } from 'drizzle-orm'
 import { omit } from 'es-toolkit/compat'
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionForkContextTable as table } from '@data/db/schemas/agentSessionForkContext'
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
@@ -16,10 +15,11 @@ import {
   ForkContextDocumentSchema,
   type ForkContextError,
   ForkContextSummarySchema,
-  type ForkContextView,
-  PreparedForkContextSchema
-} from '@shared/ai/agentSessionForkContext'
+  PreparedForkContextSchema,
+  upgradeForkContextDocument
+} from '@data/services/agentSessionForkContext'
 
+import { getAgentSessionForkAvailability } from './agentSessionFork'
 import { agentSessionMessageService } from './AgentSessionMessageService'
 import {
   collectForkContextGarbage,
@@ -37,44 +37,40 @@ export class ForkContextFailure extends Error {
   }
 }
 
-export class AgentSessionForkContextService {
-  getView(sessionId: string): ForkContextView | null {
-    const session = application
-      .get('DbService')
-      .getDb()
-      .select({ source: agentSessionTable.forkedFrom })
-      .from(agentSessionTable)
-      .where(eq(agentSessionTable.id, sessionId))
-      .get()
-    if (!session?.source?.historyMessageId) return null
-    let current: ReturnType<AgentSessionForkContextService['get']>
-    try {
-      current = this.get(sessionId)
-    } catch (error) {
-      if (!(error instanceof ForkContextFailure)) throw error
-      return { state: 'failed', source: 'history', error: error.detail, audits: [] }
-    }
-    if (!current) return { state: 'forkCreated', source: 'history', audits: [] }
-    const { document } = current
-    return {
-      state: document.state,
-      error: document.error,
-      source:
-        document.summaries.find((summary) => summary.summaryId === document.prepared?.summaryId)?.sourceType ??
-        'history',
-      preparedContextId: document.prepared?.preparedContextId,
-      audits: document.audits.slice(-20).map((audit) => omit(audit, ['resumeToken', 'compatibility']))
-    }
-  }
+export interface NativeForkContextCapture {
+  sessionId: string
+  messageId: string
+  excludedIds: readonly string[]
+  checkpointHash: string
+  prefixHash: string
+}
 
-  private notify(sessionId: string): void {
-    notifyDataApiDataChange([
-      {
-        endpoint: '/agent-sessions/:sessionId/fork-context',
-        routeParams: { sessionId },
-        entityIds: [sessionId]
-      }
-    ])
+export class AgentSessionForkContextService {
+  captureNativePrefix(
+    sessionId: string,
+    messageId: string,
+    excludedIds: readonly string[],
+    expectedState: unknown
+  ): NativeForkContextCapture | undefined {
+    const rows = agentSessionMessageService.readForkPrefixTx(
+      application.get('DbService').getDb(),
+      sessionId,
+      messageId,
+      excludedIds
+    )
+    const state = rows.at(-1)?.runtimeForkState
+    if (
+      getAgentSessionForkAvailability(state).status !== 'available' ||
+      forkContextHash(state) !== forkContextHash(expectedState)
+    )
+      return undefined
+    return {
+      sessionId,
+      messageId,
+      excludedIds: [...excludedIds],
+      checkpointHash: forkContextHash(state),
+      prefixHash: forkContextHash(rows)
+    }
   }
 
   recordNative(
@@ -82,15 +78,27 @@ export class AgentSessionForkContextService {
     messageId: string,
     excludedIds: readonly string[],
     compatibility: ForkContextCompatibility,
-    native: { identity: string; messages: unknown[] }
+    native: { identity: string; messages: unknown[] },
+    capture: NativeForkContextCapture
   ): void {
     if (compatibility.runtime === 'claude-code') return
+    if (
+      capture.sessionId !== sessionId ||
+      capture.messageId !== messageId ||
+      forkContextHash(capture.excludedIds) !== forkContextHash(excludedIds)
+    )
+      return
     const text = nativeForkContextText(native.messages)
     if (!text) return
     application.get('DbService').withWriteTx((tx) => {
       const rows = agentSessionMessageService.readForkPrefixTx(tx, sessionId, messageId, excludedIds)
+      if (
+        forkContextHash(rows) !== capture.prefixHash ||
+        forkContextHash(rows.at(-1)?.runtimeForkState) !== capture.checkpointHash
+      )
+        return
       const row = tx.select().from(table).where(eq(table.sessionId, sessionId)).get()
-      const parsed = ForkContextDocumentSchema.safeParse(row?.document)
+      const parsed = ForkContextDocumentSchema.safeParse(upgradeForkContextDocument(row?.document))
       if (row && !parsed.success) return
       if (
         parsed.success &&
@@ -104,7 +112,7 @@ export class AgentSessionForkContextService {
       const snapshot = createForkContextSnapshot(rows)
       const document: ForkContextDocument = parsed.success
         ? parsed.data
-        : { version: 1, snapshot, summaries: [], state: 'forkCreated', audits: [] }
+        : { version: 2, snapshot, summaries: [], state: 'forkCreated', audits: [] }
       if (parsed.success) {
         if (document.state === 'sending' || document.error?.category === 'needs_reconciliation') return
         if (
@@ -122,6 +130,7 @@ export class AgentSessionForkContextService {
         parentSummaryId: selectForkContextSummary(document, compatibility)?.summaryId,
         sourceType: 'native',
         nativeIdentity: native.identity,
+        captureProof: { checkpointHash: capture.checkpointHash, prefixHash: capture.prefixHash },
         compatibility,
         coveredStart: 0,
         coveredEnd: snapshot.entries.length,
@@ -141,7 +150,6 @@ export class AgentSessionForkContextService {
           .run()
       else tx.insert(table).values({ sessionId, document }).run()
     })
-    this.notify(sessionId)
   }
 
   createTx(
@@ -152,11 +160,11 @@ export class AgentSessionForkContextService {
     sourceRows?: readonly AgentSessionMessageRow[]
   ): void {
     const snapshot = createForkContextSnapshot(rows)
-    const document: ForkContextDocument = { version: 1, snapshot, summaries: [], state: 'forkCreated', audits: [] }
+    const document: ForkContextDocument = { version: 2, snapshot, summaries: [], state: 'forkCreated', audits: [] }
     const parentRow = sourceSessionId
       ? tx.select().from(table).where(eq(table.sessionId, sourceSessionId)).get()
       : undefined
-    const parsed = ForkContextDocumentSchema.safeParse(parentRow?.document)
+    const parsed = ForkContextDocumentSchema.safeParse(upgradeForkContextDocument(parentRow?.document))
     if (parsed.success) {
       const parent = parsed.data
       const source = createForkContextSnapshot(sourceRows ?? [])
@@ -218,10 +226,11 @@ export class AgentSessionForkContextService {
   get(sessionId: string): { document: ForkContextDocument; revision: number } | undefined {
     const row = application.get('DbService').getDb().select().from(table).where(eq(table.sessionId, sessionId)).get()
     if (!row) return undefined
-    const parsed = ForkContextDocumentSchema.safeParse(row.document)
+    const upgraded = upgradeForkContextDocument(row.document)
+    const parsed = ForkContextDocumentSchema.safeParse(upgraded)
     if (!parsed.success) {
       // A damaged summary is disposable, but never discard send receipts or guess a snapshot.
-      const raw = row.document
+      const raw = upgraded
       if (raw && typeof raw === 'object' && 'summaries' in raw && Array.isArray(raw.summaries)) {
         const base = ForkContextDocumentSchema.omit({ summaries: true, prepared: true }).safeParse(
           omit(raw, ['summaries', 'prepared'])
@@ -251,6 +260,10 @@ export class AgentSessionForkContextService {
       }
       throw new ForkContextFailure({ code: 'corrupt', category: 'not_retryable' })
     }
+    if (upgraded !== row.document) {
+      const revision = this.save(sessionId, row.revision, parsed.data)
+      return { document: parsed.data, revision }
+    }
     return { document: parsed.data, revision: row.revision }
   }
 
@@ -259,6 +272,18 @@ export class AgentSessionForkContextService {
     if (existing) return existing
     const rows = agentSessionMessageService.getForkHistory(sessionId)
     if (!rows) return undefined
+    // Without an audit, any post-fork assistant row may represent a delivered prompt.
+    // Initialization tokens on inherited rows, by contrast, never establish delivery.
+    const inheritedIds = new Set(rows.map((row) => row.id))
+    const subsequent = application
+      .get('DbService')
+      .getDb()
+      .select({ id: agentSessionMessageTable.id })
+      .from(agentSessionMessageTable)
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), eq(agentSessionMessageTable.role, 'assistant')))
+      .all()
+      .some((row) => !inheritedIds.has(row.id))
+    if (subsequent) throw new ForkContextFailure({ code: 'native_uncertain', category: 'needs_reconciliation' })
     application.get('DbService').withWriteTx((tx) => {
       if (!tx.select().from(table).where(eq(table.sessionId, sessionId)).get()) this.createTx(tx, sessionId, rows)
     })
@@ -276,8 +301,35 @@ export class AgentSessionForkContextService {
       .where(and(eq(table.sessionId, sessionId), eq(table.revision, revision)))
       .run()
     if (!result.changes) throw new ForkContextFailure({ code: 'boundary', category: 'not_retryable' })
-    this.notify(sessionId)
     return revision + 1
+  }
+
+  /** An initialization token never proves that the inherited context was delivered. */
+  needsPreparation(sessionId: string): boolean {
+    const source = application
+      .get('DbService')
+      .getDb()
+      .select({ source: agentSessionTable.forkedFrom })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, sessionId))
+      .get()
+    if (!source?.source?.historyMessageId) return false
+    this.reconcileReceipt(sessionId)
+    const current = this.ensure(sessionId)
+    if (!current) throw new ForkContextFailure({ code: 'corrupt', category: 'not_retryable' })
+    const { document } = current
+    if (document.state === 'sent') {
+      if (!document.audits.some((audit) => audit.outcome === 'sent' && audit.resumeToken))
+        throw new ForkContextFailure({ code: 'native_uncertain', category: 'needs_reconciliation' })
+      return false
+    }
+    if (
+      document.state === 'sending' ||
+      document.error?.category === 'needs_reconciliation' ||
+      document.audits.some((audit) => audit.outcome !== 'sent')
+    )
+      throw new ForkContextFailure({ code: 'native_uncertain', category: 'needs_reconciliation' })
+    return true
   }
 
   beginSend(sessionId: string, preparedContextId: string, messageId: string, assistantMessageId: string): string {

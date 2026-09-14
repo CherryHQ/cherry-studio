@@ -7,25 +7,19 @@ import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessag
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import type { DbOrTx } from '@data/db/types'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
+import { AgentSessionForkSourceError } from './agentSessionFork'
 import { agentSessionForkContextService } from './AgentSessionForkContextService'
+import {
+  AgentSessionForkJournalSchema,
+  FORK_JOURNAL_PREFIX,
+  type AgentSessionForkJournal
+} from './agentSessionForkJournal'
 import { agentSessionMessageService } from './AgentSessionMessageService'
 import { agentSessionService } from './AgentSessionService'
 
-export interface AgentSessionForkJournal {
-  version: 1
-  operationId: string
-  sourceSessionId: string
-  messageId: string
-  targetSessionId: string
-  createdAt: number
-  artifactDirectory: string
-  artifactIdentity?: string
-  workspace?: string
-  workspaceIdentity?: string
-  published: Array<{ source: string; target: string; identity?: string }>
-  committed: boolean
-}
+export type { AgentSessionForkJournal } from './agentSessionForkJournal'
 
 export class AgentSessionForkService {
   private readTx(tx: DbOrTx, sourceSessionId: string, messageId: string, excludedIds: readonly string[]) {
@@ -36,7 +30,7 @@ export class AgentSessionForkService {
       .innerJoin(agentTable, eq(agentTable.id, agentSessionTable.agentId))
       .where(eq(agentSessionTable.id, sourceSessionId))
       .get()
-    if (!source || source.agent.deletedAt) throw new Error('history_missing')
+    if (!source || source.agent.deletedAt) throw new AgentSessionForkSourceError('source_missing')
     const messages = agentSessionMessageService.readForkPrefixTx(tx, sourceSessionId, messageId, excludedIds)
     return { ...source, messages }
   }
@@ -50,7 +44,7 @@ export class AgentSessionForkService {
 
   writeJournal(journal: AgentSessionForkJournal, tx: DbOrTx = application.get('DbService').getDb()): void {
     tx.insert(appStateTable)
-      .values({ key: 'agent-session-fork:' + journal.operationId, value: journal })
+      .values({ key: FORK_JOURNAL_PREFIX + journal.operationId, value: journal })
       .onConflictDoUpdate({ target: appStateTable.key, set: { value: journal, updatedAt: Date.now() } })
       .run()
   }
@@ -61,7 +55,7 @@ export class AgentSessionForkService {
       .getDb()
       .select({ value: appStateTable.value })
       .from(appStateTable)
-      .where(like(appStateTable.key, 'agent-session-fork:%'))
+      .where(like(appStateTable.key, FORK_JOURNAL_PREFIX + '%'))
       .all()
       .map((row) => row.value)
   }
@@ -71,8 +65,56 @@ export class AgentSessionForkService {
       .get('DbService')
       .getDb()
       .delete(appStateTable)
-      .where(eq(appStateTable.key, 'agent-session-fork:' + operationId))
+      .where(eq(appStateTable.key, FORK_JOURNAL_PREFIX + operationId))
       .run()
+  }
+
+  /** Serialize cleanup admission with workspace registration in SQLite, not an async check-then-delete. */
+  beginCleanup(journal: AgentSessionForkJournal): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const active = tx
+        .select({ value: appStateTable.value })
+        .from(appStateTable)
+        .where(like(appStateTable.key, FORK_JOURNAL_PREFIX + '%'))
+        .all()
+        .some(
+          ({ value }) =>
+            value && typeof value === 'object' && 'cleanupState' in value && value.cleanupState === 'active'
+        )
+      if (active) throw DataApiErrorFactory.resourceLocked('Workspace', journal.operationId, 'fork cleanup; retry')
+      if (journal.version === 1) journal.workspaceDisposition = 'retained'
+      journal.version = 2
+      journal.cleanupState = 'active'
+      this.writeJournal(journal, tx)
+    })
+  }
+
+  finishCleanup(journal: AgentSessionForkJournal): void {
+    delete journal.cleanupState
+    if (journal.cleanupComplete && journal.workspaceDisposition !== 'retained') this.removeJournal(journal.operationId)
+    else this.writeJournal(journal)
+  }
+
+  /** Startup only, before admitting new forks. A stale claim is not proof of ownership. */
+  resetCleanupClaims(): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const rows = tx
+        .select()
+        .from(appStateTable)
+        .where(like(appStateTable.key, FORK_JOURNAL_PREFIX + '%'))
+        .all()
+      for (const row of rows) {
+        if (!row.value || typeof row.value !== 'object' || !('cleanupState' in row.value)) continue
+        const value = { ...row.value }
+        delete value.cleanupState
+        const parsed = AgentSessionForkJournalSchema.safeParse(value)
+        if (parsed.success && parsed.data.version === 1) parsed.data.workspaceDisposition = 'retained'
+        tx.update(appStateTable)
+          .set({ value: parsed.success ? parsed.data : value })
+          .where(eq(appStateTable.key, row.key))
+          .run()
+      }
+    })
   }
 
   hasCommittedChild(journal: AgentSessionForkJournal): boolean {
@@ -104,7 +146,7 @@ export class AgentSessionForkService {
         current.workspace.path !== source.workspace.path ||
         JSON.stringify(current.messages) !== JSON.stringify(source.messages)
       )
-        throw new Error('history_changed')
+        throw new AgentSessionForkSourceError('source_changed')
       // Allocate the suffix in the publishing transaction so concurrent forks cannot claim the same name.
       const names = new Set(
         tx

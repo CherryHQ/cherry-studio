@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { isToolUIPart } from 'ai'
 
 import { application } from '@application'
+import { AgentSessionForkSourceError } from '@data/services/agentSessionFork'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
@@ -14,7 +15,7 @@ import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main
 import { AgentSessionForkError } from '@main/ai/runtime/forkCheckpoint'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { AgentSessionForkFailureReasonSchema } from '@shared/ai/agentSessionFork'
+import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
 import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -244,10 +245,11 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       }
     } catch (error) {
       logger.warn('Agent session fork failed', { sourceSessionId, messageId, error })
-      const parsed = AgentSessionForkFailureReasonSchema.safeParse(
-        error instanceof AgentSessionForkError ? error.reason : error instanceof Error ? error.message : undefined
-      )
-      const reason = parsed.success ? parsed.data : 'operation_failed'
+      const failure =
+        error instanceof AgentSessionForkError || error instanceof AgentSessionForkSourceError
+          ? error.reason
+          : undefined
+      const reason = isAgentSessionForkFailureReason(failure) ? failure : 'operation_failed'
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
     }
   },

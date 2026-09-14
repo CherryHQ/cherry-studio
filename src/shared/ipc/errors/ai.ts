@@ -1,4 +1,4 @@
-import { AgentSessionForkFailureReasonSchema } from '@shared/ai/agentSessionFork'
+import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { type AiStreamAdmissionReason, isAiStreamAdmissionReason } from '@shared/ai/transport'
 import type { SerializedError } from '@shared/types/error'
 
@@ -46,10 +46,8 @@ export const aiErrorCodes = {
 
 export function agentSessionForkFailureReason(e: unknown) {
   if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED) return undefined
-  const parsed = AgentSessionForkFailureReasonSchema.safeParse(
-    e.data && typeof e.data === 'object' && 'reason' in e.data ? e.data.reason : undefined
-  )
-  return parsed.success ? parsed.data : undefined
+  const reason = e.data && typeof e.data === 'object' && 'reason' in e.data ? e.data.reason : undefined
+  return isAgentSessionForkFailureReason(reason) ? reason : undefined
 }
 
 /**

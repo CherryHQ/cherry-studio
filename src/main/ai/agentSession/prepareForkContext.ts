@@ -3,6 +3,13 @@ import { randomUUID } from 'node:crypto'
 import { estimateTokenCount } from 'tokenx'
 
 import { resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
+import type {
+  ForkContextCompatibility,
+  ForkContextError,
+  ForkContextSegment,
+  ForkContextSummary,
+  PreparedForkContext
+} from '@data/services/agentSessionForkContext'
 import { agentSessionForkContextService, ForkContextFailure } from '@data/services/AgentSessionForkContextService'
 import {
   forkContextHash,
@@ -11,13 +18,6 @@ import {
   selectForkContextSummary,
   validForkContextSegment
 } from '@data/services/utils/forkContext'
-import type {
-  ForkContextCompatibility,
-  ForkContextError,
-  ForkContextSegment,
-  ForkContextSummary,
-  PreparedForkContext
-} from '@shared/ai/agentSessionForkContext'
 
 import type { CompressionModelDescriptor } from '../contextBuild/resolveCompressionModel'
 import { serializeForkContext } from './forkHistory'

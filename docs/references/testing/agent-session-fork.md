@@ -7,6 +7,8 @@ sources:
   - src/main/ai/runtime/forkWorker.ts
   - src/main/data/services/AgentSessionForkService.ts
   - packages/dsh-bridge/src/fork.ts
+  - packages/dsh-bridge/src/plugin.ts
+  - src/main/ai/runtime/AgentFileWriteService.ts
 ---
 
 # Agent Session Fork Verification
@@ -53,16 +55,16 @@ without transcript content and never turn a successful answer into an error.
 Claude refuses publication if required references or opaque compaction metadata
 cannot survive SDK processing. In particular, SDK versions that leave preserved
 segment UUIDs dangling or move required replacements outside inherited prefixes
-return `unsupported_checkpoint`. The fork then rebuilds from saved messages,
-as disclosed in the confirmation dialog; it does not claim native restoration.
+return `unsupported_checkpoint`. The fork then automatically rebuilds from saved
+messages; this is history reconstruction, not native restoration.
 
 ## History reconstruction
 
 Main first attempts a native fork without permission to rebuild history. Valid
 checkpoints fork directly without a dialog. Legacy, failed, missing, corrupt or
-unsupported checkpoints request a short confirmation before reconstruction;
-incomplete turns and workspace errors do not offer reconstruction. Cancelling
-creates no session. Requests with different reconstruction consent never share
+unsupported checkpoints automatically retry with history reconstruction, without
+a confirmation dialog. Incomplete turns and workspace errors do not offer
+reconstruction. Requests with different reconstruction permissions never share
 an in-flight result.
 The child keeps its own full UI prefix and no inherited resume token. UI messages
 are **not** the model context. Migration 0022 adds an owned context document;
@@ -138,7 +140,7 @@ Repeat for Pi, Claude and DSH:
    child actions do not resolve source approvals or run queued tasks.
 4. Open the same source in two windows and click the same boundary concurrently:
    one in-flight result. Clicking again after completion creates another child.
-5. Verify old completed history can fork, the confirmation explains reconstruction,
+5. Verify old completed history forks without a confirmation dialog,
    and incomplete turns remain disabled. Test checkpoint failure and missing/corrupt
    or unsupported native histories. Confirm the first child prompt receives the
    selected prefix exactly once and no later messages, queued input or approvals.
@@ -171,6 +173,57 @@ MCP routing, interactive approvals, and source/child/grandchild forks after pare
 deletion. A host-opened fork is an execution root even with `parentSession` lineage;
 actual delegated subagents still inherit their execution root's approval ceiling.
 
+For a shared user workspace, have both DSH sessions read the **same absolute file**,
+then hold a native `write` or `edit` during publication. The other writer must receive
+`FILE_WRITE_BUSY`, while reads and writes to independent files still succeed. After
+the first writer completes, the second's stale write must fail with
+`FS_STALE_VERSION`; reading again permits a deliberate update. Existing files must
+be read in the current runtime before replacement/editing; absent files can be
+created directly. Forked or resumed contexts do not inherit file-version observations.
+Exercise relative/absolute paths, Windows casing, directory links and hard links.
+Cancellation must hold the lease until the tool body settles. A disconnected bridge
+does not release it until SDK process shutdown is confirmed; an unconfirmed shutdown
+retains the lease conservatively. Duplicate cleanup and late acquisitions after exit
+must not unlock another writer or leak a new lease.
+
+The same Main-owned mutex also protects Pi native write/edit and Claude
+Write/Edit/MultiEdit/NotebookEdit, including full-access mode. Run all six directed
+runtime pairs against the same absolute file. Pi/Claude do not acquire a new
+read-before-write rule: sequential overwrites of stale content remain possible.
+Claude may hold a lease while approval is pending; it must not return an allow
+decision to bypass the original approval. Repeated close calls await the same
+shutdown, and old-generation callbacks cannot release a replacement's lease.
+
+This is cooperative protection within one Cherry Studio main process, not an OS
+file lock or an entire-turn/workspace lock. Arbitrary shell commands, MCP tools,
+external editors and other app instances do not participate. Do not use them to bypass a conflict; coordinate writes explicitly or use
+separate working copies when those writers are involved. Shell target parsing cannot
+provide a general same-file guarantee, and read-only shell calls are not serialized.
+
+## Recovery and cleanup
+
+Context JSON v2 invalidates unproven native summaries without clearing successful
+send receipts. Exercise cold startup with an initialization token but no successful
+send, retry after preparation failure on the same connection, exact assistant-receipt
+reconciliation, and missing native logs after a confirmed send. No path may silently
+continue with an empty native history or reinject an uncertain send. Editing/deleting
+the frozen message prefix during native capture discards that capture; appending
+after the selected boundary is allowed.
+
+Journal v2 serializes directory cleanup with new workspace registration. Register a
+copied directory, its descendant or a directory alias before deleting the child:
+the session is removed but the directory is retained permanently, even after that
+registration is removed. A live cleanup claim makes new registration retryable-busy.
+Restart with a stale claim; ownership changes, inaccessible paths and v1 records
+must never authorize destructive cleanup. Test repeated cleanup and transaction
+rollback with the real SQLite harness.
+
+The pinned dsh-fs-local patch only classifies safe-publication errors before SDK
+serialization drops their causes. Unsupported no-replace creation, permission
+denial and disk faults must reach the model distinctly; none permits ordinary
+overwrite fallback. Test these faults plus file/directory aliases on each OS.
+Windows-only execution and platform simulations are not macOS/Linux native evidence.
+
 ## Automated gates
 
 Context-specific cases: assert actual runtime/compressor messages exclude future
@@ -183,6 +236,7 @@ blocked until the exact persisted assistant receipt is verified.
 ```sh
 pnpm --filter @cherrystudio/dsh-bridge build
 pnpm --filter @cherrystudio/dsh-bridge test
+pnpm test:main src/main/ai/runtime/dsh/__tests__/DshBridgeServer.test.ts src/main/ai/runtime/dsh/__tests__/DshRuntimeConnection.trace.test.ts
 pnpm test:main src/main/data/services/__tests__/AgentSessionMessageService.test.ts src/main/ai/agentSession/persistence/__tests__/AgentSessionMessageBackend.test.ts
 pnpm exec vitest run --project main src/main/ai/runtime/__tests__/registerDrivers.test.ts src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts
 pnpm test:renderer src/renderer/components/chat/messages/frame/__tests__/messageMenuBarActions.test.tsx

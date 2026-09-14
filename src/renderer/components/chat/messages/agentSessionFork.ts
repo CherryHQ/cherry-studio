@@ -17,12 +17,14 @@ export function agentSessionForkReasonLabel(t: TFunction, reason: AgentSessionFo
       return t('agent_session_fork.history_corrupt')
     case 'unsupported_checkpoint':
       return t('agent_session_fork.unsupported_checkpoint')
+    case 'source_changed':
     case 'history_changed':
       return t('agent_session_fork.history_changed')
     case 'workspace_changed':
       return t('agent_session_fork.workspace_changed')
     case 'workspace_unsupported_file':
       return t('agent_session_fork.workspace_unsupported_file')
+    case 'source_missing':
     case 'operation_failed':
       return t('agent_session_fork.operation_failed')
   }

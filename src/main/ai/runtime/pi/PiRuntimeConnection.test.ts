@@ -121,7 +121,9 @@ vi.mock('@application', () => ({
     }
   }
 }))
-vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: mocks.getById, isFork: vi.fn(() => false) }
+}))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { findBySessionId: mocks.findChannelBySessionId }
@@ -234,7 +236,9 @@ const fakePi = {
     }
   },
   createAgentSession: mocks.createAgentSession,
-  createBashToolDefinition: mocks.createBashToolDefinition
+  createBashToolDefinition: mocks.createBashToolDefinition,
+  createWriteToolDefinition: () => ({ name: 'write', execute: vi.fn() }),
+  createEditToolDefinition: () => ({ name: 'edit', execute: vi.fn() })
 }
 
 const input: AgentRuntimeConnectInput = {
@@ -1459,6 +1463,8 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES])
     expect(mocks.createOpts?.customTools).toEqual([
       MANAGED_BASH_TOOL,
+      expect.objectContaining({ name: 'write', execute: expect.any(Function) }),
+      expect.objectContaining({ name: 'edit', execute: expect.any(Function) }),
       ...CODE_MODE_TOOL_NAMES.map((name) => ({ name }))
     ])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
@@ -1623,6 +1629,8 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildMcpToolDefinitions).toHaveBeenCalledWith(mocks.buildAgentMcpServers.mock.results[0].value)
       expect(mocks.createOpts?.customTools).toEqual([
         MANAGED_BASH_TOOL,
+        expect.objectContaining({ name: 'write', execute: expect.any(Function) }),
+        expect.objectContaining({ name: 'edit', execute: expect.any(Function) }),
         { name: 'tool_search' },
         { name: 'tool_describe' },
         { name: 'tool_call' },
@@ -1747,6 +1755,8 @@ describe('PiRuntimeConnection', () => {
       )
       expect(mocks.createOpts?.customTools).toEqual([
         MANAGED_BASH_TOOL,
+        expect.objectContaining({ name: 'write', execute: expect.any(Function) }),
+        expect.objectContaining({ name: 'edit', execute: expect.any(Function) }),
         { name: 'tool_search' },
         { name: 'tool_describe' },
         { name: 'tool_call' },
@@ -1850,7 +1860,7 @@ describe('PiRuntimeConnection', () => {
     it('uses the always-on persona and code-mode tools for a standard agent', async () => {
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.createOpts?.customTools).toHaveLength(5)
+      expect(mocks.createOpts?.customTools).toHaveLength(7)
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledOnce()
       expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, undefined, true, AGENT_DATA_PATH)
       expect(appendedSystemPrompt()).toContain('AGENT PROMPT')

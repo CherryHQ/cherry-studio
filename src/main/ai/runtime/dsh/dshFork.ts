@@ -19,7 +19,7 @@ export function readDshForkContext(events: unknown[], boundary: number) {
   )
 }
 
-export async function forkDshSession(input: RuntimeForkInput): Promise<RuntimeForkResult> {
+export async function forkDshSession(input: RuntimeForkInput, snapshotEvents?: unknown[]): Promise<RuntimeForkResult> {
   const checkpoint = input.checkpoint
   if (checkpoint.runtime !== 'dsh') throw new AgentSessionForkError('unsupported_checkpoint')
   const sourceRoot = application.getPath('feature.agents.dsh.sessions')
@@ -34,7 +34,7 @@ export async function forkDshSession(input: RuntimeForkInput): Promise<RuntimeFo
       targetSessionId: input.targetSessionId,
       targetCwd: input.targetCwd,
       boundary: checkpoint.boundary,
-      events: input.snapshotEvents
+      events: snapshotEvents
     },
     input.signal
   )

@@ -7,7 +7,7 @@ import type {
   ForkContextSegment,
   ForkContextSnapshot,
   ForkContextSummary
-} from '@shared/ai/agentSessionForkContext'
+} from '@data/services/agentSessionForkContext'
 
 export function forkContextHash(value: unknown): string {
   const canonical = (input: unknown): unknown => {
@@ -128,6 +128,7 @@ export function selectForkContextSummary(
     const summary = byId.get(id)
     if (
       !summary ||
+      (summary.sourceType === 'native' && !summary.captureProof) ||
       summary.inputSnapshotId !== snapshot.snapshotId ||
       summary.coveredStart !== 0 ||
       summary.coveredEnd > snapshot.entries.length ||

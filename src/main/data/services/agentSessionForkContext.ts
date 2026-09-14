@@ -43,6 +43,7 @@ export const ForkContextSummarySchema = z.strictObject({
   parentSummaryId: z.string().optional(),
   sourceType: z.enum(['native', 'regenerated']),
   nativeIdentity: z.string().optional(),
+  captureProof: z.strictObject({ checkpointHash: hash, prefixHash: hash }).optional(),
   compatibility: ForkContextCompatibilitySchema,
   coveredStart: z.number().int().nonnegative(),
   coveredEnd: z.number().int().nonnegative(),
@@ -82,7 +83,7 @@ export const ForkContextAuditSchema = z.strictObject({
   resumeToken: z.string().optional()
 })
 export const ForkContextDocumentSchema = z.strictObject({
-  version: z.literal(1),
+  version: z.literal(2),
   snapshot: ForkContextSnapshotSchema,
   summaries: z.array(ForkContextSummarySchema),
   headSummaryId: z.string().optional(),
@@ -98,25 +99,34 @@ export type ForkContextSummary = z.infer<typeof ForkContextSummarySchema>
 export type PreparedForkContext = z.infer<typeof PreparedForkContextSchema>
 export type ForkContextDocument = z.infer<typeof ForkContextDocumentSchema>
 export type ForkContextError = z.infer<typeof ForkContextErrorSchema>
-export interface ForkContextView {
-  state: ForkContextDocument['state']
-  error?: ForkContextError
-  source: 'native' | 'regenerated' | 'history'
-  preparedContextId?: string
-  audits: Array<
-    Pick<
-      z.infer<typeof ForkContextAuditSchema>,
-      | 'attemptId'
-      | 'preparedContextId'
-      | 'summaryId'
-      | 'snapshotId'
-      | 'coveredEnd'
-      | 'segmentHashes'
-      | 'historyHash'
-      | 'messageId'
-      | 'submittedAt'
-      | 'confirmedAt'
-      | 'outcome'
-    >
-  >
+
+/** Upgrade disposable native summaries without changing durable send receipts. */
+export function upgradeForkContextDocument(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || !('version' in value) || value.version !== 1) return value
+  const candidate = { ...value, version: 2 }
+  const parsed = ForkContextDocumentSchema.safeParse(candidate)
+  if (!parsed.success) return candidate
+  const document = parsed.data
+  const invalid = new Set(
+    document.summaries.filter((summary) => summary.sourceType === 'native').map((s) => s.summaryId)
+  )
+  for (let size = -1; size !== invalid.size;) {
+    size = invalid.size
+    for (const summary of document.summaries)
+      if (summary.parentSummaryId && invalid.has(summary.parentSummaryId)) invalid.add(summary.summaryId)
+  }
+  if (invalid.size) {
+    document.snapshot.hadCompaction = true
+    document.summaries = document.summaries.filter((summary) => !invalid.has(summary.summaryId))
+    if (document.headSummaryId && invalid.has(document.headSummaryId)) document.headSummaryId = undefined
+    if (
+      document.prepared?.summaryId &&
+      invalid.has(document.prepared.summaryId) &&
+      document.state !== 'sending' &&
+      document.state !== 'sent' &&
+      document.error?.category !== 'needs_reconciliation'
+    )
+      document.prepared = undefined
+  }
+  return document
 }
