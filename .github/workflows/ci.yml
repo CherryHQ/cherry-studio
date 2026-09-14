@@ -453,6 +453,7 @@ jobs:
 
       - name: Build Linux x64 deb
         run: |
+          sudo apt-get install -y libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
           pnpm build
           pnpm exec electron-builder --linux deb --x64 --publish never
         env:
