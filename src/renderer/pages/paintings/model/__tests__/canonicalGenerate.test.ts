@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { FileMetadata } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { canonicalGenerate } from '../canonicalGenerate'
 import type { GenerateInput } from '../types/generateInput'
@@ -47,7 +48,7 @@ function makeInput(params: Record<string, unknown>, overrides: Partial<PaintingD
       apiHost: 'https://example.com',
       isEnabled: true,
       getApiKey: async () => 'api-key'
-    } as never,
+    },
     tab: 'default',
     abortController: new AbortController()
   }

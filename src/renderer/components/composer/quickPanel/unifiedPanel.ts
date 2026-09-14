@@ -1,3 +1,5 @@
+import * as tinyPinyin from 'tiny-pinyin'
+
 import type {
   QuickPanelContextType,
   QuickPanelFilterFn,
@@ -7,7 +9,6 @@ import type {
   QuickPanelSortFn,
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
-import * as tinyPinyin from 'tiny-pinyin'
 
 import type { ComposerToolLauncher, ComposerToolLauncherSource } from '../toolLauncher'
 import { ComposerPanelSymbol } from './symbols'

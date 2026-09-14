@@ -1,9 +1,10 @@
+import { lazy, Suspense, useCallback, useState } from 'react'
+
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { cn } from '@renderer/utils/style'
 import { isLoginBasedProvider } from '@shared/utils/provider'
-import { lazy, Suspense, useCallback, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
@@ -53,7 +54,8 @@ function ProviderSettingSections({
             onOpenApiSetup={() => openApiSetup('api-key')}
             onContinueApiSetup={() => openApiSetup('models')}
           />
-          <div className="flex min-h-0 flex-1 flex-col">
+          {/* Floor keeps the list usable when a tall auth section leaves no room; the strip scrolls instead. */}
+          <div className="flex min-h-[280px] flex-1 flex-col">
             <ModelList
               providerId={providerId}
               modelPullGuideVersion={modelPullGuideVersion}

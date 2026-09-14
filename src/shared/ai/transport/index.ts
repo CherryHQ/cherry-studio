@@ -1,9 +1,5 @@
 export { applyApprovalDecisions } from './applyApprovalDecisions'
-export {
-  type DeferredToolOutput,
-  type DeferredToolResultRef,
-  isDeferredToolOutput
-} from './deferredToolResult'
+export { type DeferredToolOutput, type DeferredToolResultRef, isDeferredToolOutput } from './deferredToolResult'
 export {
   blobRefsOf,
   envelopeDisplayExcerpt,

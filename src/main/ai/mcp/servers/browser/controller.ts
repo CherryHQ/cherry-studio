@@ -1,10 +1,12 @@
+import { randomUUID } from 'crypto'
+
+import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
+import type TurndownService from 'turndown'
+
 import { application } from '@application'
 import { isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import { randomUUID } from 'crypto'
-import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
-import type TurndownService from 'turndown'
 
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
 import { TAB_BAR_HTML } from './tabbarHtml'
@@ -85,12 +87,24 @@ export class CdpBrowserController {
     }
   }
 
+  private syncAudioState(windowInfo: WindowInfo) {
+    const windowCanPlayAudio =
+      !windowInfo.window.isDestroyed() && windowInfo.window.isVisible() && !windowInfo.window.isMinimized()
+
+    for (const tab of windowInfo.tabs.values()) {
+      if (!tab.view.webContents.isDestroyed()) {
+        tab.view.webContents.setAudioMuted(!windowCanPlayAudio || tab.id !== windowInfo.activeTabId)
+      }
+    }
+  }
+
   private closeTabInternal(windowInfo: WindowInfo, tabId: string) {
     try {
       const tab = windowInfo.tabs.get(tabId)
       if (!tab) return
 
       if (!tab.view.webContents.isDestroyed()) {
+        tab.view.webContents.setAudioMuted(true)
         if (tab.view.webContents.debugger.isAttached()) {
           tab.view.webContents.debugger.detach()
         }
@@ -418,6 +432,14 @@ export class CdpBrowserController {
         const info = this.windows.get(windowKey)
         if (info) this.updateViewBounds(info)
       })
+      const syncAudioState = () => {
+        const info = this.windows.get(windowKey)
+        if (info) this.syncAudioState(info)
+      }
+      windowInfo.window.on('show', syncAudioState)
+      windowInfo.window.on('hide', syncAudioState)
+      windowInfo.window.on('minimize', syncAudioState)
+      windowInfo.window.on('restore', syncAudioState)
 
       logger.info('Created new window', { windowKey, privateMode })
     } else if (showWindow && !windowInfo.window.isDestroyed()) {
@@ -474,6 +496,7 @@ export class CdpBrowserController {
       }
     })
 
+    view.webContents.setAudioMuted(true)
     view.webContents.setUserAgent(userAgent)
 
     const windowKey = windowInfo.windowKey
@@ -494,6 +517,7 @@ export class CdpBrowserController {
           }
         }
       }
+      this.syncAudioState(windowInfo)
       this.sendTabBarUpdate(windowInfo)
     })
 
@@ -547,6 +571,7 @@ export class CdpBrowserController {
       this.updateViewBounds(windowInfo)
     }
 
+    this.syncAudioState(windowInfo)
     this.sendTabBarUpdate(windowInfo)
     logger.info('Created new tab', { windowKey, tabId, privateMode })
     return { tabId, view }
@@ -754,6 +779,7 @@ export class CdpBrowserController {
             }
           }
         }
+        this.syncAudioState(windowInfo)
         this.sendTabBarUpdate(windowInfo)
       }
       logger.info('Browser CDP tab reset', { windowKey, tabId })
@@ -951,6 +977,7 @@ export class CdpBrowserController {
       this.updateViewBounds(windowInfo)
     }
 
+    this.syncAudioState(windowInfo)
     this.touchTab(windowKey, tabId)
     this.sendTabBarUpdate(windowInfo)
     logger.info('Switched active tab', { windowKey, tabId, privateMode })

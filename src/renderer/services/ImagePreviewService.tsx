@@ -1,3 +1,7 @@
+import CopyIcon from 'lucide-react/dist/esm/icons/copy'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   type ImagePreviewAction,
   ImagePreviewDialog,
@@ -13,9 +17,6 @@ import {
   imageInputToPreviewUrl,
   type ImagePreviewOptions
 } from '@renderer/utils/image'
-import CopyIcon from 'lucide-react/dist/esm/icons/copy'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ImagePreviewService')
 

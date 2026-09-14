@@ -2,9 +2,10 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, it } from 'vitest'
+
 import { BUILTIN_MINI_APPS } from '@shared/data/presets/miniApps'
 import { MiniAppManifestSchema } from '@shared/types/miniAppManifest'
-import { describe, expect, it } from 'vitest'
 
 // Anchored on this file, not `process.cwd()`: the gate must hold wherever vitest is invoked from.
 const ROOT = path.resolve(__dirname, '..', '..', '..', '..', '..', 'resources', 'builtin-mini-apps')

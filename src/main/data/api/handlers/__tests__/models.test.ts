@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { CreateModelInput } from '@data/services/ModelService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import {
@@ -8,7 +10,6 @@ import {
   MODELS_DELETE_MAX_IDS,
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 
@@ -144,7 +145,7 @@ describe('/models', () => {
   it('forwards a provided GET query to modelService.list', async () => {
     listMock.mockReturnValueOnce([])
 
-    await modelHandlers['/models'].GET({ query: { providerId: 'openai', enabled: true } } as never)
+    await modelHandlers['/models'].GET({ query: { providerId: 'openai', enabled: true } })
 
     expect(listMock).toHaveBeenCalledWith({ providerId: 'openai', enabled: true })
   })
@@ -160,7 +161,7 @@ describe('/models', () => {
 
     await modelHandlers['/models'].POST({
       body: [{ providerId: 'openai', modelId: 'gpt-4o' }]
-    } as any)
+    })
 
     expect(lookupModelMock).toHaveBeenCalledWith('openai', 'gpt-4o')
     expect(createMock).toHaveBeenCalledWith([
@@ -180,7 +181,7 @@ describe('/models', () => {
 
     await modelHandlers['/models'].POST({
       body: [{ providerId: 'openai', modelId: 'custom-model' }]
-    } as any)
+    })
 
     expect(createMock).toHaveBeenCalledWith([
       {
@@ -235,7 +236,7 @@ describe('/models', () => {
         { providerId: 'openai', modelId: 'gpt-4o' },
         { providerId: 'openai', modelId: 'gpt-5' }
       ]
-    } as any)
+    })
 
     expect(createMock).toHaveBeenCalledWith([
       {
@@ -268,7 +269,7 @@ describe('/models', () => {
         { providerId: 'openai', modelId: 'gpt-4o' },
         { providerId: 'custom/provider', modelId: 'my-model' }
       ]
-    } as any)
+    })
 
     expect(createMock).toHaveBeenCalledWith([
       {
@@ -464,7 +465,7 @@ describe('/providers/:providerId/models:resolve', () => {
     const result = await modelHandlers['/providers/:providerId/models:resolve'].GET({
       params: { providerId: 'openai' },
       query: { ids: 'gpt-4o' }
-    } as never)
+    })
 
     expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o'])
     expect(result).toEqual([{ id: 'openai::gpt-4o' }])
@@ -476,7 +477,7 @@ describe('/providers/:providerId/models:resolve', () => {
     await modelHandlers['/providers/:providerId/models:resolve'].GET({
       params: { providerId: 'openai' },
       query: { ids: ['gpt-4o', 'o3'] }
-    } as never)
+    })
 
     expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o', 'o3'])
   })
@@ -496,7 +497,7 @@ describe('/providers/:providerId/models:resolve', () => {
       modelHandlers['/providers/:providerId/models:resolve'].GET({
         params: { providerId: 'openai' },
         query: { ids: [] }
-      } as never)
+      })
     ).rejects.toThrow()
 
     expect(resolveModelsMock).not.toHaveBeenCalled()
@@ -517,7 +518,7 @@ describe('/providers/:providerId/models/:modelId*/image-generation-support', () 
 
     const result = await modelHandlers['/providers/:providerId/models/:modelId*/image-generation-support'].GET({
       params: { providerId: 'silicon', modelId: 'Kwai-Kolors/Kolors' }
-    } as never)
+    })
 
     expect(getImageGenerationSupportMock).toHaveBeenCalledWith('silicon', 'Kwai-Kolors/Kolors')
     expect(result).toBe(block)
@@ -528,7 +529,7 @@ describe('/providers/:providerId/models/:modelId*/image-generation-support', () 
 
     const result = await modelHandlers['/providers/:providerId/models/:modelId*/image-generation-support'].GET({
       params: { providerId: 'silicon', modelId: 'unknown-model' }
-    } as never)
+    })
 
     expect(result).toBeNull()
   })

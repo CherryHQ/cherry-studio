@@ -6,10 +6,13 @@
  * command) and the plugin→host round-trips (tool calls, interactive approvals).
  */
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
-import { chmod, rm } from 'node:fs/promises'
+import { chmod, rm, stat } from 'node:fs/promises'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+
+import type { JsonRpcLineTransport, SessionEventNotification } from '@deepseek-ai/dsh-sdk-protocol'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 
 import type {
   BridgeCommandResult,
@@ -19,7 +22,6 @@ import type {
   BridgePluginRequestMap,
   BridgeToolCallResult
 } from '@cherrystudio/dsh-bridge'
-import type { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import { loggerService } from '@logger'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
@@ -36,11 +38,20 @@ export interface DshBridgeServerOptions {
   /** Agent-session id — keys the neutral approval registry so close()/abort target the right approvals. */
   sessionId: string
   /** Push a runtime-neutral event into the connection queue; the host owns presentation. */
-  emit: (event: AgentRuntimeEvent) => void
+  emit: (
+    event: AgentRuntimeEvent,
+    source: { sessionId: SessionEventNotification['sessionId']; seq: SessionEvent['seq'] }
+  ) => void
   /** Resolve responder availability at ask-time so warm connections follow the current turn. */
   getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
   /** Dispatch one registered dsh native tool into Cherry's in-process MCP bridge. */
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<BridgeToolCallResult>
+  /** Evaluate one native tool call against Main-owned non-bypassable safety policy. */
+  onGuardCheck: (
+    toolName: string,
+    args: unknown,
+    cwd: string
+  ) => Promise<BridgePluginRequestMap['guard/check']['result']>
   /** One subagent residency-epoch edge from the plugin's lifecycle listeners. */
   onSubagentLifecycle?: (edge: BridgeNotificationMap['subagent/lifecycle']) => void
   /** Deadline for an accepted socket to authenticate; also bounds `whenReady()`. */
@@ -242,6 +253,8 @@ export class DshBridgeServer {
     switch (method) {
       case 'tool/call':
         return this.handleToolCall(params as BridgePluginRequestMap['tool/call']['params'])
+      case 'guard/check':
+        return this.handleGuardCheck(params as BridgePluginRequestMap['guard/check']['params'])
       case 'approval/ask':
         return this.handleApprovalAsk(params as BridgePluginRequestMap['approval/ask']['params'])
       case 'question/ask':
@@ -263,6 +276,21 @@ export class DshBridgeServer {
     } finally {
       if (this.activeToolCalls.get(call.callId) === controller) this.activeToolCalls.delete(call.callId)
     }
+  }
+
+  private async handleGuardCheck(
+    check: BridgePluginRequestMap['guard/check']['params']
+  ): Promise<BridgePluginRequestMap['guard/check']['result']> {
+    if (check.sessionId !== this.options.sessionId) {
+      return Promise.reject(new Error('dsh bridge guard check used the wrong session'))
+    }
+    if (typeof check.toolName !== 'string' || !check.toolName || typeof check.cwd !== 'string' || !check.cwd) {
+      return Promise.reject(new Error('dsh bridge guard check has invalid tool or cwd'))
+    }
+    if (!path.isAbsolute(check.cwd)) return Promise.reject(new Error('dsh bridge guard check cwd is not absolute'))
+    const cwdStat = await stat(check.cwd).catch(() => undefined)
+    if (!cwdStat?.isDirectory()) return Promise.reject(new Error('dsh bridge guard check cwd is not a directory'))
+    return this.options.onGuardCheck(check.toolName, check.args, check.cwd)
   }
 
   private handleApprovalAsk(
@@ -299,17 +327,20 @@ export class DshBridgeServer {
       // Only surface the approval card when the request is actually pending; a synchronous
       // resolve already settled the promise, and emitting would leave an unanswerable card.
       if (!pending) return
-      this.options.emit({
-        type: 'tool-approval-request',
-        request: {
-          approvalId,
-          toolCallId,
-          toolName,
-          input: { ...input },
-          presentation,
-          providerMetadata: { cherry: { transport: DSH_TRANSPORT, toolName } satisfies CherryToolMeta }
-        }
-      })
+      this.options.emit(
+        {
+          type: 'tool-approval-request',
+          request: {
+            approvalId,
+            toolCallId,
+            toolName,
+            input: { ...input },
+            presentation,
+            providerMetadata: { cherry: { transport: DSH_TRANSPORT, toolName } satisfies CherryToolMeta }
+          }
+        },
+        { sessionId: ask.sessionId, seq: ask.sessionEventSeq }
+      )
     })
   }
 
@@ -357,19 +388,22 @@ export class DshBridgeServer {
         }
       })
       if (!pending) return
-      this.options.emit({
-        type: 'tool-approval-request',
-        request: {
-          approvalId,
-          toolCallId,
-          toolName: 'exit_plan_mode',
-          input: { ...input },
-          presentation,
-          providerMetadata: {
-            cherry: { transport: DSH_TRANSPORT, toolName: 'exit_plan_mode' } satisfies CherryToolMeta
+      this.options.emit(
+        {
+          type: 'tool-approval-request',
+          request: {
+            approvalId,
+            toolCallId,
+            toolName: 'exit_plan_mode',
+            input: { ...input },
+            presentation,
+            providerMetadata: {
+              cherry: { transport: DSH_TRANSPORT, toolName: 'exit_plan_mode' } satisfies CherryToolMeta
+            }
           }
-        }
-      })
+        },
+        { sessionId: ask.sessionId, seq: ask.sessionEventSeq }
+      )
     })
   }
 

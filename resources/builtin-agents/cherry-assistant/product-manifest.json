@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.12",
+    "version": "2.0.14",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -226,6 +226,19 @@
           "0"
         ],
         "editable": false
+      }
+    },
+    {
+      "id": "chat.input.focus",
+      "titleKey": "settings.shortcuts.focus_input",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "I"
+        ],
+        "when": "!webview.focused"
       }
     },
     {
@@ -462,8 +475,8 @@
     }
   ],
   "providers": {
-    "version": "767516d2e8178b83",
-    "count": 61,
+    "version": "e47c80cffa19d83b",
+    "count": 62,
     "entries": [
       {
         "id": "cherryin",
@@ -544,6 +557,10 @@
       {
         "id": "radeon-cloud",
         "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "tokendance",
+        "name": "TokenDance"
       },
       {
         "id": "new-api",

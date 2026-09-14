@@ -1,3 +1,7 @@
+import { Bot, ChevronDown } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
@@ -9,9 +13,6 @@ import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
-import { Bot, ChevronDown } from 'lucide-react'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { SelectedModelsTrigger } from '../SelectedModelsTrigger'
 import {

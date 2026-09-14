@@ -6,8 +6,9 @@
  * session; everything else is transient and cleared by {@link resetAnnotations}.
  */
 
-import { usePersistCache } from '@data/hooks/useCache'
 import { useCallback, useMemo, useState } from 'react'
+
+import { usePersistCache } from '@data/hooks/useCache'
 
 import type { Annotation, AnnotationTool } from '../types'
 

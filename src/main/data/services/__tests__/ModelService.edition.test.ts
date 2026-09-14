@@ -1,19 +1,23 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
-import type { AppEdition } from '@shared/types/appEdition'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { applicationEdition } = vi.hoisted(() => ({
-  applicationEdition: { current: 'cn' as AppEdition }
+const { applicationEdition, migrationOrigin } = vi.hoisted(() => ({
+  applicationEdition: { current: 'cn' },
+  migrationOrigin: { current: false }
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
   getAppEdition: () => applicationEdition.current
+}))
+
+vi.mock('@data/migration/v1MigrationOrigin', () => ({
+  isMigratedFromV1: () => migrationOrigin.current
 }))
 
 vi.mock('@cherrystudio/provider-registry/node', () => {
@@ -68,6 +72,7 @@ describe('ModelService edition availability', () => {
 
   beforeEach(() => {
     applicationEdition.current = 'cn'
+    migrationOrigin.current = false
   })
 
   it('excludes persisted models owned by providers unavailable in the current edition', async () => {
@@ -126,5 +131,18 @@ describe('ModelService edition availability', () => {
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'global-only'))
     expect(rows).toHaveLength(1)
     expect(rows[0].name).toBe('hidden-model')
+  })
+
+  it('keeps every persisted model available for users migrated from v1', async () => {
+    migrationOrigin.current = true
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'global-only',
+      presetProviderId: 'global-only',
+      name: 'Global only',
+      orderKey: 'a0'
+    })
+    await dbh.db.insert(userModelTable).values(modelRow('global-only', 'visible-model', 'a0'))
+
+    expect(modelService.list({}).map((model) => model.id)).toEqual(['global-only::visible-model'])
   })
 })

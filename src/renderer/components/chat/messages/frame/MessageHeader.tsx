@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import { ArrowUpRight, Bot, MousePointerClick, Sparkle, Target } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { memo, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
@@ -5,11 +11,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
-import dayjs from 'dayjs'
-import { ArrowUpRight, MousePointerClick, Sparkle } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { memo, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 
 import {
   useMessageListActions,
@@ -31,6 +33,24 @@ interface Props {
   actionsSlot?: ReactNode
   contentSlot?: ReactNode
   footerSlot?: ReactNode
+}
+
+/** Why a runtime opened an assistant turn with no user message; the transcript's only explanation. */
+export const AutonomousTurnOriginBadge: FC<{ origin: AutonomousTurnOrigin }> = ({ origin }) => {
+  const { t } = useTranslation()
+  const label =
+    origin.kind === 'goal-round'
+      ? t('agent.session_turn_origin.goal_round', { round: origin.round })
+      : t('agent.session_turn_origin.background_work')
+  const Icon = origin.kind === 'goal-round' ? Target : Bot
+  return (
+    <Tooltip content={label}>
+      <span className="flex h-5 min-w-0 max-w-[min(18rem,45vw)] items-center gap-1 text-foreground-tertiary text-xs">
+        <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+        <span className="min-w-0 truncate">{label}</span>
+      </span>
+    </Tooltip>
+  )
 }
 
 export const AgentSessionDeliveryBadge: FC<{
@@ -166,6 +186,7 @@ const MessageHeader: FC<Props> = memo(
               {username}
             </span>
             {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
+            {isAssistantMessage && message.turnOrigin && <AutonomousTurnOriginBadge origin={message.turnOrigin} />}
             {isAssistantMessage && showModelIdentity && displayModelName && (
               <span className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5">
                 <span aria-hidden="true" className="shrink-0">

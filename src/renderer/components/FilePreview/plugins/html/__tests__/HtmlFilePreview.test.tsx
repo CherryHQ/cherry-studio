@@ -1,8 +1,9 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { FilePreviewType } from '../../../types'
 import HtmlFilePreview from '../HtmlFilePreview'

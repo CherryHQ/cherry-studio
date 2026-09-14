@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-08-10T12:29:43.500Z
- * Total icons: 168
+ * Generated at: 2026-09-07T09:28:31.189Z
+ * Total icons: 169
  */
 export { AceIcon as Ace } from './ace'
 export { AdobeIcon as Adobe } from './adobe'
@@ -95,6 +95,7 @@ export { Gpt5CodexIcon as Gpt5Codex } from './gpt-5-codex'
 export { Gpt5MiniIcon as Gpt5Mini } from './gpt-5-mini'
 export { Gpt5NanoIcon as Gpt5Nano } from './gpt-5-nano'
 export { Gpt5ProIcon as Gpt5Pro } from './gpt-5-pro'
+export { Gpt6AstraIcon as Gpt6Astra } from './gpt-6-astra/gpt-6-astra'
 export { GptAudioIcon as GptAudio } from './gpt-audio'
 export { GptAudio15Icon as GptAudio15 } from './gpt-audio-1-5'
 export { GptAudioMiniIcon as GptAudioMini } from './gpt-audio-mini'

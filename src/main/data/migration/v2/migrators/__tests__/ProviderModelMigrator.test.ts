@@ -3,6 +3,11 @@ import { existsSync, mkdtempSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { asc, eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -20,10 +25,6 @@ import {
   isManagedCherryProviderId
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { asc, eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** A valid 1×1 PNG so `sharp` can transcode it to WebP during migration. */
 const PNG_1X1 =
@@ -167,12 +168,12 @@ describe('ProviderModelMigrator', () => {
       expect(result.warnings?.some((w) => w.includes('managed CherryAI'))).toBe(true)
     })
 
-    it('skips providers whose upstream services have retired', async () => {
+    it.each(['github', 'yi'])('skips retired %s providers and preset-derived copies', async (providerId) => {
       const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [
-            makeProvider('github', [{ id: 'openai/gpt-4o' }]),
-            { ...makeProvider('github-copy'), presetProviderId: 'github' },
+            makeProvider(providerId, [{ id: 'legacy-model' }]),
+            { ...makeProvider(`${providerId}-copy`), presetProviderId: providerId },
             makeProvider('openai')
           ]
         }
