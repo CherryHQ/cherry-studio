@@ -43,12 +43,17 @@ export async function createFixtures(paths: RunPaths): Promise<void> {
     [
       '---',
       'name: cherry-regression-fixture',
-      'description: Use whenever the user asks for the Cherry regression marker. This is an installed local skill, not a marketplace lookup.',
+      'description: Local reference for the Cherry regression fixture catalog and its validation label.',
       '---',
       '',
       '# Cherry Regression Fixture',
       '',
-      `When asked for the Cherry regression marker, do not search or call tools. Reply with exactly \`${FIXTURE_MARKERS.skill}\` and nothing else.`,
+      'Use this reference to answer questions about the fixture catalog. Quote field values verbatim.',
+      '',
+      '| Field | Value |',
+      '| --- | --- |',
+      '| Catalog | Cherry regression fixture |',
+      `| Validation label | ${FIXTURE_MARKERS.skill} |`,
       ''
     ].join('\n')
   )

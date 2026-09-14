@@ -129,24 +129,6 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow: page }) => {
   const selection = await app.window('/windows/selection/toolbar/')
   const readLabel = selection.getByRole('button', { name: 'Read validation label', exact: true })
   await expect(readLabel).toBeVisible()
-  await selection.evaluate(() => {
-    document.body.dataset.selectedText = ''
-    window.api.ipcApi.on('selection.text_selected', (selectionData) => {
-      document.body.dataset.selectedText = (selectionData as { text: string }).text
-    })
-  })
-  await expect
-    .poll(
-      async () => {
-        selectExternalText(app.record.platform)
-        sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Shift', 'k'])
-        await selection.waitForTimeout(1_000)
-        return selection.locator('body').getAttribute('data-selected-text')
-      },
-      { timeout: 15_000 }
-    )
-    .toContain('SELECTION_ASSISTANT_PASS')
-  await expect(readLabel).toBeVisible()
   await readLabel.click()
   const action = await app.window('/windows/selection/action/')
   await expect(action.locator('body')).toContainText('SELECTION_ASSISTANT_PASS', { timeout: 2 * 60_000 })

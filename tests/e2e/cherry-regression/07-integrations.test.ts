@@ -104,11 +104,9 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
   await startNewAgentTask(page, 'Cherry Assistant')
-  const model = page.getByRole('button', { name: /Select Model|Selected models/ }).first()
-  if (await model.isVisible().catch(() => false)) {
-    await model.click()
-    await selectVisibleModel(page, app.config.customProvider.chatModel)
-  }
+  const agentView = page.locator('[data-ui~="agent.view"]:visible')
+  await agentView.locator('button:has(span[title*=" | "])').first().click()
+  await selectVisibleModel(page, app.config.customProvider.chatModel)
   await openSkillsPanel(page)
   await page.getByText('Manage skills', { exact: true }).click()
   const skillSwitch = page.getByRole('switch', { name: 'cherry-regression-fixture', exact: true })
@@ -116,9 +114,21 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
   await page.getByRole('button', { name: 'Close', exact: true }).click()
 
   const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
-  await composer.fill('What is the Cherry regression marker? Reply exactly as the selected local skill requires.')
+  await composer.fill(
+    'Using the selected local skill reference, quote the Validation label field from its fixture catalog.'
+  )
   await openSkillsPanel(page)
   await page.getByText('cherry-regression-fixture', { exact: true }).click()
+  await expect(composer.locator('[data-composer-token-kind="skill"]')).toHaveCount(1)
   await page.getByRole('button', { name: 'Send', exact: true }).click()
-  await expect(page.getByText('SKILL_IMPORT_PASS', { exact: true }).last()).toBeVisible({ timeout: 5 * 60_000 })
+  const response = agentView
+    .locator('[data-ui~="chat.message"]')
+    .filter({ has: page.locator('.message-assistant') })
+    .last()
+  const answer = response
+    .getByText('SKILL_IMPORT_PASS')
+    .and(response.locator(':not([data-ui~="part:message-reasoning"] *)'))
+    .last()
+  await expect(answer).toBeVisible({ timeout: 5 * 60_000 })
+  await expect(response.getByTestId('completed-process-trigger')).toBeVisible()
 })
