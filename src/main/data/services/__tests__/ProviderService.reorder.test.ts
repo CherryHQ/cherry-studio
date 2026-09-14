@@ -28,7 +28,7 @@ describe('ProviderService reorder', () => {
     return rows.map((row) => row.providerId)
   }
 
-  it('creates new providers at the end of the list', async () => {
+  it('creates new providers at the beginning without changing existing order', async () => {
     await seedProviders()
 
     const created = providerService.create({ providerId: 'grok', name: 'Grok' })
@@ -39,7 +39,7 @@ describe('ProviderService reorder', () => {
     // New providers are created disabled; the auto-enable flow turns them on once models exist.
     expect(created.isEnabled).toBe(false)
     expect(rows[0]?.isEnabled).toBe(false)
-    expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini', 'grok'])
+    expect(await readOrder()).toEqual(['grok', 'openai', 'anthropic', 'gemini'])
   })
 
   it('batchUpsert appends only missing providers in input order', async () => {
