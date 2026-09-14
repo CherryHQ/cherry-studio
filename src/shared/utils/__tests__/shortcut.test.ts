@@ -52,7 +52,8 @@ describe('normalizeShortcutToken', () => {
   })
 
   it('maps DOM codes that are not plain aliases', () => {
-    expect(normalizeShortcutToken('NumpadEnter')).toBe('Enter')
+    expect(normalizeShortcutToken('NumpadEnter')).toBe('numenter')
+    expect(normalizeShortcutToken('NumpadAdd')).toBe('numadd')
   })
 
   it('extracts the letter from KeyX DOM codes', () => {
@@ -187,5 +188,18 @@ describe('formatShortcutDisplay', () => {
     expect(formatShortcutDisplay(['Shift', 'Enter'], true)).toBe('⇧Return')
     expect(formatShortcutDisplay(['CommandOrControl', 'Enter'], true)).toBe('⌘Return')
     expect(formatShortcutDisplay(['CommandOrControl', 'Enter'], false)).toBe('Ctrl+Enter')
+  })
+
+  it('labels the keypad Enter token Enter on every platform', () => {
+    expect(formatShortcutDisplay(['numenter'], true)).toBe('Enter')
+    expect(formatShortcutDisplay(['numenter'], false)).toBe('Enter')
+    expect(formatShortcutDisplay(['CommandOrControl', 'numenter'], true)).toBe('⌘Enter')
+  })
+})
+
+describe('NumpadEnter token preservation', () => {
+  it('keeps a keypad-Enter binding valid through normalization', () => {
+    expect(isValidShortcut(['CommandOrControl', 'numenter'])).toBe(true)
+    expect(normalizeShortcutBinding(['CommandOrControl', 'numenter'])).toEqual(['CommandOrControl', 'numenter'])
   })
 })
