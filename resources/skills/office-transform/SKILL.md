@@ -166,6 +166,9 @@ untouched parts survive exactly. Edit shapes:
   tracked changes and moves, content controls, equations — and anything else not on the short
   allow-list, including elements from namespaces that did not exist when this was written.
   A dropped `w:del` would even accept a pending deletion on the user's behalf.
+  A page or column break (`<w:br w:type="page"/>`) is refused for a quieter reason: it carries no
+  characters, so the extract reads the text on either side of it as one string and the anchor check
+  cannot see that the rewrite would delete it. A bare `<w:br/>` line break still passes.
   To edit such a paragraph, see **"Edit docx"** below — do not reach for
   `Paragraph.text`, which destroys exactly the same content, only silently.
 - Any text written into a cell or paragraph must be storable in XML: control characters
