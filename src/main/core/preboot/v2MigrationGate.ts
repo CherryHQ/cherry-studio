@@ -31,6 +31,7 @@ import {
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import { showStartupRecovery } from '@main/services/startupRecovery'
 
 const logger = loggerService.withContext('V2MigrationGate')
 
@@ -157,6 +158,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   } catch (error) {
     // The driver reason lives in `.cause`, which neither `error.message` nor the
     // winston serializer carries — flatten it or the failure is undiagnosable.
+    migrationEngine.close()
     const reason = describeErrorChain(error)
     logger.error(`Migration status check failed: ${reason}`, error as Error)
     await app.whenReady()
@@ -179,7 +181,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
           `Original error: ${reason}`
       )
       logger.error('Exiting application due to schema out of sync (dev)')
-      application.quit()
+      application.forceExit(1)
       return 'handled'
     }
 
@@ -203,14 +205,17 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
           `The application will now exit.`
       )
     } else {
-      dialog.showErrorBox(
-        'Migration Failed - Application Cannot Start',
-        `Could not complete data migration:\n\n  ${reason}\n\n` +
-          `The application will now exit. Please try again, and contact support if the problem persists.`
-      )
+      try {
+        if ((await showStartupRecovery(error)) === 'retry') {
+          application.relaunch()
+          return 'handled'
+        }
+      } catch (recoveryError) {
+        logger.error('Startup recovery failed', recoveryError as Error)
+      }
     }
     logger.error('Exiting application due to migration status check failure')
-    application.quit()
+    application.forceExit(1)
     return 'handled'
   }
 

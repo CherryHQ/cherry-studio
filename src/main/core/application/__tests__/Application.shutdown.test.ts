@@ -105,6 +105,45 @@ describe('Application shutdown', () => {
     await vi.runAllTimersAsync()
   }
 
+  it('runs service cleanup before exiting for a normal relaunch', async () => {
+    const stopped: string[] = []
+    @Injectable('RestartResource')
+    class RestartResource extends BaseService {
+      protected override onDestroy(): void {
+        stopped.push('closed')
+      }
+    }
+    const application = Application.getInstance()
+    ServiceContainer.getInstance().register(RestartResource)
+    application['isBootstrapped'] = true
+    application['setupQuitHandlers']()
+    await application.getLifecycleManager().startPhase(Phase.WhenReady)
+    Object.assign(app, { isPackaged: true, relaunch: vi.fn() })
+    vi.mocked(app.quit).mockImplementation(() => {
+      const listener = appOn.mock.calls.find(([event]) => event === 'will-quit')?.[1] as QuitListener
+      listener({ preventDefault: vi.fn() })
+    })
+    appExit.mockImplementation(() => {
+      expect(stopped).toEqual(['closed'])
+    })
+
+    application.relaunch()
+    await vi.runAllTimersAsync()
+    expect(appExit).toHaveBeenCalledWith(0)
+    expect(stopped).toEqual(['closed'])
+  })
+
+  it('does not schedule a relaunch while a critical operation prevents quitting', () => {
+    const application = Application.getInstance()
+    application['isBootstrapped'] = true
+    Object.assign(app, { isPackaged: true, relaunch: vi.fn() })
+    const hold = application.preventQuit('data migration')
+    application.relaunch()
+    expect(app.relaunch).not.toHaveBeenCalled()
+    expect(appExit).not.toHaveBeenCalled()
+    hold.dispose()
+  })
+
   it('should not force-exit when a single service times out, and still stop the rest', async () => {
     const stopped: string[] = []
 

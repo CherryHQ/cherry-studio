@@ -21,6 +21,7 @@ import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import type { ServiceRegistry } from './serviceRegistry'
+import { startShutdownWatchdog } from './shutdownWatchdog'
 
 const logger = loggerService.withContext('Lifecycle')
 
@@ -63,6 +64,8 @@ export class Application {
    * allow test isolation.
    */
   private ensuredKeys = new Set<PathKey>()
+
+  private stopShutdownWatchdog?: () => void
 
   private constructor() {
     this.container = ServiceContainer.getInstance()
@@ -256,7 +259,7 @@ export class Application {
 
     this.isShuttingDown = true
     this._isQuitting = true
-    logger.info('Shutting down...')
+    logger.info('Shutting down...', { pid: process.pid, version: app.getVersion() })
 
     const start = performance.now()
 
@@ -297,6 +300,20 @@ export class Application {
 
     // Ensure Electron dialog API is available (BeforeReady phase may fail before app is ready)
     await app.whenReady()
+
+    if (error.serviceName === 'DbService') {
+      try {
+        const { showStartupRecovery } = await import('@main/services/startupRecovery')
+        if ((await showStartupRecovery(error)) === 'retry') {
+          this.relaunch()
+          return
+        }
+      } catch (recoveryError) {
+        logger.error('Startup recovery failed', recoveryError as Error)
+      }
+      this.forceExit(1)
+      return
+    }
 
     const result = await dialog.showMessageBox({
       type: 'error',
@@ -398,6 +415,10 @@ export class Application {
    * Relaunch the app, with dev mode warning
    */
   public relaunch(options?: Electron.RelaunchOptions): void {
+    if (this.isBootstrapped && !this.canQuit()) {
+      logger.warn('Relaunch blocked while an operation prevents quitting')
+      return
+    }
     if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
       dialog.showMessageBoxSync({
@@ -426,7 +447,8 @@ export class Application {
     }
 
     app.relaunch(options)
-    app.exit(0)
+    if (this.isBootstrapped) this.quit()
+    else app.exit(0)
   }
 
   /**
@@ -435,18 +457,14 @@ export class Application {
    * even before app.whenReady() resolves.
    */
   private setupSignalHandlers(): void {
-    // Last resort, not the working mechanism. Starvation is handled one level
-    // down by the per-service ceiling in `LifecycleManager.stopAll()`; this fuse
-    // only catches the case where enough services burn their whole ceiling to
-    // exhaust SHUTDOWN_TIMEOUT_MS, at which point truncating is correct. Like
-    // every timer here it is powerless against a synchronously blocking
-    // `onStop()`, which never yields the event loop for it to fire on.
+    // Keep the main-thread fuse as a fallback if the worker cannot start.
     const forceExit = (): void => {
       logger.warn('Forced exit after shutdown timeout')
       process.exit(1)
     }
 
     process.on('SIGINT', async () => {
+      this.armShutdownWatchdog()
       const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
@@ -454,11 +472,13 @@ export class Application {
         logger.error('Error during shutdown:', error as Error)
       } finally {
         clearTimeout(timer)
+        this.stopShutdownWatchdog?.()
         app.exit(0)
       }
     })
 
     process.on('SIGTERM', async () => {
+      this.armShutdownWatchdog()
       const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
@@ -466,9 +486,22 @@ export class Application {
         logger.error('Error during shutdown:', error as Error)
       } finally {
         clearTimeout(timer)
+        this.stopShutdownWatchdog?.()
         app.exit(0)
       }
     })
+  }
+
+  private armShutdownWatchdog(): void {
+    if (this.stopShutdownWatchdog) return
+    logger.info('Shutdown deadline armed', { pid: process.pid, timeoutMs: SHUTDOWN_TIMEOUT_MS })
+    try {
+      this.stopShutdownWatchdog = startShutdownWatchdog(SHUTDOWN_TIMEOUT_MS, (error) => {
+        logger.error('Shutdown watchdog failed', error)
+      })
+    } catch (error) {
+      logger.error('Could not start shutdown watchdog', error as Error)
+    }
   }
 
   /**
@@ -487,6 +520,7 @@ export class Application {
         return
       }
       this._isQuitting = true
+      this.armShutdownWatchdog()
     })
 
     // will-quit: all windows closed, perform actual cleanup
@@ -494,6 +528,7 @@ export class Application {
       if (this.isShuttingDown) return // Already shutting down (SIGINT/SIGTERM path), let it exit
 
       event.preventDefault()
+      this.armShutdownWatchdog()
 
       // Same last-resort fuse as the signal handlers — see setupSignalHandlers().
       const timer = setTimeout(() => {
@@ -505,6 +540,7 @@ export class Application {
         .catch((err) => logger.error('Error during shutdown:', err as Error))
         .finally(() => {
           clearTimeout(timer)
+          this.stopShutdownWatchdog?.()
           app.exit(0)
         })
     })
