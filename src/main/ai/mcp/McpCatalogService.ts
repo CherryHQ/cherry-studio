@@ -110,7 +110,6 @@ export class McpCatalogService extends BaseService {
       application.get('McpRuntimeService').onToolListChanged(({ serverId }) => {
         void this.refreshTools(serverId).catch((error) => {
           logger.warn('Failed to refresh tools after tool list changed notification', { serverId, error })
-          this.clearSharedToolsCache(serverId)
         })
       })
     )
@@ -355,7 +354,6 @@ export class McpCatalogService extends BaseService {
             serverName: server.name,
             error: result.reason
           })
-          this.clearSharedToolsCache(server.id)
         })
       }
     } catch (error) {
