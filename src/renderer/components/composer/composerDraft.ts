@@ -1,4 +1,4 @@
-import type { Editor, JSONContent } from '@tiptap/core'
+import type { JSONContent } from '@tiptap/core'
 
 import { isComposerInputTokenKind, isComposerMessageTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -10,23 +10,17 @@ import type {
 } from '@shared/data/types/uiParts'
 import { FileTypeSchema } from '@shared/types/file'
 
-import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import { createPromptVariableContent } from './promptVariables'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
-import { normalizeComposerTokenAttrs } from './tokens'
+import { COMPOSER_TOKEN_NODE_NAME } from './tokens'
+
+export { getComposerSerializedTextLength, serializeComposerDocument } from './composerDocumentSerializer'
+export { COMPOSER_INPUT_MAX_LENGTH } from './tokens'
 
 const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
 
-/** Upper bound on a serialized draft's text — enforced by every path that grows the composer. */
-export const COMPOSER_INPUT_MAX_LENGTH = 40000
-
-type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
 type PersistedComposerSerializedToken = ComposerSerializedToken & {
   kind: ComposerMessageToken['kind']
-}
-
-function isEditorSource(source: ComposerSerializableSource): source is Pick<Editor, 'getJSON'> {
-  return typeof (source as Pick<Editor, 'getJSON'>).getJSON === 'function'
 }
 
 function appendTextContent(nodes: JSONContent[], text: string) {
@@ -34,13 +28,6 @@ function appendTextContent(nodes: JSONContent[], text: string) {
     if (index > 0) nodes.push({ type: 'hardBreak' })
     if (line) nodes.push({ type: 'text', text: line })
   })
-}
-
-function getRestoredTextSuffix(payload: unknown): string {
-  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return ''
-
-  const restoredTextSuffix = (payload as Record<string, unknown>).restoredTextSuffix
-  return typeof restoredTextSuffix === 'string' ? restoredTextSuffix : ''
 }
 
 function readPayloadObject(payload: unknown): Record<string, unknown> | undefined {
@@ -168,53 +155,6 @@ export function createComposerDraftContent(draft: {
   if (!inputTokens.length) return createPromptVariableContent(draft.text)
 
   return createComposerContent(draft.text, inputTokens, isComposerInputTokenKind)
-}
-
-export function serializeComposerDocument(source: ComposerSerializableSource): ComposerSerializedDraft {
-  const json = isEditorSource(source) ? source.getJSON() : source
-  const tokens: ComposerSerializedToken[] = []
-  let text = ''
-
-  const visitNode = (node: JSONContent) => {
-    if (node.type === 'text') {
-      text += node.text ?? ''
-      return
-    }
-
-    if (node.type === 'hardBreak') {
-      text += '\n'
-      return
-    }
-
-    if (node.type === COMPOSER_TOKEN_NODE_NAME) {
-      const token = normalizeComposerTokenAttrs(node.attrs ?? {})
-      const restoredTextSuffix = getRestoredTextSuffix(token.payload)
-      tokens.push({
-        ...token,
-        index: tokens.length,
-        textOffset: text.length
-      })
-      text += token.promptText ?? ''
-      text += restoredTextSuffix
-      return
-    }
-
-    if (!node.content?.length) return
-
-    if (node.type === 'doc') {
-      node.content.forEach((child, index) => {
-        if (index > 0) text += '\n'
-        visitNode(child)
-      })
-      return
-    }
-
-    node.content.forEach(visitNode)
-  }
-
-  visitNode(json)
-
-  return { text, tokens }
 }
 
 /**

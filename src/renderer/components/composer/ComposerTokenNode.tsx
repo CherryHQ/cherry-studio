@@ -5,12 +5,14 @@ import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { type ReactNode, useCallback, useLayoutEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getComposerSerializedTextLength } from './composerDocumentSerializer'
 import { type PromptVariableCommitReason, PromptVariableToken } from './PromptVariableToken'
+import { formatQuoteTokenPromptText } from './quoteToken'
 import type { ActiveComposerInputToken, ComposerDraftToken, PromptVariableComposerInputToken } from './tokens'
-import { normalizeComposerTokenAttrs } from './tokens'
+import { COMPOSER_INPUT_MAX_LENGTH, COMPOSER_TOKEN_NODE_NAME, normalizeComposerTokenAttrs } from './tokens'
 import { ComposerToken, FileComposerToken } from './tokenView'
 
-export const COMPOSER_TOKEN_NODE_NAME = 'composerToken'
+export { COMPOSER_TOKEN_NODE_NAME } from './tokens'
 export const COMPOSER_PROMPT_VARIABLE_EDIT_EVENT = 'composer-prompt-variable-edit'
 
 export interface ComposerPromptVariableEditEventDetail {
@@ -122,6 +124,23 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
       label: value || token.label,
       promptText: value
     })
+  }
+
+  const commitQuoteValue = (value: string) => {
+    if (token.kind !== 'quote') return
+
+    props.updateAttributes({
+      description: value,
+      promptText: formatQuoteTokenPromptText(value)
+    })
+  }
+
+  const getQuoteEditMaxLength = () => {
+    const currentPromptLength = token.kind === 'quote' ? (token.promptText?.length ?? 0) : 0
+    const fixedTextLength = getComposerSerializedTextLength(editor) - currentPromptLength
+    const promptWrapperLength = formatQuoteTokenPromptText('').length
+
+    return Math.max(0, COMPOSER_INPUT_MAX_LENGTH - fixedTextLength - promptWrapperLength)
   }
 
   const selectAdjacentPromptVariableToken = (direction: 1 | -1) => {
@@ -238,6 +257,8 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
       <ComposerToken
         token={token as ActiveComposerInputToken}
         selected={props.selected}
+        onEdit={token.kind === 'quote' ? commitQuoteValue : undefined}
+        getEditMaxLength={token.kind === 'quote' ? getQuoteEditMaxLength : undefined}
         onRemove={removeCurrentToken}
         removeLabel={t('common.delete')}
       />
