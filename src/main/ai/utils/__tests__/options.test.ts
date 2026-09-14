@@ -182,8 +182,9 @@ describe('mergeCustomProviderParameters', () => {
     // Mirror the OpenAI-compatible path: AI SDK silently drops snake_case keys, so a
     // user's custom parameter dictionary carrying `reasoning_effort` must be renamed
     // to `reasoningEffort` before being merged into the `copilot` provider namespace.
+    const customProviders: Record<string, Record<string, never>> = { copilot: {} }
     const result = mergeCustomProviderParameters(
-      { copilot: {} },
+      customProviders,
       { reasoning_effort: 'high' },
       'github-copilot-openai-compatible',
       'github-copilot-openai-compatible'
@@ -196,8 +197,9 @@ describe('mergeCustomProviderParameters', () => {
     // Mirror the openai-compatible clobber test: when the user's custom params carry BOTH
     // `reasoningEffort` (already in the SDK dialect) and `reasoning_effort` (snake_case),
     // the existing camelCase wins and the snake_case form is dropped.
+    const customProviders: Record<string, Record<string, never>> = { copilot: {} }
     const result = mergeCustomProviderParameters(
-      { copilot: {} },
+      customProviders,
       { reasoning_effort: 'high', reasoningEffort: 'low' },
       'github-copilot-openai-compatible',
       'github-copilot-openai-compatible'
