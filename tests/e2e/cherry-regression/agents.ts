@@ -109,20 +109,19 @@ export async function runAgentFileTask(
             const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/fileEvidence')
             await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
             created = true
-            return true
           } catch {
-            return await messages
-              .last()
-              .getByTestId('completed-process-trigger')
-              .isVisible()
-              .catch(() => false)
+            created = false
           }
+          return await messages
+            .last()
+            .getByTestId('completed-process-trigger')
+            .isVisible()
+            .catch(() => false)
         },
         { timeout }
       )
       .toBe(true)
     if (created) {
-      await expect(messages.last().getByTestId('completed-process-trigger')).toBeVisible({ timeout })
       return
     }
   }

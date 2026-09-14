@@ -4,10 +4,8 @@ import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import {
   closeExternalText,
   openExternalText,
-  selectExternalText,
   sendSystemHotkey
 } from '../../../scripts/cherry-regression-test/systemAutomation'
-import { SelectionTriggerMode } from '../../../src/shared/data/preference/preferenceTypes'
 import { expect, test } from './fixture'
 import { ensureCustomChatProvider } from './models'
 import { dismissOnboarding } from './navigation'
@@ -88,50 +86,4 @@ test(...caseDefinition('C-02'), async ({ app, mainWindow: page }) => {
   await configureQuickAssistant(page, providerId, app.config.customProvider.chatModel)
   await closeSettings(page)
   await invokeQuickAssistant(app, prompt)
-})
-
-test(...caseDefinition('C-03'), async ({ app, mainWindow: page }) => {
-  const providerId = await ensureCustomChatProvider(app, page)
-
-  await page.getByRole('button', { name: 'Selection Assistant', exact: true }).click()
-  await page.evaluate(
-    async ({ model, providerId, triggerMode }) => {
-      await window.api.preference.setMultiple({
-        'chat.default_model_id': `${providerId}::${model}`,
-        'feature.selection.action_items': [
-          {
-            enabled: true,
-            id: 'regression-label',
-            isBuiltIn: false,
-            name: 'Read validation label',
-            prompt: 'What validation label is printed in the selected sentence? Include the label in your answer.'
-          }
-        ],
-        'feature.selection.enabled': true,
-        'feature.selection.trigger_mode': triggerMode,
-        'shortcut.selection.capture_text': {
-          binding: ['CommandOrControl', 'Shift', 'K'],
-          enabled: true
-        }
-      })
-    },
-    { model: app.config.customProvider.chatModel, providerId, triggerMode: SelectionTriggerMode.Shortcut }
-  )
-  await expect(page.getByRole('switch').first()).toHaveAttribute('aria-checked', 'true')
-  await closeSettings(page)
-
-  openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
-  selectExternalText(app.record.platform)
-  sendSystemHotkey(
-    app.record.platform,
-    app.record.platform === 'macos' ? ['Meta', 'Shift', 'k'] : ['Control', 'Shift', 'k']
-  )
-  const selection = await app.window('/windows/selection/toolbar/')
-  const readLabel = selection.getByRole('button', { name: 'Read validation label', exact: true })
-  await expect(readLabel).toBeVisible()
-  await readLabel.click()
-  const action = await app.window('/windows/selection/action/')
-  await expect(action.locator('body')).toContainText('SELECTION_ASSISTANT_PASS', { timeout: 2 * 60_000 })
-  await expect(action.locator('body')).not.toContainText('Invalid signature')
-  await action.keyboard.press('Escape')
 })

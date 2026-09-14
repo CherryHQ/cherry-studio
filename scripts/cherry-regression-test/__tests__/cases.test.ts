@@ -29,9 +29,9 @@ describe('regression execution plan', () => {
   })
 
   it('blocks native interactions when desktop automation is missing without blocking pure UI tasks', () => {
-    expect(missingCapabilities('C-03', { desktopAutomation: { available: false } })).toEqual(['desktopAutomation'])
-    expect(missingCapabilities('C-03', {})).toEqual(['desktopAutomation'])
-    expect(missingCapabilities('C-03', { desktopAutomation: { available: true } })).toEqual([])
+    expect(missingCapabilities('C-02', { desktopAutomation: { available: false } })).toEqual(['desktopAutomation'])
+    expect(missingCapabilities('C-02', {})).toEqual(['desktopAutomation'])
+    expect(missingCapabilities('C-02', { desktopAutomation: { available: true } })).toEqual([])
     expect(missingCapabilities('N-01', {})).toEqual([])
   })
 })

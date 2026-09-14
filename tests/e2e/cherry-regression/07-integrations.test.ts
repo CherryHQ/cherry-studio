@@ -105,7 +105,11 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
   await dismissOnboarding(page)
   await startNewAgentTask(page, 'Cherry Assistant')
   const agentView = page.locator('[data-ui~="agent.view"]:visible')
-  await agentView.locator('button:has(span[title*=" | "])').first().click()
+  await agentView
+    .getByRole('button', { name: 'Select Model', exact: true })
+    .or(agentView.locator('button:has(span[title*=" | "])'))
+    .first()
+    .click()
   await selectVisibleModel(page, app.config.customProvider.chatModel)
   await openSkillsPanel(page)
   await page.getByText('Manage skills', { exact: true }).click()

@@ -188,28 +188,6 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
   return filePath
 }
 
-export function selectExternalText(platform: Platform): void {
-  if (platform === 'macos') {
-    runMacHotkey(['Meta', 'a'])
-    return
-  }
-  if (!activeWindowsTextFixturePid) throw new Error('No external text window is active')
-
-  const script = [
-    `$fixture = Get-Process -Id ${activeWindowsTextFixturePid} -ErrorAction Stop`,
-    '$shell = New-Object -ComObject WScript.Shell',
-    'if (-not $shell.AppActivate($fixture.Id)) { throw "External text window could not be activated" }',
-    'Start-Sleep -Milliseconds 1000',
-    '$shell.SendKeys("^a")',
-    'Start-Sleep -Milliseconds 500'
-  ].join('\n')
-  execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'ignore', 'pipe'],
-    timeout: 10_000
-  })
-}
-
 export function chooseNativeFile(platform: Platform, paths: RunPaths, candidatePath: string): string {
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures, paths.workspace, paths.evidence])
   if (!existsSync(filePath)) throw new Error(`Selected file does not exist: ${filePath}`)

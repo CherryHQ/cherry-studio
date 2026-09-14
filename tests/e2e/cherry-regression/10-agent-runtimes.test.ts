@@ -61,7 +61,10 @@ test(...caseDefinition('A-01'), async ({ app, mainWindow: page }) => {
   await startNewAgentTask(page, 'Cherry Assistant')
 
   const agentView = page.locator('[data-ui="agent.view"]:visible').first()
-  const model = agentView.locator('button:has(span[title*=" | "])').first()
+  const model = agentView
+    .getByRole('button', { name: 'Select Model', exact: true })
+    .or(agentView.locator('button:has(span[title*=" | "])'))
+    .first()
   await expect(model).toBeVisible()
   await model.click()
   await selectVisibleModel(page, modelName)
