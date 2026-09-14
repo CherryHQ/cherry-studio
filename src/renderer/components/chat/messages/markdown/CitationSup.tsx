@@ -11,13 +11,14 @@
  * `data-citation` and passes through untouched.
  */
 
-import type { Citation } from '@renderer/types/message'
-import { isLinkableCitationUrl } from '@renderer/utils/citation'
-import { cn } from '@renderer/utils/style'
 import { omit } from 'es-toolkit/compat'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Node } from 'unist'
+
+import type { Citation } from '@renderer/types/message'
+import { isLinkableCitationUrl } from '@renderer/utils/citation'
+import { cn } from '@renderer/utils/style'
 
 import CitationTooltip from './CitationTooltip'
 

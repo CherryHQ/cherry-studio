@@ -11,10 +11,11 @@
  * - Dexie mcp:provider:*:servers (handled in separate PR)
  */
 
+import { sql } from 'drizzle-orm'
+
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -152,7 +153,10 @@ export class McpServerMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const serverResult = ctx.db.select({ count: sql<number>`count(*)` }).from(mcpServerTable).get()
+      const serverResult = ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(mcpServerTable)
+        .get()
       const serverCount = serverResult?.count ?? 0
       const errors: { key: string; message: string }[] = []
 

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { act, cleanup, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 const mocks = vi.hoisted(() => ({
   activeTabId: 'tab-1',

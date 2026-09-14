@@ -1,10 +1,11 @@
-import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { TranslateLanguage } from '@shared/data/types/translate'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
@@ -55,10 +56,22 @@ const { refetchTranslationLanguagesMock, useLanguagesMock } = vi.hoisted(() => {
 const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
 const openRouteMock = vi.hoisted(() => vi.fn())
 const getMessageActivityStateMock = vi.hoisted(() =>
-  vi.fn(() => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false }))
+  vi.fn(() => ({
+    isProcessing: false,
+    isStreamTarget: false,
+    isApprovalAnchor: false,
+    isActiveTurnProcessing: false,
+    isStreamLive: false
+  }))
 )
 const messageActivityStoreMock = vi.hoisted(() => ({
-  getSnapshot: vi.fn(() => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false })),
+  getSnapshot: vi.fn(() => ({
+    isProcessing: false,
+    isStreamTarget: false,
+    isApprovalAnchor: false,
+    isActiveTurnProcessing: false,
+    isStreamLive: false
+  })),
   subscribe: vi.fn(() => vi.fn())
 }))
 
@@ -262,16 +275,15 @@ import {
   requestTopicImageAction
 } from '../topicImageActionBus'
 
-const createTopic = (id: string): Topic =>
-  ({
-    id,
-    assistantId: 'assistant-1',
-    name: `Topic ${id}`,
-    lastActivityAt: '2026-01-01T00:00:00.000Z',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    messages: []
-  }) as Topic
+const createTopic = (id: string): Topic => ({
+  id,
+  assistantId: 'assistant-1',
+  name: `Topic ${id}`,
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  messages: []
+})
 
 function MessageListAdapterHarness({
   imageActionConsumer,
@@ -414,7 +426,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
   it('injects Home-message diagnosis persistence into the shared error UI', async () => {
     vi.mocked(dataApiService.get).mockResolvedValue({
       data: { parts: [{ type: 'data-error', data: { name: 'ProviderError', message: 'failed' } }] }
-    } as Awaited<ReturnType<typeof dataApiService.get<'/messages/:id'>>>)
+    })
 
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
 
@@ -512,7 +524,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       <MessageListAdapterHarness
         topic={createTopic('topic-a')}
         messages={[historyMessage, liveMessage]}
-        partsByMessageId={{ ...historyPartsByMessageId, 'live-message': liveMessage.parts as CherryMessagePart[] }}
+        partsByMessageId={{ ...historyPartsByMessageId, 'live-message': liveMessage.parts }}
         streamingLayers={streamingLayers}
         onValue={(nextValue) => (value = nextValue)}
       />
@@ -531,7 +543,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
         messages={[historyMessage, nextLiveMessage]}
         partsByMessageId={{
           ...historyPartsByMessageId,
-          'live-message': nextLiveMessage.parts as CherryMessagePart[]
+          'live-message': nextLiveMessage.parts
         }}
         streamingLayers={streamingLayers}
         onValue={(nextValue) => (value = nextValue)}

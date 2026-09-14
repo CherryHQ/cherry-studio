@@ -1,9 +1,3 @@
-import EmojiIcon from '@renderer/components/EmojiIcon'
-import HighlightText from '@renderer/components/HighlightText'
-import { cn } from '@renderer/utils/style'
-import { formatRelativeTime } from '@renderer/utils/time'
-import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { AgentSessionMessageSearchRole } from '@shared/data/types/message'
 import {
   ArrowRight,
   Bot,
@@ -17,6 +11,14 @@ import {
 import { type MouseEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import EmojiIcon from '@renderer/components/EmojiIcon'
+import HighlightText from '@renderer/components/HighlightText'
+import { cn } from '@renderer/utils/style'
+import { formatRelativeTime } from '@renderer/utils/time'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { AgentSessionMessageSearchRole } from '@shared/data/types/message'
+
+import { GlobalSearchSessionContext, GlobalSearchTopicContext } from './GlobalSearchEntryContext'
 import type {
   GlobalMessageSearchPanelGroup,
   GlobalMessageSearchPanelItem,
@@ -90,10 +92,6 @@ function getMessageActorLabel(
 }
 
 function getResultSubtitle(result: EntitySearchItem, t: (key: string) => string) {
-  if (result.type === 'topic' || result.type === 'session') {
-    return result.subtitle
-  }
-
   return result.subtitle ?? t(getResultTypeLabelKey(result.type))
 }
 
@@ -171,7 +169,23 @@ export function GlobalSearchRow({
   const { t } = useTranslation()
   const isRecent = item.kind === 'recent'
   const title = isRecent ? item.recent.title : item.result.title
-  const subtitle = isRecent ? undefined : getResultSubtitle(item.result, t)
+  const entryType = isRecent ? item.recent.kind : item.result.type
+  const isConversation = entryType === 'topic' || entryType === 'session'
+  const subtitle = isRecent || isConversation ? undefined : getResultSubtitle(item.result, t)
+  const topicId = isRecent
+    ? item.recent.kind === 'topic'
+      ? item.recent.topicId
+      : undefined
+    : item.result.type === 'topic'
+      ? item.result.target.topicId
+      : undefined
+  const sessionId = isRecent
+    ? item.recent.kind === 'session'
+      ? item.recent.sessionId
+      : undefined
+    : item.result.type === 'session'
+      ? item.result.target.sessionId
+      : undefined
   const Icon = isRecent ? RECENT_ICONS[item.recent.kind] : RESULT_ICONS[item.result.type]
   const emoji =
     !isRecent && ['assistant', 'agent', 'knowledge-base'].includes(item.result.type) ? item.result.emoji : undefined
@@ -207,6 +221,8 @@ export function GlobalSearchRow({
           </span>
         )}
       </span>
+      {topicId && <GlobalSearchTopicContext key={topicId} topicId={topicId} />}
+      {sessionId && <GlobalSearchSessionContext key={sessionId} sessionId={sessionId} />}
       {timestampLabel && (
         <span className="ml-2 shrink-0 text-muted-foreground text-xs leading-4" title={displayTimestamp}>
           {timestampLabel}

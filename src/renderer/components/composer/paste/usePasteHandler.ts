@@ -1,6 +1,7 @@
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
+
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import pasteHandling from './pasteHandling'
 
@@ -8,6 +9,8 @@ export interface UsePasteHandlerOptions {
   supportedExts: string[]
   setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void
   onResize?: () => void
+  pasteLongTextAsFile?: boolean
+  pasteLongTextThreshold?: number
   t: TFunction
 }
 
@@ -45,6 +48,8 @@ export function usePasteHandler(
         options.supportedExts,
         options.setFiles,
         setText,
+        options.pasteLongTextAsFile,
+        options.pasteLongTextThreshold,
         text,
         options.onResize ?? (() => {}),
         options.t

@@ -95,6 +95,9 @@ export function resolveAiSdkProviderId(provider: Provider, endpointType: Endpoin
   if (adapterFamily && adapterFamily in appProviderIds) {
     return resolveProviderVariant(appProviderIds[adapterFamily], endpointType)
   }
+  if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
+    return appProviderIds['open-responses']
+  }
   return appProviderIds['openai-compatible']
 }
 

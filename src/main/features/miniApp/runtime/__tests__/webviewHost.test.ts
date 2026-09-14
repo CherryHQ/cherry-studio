@@ -11,8 +11,13 @@ const { PRELOAD, runtime } = vi.hoisted(() => ({
     ready: new Set<string>(),
     quiescing: new Set<string>(),
     sessionApp: new Map<unknown, string>(),
-    registerGuest: (() => {}) as (appId: string, id: number) => void,
-    unregisterGuest: (() => {}) as (id: number) => void
+    registerGuest: (_appId: string, _id: number): void => {
+      void _appId
+      void _id
+    },
+    unregisterGuest: (_id: number): void => {
+      void _id
+    }
   }
 }))
 vi.mock('@application', async () => {
@@ -39,7 +44,7 @@ function run(params: {
 }) {
   const event = { preventDefault: vi.fn() }
   const webPreferences: Record<string, unknown> = { preload: params.preload, nodeIntegration: true, sandbox: false }
-  applyMiniAppWebviewPolicy(event as never, webPreferences as never, params as never, PRELOAD)
+  applyMiniAppWebviewPolicy(event as never, webPreferences, params, PRELOAD)
   return { event, webPreferences }
 }
 
@@ -190,8 +195,12 @@ describe('installMiniAppWebviewHost', () => {
     // nothing and the bridge fails closed for every call the guest ever makes.
     const registered: Array<[string, number]> = []
     const unregistered: number[] = []
-    runtime.registerGuest = (appId, id) => registered.push([appId, id])
-    runtime.unregisterGuest = (id) => unregistered.push(id)
+    runtime.registerGuest = (appId, id) => {
+      registered.push([appId, id])
+    }
+    runtime.unregisterGuest = (id) => {
+      unregistered.push(id)
+    }
     const session = {}
     runtime.sessionApp.set(session, APP)
     const destroyedHandlers: Array<() => void> = []

@@ -1,23 +1,25 @@
+import { Plus } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Alert, Button } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useReorder } from '@data/hooks/useReorder'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { useModels } from '@renderer/hooks/useModel'
-import { useProviders } from '@renderer/hooks/useProvider'
+import { useEditionHiddenProviders, useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
   isProviderPresetInstanceSource,
-  isProviderSettingsListVisibleProvider,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
+import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import type { Provider } from '@shared/data/types/provider'
 import { canManageProvider } from '@shared/utils/provider'
-import { Plus } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useOvmsSupport } from '../hooks/useOvmsSupport'
-import ProviderEditorDrawer from './ProviderEditorDrawer'
 import type { ProviderFilterMode } from './providerFilterMode'
 import { getGroupedPresetIds } from './providerGrouping'
 import ProviderListContent, { type ProviderListContentItemState } from './ProviderListContent'
@@ -26,6 +28,8 @@ import ProviderListItemWithContextMenu from './ProviderListItemWithContextMenu'
 import ProviderListSearchField from './ProviderListSearchField'
 import { useProviderDelete } from './useProviderDelete'
 import { type ProviderCreationContext, type SubmitProviderEditorParams, useProviderEditor } from './useProviderEditor'
+
+const ProviderEditorDrawer = lazy(() => import('./ProviderEditorDrawer'))
 
 export interface ProviderListProps {
   selectedProviderId?: string
@@ -42,6 +46,8 @@ export default function ProviderList({
 }: ProviderListProps) {
   const { t } = useTranslation()
   const { providers } = useProviders()
+  const { data: editionHiddenProviderIds } = useEditionHiddenProviders()
+  const showEditionNotice = getAppEdition() === 'cn' && (editionHiddenProviderIds ?? []).length > 0
   const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
@@ -78,6 +84,25 @@ export default function ProviderList({
     cancel: cancelEditor,
     submit: submitEditor
   } = useProviderEditor({ onProviderCreated: handleProviderCreated })
+  const [editorActivated, setEditorActivated] = useState(false)
+  const openProviderEditor = useCallback(() => {
+    setEditorActivated(true)
+    startAdd()
+  }, [startAdd])
+  const openProviderEditorFrom = useCallback(
+    (provider: Provider) => {
+      setEditorActivated(true)
+      startAddFrom(provider)
+    },
+    [startAddFrom]
+  )
+  const openProviderEditorForEdit = useCallback(
+    (provider: Provider) => {
+      setEditorActivated(true)
+      startEdit(provider)
+    },
+    [startEdit]
+  )
 
   const { deleteProvider } = useProviderDelete()
 
@@ -128,6 +153,7 @@ export default function ProviderList({
   }, [allModels, searchText])
 
   const filteredProviders = useMemo(() => {
+    const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
     return providers.filter((provider) => {
       if (!isProviderSettingsListVisibleProvider(provider)) {
         return false
@@ -141,7 +167,6 @@ export default function ProviderList({
       if (filterMode === 'disabled' && provider.isEnabled) {
         return false
       }
-      const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
       return matchKeywordsInProvider(keywords, provider, providerModelsIndex?.get(provider.id))
     })
   }, [filterMode, isOvmsSupported, providers, providerModelsIndex, searchText])
@@ -272,11 +297,11 @@ export default function ProviderList({
         contextOpen={contextProviderId === provider.id}
         onContextOpenChange={(open) => setContextProviderId(open ? provider.id : null)}
         onSelect={() => onSelectProvider(provider.id)}
-        onEdit={() => startEdit(provider)}
+        onEdit={() => openProviderEditorForEdit(provider)}
         onDelete={() => handleDeleteProvider(provider.id)}
         onDuplicate={
           provider.presetProviderId && !groupedPresetIds.has(provider.presetProviderId)
-            ? () => startAddFrom(provider)
+            ? () => openProviderEditorFrom(provider)
             : undefined
         }
         showManagementActions={showManagementActions}
@@ -286,13 +311,13 @@ export default function ProviderList({
     )
   }
 
-  const handleAddAnother = useCallback((template: Provider) => startAddFrom(template), [startAddFrom])
+  const handleAddAnother = openProviderEditorFrom
   const addProviderButton = (
     <button
       type="button"
       aria-label={t('settings.provider.add.button_title')}
       disabled={dragging}
-      onClick={startAdd}
+      onClick={openProviderEditor}
       className={providerListClasses.addButton}>
       <Plus size={14} strokeWidth={2.5} />
       <span>{t('settings.provider.add.button_title')}</span>
@@ -315,6 +340,19 @@ export default function ProviderList({
           />
         }
       />
+      {showEditionNotice ? (
+        <div className="shrink-0 px-2.5 pt-2">
+          <Alert
+            type="info"
+            showIcon
+            message={t('settings.provider.edition_notice.title')}
+            description={t('settings.provider.edition_notice.description')}
+          />
+          <Button variant="outline" size="sm" disabled={dragging} onClick={openProviderEditor} className="mt-2 w-full">
+            {t('settings.provider.edition_notice.add_custom')}
+          </Button>
+        </div>
+      ) : null}
       <ProviderListContent
         providers={providers}
         visibleProviders={filteredProviders}
@@ -330,15 +368,19 @@ export default function ProviderList({
         renderItem={renderProviderItem}
       />
       <div className={providerListClasses.addFooter}>{addProviderButton}</div>
-      <ProviderEditorDrawer
-        open={editorOpen}
-        mode={editorMode}
-        initialLogo={initialLogo}
-        presetSources={presetSources}
-        onClose={cancelEditor}
-        onSelectPreset={startAddFrom}
-        onSubmit={handleSubmitEditor}
-      />
+      {editorActivated ? (
+        <Suspense fallback={null}>
+          <ProviderEditorDrawer
+            open={editorOpen}
+            mode={editorMode}
+            initialLogo={initialLogo}
+            presetSources={presetSources}
+            onClose={cancelEditor}
+            onSelectPreset={startAddFrom}
+            onSubmit={handleSubmitEditor}
+          />
+        </Suspense>
+      ) : null}
     </aside>
   )
 }

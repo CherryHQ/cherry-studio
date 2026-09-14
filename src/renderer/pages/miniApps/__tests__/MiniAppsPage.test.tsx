@@ -1,10 +1,12 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type React from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as CherryStudioUI from '@cherrystudio/ui'
 import type * as UseCacheModule from '@data/hooks/useCache'
 import type * as MiniAppPresets from '@shared/data/presets/miniApps'
 import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type React from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MiniAppsPage from '../MiniAppsPage'
 
@@ -20,7 +22,8 @@ const stubApp = (overrides: Partial<SiteMiniApp> & Pick<SiteMiniApp, 'appId' | '
   logo: overrides.logo ?? `${overrides.appId}-logo`,
   bordered: overrides.bordered,
   background: overrides.background,
-  supportedRegions: overrides.supportedRegions
+  supportedRegions: overrides.supportedRegions,
+  configuration: overrides.configuration
 })
 
 const mocks = vi.hoisted(() => ({
@@ -29,8 +32,12 @@ const mocks = vi.hoisted(() => ({
   pinned: [] as MiniApp[],
   openedKeepAliveMiniApps: [] as MiniApp[],
   updateAppStatus: vi.fn().mockResolvedValue(undefined),
+  hideMiniApp: vi.fn().mockResolvedValue(undefined),
   removeCustomMiniApp: vi.fn().mockResolvedValue(undefined),
+  toggleMiniApp: vi.fn(),
   openTab: vi.fn(),
+  request: vi.fn().mockResolvedValue(null),
+  toastError: vi.fn(),
   useMiniAppVisibility: vi.fn(() => ({
     visible: [],
     hidden: [],
@@ -53,16 +60,28 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     miniAppShow: false,
     setOpenedKeepAliveMiniApps: vi.fn(),
     updateAppStatus: mocks.updateAppStatus,
+    hideMiniApp: mocks.hideMiniApp,
     removeCustomMiniApp: mocks.removeCustomMiniApp,
     isLoading: false,
     error: null
   })
 }))
 
+vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
+  useSidebarFavorites: () => ({ miniAppFavoriteIds: [], toggleMiniApp: mocks.toggleMiniApp })
+}))
+
 vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
-    openTab: mocks.openTab
+    // TabsProvider recreates openTab when its tab list changes.
+    openTab: (url: string, options: unknown) => mocks.openTab(url, options)
   })
+}))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError, success: vi.fn() }
 }))
 
 // Partial: the installed tile reads `useSharedCacheValue` from the same module.
@@ -187,7 +206,13 @@ vi.mock('../MiniAppSettings/MiniAppDisplaySettings', () => ({
 
 vi.mock('../NewMiniAppPanel', () => ({
   default: ({ open, app }: { open: boolean; app?: MiniApp | null }) =>
-    open ? <div data-testid="new-mini-app-panel" data-app-id={app?.appId ?? ''} /> : null
+    open ? (
+      <div
+        data-testid="new-mini-app-panel"
+        data-app-id={app?.appId ?? ''}
+        data-configuration={app?.kind === 'site' ? JSON.stringify(app.configuration) : undefined}
+      />
+    ) : null
 }))
 
 vi.mock('../InstallMiniAppPanel', () => ({
@@ -202,7 +227,10 @@ vi.mock('../InstallMiniAppPanel', () => ({
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => {} },
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', resolvedLanguage: 'en' } })
+  useTranslation: () => ({
+    t: (key: string) => (key === 'mini_apps.yuanbao' ? '腾讯元宝' : key),
+    i18n: { language: 'zh-CN', resolvedLanguage: 'zh-CN' }
+  })
 }))
 
 describe('MiniAppsPage', () => {
@@ -215,8 +243,11 @@ describe('MiniAppsPage', () => {
     mocks.pinned = []
     mocks.openedKeepAliveMiniApps = []
     mocks.updateAppStatus.mockClear()
+    mocks.hideMiniApp.mockReset().mockImplementation((appId: string) => mocks.updateAppStatus(appId, 'disabled'))
     mocks.removeCustomMiniApp.mockClear()
     mocks.openTab.mockClear()
+    mocks.request.mockReset().mockResolvedValue(null)
+    mocks.toastError.mockClear()
     mocks.useMiniAppVisibility.mockClear()
     ;(window as unknown as { toast: { success: () => void; error: () => void; warning: () => void } }).toast = {
       success: vi.fn(),
@@ -235,6 +266,51 @@ describe('MiniAppsPage', () => {
 
     expect(screen.getByText('ChatGPT')).toBeInTheDocument()
     expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
+  })
+
+  it('finds a translated tile by its displayed name, original name, and URL', async () => {
+    const user = userEvent.setup()
+    mocks.apps.push(
+      stubApp({ appId: 'yuanbao', name: 'Yuanbao', nameKey: 'mini_apps.yuanbao', url: 'https://yuanbao.tencent.com' })
+    )
+    render(<MiniAppsPage />)
+
+    const search = screen.getByPlaceholderText('common.search')
+    expect(screen.getByRole('button', { name: '腾讯元宝' })).toBeInTheDocument()
+    for (const query of ['腾讯元宝', '元宝', 'YUANBAO', 'tencent.com']) {
+      await user.clear(search)
+      await user.type(search, query)
+      expect(screen.getByRole('button', { name: '腾讯元宝' })).toBeInTheDocument()
+      expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
+    }
+  })
+
+  it('edits the latest app data after a non-visual configuration update', async () => {
+    const user = userEvent.setup()
+    mocks.apps = [
+      stubApp({
+        appId: 'custom',
+        name: 'Custom App',
+        url: 'https://custom.example.com',
+        presetMiniAppId: null,
+        configuration: { theme: 'light' }
+      })
+    ]
+    const view = render(<MiniAppsPage />)
+
+    mocks.apps = [
+      stubApp({
+        appId: 'custom',
+        name: 'Custom App',
+        url: 'https://custom.example.com',
+        presetMiniAppId: null,
+        configuration: { theme: 'dark' }
+      })
+    ]
+    view.rerender(<MiniAppsPage />)
+
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+    expect(screen.getByTestId('new-mini-app-panel')).toHaveAttribute('data-configuration', '{"theme":"dark"}')
   })
 
   it('opens the selected mini app without changing the tab contract', () => {
@@ -282,15 +358,75 @@ describe('MiniAppsPage', () => {
     await waitFor(() => expect(mocks.removeCustomMiniApp).toHaveBeenCalledWith('custom'))
   })
 
-  it('has one add entry, and it opens the add dialog in create mode', () => {
+  it('adds a launchpad entry that opens the add dialog in create mode', () => {
     render(<MiniAppsPage />)
     // The install panel has no toolbar entry of its own any more: packages are a tab of
     // the add dialog, and only a builtin tile mounts the standalone panel.
     expect(screen.queryByRole('button', { name: 'miniApp.install.title' })).toBeNull()
     expect(screen.queryByTestId('new-mini-app-panel')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'miniApp.add.title' }))
+    const addEntries = screen.getAllByRole('button', { name: 'miniApp.add.title' })
+    expect(addEntries).toHaveLength(2)
+
+    fireEvent.click(addEntries[1])
     expect(screen.getByTestId('new-mini-app-panel')).toHaveAttribute('data-app-id', '')
+  })
+
+  it('requests an install preview for a dropped .miniapp package', async () => {
+    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
+    const nativeFile = new File(['package'], 'example.miniapp')
+    const convertedFile = new File(['package'], 'example.miniapp')
+    fileApi.getPathForFile = vi.fn((file) => (file === nativeFile ? '/tmp/example.miniapp' : ''))
+    const { container } = render(<MiniAppsPage />)
+    const page = container.querySelector('[data-ui="mini-apps.view"]')
+    const item = { kind: 'file', type: '', getAsFile: () => convertedFile }
+
+    fireEvent.dragEnter(page!, { dataTransfer: { files: [], items: [item], types: ['Files'], dropEffect: 'none' } })
+    expect(await screen.findByRole('status')).toHaveTextContent('miniApp.install.drop_here')
+
+    fireEvent.drop(page!, {
+      dataTransfer: { files: [nativeFile], items: [item], types: ['Files'], dropEffect: 'none' }
+    })
+
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledWith('mini_app.install.preview_file', {
+        filePath: '/tmp/example.miniapp'
+      })
+    })
+    expect(fileApi.getPathForFile).toHaveBeenCalledWith(nativeFile)
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('rejects drops that are not exactly one .miniapp package', async () => {
+    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
+    fileApi.getPathForFile = vi.fn(() => '/tmp/notes.txt')
+    const { container } = render(<MiniAppsPage />)
+    const page = container.querySelector('[data-ui="mini-apps.view"]')
+
+    fireEvent.drop(page!, {
+      dataTransfer: { files: [new File(['notes'], 'notes.txt')], types: ['Files'], dropEffect: 'none' }
+    })
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('miniApp.install.drop_invalid'))
+    expect(fileApi.getPathForFile).not.toHaveBeenCalled()
+    expect(mocks.request).not.toHaveBeenCalledWith('mini_app.install.preview_file', expect.anything())
+  })
+
+  it('leaves file drag handling to the add dialog while it is open', () => {
+    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
+    fileApi.getPathForFile = vi.fn(() => '/tmp/example.miniapp')
+    const { container } = render(<MiniAppsPage />)
+    const page = container.querySelector('[data-ui="mini-apps.view"]')
+    const file = new File(['package'], 'example.miniapp')
+    const dataTransfer = { files: [file], types: ['Files'], dropEffect: 'none' }
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'miniApp.add.title' })[0])
+    fireEvent.dragEnter(page!, { dataTransfer })
+    fireEvent.drop(page!, { dataTransfer })
+
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(fileApi.getPathForFile).not.toHaveBeenCalled()
+    expect(mocks.request).not.toHaveBeenCalledWith('mini_app.install.preview_file', expect.anything())
   })
 
   it('offers an uninstalled builtin, and routes it to consent rather than open', () => {

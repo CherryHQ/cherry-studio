@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
@@ -56,8 +55,16 @@ vi.mock('@renderer/utils/platform', () => ({
 }))
 
 vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
-  getMiniAppsLogoRef: () => undefined,
-  useMiniAppLogo: () => undefined
+  getMiniAppsLogoRef: (logo?: string) => (logo === 'google' ? {} : undefined),
+  useMiniAppLogo: (logo?: string) => {
+    if (logo !== 'google') return undefined
+
+    return Object.assign(() => null, {
+      Avatar: ({ size, shape }: { size: number; shape: string }) => (
+        <span data-testid="preset-mini-app-avatar" data-shape={shape} style={{ width: size, height: size }} />
+      )
+    })
+  }
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -148,12 +155,9 @@ const mockCloseAnimation = () => {
     x: 0,
     y: 0,
     toJSON: () => ({})
-  } as DOMRect)
+  })
   vi.useFakeTimers()
-  vi.stubGlobal(
-    'requestAnimationFrame',
-    (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
-  )
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16))
   vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id))
 
   return () => {
@@ -218,6 +222,30 @@ describe('AppShellTabBar', () => {
     expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
   })
 
+  it('renders preset and installed mini app icons at the same circular size', () => {
+    const presetMiniAppTab = createTab('preset-mini-app', {
+      url: '/app/mini-app/google',
+      title: 'Preset Mini App',
+      icon: 'google'
+    })
+    const miniAppTab = createTab('installed-mini-app', {
+      url: '/app/mini-app/com.example.installed',
+      title: 'Installed Mini App',
+      icon: 'file:///files/installed.webp'
+    })
+
+    renderTabBar({ tabs: [presetMiniAppTab, miniAppTab], activeTabId: miniAppTab.id })
+
+    const presetIcon = screen.getByTestId('preset-mini-app-avatar')
+    const tab = screen.getByRole('button', { name: 'Installed Mini App' })
+    const image = tab.querySelector('img')
+    expect(presetIcon).toHaveAttribute('data-shape', 'circle')
+    expect(presetIcon).toHaveStyle({ width: '18px', height: '18px' })
+    expect(image).toHaveClass('rounded-full', 'object-cover')
+    expect(image).toHaveStyle({ width: '18px', height: '18px' })
+    expect(image?.style.backgroundColor).toBe('')
+  })
+
   it('shows the focused tab as a Back control with a visible detach action', async () => {
     const user = userEvent.setup()
     const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings', isPinned: true })
@@ -260,7 +288,7 @@ describe('AppShellTabBar', () => {
         x: 0,
         y: 0,
         toJSON: () => ({})
-      } as DOMRect
+      }
     })
     Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
       configurable: true,
@@ -325,7 +353,7 @@ describe('AppShellTabBar', () => {
         x: 0,
         y: 0,
         toJSON: () => ({})
-      } as DOMRect
+      }
     })
     const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
     Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
@@ -615,7 +643,7 @@ describe('AppShellTabBar', () => {
         x: 0,
         y: 0,
         toJSON: () => ({})
-      } as DOMRect)
+      })
 
       try {
         const closeTab = renderTabBar()
@@ -715,12 +743,9 @@ describe('AppShellTabBar', () => {
       x: 0,
       y: 0,
       toJSON: () => ({})
-    } as DOMRect)
+    })
     vi.useFakeTimers()
-    vi.stubGlobal(
-      'requestAnimationFrame',
-      (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
-    )
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16))
 
     try {
       const staleCloseTab = vi.fn()
@@ -965,13 +990,10 @@ describe('AppShellTabBar', () => {
         x: geometry.left,
         y: 0,
         toJSON: () => ({})
-      } as DOMRect
+      }
     })
     vi.useFakeTimers()
-    vi.stubGlobal(
-      'requestAnimationFrame',
-      (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
-    )
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16))
 
     try {
       renderTabBar({
@@ -1099,7 +1121,7 @@ describe('AppShellTabBar', () => {
         width: geometry.width,
         height: geometry.height,
         toJSON: () => ({})
-      } as DOMRect
+      }
     })
 
     Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() })

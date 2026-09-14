@@ -1,3 +1,6 @@
+import type { BrowserWindow } from 'electron'
+import { app, Menu, shell } from 'electron'
+
 import { application } from '@application'
 import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
@@ -14,8 +17,6 @@ import {
   resolveCommandKeybinding,
   resolveMenu
 } from '@shared/utils/command'
-import type { BrowserWindow } from 'electron'
-import { app, Menu, shell } from 'electron'
 
 const appMenuCommands: CommandId[] = ['app.settings.open', 'app.zoom.in', 'app.zoom.out', 'app.zoom.reset']
 

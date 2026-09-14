@@ -1,10 +1,11 @@
-import { EmptyState } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import { renderAsync } from 'docx-preview'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { EmptyState } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import { assertZipLimits } from '../../officeZipPreflight'
@@ -250,13 +251,13 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
               data-testid="docx-preview-content"
               data-zoom={zoom}
               style={contentStyle}
-              className="mx-auto w-fit min-w-0 [&_.docx-preview-wrapper]:mx-auto [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md"
+              className="mx-auto w-fit min-w-0 [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_.docx-preview-wrapper]:mx-auto [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md"
             />
           </div>
           {loading ? (
             <div
               role="status"
-              className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-muted-foreground text-sm">
+              className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
               <span>{t('file_preview.loading')}</span>
             </div>

@@ -21,8 +21,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { loggerService } from '@logger'
 import semver from 'semver'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('VersionPolicy')
 

@@ -1,8 +1,9 @@
+import { webContents } from 'electron'
+
 import { application } from '@application'
 import { setOpenLinkExternal } from '@main/services/WebviewService'
 import type { webviewRequestSchemas } from '@shared/ipc/schemas/webview'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import { webContents } from 'electron'
 
 /**
  * Webview-domain handlers acting on a MiniApp `<webview>` guest by its webContents id.

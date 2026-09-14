@@ -1,9 +1,10 @@
-import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
-import type { InstalledSkill } from '@shared/types/skill'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import type { InstalledSkill } from '@shared/types/skill'
 
 import SkillDetailDialog from '../SkillDetailDialog'
 
@@ -77,6 +78,7 @@ vi.mock('@cherrystudio/ui', () => {
     ),
     DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+    Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     Separator: () => <hr />
   }
 })

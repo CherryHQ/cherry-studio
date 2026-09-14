@@ -1,3 +1,5 @@
+import { describe, expect, it, vi } from 'vitest'
+
 /**
  * Mock-fidelity parity test for the data change fan-out.
  *
@@ -9,7 +11,6 @@
  * identical delivery logs: any semantic divergence fails loudly here.
  */
 import type { DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
-import { describe, expect, it, vi } from 'vitest'
 
 // The global renderer setup replaces this module with a mock for consuming
 // components; this suite needs the real implementation to compare against.

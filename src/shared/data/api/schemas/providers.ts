@@ -63,7 +63,8 @@ const ProviderSettingsMergePatchSchema = z.object({
       enabled: z.boolean().nullable().optional(),
       tokenThreshold: z.number().nullable().optional(),
       cacheSystemMessage: z.boolean().nullable().optional(),
-      cacheLastNMessages: z.number().nullable().optional()
+      cacheLastNMessages: z.number().nullable().optional(),
+      ttl: ProviderSettingsSchema.shape.cacheControl.unwrap().shape.ttl.nullable().optional()
     })
     .nullable()
     .optional(),
@@ -211,6 +212,18 @@ export type ProviderSchemas = {
     POST: {
       body: CreateProviderDto
       response: Provider
+    }
+  }
+
+  /**
+   * IDs of persisted providers hidden from the current edition by registry policy.
+   * Lets the settings UI explain intentionally-unavailable providers (#20405).
+   * @example GET /providers/edition-hidden
+   */
+  '/providers/edition-hidden': {
+    /** List edition-hidden provider IDs */
+    GET: {
+      response: string[]
     }
   }
 

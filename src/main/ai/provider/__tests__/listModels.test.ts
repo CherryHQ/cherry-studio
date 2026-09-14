@@ -1,7 +1,8 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
@@ -17,20 +18,28 @@ const {
   getAuthHeadersMock,
   getCopilotTokenMock,
   aiSdkGetFromApiMock,
-  aiSdkPostJsonToApiMock
+  aiSdkPostJsonToApiMock,
+  isRegistryProviderMock
 } = vi.hoisted(() => ({
   getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
   getAuthConfigMock: vi.fn(),
   getAuthHeadersMock: vi.fn(),
   getCopilotTokenMock: vi.fn(),
   aiSdkGetFromApiMock: vi.fn(),
-  aiSdkPostJsonToApiMock: vi.fn()
+  aiSdkPostJsonToApiMock: vi.fn(),
+  isRegistryProviderMock: vi.fn<(providerId: string) => boolean>()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     getRotatedApiKey: getRotatedApiKeyMock,
     getAuthConfig: getAuthConfigMock
+  }
+}))
+
+vi.mock('@main/data/services/ProviderRegistryService', () => ({
+  providerRegistryService: {
+    isRegistryProvider: isRegistryProviderMock
   }
 }))
 
@@ -61,6 +70,7 @@ const { listModels } = await import('../listModels')
 beforeEach(() => {
   vi.clearAllMocks()
   getRotatedApiKeyMock.mockReturnValue('AIza-secret-key')
+  isRegistryProviderMock.mockImplementation((providerId) => providerId === 'openai')
   getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
   aiSdkPostJsonToApiMock.mockResolvedValue({ value: {} })
   // listModels' getFromApi wrapper reads `value` off the provider-utils result.
@@ -128,6 +138,84 @@ describe('listModels — default grouping', () => {
       expect(models.map((model) => model.group)).not.toContain(providerId)
     }
   )
+})
+
+describe('listModels — TokenDance protocol routing', () => {
+  function makeTokenDanceProvider(id = 'tokendance') {
+    return makeProvider({
+      id,
+      ...(id === 'tokendance' ? {} : { presetProviderId: 'tokendance' }),
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://tokendance.space/gateway',
+          modelsApiUrls: { default: 'https://tokendance.space/gateway/v1/models' }
+        }
+      }
+    })
+  }
+
+  it('maps supported_protocols to the endpoints each model can actually use', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'gpt-5.2',
+            name: 'GPT 5.2',
+            description: 'Multi-protocol model',
+            context_length: 400000,
+            supported_protocols: ['openai:chat-completions', 'anthropic:messages', 'openai:responses']
+          },
+          { id: 'text-embedding-3-small', supported_protocols: ['openai:embeddings'] },
+          { id: 'gpt-image-1', supported_protocols: ['openai:image-generations'] },
+          { id: 'gemini-3-pro', supported_protocols: ['gemini:generate-content'] },
+          { id: 'seedance-1-5-pro', supported_protocols: ['ark:video-generation'] }
+        ]
+      }
+    })
+
+    const models = await listModels(makeTokenDanceProvider())
+
+    expect(models).toHaveLength(4)
+    expect(models[0]).toMatchObject({
+      apiModelId: 'gpt-5.2',
+      name: 'GPT 5.2',
+      description: 'Multi-protocol model',
+      contextWindow: 400000,
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        ENDPOINT_TYPE.OPENAI_RESPONSES
+      ],
+      capabilities: []
+    })
+    expect(models[1]).toMatchObject({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    })
+    expect(models[2]).toMatchObject({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+    })
+    expect(models[3]).toMatchObject({ endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] })
+    expect(models.some((model) => model.apiModelId === 'seedance-1-5-pro')).toBe(false)
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
+    expect(call.url).toBe('https://tokendance.space/gateway/v1/models')
+    expect(new Headers(call.headers).get('x-app-url')).toBe('app://cherryai.com.cn')
+  })
+
+  it('uses the TokenDance fetcher for copied providers', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [{ id: 'claude-opus-4-1', supported_protocols: ['anthropic:messages'] }]
+      }
+    })
+
+    const models = await listModels(makeTokenDanceProvider('97bd7816-e47f-47ba-b20f-6cbf6de38960'))
+
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+  })
 })
 
 describe('listModels — Ollama capabilities', () => {
@@ -248,7 +336,7 @@ describe('listModels — geminiFetcher API key transport', () => {
       },
       settings: {
         extraHeaders: { 'http-referer': 'https://provider.example', 'X-Custom': 'on' }
-      } as never
+      }
     })
 
     await listModels(provider)
@@ -1111,5 +1199,30 @@ describe('listModels — openAICompatibleFetcher display names', () => {
     )
 
     expect(models.map((model) => model.name)).toEqual(['Named Model', 'unnamed-model'])
+  })
+
+  it('omits automatic attribution for a custom provider while preserving auth and user headers', async () => {
+    getRotatedApiKeyMock.mockReturnValue('sk-tokenrhythm')
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'deepseek-v4-flash' }] } })
+
+    await listModels(
+      makeProvider({
+        id: 'custom-tokenrhythm',
+        presetProviderId: 'openai',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://tokenrhythm.studio/v1' }
+        },
+        settings: { extraHeaders: { 'X-Custom': 'keep' } }
+      })
+    )
+
+    const request = aiSdkGetFromApiMock.mock.calls[0][0] as { headers: HeadersInit }
+    const headers = new Headers(request.headers)
+    expect(headers.get('authorization')).toBe('Bearer sk-tokenrhythm')
+    expect(headers.get('x-api-key')).toBe('sk-tokenrhythm')
+    expect(headers.get('x-custom')).toBe('keep')
+    expect(headers.has('http-referer')).toBe(false)
+    expect(headers.has('x-title')).toBe(false)
   })
 })

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 // Use vi.hoisted() so mock variables are available in hoisted vi.mock() factories
@@ -54,7 +55,9 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('bonjour-service', () => ({
-  default: vi.fn(() => mocks.bonjour)
+  default: vi.fn(function BonjourMock() {
+    return mocks.bonjour
+  })
 }))
 
 vi.mock('node:net', async (importOriginal) => {

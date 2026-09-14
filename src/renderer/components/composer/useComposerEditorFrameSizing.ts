@@ -1,5 +1,3 @@
-import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
-import type { useTimer } from '@renderer/hooks/useTimer'
 import type {
   CSSProperties,
   KeyboardEvent as ReactKeyboardEvent,
@@ -7,6 +5,9 @@ import type {
   TransitionEvent as ReactTransitionEvent
 } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
+import type { useTimer } from '@renderer/hooks/useTimer'
 
 import { getCompactComposerEditorMinHeight, getComposerEditorMinHeight } from './composerSizing'
 

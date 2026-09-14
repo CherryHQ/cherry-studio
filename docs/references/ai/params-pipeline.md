@@ -26,8 +26,21 @@ interface BuiltAgentParams {
 ```
 
 It is a standalone async orchestrator — no class or retained request state.
+It is the **chat** pipeline: its input is an `AiChatRequest` (streaming or
+not), which carries `conversation: ConversationRef { id, topicId? }` supplied
+by the caller — the stream manager passes the topic (or the trusted agent
+session), topic naming passes its topic, a health probe its own id. Every stage
+below reads it from the request: the HTTP trace, the tool `RequestContext`,
+in-loop compaction and steer-yield gates, and the header a provider declared
+via `ProviderConfig.conversationHeader`. Embedding, rerank and image requests
+never enter this pipeline; they use `resolveSdkConfig` directly.
+
+`AiStreamRequest` requires `conversation.topicId` as its sole stream-topic
+field. `conversation.id` may instead identify the longer-lived agent session;
+non-streaming requests such as probes may omit `topicId`.
+
 Callers (chat, agent session, translate, prompt-only) shape their own
-`AiBaseRequest` and hand it in. The pipeline refines the request-local
+`AiChatRequest` and hand it in. The pipeline refines the request-local
 `sdkConfig.providerSettings.fetch` when HTTP tracing or custom-parameter body
 passthrough is required.
 
@@ -100,7 +113,7 @@ request-local `sdkConfig.providerSettings.fetch` before returning it.
 
 ```
 buildAgentParams(input)
-  ├─ resolveSdkConfig         → providerToAiSdkConfig + modelId
+  ├─ resolveSdkConfig         → provider/sdkConfig: providerToAiSdkConfig + modelId
   ├─ applyHttpTrace           → optional request-local fetch wrapper
   ├─ canModelConsumeTools?    → resolveTools (registry sync + defer)
   │     └─ syncMcpToolsToRegistry  (only servers owning a selected tool)

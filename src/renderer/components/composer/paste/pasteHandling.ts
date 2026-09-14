@@ -4,9 +4,26 @@ import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types
 import { getFileExtension, isSupportedFile, removeFileExtension } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
-import { LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../composerPaste'
+import { hasSupportedClipboardImage, LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../composerPaste'
 
 const logger = loggerService.withContext('pasteHandling')
+
+type PathBackedPasteResult =
+  | { kind: 'attachment'; attachment: ComposerAttachment }
+  | { kind: 'empty' }
+  | { kind: 'unsupported' }
+
+async function readPathBackedClipboardEntry(
+  filePath: string,
+  extensionSet: Set<string>
+): Promise<PathBackedPasteResult> {
+  if (!(await isSupportedFile(filePath, extensionSet))) {
+    return { kind: 'unsupported' }
+  }
+
+  const selectedFile = await window.api.file.get(filePath)
+  return selectedFile ? { kind: 'attachment', attachment: toComposerAttachment(selectedFile) } : { kind: 'empty' }
+}
 
 // Track last focused component
 type ComponentType = 'inputbar' | 'messageEditor' | 'TranslatePage' | null
@@ -33,6 +50,8 @@ export const handlePaste = async (
   supportExts: string[],
   setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void,
   setText?: (text: string) => void,
+  pasteLongTextAsFile?: boolean,
+  pasteLongTextThreshold?: number,
   text?: string,
   resizeTextArea?: () => void,
   t?: (key: string) => string
@@ -42,15 +61,13 @@ export const handlePaste = async (
     // Windows screenshot clipboards can expose both a text flavor and image bytes. Prefer the
     // supported image in that case; letting the editor handle the text flavor can render a preview
     // without ever adding an attachment to composer state.
-    const hasSupportedClipboardImage = clipboardFiles.some(
-      (file) => file.type.startsWith('image/') && supportExts.includes(getFileExtension(file.name))
-    )
+    const shouldPreferClipboardImage = hasSupportedClipboardImage(clipboardFiles, supportExts)
 
     // 优先处理文本粘贴，除非剪贴板同时包含当前会话支持的图像。
     const clipboardText = event.clipboardData?.getData('text')
-    if (clipboardText && !hasSupportedClipboardImage) {
-      // 1. 文本粘贴
-      if (clipboardText.length > LONG_TEXT_PASTE_THRESHOLD) {
+    if (clipboardText && !shouldPreferClipboardImage) {
+      // 1. 文本粘贴（仅在用户开启“长文本转文件”时生效）
+      if (pasteLongTextAsFile && clipboardText.length > (pasteLongTextThreshold ?? LONG_TEXT_PASTE_THRESHOLD)) {
         if (!supportExts.includes(PASTED_TEXT_FILE_EXTENSION)) return false
 
         // 长文本直接转文件，阻止默认粘贴
@@ -79,10 +96,44 @@ export const handlePaste = async (
       event.preventDefault()
       const extensionSet = new Set(supportExts)
       try {
-        for (const file of clipboardFiles) {
-          // 使用新的API获取文件路径
-          const filePath = window.api.file.getPathForFile(file)
+        const clipboardEntries = clipboardFiles.map((file) => ({
+          file,
+          filePath: window.api.file.getPathForFile(file)
+        }))
+        const pathBackedEntries = clipboardEntries.filter((entry): entry is { file: File; filePath: string } =>
+          Boolean(entry.filePath)
+        )
 
+        if (pathBackedEntries.length === clipboardEntries.length) {
+          const results = await Promise.allSettled(
+            pathBackedEntries.map(({ filePath }) => readPathBackedClipboardEntry(filePath, extensionSet))
+          )
+          const attachments: ComposerAttachment[] = []
+          let hasFileError = false
+
+          for (const result of results) {
+            if (result.status === 'rejected') {
+              hasFileError = true
+              logger.error('onPaste:', result.reason as Error)
+            } else if (result.value.kind === 'unsupported') {
+              if (t) {
+                toast.info(t('chat.input.file_not_supported'))
+              }
+            } else if (result.value.kind === 'attachment') {
+              attachments.push(result.value.attachment)
+            }
+          }
+
+          if (attachments.length > 0) {
+            setFiles((prevFiles) => [...prevFiles, ...attachments])
+          }
+          if (hasFileError && t) {
+            toast.error(t('chat.input.file_error'))
+          }
+          return true
+        }
+
+        for (const { file, filePath } of clipboardEntries) {
           // 如果没有路径，可能是剪贴板中的图像数据
           if (!filePath) {
             // 图像生成也支持图像编辑
@@ -110,16 +161,11 @@ export const handlePaste = async (
             continue
           }
 
-          // 有路径的情况
-          if (await isSupportedFile(filePath, extensionSet)) {
-            const selectedFile = await window.api.file.get(filePath)
-            if (selectedFile) {
-              setFiles((prevFiles) => [...prevFiles, toComposerAttachment(selectedFile)])
-            }
-          } else {
-            if (t) {
-              toast.info(t('chat.input.file_not_supported'))
-            }
+          const result = await readPathBackedClipboardEntry(filePath, extensionSet)
+          if (result.kind === 'attachment') {
+            setFiles((prevFiles) => [...prevFiles, result.attachment])
+          } else if (result.kind === 'unsupported' && t) {
+            toast.info(t('chat.input.file_not_supported'))
           }
         }
       } catch (error) {

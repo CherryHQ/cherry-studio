@@ -1,10 +1,12 @@
+import { existsSync, promises as fs } from 'fs'
+import { join } from 'path'
+
+import { app, dialog, session, shell, webContents } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, t } from '@main/i18n'
-import { app, dialog, session, shell, webContents } from 'electron'
-import { existsSync, promises as fs } from 'fs'
-import { join } from 'path'
 
 import { isMiniAppPartition } from '../features/miniApp/runtime/partition'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'

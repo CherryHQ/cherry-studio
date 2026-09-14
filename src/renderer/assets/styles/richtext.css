@@ -196,7 +196,7 @@
   font-style: normal !important;
 }
 
-.tiptap img {
+.tiptap img:not([data-file-token-icon-thumbnail]) {
   max-width: 800px;
   width: 100%;
   height: auto;

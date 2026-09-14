@@ -2,12 +2,15 @@ import { constants } from 'node:fs'
 import { lstat, open, readdir, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import { buildBootstrapInstructions, SOUL_CONTENT_THRESHOLD } from './bootstrap'
 
 const logger = loggerService.withContext('PromptBuilder')
+const PROMPT_FILE_CACHE_TTL_MS = 30 * 60 * 1000
+const promptFileCacheKey = (filePath: string) => `agent:prompt-file:${filePath}`
 
 /**
  * Resolve a filename within a directory using case-insensitive matching.
@@ -120,8 +123,6 @@ ${sections}`
  *   {agentData}/memory/JOURNAL.jsonl — timestamped event log (managed by memory tool)
  */
 export class PromptBuilder {
-  private cache = new Map<string, CacheEntry>()
-
   async buildPromptParts(
     workspacePath: string,
     config?: AgentConfiguration,
@@ -296,7 +297,8 @@ ${content}
       return fail(error)
     }
 
-    const cached = this.cache.get(filePath)
+    const cacheService = application.get('CacheService')
+    const cached = cacheService.get<CacheEntry>(promptFileCacheKey(filePath))
     if (cached && cached.mtimeMs === fileStat.mtimeMs) {
       return cached.content
     }
@@ -312,7 +314,11 @@ ${content}
       }
       const content = await handle.readFile('utf-8')
       const trimmed = content.trim()
-      this.cache.set(filePath, { mtimeMs: openedStat.mtimeMs, content: trimmed })
+      cacheService.set(
+        promptFileCacheKey(filePath),
+        { mtimeMs: openedStat.mtimeMs, content: trimmed },
+        PROMPT_FILE_CACHE_TTL_MS
+      )
       logger.debug(`Loaded ${path.basename(filePath)}`, { path: filePath, length: trimmed.length })
       return trimmed
     } catch (error) {

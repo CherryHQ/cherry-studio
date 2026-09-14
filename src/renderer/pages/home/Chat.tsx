@@ -1,5 +1,8 @@
+import type { FC, ReactNode } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePreference } from '@data/hooks/usePreference'
-import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
@@ -25,14 +28,13 @@ import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/t
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { FC, ReactNode } from 'react'
-import React, { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
 import type { AddNewTopicPayload } from './types'
+
+const CitationsPanel = React.lazy(() => import('@renderer/components/chat/citations/CitationsPanel'))
 
 const EMPTY_MODELS: ChatConversationControlsSnapshot['mentionedModels'] = []
 const NOOP_MODEL_SELECT: ChatConversationControlsSnapshot['onModelSelect'] = () => undefined
@@ -82,6 +84,7 @@ const Chat: FC<Props> = (props) => {
   const [messageStyle] = usePreference('chat.message.style')
   const [topicDisplayMode] = usePreference('topic.tab.display_mode')
   const [citationPanelState, setCitationPanelState] = useState<CitationPanelState | null>(null)
+  const [shouldMountCitationsPanel, setShouldMountCitationsPanel] = useState(false)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
 
@@ -105,11 +108,11 @@ const Chat: FC<Props> = (props) => {
   // selected-model details. Model entities only carry the provider id.
   const shouldLoadProviders = Boolean(
     activeTopic &&
-      (assistantContext.model ||
-        (activeConversationControlsSnapshot &&
-          (activeConversationControlsSnapshot.mentionedModels.length > 0 ||
-            activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 0 ||
-            activeConversationControlsSnapshot.lockedMentionedModels.length > 0)))
+    (assistantContext.model ||
+      (activeConversationControlsSnapshot &&
+        (activeConversationControlsSnapshot.mentionedModels.length > 0 ||
+          activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 0 ||
+          activeConversationControlsSnapshot.lockedMentionedModels.length > 0)))
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
   const locateMessageIdProp = props.locateMessageId
@@ -173,6 +176,7 @@ const Chat: FC<Props> = (props) => {
   const handleOpenCitationsPanel = useCallback(
     ({ citations }: { citations: Citation[] }) => {
       if (!activeTopicId) return
+      setShouldMountCitationsPanel(true)
       setCitationPanelState({ topicId: activeTopicId, citations })
     },
     [activeTopicId]
@@ -299,12 +303,14 @@ const Chat: FC<Props> = (props) => {
       }
       showTopRightToolWhenPaneOpen
       sidePanel={
-        showConversation ? (
-          <CitationsPanel
-            open={citationsPanelOpen}
-            onClose={() => setCitationPanelState(null)}
-            citations={citationPanelCitations ?? []}
-          />
+        showConversation && shouldMountCitationsPanel ? (
+          <React.Suspense fallback={null}>
+            <CitationsPanel
+              open={citationsPanelOpen}
+              onClose={() => setCitationPanelState(null)}
+              citations={citationPanelCitations ?? []}
+            />
+          </React.Suspense>
         ) : undefined
       }
       center={center}

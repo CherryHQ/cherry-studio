@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import { readdirSync } from 'node:fs'
 import path from 'node:path'
 
-import { application } from '@application'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import type {
   AgentSession,
@@ -12,6 +11,9 @@ import type {
   ProviderConfig,
   ToolDefinition
 } from '@earendil-works/pi-coding-agent'
+import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -33,7 +35,6 @@ import {
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
-import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -46,6 +47,7 @@ import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBu
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
@@ -57,9 +59,18 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
-import { materializePiProviderStream, resolvePiProviderInjectionFromSnapshot } from './modelInjection'
+import {
+  materializePiProviderStream,
+  type PiProviderInjection,
+  resolvePiProviderInjectionForSession,
+  usesPiGateway
+} from './modelInjection'
 import { createPiCodeModeTools } from './piCodeMode'
-import { capturePiConnectionSnapshot, PiInvalidConnectionSnapshotError } from './piConnectionSignature'
+import {
+  capturePiConnectionSnapshot,
+  type PiConnectionSnapshot,
+  PiInvalidConnectionSnapshotError
+} from './piConnectionSignature'
 import {
   buildMcpToolDefinitions,
   buildPiMcpToolName,
@@ -173,6 +184,22 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
+    const resolveInjection = async (snapshot: PiConnectionSnapshot): Promise<PiProviderInjection> => {
+      try {
+        return await resolvePiProviderInjectionForSession(
+          this.input.sessionId,
+          snapshot.provider,
+          snapshot.model,
+          snapshot.enabledApiKeys
+        )
+      } catch (error) {
+        if (error instanceof ApiGatewayNotRunningError) {
+          application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
+        }
+        throw error
+      }
+    }
+
     // Warm the catalog before the authoritative snapshot so a cold cache does not look like a
     // configuration change halfway through materialization. A concurrent agent edit is caught by
     // the final snapshot check below.
@@ -182,6 +209,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
+    // Gateway startup and first-key creation change its fingerprint, so settle them before the
+    // authoritative snapshot. The actual injection is resolved again from that snapshot below.
+    if (usesPiGateway(discoverySnapshot.provider)) {
+      await resolveInjection(discoverySnapshot)
+    }
     await warmMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,
@@ -199,11 +231,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
-    const injection = resolvePiProviderInjectionFromSnapshot(
-      initialSnapshot.provider,
-      initialSnapshot.model,
-      initialSnapshot.enabledApiKeys
-    )
+    const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
 
@@ -266,7 +294,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         workspacePath,
         agentDataPath,
         agent,
-        citationsGuidance
+        citationsGuidance,
+        effectiveLanguage: initialSnapshot.effectiveLanguage
       })
       const approvalContext = {
         sessionId: this.input.sessionId,
@@ -457,8 +486,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const session = this.session
     if (!session?.isStreaming) return false
 
-    // buildAgentUserContent intentionally flattens attachments to absolute paths for filesystem agents;
-    // pi's native image channel stays unused until Cherry models multimodal agent attachments end-to-end.
+    // buildAgentUserContent intentionally flattens attachments to filenames and absolute paths for
+    // filesystem agents; pi's native image channel stays unused until Cherry models multimodal agent
+    // attachments end-to-end.
     const wrappedText = wrapSteerReminder(buildAgentUserContent(input.message))
     const pending: PendingSteer = { input }
     this.pendingSteers.push(pending)

@@ -1,9 +1,10 @@
 import type * as NodeZlib from 'node:zlib'
 import { gzipSync } from 'node:zlib'
 
-import { BaseService } from '@main/core/lifecycle'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
 
 const mocks = vi.hoisted(() => ({
   traceStorageSetTopicId: vi.fn(),
