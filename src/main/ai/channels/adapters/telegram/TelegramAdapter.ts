@@ -8,6 +8,7 @@ import {
   type ImageAttachment,
   MAX_FILE_SIZE_BYTES
 } from '@main/utils/downloadAsBase64'
+import { delay as sleep } from '@shared/utils/async'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
@@ -343,7 +344,7 @@ class TelegramAdapter extends ChannelAdapter {
 
       // Small delay between chunks to avoid rate limiting
       if (i < plainChunks.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100))
+        await sleep(100)
       }
     }
   }
