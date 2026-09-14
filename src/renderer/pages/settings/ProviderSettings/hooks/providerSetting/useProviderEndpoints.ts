@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from 'react'
 type ProviderEndpointSnapshot = {
   providerId: string | undefined
   apiHost: string
-  anthropicApiHost: string
   apiVersion: string
 }
 
@@ -21,12 +20,10 @@ export function useProviderEndpoints(provider: Provider | undefined) {
   const isCherryIN = provider?.id === 'cherryin'
 
   const [apiHost, setApiHostValue] = useState(providerApiHost)
-  const [anthropicApiHost, setAnthropicApiHost] = useState(providerAnthropicHost)
   const [apiVersion, setApiVersion] = useState(providerApiVersion)
   const previousServerEndpoint = useRef<ProviderEndpointSnapshot>({
     providerId,
     apiHost: providerApiHost,
-    anthropicApiHost: providerAnthropicHost,
     apiVersion: providerApiVersion
   })
 
@@ -35,24 +32,19 @@ export function useProviderEndpoints(provider: Provider | undefined) {
     const providerChanged = previous.providerId !== providerId
 
     setApiHostValue((current) => (providerChanged || current === previous.apiHost ? providerApiHost : current))
-    setAnthropicApiHost((current) =>
-      providerChanged || current === previous.anthropicApiHost ? providerAnthropicHost : current
-    )
     setApiVersion((current) => (providerChanged || current === previous.apiVersion ? providerApiVersion : current))
 
     previousServerEndpoint.current = {
       providerId,
       apiHost: providerApiHost,
-      anthropicApiHost: providerAnthropicHost,
       apiVersion: providerApiVersion
     }
-  }, [providerId, providerApiHost, providerAnthropicHost, providerApiVersion])
+  }, [providerId, providerApiHost, providerApiVersion])
 
   return {
     apiHost,
     setApiHost: setApiHostValue,
-    anthropicApiHost,
-    setAnthropicApiHost,
+    anthropicApiHost: providerAnthropicHost,
     apiVersion,
     setApiVersion,
     primaryEndpoint,

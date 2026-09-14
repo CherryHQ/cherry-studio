@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
 import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api/errors'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isVertexProvider } from '@shared/utils/provider'
 import { debounce, trim } from 'es-toolkit/compat'
@@ -43,8 +42,6 @@ interface UseProviderEndpointActionsParams {
   apiHost: string
   setApiHost: (value: string) => void
   providerApiHost: string
-  anthropicApiHost: string
-  setAnthropicApiHost: (value: string) => void
   apiVersion: string
   /** Registry factory-default host for the primary endpoint; '' when none. */
   defaultApiHost: string
@@ -58,8 +55,6 @@ export function useProviderEndpointActions({
   apiHost,
   setApiHost,
   providerApiHost,
-  anthropicApiHost,
-  setAnthropicApiHost,
   apiVersion,
   defaultApiHost,
   patchProvider
@@ -200,42 +195,6 @@ export function useProviderEndpointActions({
     ]
   )
 
-  const commitAnthropicApiHost = useCallback(
-    async (explicitNext?: string): Promise<boolean> => {
-      if (!provider) {
-        return false
-      }
-
-      const rawHost = explicitNext !== undefined ? explicitNext : anthropicApiHost
-      const trimmedHost = trim(rawHost)
-      try {
-        if (trimmedHost) {
-          const nextEndpointConfigs = {
-            ...provider.endpointConfigs,
-            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
-              ...provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
-              baseUrl: trimmedHost
-            }
-          }
-          await patchProvider({ endpointConfigs: nextEndpointConfigs })
-          setAnthropicApiHost(trimmedHost)
-          return true
-        }
-
-        const nextConfigs = { ...provider.endpointConfigs }
-        delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-        await patchProvider({ endpointConfigs: nextConfigs })
-        setAnthropicApiHost('')
-        return true
-      } catch (error) {
-        logger.error('Failed to commit Anthropic API host', { providerId: provider?.id, error })
-        toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
-        return false
-      }
-    },
-    [anthropicApiHost, patchProvider, provider, setAnthropicApiHost, t]
-  )
-
   const commitApiVersion = useCallback(async (): Promise<boolean> => {
     if (!provider) {
       return false
@@ -283,7 +242,6 @@ export function useProviderEndpointActions({
 
   return {
     commitApiHost,
-    commitAnthropicApiHost,
     commitApiVersion,
     resetApiHost
   }

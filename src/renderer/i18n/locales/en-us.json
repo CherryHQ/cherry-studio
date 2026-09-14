@@ -4398,8 +4398,6 @@
   "settings.provider.add.name.required": "Please enter the provider name",
   "settings.provider.add.title": "Add Provider",
   "settings.provider.add.type": "Provider Type",
-  "settings.provider.anthropic_api_host": "Anthropic API Host",
-  "settings.provider.anthropic_api_host_preview": "Anthropic preview: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Use only when the provider offers a Claude-compatible base URL.",
   "settings.provider.api.key.check.latency": "Latency",
   "settings.provider.api.key.error.duplicate": "API key already exists",

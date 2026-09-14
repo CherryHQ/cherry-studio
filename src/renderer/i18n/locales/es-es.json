@@ -4398,8 +4398,6 @@
   "settings.provider.add.name.required": "Por favor ingrese el nombre del proveedor",
   "settings.provider.add.title": "Agregar proveedor",
   "settings.provider.add.type": "Tipo de proveedor",
-  "settings.provider.anthropic_api_host": "Dirección API de Anthropic",
-  "settings.provider.anthropic_api_host_preview": "Vista previa de Anthropic: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Rellenar solo cuando el proveedor proporcione una dirección base compatible con Claude.",
   "settings.provider.api.key.check.latency": "Tiempo empleado",
   "settings.provider.api.key.error.duplicate": "La clave API ya existe",

@@ -4398,8 +4398,6 @@
   "settings.provider.add.name.required": "请输入提供商名称",
   "settings.provider.add.title": "添加提供商",
   "settings.provider.add.type": "提供商类型",
-  "settings.provider.anthropic_api_host": "Anthropic API 地址",
-  "settings.provider.anthropic_api_host_preview": "Anthropic 预览：{{url}}",
   "settings.provider.anthropic_api_host_tooltip": "仅当服务商提供 Claude 兼容的基础地址时填写。",
   "settings.provider.api.key.check.latency": "耗时",
   "settings.provider.api.key.error.duplicate": "API 密钥已存在",

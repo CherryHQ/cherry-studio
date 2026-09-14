@@ -4398,8 +4398,6 @@
   "settings.provider.add.name.required": "Пожалуйста, введите название провайдера",
   "settings.provider.add.title": "Добавить провайдера",
   "settings.provider.add.type": "Тип провайдера",
-  "settings.provider.anthropic_api_host": "Адрес API Anthropic",
-  "settings.provider.anthropic_api_host_preview": "Предпросмотр Anthropic: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Заполняйте только когда провайдер предоставляет базовый адрес, совместимый с Claude.",
   "settings.provider.api.key.check.latency": "Задержка",
   "settings.provider.api.key.error.duplicate": "API ключ уже существует",

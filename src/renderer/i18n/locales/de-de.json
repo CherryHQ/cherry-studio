@@ -4398,8 +4398,6 @@
   "settings.provider.add.name.required": "Bitte geben Sie den Namen des Anbieters ein",
   "settings.provider.add.title": "Anbieter hinzufügen",
   "settings.provider.add.type": "Anbietertyp",
-  "settings.provider.anthropic_api_host": "Anthropic API-Adresse",
-  "settings.provider.anthropic_api_host_preview": "Anthropic-Vorschau: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Nur bei Anbietern, die ein Claude-kompatibles Basis-Endpunkt anbieten.",
   "settings.provider.api.key.check.latency": "Verzögerung",
   "settings.provider.api.key.error.duplicate": "API-Schlüssel bereits vorhanden",

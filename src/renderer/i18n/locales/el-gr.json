@@ -4398,8 +4398,6 @@
   "settings.provider.add.name.required": "Παρακαλώ εισάγετε το όνομα του παρόχου",
   "settings.provider.add.title": "Προσθήκη παρόχου",
   "settings.provider.add.type": "Τύπος παρόχου",
-  "settings.provider.anthropic_api_host": "Διεύθυνση API Anthropic",
-  "settings.provider.anthropic_api_host_preview": "Προεπισκόπηση Anthropic: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Συμπληρώστε μόνο όταν ο πάροχος παρέχει βασική διεύθυνση συμβατή με Claude.",
   "settings.provider.api.key.check.latency": "Χρόνος",
   "settings.provider.api.key.error.duplicate": "Το κλειδί API υπάρχει ήδη",

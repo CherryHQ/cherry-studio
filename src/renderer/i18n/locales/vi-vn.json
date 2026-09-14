@@ -4398,8 +4398,6 @@
   "settings.provider.add.name.required": "Vui lòng nhập tên nhà cung cấp",
   "settings.provider.add.title": "Thêm Nhà cung cấp",
   "settings.provider.add.type": "Loại nhà cung cấp",
-  "settings.provider.anthropic_api_host": "Máy chủ API của Anthropic",
-  "settings.provider.anthropic_api_host_preview": "Xem trước Anthropic: {{url}}",
   "settings.provider.anthropic_api_host_tooltip": "Chỉ sử dụng khi nhà cung cấp cung cấp URL cơ sở tương thích với Claude.",
   "settings.provider.api.key.check.latency": "Latência",
   "settings.provider.api.key.error.duplicate": "Khóa API đã tồn tại",
