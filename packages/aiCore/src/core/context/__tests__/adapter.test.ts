@@ -547,6 +547,35 @@ describe('round-trip', () => {
     ])
   })
 
+  it('repairs an inline tool result from its originating assistant tool call', () => {
+    const restored: LanguageModelV3Prompt = [
+      { role: 'user', content: [{ type: 'text', text: 'search the web' }] },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool-call', toolCallId: 'call-search', toolName: 'web_search', input: { query: 'Cherry' } },
+          {
+            type: 'tool-result',
+            toolCallId: 'call-search',
+            toolName: 'read',
+            output: { type: 'text', value: 'result' }
+          }
+        ]
+      }
+    ]
+
+    const roundTripped = toAISDK(fromAISDK(restored))
+    const assistant = roundTripped.find((message) => message.role === 'assistant')
+    if (assistant?.role !== 'assistant') throw new Error('expected an assistant message')
+    const result = assistant.content.find((part) => part.type === 'tool-result')
+
+    expect(result).toMatchObject({
+      toolCallId: 'call-search',
+      toolName: 'web_search',
+      output: { type: 'text', value: 'result' }
+    })
+  })
+
   it('preserves file parts through round-trip', () => {
     const original: LanguageModelV3Prompt = [
       {

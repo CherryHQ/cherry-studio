@@ -32,6 +32,43 @@ export interface AISDKMessage extends ContextMessage {
   _toolName?: string
 }
 
+/** Restore each result name from its originating call before name-keyed processing. */
+export function repairToolResultNames(prompt: LanguageModelV3Prompt): LanguageModelV3Prompt {
+  const toolCallNames = new Map<string, string>()
+
+  return prompt.map((msg) => {
+    if (msg.role === 'assistant') {
+      for (const part of msg.content) {
+        if (part.type === 'tool-call') toolCallNames.set(part.toolCallId, part.toolName)
+      }
+
+      let changed = false
+      const content = msg.content.map((part) => {
+        if (part.type !== 'tool-result') return part
+        const toolName = toolCallNames.get(part.toolCallId)
+        if (toolName === undefined || toolName === part.toolName) return part
+        changed = true
+        return { ...part, toolName }
+      })
+      return changed ? { ...msg, content } : msg
+    }
+
+    if (msg.role === 'tool') {
+      let changed = false
+      const content = msg.content.map((part) => {
+        if (part.type !== 'tool-result') return part
+        const toolName = toolCallNames.get(part.toolCallId)
+        if (toolName === undefined || toolName === part.toolName) return part
+        changed = true
+        return { ...part, toolName }
+      })
+      return changed ? { ...msg, content } : msg
+    }
+
+    return msg
+  })
+}
+
 /**
  * Converts an AI SDK V3 prompt to IR messages.
  *
@@ -46,9 +83,8 @@ export interface AISDKMessage extends ContextMessage {
  */
 export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
   const messages: AISDKMessage[] = []
-  const toolCallNames = new Map<string, string>()
 
-  for (const msg of prompt) {
+  for (const msg of repairToolResultNames(prompt)) {
     if (msg.role === 'system') {
       messages.push({
         role: 'system',
@@ -113,7 +149,6 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
       for (const part of msg.content) {
         if (part.type === 'text') text.push(part.text)
         else if (part.type === 'tool-call') {
-          toolCallNames.set(part.toolCallId, part.toolName)
           if (inlineAnsweredIds.has(part.toolCallId)) continue
           toolCalls.push({
             id: part.toolCallId,
@@ -159,16 +194,14 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
       let firstOfMessage = true
       for (const part of msg.content) {
         if (part.type === 'tool-result') {
-          const toolName = toolCallNames.get(part.toolCallId) ?? part.toolName
-          const toolResult = toolName === part.toolName ? part : { ...part, toolName }
-          const text = stringifyToolOutput(toolResult.output)
+          const text = stringifyToolOutput(part.output)
           messages.push({
             role: 'tool',
             content: text,
-            tool_call_id: toolResult.toolCallId,
-            _toolContent: [toolResult],
+            tool_call_id: part.toolCallId,
+            _toolContent: [part],
             _originalText: text,
-            _toolName: toolResult.toolName,
+            _toolName: part.toolName,
             ...(firstOfMessage && msg.providerOptions ? { _providerOptions: msg.providerOptions } : {})
           })
           firstOfMessage = false

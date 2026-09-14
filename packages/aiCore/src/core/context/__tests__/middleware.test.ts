@@ -193,6 +193,49 @@ describe('createContextMiddleware', () => {
     }
   })
 
+  it('uses the originating tool name before applying per-tool truncation policy', async () => {
+    const middleware = createContextMiddleware({
+      truncate: { threshold: 50, headChars: 10, tailChars: 10, perTool: ['read'] }
+    })
+    const longOutput = 'x'.repeat(200)
+    const prompt: LanguageModelV3Prompt = [
+      { role: 'user', content: [{ type: 'text', text: 'Read the file' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool-call', toolCallId: 'call_1', toolName: 'read', input: { path: 'file.txt' } }]
+      },
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call_1',
+            toolName: 'skill',
+            output: { type: 'text', value: longOutput }
+          }
+        ]
+      }
+    ]
+
+    const result = await assertDefined(
+      middleware.transformParams,
+      'transformParams'
+    )({
+      params: { prompt },
+      type: 'generate',
+      model: createMockModel()
+    })
+    const toolMessage = result.prompt.find((message) => message.role === 'tool')
+    if (toolMessage?.role !== 'tool') throw new Error('expected a tool message')
+    const toolResult = toolMessage.content.find((part) => part.type === 'tool-result')
+
+    expect(toolResult).toMatchObject({
+      toolCallId: 'call_1',
+      toolName: 'read',
+      output: { type: 'text', value: longOutput }
+    })
+  })
+
   it('wrapGenerate feeds token usage to janitor', async () => {
     const middleware = createContextMiddleware({
       contextWindow: 500,

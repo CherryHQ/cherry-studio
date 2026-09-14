@@ -111,6 +111,7 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
       const toolCalls: ToolCall[] = []
       const attachments: Attachment[] = []
       let thinking: { thinking: string } | undefined
+      let assistantContent = msg.content
 
       if (typeof msg.content === 'string') {
         textParts.push(msg.content)
@@ -122,14 +123,20 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
         // round-trip. The inline result round-trips verbatim via _mmAssistantContent.
         const inlineAnsweredIds = new Set<string>()
         for (const part of msg.content) {
+          if (part.type === 'tool-call') toolCallNames.set(part.toolCallId, part.toolName)
           if (part.type === 'tool-result') inlineAnsweredIds.add(part.toolCallId)
         }
 
-        for (const part of msg.content) {
+        assistantContent = msg.content.map((part) => {
+          if (part.type !== 'tool-result') return part
+          const toolName = toolCallNames.get(part.toolCallId)
+          return toolName !== undefined && toolName !== part.toolName ? { ...part, toolName } : part
+        })
+
+        for (const part of assistantContent) {
           if (part.type === 'text') {
             textParts.push(part.text)
           } else if (part.type === 'tool-call') {
-            toolCallNames.set(part.toolCallId, part.toolName)
             if (inlineAnsweredIds.has(part.toolCallId)) continue
             toolCalls.push({
               id: part.toolCallId,
@@ -156,7 +163,7 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
       const m: ModelMessageIR = {
         role: 'assistant',
         content: joined,
-        _mmAssistantContent: msg.content,
+        _mmAssistantContent: assistantContent,
         _mmOriginalText: joined,
         ...(msg.providerOptions ? { _mmProviderOptions: msg.providerOptions } : {})
       }

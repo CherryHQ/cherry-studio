@@ -431,6 +431,37 @@ describe('tool result name repair', () => {
       { toolCallId: 'call-skill', toolName: 'skill' }
     ])
   })
+
+  it('repairs an inline result from its originating assistant tool call', () => {
+    const restored: ModelMessage[] = [
+      { role: 'user', content: 'search the web' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool-call', toolCallId: 'call-search', toolName: 'web_search', input: { query: 'Cherry' } },
+          {
+            type: 'tool-result',
+            toolCallId: 'call-search',
+            toolName: 'read',
+            output: { type: 'text', value: 'result' }
+          }
+        ]
+      }
+    ]
+
+    const roundTripped = toModelMessages(fromModelMessages(restored))
+    const assistant = roundTripped.find((message) => message.role === 'assistant')
+    if (assistant?.role !== 'assistant' || typeof assistant.content === 'string') {
+      throw new Error('expected an assistant content array')
+    }
+    const result = assistant.content.find((part) => part.type === 'tool-result')
+
+    expect(result).toMatchObject({
+      toolCallId: 'call-search',
+      toolName: 'web_search',
+      output: { type: 'text', value: 'result' }
+    })
+  })
 })
 
 describe('toModelMessages', () => {
