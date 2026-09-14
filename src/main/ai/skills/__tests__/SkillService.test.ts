@@ -2412,6 +2412,61 @@ describe('SkillService', () => {
       }
     })
 
+    it('blocks a non-canonical folder name that addresses a disabled skill mirror', async () => {
+      // './pdf-tools' resolves to the same mirror directory but would miss the exact-match
+      // catalog lookup — the disabled switch must be judged on the canonical child name.
+      const skillDir = path.join(mirrorRoot, 'pdf-tools')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'instructions')
+      const getSpy = vi
+        .spyOn(agentGlobalSkillService, 'getByFolderName')
+        .mockImplementation((folderName: string) =>
+          folderName === 'pdf-tools'
+            ? ({ folderName: 'pdf-tools', isEnabled: false } as unknown as ReturnType<
+                typeof agentGlobalSkillService.getByFolderName
+              >)
+            : null
+        )
+
+      try {
+        await expect(new SkillService().readSkillMdByFolderName('./pdf-tools')).resolves.toEqual({
+          status: 'error',
+          reason: 'disabled'
+        })
+      } finally {
+        getSpy.mockRestore()
+      }
+    })
+
+    it.skipIf(process.platform === 'linux')(
+      'resolves the on-disk directory name case-insensitively for the disabled check',
+      async () => {
+        // realpath does not case-fold on case-insensitive filesystems, so a mismatched-case
+        // attachment must fall back to the on-disk name before the switch grants a pass.
+        const skillDir = path.join(mirrorRoot, 'pdf-tools')
+        await fs.promises.mkdir(skillDir, { recursive: true })
+        await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'instructions')
+        const getSpy = vi
+          .spyOn(agentGlobalSkillService, 'getByFolderName')
+          .mockImplementation((folderName: string) =>
+            folderName === 'pdf-tools'
+              ? ({ folderName: 'pdf-tools', isEnabled: false } as unknown as ReturnType<
+                  typeof agentGlobalSkillService.getByFolderName
+                >)
+              : null
+          )
+
+        try {
+          await expect(new SkillService().readSkillMdByFolderName('PDF-Tools')).resolves.toEqual({
+            status: 'error',
+            reason: 'disabled'
+          })
+        } finally {
+          getSpy.mockRestore()
+        }
+      }
+    )
+
     it('rejects a skill directory that resolves outside the mirror root', async () => {
       const outsideDir = path.join(path.dirname(mirrorRoot), 'outside-skill')
       await fs.promises.mkdir(outsideDir, { recursive: true })

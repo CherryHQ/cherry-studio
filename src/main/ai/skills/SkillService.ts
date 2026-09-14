@@ -117,9 +117,6 @@ export class SkillService {
    * legitimate attachments into guaranteed turn failures.
    */
   async readSkillMdByFolderName(folderName: string): Promise<SkillMdReadState> {
-    const globalSkill = agentGlobalSkillService.getByFolderName(folderName)
-    if (globalSkill && !globalSkill.isEnabled) return { status: 'error', reason: 'disabled' }
-
     const root = path.resolve(this.getMirrorRoot())
     const target = path.resolve(this.getMirrorPath(folderName))
     if (target !== root && !target.startsWith(root + path.sep)) return { status: 'missing' }
@@ -137,6 +134,11 @@ export class SkillService {
       // Neither root existing yet means no mirror was ever created for this skill.
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { status: 'missing' }
       return { status: 'error' }
+    }
+    // The disabled switch is resolved through the canonical mirror child name: a
+    // non-canonical attachment ('./pdf-tools', wrong case) addresses the same directory.
+    if (await this.isGloballyDisabledMirror(target, realRoot, realStorageRoot)) {
+      return { status: 'error', reason: 'disabled' }
     }
     const isAllowed = (realFile: string) =>
       realFile.startsWith(realRoot + path.sep) || realFile.startsWith(realStorageRoot + path.sep)
@@ -178,6 +180,37 @@ export class SkillService {
       }
     }
     return { status: 'missing' }
+  }
+
+  /**
+   * Whether the mirror directory addressed by `target` maps to a globally disabled catalog
+   * row. The catalog lookup goes through the canonical child name under either root — a
+   * non-canonical attachment name ('./pdf-tools', mismatched case) addresses the same
+   * directory and must not skip the switch. `realpath` does not case-fold, so a lookup miss
+   * falls back to the on-disk directory name before granting the pass.
+   */
+  private async isGloballyDisabledMirror(target: string, realRoot: string, realStorageRoot: string): Promise<boolean> {
+    const realTarget = await fs.promises.realpath(target).catch(() => null)
+    if (!realTarget) return false
+
+    let canonical: string | null = null
+    for (const root of [realRoot, realStorageRoot]) {
+      const rel = path.relative(root, realTarget)
+      if (rel && !rel.startsWith('..') && !path.isAbsolute(rel) && !rel.includes(path.sep)) {
+        canonical = rel
+        break
+      }
+    }
+    if (!canonical) return false
+
+    const exact = agentGlobalSkillService.getByFolderName(canonical)
+    if (exact) return !exact.isEnabled
+
+    const entries = await fs.promises.readdir(realRoot).catch(() => [] as string[])
+    const onDisk = entries.find((name) => name.toLowerCase() === canonical.toLowerCase() && name !== canonical)
+    if (!onDisk) return false
+    const row = agentGlobalSkillService.getByFolderName(onDisk)
+    return Boolean(row && !row.isEnabled)
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {
