@@ -1,10 +1,11 @@
+import { useCallback, useMemo } from 'react'
+
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
   executeSessionMenuAction,
   resolveSessionMenuActions,
   type SessionActionContext
 } from '@renderer/components/chat/actions/sessionItemActions'
-import { useCallback, useMemo } from 'react'
 
 export function createSessionActionContext(context: SessionActionContext): SessionActionContext {
   return context
@@ -51,10 +52,7 @@ export function useSessionMenuPreset<TItem>({
   )
   const onAction = useCallback(
     async (item: TItem, action: ResolvedAction, contextOverride?: SessionMenuActionContextOverride) => {
-      await runSessionMenuAction(
-        action as ResolvedAction<SessionActionContext>,
-        getActionContextWithOverride(item, contextOverride)
-      )
+      await runSessionMenuAction(action, getActionContextWithOverride(item, contextOverride))
     },
     [getActionContextWithOverride]
   )

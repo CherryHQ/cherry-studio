@@ -1,4 +1,22 @@
 import {
+  Camera,
+  Check,
+  ImageUp,
+  LogOut,
+  Monitor,
+  Moon,
+  Pencil,
+  RotateCcw,
+  Settings,
+  Smile,
+  Sun,
+  SunMoon,
+  X
+} from 'lucide-react'
+import { useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
   Avatar,
   AvatarImage,
   Button,
@@ -24,23 +42,6 @@ import { getAppEdition } from '@renderer/utils/appEdition'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import {
-  Camera,
-  Check,
-  ImageUp,
-  LogOut,
-  Monitor,
-  Moon,
-  Pencil,
-  RotateCcw,
-  Settings,
-  Smile,
-  Sun,
-  SunMoon,
-  X
-} from 'lucide-react'
-import { useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { EmojiPicker } from './EmojiPicker'
 

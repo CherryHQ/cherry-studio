@@ -1,3 +1,5 @@
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
+
 import type {
   MessageActivityState,
   MessageActivityStore,
@@ -7,7 +9,6 @@ import { isMessageListItemProcessing } from '@renderer/components/chat/messages/
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 
 const MESSAGE_ACTIVITY_STATE_CACHE = new Map<number, MessageActivityState>()
 
@@ -162,7 +163,7 @@ export function useMessageActivityState(
   partsMap?: Record<string, CherryMessagePart[]> | null
 ): MessageActivityCapability {
   void partsMap
-  const { status, activeExecutions = [], awaitingApprovalAnchors = [] } = useTopicStreamStatus(topicId)
+  const { status, activeExecutions, awaitingApprovalAnchors } = useTopicStreamStatus(topicId)
   const statusRef = useRef(status)
   const activeExecutionsRef = useRef(activeExecutions)
   const awaitingApprovalAnchorsRef = useRef(awaitingApprovalAnchors)

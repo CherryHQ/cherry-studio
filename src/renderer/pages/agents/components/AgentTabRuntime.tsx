@@ -1,8 +1,9 @@
+import { useEffect } from 'react'
+
 import { cacheService } from '@data/CacheService'
 import type { AgentSessionSource } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
-import { useEffect } from 'react'
 
 type Props = {
   title: string

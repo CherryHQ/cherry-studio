@@ -1,6 +1,7 @@
-import type { ResourceListQuery } from '@renderer/hooks/resourceCatalog'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ResourceListQuery } from '@renderer/hooks/resourceCatalog'
 
 import { useResourceLibrary } from '../useResourceLibrary'
 

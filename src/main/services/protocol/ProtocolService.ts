@@ -4,6 +4,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { app } from 'electron'
+
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
@@ -13,7 +15,6 @@ import { WindowType } from '@main/core/window/types'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
 import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { app } from 'electron'
 
 import { parseMcpInstallProtocolUrl } from './handlers/mcpInstall'
 import { handleNavigateProtocolUrl } from './handlers/navigate'

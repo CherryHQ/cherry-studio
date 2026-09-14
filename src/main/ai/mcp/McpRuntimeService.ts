@@ -1,5 +1,16 @@
+import { EventEmitter } from 'events'
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
+
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import type { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+import type { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp'
+import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
+import type { GetPromptResult, Progress, ServerCapabilities } from '@modelcontextprotocol/sdk/types.js'
+import { app } from 'electron'
+import { nanoid } from 'nanoid'
+import { v4 as uuidv4 } from 'uuid'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -7,11 +18,7 @@ import { loggerService } from '@logger'
 import { TraceMethod, withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
-import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import type { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import type { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp'
-import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
-import type { GetPromptResult, Progress, ServerCapabilities } from '@modelcontextprotocol/sdk/types.js'
+import { clampImageForModel } from '@main/utils/image'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
@@ -20,11 +27,6 @@ import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
 import { redactDeep, redactServerKey } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
-import { app } from 'electron'
-import { EventEmitter } from 'events'
-import { nanoid } from 'nanoid'
-import { v4 as uuidv4 } from 'uuid'
-import * as z from 'zod'
 
 import { isMcpCancellation } from './mcpAbort'
 import {
@@ -36,6 +38,7 @@ import {
 } from './mcpClientSdk'
 import type { McpPackageService } from './McpPackageService'
 import { redactCacheKey } from './mcpRedact'
+import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { createTransport, isMcpOAuthEnabled } from './mcpTransport'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
@@ -104,7 +107,7 @@ export const McpGetResourcePayloadSchema = z.object({
 export const McpStringArgSchema = NonEmptyStringSchema
 
 const logger = loggerService.withContext('McpRuntimeService')
-const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}` as SharedCacheKey
+const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}`
 
 export interface McpToolListChangedEvent {
   serverId: string
@@ -132,6 +135,30 @@ function getServerLogger(server: McpServer, extra?: Record<string, any>) {
     type: server?.type || (server?.command ? 'stdio' : server?.baseUrl ? 'http' : 'inmemory')
   }
   return loggerService.withContext('McpRuntimeService', { ...base, ...extra })
+}
+
+/**
+ * Shrink tool-result images to the model-bound edge cap before any consumer (Cherry chat, pi,
+ * dsh, claude bridge) sees them. An unusable image degrades to a text block: the result lands
+ * in durable session history, so failing the call would strand the turn over one screenshot.
+ */
+async function clampToolResultImages(
+  response: McpCallToolResponse,
+  serverLogger: ReturnType<typeof getServerLogger>
+): Promise<McpCallToolResponse> {
+  const content = await Promise.all(
+    response.content.map(async (part) => {
+      if (part.type !== 'image' || !part.data) return part
+      try {
+        const clamped = await clampImageForModel(Buffer.from(part.data, 'base64'))
+        return clamped ? { ...part, data: Buffer.from(clamped).toString('base64') } : part
+      } catch (error) {
+        serverLogger.warn('Dropping unprocessable tool-result image', { mimeType: part.mimeType, error })
+        return { type: 'text' as const, text: `[image (${part.mimeType ?? 'unknown'}) could not be processed]` }
+      }
+    })
+  )
+  return { ...response, content }
 }
 
 /**
@@ -804,7 +831,11 @@ export class McpRuntimeService extends BaseService {
     // promise lets a successful connect land in `this.clients` (so the loop below
     // closes it); a failed connect just settles and is dropped.
     const pendingKeys = Array.from(this.pendingClients.keys()).filter((key) => this.isServerKeyForId(key, serverId))
-    await Promise.all(pendingKeys.map((key) => this.pendingClients.get(key)?.catch(() => undefined)))
+    const pendingConnections = pendingKeys.flatMap((key) => {
+      const pendingConnection = this.pendingClients.get(key)
+      return pendingConnection ? [pendingConnection.catch(() => undefined)] : []
+    })
+    await Promise.all(pendingConnections)
 
     const serverKeys = Array.from(this.clients.keys()).filter((key) => this.isServerKeyForId(key, serverId))
     await Promise.all(serverKeys.map((key) => this.closeClient(key)))
@@ -907,7 +938,7 @@ export class McpRuntimeService extends BaseService {
       } catch (error) {
         // Ignore ENOENT - file may not exist if server never used OAuth
         if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code !== 'ENOENT') {
-          getServerLogger(server).error(`Failed to cleanup OAuth token file`, error as Error)
+          getServerLogger(server).error(`Failed to cleanup OAuth token file`, error)
         }
       }
     }
@@ -1083,14 +1114,15 @@ export class McpRuntimeService extends BaseService {
               })
             }
           },
-          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
-          // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
-          // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
-          resetTimeoutOnProgress: server.longRunning,
-          maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
+          ...resolveMcpRequestOptions(server),
+          // resetTimeoutOnProgress 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
+          // resetTimeoutOnProgress needs server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           signal: effectiveSignal
         })
-        return result as McpCallToolResponse
+        const response = result as McpCallToolResponse
+        // Error results never carry model-bound media, so leave their payload untouched.
+        if (response.isError) return response
+        return clampToolResultImages(response, getServerLogger(server, { tool: name, callId: toolCallId }))
       } catch (error) {
         if (isMcpCancellation(error, effectiveSignal)) {
           // Expected cancellation (user stop / stream abort) — keep it out of error logs.

@@ -1,5 +1,6 @@
-import type { AssistantSettings } from '@shared/data/types/assistant'
 import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
+import type { AssistantSettings } from '@shared/data/types/assistant'
 
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { groupTable } from './group'

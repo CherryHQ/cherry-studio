@@ -1,11 +1,12 @@
+import { Check, Image } from 'lucide-react'
+import { useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ActionTool } from '@renderer/components/ActionTools'
 import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { Check, Image } from 'lucide-react'
-import { useCallback, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface UseCopyToolProps {
   showPreviewTools?: boolean

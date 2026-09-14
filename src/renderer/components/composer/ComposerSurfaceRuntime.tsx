@@ -1,3 +1,11 @@
+import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
+import type { EditorView } from '@tiptap/pm/view'
+import type { Editor } from '@tiptap/react'
+import { EditorContent, type NodeViewProps } from '@tiptap/react'
+import { Check, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
+import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
@@ -25,13 +33,6 @@ import {
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
-import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
-import type { EditorView } from '@tiptap/pm/view'
-import type { Editor } from '@tiptap/react'
-import { EditorContent, type NodeViewProps } from '@tiptap/react'
-import { Check, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
-import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useActiveComposerOverride } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
@@ -339,9 +340,9 @@ function shouldDelegateLongTextPasteToFileHandler(
 ) {
   return Boolean(
     pasteLongTextAsFile &&
-      text &&
-      text.length > pasteLongTextThreshold &&
-      supportedExts.includes(PASTED_TEXT_FILE_EXTENSION)
+    text &&
+    text.length > pasteLongTextThreshold &&
+    supportedExts.includes(PASTED_TEXT_FILE_EXTENSION)
   )
 }
 
@@ -665,9 +666,8 @@ export default function ComposerSurfaceRuntime({
       const limitedText = nextText.slice(0, COMPOSER_INPUT_MAX_LENGTH)
       const editor = editorRef.current
       const currentText = editor && !editor.isDestroyed ? serializeComposerDocument(editor).text : textRef.current
-      // Rebuilding from plain text re-tokenizes only prompt variables, so a same-text update (e.g.
-      // pasteHandling re-applying the text after a long paste becomes a file) must skip the rebuild
-      // or quote/file/knowledge tokens degrade to their serialized text.
+      // Rebuilding from plain text re-tokenizes only prompt variables, so a same-text update must
+      // skip the rebuild or quote/file/knowledge tokens degrade to their serialized text.
       if (limitedText === currentText) return
       textRef.current = limitedText
       pendingLocalTextEchoRef.current = limitedText
@@ -676,14 +676,6 @@ export default function ComposerSurfaceRuntime({
       if (editor) setComposerEditorContent(editor, lastSerializedDraftRef, nextContent)
     },
     [onTextChange]
-  )
-
-  const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
-    (value) => {
-      const nextText = typeof value === 'function' ? value(textRef.current) : value
-      applyComposerText(nextText)
-    },
-    [applyComposerText]
   )
 
   const pasteHandlerOptions = useMemo(
@@ -698,7 +690,7 @@ export default function ComposerSurfaceRuntime({
     [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
   )
 
-  const { handlePaste } = usePasteHandler(text, setText, pasteHandlerOptions)
+  const { handlePaste } = usePasteHandler(pasteHandlerOptions)
 
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
     supportedExts,
@@ -854,10 +846,15 @@ export default function ComposerSurfaceRuntime({
       try {
         const fileText = await window.api.fs.readText(file.path)
         const currentText = serializeComposerDocument(editor).text
-        const textToInsert = getComposerInputTextWithinLimit(currentText, fileText)
+        // Refuse instead of truncating: pasting a truncated copy and dropping the
+        // file token would silently lose everything beyond the input limit.
+        if (exceedsComposerInputMaxLength(currentText, fileText)) {
+          toast.error(t('chat.input.paste_text_too_long', { max: COMPOSER_INPUT_MAX_LENGTH }))
+          return
+        }
         const position = typeof nodeViewProps.getPos === 'function' ? nodeViewProps.getPos() : undefined
-        const content = textToInsert
-          ? createPromptVariableInlineContent(textToInsert, { startIndex: getNextPromptVariableIndex(editor) })
+        const content = fileText
+          ? createPromptVariableInlineContent(fileText, { startIndex: getNextPromptVariableIndex(editor) })
           : []
 
         if (typeof position === 'number') {

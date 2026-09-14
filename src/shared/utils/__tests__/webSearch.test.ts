@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/webSearchProviders'
-import { describe, expect, it } from 'vitest'
 
 import {
   getWebSearchFallbackProviderIds,

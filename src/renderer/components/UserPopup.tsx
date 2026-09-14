@@ -1,8 +1,9 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import type React from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 
 import { UserAccountPanel } from './UserAccountPanel'
 

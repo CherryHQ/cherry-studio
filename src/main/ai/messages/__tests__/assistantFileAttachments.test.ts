@@ -1,5 +1,6 @@
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import { collectAssistantFileAttachments, createAssistantFileAttachmentHandle } from '../assistantFileAttachments'
 
@@ -10,7 +11,7 @@ function filePart(fileEntryId: string, filename?: string, fileTokenSourceId?: st
     mediaType: 'application/octet-stream',
     filename,
     providerMetadata: { cherry: { fileEntryId, ...(fileTokenSourceId ? { fileTokenSourceId } : {}) } }
-  } as CherryMessagePart
+  }
 }
 
 function composerText(...fileTokenSourceIds: string[]): CherryMessagePart {
@@ -31,11 +32,11 @@ function composerText(...fileTokenSourceIds: string[]): CherryMessagePart {
         }
       }
     }
-  } as CherryMessagePart
+  }
 }
 
 function message(id: string, parts: CherryMessagePart[]): CherryUIMessage {
-  return { id, role: 'user', parts } as CherryUIMessage
+  return { id, role: 'user', parts }
 }
 
 describe('assistantFileAttachments', () => {

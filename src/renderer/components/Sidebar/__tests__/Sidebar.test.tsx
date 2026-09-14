@@ -1,12 +1,13 @@
-import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import type * as MenuListModule from '@cherrystudio/ui/components/composites/menu-list'
-import type * as PopoverModule from '@cherrystudio/ui/components/primitives/popover'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { LucideIcon } from 'lucide-react'
 import { Search } from 'lucide-react'
 import { type CSSProperties, type ReactElement, type ReactNode, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import type * as MenuListModule from '@cherrystudio/ui/components/composites/menu-list'
+import type * as PopoverModule from '@cherrystudio/ui/components/primitives/popover'
 
 import {
   getSidebarDisplayWidth,
@@ -143,6 +144,7 @@ const entries: ResolvedSidebarEntry[] = items.map(appEntry)
 const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
 
 afterEach(() => {
+  vi.useRealTimers()
   uiMocks.sortableCalls.length = 0
   uiMocks.contextMenuOpenChange = undefined
 })
@@ -587,7 +589,8 @@ describe('Sidebar resize handle', () => {
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
-  it('suppresses only the dragged sidebar entry click after sorting settles', () => {
+  it('suppresses only the dragged sidebar entry immediate post-drag click', () => {
+    vi.useFakeTimers()
     const onChatOpen = vi.fn()
     const onAgentOpen = vi.fn()
     const sortableEntries: ResolvedSidebarEntry[] = [

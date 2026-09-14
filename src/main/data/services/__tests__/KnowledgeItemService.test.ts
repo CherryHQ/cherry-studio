@@ -1,3 +1,8 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -7,10 +12,6 @@ import { ErrorCode } from '@shared/data/api/errors'
 import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
-import { setupTestDatabase } from '@test-helpers/db'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const itemId = (sequence: string) => `0198f3f2-${sequence}-7abc-8def-123456789abc`

@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 import type { AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecords'
-import { describe, expect, it } from 'vitest'
 
 import { buildChartSeries, getTimelinePoints, selectCostTotal, toPeriodKey } from '../usageAnalytics'
 
