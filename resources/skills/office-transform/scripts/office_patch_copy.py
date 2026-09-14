@@ -628,10 +628,8 @@ PARAGRAPH_ALLOWED = {
     (WORDPROCESSING_NS, "proofErr"),  # spell/grammar marker, no semantics, Word regenerates it
 }
 
-# Inside the run: the text and its typographic separators. tab, br, cr and ptab are the old text and
-# losing them is the edit's intent — reject_break_characters is what makes that true rather than
-# merely hoped for, since an extract shows them as \t or \n and writing one back is refused outright.
-# lastRenderedPageBreak needs no such argument: Word discards and recomputes it on open.
+# Inside the run: the text and its typographic separators. Losing tab, cr, ptab and a line-breaking
+# br is the edit's intent; a break that starts a page or column is not, and is refused below.
 #
 # softHyphen and noBreakHyphen are the honest exceptions. Neither reaches the caller intact — a soft
 # hyphen leaves no mark in the extracted text at all, and a no-break hyphen reads as a plain "-" that
@@ -645,6 +643,9 @@ RUN_ALLOWED = {
     (WORDPROCESSING_NS, name)
     for name in ("rPr", "t", "tab", "br", "cr", "ptab", "softHyphen", "noBreakHyphen", "lastRenderedPageBreak")
 }
+
+# ST_BrType: "textWrapping" is the line break the rewrite can carry; the other two lay out the page.
+BREAK_DESCRIPTIONS = {"page": "a page break", "column": "a column break"}
 
 # Friendlier names for what we expect to meet; anything absent is reported by its qualified name.
 CONTENT_DESCRIPTIONS = {
@@ -681,6 +682,17 @@ def local_name(element) -> str:
     return element.tagName.rsplit(":", 1)[-1]
 
 
+def namespace_for_prefix(element, prefix: str) -> str:
+    """Namespace URI a prefix is bound to where `element` sits, or "" if nothing binds it."""
+    declaration = f"xmlns:{prefix}" if prefix else "xmlns"
+    node = element
+    while node is not None and node.nodeType == minidom.Node.ELEMENT_NODE:
+        if node.hasAttribute(declaration):
+            return node.getAttribute(declaration)
+        node = node.parentNode
+    return ""
+
+
 def resolve_namespace(element) -> str:
     """Namespace URI for an element, resolved through the xmlns declarations in scope.
 
@@ -690,13 +702,20 @@ def resolve_namespace(element) -> str:
     conflates namespaces that share a local name — `m:t` (equation text) would pass a bare "t" check.
     """
     prefix = element.tagName.rsplit(":", 1)[0] if ":" in element.tagName else ""
-    declaration = f"xmlns:{prefix}" if prefix else "xmlns"
-    node = element
-    while node is not None and node.nodeType == minidom.Node.ELEMENT_NODE:
-        if node.hasAttribute(declaration):
-            return node.getAttribute(declaration)
-        node = node.parentNode
-    return ""
+    return namespace_for_prefix(element, prefix)
+
+
+def break_type(element):
+    """The WordprocessingML `w:type` of a `w:br`, or None when it carries none.
+
+    An attribute is never in the default namespace, so only a prefixed one can be the `type` this
+    looks for, and the prefix is resolved the same way an element's is rather than assumed to be `w`.
+    """
+    for name, value in element.attributes.items():
+        prefix, _, local = name.rpartition(":")
+        if local == "type" and prefix and namespace_for_prefix(element, prefix) == WORDPROCESSING_NS:
+            return value
+    return None
 
 
 def describe_element(key: tuple[str, str], element) -> str:
@@ -733,15 +752,27 @@ def reject_unrepresentable_content(paragraph, index: int) -> None:
                     f"formatting only. See \"Edit docx\" in SKILL.md for a run-level edit that "
                     f"preserves inline structure."
                 )
+            if grandkey == (WORDPROCESSING_NS, "br"):
+                kind = break_type(grandchild)
+                if kind is not None and kind != "textWrapping":
+                    described = BREAK_DESCRIPTIONS.get(kind, f'a <w:br> of type "{kind}"')
+                    fail(
+                        f"paragraph {index} contains {described}, which this rewrite cannot keep: it "
+                        f"emits one <w:t>, and no character spells a break that lays out the page. The "
+                        f"extract reads the text on either side of it as one string, so replacing the "
+                        f"paragraph would delete the break while the text still reads the same. "
+                        f"See \"Edit docx\" in SKILL.md for a run-level edit that preserves it."
+                    )
 
 
 def reject_break_characters(text: str, index: int) -> None:
     """Refuse tab, newline and CR in docx replacement text, which one `<w:t>` cannot represent.
 
     WordprocessingML spells a tab `<w:tab/>` and a line break `<w:br/>` — separate elements, not
-    characters. Translating rather than refusing would be a guess, because the mapping is not
-    reversible: `w:br`, `w:cr` and a page break all read back as the same newline. This is reachable
-    from the skill's own round trip, where it is also silent — extracting a paragraph that holds a
+    characters. Translating rather than refusing would be a guess: a bare `w:br`/`w:cr` reads back
+    as a newline and `w:tab` as a tab, so the mapping is not reversible (a typed page or column
+    break is refused earlier, by `reject_unrepresentable_content`). This is reachable from the
+    skill's own round trip, where it is also silent — extracting a paragraph that holds a
     real `w:tab` or `w:br` yields those characters, and writing the edited string back drops the
     elements while the text still reads the same.
 
