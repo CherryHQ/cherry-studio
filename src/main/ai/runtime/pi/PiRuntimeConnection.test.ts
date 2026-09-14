@@ -3,7 +3,6 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type * as PiCodingAgent from '@earendil-works/pi-coding-agent'
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -95,6 +94,7 @@ const mocks = vi.hoisted(() => ({
   loaderOpts: undefined as Record<string, unknown> | undefined,
   settingsArgs: undefined as unknown[] | undefined,
   settingsCreate: vi.fn(),
+  getAgentDir: vi.fn(),
   autoDiscoverGitBash: vi.fn(),
   setShellCommandPrefix: vi.fn(),
   getShellEnv: vi.fn(),
@@ -224,6 +224,7 @@ const fakeSession = {
 }
 
 const fakePi = {
+  getAgentDir: mocks.getAgentDir,
   AuthStorage: { inMemory: () => ({ setRuntimeApiKey: mocks.setRuntimeApiKey }) },
   ModelRegistry: {
     inMemory: () => ({ registerProvider: mocks.registerProvider, find: () => ({ id: 'm', provider: 'p' }) })
@@ -312,6 +313,7 @@ beforeEach(() => {
   mocks.loaderOpts = undefined
   mocks.settingsArgs = undefined
   mocks.settingsCreate.mockReturnValue({ getShellPath: () => undefined })
+  mocks.getAgentDir.mockReturnValue('/tmp/pi-agent')
   mocks.autoDiscoverGitBash.mockReturnValue(null)
   mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
   mocks.isStreaming = false
@@ -1461,39 +1463,43 @@ describe('PiRuntimeConnection', () => {
     })
   })
 
-  it('uses effective file-backed pi shell settings before Cherry discovery', async () => {
+  it('reads only file-backed pi shellPath settings before Cherry discovery', async () => {
     const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'cherry-pi-shell-'))
     const workspacePath = path.join(fixtureRoot, 'workspace')
     const agentDir = path.join(fixtureRoot, 'agent')
     const globalShellPath = 'C:\\Users\\tester\\scoop\\apps\\git\\current\\bin\\bash.exe'
     const projectShellPath = 'C:\\PortableGit\\bin\\bash.exe'
-    const realPi = await vi.importActual<typeof PiCodingAgent>('@earendil-works/pi-coding-agent')
-
     await mkdir(path.join(workspacePath, '.pi'), { recursive: true })
     await mkdir(agentDir, { recursive: true })
-    await writeFile(path.join(agentDir, 'settings.json'), JSON.stringify({ shellPath: globalShellPath }))
-    vi.stubEnv('PI_CODING_AGENT_DIR', agentDir)
+    await writeFile(
+      path.join(agentDir, 'settings.json'),
+      JSON.stringify({ shellPath: globalShellPath, theme: 'dark', extensions: ['ignored-extension'] })
+    )
     mocks.getById.mockReturnValue({
       id: SESSION_ID,
       agentId: 'agent-1',
       workspace: { path: workspacePath, type: 'system' }
     })
-    mocks.settingsCreate.mockImplementation((cwd, root, options) => realPi.SettingsManager.create(cwd, root, options))
+    mocks.getAgentDir.mockReturnValue(agentDir)
     mocks.autoDiscoverGitBash.mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
 
     try {
       await new PiRuntimeConnection(input).start()
       expect(mocks.bashToolOptions).toMatchObject({ shellPath: globalShellPath })
 
-      await writeFile(path.join(workspacePath, '.pi', 'settings.json'), JSON.stringify({ shellPath: projectShellPath }))
+      await writeFile(
+        path.join(workspacePath, '.pi', 'settings.json'),
+        JSON.stringify({ shellPath: projectShellPath, provider: 'ignored-provider', tools: ['ignored-tool'] })
+      )
       await new PiRuntimeConnection(input).start()
     } finally {
       platform.mockRestore()
       await rm(fixtureRoot, { recursive: true, force: true })
     }
 
-    expect(mocks.settingsCreate).toHaveBeenLastCalledWith(workspacePath, undefined, { projectTrusted: true })
+    expect(mocks.settingsCreate).not.toHaveBeenCalled()
+    expect(mocks.getAgentDir).toHaveBeenCalledOnce()
     expect(mocks.settingsArgs).toEqual([{ shellPath: projectShellPath }, { projectTrusted: true }])
     expect(mocks.bashToolOptions).toMatchObject({ shellPath: projectShellPath })
     expect(mocks.autoDiscoverGitBash).not.toHaveBeenCalled()

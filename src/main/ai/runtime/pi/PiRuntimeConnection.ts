@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readdirSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
@@ -98,12 +98,23 @@ export function buildPiLoginPathPrefix(
   return platform !== 'win32' && loginPath ? `export PATH="$PATH":${quoteShellWord(loginPath)}` : undefined
 }
 
+function readPiShellPathSetting(settingsPath: string): string | undefined {
+  try {
+    const settings: unknown = JSON.parse(readFileSync(settingsPath, 'utf8'))
+    if (typeof settings !== 'object' || settings === null || Array.isArray(settings)) return undefined
+    const shellPath = (settings as Record<string, unknown>).shellPath
+    return typeof shellPath === 'string' && shellPath.length > 0 ? shellPath : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function resolvePiShellPath(pi: Awaited<ReturnType<typeof loadPiSdk>>, workspacePath: string): string | undefined {
   if (process.platform !== 'win32') return undefined
-  const configuredShellPath = pi.SettingsManager.create(workspacePath, undefined, {
-    projectTrusted: true
-  }).getShellPath()
-  return configuredShellPath ?? autoDiscoverGitBash() ?? undefined
+  const projectShellPath = readPiShellPathSetting(path.join(workspacePath, '.pi', 'settings.json'))
+  if (projectShellPath) return projectShellPath
+  const globalShellPath = readPiShellPathSetting(path.join(pi.getAgentDir(), 'settings.json'))
+  return globalShellPath ?? autoDiscoverGitBash() ?? undefined
 }
 const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
@@ -279,8 +290,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // The workspace is always trusted: the user picked it by hand in Cherry, so there is
       // no separate "do you trust this project?" prompt. What actually loads from it is
       // still governed by the explicit `no*` flags below.
-      // Read only pi's effective shell selection; all other standalone settings stay outside
-      // Cherry's isolated runtime. Without one, share Cherry's Git Bash discovery.
+      // The user-selected workspace is trusted for its shellPath override. Select only that field,
+      // then the global shellPath; no other standalone setting enters Cherry's isolated runtime.
+      // Without either, share Cherry's Git Bash discovery.
       const shellPath = resolvePiShellPath(pi, workspacePath)
       const settingsManager = pi.SettingsManager.inMemory(shellPath ? { shellPath } : {}, { projectTrusted: true })
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
