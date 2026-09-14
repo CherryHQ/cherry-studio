@@ -7,16 +7,17 @@ import { defineRoute } from '../define'
  * providers, driven by the main process through the shared `OAuthRuntimeService`
  * + its provider definitions (`providers/<id>.ts`).
  *
- * Provider-generic, not per-provider: a fixed set of operations carries the
- * target `providerId` as input, and the handler drives every provider through
- * the runtime. Adding a provider needs no new route and no new service — only a
- * provider definition entry — so the IPC surface stays flat as the set grows.
+ * The base operations are provider-generic: a fixed set carries the target
+ * `providerId`, and the handler drives providers through the shared runtime.
+ * Providers with custom inputs or results keep those contracts in their own
+ * domain instead of widening this surface.
  *
- * Codex, Grok CLI and CherryIN use an HTTP loopback callback through `sign_in`.
+ * Codex and Grok CLI use an HTTP loopback callback through `sign_in`. CherryIN
+ * shares the runtime but keeps its provider-specific IPC contract under
+ * `cherryin.sign_in`.
  *
- * `sign_in` may also return provisioned API keys; OAuth tokens stay in main.
- * `get_account` returns only the account id;
- * providers without an account concept resolve `{ accountId: null }`.
+ * `sign_in` and `get_account` return only the account id; OAuth tokens stay in
+ * main. Providers without an account concept resolve `{ accountId: null }`.
  *
  * `check_external_login` covers the other login shape — providers whose
  * credential lives in an external CLI's store (`authMethods` includes
@@ -26,8 +27,6 @@ import { defineRoute } from '../define'
 
 /** The account a provider associates with the session (Codex's ChatGPT id), or null. */
 const oauthAccountSchema = z.object({ accountId: z.string().nullable() })
-
-const oauthSignInResultSchema = oauthAccountSchema.extend({ apiKeys: z.string().optional() })
 
 const signInAttachResultSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('not-found') }),
@@ -39,10 +38,7 @@ const providerInput = z.object({ providerId: z.string() })
 const signInObservationInput = providerInput.extend({ requestId: z.string().min(1) })
 
 export const oauthRequestSchemas = {
-  'oauth.sign_in': defineRoute({
-    input: signInObservationInput.extend({ oauthServer: z.string().optional(), apiHost: z.string().optional() }),
-    output: oauthSignInResultSchema
-  }),
+  'oauth.sign_in': defineRoute({ input: signInObservationInput, output: oauthAccountSchema }),
   'oauth.sign_in.attach': defineRoute({ input: signInObservationInput, output: signInAttachResultSchema }),
   'oauth.cancel_sign_in': defineRoute({ input: signInObservationInput, output: z.void() }),
   'oauth.has_token': defineRoute({ input: providerInput, output: z.boolean() }),
