@@ -208,6 +208,85 @@ describe('LoggerService file output', () => {
     expect(nested).not.toHaveProperty('requestBodyValues')
   })
 
+  it.each(['message', 'stack', 'nested error', 'array', 'tail'])(
+    'redacts a malformed credential-bearing URL in %s at the file output',
+    async (position) => {
+      const { loggerService, lines, readLine } = await loadLogger()
+      // A password with an unescaped `/` fails URL parsing, so nothing bounds its userinfo;
+      // fetch wrappers still splice the raw string into their TypeError message and stack.
+      const url = 'http://user:ab/cd@proxy:8080'
+      const redacted = 'http://<redacted>:<redacted>@proxy:8080'
+      const lastFrame = `    at ${'x'.repeat(350)} (worker.ts:42:7)`
+      const error = new TypeError(`fetch failed for ${url}`)
+      error.stack = `TypeError: fetch failed for ${url}\n${lastFrame}`
+      const safeError = {
+        name: 'TypeError',
+        message: `fetch failed for ${redacted}`,
+        stack: `TypeError: fetch failed for ${redacted}\n${lastFrame}`
+      }
+
+      switch (position) {
+        case 'message':
+          loggerService.error(`Failed ${url}`)
+          break
+        case 'stack':
+          loggerService.error('Proxy request failed', error)
+          break
+        case 'nested error':
+          loggerService.error('Proxy request failed', { error })
+          break
+        case 'array':
+          loggerService.error('Proxy request failed', { urls: [url] })
+          break
+        case 'tail':
+          loggerService.error('Proxy request failed', { requestId: 'r1' }, { url }, error)
+          break
+      }
+
+      const line = await readLine()
+      expect(lines[0]).not.toContain('ab/cd')
+      if (position === 'message') expect(line.message).toBe(`Failed ${redacted}`)
+      if (position === 'stack') expect(line.stack).toBe(safeError.stack)
+      if (position === 'nested error') expect(line.error).toEqual(safeError)
+      if (position === 'array') expect(line.urls).toEqual([redacted])
+      if (position === 'tail') expect(line.data).toEqual([{ url: redacted }, safeError])
+    }
+  )
+
+  it('preserves JSON serialization and long info values while redacting toJSON output', async () => {
+    const { loggerService, lines, readLine } = await loadLogger()
+    const url = 'http://u:hunter2@host'
+    const circular: Record<string, unknown> = { url }
+    circular.self = circular
+    const data = {
+      long: 'x'.repeat(1_000),
+      count: 9007199254740993n,
+      circular,
+      custom: { toJSON: () => url }
+    }
+
+    loggerService.info('Details', data)
+
+    const line = await readLine()
+    expect(line.long).toBe(data.long)
+    expect(line.count).toBe('9007199254740993')
+    expect(line.circular).toEqual({ url: 'http://<redacted>:<redacted>@host', self: '[Circular]' })
+    expect(line.custom).toBe('http://<redacted>:<redacted>@host')
+    expect(lines[0]).not.toContain('hunter2')
+    expect(circular.url).toBe(url)
+    expect(circular.self).toBe(circular)
+    expect(data.custom.toJSON()).toBe(url)
+  })
+
+  it('leaves a URL whose @ sits outside the authority untouched', async () => {
+    const { loggerService, readLine } = await loadLogger()
+    const url = 'https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.0.0/dist/standalone.js'
+
+    loggerService.info('Tool call', { url })
+
+    expect((await readLine()).url).toBe(url)
+  })
+
   it('adds sys/appver on warn and error but not on info', async () => {
     const { loggerService, readLine } = await loadLogger()
     const logger = loggerService.withContext('SysTest')
