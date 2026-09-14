@@ -610,7 +610,7 @@ class QqAdapter extends ChannelAdapter {
       files.push({
         filename: att.filename || 'file',
         data: buffer.toString('base64'),
-        media_type: sniffedType || att.content_type || 'application/octet-stream',
+        media_type: sniffedType ?? 'application/octet-stream',
         size: buffer.length
       })
     }

@@ -128,6 +128,19 @@ describe('QqAdapter.downloadAttachments', () => {
     expect(result.files).toBeUndefined()
     expect(result.images).toEqual([expect.objectContaining({ media_type: 'image/png' })])
   })
+
+  it('does not let a declared image/png type survive on bytes nothing recognizes', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    mockNetFetch.mockResolvedValue(mockBinaryResponse(Buffer.from('plain text, no magic bytes'), 'image/png'))
+
+    const result = await adapter.downloadAttachments([
+      { url: 'https://gchat.qpic.cn/a.png', content_type: 'image/png', filename: 'a.png' }
+    ])
+
+    expect(result.images).toBeUndefined()
+    expect(result.files).toEqual([expect.objectContaining({ media_type: 'application/octet-stream' })])
+  })
 })
 
 describe('QqAdapter passive reply', () => {
