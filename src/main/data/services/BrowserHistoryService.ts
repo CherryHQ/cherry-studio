@@ -152,7 +152,6 @@ export class BrowserHistoryService {
     notifyDataApiDataChange([{ endpoint: '/browser-visits', kind: 'membership' }])
   }
   clear(): void {
-    application.get('CacheService').deletePersist('browser.favicons')
     application.get('DbService').getDb().delete(browserVisitTable).run()
     notifyDataApiDataChange([{ endpoint: '/browser-visits', kind: 'membership' }])
   }

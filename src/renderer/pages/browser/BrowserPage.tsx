@@ -14,7 +14,7 @@ export function BrowserPage({ initialUrl }: { initialUrl: string }) {
   const id = useId()
   const [title, setTitle] = useState(initialUrl)
   const [favicon, setFavicon] = useState<string>()
-  useTabSelfVisuals({ title: title || t('settings.browser.title'), icon: favicon, appId: 'browser' })
+  useTabSelfVisuals({ title: title || t('settings.browser.title'), icon: favicon, routePrefix: '/app/browser' })
 
   const handleUrlChange = useCallback(
     (url: string) => {

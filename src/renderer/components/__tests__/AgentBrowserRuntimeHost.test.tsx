@@ -118,6 +118,35 @@ describe('AgentBrowserRuntimeHost', () => {
     expect(runtime.get('session-a')).toBeUndefined()
   })
 
+  it('releases the previous session guest when its only owning tab changes sessions', async () => {
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    const guest = view.getByTestId('webview-browser-guest')
+
+    act(() => runtime.declare('session-b', 'tab-a'))
+    await waitFor(() => expect(bridge.binding).toBeUndefined())
+    expect(guest.isConnected).toBe(false)
+    expect(runtime.get('session-a')).toBeUndefined()
+    runtime.ensure('session-a')
+    expect(runtime.get('session-a')).toBeUndefined()
+    act(() => runtime.ensure('session-b', 'https://other.test/'))
+    expect(runtime.get('session-b')?.sourceUrl).toBe('https://other.test/')
+    await act(async () => {})
+  })
+
+  it('retains the previous session while another tab still owns it', () => {
+    runtime.declare('session-a', 'tab-b')
+    runtime.ensure('session-a', 'https://example.com/')
+    const resource = runtime.get('session-a')
+    runtime.declare('session-b', 'tab-a')
+    expect(runtime.get('session-a')).toBe(resource)
+    runtime.reconcileOwners(new Set(['tab-a']))
+    expect(runtime.get('session-a')).toBeUndefined()
+    runtime.ensure('session-b', 'https://other.test/')
+    expect(runtime.get('session-b')?.sourceUrl).toBe('https://other.test/')
+  })
+
   it('creates an execution target on request without mounting the hidden panel', async () => {
     render(<Harness visible={false} />)
     act(() => bridge.listeners.get('browser.guest.ensure_requested')?.({ sessionId: 'session-a' }))

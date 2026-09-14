@@ -133,4 +133,32 @@ describe('WebviewHost', () => {
     guest.dispatchEvent(Object.assign(new Event('did-navigate'), { url: 'https://example.com/late' }))
     expect(navigated).toHaveBeenCalledOnce()
   })
+  it('releases focus on guest replacement and unmount without waiting for native blur', () => {
+    let focused = false
+    const onFocusChange = (value: boolean) => {
+      focused = value
+    }
+    const view = render(
+      <WebviewHost id="focus-owner" src="about:blank" partition="agent-dev-preview" onFocusChange={onFocusChange} />
+    )
+    const first = view.container.querySelector('webview')!
+    act(() => {
+      first.dispatchEvent(new Event('focus'))
+    })
+    expect(focused).toBe(true)
+
+    view.rerender(
+      <WebviewHost id="focus-owner" src="about:blank" partition="agent-html-artifact" onFocusChange={onFocusChange} />
+    )
+    expect(focused).toBe(false)
+    const second = view.container.querySelector('webview')!
+    act(() => {
+      second.dispatchEvent(new Event('focus'))
+    })
+    expect(focused).toBe(true)
+    first.dispatchEvent(new Event('blur'))
+    expect(focused).toBe(true)
+    view.unmount()
+    expect(focused).toBe(false)
+  })
 })

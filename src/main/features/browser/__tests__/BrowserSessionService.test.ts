@@ -9,6 +9,7 @@ import { browserHistoryService } from '@data/services/BrowserHistoryService'
 import { BaseService } from '@main/core/lifecycle'
 
 import { BrowserSessionService } from '../BrowserSessionService'
+import * as browserProfiles from '../import/browserProfiles'
 import { createGuest } from './guestFixture'
 
 let events: EventEmitter
@@ -167,7 +168,37 @@ describe('Ordinary browser popup lifecycle', () => {
 describe('Browser data cleanup', () => {
   setupTestDatabase()
 
-  it('clears persisted favicons and cancels pending captures without deleting history', async () => {
+  it('rejects history clearing while an import is active and permits it after the import settles', async () => {
+    Object.assign(session.fromPartition('persist:agent-browser'), {
+      cookies: { flushStore: vi.fn().mockResolvedValue(undefined) },
+      flushStorageData: vi.fn()
+    })
+    browserHistoryService.record({ url: 'https://example.com/', title: 'Existing visit', visitedAt: 1 })
+    let complete!: (profiles: Awaited<ReturnType<typeof browserProfiles.listBrowserProfiles>>) => void
+    vi.spyOn(browserProfiles, 'listBrowserProfiles').mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve
+        })
+    )
+    const importing = service.runImport({
+      sourceId: 'chrome:Default',
+      history: true,
+      cookies: false,
+      localStorage: false,
+      domains: []
+    })
+    await expect(service.clearData('history')).rejects.toThrow('not_allowed')
+    expect(browserHistoryService.list({ offset: 0, limit: 10 }).items.map(({ title }) => title)).toEqual([
+      'Existing visit'
+    ])
+    complete([])
+    await expect(importing).rejects.toThrow('Browser profile is no longer available')
+    await service.clearData('history')
+    expect(browserHistoryService.list({ offset: 0, limit: 10 }).items).toEqual([])
+  })
+
+  it.each(['cache', 'history'] as const)('clears %s and cancels pending favicon writes', async (kind) => {
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aetkAAAAASUVORK5CYII=',
       'base64'
@@ -189,14 +220,16 @@ describe('Browser data cleanup', () => {
     Object.assign(mock, { getType: () => 'webview', session: profile, isLoadingMainFrame: () => true })
     events.emit('web-contents-created', {}, guest)
     mock.emit('page-favicon-updated', {}, ['https://example.com/icon.png'])
-    const clearing = service.clearData('cache')
+    const clearing = service.clearData(kind)
     const cancelled = signal.aborted
     complete(new Response(png))
     await clearing
 
     expect(cancelled).toBe(true)
     expect(cache.getPersist('browser.favicons')).toEqual({})
-    expect(browserHistoryService.list({ offset: 0, limit: 10 }).items).toMatchObject([{ title: 'Keep this visit' }])
+    expect(browserHistoryService.list({ offset: 0, limit: 10 }).items.map(({ title }) => title)).toEqual(
+      kind === 'history' ? [] : ['Keep this visit']
+    )
 
     vi.mocked(profile.fetch).mockResolvedValueOnce(new Response(png))
     mock.emit('page-favicon-updated', {}, ['https://example.com/new-icon.png'])

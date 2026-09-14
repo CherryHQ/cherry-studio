@@ -117,15 +117,9 @@ const MiniAppTabsPool: React.FC = () => {
   // Host-initiated eviction: unlike the LRU path there is nothing to negotiate — the
   // host is already waiting on this webview going away.
   useIpcOn('mini_app.runtime.evicted', ({ appId }) => {
-    // Membership and removal must read the SAME snapshot: this fires from IPC, so the
-    // closure is stale. Safe here only because `useCache`'s setter is not React's.
-    let wasMounted = false
-    setOpenedKeepAliveMiniApps((current) => {
-      wasMounted = current.some((a) => a.appId === appId)
-      return current.filter((a) => a.appId !== appId)
-    })
-    // The broadcast reaches every window. Clearing state for an app this pool never
-    // mounted reaches into another window's entry through a shared store.
+    const wasMounted = getWebviewElement(appId) !== null
+    setOpenedKeepAliveMiniApps((current) => current.filter((app) => app.appId !== appId))
+    // The broadcast reaches every window; release only a guest owned by this pool.
     if (wasMounted) clearWebviewState(appId)
     // Reopening is the user's action: nothing re-adds the app while its tab stays
     // active, so close the tab rather than leave a blank pane behind the toolbar.
@@ -251,8 +245,16 @@ const MiniAppTabsPool: React.FC = () => {
     // holds the key may clear it.
     setFocusedAppId((current) => (focused ? appid : current === appid ? null : current))
   }, [])
+  const focusedAppVisible =
+    focusedAppId !== null &&
+    shouldShow &&
+    (focusedAppId === currentMiniAppId || focusedAppId === paneSplitId) &&
+    apps.some((app) => app.appId === focusedAppId)
+  useEffect(() => {
+    if (!focusedAppVisible) setFocusedAppId((current) => (current === focusedAppId ? null : current))
+  }, [focusedAppId, focusedAppVisible])
   // Lets no-modifier commands opt out of guest keys via `when: '!webview.focused'`.
-  useCommandContextKey('webview.focused', focusedAppId !== null)
+  useCommandContextKey('webview.focused', focusedAppVisible)
 
   /** Toggle display: only the active pane(s) are visible, the rest are hidden */
   useEffect(() => {

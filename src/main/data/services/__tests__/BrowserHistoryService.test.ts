@@ -97,7 +97,7 @@ describe('Browser history persistence', () => {
     expect(last.hasMore).toBe(false)
   })
 
-  it('shares cached icons across visits to the same site and clears them with history', () => {
+  it('shares cached icons across visits to the same site', () => {
     application
       .get('CacheService')
       .setPersist('browser.favicons', { 'https://example.com': 'data:image/png;base64,fixture' })
@@ -105,8 +105,6 @@ describe('Browser history persistence', () => {
     browserHistoryService.record({ url: 'https://other.test/', title: 'Other site', visitedAt: 200 })
     expect(list('Old page').items[0].favicon).toBe('data:image/png;base64,fixture')
     expect(list('Other site').items[0].favicon).toBeUndefined()
-    browserHistoryService.clear()
-    expect(application.get('CacheService').getPersist('browser.favicons')).toEqual({})
   })
 
   it('skips non-web/invalid visits and updates, deletes and clears stored records', () => {

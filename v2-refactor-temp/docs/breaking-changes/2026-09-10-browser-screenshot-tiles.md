@@ -2,7 +2,7 @@
 title: Browser screenshots return readable regions and full-page tiles
 category: changed
 severity: notice
-introduced_in_pr: 20134
+introduced_in_pr: '#20134'
 date: 2026-09-10
 ---
 

@@ -1,8 +1,6 @@
 import { useEffect } from 'react'
 
-import type { ConversationAppId } from '@renderer/types/conversation'
 import { emojiTabIcon } from '@renderer/utils/tabIcons'
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { useCurrentTabId } from './useCurrentTab'
 import { useOptionalTabsContext } from './useTabsContext'
@@ -11,21 +9,10 @@ export interface TabSelfVisuals {
   title: string
   emoji?: string | null
   icon?: string
-  /** Route-ownership guard: only stamp while the tab is on this app's routes. */
-  appId?: ConversationAppId | 'browser'
+  /** Only stamp while the current tab URL belongs to this caller-supplied route prefix. */
+  routePrefix?: string
   /** Keep the tab's stored title/icon while the bound conversation is still loading. */
   preserveVisuals?: boolean
-}
-
-const TAB_APP_ROUTE_PREFIX: Record<NonNullable<TabSelfVisuals['appId']>, string> = {
-  assistants: '/app/chat',
-  agents: '/app/agents',
-  browser: '/app/browser'
-}
-
-function tabBelongsToApp(tab: Pick<Tab, 'url'>, appId: NonNullable<TabSelfVisuals['appId']>): boolean {
-  const routePrefix = TAB_APP_ROUTE_PREFIX[appId]
-  return tab.url === routePrefix || tab.url.startsWith(`${routePrefix}?`) || tab.url.startsWith(`${routePrefix}/`)
 }
 
 /**
@@ -40,7 +27,7 @@ export function useTabSelfVisuals({
   title,
   emoji,
   icon: imageIcon,
-  appId,
+  routePrefix,
   preserveVisuals = false
 }: TabSelfVisuals): void {
   const currentTabId = useCurrentTabId()
@@ -51,9 +38,15 @@ export function useTabSelfVisuals({
   useEffect(() => {
     if (!currentTabId || !updateTab || !currentTab) return
     if (preserveVisuals) return
-    if (appId && !tabBelongsToApp(currentTab, appId)) return
+    if (
+      routePrefix &&
+      currentTab.url !== routePrefix &&
+      !currentTab.url.startsWith(`${routePrefix}?`) &&
+      !currentTab.url.startsWith(`${routePrefix}/`)
+    )
+      return
     const icon = imageIcon ?? emojiTabIcon(emoji)
     if (currentTab.title === title && currentTab.icon === icon) return
     updateTab(currentTabId, { title, icon })
-  }, [currentTabId, currentTab, updateTab, title, emoji, imageIcon, appId, preserveVisuals])
+  }, [currentTabId, currentTab, updateTab, title, emoji, imageIcon, routePrefix, preserveVisuals])
 }

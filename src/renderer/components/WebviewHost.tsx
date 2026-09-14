@@ -188,6 +188,7 @@ export function WebviewHost({
     return () => {
       webview.removeEventListener('focus', handleFocus)
       webview.removeEventListener('blur', handleBlur)
+      handleBlur()
       webview.removeEventListener('ipc-message', handleGuestKeydown)
       webview.removeEventListener('dom-ready', domReady)
       webview.removeEventListener('did-start-loading', handleStartLoading)
