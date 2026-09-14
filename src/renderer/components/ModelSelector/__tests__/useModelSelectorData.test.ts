@@ -243,6 +243,22 @@ describe('useModelSelectorData', () => {
     expect(providerRows.map((item) => item.modelId)).toEqual(['openai::gpt-3.5'])
   })
 
+  it('uses CherryAI display-group duplicates for pinned models', () => {
+    wireDeps({
+      providers: [makeProvider(CHERRY_CLOUD_PROVIDER_ID), makeProvider(CHERRYAI_PROVIDER_ID)],
+      models: [
+        makeModel('qwen', CHERRYAI_PROVIDER_ID, { name: 'Shared name' }),
+        makeModel('cloud-model', CHERRY_CLOUD_PROVIDER_ID, { name: 'Shared name' })
+      ],
+      pinnedIds: [`${CHERRYAI_PROVIDER_ID}::qwen`]
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    expect(result.current.modelItems.find((item) => item.isPinned)?.showIdentifier).toBe(true)
+    expect(result.current.modelItems.find((item) => !item.isPinned)?.showIdentifier).toBe(true)
+  })
+
   it('keeps loading and pin-action readiness as separate states', () => {
     wireDeps({
       providers: [makeProvider('openai')],
