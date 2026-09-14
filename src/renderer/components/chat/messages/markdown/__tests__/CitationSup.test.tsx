@@ -1,6 +1,7 @@
-import type { Citation } from '@renderer/types/message'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { Citation } from '@renderer/types/message'
 
 import CitationSup from '../CitationSup'
 
@@ -116,7 +117,7 @@ describe('CitationSup', () => {
   it('drops renderer-only props before reaching the DOM', () => {
     render(
       <CitationSup
-        node={{ position: undefined } as never}
+        node={{ position: undefined }}
         data-citation="3"
         citationRegistry={new Map([[3, knowledgeCitation]])}
       />

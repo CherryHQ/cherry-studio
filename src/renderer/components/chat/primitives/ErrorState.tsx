@@ -1,6 +1,7 @@
+import type { ComponentProps, ReactNode } from 'react'
+
 import { Alert } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComponentProps, ReactNode } from 'react'
 
 export interface ErrorStateProps extends Omit<ComponentProps<'div'>, 'title'> {
   action?: ReactNode

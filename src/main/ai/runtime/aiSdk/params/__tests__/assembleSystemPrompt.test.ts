@@ -1,7 +1,8 @@
-import type { Assistant } from '@shared/data/types/assistant'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { Assistant } from '@shared/data/types/assistant'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 vi.mock('@main/utils/prompt', () => ({
   replacePromptVariables: vi.fn(async (input: string) => input.replace('{{date}}', '2026-04-20'))

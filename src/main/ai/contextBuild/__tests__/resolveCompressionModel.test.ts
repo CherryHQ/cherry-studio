@@ -1,6 +1,7 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { generateText } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import { resolveCompressionModel } from '../resolveCompressionModel'

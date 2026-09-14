@@ -2,14 +2,15 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { type BrowserWindow, dialog } from 'electron'
+import MarkdownIt from 'markdown-it'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import type { PrintableDocumentPayload } from '@shared/ipc/schemas/print'
 import { sanitizeFilename } from '@shared/utils/file'
-import { type BrowserWindow, dialog } from 'electron'
-import MarkdownIt from 'markdown-it'
 
 const logger = loggerService.withContext('PrintService')
 

@@ -1,10 +1,10 @@
 import '@testing-library/jest-dom/vitest'
-
-import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
-import type { Model } from '@shared/data/types/model'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import type { Model } from '@shared/data/types/model'
 
 import ProviderApiSetupDialog from '../ProviderApiSetupDialog'
 

@@ -1,10 +1,11 @@
+import { renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { AppEdition } from '@shared/types/appEdition'
-import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ModelSelectorModelItem } from '../types'
 import { useModelSelectorData } from '../useModelSelectorData'
@@ -57,7 +58,7 @@ function makeModel(id: string, providerId: string, overrides: Partial<Model> = {
     isEnabled: true,
     isHidden: false,
     ...overrides
-  } as Model
+  }
 }
 
 function wireDeps({

@@ -5,8 +5,9 @@
 import type * as NodePath from 'node:path'
 import nodePath from 'node:path'
 
-import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 vi.mock('node:path', async () => {
   const actual = await vi.importActual<typeof NodePath>('node:path')

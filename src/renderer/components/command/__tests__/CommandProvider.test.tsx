@@ -1,7 +1,8 @@
-import type { CommandId } from '@shared/utils/command'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CommandId } from '@shared/utils/command'
 
 const { loggerMock, preferenceValues } = vi.hoisted(() => ({
   loggerMock: {
@@ -154,7 +155,7 @@ describe('CommandProvider', () => {
     const onExecute = vi.fn()
     renderProvider(<RegisteredCommand command="topic.create" onExecute={onExecute} />)
 
-    dispatchShortcut({ isComposing: true } as KeyboardEventInit)
+    dispatchShortcut({ isComposing: true })
 
     expect(onExecute).not.toHaveBeenCalled()
   })

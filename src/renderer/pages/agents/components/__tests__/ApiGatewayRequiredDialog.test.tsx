@@ -1,6 +1,7 @@
-import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvider'
 import { act, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvider'
 
 import { ApiGatewayRequiredDialog } from '../ApiGatewayRequiredDialog'
 

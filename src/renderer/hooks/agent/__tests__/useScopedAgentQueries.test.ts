@@ -1,7 +1,8 @@
-import { useQuery } from '@data/hooks/useDataApi'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useQuery } from '@data/hooks/useDataApi'
 
 import { useChannels } from '../useChannels'
 import { useSession } from '../useSession'

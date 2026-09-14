@@ -1,9 +1,10 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { ResourceCatalogView } from '@renderer/components/resourceCatalog/catalog'
 import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export function SkillsSettings() {
   const { t } = useTranslation()

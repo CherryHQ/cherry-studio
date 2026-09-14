@@ -1,11 +1,12 @@
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
-import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import type { McpServer } from '@shared/data/types/mcpServer'
 import { act, render, waitFor } from '@testing-library/react'
 import { Globe2, Settings2 } from 'lucide-react'
 import { isValidElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 const mocks = vi.hoisted(() => ({
   agent: undefined as { mcps?: string[] } | undefined,
@@ -104,11 +105,10 @@ const translations: Record<string, string> = {
 
 const t = ((key: string, fallback?: string) => translations[key] ?? fallback ?? key) as any
 
-const server = (overrides: Partial<McpServer> & Pick<McpServer, 'id' | 'name' | 'isActive'>): McpServer =>
-  ({
-    type: 'stdio',
-    ...overrides
-  }) as McpServer
+const server = (overrides: Partial<McpServer> & Pick<McpServer, 'id' | 'name' | 'isActive'>): McpServer => ({
+  type: 'stdio',
+  ...overrides
+})
 
 const status = (state: McpRuntimeStatus['state']): McpRuntimeStatus => ({
   state,
@@ -453,9 +453,7 @@ describe('mcpStatusTool', () => {
 
   it('shows saving state and ignores rapid repeated binding toggles', async () => {
     let resolveUpdate: (value: unknown) => void = () => undefined
-    mocks.updateAssistant.mockImplementationOnce(
-      () => new Promise((resolve) => (resolveUpdate = resolve as (value: unknown) => void))
-    )
+    mocks.updateAssistant.mockImplementationOnce(() => new Promise((resolve) => (resolveUpdate = resolve)))
     mocks.mcpServers = [server({ id: 'filesystem', name: 'filesystem', isActive: true })]
     const assistant = {
       id: 'assistant-1',

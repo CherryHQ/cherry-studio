@@ -1,7 +1,8 @@
-import { Skeleton } from '@cherrystudio/ui'
-import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { lazy, type ReactNode, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Skeleton } from '@cherrystudio/ui'
+import type { Topic as RendererTopic } from '@renderer/types/topic'
 
 import type { HistoryRecordsMode } from './historyRecordsTypes'
 

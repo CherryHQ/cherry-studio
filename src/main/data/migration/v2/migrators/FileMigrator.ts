@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { inArray, sql } from 'drizzle-orm'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -11,7 +13,6 @@ import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } fr
 import { FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { SafeExtSchema } from '@shared/types/file'
-import { inArray, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -443,7 +444,10 @@ export class FileMigrator extends BaseMigrator {
     const errors: ValidationError[] = []
 
     try {
-      const result = ctx.db.select({ count: sql<number>`count(*)` }).from(fileEntryTable).get()
+      const result = ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(fileEntryTable)
+        .get()
       const targetCount = result?.count ?? 0
       const expectedCount = this.preparedEntries.length
 

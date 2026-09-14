@@ -1,3 +1,6 @@
+import { and, asc, count, desc, eq, gte, inArray, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
@@ -35,8 +38,6 @@ import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { and, asc, count, desc, eq, gte, inArray, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
 

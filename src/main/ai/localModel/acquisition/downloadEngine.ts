@@ -4,10 +4,11 @@ import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web'
 
+import { net } from 'electron'
+
 import { loggerService } from '@logger'
 import { atomicWriteFile, createPreparedAtomicWriteStream, ensureDir } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { net } from 'electron'
 
 const logger = loggerService.withContext('localModelDownloadEngine')
 

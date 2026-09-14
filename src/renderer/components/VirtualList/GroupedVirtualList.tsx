@@ -37,8 +37,12 @@ type BaseDynamicVirtualListProps<TGroup, TItem, THeader, TFooter> = Omit<
   'children' | 'estimateSize' | 'list'
 >
 
-export interface GroupedVirtualListProps<TGroup, TItem, THeader = TGroup, TFooter = unknown>
-  extends BaseDynamicVirtualListProps<TGroup, TItem, THeader, TFooter> {
+export interface GroupedVirtualListProps<
+  TGroup,
+  TItem,
+  THeader = TGroup,
+  TFooter = unknown
+> extends BaseDynamicVirtualListProps<TGroup, TItem, THeader, TFooter> {
   groups: readonly GroupedVirtualListGroup<TGroup, TItem, THeader, TFooter>[]
   renderGroupHeader?: (header: THeader, group: TGroup, groupIndex: number) => React.ReactNode
   renderItem: (

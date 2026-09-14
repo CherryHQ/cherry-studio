@@ -1,7 +1,8 @@
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 // `WebviewContainer` renders an Electron `<webview>` element which JSDOM can't
 // instantiate. Stub it with a div carrying the same `data-mini-app-id` so DOM
@@ -43,7 +44,7 @@ const stubApp = (id: string): MiniApp => ({
   appId: id,
   name: id,
   url: `https://${id}.example.com`,
-  presetMiniAppId: id as MiniApp['presetMiniAppId'],
+  presetMiniAppId: id,
   status: 'enabled',
   orderKey: 'a0'
 })
