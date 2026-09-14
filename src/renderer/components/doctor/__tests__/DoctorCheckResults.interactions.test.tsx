@@ -34,6 +34,7 @@ import { DoctorChecksPanel } from '../DoctorChecksPanel'
 type ControllerOverrides = {
   readonly cancelConfirmation?: DoctorController['cancelConfirmation']
   readonly confirmEvidence?: DoctorController['confirmEvidence']
+  readonly isInteracting?: DoctorController['isInteracting']
   readonly requestEvidence?: DoctorController['requestEvidence']
   readonly session?: Partial<DoctorController['session']>
   readonly viewModel?: Partial<DoctorController['viewModel']>
@@ -274,6 +275,32 @@ describe('DoctorCheckAccordionItems interactions', () => {
 
     expect(localEvidenceTrigger).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('••••••')).toBeVisible()
+  })
+
+  it('does not offer evidence confirmation while another Doctor operation is active', async () => {
+    const user = userEvent.setup()
+    const controller = createController({
+      isInteracting: true,
+      session: {
+        interaction: {
+          kind: 'fixing',
+          request: {
+            runId: 'run-1',
+            checkId: 'permission-screen-capture',
+            fixId: 'request'
+          }
+        }
+      }
+    })
+    render(
+      <Accordion type="single" collapsible defaultValue="doctor-runtime-claude-login">
+        <DoctorCheckAccordionItems controller={controller} />
+      </Accordion>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.evidence.local_details' }))
+
+    expect(screen.getByRole('button', { name: 'settings.doctor.actions.show_details' })).toBeDisabled()
   })
 
   it('masks a previous run evidence grant when a replacement report arrives', () => {

@@ -244,6 +244,7 @@ function DoctorCheckEvidence({
                     <Button
                       variant="link"
                       className="mt-2 h-auto px-0 py-0 text-xs"
+                      disabled={controller.isInteracting}
                       onClick={() => controller.requestEvidence(row.id)}>
                       {t('settings.doctor.actions.show_details')}
                     </Button>

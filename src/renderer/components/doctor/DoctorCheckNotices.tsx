@@ -50,14 +50,18 @@ export function DoctorCheckNotices({ controller }: { readonly controller: Doctor
               : 'settings.doctor.empty.description'
           )}
           action={
-            viewModel.status === 'canceled' ? (
+            viewModel.status === 'canceled' || viewModel.status === 'idle' ? (
               <Button
                 variant="outline"
                 size="sm"
                 disabled={controller.isInteracting}
                 onClick={() => void controller.run('quick')}>
                 <RotateCcw className="size-4" aria-hidden />
-                {t('settings.doctor.actions.rerun')}
+                {t(
+                  viewModel.status === 'canceled'
+                    ? 'settings.doctor.actions.rerun'
+                    : 'settings.doctor.actions.run_basic'
+                )}
               </Button>
             ) : undefined
           }

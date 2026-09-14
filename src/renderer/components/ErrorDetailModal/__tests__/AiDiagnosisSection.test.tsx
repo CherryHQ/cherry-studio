@@ -87,9 +87,12 @@ describe('AiDiagnosisSection', () => {
     }
     const { rerender } = renderAiDiagnosis({ ...props, status: 'loading' })
 
+    const loadingTrigger = screen.getByRole('button', { name: /AI 诊断.*正在诊断/ })
     const status = screen.getByRole('status')
     expect(status).toHaveTextContent('正在诊断')
     expect(status.textContent).toBe('正在诊断')
+    expect(loadingTrigger).not.toContainElement(status)
+    expect(screen.getByRole('alert')).toBeEmptyDOMElement()
 
     rerender(
       <Accordion type="single" collapsible defaultValue="ai-diagnosis">
@@ -97,9 +100,12 @@ describe('AiDiagnosisSection', () => {
       </Accordion>
     )
 
+    const errorTrigger = screen.getByRole('button', { name: /AI 诊断.*无法检查/ })
     const alert = screen.getByRole('alert')
     expect(alert.textContent).toBe('无法检查')
     expect(alert).not.toHaveAttribute('aria-live', 'polite')
+    expect(errorTrigger).not.toContainElement(alert)
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
   })
 
   it('delegates diagnosis persistence to the injected capability', async () => {

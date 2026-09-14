@@ -118,7 +118,7 @@ vi.mock('@data/hooks/useCache', () => ({
 }))
 
 vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ warn: vi.fn() }) }
+  loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn() }) }
 }))
 
 vi.mock('@renderer/hooks/useAppUpdateState', () => ({
@@ -465,6 +465,19 @@ describe('ErrorDetailContent diagnostics', () => {
 
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
+  })
+
+  it('offers an in-place retry when the initial Doctor request fails', async () => {
+    const user = userEvent.setup()
+    mocks.request.mockRejectedValueOnce(new Error('Doctor unavailable')).mockResolvedValueOnce({ status: 'completed' })
+    renderErrorDetailContent({ error: providerError })
+
+    const retry = await screen.findByRole('button', { name: 'Quick basic checks' })
+    await waitFor(() => expect(retry).toBeEnabled())
+
+    await user.click(retry)
+
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(2)
   })
 
   it('starts Doctor diagnostics immediately but waits for an explicit AI diagnosis request', async () => {
