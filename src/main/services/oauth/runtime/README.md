@@ -114,7 +114,7 @@ worth doing until a real second consumer appears (YAGNI):
 
 CherryIN uses `http://127.0.0.1:29873/oauth/callback`. Register this exact URI in
 Hydra before releasing the client. The listener must bind before the browser opens.
-`oauth.sign_in` returns provisioned API keys only to the initiating window after
+`cherryin.sign_in` returns provisioned API keys only to the initiating window after
 token storage; access and refresh tokens remain in the main process. Other
 windows may observe completion through `oauth.sign_in.attach`, which returns only
 the account id. Cancellation requires a request registered by the calling window.

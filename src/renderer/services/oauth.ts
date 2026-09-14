@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import i18n, { getLanguageCode } from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 const logger = loggerService.withContext('oauth')
 
@@ -194,8 +193,7 @@ export const oauthWithCherryIn = async (
   setKey: (key: string) => void | Promise<void>,
   config: NewApiOAuthConfig
 ): Promise<string> => {
-  const result = await ipcApi.request('oauth.sign_in', {
-    providerId: SystemProviderIds.cherryin,
+  const result = await ipcApi.request('cherryin.sign_in', {
     requestId: crypto.randomUUID(),
     oauthServer: config.oauthServer,
     apiHost: config.apiHost

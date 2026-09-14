@@ -1,9 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, authorizeTokenDanceApiKeyMock } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
-  authorizeTokenDanceApiKeyMock: vi.fn(() => Promise.resolve('td-key'))
-}))
+const { appGetMock, authorizeTokenDanceApiKeyMock, windowManager, windowMock } = vi.hoisted(() => {
+  const windowMock = {
+    isDestroyed: vi.fn(() => false),
+    isMinimized: vi.fn(() => false),
+    restore: vi.fn(),
+    show: vi.fn(),
+    focus: vi.fn()
+  }
+  return {
+    appGetMock: vi.fn(),
+    authorizeTokenDanceApiKeyMock: vi.fn(() => Promise.resolve('td-key')),
+    windowManager: { getWindow: vi.fn(() => windowMock) },
+    windowMock
+  }
+})
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@main/services/tokenDanceOAuth', () => ({ authorizeTokenDanceApiKey: authorizeTokenDanceApiKeyMock }))
 
@@ -14,8 +25,9 @@ import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 import { oauthHandlers } from '../oauth'
 
 const runtimeService = {
-  signIn: vi.fn((_senderId: string | null, providerId: string) =>
-    Promise.resolve({ accountId: `${providerId}-account` })
+  signIn: vi.fn(
+    (_senderId: string | null, providerId: string): Promise<{ accountId: string | null; apiKeys?: string }> =>
+      Promise.resolve({ accountId: `${providerId}-account` })
   ),
   joinActiveSignIn: vi.fn(() => Promise.resolve({ status: 'completed', account: { accountId: 'acc-1' } })),
   cancelSignIn: vi.fn(() => Promise.resolve()),
@@ -30,7 +42,13 @@ const codeCliService = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  appGetMock.mockImplementation((name: string) => (name === 'CodeCliService' ? codeCliService : runtimeService))
+  windowMock.isDestroyed.mockReturnValue(false)
+  windowMock.isMinimized.mockReturnValue(false)
+  appGetMock.mockImplementation((name: string) => {
+    if (name === 'CodeCliService') return codeCliService
+    if (name === 'WindowManager') return windowManager
+    return runtimeService
+  })
 })
 
 const ctx = { senderId: 'w1' as const }
@@ -38,15 +56,17 @@ const provider = { providerId: 'codex' }
 const signInObservation = { providerId: 'codex', requestId: 'request-1' }
 
 describe('oauthHandlers', () => {
-  it('dispatches sign_in to OAuthRuntimeService with the provider and request ids', async () => {
+  it('returns the account and restores the initiating window after sign-in', async () => {
+    windowMock.isMinimized.mockReturnValue(true)
+    runtimeService.signIn.mockResolvedValueOnce({ accountId: 'codex-account', apiKeys: 'must-not-cross' })
+
     await expect(oauthHandlers['oauth.sign_in'](signInObservation, ctx)).resolves.toEqual({
       accountId: 'codex-account'
     })
-    expect(appGetMock).toHaveBeenCalledWith('OAuthRuntimeService')
-    expect(runtimeService.signIn).toHaveBeenCalledWith('w1', 'codex', 'request-1', {
-      oauthServer: undefined,
-      apiHost: undefined
-    })
+    expect(runtimeService.signIn).toHaveBeenCalledWith('w1', 'codex', 'request-1', {})
+    expect(windowMock.restore).toHaveBeenCalledOnce()
+    expect(windowMock.show).toHaveBeenCalledOnce()
+    expect(windowMock.focus).toHaveBeenCalledOnce()
   })
 
   it('maps sign_in cancellation to a stable IPC error', async () => {

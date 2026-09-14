@@ -96,6 +96,20 @@ describe('LoopbackCallbackTransport', () => {
     }
   })
 
+  it('settles readiness when cancelled before the callback server starts listening', async () => {
+    const controller = new AbortController()
+    expect(transport.tryAcquire()).toBe(true)
+    const code = transport.waitForAuthorizationCode('expected', controller.signal)
+    const codeRejection = expect(code).rejects.toThrow(/timed out/)
+
+    controller.abort()
+
+    await expect(transport.ready).rejects.toThrow(/closed before it started listening/)
+    await codeRejection
+    expect(transport.isActive).toBe(false)
+    expect(transport.tryAcquire()).toBe(true)
+  })
+
   it('rejects when the provider returns an error', async () => {
     const promise = transport.waitForAuthorizationCode('expected', AbortSignal.timeout(5000))
     const port = await activePort(transport)

@@ -3,10 +3,10 @@ import * as z from 'zod'
 import { defineRoute } from '../define'
 
 /**
- * CherryIN IPC schemas — the CherryIN-only balance/logout operations.
+ * CherryIN IPC schemas — provider-specific sign-in, balance and logout operations.
  *
- * The OAuth flow itself is provider-generic and lives on the `oauth.*` surface
- * (`oauth.sign_in`); only CherryIN-specific account operations stay here.
+ * The OAuth engine is shared with Codex and Grok, while the renderer-facing
+ * contract stays here because CherryIN supplies hosts and receives API keys.
  */
 
 /** The CherryIN account profile, or null when the profile endpoint has nothing. */
@@ -29,6 +29,10 @@ export type CherryInBalance = z.infer<typeof cherryInBalanceSchema>
 const apiHostInput = z.object({ apiHost: z.string() })
 
 export const cherryinRequestSchemas = {
+  'cherryin.sign_in': defineRoute({
+    input: z.object({ requestId: z.string().min(1), oauthServer: z.string(), apiHost: z.string().optional() }),
+    output: z.object({ apiKeys: z.string().min(1) })
+  }),
   'cherryin.get_balance': defineRoute({ input: apiHostInput, output: cherryInBalanceSchema }),
   'cherryin.logout': defineRoute({ input: apiHostInput, output: z.void() })
 }
