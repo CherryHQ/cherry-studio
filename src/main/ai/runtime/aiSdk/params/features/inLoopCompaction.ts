@@ -143,12 +143,17 @@ export const inLoopCompactionFeature: RequestFeature = {
     if (!topicId) return false
     if (isAgentSessionTopic(topicId)) return false
     if (temporaryChatService.hasTopic(topicId)) return false
-    return Boolean(scope.contextSettings.enabled && scope.contextSettings.compress.enabled && scope.compressionModel)
+    return Boolean(scope.contextSettings.enabled && scope.contextSettings.compress.enabled)
   },
   contributeHooks: (scope) => {
     const compressor = scope.compressionModel
-    // `applies()` already guards compressionModel; this narrows the type.
-    if (!compressor) return {}
+    if (!compressor) {
+      scope.compactionSink?.(`compression-model:${scope.request.conversation.id}`, {
+        status: 'failed',
+        phase: 'turn-start'
+      })
+      return {}
+    }
     const model = compressor.languageModel
     // A budget against a known window is the whole point of compaction, but
     // `contextWindow` is optional on `Model` (custom / v1-imported / CherryAI

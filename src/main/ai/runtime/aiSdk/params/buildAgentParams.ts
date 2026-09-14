@@ -147,8 +147,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(
     model,
     request.conversation,
-    assistant?.settings.contextSettings,
-    compactionSink
+    assistant?.settings.contextSettings
   )
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
   // A marker minted on the last permitted tool step can never be read back —

@@ -35,7 +35,7 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
-import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
+import type { ModelMessage, UIMessage } from 'ai'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
@@ -65,21 +65,6 @@ import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerCon
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 const logger = loggerService.withContext('PersistentChatContextProvider')
-
-/**
- * Adapt a turn subscriber into a {@link CompactionSink}.
- *
- * Turn-start compaction is a full summarize round-trip that runs BEFORE the
- * model stream opens, so without this the UI sits on an idle placeholder for
- * however long the summarizer takes. The subscriber is already live here (it is
- * `prepareDispatch`'s first argument), so the anchor part can stream ahead of
- * the assistant's own content. Both writes share one id, so the `done` event
- * replaces the spinner rather than appending a second anchor.
- */
-function toCompactionSink(subscriber: StreamListener): CompactionSink {
-  return (anchorId, data) =>
-    subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk)
-}
 
 /** Media cost table for the turn. Unreachable provider row → the openai table. */
 function resolveRowDialect(model: Model | undefined): TokenDialect {
@@ -465,13 +450,16 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: history,
+        retainedContext,
+        compactionAnchors
+      } = await this.resolveCompactedHistory(
         userMessage.id,
         req.topicId,
         assistantPlaceholders.map((p) => p.model),
         assistantId,
-        contextSettingsOverride,
-        toCompactionSink(subscriber)
+        contextSettingsOverride
       )
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
@@ -504,6 +492,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return {
         topicId: req.topicId,
         models: models_,
+        compactionAnchors,
         listeners,
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
@@ -558,14 +547,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const [{ span: rootSpan }] = turnRootSpans
 
     try {
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
-        parent.id,
-        req.topicId,
-        [model],
-        assistantId,
-        contextSettingsOverride,
-        toCompactionSink(subscriber)
-      )
+      const {
+        messages: history,
+        retainedContext,
+        compactionAnchors
+      } = await this.resolveCompactedHistory(parent.id, req.topicId, [model], assistantId, contextSettingsOverride)
       const request = this.buildStreamRequest(
         req.topicId,
         assistantId,
@@ -619,6 +605,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return {
         topicId: req.topicId,
         models: [{ modelId: model.id, request, seedFromEmpty: true, rootSpan }],
+        compactionAnchors,
         listeners,
         reservedMessages: [toReservedUIMessage(resetMessage)],
         siblingsGroupId: target.siblingsGroupId || undefined,
@@ -704,16 +691,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
-        anchor.id,
-        req.topicId,
-        [model],
-        assistantId,
-        contextSettingsOverride,
-        toCompactionSink(subscriber)
-      )
+      const {
+        messages: history,
+        retainedContext,
+        compactionAnchors
+      } = await this.resolveCompactedHistory(anchor.id, req.topicId, [model], assistantId, contextSettingsOverride)
       return {
         topicId: req.topicId,
+        compactionAnchors,
         models: [
           {
             modelId: model.id,
@@ -805,17 +790,21 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const { messages: compactedHistory, retainedContext } = await this.resolveCompactedHistory(
+      const {
+        messages: compactedHistory,
+        retainedContext,
+        compactionAnchors
+      } = await this.resolveCompactedHistory(
         req.userMessageId,
         req.topicId,
         [model],
         assistantId,
-        contextSettingsOverride,
-        toCompactionSink(subscriber)
+        contextSettingsOverride
       )
       const history = withSteerReminder(compactedHistory)
       return {
         topicId: req.topicId,
+        compactionAnchors,
         models: [
           {
             modelId: model.id,
@@ -899,10 +888,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     topicId: string,
     models: Model[],
     assistantId: string | undefined,
-    assistantContextOverride?: ContextSettingsOverride | null,
-    /** Reports the turn-start fold to the UI; absent when there is no subscriber. */
-    compactionSink?: CompactionSink
-  ): Promise<{ messages: CherryUIMessage[]; retainedContext: RetainedContext }> {
+    assistantContextOverride?: ContextSettingsOverride | null
+  ): Promise<{
+    messages: CherryUIMessage[]
+    retainedContext: RetainedContext
+    compactionAnchors: Array<{ id: string; data: CompactionAnchorData }>
+  }> {
+    const compactionAnchors: Array<{ id: string; data: CompactionAnchorData }> = []
+    const compactionSink: CompactionSink = (id, data) => {
+      const at = compactionAnchors.findIndex((anchor) => anchor.id === id)
+      if (at >= 0) compactionAnchors[at] = { id, data }
+      else compactionAnchors.push({ id, data })
+    }
     // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
     // getPathToNode is synchronous (better-sqlite3, main #16626) — no await.
     const messagePath = messageService.getPathToNode(anchorMessageId)
@@ -943,18 +940,28 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(
       models[0],
       { id: topicId, topicId },
-      assistantContextOverride,
-      compactionSink
+      assistantContextOverride
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
-    const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
+    const serve = (rows_: typeof effective) => ({
+      messages: rows_.map((r) => this.toServed(r)),
+      retainedContext,
+      compactionAnchors
+    })
     // NOT gated on `contextSettings.enabled`: that switch owns the overflow
     // policy, while this decides how much history is sent at all.
     if (contextSettings.maxMessages != null) {
       // RAW rows, no compaction state: a summary covers everything up to its
       // boundary, so serving one would carry pre-window content back in.
       const windowed = applyMaxMessagesWindow(rows, contextSettings.maxMessages)
-      return { messages: windowed.map((r) => this.toServed(r)), retainedContext: retainedForWindow(windowed) }
+      return {
+        messages: windowed.map((r) => this.toServed(r)),
+        retainedContext: retainedForWindow(windowed),
+        compactionAnchors
+      }
+    }
+    if (contextSettings.enabled && contextSettings.compress.enabled && !compressionModel) {
+      compactionSink(`compression-model:${topicId}`, { status: 'failed', phase: 'turn-start' })
     }
     if (!on) return serve(effective)
     if (!compressionModel) return serve(effective)

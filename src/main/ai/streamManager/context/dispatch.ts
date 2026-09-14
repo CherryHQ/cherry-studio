@@ -193,7 +193,10 @@ export async function dispatchStreamRequest(
 
   const result = manager.send({
     topicId: prepared.topicId,
-    models: prepared.models,
+    models: prepared.models.map((model) => ({
+      ...model,
+      request: { ...model.request, turnStartCompactionAnchors: prepared.compactionAnchors }
+    })),
     listeners: prepared.listeners,
     siblingsGroupId: prepared.siblingsGroupId,
     liveExecutionChange,

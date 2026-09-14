@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApprovalRequestedEvent } from '../../types'
 import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
+import { WebContentsListener } from '../listeners/WebContentsListener'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -1753,6 +1754,63 @@ describe('AiStreamManager', () => {
   // ── grace period ────────────────────────────────────────────────
 
   describe('grace period', () => {
+    it('delivers turn-start failures with each execution identity and retains them for replay and persistence', async () => {
+      vi.useRealTimers()
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const listener = new WebContentsListener(sender as unknown as Electron.WebContents, 'a')
+      const persistence = new FakeListener('persistence:a', 'persistence')
+      const streams = [controlledStream(), controlledStream()]
+      for (const stream of streams) mockStreamText.mockResolvedValueOnce(stream.stream)
+      const anchor = { id: 'fold-1', data: { status: 'failed' as const, phase: 'turn-start' as const } }
+      const result = mgr.send({
+        topicId: 'a',
+        models: (['provider-a::model-a', 'provider-b::model-b'] as const).map((modelId, index) => ({
+          modelId,
+          request: { ...req('a'), messageId: `reply-${index}`, turnStartCompactionAnchors: [anchor] }
+        })),
+        listeners: [listener, persistence]
+      })
+      await flushMicrotasksUntil(() => sender.send.mock.calls.length >= 2)
+
+      const chunk = { type: 'data-compaction-anchor', ...anchor }
+      const delivered = sender.send.mock.calls.filter((call) => call[1] === 'ai.stream.chunk').map((call) => call[2])
+      expect(delivered).toEqual(result.activeExecutions.map((identity) => ({ topicId: 'a', ...identity, chunk })))
+      const replay = mgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(replay.status).toBe('attached')
+      if (replay.status !== 'attached') throw new Error('Expected live replay')
+      for (const identity of result.activeExecutions) {
+        expect(replay.bufferedChunks).toContainEqual(
+          expect.objectContaining({
+            executionId: identity.executionId,
+            attemptId: identity.attemptId,
+            chunk
+          })
+        )
+      }
+
+      streams.forEach((stream, index) => {
+        stream.enqueue({ type: 'start', messageId: `reply-${index}` })
+        stream.enqueue({ type: 'text-start', id: 'text' })
+        stream.enqueue({ type: 'text-delta', id: 'text', delta: 'Still answering' })
+        stream.enqueue({ type: 'text-end', id: 'text' })
+        stream.enqueue({ type: 'finish' })
+        stream.close()
+      })
+      await vi.waitFor(() => expect(persistence.doneResults).toHaveLength(2))
+      for (const done of persistence.doneResults) {
+        expect(done.finalMessage?.parts).toContainEqual(chunk)
+        expect(done.finalMessage?.parts).toContainEqual(
+          expect.objectContaining({ type: 'text', text: 'Still answering' })
+        )
+      }
+      const settled = mgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(settled.status).toBe('done')
+      if (settled.status !== 'done') throw new Error('Expected settled replay')
+      for (const identity of result.activeExecutions) {
+        expect(settled.finalMessages?.[identity.executionId]?.parts).toContainEqual(chunk)
+      }
+    })
+
     it('attach returns compact replay chunks', () => {
       startSingle(mgr, {
         topicId: 'a',

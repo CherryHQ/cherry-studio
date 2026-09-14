@@ -703,10 +703,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(opts.maxOutputTokens + opts.maxInputTokens).toBeLessThan(8_000)
   })
 
-  // Turn-start compaction runs BEFORE the model stream opens, so without a
-  // progress event the turn looks stalled for the whole summarize round-trip.
-  // It must also settle on every exit, or the spinner outlives the work.
-  it('2h. brackets the turn-start fold with compacting → done anchor chunks', async () => {
+  it('2h. hands a settled fold to the manager without sending unidentified chunks', async () => {
     const BIG = 'token '.repeat(700)
     mockGetPathToNode.mockReturnValue([
       fakeMsg('u1', 'user', BIG),
@@ -718,13 +715,13 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     compressionOn()
 
     const { prepared } = await makeHistory('u3')
-    void prepared
-    const anchors = capturedChunks.filter((c) => c.type === 'data-compaction-anchor')
-    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'done'])
-    // One fold → one id, so the done event REPLACES the spinner rather than
-    // stacking two anchors. (Separate folds get separate ids — see the in-loop suite.)
-    expect(new Set(anchors.map((c) => c.id)).size).toBe(1)
-    expect(anchors.every((c) => c.data.phase === 'turn-start')).toBe(true)
+    expect(capturedChunks).toEqual([])
+    expect(prepared.compactionAnchors).toEqual([
+      {
+        id: expect.any(String),
+        data: expect.objectContaining({ status: 'done', phase: 'turn-start' })
+      }
+    ])
   })
 
   const fiveBigTurns = () => {
@@ -743,9 +740,9 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     compressionOn()
     mockSummarizeModelMessages.mockResolvedValueOnce('')
 
-    await makeHistory('u3')
-    const anchors = capturedChunks.filter((c) => c.type === 'data-compaction-anchor')
-    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'skipped'])
+    const { prepared, messages } = await makeHistory('u3')
+    expect(prepared.compactionAnchors?.map((anchor) => anchor.data.status)).toEqual(['skipped'])
+    expect(messages.map((message) => message.id)).toEqual(['u1', 'a1', 'u2', 'a2', 'u3'])
   })
 
   it('2i2. settles the anchor as failed when the summarizer throws', async () => {
@@ -753,10 +750,14 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     compressionOn()
     mockSummarizeModelMessages.mockRejectedValueOnce(new Error('summarizer failed'))
 
-    const { messages } = await makeHistory('u3')
-    const anchors = capturedChunks.filter((c) => c.type === 'data-compaction-anchor')
-    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'failed'])
-    expect(anchors[0].id).toBe(anchors[1].id)
+    const { messages, prepared } = await makeHistory('u3')
+    expect(capturedChunks).toEqual([])
+    expect(prepared.compactionAnchors).toEqual([
+      {
+        id: expect.any(String),
+        data: expect.objectContaining({ status: 'failed', phase: 'turn-start' })
+      }
+    ])
     expect(messages.map((message) => message.id)).toEqual(['u1', 'a1', 'u2', 'a2', 'u3'])
     expect(mockSetCompactionSummary).not.toHaveBeenCalled()
   })

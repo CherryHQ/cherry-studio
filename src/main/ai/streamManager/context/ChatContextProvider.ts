@@ -6,6 +6,7 @@
  */
 
 import type { Span } from '@opentelemetry/api'
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -38,6 +39,8 @@ export interface PreparedDispatch {
     abortController?: AbortController
   }>
   listeners: StreamListener[]
+  /** Settled preparation results, published only after execution identity is assigned. */
+  compactionAnchors?: Array<{ id: string; data: CompactionAnchorData }>
   /**
    * Set only by the persistent provider's live-submit (steer) branch: the id of the steer user row to
    * enqueue. Its presence is the explicit signal that this dispatch is enqueue-only — the dispatcher

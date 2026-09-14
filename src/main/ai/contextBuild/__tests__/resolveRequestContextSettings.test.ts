@@ -1,4 +1,3 @@
-import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { MockLanguageModelV3 } from 'ai/test'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,13 +59,12 @@ describe('resolveRequestContextSettings — compression-model assembly', () => {
     expect(compressionModel?.languageModel.modelId).toBe('openai::gpt-4o')
   })
 
-  it('reports an unavailable compressor without failing the chat request', async () => {
+  it('returns an unavailable compressor without failing the chat request', async () => {
     setPrefs({ modelId: 'ollama::qwen3-embedding-0.6b' })
     mockResolveCompressionModel.mockResolvedValueOnce(null)
-    const events: CompactionAnchorData[] = []
-    const result = await resolveRequestContextSettings(model, CONVERSATION, undefined, (_id, data) => events.push(data))
+    const result = await resolveRequestContextSettings(model, CONVERSATION)
     expect(result.compressionModel).toBeNull()
-    expect(events).toEqual([{ status: 'failed', phase: 'turn-start' }])
+    expect(result.contextSettings.compress.enabled).toBe(true)
   })
 
   it('uses an explicit compress.model_id when set', async () => {
