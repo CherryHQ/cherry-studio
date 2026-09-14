@@ -5,6 +5,7 @@ import { ipcApi } from '@renderer/ipc'
 import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { onAbort } from '@shared/utils/async'
 
 import { streamDispatchService } from './StreamDispatchService'
 
@@ -59,7 +60,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             ...(mergedBody.fastMode ? { fastMode: true } : {})
           }
 
-    streamDispatchService.dispatch(topicId, ipcRequest)
+    if (!abortSignal?.aborted) streamDispatchService.dispatch(topicId, ipcRequest)
 
     return Promise.resolve(stream)
   }
@@ -205,15 +206,15 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             return
           }
 
-          const onAbort = () => {
-            logger.info('Stream abort requested', { topicId })
-            ipcApi
-              .request('ai.stream.abort', { topicId })
-              .catch((e) => logger.warn('streamAbort failed', { topicId, e }))
-            closeStream()
-          }
-          abortSignal.addEventListener('abort', onAbort, { once: true })
-          unsubscribers.push(() => abortSignal.removeEventListener('abort', onAbort))
+          unsubscribers.push(
+            onAbort(abortSignal, () => {
+              logger.info('Stream abort requested', { topicId })
+              ipcApi
+                .request('ai.stream.abort', { topicId })
+                .catch((e) => logger.warn('streamAbort failed', { topicId, e }))
+              closeStream()
+            })
+          )
         }
       },
       cancel() {

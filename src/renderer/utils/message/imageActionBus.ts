@@ -33,17 +33,14 @@ export function createImageActionBus<TTarget, TTargetKey extends string, TReques
     target: TTarget,
     options?: TRequestOptions
   ): ImageActionRequest<TTarget, TTargetKey> {
-    let settlement: ImageActionSettlement | undefined
-    const promise = new Promise<void>((resolve, reject) => {
-      settlement = { resolve, reject }
-    })
+    const { promise, resolve, reject } = Promise.withResolvers<void>()
     const request = {
       id: nextRequestId++,
       promise,
       type,
       [targetKey]: target
     } as ImageActionRequest<TTarget, TTargetKey>
-    settlements.set(request.id, settlement as ImageActionSettlement)
+    settlements.set(request.id, { resolve, reject })
     pendingRequests.push(request)
     onRequest?.(type, target, options)
     return request

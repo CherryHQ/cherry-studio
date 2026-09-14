@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SearchOptions, SearchResult } from '@renderer/services/NotesSearchService'
 import { searchAllFiles } from '@renderer/services/NotesSearchService'
 import type { NotesTreeNode } from '@renderer/types/note'
+import { isAbortError } from '@shared/utils/async'
 
 export interface UseFullTextSearchOptions extends SearchOptions {
   debounceMs?: number
@@ -118,7 +119,7 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
         setResults(limitedResults)
         setStats(newStats)
       } catch (err) {
-        if (err instanceof Error && err.name !== 'AbortError') {
+        if (err instanceof Error && !isAbortError(err)) {
           setError(err)
         }
       } finally {

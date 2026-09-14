@@ -28,13 +28,14 @@
  * @see {@link DataApiService} Main process coordinator
  * @see {@link useDataApi} React hook for data requests
  */
-
 import { loggerService } from '@logger'
 import type { RequestContext } from '@shared/data/api/errors'
 import { DataApiError, DataApiErrorFactory, ErrorCode, toDataApiError } from '@shared/data/api/errors'
 import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/paths'
 import type { ApiClient, ConcreteApiPaths, DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
 import type { DataRequest, DataResponse, HttpMethod } from '@shared/data/api/types'
+import { withTimeout } from '@shared/utils/async'
+import { delay as sleep } from '@shared/utils/async'
 
 import { DataApiDevtools } from './utils/dataApiDevtools'
 
@@ -140,12 +141,9 @@ export class DataApiService implements ApiClient {
       logger.debug(`Making ${request.method} request to ${request.path}`, { request })
 
       // Direct IPC call with timeout
-      const response = await Promise.race([
-        window.api.dataApi.request(request),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(DataApiErrorFactory.timeout(request.path, 3000, requestContext)), 3000)
-        )
-      ])
+      const response = await withTimeout(window.api.dataApi.request(request), 3000, () =>
+        DataApiErrorFactory.timeout(request.path, 3000, requestContext)
+      )
 
       if (response.error) {
         // Reconstruct DataApiError from serialized response
@@ -201,7 +199,7 @@ export class DataApiService implements ApiClient {
         const delay =
           this.defaultRetryOptions.retryDelay * Math.pow(this.defaultRetryOptions.backoffMultiplier, retryCount)
 
-        await new Promise((resolve) => setTimeout(resolve, delay))
+        await sleep(delay)
 
         // Create new request with new ID for retry
         const retryRequest = { ...request, id: this.generateRequestId() }

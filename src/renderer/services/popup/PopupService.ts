@@ -102,10 +102,7 @@ class PopupService {
       return Promise.resolve(dismissResult)
     }
 
-    let resolveFn!: (result: R) => void
-    const promise = new Promise<R>((resolve) => {
-      resolveFn = resolve
-    })
+    const { promise, resolve: resolveFn } = Promise.withResolvers<R>()
 
     this.add({
       kind: 'component',
@@ -127,10 +124,8 @@ class PopupService {
     }
 
     const instanceId = this.generateInstanceId()
-    let resolveFn!: (result: boolean) => void
-    const promise = new Promise<boolean>((resolve) => {
-      resolveFn = resolve
-    })
+
+    const { promise, resolve: resolveFn } = Promise.withResolvers<boolean>()
 
     this.add({
       kind: 'confirm',

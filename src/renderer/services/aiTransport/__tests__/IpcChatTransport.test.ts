@@ -149,7 +149,8 @@ describe('IpcChatTransport', () => {
   }
 
   it('opens a ReadableStream and detaches it on consumer cancellation', async () => {
-    const stream = await transport.sendMessages(baseOptions)
+    const controller = new AbortController()
+    const stream = await transport.sendMessages({ ...baseOptions, abortSignal: controller.signal })
     expect(stream).toBeInstanceOf(ReadableStream)
     expect(mock.mockApi.streamOpen).toHaveBeenCalledOnce()
     expect(mock.mockApi.streamOpen).toHaveBeenCalledWith(
@@ -160,8 +161,10 @@ describe('IpcChatTransport', () => {
     )
 
     await stream.cancel()
+    controller.abort()
 
     expect(mock.mockApi.streamDetach).toHaveBeenCalledWith({ topicId })
+    expect(mock.mockApi.streamAbort).not.toHaveBeenCalled()
     expect(mock.listeners.chunk).toHaveLength(0)
     expect(mock.listeners.done).toHaveLength(0)
     expect(mock.listeners.error).toHaveLength(0)
@@ -258,7 +261,7 @@ describe('IpcChatTransport', () => {
     expect(chunks).toHaveLength(1)
   })
 
-  it('handles already-aborted signal', async () => {
+  it('does not dispatch when the supplied signal is already aborted', async () => {
     const abortController = new AbortController()
     abortController.abort()
 
@@ -271,10 +274,13 @@ describe('IpcChatTransport', () => {
     const { done } = await reader.read()
     expect(done).toBe(true)
     expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId })
+    expect(mock.mockApi.streamOpen).not.toHaveBeenCalled()
+    expect(mock.listeners).toEqual({ chunk: [], done: [], error: [] })
   })
 
   it('cleans up IPC listeners after done', async () => {
-    const stream = await transport.sendMessages(baseOptions)
+    const controller = new AbortController()
+    const stream = await transport.sendMessages({ ...baseOptions, abortSignal: controller.signal })
     const reader = stream.getReader()
 
     expect(mock.listeners.chunk).toHaveLength(1)
@@ -283,7 +289,9 @@ describe('IpcChatTransport', () => {
 
     mock.emitDone(topicId)
     await reader.read()
+    controller.abort()
 
+    expect(mock.mockApi.streamAbort).not.toHaveBeenCalled()
     expect(mock.listeners.chunk).toHaveLength(0)
     expect(mock.listeners.done).toHaveLength(0)
     expect(mock.listeners.error).toHaveLength(0)
