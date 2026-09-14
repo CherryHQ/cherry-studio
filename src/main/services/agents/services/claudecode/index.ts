@@ -34,6 +34,7 @@ import {
   GLOBALLY_DISALLOWED_TOOLS,
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/agents/claudecode/constants'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import { defaultAppHeaders, withoutTrailingApiVersion } from '@shared/utils'
 import { app } from 'electron'
@@ -225,6 +226,9 @@ class ClaudeCodeService implements AgentServiceInterface {
       ANTHROPIC_DEFAULT_SONNET_MODEL: sdkModelId,
       // TODO: support set small model in UI
       ANTHROPIC_DEFAULT_HAIKU_MODEL: sdkModelId,
+      API_TIMEOUT_MS: String(DEFAULT_TIMEOUT),
+      API_FORCE_IDLE_TIMEOUT: '0',
+      CLAUDE_STREAM_IDLE_TIMEOUT_MS: String(DEFAULT_TIMEOUT),
       ELECTRON_RUN_AS_NODE: '1',
       ELECTRON_NO_ATTACH_CONSOLE: '1',
       // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues

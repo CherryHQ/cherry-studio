@@ -209,4 +209,62 @@ describe('ClaudeCodeService runtime authorization wiring', () => {
     expect(session.allowed_tools).toEqual(['PowerShell', 'Bash'])
     expect(serviceMocks.updateSession).not.toHaveBeenCalled()
   })
+
+  it('uses extended idle timeout defaults for Claude Code sessions', async () => {
+    const { default: ClaudeCodeService } = await import('../index')
+    const service = new ClaudeCodeService()
+    const session = {
+      id: 'session-default-timeouts',
+      agent_id: 'agent-test',
+      agent_type: 'claude-code',
+      accessible_paths: ['/tmp/claude-tools-test'],
+      allowed_tools: [],
+      configuration: {},
+      instructions: '',
+      mcps: [],
+      model: 'anthropic:claude-test'
+    }
+
+    await service.invoke('hello', session as never, new AbortController())
+    await vi.waitFor(() => expect(serviceMocks.query).toHaveBeenCalledTimes(1))
+
+    expect(serviceMocks.query.mock.calls[0][0].options.env).toMatchObject({
+      API_TIMEOUT_MS: '1800000',
+      API_FORCE_IDLE_TIMEOUT: '0',
+      CLAUDE_STREAM_IDLE_TIMEOUT_MS: '1800000'
+    })
+  })
+
+  it('preserves explicit Claude Code timeout controls', async () => {
+    const { default: ClaudeCodeService } = await import('../index')
+    const service = new ClaudeCodeService()
+    const session = {
+      id: 'session-explicit-timeouts',
+      agent_id: 'agent-test',
+      agent_type: 'claude-code',
+      accessible_paths: ['/tmp/claude-tools-test'],
+      allowed_tools: [],
+      configuration: {
+        env_vars: {
+          API_TIMEOUT_MS: '3600000',
+          API_FORCE_IDLE_TIMEOUT: '1',
+          CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000',
+          CLAUDE_BYTE_STREAM_IDLE_TIMEOUT_MS: '600000'
+        }
+      },
+      instructions: '',
+      mcps: [],
+      model: 'anthropic:claude-test'
+    }
+
+    await service.invoke('hello', session as never, new AbortController())
+    await vi.waitFor(() => expect(serviceMocks.query).toHaveBeenCalledTimes(1))
+
+    expect(serviceMocks.query.mock.calls[0][0].options.env).toMatchObject({
+      API_TIMEOUT_MS: '3600000',
+      API_FORCE_IDLE_TIMEOUT: '1',
+      CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000',
+      CLAUDE_BYTE_STREAM_IDLE_TIMEOUT_MS: '600000'
+    })
+  })
 })
