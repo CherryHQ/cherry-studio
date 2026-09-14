@@ -2,7 +2,7 @@ import { defineProvider } from './types'
 
 export default defineProvider({
   id: 'api-route',
-  name: 'API-Route',
+  name: 'API Route',
   availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {

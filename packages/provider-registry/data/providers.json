@@ -752,7 +752,7 @@
     {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "API-Route - AI model provider",
+      "description": "API Route - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
@@ -771,7 +771,7 @@
           "official": "https://www.api-route.com"
         }
       },
-      "name": "API-Route"
+      "name": "API Route"
     },
     {
       "availableInEditions": ["global", "cn"],
