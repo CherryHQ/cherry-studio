@@ -1,3 +1,5 @@
+import { isEqual } from 'es-toolkit/compat'
+
 import { preferenceService } from '@renderer/data/PreferenceService'
 import {
   addSidebarShortcut,
@@ -7,7 +9,6 @@ import {
   reorderSidebarShortcuts
 } from '@renderer/utils/sidebar'
 import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
-import { isEqual } from 'es-toolkit/compat'
 
 type SidebarPreferenceClient = Pick<typeof preferenceService, 'get' | 'set'>
 

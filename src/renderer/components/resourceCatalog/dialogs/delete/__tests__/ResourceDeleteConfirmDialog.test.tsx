@@ -1,8 +1,9 @@
-import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
 
 import { ResourceDeleteConfirmDialog } from '../ResourceDeleteConfirmDialog'
 

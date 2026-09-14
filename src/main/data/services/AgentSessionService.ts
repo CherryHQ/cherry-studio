@@ -1,5 +1,8 @@
 import { randomBytes } from 'node:crypto'
 
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
@@ -32,8 +35,6 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {

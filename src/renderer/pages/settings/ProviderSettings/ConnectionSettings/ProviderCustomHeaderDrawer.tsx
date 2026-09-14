@@ -1,3 +1,9 @@
+import { isEmpty, trim } from 'es-toolkit/compat'
+import { Braces, List, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { v4 as uuidv4 } from 'uuid'
+
 import {
   Badge,
   Button,
@@ -19,11 +25,6 @@ import { cn } from '@renderer/utils/style'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
-import { isEmpty, trim } from 'es-toolkit/compat'
-import { Braces, List, Plus, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { v4 as uuidv4 } from 'uuid'
 
 import { ProviderImageEndpointFields } from '../components/ProviderImageEndpointFields'
 import { useProviderModelSync } from '../hooks/useProviderModelSync'
@@ -425,7 +426,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 {isDefault ? (
                   <Badge
                     variant="secondary"
-                    className="h-5 border-0 px-1.5 py-0 font-normal text-foreground-tertiary text-xs">
+                    className="h-5 border-0 px-1.5 py-0 text-xs font-normal text-foreground-tertiary">
                     {t('settings.provider.create_custom.endpoint_fields.default_chat')}
                   </Badge>
                 ) : DEFAULT_CHAT_ENDPOINT_TYPES.has(type) && isConfiguredDefaultCandidate ? (
@@ -433,7 +434,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="before:-top-5 relative h-5 min-h-0 rounded-full px-2 text-xs transition-transform before:absolute before:inset-x-0 before:bottom-0 before:content-[''] active:scale-[0.96]"
+                    className="relative h-5 min-h-0 rounded-full px-2 text-xs transition-transform before:absolute before:inset-x-0 before:-top-5 before:bottom-0 before:content-[''] active:scale-[0.96]"
                     onClick={() => setDefaultChatEndpoint(type)}>
                     {t('settings.provider.create_custom.endpoint_fields.set_default_chat')}
                   </Button>
@@ -455,7 +456,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 />
               </InputGroup>
               {isDefault && (
-                <p className="wrap-break-word text-muted-foreground text-xs leading-relaxed">
+                <p className="text-xs leading-relaxed wrap-break-word text-muted-foreground">
                   {t('settings.provider.api_host_drawer_hint')}
                 </p>
               )}
@@ -496,7 +497,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
         <div className="space-y-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-muted-foreground text-xs">{t('settings.provider.copilot.custom_headers')}</span>
+            <span className="text-xs text-muted-foreground">{t('settings.provider.copilot.custom_headers')}</span>
             <Tooltip content={toggleLabel}>
               <button
                 type="button"
@@ -586,7 +587,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 placeholder={t('settings.provider.copilot.headers_json_placeholder')}
                 className={customHeaderDrawerClasses.headersJsonEditor}
               />
-              <p className="text-muted-foreground text-xs leading-relaxed">
+              <p className="text-xs leading-relaxed text-muted-foreground">
                 {t('settings.provider.copilot.headers_description')}
               </p>
             </div>

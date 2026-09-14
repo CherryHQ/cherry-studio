@@ -1,3 +1,7 @@
+import { isEqual } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { sidebarShortcutService } from '@renderer/services/SidebarShortcutService'
 import {
@@ -6,9 +10,6 @@ import {
   normalizeSidebarShortcutItems
 } from '@renderer/utils/sidebar'
 import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
-import { isEqual } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { toast } from '../services/toast'
 

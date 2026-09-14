@@ -1,6 +1,7 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { Document } from '@vectorstores/core'
 import { describe, expect, it } from 'vitest'
+
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { chunkKnowledgeDocuments } from '../chunk'
 

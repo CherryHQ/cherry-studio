@@ -1,3 +1,5 @@
+import { BotMessageSquare, Database, FileText, MessagesSquare, Package } from 'lucide-react'
+
 import { renderAgentEntityIcon, renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { CLI_TOOLS, CliIcon } from '@renderer/components/icons/CliIcon'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
@@ -16,7 +18,6 @@ import {
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import { CodeCli } from '@shared/types/codeCli'
-import { BotMessageSquare, Database, FileText, MessagesSquare, Package } from 'lucide-react'
 
 import { SIDEBAR_ICON_COMPONENTS } from '../sidebarIcons'
 import type { ResolvedShortcut, SidebarShortcutProvider } from './types'

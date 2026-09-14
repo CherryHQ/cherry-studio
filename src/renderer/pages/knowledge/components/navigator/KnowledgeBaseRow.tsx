@@ -1,12 +1,13 @@
+import { ArrowRightLeft, FolderPlus, PencilLine, Trash2 } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
-import { ArrowRightLeft, FolderPlus, PencilLine, Trash2 } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { KnowledgeBaseRowProps } from './types'
 
@@ -152,7 +153,7 @@ const KnowledgeBaseRow = ({
             variant="ghost"
             onClick={() => onSelectBase(base.id)}
             className="flex min-h-0 min-w-0 flex-1 items-center justify-start rounded-md p-0 text-left shadow-none hover:bg-transparent">
-            <div className="min-w-0 truncate font-normal text-foreground text-sm leading-5">{base.name}</div>
+            <div className="min-w-0 truncate text-sm leading-5 font-normal text-foreground">{base.name}</div>
           </Button>
           <KnowledgeRowActionsMenu items={contextMenuItems} />
         </div>

@@ -1,9 +1,10 @@
+import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { useTabs } from '@renderer/hooks/tab'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import type { SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
 import { createSidebarShortcutId } from '@shared/data/preference/preferenceTypes'
-import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { SidebarShortcutRegistry } from './registry'
 import type { SidebarActivationGateway, SidebarShortcutProvider, SidebarShortcutResolution } from './types'

@@ -1,25 +1,17 @@
+import { arrayMove } from '@dnd-kit/sortable'
+import { CircleOff, LoaderCircle, WifiOff } from 'lucide-react'
+import type { Ref } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { startTransition, useOptimistic } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
-import { arrayMove } from '@dnd-kit/sortable'
 import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { canRemoveSidebarShortcut } from '@renderer/utils/sidebar'
-import { CircleOff, LoaderCircle, WifiOff } from 'lucide-react'
-import type { Ref } from 'react'
-import {
-  lazy,
-  startTransition,
-  Suspense,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useOptimistic,
-  useState
-} from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import {
@@ -27,10 +19,10 @@ import {
   getSidebarLayout,
   normalizeSidebarWidth,
   type ResolvedSidebarEntry,
-  Sidebar as UISidebar,
   type SidebarIconPresentation,
   type SidebarUser,
   type SidebarVisibleLayout,
+  Sidebar as UISidebar,
   UserAvatar
 } from '../Sidebar'
 import UserPopup from '../UserPopup'

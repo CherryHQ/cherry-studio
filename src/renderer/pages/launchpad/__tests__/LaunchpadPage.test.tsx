@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -7,11 +11,7 @@ import {
   type SidebarShortcutItem,
   type SidebarShortcutTarget
 } from '@shared/data/preference/preferenceTypes'
-import type { MiniApp } from '@shared/data/types/miniApp'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SiteMiniApp } from '@shared/data/types/miniApp'
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -188,17 +188,17 @@ const shortcut = (providerId: string, resourceId: string): SidebarShortcutItem =
 }
 const appFavorite = (id: SidebarAppId) => shortcut('core.app', id)
 const miniAppFavorite = (id: string) => shortcut('core.mini-app', id)
-const createMiniApp = (appId: string, overrides: Partial<MiniApp> = {}): MiniApp =>
-  ({
-    appId,
-    name: `${appId[0].toUpperCase()}${appId.slice(1)}`,
-    logo: `${appId}-logo`,
-    url: `https://${appId}.example.com`,
-    presetMiniAppId: appId,
-    status: 'pinned',
-    orderKey: '',
-    ...overrides
-  }) as MiniApp
+const createMiniApp = (appId: string, overrides: Partial<SiteMiniApp> = {}): SiteMiniApp => ({
+  appId,
+  kind: 'site',
+  name: `${appId[0].toUpperCase()}${appId.slice(1)}`,
+  logo: `${appId}-logo`,
+  url: `https://${appId}.example.com`,
+  presetMiniAppId: appId,
+  status: 'pinned',
+  orderKey: '',
+  ...overrides
+})
 
 afterEach(() => {
   cleanup()

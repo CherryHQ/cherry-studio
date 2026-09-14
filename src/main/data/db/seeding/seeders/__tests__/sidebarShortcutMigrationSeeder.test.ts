@@ -1,3 +1,7 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { and, eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { miniAppTable } from '@data/db/schemas/miniApp'
@@ -5,9 +9,6 @@ import { preferenceTable } from '@data/db/schemas/preference'
 import { SidebarShortcutMigrationSeeder } from '@data/db/seeding/seeders/sidebarShortcutMigrationSeeder'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { setupTestDatabase } from '@test-helpers/db'
-import { and, eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
 
 describe('SidebarShortcutMigrationSeeder', () => {
   const dbh = setupTestDatabase()

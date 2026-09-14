@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest'
+
 import {
   ENDPOINT_TYPE,
   type EndpointType,
@@ -6,7 +8,6 @@ import {
   MODEL_CAPABILITY,
   type ModelCapability
 } from '@shared/data/types/model'
-import { describe, expect, it } from 'vitest'
 
 import {
   applyModelPurpose,

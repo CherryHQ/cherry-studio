@@ -1,5 +1,6 @@
-import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import type { ReactNode } from 'react'
+
+import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 
 import type { SidebarIconPresentation } from '../../Sidebar'
 

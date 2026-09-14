@@ -1,3 +1,6 @@
+import type { TFunction } from 'i18next'
+import { Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
+
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
@@ -8,8 +11,6 @@ import {
 } from '@renderer/components/chat/resourceList/base'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
-import type { TFunction } from 'i18next'
-import { Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
 
 export interface AgentGroupActionContext {
   agentId: string

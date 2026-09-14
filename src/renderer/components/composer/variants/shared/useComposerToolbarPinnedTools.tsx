@@ -1,11 +1,12 @@
+import { Settings2 } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolFooterAction } from '@renderer/components/composer/toolLauncher'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
-import { Settings2 } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 type ComposerToolbarPinnedToolsKey = 'chat.input.toolbar.pinned_tools' | 'agent.input.toolbar.pinned_tools'
 

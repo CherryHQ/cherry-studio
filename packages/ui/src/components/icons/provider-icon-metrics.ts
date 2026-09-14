@@ -5,7 +5,7 @@ export interface ProviderIconAssetMetrics {
 
 const INSET_PROVIDER_CANVAS_SCALE = 120 / 65
 const INSET_MODEL_CANVAS_SCALE = 24 / 16
-const TILE_PROVIDER_IDS = new Set(['cherryin', 'aihubmix', 'lmstudio', 'anthropic', 'yi', 'groq', 'aws-bedrock'])
+const TILE_PROVIDER_IDS = new Set(['cherryin', 'aihubmix', 'lmstudio', 'anthropic', 'yi', 'groq', 'aws-bedrock', 'tokendance'])
 
 export function getProviderIconAssetMetrics({
   kind,

@@ -1,8 +1,9 @@
+import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 // @vitest-environment jsdom
 import type { SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { CodeCli } from '@shared/types/codeCli'
-import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createSidebarShortcutTarget } from '../../../../utils/sidebar'
 import { CORE_SIDEBAR_SHORTCUT_PROVIDERS } from '../providers'

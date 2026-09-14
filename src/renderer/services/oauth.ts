@@ -268,6 +268,16 @@ export const oauthWithCherryIn = async (
   })
 }
 
+export const oauthWithTokenDance = async (setKey) => {
+  try {
+    const apiKey = await ipcApi.request('oauth.tokendance.authorize_api_key')
+    setKey(apiKey)
+  } catch (error) {
+    logger.error('[oauthWithTokenDance] error', error as Error)
+    toast.error(i18n.t('settings.provider.oauth.error'))
+  }
+}
+
 export const providerCharge = async (provider: string) => {
   const lang = await getLanguageCode()
   const chargeUrlMap = {
@@ -293,6 +303,11 @@ export const providerCharge = async (provider: string) => {
     },
     aionly: {
       url: `https://maas.aiionly.com/recharge`,
+      width: 900,
+      height: 700
+    },
+    tokendance: {
+      url: 'https://tokendance.space/credits',
       width: 900,
       height: 700
     }
@@ -332,6 +347,11 @@ export const providerBills = async (provider: string) => {
     },
     aionly: {
       url: `https://maas.aiionly.com/billManagement`,
+      width: 900,
+      height: 700
+    },
+    tokendance: {
+      url: 'https://tokendance.space/activity/requests',
       width: 900,
       height: 700
     }

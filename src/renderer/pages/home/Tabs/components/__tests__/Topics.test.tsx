@@ -1,4 +1,9 @@
 import type * as DndKitUtilities from '@dnd-kit/utilities'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ComponentProps, ReactNode } from 'react'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as TopicMenuActionsHook from '@renderer/hooks/chat/useTopicMenuActions'
 import { type AssistantTopicsSource, deriveAssistantTopicsView } from '@renderer/hooks/resourceViewSources'
@@ -8,10 +13,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import type { ComponentProps, ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 const virtualMocks = vi.hoisted(() => ({
   useVirtualizer: vi.fn((options: { count: number; estimateSize: (index: number) => number }) => ({
@@ -448,6 +449,9 @@ vi.mock('react-i18next', () => ({
   })()
 }))
 
+import { mockUseInfiniteQuery, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
@@ -462,8 +466,6 @@ import {
 } from '@renderer/utils/chat/topicsHelpers'
 import type { Pin } from '@shared/data/types/pin'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { mockUseInfiniteQuery, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 
 import {
   clearPendingTopicImageActionsForTest,
@@ -855,8 +857,8 @@ describe('Topics', () => {
     })
     mockUseQuery.mockImplementation((path, options) => {
       if (path === '/pins') {
-        const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
-        const enabled = (options as { enabled?: boolean } | undefined)?.enabled
+        const entityType = options?.query?.entityType
+        const enabled = options?.enabled
         return {
           data:
             enabled === false
@@ -1011,6 +1013,8 @@ describe('Topics', () => {
     const unpinButton = pinnedRow?.querySelector('[aria-label="Unpin Conversation"]')
     expect(unpinButton ?? null).toBeInTheDocument()
     expect(unpinButton).not.toHaveAttribute('data-active')
+    expect(unpinButton).toHaveAttribute('aria-pressed', 'true')
+    expect(unpinButton?.closest('[data-resource-list-item-actions="true"]')).toHaveAttribute('data-pinned', 'true')
     expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
     expect(pinnedRow?.querySelector('[aria-label="Delete"]') ?? null).not.toBeInTheDocument()
     expect(
@@ -1350,6 +1354,7 @@ describe('Topics', () => {
     const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-row"]')
     const pinButton = alphaRow?.querySelector('[aria-label="Pin Conversation"]')
     expect(pinButton ?? null).toBeInTheDocument()
+    expect(pinButton).toHaveAttribute('aria-pressed', 'false')
     expect(pinButton?.closest('[data-resource-list-item-actions="true"]')).toBeInTheDocument()
     expect(
       alphaRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Pin Conversation"]') ?? null
@@ -1494,7 +1499,7 @@ describe('Topics', () => {
   it('orders move-to-assistant targets with pinned assistants first', () => {
     mockUseQuery.mockImplementation((path, options) => {
       if (path === '/pins') {
-        const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
+        const entityType = options?.query?.entityType
         return {
           data:
             entityType === 'assistant'
@@ -1858,7 +1863,10 @@ describe('Topics', () => {
 
     const input = within(await screen.findByRole('dialog')).getByLabelText('Name')
     fireEvent.change(input, { target: { value: 'Renamed topic' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Enter' })
+      await Promise.resolve()
+    })
 
     expect(await screen.findByText('Renamed topic')).toBeInTheDocument()
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
@@ -1899,10 +1907,11 @@ describe('Topics', () => {
 
     await act(async () => {
       pendingUpdate.reject(new Error('Automatic rename failed'))
+      await Promise.resolve()
     })
 
-    expect(toast.error).toHaveBeenCalledWith('Automatic rename failed')
-    expect(topicRenameMocks.cancelTopicRenaming).toHaveBeenCalledWith('topic-a')
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Automatic rename failed'))
+    await vi.waitFor(() => expect(topicRenameMocks.cancelTopicRenaming).toHaveBeenCalledWith('topic-a'))
     expect(topicRenameMocks.finishTopicRenaming).not.toHaveBeenCalled()
   })
 
@@ -2465,7 +2474,7 @@ describe('Topics', () => {
       if (path === '/assistants') return assistantsQuery
       if (path !== '/pins') return emptyQuery
 
-      const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
+      const entityType = options?.query?.entityType
       return entityType === 'assistant' ? assistantPinsQuery : topicPinsQuery
     })
     const assistantTopicsSource = createAssistantTopicsSource(createTopicPageItems(3))
@@ -3163,7 +3172,7 @@ describe('Topics', () => {
   })
 
   it('does not enable drag reorder in time mode', () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
 
     renderTopicList()
@@ -3379,7 +3388,7 @@ describe('Topics', () => {
     })
     const defaultUseQuery = mockUseQuery.getMockImplementation()
     mockUseQuery.mockImplementation((path, options) => {
-      const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
+      const entityType = options?.query?.entityType
       if (path === '/pins' && entityType === 'assistant') {
         return {
           data: [
@@ -3844,7 +3853,7 @@ describe('Topics', () => {
   })
 
   it('persists assistant group reorder and applies the assistant order optimistically', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
     renderTopicList()
@@ -3873,7 +3882,7 @@ describe('Topics', () => {
   })
 
   it('rejects assistant section drops across different group ids in group mode', () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined)
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.tab.sort_type': 'tags',
       'topic.tab.display_mode': 'assistant'
@@ -3940,7 +3949,7 @@ describe('Topics', () => {
   })
 
   it('treats the default assistant database row as a normal draggable assistant group', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
@@ -4038,7 +4047,7 @@ describe('Topics', () => {
   })
 
   it('does not allow the unknown group to participate in assistant group reorder', () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [

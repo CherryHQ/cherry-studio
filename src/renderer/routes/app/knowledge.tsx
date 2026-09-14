@@ -1,7 +1,8 @@
-import KnowledgePage from '@renderer/pages/knowledge/KnowledgePage'
-import { parseKnowledgeRouteSearch } from '@renderer/pages/knowledge/routeSearch'
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback } from 'react'
+
+import KnowledgePage from '@renderer/pages/knowledge/KnowledgePage'
+import { parseKnowledgeRouteSearch } from '@renderer/pages/knowledge/routeSearch'
 
 export const Route = createFileRoute('/app/knowledge')({
   validateSearch: (search) => parseKnowledgeRouteSearch(search),

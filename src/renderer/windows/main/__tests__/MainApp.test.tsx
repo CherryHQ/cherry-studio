@@ -1,10 +1,10 @@
 import '@testing-library/jest-dom/vitest'
-
-import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 
 const onboardingModule = vi.hoisted(() => ({ evaluations: 0 }))
 

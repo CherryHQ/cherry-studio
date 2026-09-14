@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { loggerService } from '@logger'
-import { toast } from '@renderer/services/toast'
-import type { FileEntryStats } from '@shared/data/api/schemas/files'
-import type { FileEntry } from '@shared/data/types/file'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
+import type { FileEntryStats } from '@shared/data/api/schemas/files'
+import type { FileEntry } from '@shared/data/types/file'
 
 const platformState = vi.hoisted(() => ({
   isMac: true
@@ -684,7 +684,7 @@ describe('FilesPage keyboard rename', () => {
 
 describe('FilesPage keyboard select all', () => {
   it('selects all visible files with Cmd+A on macOS', async () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
     renderFilesPage([entry, secondEntry])
     const user = userEvent.setup()
 
@@ -699,7 +699,7 @@ describe('FilesPage keyboard select all', () => {
 
   it('selects all visible files with Ctrl+A outside macOS', async () => {
     platformState.isMac = false
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
     renderFilesPage([entry, secondEntry])
     const user = userEvent.setup()
 
@@ -917,7 +917,9 @@ describe('FilesPage file operations', () => {
 
   it('imports selected files from the visible upload button', async () => {
     const refetchStats = vi.fn().mockResolvedValue(undefined)
-    const fileApi = window.api.file as typeof window.api.file & { select: ReturnType<typeof vi.fn> }
+    const fileApi = window.api.file as typeof window.api.file & {
+      select: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    }
     fileApi.select = vi.fn().mockResolvedValue([{ path: '/tmp/import-from-button.md' }])
     mockFiles([entry])
     mockFileStats(statsForEntries([entry]), refetchStats)
@@ -982,7 +984,7 @@ describe('FilesPage file operations', () => {
   })
 
   it('selects all visible files from the header checkbox and exposes batch delete', async () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
     renderFilesPage([entry, secondEntry])
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
@@ -994,8 +996,8 @@ describe('FilesPage file operations', () => {
   })
 
   it('selects the visible range when Shift-clicking a file checkbox', async () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
-    const thirdEntry = { ...entry, id: 'file-3', name: 'summary' } as unknown as FileEntry
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
+    const thirdEntry = { ...entry, id: 'file-3', name: 'summary' }
     renderFilesPage([entry, secondEntry, thirdEntry])
     const user = userEvent.setup()
     const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
@@ -1011,8 +1013,8 @@ describe('FilesPage file operations', () => {
   })
 
   it('starts a new selection anchor after clearing the previous selection', async () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
-    const thirdEntry = { ...entry, id: 'file-3', name: 'summary' } as unknown as FileEntry
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
+    const thirdEntry = { ...entry, id: 'file-3', name: 'summary' }
     renderFilesPage([entry, secondEntry, thirdEntry])
     const user = userEvent.setup()
     const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
@@ -1029,7 +1031,7 @@ describe('FilesPage file operations', () => {
   })
 
   it('does not change selection when opening a row context menu', () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
     renderFilesPage([entry, secondEntry])
 
     const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })

@@ -57,7 +57,7 @@ The common materializer owns Cherry policy content, semantic authority, and the 
 6. linked-channel security policy;
 7. citation markers for the lookup tools the runtime actually exposes;
 8. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
-9. the configured app response language.
+9. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
 
 Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every runtime.
 
@@ -134,6 +134,18 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 
 A receive-only autonomous generation never accepts a redirect. Follow-ups
 remain in `pendingTurns` until terminal persistence releases runtime ownership.
+The runtime's `autonomous-turn-state: started` event names why it opened the turn
+(`AutonomousTurnOrigin`: a dsh goal round with its round number, or Claude Code
+waking after background work). `startReceiveOnlyTurn` publishes it to the shared
+cache under `agent.session.turn_origin.${sessionId}.${messageId}` — live session
+status like the api-retry state, not conversation content — so the transcript can
+label a turn that has no user message above it while the session is open.
+If a user turn is live when the runtime starts its own — even an admitted one, since
+dsh runs a queued goal round ahead of a prompt it has already accepted — the user turn
+is deferred: its stream is suspended, the receive-only turn takes the connection, and
+the user turn is relaunched afterwards with its admission preserved (no re-send).
+Content the runtime produces for the deferred turn before its stream reopens is
+buffered on the execution and replayed by `flush-transition`.
 A normal turn whose stream is still `unopened` is queued for the same reason;
 steering is only valid after that turn's stream is `open`. Redirect also requires
 both the current turn and incoming input to be interactive. Delivery, channel,

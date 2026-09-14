@@ -1,3 +1,5 @@
+import type { ComponentType, FC, SVGProps } from 'react'
+
 import type { IconComponent } from '@cherrystudio/ui/icons'
 import {
   AntigravityCli,
@@ -14,7 +16,6 @@ import {
 import { Deepseek, Nousresearch, Openclaw } from '@cherrystudio/ui/icons/providers'
 import { cn } from '@renderer/utils/style'
 import { CodeCli } from '@shared/types/codeCli'
-import type { ComponentType, FC, SVGProps } from 'react'
 
 /** `label` is an i18n key; resolve it with `t()` before rendering. */
 export const CLI_TOOLS = [

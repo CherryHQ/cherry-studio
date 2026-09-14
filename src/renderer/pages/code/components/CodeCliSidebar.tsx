@@ -1,11 +1,12 @@
+import { Loader2, MoreHorizontal } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Scrollbar, Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import { CliIcon } from '@renderer/components/icons/CliIcon'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import type { CodeCli } from '@shared/types/codeCli'
-import { Loader2, MoreHorizontal } from 'lucide-react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { CLI_TOOLS } from '../constants/cliTools'
 import type { CodeToolMeta, VersionStatus } from '../types'

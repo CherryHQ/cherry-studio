@@ -1,7 +1,8 @@
+import type { CSSProperties } from 'react'
+
 import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { type ProviderAvatarDisplayContext, ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
-import type { CSSProperties } from 'react'
 
 interface ProviderAvatarProps {
   provider: Pick<Provider, 'id' | 'name' | 'logo' | 'logoSrc'>

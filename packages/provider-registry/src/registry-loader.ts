@@ -34,23 +34,23 @@ export { ProviderModelListSchema } from './schemas/provider-models'
  * bundled schema can parse. The sync CI derives its publish dir from this
  * constant (single source of truth).
  *
- * Bump on ANY change older clients cannot parse. That includes a new **enum
- * value** for a closed `z.enum` field (`ModalitySchema`, `ModelCapabilityTypeSchema`,
- * `ReasoningEffortSchema`, …): an unknown member makes the whole document fail
- * validation on an older client, so enum-vocabulary expansion is breaking and
- * MUST bump this — until those runtime schemas are made to tolerate unknown
- * members. Only genuinely additive changes stay compatible: new models and new
- * *optional object fields* (a plain `z.object` strips unknown keys). Structural
- * changes (field rename / retype / required-field removal) always bump.
+ * Bump on ANY change older clients cannot parse. Since v2 that is a narrow set:
+ * the schemas drop what they do not recognize instead of failing the document
+ * (`schemas/forwardCompat.ts`), so **enum-vocabulary growth no longer bumps** —
+ * a new modality / capability / effort is dropped by v2 clients and honored by
+ * newer ones. New optional fields were always safe (`z.object` strips unknown
+ * keys). Structural changes (field rename / retype / required-field removal)
+ * still bump. Values a client can parse but cannot *execute* are gated by
+ * {@link REGISTRY_MIN_APP_VERSION} instead.
  */
-export const REGISTRY_SCHEMA_VERSION = 1
+export const REGISTRY_SCHEMA_VERSION = 2
 
 /**
  * Oldest application version whose runtime understands the semantic values in
  * the current remote catalog. Bump when data starts using a new adapter family,
  * endpoint type, wire behavior, or other value that older runtime code cannot execute.
  */
-export const REGISTRY_MIN_APP_VERSION = '2.0.9'
+export const REGISTRY_MIN_APP_VERSION = '2.0.13'
 
 /**
  * The three JSON data files this package emits (`packages/provider-registry/data/`).

@@ -1,3 +1,5 @@
+import React from 'react'
+
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { getProviderIconAssetMetrics, resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
@@ -5,7 +7,6 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { getIconDisplayConfig, type IconDisplayConfig } from '@renderer/components/icons/iconDisplayConfig'
 import { getFirstCharacter } from '@renderer/utils/naming'
 import { generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
-import React from 'react'
 
 export type ProviderAvatarDisplayContext = 'provider-list' | 'sidebar' | 'toolbar'
 

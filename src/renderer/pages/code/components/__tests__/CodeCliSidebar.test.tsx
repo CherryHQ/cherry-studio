@@ -1,7 +1,8 @@
-import { CodeCli } from '@shared/types/codeCli'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import { CodeCli } from '@shared/types/codeCli'
 
 import { CodeCliSidebar, type CodeCliSidebarProps } from '../CodeCliSidebar'
 

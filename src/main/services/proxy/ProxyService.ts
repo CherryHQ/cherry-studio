@@ -1,15 +1,15 @@
+import type { ProxyConfig } from 'electron'
+import { app, session } from 'electron'
+import { getSystemProxy } from 'os-proxy-config'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
-import type { ProxyConfig } from 'electron'
-import { app, session } from 'electron'
-import { getSystemProxy } from 'os-proxy-config'
 
 import { NodeProxyController } from './NodeProxyController'
-import type { ProxyRoutingSnapshot } from './proxyRouting'
 
 const logger = loggerService.withContext('ProxyService')
 
@@ -77,12 +77,6 @@ export class ProxyService extends BaseService {
     return this.appliedKey
   }
 
-  /** Routing policy for isolated runtimes. All proxy/bypass semantics stay in main. */
-  async getRoutingSnapshot(): Promise<ProxyRoutingSnapshot> {
-    await this.proxyReconciler.flush()
-    return this.getNodeProxyController().getRoutingSnapshot()
-  }
-
   /**
    * Apply the proxy from user preferences on startup, then re-apply whenever the proxy
    * preferences change. Without this the global proxy mechanism is never wired to settings —
@@ -101,7 +95,7 @@ export class ProxyService extends BaseService {
     void this.proxyReconciler.flush().then(() => {
       const error = this.proxyReconciler.getLastError()
       if (error) {
-        logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error as Error)
+        logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error)
       }
     })
   }

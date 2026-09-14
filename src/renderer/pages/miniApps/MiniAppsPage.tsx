@@ -1,3 +1,9 @@
+import { Menu, PackagePlus, Plus } from 'lucide-react'
+import type { FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import BeatLoader from 'react-spinners/BeatLoader'
+
 import { Button, EmptyState, SearchInput, Tooltip, useDropzone } from '@cherrystudio/ui'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import App from '@renderer/components/MiniApp/MiniApp'
@@ -11,11 +17,6 @@ import { toast } from '@renderer/services/toast'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { isDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { Menu, PackagePlus, Plus } from 'lucide-react'
-import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import BeatLoader from 'react-spinners/BeatLoader'
 
 import InstallMiniAppPanel from './InstallMiniAppPanel'
 import MiniAppDisplaySettings from './MiniAppSettings/MiniAppDisplaySettings'
@@ -97,7 +98,10 @@ const MiniAppsPage: FC = () => {
 
   const filteredApps = search
     ? miniApps.filter(
-        (app) => app.name.toLowerCase().includes(search.toLowerCase()) || app.url.includes(search.toLowerCase())
+        (app) =>
+          app.name.toLowerCase().includes(search.toLowerCase()) ||
+          (app.nameKey && t(app.nameKey).toLowerCase().includes(search.toLowerCase())) ||
+          app.url.includes(search.toLowerCase())
       )
     : miniApps
   const filteredBuiltins = search

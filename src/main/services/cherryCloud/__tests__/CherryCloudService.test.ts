@@ -1,5 +1,8 @@
-import type { Model } from '@shared/data/types/model'
+import { createHmac } from 'node:crypto'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
 
 const mocks = vi.hoisted(() => ({
   appEdition: 'global' as 'cn' | 'global',
@@ -23,6 +26,10 @@ const mocks = vi.hoisted(() => ({
   sessionClear: vi.fn(),
   sessionReplace: vi.fn(),
   showMainWindow: vi.fn()
+}))
+
+vi.mock('systeminformation', () => ({
+  uuid: vi.fn(async () => ({ os: 'abcdef12123456789abc1234567890ab', hardware: '', macs: [] }))
 }))
 
 vi.mock('@data/dataApiDataChange', () => ({
@@ -96,6 +103,8 @@ vi.mock('electron', () => ({
 vi.mock('../CherryCloudLoopbackCallback', () => ({
   CherryCloudLoopbackCallback: { open: mocks.loopbackOpen }
 }))
+
+import { uuid } from 'systeminformation'
 
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 
@@ -301,6 +310,7 @@ async function createSignedInService(): Promise<CherryCloudService> {
 
 describe('CherryCloudService', () => {
   beforeEach(() => {
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET', 'cloud-login-test-secret')
     vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', '')
     CherryCloudService.resetInstances()
     vi.clearAllMocks()
@@ -320,6 +330,84 @@ describe('CherryCloudService', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs()
+  })
+
+  it('authenticates both login requests with the cloud secret and their transmitted bodies', async () => {
+    vi.stubEnv('MAIN_VITE_CHERRYAI_CLIENT_SECRET', 'different-qwen-secret')
+    const createPath = '/api/v1/desktop/authorizations'
+    const exchangePath = `${createPath}/${authorizationId}/exchange`
+    const verifyRequest = (path: string, response: Response) => (init: RequestInit) => {
+      const headers = new Headers(init.headers)
+      const timestamp = headers.get('X-Timestamp')
+      expect(init.method).toBe('POST')
+      expect(headers.get('X-Client-ID')).toBe('cherry-studio')
+      expect(timestamp).toMatch(/^\d+$/)
+      expect(Math.abs(Date.now() / 1000 - Number(timestamp))).toBeLessThan(5)
+      const expected = createHmac('sha256', 'cloud-login-test-secret')
+        .update(`POST\n${path}\n\ncherry-studio\n${timestamp}\n${init.body}`)
+        .digest('hex')
+      expect(headers.get('X-Signature')).toBe(expected)
+      return response
+    }
+    mockCloudRoute(createPath, verifyRequest(createPath, jsonResponse(authorizationResponse(), 201)))
+    mockCloudRoute(exchangePath, verifyRequest(exchangePath, jsonResponse(exchangeResponse())))
+    mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+    const service = await createService()
+
+    await service.startLogin()
+    await loopbackCallback()(
+      new URL(
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${authorizationRequestBody().state}`
+      )
+    )
+
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    await service['syncEntitledModels']()
+    await service._doStop()
+  })
+
+  it.each(['', undefined])('does not send an unsigned login request when the cloud secret is %s', async (secret) => {
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET', secret)
+    vi.stubEnv('MAIN_VITE_CHERRYAI_CLIENT_SECRET', 'available-qwen-secret')
+    const service = await createService()
+
+    await expect(service.startLogin()).rejects.toBeInstanceOf(CherryCloudLoginUnavailableError)
+
+    expect(mocks.netFetch).not.toHaveBeenCalled()
+    expect(mocks.openExternal).not.toHaveBeenCalled()
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.savedSession).toBeNull()
+    await service._doStop()
+  })
+
+  it.each(['create', 'exchange'])('stays signed out when the server rejects the %s signature', async (step) => {
+    const createPath = '/api/v1/desktop/authorizations'
+    const exchangePath = `${createPath}/${authorizationId}/exchange`
+    mockCloudRoute(
+      createPath,
+      step === 'create' ? new Response(null, { status: 401 }) : jsonResponse(authorizationResponse(), 201)
+    )
+    mockCloudRoute(exchangePath, new Response(null, { status: 401 }))
+    const service = await createService()
+
+    if (step === 'create') {
+      await expect(service.startLogin()).rejects.toThrow('Cherry Cloud login request failed (401)')
+    } else {
+      await service.startLogin()
+      await expect(
+        loopbackCallback()(
+          new URL(
+            `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${authorizationRequestBody().state}`
+          )
+        )
+      ).rejects.toThrow('Cherry Cloud login request failed (401)')
+    }
+
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.savedSession).toBeNull()
+    expect(requestCalls(createPath)).toHaveLength(1)
+    expect(requestCalls(exchangePath)).toHaveLength(step === 'exchange' ? 1 : 0)
+    await service._doStop()
   })
 
   it('persists the signed-in account across service restarts', async () => {
@@ -397,6 +485,60 @@ describe('CherryCloudService', () => {
 
     const createBody = authorizationRequestBody()
     expect(createBody.device_public_key).toBe(firstDevicePublicKey)
+  })
+
+  it('uses the current computer when restoring copied credentials and requires login after rejection', async () => {
+    const original = await createSignedInService()
+    mockCloudRoute('/v1/models', jsonResponse({ data: [] }))
+    await original.authenticatedFetch('/v1/models')
+    const originalCode = new Headers(requestCalls('/v1/models')[0][1].headers).get('Cherry-Machine-Code')
+    expect(originalCode).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    const originalDevice = structuredClone(mocks.savedDevice)
+    mocks.netFetch.mockClear()
+    vi.mocked(uuid).mockResolvedValueOnce({ os: '12345678123456789abc1234567890ab', hardware: '', macs: [] })
+    let restoredCode: string | null = null
+    mockCloudRoute('/api/v1/product-sessions/refresh', (init) => {
+      restoredCode = new Headers(init.headers).get('Cherry-Machine-Code')
+      return restoredCode === originalCode
+        ? jsonResponse(refreshedTokenSet())
+        : jsonResponse({ error: { code: 'REAUTH_REQUIRED' } }, 401)
+    })
+    CherryCloudService.resetInstances()
+    const copied = await createService()
+    await vi.waitFor(async () => {
+      expect(await copied.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    })
+    expect(restoredCode).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(restoredCode).not.toBe(originalCode)
+    expect(mocks.savedSession).toBeNull()
+    expect(mocks.savedDevice).toEqual(originalDevice)
+  })
+
+  it('sends the same machine code after local credentials are deleted and a new device key is generated', async () => {
+    const service = await createService()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    await service.startLogin()
+    const first = authorizationRequestBody()
+    await service._doStop()
+    CherryCloudService.resetInstances()
+    mocks.savedDevice = null
+    mocks.savedSession = null
+    mocks.netFetch.mockClear()
+    const restarted = await createService()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    await restarted.startLogin()
+    const second = authorizationRequestBody()
+    expect(second.device_public_key).not.toBe(first.device_public_key)
+    expect(second.machine_code).toBe(first.machine_code)
+    expect(second.machine_code).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  })
+
+  it('does not start cloud authorization when the system machine ID is missing', async () => {
+    vi.mocked(uuid).mockResolvedValueOnce({ os: '', hardware: '', macs: [] })
+    const service = await createService()
+    await expect(service.startLogin()).rejects.toThrow('valid system machine ID is required')
+    expect(mocks.netFetch).not.toHaveBeenCalled()
+    expect(mocks.savedDevice).toBeNull()
   })
 
   it('keeps the Session when automatic Gateway startup fails', async () => {
@@ -567,6 +709,19 @@ describe('CherryCloudService', () => {
     await service._doStop()
     expect(oldReceiver.dispose).toHaveBeenCalledOnce()
     expect(newReceiver.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('reports an upgrade requirement without opening a browser or leaving login pending', async () => {
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse({ error: { code: 'CLIENT_UPGRADE_REQUIRED' } }, 426))
+    const service = await createService()
+
+    await expect(service.startLogin()).rejects.toHaveProperty('name', 'CherryCloudUpgradeRequiredError')
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.openExternal).not.toHaveBeenCalled()
+    expect(mocks.loopbackReceiver.dispose).toHaveBeenCalled()
+
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
   })
 
   it('reports an unavailable login service when the backend cannot be reached', async () => {

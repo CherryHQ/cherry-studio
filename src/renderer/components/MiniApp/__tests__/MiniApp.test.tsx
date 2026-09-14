@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 const calculatorApp: MiniAppType = {
   kind: 'site',

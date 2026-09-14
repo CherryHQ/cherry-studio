@@ -1,11 +1,12 @@
-import { Alert, Button } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
-import { formatErrorDetails } from '@renderer/utils/errorDetails'
 import type { ComponentType, ErrorInfo, ReactNode } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
+
+import { Alert, Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
+import { formatErrorDetails } from '@renderer/utils/errorDetails'
 
 const logger = loggerService.withContext('ErrorBoundary')
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {

@@ -1,3 +1,6 @@
+import { FolderClosed, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import {
   ContextMenu,
   ContextMenuContent,
@@ -7,8 +10,6 @@ import {
   ContextMenuTrigger
 } from '@cherrystudio/ui'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
-import { FolderClosed, Pencil, RotateCcw, Trash2 } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 import type { FileItem } from './fileDisplay'
 

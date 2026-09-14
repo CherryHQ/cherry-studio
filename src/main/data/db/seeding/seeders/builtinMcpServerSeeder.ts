@@ -1,7 +1,8 @@
+import { and, eq } from 'drizzle-orm'
+
 import { type McpServerRow, mcpServerTable } from '@data/db/schemas/mcpServer'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
-import { and, eq } from 'drizzle-orm'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'

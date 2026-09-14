@@ -13,13 +13,15 @@ import {
   captureScrollableAsDataUrl,
   checkEntityImageSize,
   convertToBase64,
+  dataUrlToBlob,
   getImageBlobFromSource,
   IMAGE_CAPTURE_ATTRIBUTE,
   imageInputToPreviewUrl,
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
   prepareEntityImageBytes,
-  transformImageToPng
+  transformImageToPng,
+  waitForCaptureAssets
 } from '../image'
 
 // mock 依赖
@@ -47,6 +49,15 @@ beforeEach(() => {
     } as unknown as HTMLCanvasElement)
   )
 })
+
+// jsdom's Blob has neither arrayBuffer() nor text().
+const readBlobBytes = (blob: Blob) =>
+  new Promise<Uint8Array>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsArrayBuffer(blob)
+  })
 
 describe('utils/image', () => {
   describe('transformImageToPng', () => {
@@ -490,6 +501,32 @@ describe('utils/image', () => {
     })
   })
 
+  describe('captureScrollableImage pipeline routing', () => {
+    const makeEl = (left: number, top: number) => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      div.getBoundingClientRect = () => ({ left, top, width: 100, height: 100 }) as DOMRect
+      return div
+    }
+
+    it('rasterizes an offscreen capture clone via the position-independent pipeline', async () => {
+      const ref = { current: makeEl(-10000, 0) } as React.RefObject<HTMLDivElement>
+      const result = await captureScrollableAsDataUrl(ref)
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(vi.mocked(htmlToImage.toCanvas)).toHaveBeenCalled()
+    })
+
+    it('rasterizes an on-document element via the same clone pipeline (native CDP retired)', async () => {
+      const ref = { current: makeEl(10, 20) } as React.RefObject<HTMLDivElement>
+      const result = await captureScrollableAsDataUrl(ref)
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(vi.mocked(htmlToImage.toCanvas)).toHaveBeenCalled()
+    })
+  })
+
   describe('captureScrollableAsDataUrl', () => {
     it('should return data url when canvas exists', async () => {
       const div = document.createElement('div')
@@ -504,6 +541,69 @@ describe('utils/image', () => {
       const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
       const result = await captureScrollableAsDataUrl(ref)
       expect(result).toBeUndefined()
+    })
+  })
+
+  describe('broken-image placeholder swap', () => {
+    const makeImage = (src: string, complete: boolean, naturalWidth: number) => {
+      const img = document.createElement('img')
+      img.setAttribute('src', src)
+      Object.defineProperty(img, 'complete', { value: complete, configurable: true })
+      Object.defineProperty(img, 'naturalWidth', { value: naturalWidth, configurable: true })
+      return img
+    }
+
+    const makeRoot = (img: HTMLImageElement) => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      div.appendChild(img)
+      return div
+    }
+
+    it('rasterizes through a terminal-failure image (favicon service answered HTML)', async () => {
+      const img = makeImage('https://icon.horse/icon/example.com', true, 0)
+      const ref = { current: makeRoot(img) } as React.RefObject<HTMLDivElement>
+
+      let srcAtRaster: string | undefined
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+        srcAtRaster = img.src
+        return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+      })
+
+      const result = await captureScrollableAsDataUrl(ref)
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(srcAtRaster).toBe('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')
+      // the live element is restored after the capture
+      expect(img.src).toBe('https://icon.horse/icon/example.com')
+    })
+
+    it('leaves healthy images untouched', async () => {
+      const img = makeImage('https://example.com/favicon.png', true, 16)
+      const ref = { current: makeRoot(img) } as React.RefObject<HTMLDivElement>
+
+      let srcAtRaster: string | undefined
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+        srcAtRaster = img.src
+        return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+      })
+
+      await captureScrollableAsDataUrl(ref)
+
+      expect(srcAtRaster).toBe('https://example.com/favicon.png')
+    })
+  })
+
+  describe('dataUrlToBlob', () => {
+    it('preserves every byte of a binary payload', async () => {
+      const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff])
+      const base64 = btoa(String.fromCharCode(...bytes))
+
+      const blob = dataUrlToBlob(`data:image/png;base64,${base64}`)
+
+      expect(blob.type).toBe('image/png')
+      expect(await readBlobBytes(blob)).toEqual(bytes)
     })
   })
 
@@ -524,6 +624,103 @@ describe('utils/image', () => {
       const func = vi.fn()
       await captureScrollableAsBlob(ref, func)
       expect(func).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('waitForCaptureAssets', () => {
+    const makeImage = (complete: boolean): HTMLImageElement => {
+      const img = document.createElement('img')
+      // jsdom never loads resources; drive `complete` explicitly per case.
+      Object.defineProperty(img, 'complete', { value: complete, configurable: true })
+      return img
+    }
+
+    it('returns undefined immediately for a null root', async () => {
+      await expect(waitForCaptureAssets(null)).resolves.toBeUndefined()
+    })
+
+    it('switches lazy images to eager so they can load offscreen', async () => {
+      const root = document.createElement('div')
+      const img = makeImage(true)
+      img.loading = 'lazy'
+      root.appendChild(img)
+
+      await waitForCaptureAssets(root)
+
+      expect(img.loading).toBe('eager')
+    })
+
+    it('waits for in-flight images to fire load', async () => {
+      const root = document.createElement('div')
+      const order: string[] = []
+      const img = makeImage(false)
+      root.appendChild(img)
+
+      const settled = waitForCaptureAssets(root)
+      void settled.then(() => order.push('settled'))
+      setTimeout(() => {
+        img.dispatchEvent(new Event('load'))
+        order.push('load')
+      }, 10)
+      await settled
+
+      expect(order).toEqual(['load', 'settled'])
+    })
+
+    it('treats image error as settled', async () => {
+      const root = document.createElement('div')
+      const order: string[] = []
+      const img = makeImage(false)
+      root.appendChild(img)
+
+      const settled = waitForCaptureAssets(root)
+      void settled.then(() => order.push('settled'))
+      setTimeout(() => {
+        img.dispatchEvent(new Event('error'))
+        order.push('error')
+      }, 10)
+      await settled
+
+      expect(order).toEqual(['error', 'settled'])
+    })
+
+    it('waits for images mounted after the first scan (late favicon waves)', async () => {
+      const root = document.createElement('div')
+      const lateImage = makeImage(false)
+      const order: string[] = []
+
+      const settled = waitForCaptureAssets(root)
+      void settled.then(() => order.push('settled'))
+      // FallbackFavicon swaps its placeholder span for an <img> only after
+      // its source probe resolves — mount late and let the load land well
+      // past the recheck window, so a premature settle fails the ordering.
+      setTimeout(() => {
+        root.appendChild(lateImage)
+        order.push('mount')
+      }, 100)
+      setTimeout(() => {
+        lateImage.dispatchEvent(new Event('load'))
+        order.push('load')
+      }, 700)
+      await settled
+
+      expect(order).toEqual(['mount', 'load', 'settled'])
+    })
+
+    it('resolves via the deadline when an image never settles', async () => {
+      const root = document.createElement('div')
+      root.appendChild(makeImage(false))
+
+      vi.useFakeTimers()
+      try {
+        const settled = waitForCaptureAssets(root, 1000)
+        const assertion = vi.fn()
+        void settled.then(assertion)
+        await vi.advanceTimersByTimeAsync(1000)
+        expect(assertion).toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 

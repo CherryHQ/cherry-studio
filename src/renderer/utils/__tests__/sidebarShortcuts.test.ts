@@ -1,5 +1,6 @@
-import { createSidebarShortcutId, type SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
+
+import { createSidebarShortcutId, type SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
 
 import {
   addSidebarShortcut,

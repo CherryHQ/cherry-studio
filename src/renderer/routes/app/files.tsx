@@ -1,7 +1,8 @@
-import FilesPage from '@renderer/pages/files/FilesPage'
-import { parseFilesRouteSearch } from '@renderer/pages/files/routeSearch'
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback } from 'react'
+
+import FilesPage from '@renderer/pages/files/FilesPage'
+import { parseFilesRouteSearch } from '@renderer/pages/files/routeSearch'
 
 export const Route = createFileRoute('/app/files')({
   validateSearch: (search) => parseFilesRouteSearch(search),

@@ -1,5 +1,6 @@
-import type { Topic } from '@renderer/types/topic'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { Topic } from '@renderer/types/topic'
 
 import { executeTopicMenuAction, resolveTopicMenuActions, type TopicActionContext } from '../topicContextMenuActions'
 

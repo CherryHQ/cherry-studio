@@ -1,3 +1,5 @@
+import { and, eq } from 'drizzle-orm'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { miniAppTable } from '@data/db/schemas/miniApp'
@@ -7,7 +9,6 @@ import {
   type SidebarShortcutItem,
   type SidebarShortcutTarget
 } from '@shared/data/preference/preferenceTypes'
-import { and, eq } from 'drizzle-orm'
 
 import type { DbType, ISeeder } from '../../types'
 

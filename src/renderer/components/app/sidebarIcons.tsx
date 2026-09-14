@@ -1,4 +1,3 @@
-import type { SidebarAppId } from '@renderer/utils/sidebar'
 import type { LucideProps } from 'lucide-react'
 import {
   Code,
@@ -12,6 +11,8 @@ import {
   Palette
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+
+import type { SidebarAppId } from '@renderer/utils/sidebar'
 
 type SidebarIconComponent = (props: LucideProps) => ReactNode
 

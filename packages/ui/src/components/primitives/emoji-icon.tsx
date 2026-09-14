@@ -37,7 +37,7 @@ const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className, size = 26, fontSize, 
       <span
         data-slot="emoji-icon-background"
         aria-hidden="true"
-        className="absolute inset-0 flex items-center justify-center blur-sm opacity-40"
+        className="absolute inset-0 flex items-center justify-center opacity-40 blur-sm"
         style={{
           fontSize: backgroundFontSize,
           lineHeight: 1,

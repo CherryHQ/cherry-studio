@@ -1,6 +1,7 @@
+import { useCallback, useEffect, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { type RelocationProgress, UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
-import { useCallback, useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('useRelocationProgress')
 

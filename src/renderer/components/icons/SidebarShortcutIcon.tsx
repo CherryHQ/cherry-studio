@@ -1,5 +1,6 @@
-import { cn } from '@renderer/utils/style'
 import type { SVGProps } from 'react'
+
+import { cn } from '@renderer/utils/style'
 
 type SidebarShortcutIconProps = SVGProps<SVGSVGElement> & {
   pinned?: boolean

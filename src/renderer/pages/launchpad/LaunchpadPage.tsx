@@ -1,6 +1,10 @@
+import { arrayMove } from '@dnd-kit/sortable'
+import { useNavigate } from '@tanstack/react-router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Sortable } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { arrayMove } from '@dnd-kit/sortable'
 import agentsIcon from '@renderer/assets/images/apps/launchpad-agents.svg'
 import assistantsIcon from '@renderer/assets/images/apps/launchpad-assistants.svg'
 import codeToolsIcon from '@renderer/assets/images/apps/launchpad-code-tools.svg'
@@ -28,9 +32,6 @@ import {
   SIDEBAR_SHORTCUT_PROVIDER_IDS
 } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
-import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const BASE_URL = 'https://www.cherry-ai.com/'
 const DEEPSEEK_HARNESS_URL = '/app/code?tool=deepseek-harness'
