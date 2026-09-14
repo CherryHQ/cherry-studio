@@ -1,3 +1,5 @@
+import { readUIMessageStream, type UIMessageChunk } from 'ai'
+
 /**
  * Shared chunk-pipe primitive. Drives a `ReadableStream<UIMessageChunk>`,
  * delivers each chunk via `onChunk`, and concurrently runs AI SDK's
@@ -15,10 +17,8 @@
  *  - `broadcastCompletedAt` is captured before accumulator drain so
  *    callers tracking provider-side completion time aren't inflated.
  */
-
-import { readUIMessageStream, type UIMessageChunk } from 'ai'
-
 import { type CherryUIMessage } from '@shared/data/types/message'
+import { onAbort as subscribeToAbort } from '@shared/utils/async'
 
 export interface PipeStreamLoopOptions {
   onChunk: (chunk: UIMessageChunk) => void
@@ -57,8 +57,7 @@ export async function pipeStreamLoop(
   const onAbort = () => {
     void broadcastReader.cancel(signal.reason).catch(() => {})
   }
-  if (signal.aborted) onAbort()
-  else signal.addEventListener('abort', onAbort, { once: true })
+  const disposeAbort = subscribeToAbort(signal, onAbort)
 
   let streamErrorText: string | undefined
   let threw: { error: unknown } | undefined
@@ -76,7 +75,7 @@ export async function pipeStreamLoop(
     threw = { error }
     broadcastCompletedAt = performance.now()
   } finally {
-    signal.removeEventListener('abort', onAbort)
+    disposeAbort()
     broadcastReader.releaseLock()
   }
 

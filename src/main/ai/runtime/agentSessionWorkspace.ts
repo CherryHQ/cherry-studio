@@ -7,6 +7,7 @@ import { t } from '@main/i18n'
 import { getPathStatus, type PathStatus } from '@main/utils/file'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+import { raceTimeout } from '@shared/utils/async'
 
 const logger = loggerService.withContext('AgentSessionWorkspace')
 const WORKSPACE_PROBE_TIMEOUT_MS = 5_000
@@ -82,19 +83,12 @@ async function getWorkspacePathStatus(cwd: string): Promise<PathStatus> {
     })
     workspacePathProbes.set(cwd, probe)
   }
-  let timeout: ReturnType<typeof setTimeout> | undefined
-  const timeoutResult = new Promise<PathStatus>((resolve) => {
-    timeout = setTimeout(
-      () => resolve({ ok: false, reason: 'inaccessible', code: 'ETIMEDOUT' }),
-      WORKSPACE_PROBE_TIMEOUT_MS
-    )
-    timeout.unref?.()
-  })
-  try {
-    return await Promise.race([probe, timeoutResult])
-  } finally {
-    if (timeout) clearTimeout(timeout)
-  }
+  return raceTimeout(
+    probe,
+    WORKSPACE_PROBE_TIMEOUT_MS,
+    (): PathStatus => ({ ok: false, reason: 'inaccessible', code: 'ETIMEDOUT' }),
+    { ref: false }
+  )
 }
 
 function isRetryableWorkspaceErrorCode(code: string | undefined): boolean {

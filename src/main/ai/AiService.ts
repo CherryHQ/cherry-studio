@@ -45,6 +45,7 @@ import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
+import { createTimeout, onAbort as subscribeToAbort } from '@shared/utils/async'
 import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
 import { isOllamaProvider } from '@shared/utils/provider'
 
@@ -1098,14 +1099,13 @@ export class AiService extends BaseService {
     // Reuse the existing IPC AbortController (ai.image.abort): when it fires,
     // cancel the job (which aborts the handler + remote task).
     const onAbort = () => void jobManager.cancel(handle.id, 'aborted by user').catch(() => {})
-    if (signal?.aborted) onAbort()
-    else signal?.addEventListener('abort', onAbort, { once: true })
+    const disposeAbort = subscribeToAbort(signal, onAbort)
 
     let snapshot: JobSnapshot
     try {
       snapshot = await handle.finished
     } finally {
-      signal?.removeEventListener('abort', onAbort)
+      disposeAbort()
     }
 
     if (snapshot.status === 'completed') {
@@ -1261,11 +1261,11 @@ export class AiService extends BaseService {
 
     if (isOllamaProvider(provider)) {
       const controller = new AbortController()
-      const timeoutHandle = setTimeout(() => controller.abort(), timeout)
+      const deadline = createTimeout(timeout, () => controller.abort())
       try {
         return await probeOllamaModel(provider, model.apiModelId, controller.signal, request.apiKeyOverride)
       } finally {
-        clearTimeout(timeoutHandle)
+        deadline.dispose()
       }
     }
 
@@ -1274,108 +1274,113 @@ export class AiService extends BaseService {
 
     // AbortController on timeout so the HTTP work cancels too (otherwise tokens keep burning).
     const controller = new AbortController()
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutHandle = setTimeout(() => {
-        controller.abort(new Error('Check model timeout'))
-        reject(new Error('Check model timeout'))
-      }, timeout)
+    const deadline = createTimeout(timeout, () => {
+      controller.abort(new Error('Check model timeout'))
+      throw new Error('Check model timeout')
     })
 
-    const probeRequest = {
-      ...request,
-      requestOptions: { ...request.requestOptions, signal: controller.signal }
-    }
-    let probe: Promise<unknown>
-    if (isRerankModel(model)) {
-      probe = this.rerank({ ...probeRequest, query: 'test', documents: ['test'], topN: 1 }).then((result) => {
-        if (result.ranking.length === 0) {
-          throw new Error('Rerank health check returned empty ranking')
-        }
-        return result
-      })
-    } else if (isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
-      probe = this.embedMany({ ...probeRequest, values: ['test'] })
-    } else if (isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
-      // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
-      // Edit-only models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
-      // `generate` mode: the bare default leaves the job path without a transport
-      // descriptor, failing before any provider request. Probe their first declared
-      // mode with a tiny inline PNG and the mode's registry defaults instead — the
-      // vendor bag must carry required params (qwen-mt-image langs, wanx2.1 function)
-      // that main never materializes on its own.
-      const imageSupport = providerRegistryService.getImageGenerationSupport(provider.id, model.apiModelId ?? model.id)
-      const editOnly = imageSupport != null && !('generate' in imageSupport.modes)
-      const probeMode: ImageGenerationMode = editOnly
-        ? (EDIT_ONLY_PROBE_FALLBACK_MODES.find((mode) => mode in imageSupport.modes) ?? 'edit')
-        : 'generate'
-      const probeSupports = imageSupport?.modes?.[probeMode]?.supports
-      const probeParams: ParamValues = {}
-      for (const [key, spec] of Object.entries(probeSupports ?? {})) {
-        if (spec && typeof spec === 'object' && 'default' in spec && spec.default !== undefined) {
-          probeParams[key] = spec.default
-        }
+    try {
+      const probeRequest = {
+        ...request,
+        requestOptions: { ...request.requestOptions, signal: controller.signal }
       }
-      const transportProviderId = provider.presetProviderId ?? provider.id
-      if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
-        // Transport models run their submit/poll loop on the job system, whose
-        // handler re-selects a serving key — dropping the health check's
-        // `apiKeyOverride` and possibly probing a different rotated credential
-        // than the one being reported. A check needs no restart survival, so
-        // probe inline: one submit (accepted = credential + endpoint + model OK)
-        // with the caller's key, no job row, no result download.
-        const vendorTransport = imageSupport?.modes?.[probeMode]?.vendorTransport
-        probe = (async () => {
-          const { config } = await resolveProviderAiSdkConfig(provider, model, {
-            apiKeyOverride: request.apiKeyOverride
-          })
-          const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
-          const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
-          if (!transport) {
-            throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
+      let probe: Promise<unknown>
+      if (isRerankModel(model)) {
+        probe = this.rerank({ ...probeRequest, query: 'test', documents: ['test'], topN: 1 }).then((result) => {
+          if (result.ranking.length === 0) {
+            throw new Error('Rerank health check returned empty ranking')
           }
-          await transport.submit({
-            modelId: wireModelId,
+          return result
+        })
+      } else if (isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
+        probe = this.embedMany({ ...probeRequest, values: ['test'] })
+      } else if (isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
+        // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
+        // Edit-only models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
+        // `generate` mode: the bare default leaves the job path without a transport
+        // descriptor, failing before any provider request. Probe their first declared
+        // mode with a tiny inline PNG and the mode's registry defaults instead — the
+        // vendor bag must carry required params (qwen-mt-image langs, wanx2.1 function)
+        // that main never materializes on its own.
+        const imageSupport = providerRegistryService.getImageGenerationSupport(
+          provider.id,
+          model.apiModelId ?? model.id
+        )
+        const editOnly = imageSupport != null && !('generate' in imageSupport.modes)
+        const probeMode: ImageGenerationMode = editOnly
+          ? (EDIT_ONLY_PROBE_FALLBACK_MODES.find((mode) => mode in imageSupport.modes) ?? 'edit')
+          : 'generate'
+        const probeSupports = imageSupport?.modes?.[probeMode]?.supports
+        const probeParams: ParamValues = {}
+        for (const [key, spec] of Object.entries(probeSupports ?? {})) {
+          if (spec && typeof spec === 'object' && 'default' in spec && spec.default !== undefined) {
+            probeParams[key] = spec.default
+          }
+        }
+        const transportProviderId = provider.presetProviderId ?? provider.id
+        if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
+          // Transport models run their submit/poll loop on the job system, whose
+          // handler re-selects a serving key — dropping the health check's
+          // `apiKeyOverride` and possibly probing a different rotated credential
+          // than the one being reported. A check needs no restart survival, so
+          // probe inline: one submit (accepted = credential + endpoint + model OK)
+          // with the caller's key, no job row, no result download.
+          const vendorTransport = imageSupport?.modes?.[probeMode]?.vendorTransport
+          probe = (async () => {
+            const { config } = await resolveProviderAiSdkConfig(provider, model, {
+              apiKeyOverride: request.apiKeyOverride
+            })
+            const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+            const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
+            if (!transport) {
+              throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
+            }
+            await transport.submit({
+              modelId: wireModelId,
+              prompt: 'a red circle',
+              n: 1,
+              size: undefined,
+              seed: undefined,
+              files: editOnly ? [{ type: 'file', mediaType: 'image/png', data: PROBE_INPUT_IMAGE_BASE64 }] : undefined,
+              mask: undefined,
+              modelDescriptor: vendorTransport
+                ? {
+                    id: wireModelId,
+                    endpoint: vendorTransport.endpoint,
+                    isSync: vendorTransport.isSync,
+                    mode: probeMode
+                  }
+                : undefined,
+              providerParams: probeParams,
+              signal: controller.signal
+            })
+          })()
+        } else {
+          probe = this.generateImage({
+            ...probeRequest,
             prompt: 'a red circle',
-            n: 1,
-            size: undefined,
-            seed: undefined,
-            files: editOnly ? [{ type: 'file', mediaType: 'image/png', data: PROBE_INPUT_IMAGE_BASE64 }] : undefined,
-            mask: undefined,
-            modelDescriptor: vendorTransport
-              ? { id: wireModelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode: probeMode }
-              : undefined,
-            providerParams: probeParams,
-            signal: controller.signal
+            ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
+            paramValues: probeParams,
+            cleanupPolicy: 'delete_when_unreferenced'
           })
-        })()
+        }
       } else {
-        probe = this.generateImage({
+        // Latency is the probe's measured output — thinking tokens would pollute it
+        // for reasoning-capable models whose provider default enables reasoning.
+        probe = this.generateText({
           ...probeRequest,
-          prompt: 'a red circle',
-          ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
-          paramValues: probeParams,
-          cleanupPolicy: 'delete_when_unreferenced'
+          // A health check has no topic; each probe is its own conversation.
+          conversation: { id: `check:${randomUUID()}` },
+          system: 'test',
+          prompt: 'hi',
+          reasoningEffort: 'none'
         })
       }
-    } else {
-      // Latency is the probe's measured output — thinking tokens would pollute it
-      // for reasoning-capable models whose provider default enables reasoning.
-      probe = this.generateText({
-        ...probeRequest,
-        // A health check has no topic; each probe is its own conversation.
-        conversation: { id: `check:${randomUUID()}` },
-        system: 'test',
-        prompt: 'hi',
-        reasoningEffort: 'none'
-      })
-    }
 
-    try {
-      await Promise.race([probe, timeoutPromise])
+      await Promise.race([probe, deadline.promise])
       return { latency: performance.now() - start }
     } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
+      deadline.dispose()
     }
   }
 

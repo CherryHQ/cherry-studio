@@ -1,7 +1,3 @@
-/**
- * Streaming agent loop. See `docs/references/ai/agent-loop.md`.
- */
-
 import {
   InvalidResponseDataError,
   type LanguageModelUsage,
@@ -11,9 +7,12 @@ import {
   type UIMessageChunk
 } from 'ai'
 
+/**
+ * Streaming agent loop. See `docs/references/ai/agent-loop.md`.
+ */
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
-import { isAbortError } from '@main/utils/error'
+import { isAbortError, onAbort as subscribeToAbort } from '@shared/utils/async'
 
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
@@ -270,9 +269,8 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         }
       }
 
-      signal.addEventListener('abort', abortBeforeFinish, { once: true })
+      const disposeAbort = subscribeToAbort(signal, abortBeforeFinish)
       try {
-        if (signal.aborted) abortBeforeFinish()
         if (terminalOutcome === 'abort') return false
 
         committingFinish = true
@@ -283,7 +281,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         throw error
       } finally {
         committingFinish = false
-        signal.removeEventListener('abort', abortBeforeFinish)
+        disposeAbort()
       }
     }
 
