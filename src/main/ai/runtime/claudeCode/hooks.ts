@@ -107,11 +107,11 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   }
 
   const bindSubagent = (agentId: string, agentType: string): void => {
-    const queue = pendingSubagentImageSupport.get(agentType) ?? pendingSubagentImageSupport.get('')
+    const queueKey = pendingSubagentImageSupport.has(agentType) ? agentType : ''
+    const queue = pendingSubagentImageSupport.get(queueKey)
     const modelSupport = queue?.shift()
     if (queue?.length === 0) {
-      pendingSubagentImageSupport.delete(agentType)
-      if (agentType !== '') pendingSubagentImageSupport.delete('')
+      pendingSubagentImageSupport.delete(queueKey)
     }
     if (modelSupport !== undefined) activeSubagentImageSupport.set(agentId, modelSupport)
   }

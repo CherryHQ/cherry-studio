@@ -157,6 +157,40 @@ describe('Claude Code subagent image capability hooks', () => {
     })
   })
 
+  it('preserves an untyped launch while binding a typed sibling', async () => {
+    const hooks = makeHooks(true, { opus: true, sonnet: false, haiku: true })
+
+    await hooks.preToolUse(
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Task',
+        tool_input: { model: 'opus', subagent_type: AGENT_TYPES.vision }
+      } as never,
+      'typed-launch',
+      { signal: new AbortController().signal }
+    )
+    await hooks.preToolUse(
+      { hook_event_name: 'PreToolUse', tool_name: 'Task', tool_input: { model: 'sonnet' } } as never,
+      'untyped-launch',
+      { signal: new AbortController().signal }
+    )
+    await hooks.subagentStart(
+      { hook_event_name: 'SubagentStart', agent_id: 'agent-vision', agent_type: AGENT_TYPES.vision } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    await hooks.subagentStart(
+      { hook_event_name: 'SubagentStart', agent_id: 'agent-text', agent_type: AGENT_TYPES.text } as never,
+      undefined,
+      { signal: new AbortController().signal }
+    )
+
+    await expect(fireRead(hooks.preToolUse, '/workspace/project/diagram.png', 'agent-vision')).resolves.toEqual({})
+    await expect(fireRead(hooks.preToolUse, '/workspace/project/diagram.png', 'agent-text')).resolves.toMatchObject({
+      hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' })
+    })
+  })
+
   it('inherits the parent capability for unknown aliases and clears it at SubagentStop', async () => {
     const hooks = makeHooks(false, { opus: true, sonnet: true, haiku: true })
 
