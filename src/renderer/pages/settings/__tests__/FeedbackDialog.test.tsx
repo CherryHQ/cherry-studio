@@ -1,9 +1,9 @@
 import '@testing-library/jest-dom/vitest'
-
-import { POPUP_EXIT_MS } from '@renderer/services/popup'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { POPUP_EXIT_MS } from '@renderer/services/popup'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),

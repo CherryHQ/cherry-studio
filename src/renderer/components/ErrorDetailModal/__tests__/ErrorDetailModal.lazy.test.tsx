@@ -1,7 +1,8 @@
-import { PopupHost } from '@renderer/components/PopupHost'
-import { popupService } from '@renderer/services/popup'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { PopupHost } from '@renderer/components/PopupHost'
+import { popupService } from '@renderer/services/popup'
 
 const mocks = vi.hoisted(() => ({
   diagnosisModuleEvaluated: vi.fn()

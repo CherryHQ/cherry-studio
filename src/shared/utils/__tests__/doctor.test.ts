@@ -17,7 +17,6 @@ describe('DOCTOR_CHECK_CATALOG', () => {
     }
     for (const id of Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]) expect(() => visit(id)).not.toThrow()
   })
-
 })
 
 describe('isDoctorFixRequest', () => {

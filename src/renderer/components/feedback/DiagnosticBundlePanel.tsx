@@ -189,13 +189,13 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
       <Scrollbar className="min-h-0 px-6 py-2">
         {status === 'saved' && savedResult ? (
           <div className="space-y-4">
-            <div className="flex gap-3 rounded-xl border border-success-border bg-success-subtle p-4">
+            <div className="border-success-border bg-success-subtle flex gap-3 rounded-xl border p-4">
               <CircleCheck className="mt-0.5 size-5 shrink-0 text-success" />
               <div className="min-w-0 space-y-1">
-                <p className="font-medium text-success-subtle-foreground">
+                <p className="text-success-subtle-foreground font-medium">
                   {t('settings.about.diagnostics.success.title')}
                 </p>
-                <p className="break-all text-sm">{savedResult.fileName}</p>
+                <p className="text-sm break-all">{savedResult.fileName}</p>
                 <p className="text-muted-foreground text-xs">
                   {t('settings.about.diagnostics.success.summary', {
                     included: savedResult.includedFileCount,
@@ -217,7 +217,7 @@ const DiagnosticBundlePanel: FC<DiagnosticBundlePanelProps> = ({ appVersion, onB
         )}
       </Scrollbar>
 
-      <DialogFooter className="mt-4 border-border border-t px-6 py-4">
+      <DialogFooter className="mt-4 border-t border-border px-6 py-4">
         {status === 'saved' ? (
           <>
             <Button variant="outline" onClick={handleClose}>

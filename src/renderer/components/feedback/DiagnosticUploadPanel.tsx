@@ -232,7 +232,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
         ) : (
           <form id={uploadFormId} className="space-y-4" onSubmit={handleSubmit}>
             <section className="space-y-2">
-              <label htmlFor="diagnostic-description" className="block font-medium text-sm">
+              <label htmlFor="diagnostic-description" className="block text-sm font-medium">
                 {t('settings.about.diagnostics.report.description_label')}
               </label>
               <Textarea.Input
@@ -270,7 +270,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
         )}
       </Scrollbar>
 
-      <DialogFooter className="mt-4 border-border border-t px-6 py-4">
+      <DialogFooter className="mt-4 border-t border-border px-6 py-4">
         {isBusy ? (
           <Button variant={operationStatus === 'discarding' ? 'destructive' : 'emphasis'} loading disabled>
             {t(
@@ -365,7 +365,7 @@ function UploadResultContent({
           aria-label={t('settings.about.diagnostics.report.saved_locally')}
           className="flex items-center justify-between gap-4">
           <div className="min-w-0 space-y-1">
-            <p className="break-all text-sm">{savedUpload.fileName}</p>
+            <p className="text-sm break-all">{savedUpload.fileName}</p>
             <p className="text-muted-foreground text-xs">{t('settings.about.diagnostics.report.saved_locally')}</p>
           </div>
           <Button variant="link" className="h-auto shrink-0 px-0 py-0" onClick={() => void onReveal()}>

@@ -1,5 +1,6 @@
-import type { DoctorFixRequest } from '@shared/types/doctor'
 import { describe, expect, it } from 'vitest'
+
+import type { DoctorFixRequest } from '@shared/types/doctor'
 
 import { createDoctorSession, doctorSessionReducer } from '../doctorSessionReducer'
 
