@@ -1,4 +1,12 @@
 import type { Api as PiApi, Model as PiModel } from '@earendil-works/pi-ai'
+import {
+  AuthStorage,
+  createAgentSession,
+  DefaultResourceLoader,
+  ModelRegistry,
+  SessionManager,
+  SettingsManager
+} from '@earendil-works/pi-coding-agent'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
@@ -210,7 +218,7 @@ describe('buildPiProviderInjection', () => {
     expect(injection.modelId).toBe('deepseek-chat')
   })
 
-  it('keeps a catalog output limit out of the default OpenAI-compatible request', async () => {
+  it('omits the AgentSession catalog limit while preserving an explicit OpenAI-compatible limit', async () => {
     const provider = makeProvider({
       id: 'deepseek',
       name: 'DeepSeek',
@@ -224,37 +232,66 @@ describe('buildPiProviderInjection', () => {
       makeModel({ id: 'deepseek::deepseek-v4', apiModelId: 'deepseek-v4', maxOutputTokens: 393_216 }),
       REAL_KEY
     )
-    const { streamSimple } = await materializePiProviderStream(injection)
-    const configuredModel = injection.providerConfig.models?.[0]
+    const requestBodies: Record<string, unknown>[] = []
+    const fetch = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      requestBodies.push(JSON.parse(String(init?.body)))
+      return Response.json({ error: { message: 'expected test rejection' } }, { status: 400 })
+    })
+    vi.stubGlobal('fetch', fetch)
+
+    const materialized = await materializePiProviderStream(injection)
+    const authStorage = AuthStorage.inMemory()
+    authStorage.setRuntimeApiKey(injection.providerName, REAL_KEY)
+    const modelRegistry = ModelRegistry.inMemory(authStorage)
+    modelRegistry.registerProvider(injection.providerName, {
+      ...materialized.providerConfig,
+      streamSimple: materialized.streamSimple
+    })
+    const configuredModel = modelRegistry.find(injection.providerName, injection.modelId)
     if (!configuredModel) throw new Error('Pi model configuration is incomplete')
 
-    const requestBodies: Record<string, unknown>[] = []
-    const send = (maxTokens?: number) =>
-      streamSimple(
-        {
-          ...configuredModel,
-          api: 'openai-completions',
-          provider: injection.providerName,
-          baseUrl: injection.providerConfig.baseUrl!
-        },
-        { messages: [{ role: 'user', content: 'hello', timestamp: 1 }] },
-        {
-          apiKey: REAL_KEY,
-          maxTokens,
-          maxRetries: 0,
-          fetch: async (_input, init) => {
-            requestBodies.push(JSON.parse(String(init?.body)))
-            return Response.json({ error: { message: 'expected test rejection' } }, { status: 400 })
-          }
-        }
-      ).result()
+    const cwd = process.cwd()
+    const settingsManager = SettingsManager.inMemory({
+      retry: { enabled: false },
+      compaction: { enabled: true, reserveTokens: 16_384, keepRecentTokens: 1 }
+    })
+    const resourceLoader = new DefaultResourceLoader({
+      cwd,
+      agentDir: cwd,
+      settingsManager,
+      noExtensions: true,
+      noSkills: true,
+      noPromptTemplates: true,
+      noThemes: true,
+      noContextFiles: true
+    })
+    await resourceLoader.reload()
+    const { session } = await createAgentSession({
+      cwd,
+      model: configuredModel,
+      authStorage,
+      modelRegistry,
+      settingsManager,
+      resourceLoader,
+      sessionManager: SessionManager.inMemory(cwd),
+      tools: []
+    })
 
-    await send()
-    await send(2_048)
+    try {
+      await session.prompt('hello')
+      await session.prompt('hello again')
+      await expect(session.compact()).rejects.toThrow('Summarization failed: 400')
+    } finally {
+      session.dispose()
+      modelRegistry.unregisterProvider(injection.providerName)
+    }
 
+    expect(fetch).toHaveBeenCalledTimes(3)
     expect(requestBodies[0]).not.toHaveProperty('max_tokens')
     expect(requestBodies[0]).not.toHaveProperty('max_completion_tokens')
-    expect(requestBodies[1].max_tokens ?? requestBodies[1].max_completion_tokens).toBe(2_048)
+    expect(requestBodies[1]).not.toHaveProperty('max_tokens')
+    expect(requestBodies[1]).not.toHaveProperty('max_completion_tokens')
+    expect(requestBodies[2].max_tokens ?? requestBodies[2].max_completion_tokens).toBe(13_107)
   })
 
   it('maps a Gemini provider', () => {
