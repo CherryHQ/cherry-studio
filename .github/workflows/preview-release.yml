@@ -29,8 +29,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       asset_sha: ${{ steps.source.outputs.asset_sha }}
-      branch_slug: ${{ steps.source.outputs.branch_slug }}
-      short_sha: ${{ steps.source.outputs.short_sha }}
       source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
       - name: Resolve source branch
@@ -48,14 +46,7 @@ jobs:
           fi
 
           SOURCE_SHA="${REMOTE_REF%%[[:space:]]*}"
-          BRANCH_SLUG="$(printf '%s' "$BRANCH" | sed -E 's/[^A-Za-z0-9._-]+/-/g; s/^-+//; s/-+$//' | cut -c1-60)"
-          if [ -z "$BRANCH_SLUG" ]; then
-            BRANCH_SLUG="sha-${SOURCE_SHA:0:12}"
-          fi
-
-          echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
           echo "asset_sha=${SOURCE_SHA:0:7}" >> "$GITHUB_OUTPUT"
-          echo "short_sha=${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "Resolved $BRANCH to $SOURCE_SHA"
 
@@ -158,24 +149,24 @@ jobs:
       - name: Validate edition preview artifacts
         run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
 
-      - name: Upload preview artifacts
+      - name: Upload preview x64 installer
         uses: actions/upload-artifact@v7
         with:
-          name: cherry-studio-preview-${{ needs.resolve.outputs.branch_slug }}-${{ needs.resolve.outputs.short_sha }}-${{ matrix.os }}-${{ matrix.edition }}
           path: |
-            dist/*.exe
-            dist/*.zip
-            dist/*.dmg
-            dist/*.AppImage
-            dist/*.snap
-            dist/*.deb
-            dist/*.rpm
-            dist/*.tar.gz
-            dist/latest*.yml
-            dist/rc*.yml
-            dist/beta*.yml
-            dist/preview*.yml
-            dist/*.blockmap
+            dist/*-x64-setup.exe
+            dist/*-x64.dmg
+            dist/*-x64.AppImage
+          archive: false
           if-no-files-found: error
           retention-days: 3
-          compression-level: 0
+
+      - name: Upload preview arm64 installer
+        uses: actions/upload-artifact@v7
+        with:
+          path: |
+            dist/*-arm64-setup.exe
+            dist/*-arm64.dmg
+            dist/*-arm64.AppImage
+          archive: false
+          if-no-files-found: error
+          retention-days: 3

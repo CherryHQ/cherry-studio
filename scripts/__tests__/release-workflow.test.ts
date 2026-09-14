@@ -8,6 +8,7 @@ import { parse } from 'yaml'
 
 import { prepareBackport } from '../release/backport-patch'
 import { composeReleaseBody } from '../release/compose-release-body'
+import { getExpectedReleaseArtifacts } from '../release/edition'
 import {
   extractHotfixReleaseNote,
   readBuilderReleaseNotes,
@@ -1204,13 +1205,6 @@ describe('release workflow gates', () => {
         }
       }
     }
-    const upload = workflow.jobs.build.steps.find((step: { uses?: string }) =>
-      step.uses?.startsWith('actions/upload-artifact@')
-    )
-    expect(upload.with['if-no-files-found']).toBe('error')
-    expect(upload.with.path).toContain('dist/*.exe')
-    expect(upload.with.path).toContain('dist/*.dmg')
-    expect(upload.with.path).toContain('dist/*.AppImage')
   })
 
   it('builds and stages both editions for every selected preview platform', () => {
@@ -1220,15 +1214,48 @@ describe('release workflow gates', () => {
     const validationStep = buildJob.steps.find(
       (step: { name?: string }) => step.name === 'Validate edition preview artifacts'
     )
-    const uploadStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Upload preview artifacts')
 
     expect(buildJob.strategy.matrix.edition).toEqual(['global', 'cn'])
     for (const step of buildSteps) {
       expect(step.run).toContain("matrix.edition == 'cn'")
     }
     expect(validationStep.run).toContain('validate-edition-artifacts.js "${{ matrix.edition }}"')
-    expect(uploadStep.with.name).toContain('${{ matrix.edition }}')
-    expect(uploadStep.with.path).toContain('dist/preview*.yml')
+  })
+
+  it('uploads one directly downloadable installer per preview architecture', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const uploads = workflow.jobs.build.steps.filter((step: { uses?: string }) =>
+      step.uses?.startsWith('actions/upload-artifact@')
+    )
+
+    expect(uploads).toHaveLength(2)
+    for (const [index, arch] of ['x64', 'arm64'].entries()) {
+      const options = uploads[index].with
+      expect(options.archive).toBe(false)
+      expect(options['if-no-files-found']).toBe('error')
+      const patterns = options.path.trim().split('\n')
+      for (const edition of ['global', 'cn']) {
+        for (const [platform, suffix] of [
+          ['windows', '-setup.exe'],
+          ['mac', '.dmg'],
+          ['linux', '.AppImage']
+        ]) {
+          const artifacts = getExpectedReleaseArtifacts({
+            edition,
+            platform,
+            productName: 'Cherry Studio',
+            version: '2.0.14-preview-1234567'
+          })
+          const files = [...artifacts.files, ...artifacts.manifests.map((manifest) => manifest.file)]
+          const selected = files.filter((file) =>
+            patterns.some((pattern: string) => path.matchesGlob(`dist/${file}`, pattern))
+          )
+          expect(selected).toHaveLength(1)
+          expect(selected[0]).toContain(edition === 'cn' ? 'Cherry-Studio-CN-' : 'Cherry-Studio-2.')
+          expect(selected[0].endsWith(`-${arch}${suffix}`)).toBe(true)
+        }
+      }
+    }
   })
 
   it('syncs post-release metadata from the published tag without depending on the release branch head', () => {
