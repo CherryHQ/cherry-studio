@@ -1361,26 +1361,14 @@ export class WindowManager extends BaseService {
       }
     })
 
-    // Intercept external links: open in system browser
-    window.webContents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('http:') || url.startsWith('https:')) {
-        void application
-          .get('MainWindowService')
-          .openWebsite(url)
-          .catch((error) => logger.warn('Failed to open website', { error }))
-      }
-      return { action: 'deny' }
-    })
+    // Domain services may route denied popups after onWindowCreated.
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
     window.webContents.on('will-navigate', (event, url) => {
       if (url.startsWith('http:') || url.startsWith('https:')) {
         const currentURL = window.webContents.getURL()
         if (currentURL && new URL(url).origin !== new URL(currentURL).origin) {
           event.preventDefault()
-          void application
-            .get('MainWindowService')
-            .openWebsite(url)
-            .catch((error) => logger.warn('Failed to open website', { error }))
         }
       } else {
         // Non-web schemes (file:, custom protocols) have no legitimate in-window

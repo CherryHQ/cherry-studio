@@ -95,7 +95,11 @@ export class AgentHtmlArtifactRequestPolicy {
       if (!authorizedRootPromise) {
         authorizedRootPromise = authorizeInitialArtifactRoot(url)
         this.rootByWebContentsId.set(webContentsId, authorizedRootPromise)
-        return Boolean(await authorizedRootPromise)
+        const authorizedRoot = await authorizedRootPromise
+        if (!authorizedRoot && this.rootByWebContentsId.get(webContentsId) === authorizedRootPromise) {
+          this.rootByWebContentsId.delete(webContentsId)
+        }
+        return Boolean(authorizedRoot)
       }
 
       const authorizedRoot = await authorizedRootPromise

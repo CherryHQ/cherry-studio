@@ -44,6 +44,8 @@ export class MainWindowService extends BaseService {
   private readonly _onMainWindowCreated: Emitter<BrowserWindow>
   public readonly onMainWindowCreated: Event<BrowserWindow>
 
+  private readonly externalWebsiteCleanups = new Set<() => void>()
+
   // Direct BrowserWindow reference, kept in sync with WindowManager's lifecycle
   // events (onWindowCreatedByType / onWindowDestroyedByType). External callers
   // should NOT touch this field — use WindowManager.broadcastToType() / showMainWindow()
@@ -81,6 +83,15 @@ export class MainWindowService extends BaseService {
     this.setupHtmlArtifactPreviewSession()
     this.setupAgentWebviewSessions()
     this.setupSpellCheck()
+
+    this.registerDisposable(() => {
+      for (const cleanup of this.externalWebsiteCleanups) cleanup()
+    })
+    this.registerDisposable(
+      windowManager.onWindowCreated(({ type, window }) => {
+        if (type !== WindowType.Main) this.setupExternalWebsiteHandlers(window)
+      })
+    )
 
     // Wire business listeners onto fresh main windows. Reuse paths (singleton reopen)
     // do not fire onWindowCreatedByType — by design, since listeners are already attached.
@@ -535,6 +546,31 @@ export class MainWindowService extends BaseService {
       url: `/app/browser?${new URLSearchParams({ url: normalized })}`,
       title: new URL(normalized).hostname
     })
+  }
+
+  private setupExternalWebsiteHandlers(window: BrowserWindow) {
+    const contents = window.webContents
+    const openWebsite = (url: string) => {
+      void this.openWebsite(url).catch((error) => logger.warn('Failed to open website', { error }))
+    }
+    contents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith('http:') || url.startsWith('https:')) openWebsite(url)
+      return { action: 'deny' }
+    })
+    const navigate = (_event: Electron.Event, url: string) => {
+      if (!url.startsWith('http:') && !url.startsWith('https:')) return
+      const currentUrl = contents.getURL()
+      if (currentUrl && new URL(url).origin !== new URL(currentUrl).origin) openWebsite(url)
+    }
+    contents.on('will-navigate', navigate)
+    const dispose = () => {
+      this.externalWebsiteCleanups.delete(dispose)
+      window.removeListener('closed', dispose)
+      contents.removeListener('will-navigate', navigate)
+      if (!contents.isDestroyed()) contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    }
+    this.externalWebsiteCleanups.add(dispose)
+    window.once('closed', dispose)
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {

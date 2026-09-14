@@ -56,6 +56,9 @@ const {
     behavior: {
       setMacShowInDockByType: vi.fn()
     },
+    onWindowCreated: vi.fn<(listener: (event: { type: WindowType; window: MockBrowserWindow }) => void) => () => void>(
+      () => vi.fn()
+    ),
     onWindowCreatedByType: vi.fn(() => vi.fn()),
     onWindowDestroyedByType: vi.fn(() => vi.fn()),
     open: vi.fn(() => 'mock-window-id'),
@@ -209,6 +212,9 @@ interface MockBrowserWindow extends EventEmitter {
   setFullScreen: ReturnType<typeof vi.fn>
   webContents: {
     id: number
+    getURL: ReturnType<typeof vi.fn<() => string>>
+    isDestroyed: ReturnType<typeof vi.fn<() => boolean>>
+    removeListener: ReturnType<typeof vi.fn>
     reload: ReturnType<typeof vi.fn>
     setZoomFactor: ReturnType<typeof vi.fn>
     on: ReturnType<typeof vi.fn>
@@ -235,6 +241,9 @@ function createMockWindow(): MockBrowserWindow {
   win.setFullScreen = vi.fn()
   win.webContents = {
     id: 1,
+    getURL: vi.fn(() => 'https://app.local/index.html'),
+    isDestroyed: vi.fn(() => false),
+    removeListener: vi.fn(),
     reload: vi.fn(),
     setZoomFactor: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
@@ -382,6 +391,47 @@ describe('MainWindowService', () => {
     afterEach(() => {
       delete prefValues['app.browser.open_links_in_browser']
     })
+    it('routes other windows through the website preference and stops routing on close', async () => {
+      await (svc as any).onInit()
+      const created = windowManagerMock.onWindowCreated.mock.calls[0][0]
+      created({ type: WindowType.SubWindow, window: win })
+      const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
+      const navigate = win.webContents.on.mock.calls.find(([event]) => event === 'will-navigate')![1]
+      prefValues['app.browser.open_links_in_browser'] = false
+      expect(popup({ url: 'https://external.test/' })).toEqual({ action: 'deny' })
+      expect(shell.openExternal).toHaveBeenCalledWith('https://external.test/')
+      vi.mocked(shell.openExternal).mockClear()
+      popup({ url: 'file:///tmp/private.html' })
+      navigate({}, 'https://app.local/same-origin')
+      navigate({}, 'javascript:alert(1)')
+      expect(shell.openExternal).not.toHaveBeenCalled()
+
+      prefValues['app.browser.open_links_in_browser'] = true
+      navigate({}, 'https://internal.test/')
+      const navigation = createMockApplication().get('MainWindowService') as MainWindowService
+      expect(navigation.showMainWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'tab-attach',
+          tab: expect.objectContaining({ url: '/app/browser?url=https%3A%2F%2Finternal.test%2F' })
+        })
+      )
+      expect(shell.openExternal).not.toHaveBeenCalled()
+      win.emit('closed')
+      const closedPopup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
+      expect(closedPopup({ url: 'https://after-close.test/' })).toEqual({ action: 'deny' })
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('leaves main-window OAuth handling to its specialized policy', async () => {
+      await (svc as any).onInit()
+      const created = windowManagerMock.onWindowCreated.mock.calls[0][0]
+      ;(svc as any).setupWebContentsHandlers(win)
+      created({ type: WindowType.Main, window: win })
+      const popup = win.webContents.setWindowOpenHandler.mock.calls.at(-1)![0]
+      expect(popup({ url: 'https://account.siliconflow.cn/oauth/callback' })).toMatchObject({ action: 'allow' })
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+
     it('opens an encoded shared-browser route when enabled, even with Agent control off', async () => {
       prefValues['app.browser.open_links_in_browser'] = true
       const url = 'http://192.168.1.2:8080/page?q=a&lang=zh#part'

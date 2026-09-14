@@ -1,7 +1,7 @@
 import { app, type BrowserWindow, dialog, session, webContents } from 'electron'
 
 import { application } from '@application'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { browserHistoryService } from '@data/services/BrowserHistoryService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, LifecycleState, Phase, ServicePhase } from '@main/core/lifecycle'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
@@ -9,7 +9,7 @@ import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/sche
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { type AgentBrowserContext, AgentBrowserRegistry } from './AgentBrowserRegistry'
-import { captureBrowserFavicon } from './browserFavicons'
+import { captureBrowserFavicon, clearBrowserFavicons } from './browserFavicons'
 import type { SessionOwnership } from './browserUse'
 import { listBrowserProfiles } from './import/browserProfiles'
 import { emptyImportResult, importBrowserData } from './import/importBrowserData'
@@ -165,16 +165,16 @@ export class BrowserSessionService extends BaseService {
     )
   }
 
-  clearData(kind: 'site_data' | 'cache'): Promise<void> {
+  clearData(kind: 'site_data' | 'cache' | 'history'): Promise<void> {
     return this.runDataOperation(async () => {
       const profile = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
-      if (kind === 'cache') {
+      if (kind !== 'site_data') {
         this.faviconCapture.abort()
         try {
           await Promise.allSettled(this.faviconTasks)
-          await profile.clearCache()
-          application.get('CacheService').deletePersist('browser.favicons')
-          notifyDataApiDataChange([{ endpoint: '/browser-visits', kind: 'membership' }])
+          if (kind === 'cache') await profile.clearCache()
+          else browserHistoryService.clear()
+          clearBrowserFavicons()
         } finally {
           this.faviconCapture = new AbortController()
         }

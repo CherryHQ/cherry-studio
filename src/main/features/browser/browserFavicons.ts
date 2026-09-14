@@ -9,6 +9,11 @@ const logger = loggerService.withContext('BrowserFavicons')
 const MAX_ICON_BYTES = 256 * 1024
 const MAX_CACHED_SITES = 256
 
+export function clearBrowserFavicons(): void {
+  application.get('CacheService').deletePersist('browser.favicons')
+  notifyDataApiDataChange([{ endpoint: '/browser-visits', kind: 'membership' }])
+}
+
 export async function cacheBrowserFavicons(icons: ReadonlyMap<string, Buffer>, signal?: AbortSignal): Promise<boolean> {
   const prepared = new Map<string, string>()
   for (const [pageUrl, bytes] of icons) {

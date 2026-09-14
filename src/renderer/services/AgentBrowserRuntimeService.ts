@@ -33,9 +33,20 @@ export class AgentBrowserRuntimeService {
   get = (sessionId: string) => this.resources.get(sessionId)
 
   declare(sessionId: string, ownerTabId: string): void {
+    for (const [previousSessionId, previousOwners] of this.owners) {
+      if (previousSessionId === sessionId || !previousOwners.delete(ownerTabId)) continue
+      if (previousOwners.size === 0) {
+        this.owners.delete(previousSessionId)
+        this.resources.delete(previousSessionId)
+      }
+    }
     const owners = this.owners.get(sessionId) ?? new Set<string>()
     owners.add(ownerTabId)
     this.owners.set(sessionId, owners)
+    if (this.ids.length !== this.resources.size) {
+      this.ids = [...this.resources.keys()]
+      this.emit()
+    }
   }
 
   ensure(sessionId: string, url?: string, profile: WebviewSecurityProfile = WebviewSecurityProfile.AgentBrowser): void {

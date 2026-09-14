@@ -1,5 +1,7 @@
 import type { Protocol } from 'devtools-protocol'
 
+import { redactUrlParams } from '@shared/utils/redaction'
+
 import { sanitizeSnapshotUrl } from '../snapshot/serializeSnapshot'
 import type { CdpEvent } from './cdpAllowList'
 
@@ -22,6 +24,10 @@ interface NetworkRequest {
   status?: number
   state: 'pending' | 'completed' | 'failed' | 'redirected'
   error?: string
+}
+
+function sanitizeInspectionUrl(input: string): string {
+  return redactUrlParams(sanitizeSnapshotUrl(input), ['code', 'signature'])
 }
 
 function remoteText(arg: Protocol.Runtime.RemoteObject): string {
@@ -57,7 +63,7 @@ export class BrowserInspection {
               : 'info',
         text: params.args.slice(0, 20).map(remoteText).join(' ').slice(0, MAX_TEXT),
         timestamp: params.timestamp,
-        url: sanitizeSnapshotUrl(params.stackTrace?.callFrames[0]?.url ?? '').slice(0, MAX_TEXT)
+        url: sanitizeInspectionUrl(params.stackTrace?.callFrames[0]?.url ?? '').slice(0, MAX_TEXT)
       })
     } else if (method === 'Runtime.exceptionThrown') {
       const exception = params.exceptionDetails
@@ -65,7 +71,7 @@ export class BrowserInspection {
         level: 'error',
         text: (exception.exception?.description ?? exception.text).slice(0, MAX_TEXT),
         timestamp: params.timestamp,
-        url: sanitizeSnapshotUrl(exception.url ?? exception.stackTrace?.callFrames[0]?.url ?? '').slice(0, MAX_TEXT)
+        url: sanitizeInspectionUrl(exception.url ?? exception.stackTrace?.callFrames[0]?.url ?? '').slice(0, MAX_TEXT)
       })
     } else if (method === 'Network.requestWillBeSent') {
       const previous = this.requests.findLast((request) => request.requestId === params.requestId)
@@ -76,7 +82,7 @@ export class BrowserInspection {
       this.requests.push({
         requestId: params.requestId,
         method: params.request.method.slice(0, 80),
-        url: sanitizeSnapshotUrl(params.request.url).slice(0, MAX_TEXT),
+        url: sanitizeInspectionUrl(params.request.url).slice(0, MAX_TEXT),
         type: params.type,
         state: 'pending'
       })

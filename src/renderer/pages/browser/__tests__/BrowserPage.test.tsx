@@ -6,6 +6,7 @@ import type { WebviewTag } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
+import { Route as BrowserRoute } from '@renderer/routes/app/browser'
 
 import { BrowserPage } from '../BrowserPage'
 
@@ -25,7 +26,7 @@ function openBrowser(href: string) {
   const route = createRoute({
     getParentRoute: () => root,
     path: '/app/browser',
-    validateSearch: (search): { url: string } => ({ url: String(search.url) }),
+    validateSearch: BrowserRoute.options.validateSearch,
     component: () => (
       <TabIdProvider tabId="browser-tab">
         <BrowserPage initialUrl={route.useSearch().url} />
@@ -40,6 +41,14 @@ function openBrowser(href: string) {
 }
 
 describe('Browser tab restoration', () => {
+  it.each(['/app/browser', '/app/browser?url=', '/app/browser?url=%20%20', '/app/browser?url=about%3Ablank'])(
+    'opens an empty browser page for %s',
+    async (href) => {
+      openBrowser(href)
+      expect(await screen.findByTestId('webview-browser-guest')).toHaveAttribute('src', 'about:blank')
+    }
+  )
+
   it('restores committed navigation after unmount without reloading the guest during route synchronization', async () => {
     const first = 'https://example.com/start'
     const view = openBrowser(`/app/browser?url=${encodeURIComponent(first)}`)
