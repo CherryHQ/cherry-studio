@@ -22,6 +22,7 @@ export interface DoctorSessionState {
     readonly runId: string
     readonly checkIds: readonly DoctorCheckId[]
   }
+  readonly fixedRunId?: string
   readonly fixedCheckIds: readonly DoctorCheckId[]
   readonly relaunchRequired: boolean
   readonly interaction: DoctorInteraction
@@ -31,7 +32,7 @@ export type DoctorSessionAction =
   | { readonly type: 'set-panel'; readonly panel: DoctorPanel }
   | { readonly type: 'set-description'; readonly description: string }
   | { readonly type: 'reveal-evidence'; readonly runId: string; readonly checkId: DoctorCheckId }
-  | { readonly type: 'mark-check-fixed'; readonly checkId: DoctorCheckId }
+  | { readonly type: 'mark-check-fixed'; readonly checkId: DoctorCheckId; readonly runId: string }
   | { readonly type: 'mark-relaunch-required' }
   | { readonly type: 'confirm-evidence'; readonly runId: string; readonly checkId: DoctorCheckId }
   | { readonly type: 'cancel-confirmation' }
@@ -67,9 +68,13 @@ export function doctorSessionReducer(state: DoctorSessionState, action: DoctorSe
         : { ...state, evidenceGrant: { runId: action.runId, checkIds: [...checkIds, action.checkId] } }
     }
     case 'mark-check-fixed':
-      return state.fixedCheckIds.includes(action.checkId)
+      return state.fixedRunId === action.runId && state.fixedCheckIds.includes(action.checkId)
         ? state
-        : { ...state, fixedCheckIds: [...state.fixedCheckIds, action.checkId] }
+        : {
+            ...state,
+            fixedRunId: action.runId,
+            fixedCheckIds: [...(state.fixedRunId === action.runId ? state.fixedCheckIds : []), action.checkId]
+          }
     case 'mark-relaunch-required':
       return { ...state, relaunchRequired: true }
     case 'confirm-evidence':

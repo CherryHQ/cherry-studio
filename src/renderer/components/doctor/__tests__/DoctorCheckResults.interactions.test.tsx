@@ -148,6 +148,7 @@ function createCompletedPanelController() {
       problemCount: 1,
       report: {
         schemaVersion: 1,
+        scope: 'global',
         runId: 'run-1',
         tier: 'quick',
         startedAt: '2026-09-05T00:00:00.000Z',
@@ -402,6 +403,7 @@ describe('DoctorCheckAccordionItems interactions', () => {
         interaction: {
           kind: 'fixing',
           request: {
+            scope: 'global',
             runId: 'run-1',
             checkId: 'permission-screen-capture',
             fixId: 'request'

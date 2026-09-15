@@ -28,7 +28,7 @@ describe('buildDiagnosticReportDescription', () => {
 
     expect(
       diagnosticReportFields({
-        diagnosisContext: { modelId: ' gpt-5 ', providerName: ' OpenAI ' },
+        diagnosisContext: { modelId: ' gpt-5 ', providerId: ' OpenAI ' },
         error,
         location: ' Home conversation '
       })
@@ -54,7 +54,7 @@ describe('buildDiagnosticReportDescription', () => {
 
     expect(
       diagnosticReportFields({
-        diagnosisContext: { providerName: 'OpenAI' },
+        diagnosisContext: { providerId: 'OpenAI' },
         error: { name: 'ProviderError', message: null, stack: null },
         location: 'Home conversation'
       })
@@ -86,7 +86,7 @@ describe('buildDiagnosticReportDescription', () => {
     } as SerializedError
 
     const description = buildDiagnosticReportDescription({
-      diagnosisContext: { modelId: 'gpt-5', providerName: 'OpenAI' },
+      diagnosisContext: { modelId: 'gpt-5', providerId: 'OpenAI' },
       error,
       labels,
       location: 'Home conversation'

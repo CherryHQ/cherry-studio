@@ -15,9 +15,11 @@ import {
   type DoctorFixRequest,
   type DoctorNavigateTarget,
   type DoctorRunTier,
-  type DoctorState
+  type DoctorScopeKey,
+  type DoctorState,
+  type DoctorSubjectRef
 } from '@shared/types/doctor'
-import { doctorCheckTitleKey, type DoctorPanel } from '@shared/utils/doctor'
+import { doctorCheckTitleKey, type DoctorPanel, doctorScopeKey } from '@shared/utils/doctor'
 
 import { createDoctorSession, type DoctorInteraction, doctorSessionReducer } from './doctorSessionReducer'
 
@@ -28,6 +30,7 @@ interface UseDoctorControllerOptions {
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
   readonly initialRunTier?: DoctorRunTier
+  readonly subject: DoctorSubjectRef
   readonly onNavigate: (target: DoctorNavigateTarget) => void
   readonly onReportProblem?: (description: string) => void
 }
@@ -37,12 +40,14 @@ function assertNever(value: never): never {
 }
 
 function fixRequestFor(
+  scope: DoctorScopeKey,
   runId: string,
   checkId: DoctorCheckId,
   action: Extract<DoctorAction, { kind: 'fix' }>
 ): DoctorFixRequest | undefined {
   if (!DOCTOR_CHECK_CATALOG[checkId].fixes.some((candidate) => candidate.id === action.fixId)) return undefined
   return {
+    scope,
     runId,
     checkId,
     fixId: action.fixId,
@@ -54,11 +59,13 @@ export function useDoctorController({
   initialPanel,
   initialDescription,
   initialRunTier,
+  subject,
   onNavigate,
   onReportProblem
 }: UseDoctorControllerOptions) {
   const { t } = useTranslation()
-  const cachedDoctorState = useSharedCacheValue('doctor.state')
+  const scope = doctorScopeKey(subject)
+  const cachedDoctorState = useSharedCacheValue(`doctor.state.${scope}` as const)
   const [sharedCacheReady, setSharedCacheReady] = useState(() => cacheService.isSharedCacheReady())
   const doctorState = cachedDoctorState ?? IDLE_DOCTOR_STATE
   const { appUpdateState } = useAppUpdateState()
@@ -68,7 +75,9 @@ export function useDoctorController({
     createDoctorSession
   )
   const [now, setNow] = useState(Date.now)
-  const [isAutoRunPending, setIsAutoRunPending] = useState(doctorState.status === 'idle')
+  const [isAutoRunPending, setIsAutoRunPending] = useState(
+    initialPanel === 'checks' && (doctorState.status === 'idle' || initialRunTier !== undefined)
+  )
   const autoRunRequestedRef = useRef(false)
 
   useEffect(() => {
@@ -119,7 +128,7 @@ export function useDoctorController({
         interaction: { kind: 'run', tier }
       })
       try {
-        await ipcApi.request('diagnostics.doctor.run', { tier })
+        await ipcApi.request('diagnostics.doctor.run', { tier, subject })
       } catch (error) {
         logger.error('Failed to run system diagnostics', error as Error)
         toast.error(t('settings.doctor.messages.run_failed'))
@@ -127,11 +136,11 @@ export function useDoctorController({
         dispatch({ type: 'finish-interaction', kind: 'run' })
       }
     },
-    [t]
+    [subject, t]
   )
 
   useEffect(() => {
-    if (!sharedCacheReady || autoRunRequestedRef.current) return
+    if (initialPanel !== 'checks' || !sharedCacheReady || autoRunRequestedRef.current) return
     if (doctorState.status === 'running') {
       autoRunRequestedRef.current = true
       setIsAutoRunPending(false)
@@ -143,25 +152,26 @@ export function useDoctorController({
       return
     }
     if (doctorState.status !== 'idle') {
+      autoRunRequestedRef.current = true
       setIsAutoRunPending(false)
       return
     }
     autoRunRequestedRef.current = true
     void run('quick').finally(() => setIsAutoRunPending(false))
-  }, [doctorState.status, initialRunTier, run, sharedCacheReady])
+  }, [doctorState.status, initialPanel, initialRunTier, run, sharedCacheReady])
 
   const cancel = useCallback(async () => {
     if (!canCancelDoctorRun(doctorState)) return
     dispatch({ type: 'start-interaction', interaction: { kind: 'cancel' } })
     try {
-      await ipcApi.request('diagnostics.doctor.cancel', { runId: doctorState.runId })
+      await ipcApi.request('diagnostics.doctor.cancel', { scope, runId: doctorState.runId })
     } catch (error) {
       logger.error('Failed to cancel system diagnostics', error as Error)
       toast.error(t('settings.doctor.messages.cancel_failed'))
     } finally {
       dispatch({ type: 'finish-interaction', kind: 'cancel' })
     }
-  }, [doctorState, t])
+  }, [doctorState, scope, t])
 
   const performAction = useCallback(
     async (
@@ -189,11 +199,11 @@ export function useDoctorController({
         const result = await ipcApi.request('diagnostics.doctor.fix', request)
         switch (result.status) {
           case 'fixed':
-            dispatch({ type: 'mark-check-fixed', checkId: request.checkId })
+            dispatch({ type: 'mark-check-fixed', checkId: request.checkId, runId: request.runId })
             toast.success(t('settings.doctor.messages.fix_completed'))
             break
           case 'requires_relaunch':
-            dispatch({ type: 'mark-check-fixed', checkId: request.checkId })
+            dispatch({ type: 'mark-check-fixed', checkId: request.checkId, runId: request.runId })
             dispatch({ type: 'mark-relaunch-required' })
             toast.success(t('settings.doctor.messages.relaunch_required'))
             break
@@ -223,7 +233,7 @@ export function useDoctorController({
       switch (action.kind) {
         case 'fix': {
           if (!runId) return
-          const request = fixRequestFor(runId, checkId, action)
+          const request = fixRequestFor(scope, runId, checkId, action)
           if (!request) return
           await performFix(request)
           return
@@ -275,7 +285,7 @@ export function useDoctorController({
           return assertNever(action)
       }
     },
-    [onNavigate, onReportProblem, performAction, performFix, session.descriptionDraft, t, viewModel.isStale]
+    [onNavigate, onReportProblem, performAction, performFix, scope, session.descriptionDraft, t, viewModel.isStale]
   )
 
   const openPath = useCallback(
@@ -353,7 +363,7 @@ export function useDoctorController({
     openLogsPath,
     openPath,
     run,
-    session,
+    session: { ...session, fixedCheckIds: session.fixedRunId === viewModel.runId ? session.fixedCheckIds : [] },
     setDescription: (description: string) => dispatch({ type: 'set-description', description }),
     setPanel,
     setPanelInteraction,

@@ -6,15 +6,14 @@ import { createUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/mod
 import { classifyErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
 import { redactUrlParams } from '@shared/utils/redaction'
 
+import { defaultChatModelId } from '../subjectDefaults'
 import { defineDoctorCheck, type DoctorContext, type DoctorProbeOutcome } from '../types'
 
 function modelTarget(ctx: DoctorContext) {
   return ctx.share('provider:model-check', async () => {
     const { providerId, modelId } = ctx.subject ?? {}
     const uniqueModelId =
-      providerId && modelId
-        ? createUniqueModelId(providerId, modelId)
-        : application.get('PreferenceService').get('chat.default_model_id')
+      providerId && modelId ? createUniqueModelId(providerId, modelId) : await defaultChatModelId(ctx)
     if (!uniqueModelId) throw new Error('No model is configured for this subject')
     const target = application.get('AiService').prepareModelCheck(UniqueModelIdSchema.parse(uniqueModelId))
     return {

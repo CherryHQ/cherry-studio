@@ -79,7 +79,7 @@ export function diagnosticReportFields({
 }: DiagnosticReportFieldsInput): DiagnosticReportField[] {
   return [
     diagnosticReportField('location', location),
-    diagnosticReportField('model', combineModelParts(diagnosisContext?.providerName, diagnosisContext?.modelId)),
+    diagnosticReportField('model', combineModelParts(diagnosisContext?.providerId, diagnosisContext?.modelId)),
     diagnosticReportField('errorMessage', combineErrorParts(error?.name, error?.message))
   ].filter((field): field is DiagnosticReportField => field !== undefined)
 }

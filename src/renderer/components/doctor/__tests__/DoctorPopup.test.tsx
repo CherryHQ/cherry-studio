@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
     'settings.doctor.checks.error': 'This check could not be completed',
     'settings.doctor.checks.skipped': 'Skipped because {{check}} did not complete',
     'settings.doctor.checks.provider-api-key-present.title': 'Default provider API key',
-    'settings.doctor.checks.provider-default-model.title': 'Default provider model',
+    'settings.doctor.checks.provider-model.title': 'Provider model',
     'settings.doctor.summary.fixed': 'Fixed: {{count}}',
     'settings.doctor.summary.needs_attention': 'Needs attention: {{count}}',
     'settings.doctor.summary.problems': '{{count}} items need attention',
@@ -108,6 +108,7 @@ function completedDoctorState(
     status: 'completed',
     report: {
       schemaVersion: 1,
+      scope: 'global',
       runId: 'completed-quick',
       tier: 'quick',
       startedAt: new Date(now - 1_000).toISOString(),
@@ -230,7 +231,7 @@ describe('DoctorPopup', () => {
       within(staleAlert as HTMLElement).getByRole('button', { name: 'settings.doctor.actions.run_basic' })
     )
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { subject: { kind: 'global' }, tier: 'quick' })
   })
 
   it('offers a quick recovery after full checks are canceled', async () => {
@@ -252,7 +253,7 @@ describe('DoctorPopup', () => {
       within(canceledAlert as HTMLElement).getByRole('button', { name: 'settings.doctor.actions.rerun' })
     )
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { subject: { kind: 'global' }, tier: 'quick' })
   })
 
   it.each(['quick', 'live'] as const)('keeps an active %s run cancelable', async (tier) => {
@@ -273,7 +274,10 @@ describe('DoctorPopup', () => {
 
     await user.click(await screen.findByRole('button', { name: 'settings.doctor.actions.cancel_run' }))
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: `running-${tier}` })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', {
+      scope: 'global',
+      runId: `running-${tier}`
+    })
   })
 
   it('uses the export title and keeps generic problem reporting out of the checks menu', async () => {
@@ -344,6 +348,7 @@ describe('DoctorPopup', () => {
       status: 'completed',
       report: {
         schemaVersion: 1,
+        scope: 'global',
         runId: 'run-2',
         tier: 'quick',
         startedAt: new Date(Date.now() - 1_000).toISOString(),
@@ -414,7 +419,7 @@ describe('DoctorPopup', () => {
             actions: []
           },
           {
-            id: 'provider-default-model',
+            id: 'provider-model',
             status: 'error',
             durationMs: 1,
             message: 'Probe failed'
@@ -423,7 +428,7 @@ describe('DoctorPopup', () => {
             id: 'provider-api-key-present',
             status: 'skip',
             durationMs: 1,
-            skippedBy: 'provider-default-model'
+            skippedBy: 'provider-model'
           }
         ],
         summary: { pass: 1, warn: 3, fail: 1, skip: 1, error: 1 }
@@ -450,7 +455,7 @@ describe('DoctorPopup', () => {
       within(otherFindings).getByRole('button', { name: /settings\.doctor\.checks\.network-online\.title/ })
     ).toBeVisible()
     const errorCheck = within(otherFindings).getByRole('button', {
-      name: /Default provider model.*settings\.doctor\.status\.error/
+      name: /Provider model.*settings\.doctor\.status\.error/
     })
     const skippedCheck = within(otherFindings).getByRole('button', {
       name: /Default provider API key.*settings\.doctor\.status\.skip/
@@ -460,7 +465,7 @@ describe('DoctorPopup', () => {
     if (errorCheck.getAttribute('aria-expanded') === 'false') await user.click(errorCheck)
     expect(within(otherFindings).getByText('This check could not be completed')).toBeVisible()
     await user.click(skippedCheck)
-    expect(within(otherFindings).getByText('Skipped because Default provider model did not complete')).toBeVisible()
+    expect(within(otherFindings).getByText('Skipped because Provider model did not complete')).toBeVisible()
     const advancedTools = screen.getByRole('button', { name: 'settings.doctor.advanced.title' })
     expect(advancedTools).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('2.0.0')).not.toBeInTheDocument()
@@ -519,6 +524,7 @@ describe('DoctorPopup', () => {
 
     expect(await screen.findByText('Fixed: 1')).toHaveClass('text-success')
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.fix', {
+      scope: 'global',
       runId: 'completed-quick',
       checkId: 'permission-accessibility',
       fixId: 'request'

@@ -15,11 +15,12 @@ import {
   endpointRegistry,
   endpointUpdate,
   online,
+  providerEndpoint,
   proxyApplied,
   tlsHandshake
 } from './checks/network'
 import { accessibilityPermission, screenCapturePermission } from './checks/permission'
-import { cherryAccount, defaultModel, defaultProviderApiKey } from './checks/provider'
+import { cherryAccount, providerApiKey, providerModel } from './checks/provider'
 import { claudeLogin, managedTools } from './checks/runtime'
 import { diagnosticDataSize, diskSpace, userDataLocation } from './checks/storage'
 import type { DoctorCheckRegistry } from './types'
@@ -40,8 +41,8 @@ export const doctorCheckRegistry: DoctorCheckRegistry = {
   'storage-diagnostic-data-size': diagnosticDataSize,
   'config-boot-config-valid': bootConfigValid,
   'config-hardware-acceleration': hardwareAcceleration,
-  'provider-default-model': defaultModel,
-  'provider-api-key-present': defaultProviderApiKey,
+  'provider-model': providerModel,
+  'provider-api-key-present': providerApiKey,
   'provider-cherry-account': cherryAccount,
   'network-online': online,
   'network-dns-resolution': dnsResolution,
@@ -51,6 +52,7 @@ export const doctorCheckRegistry: DoctorCheckRegistry = {
   'network-endpoint-registry': endpointRegistry,
   'network-endpoint-cloud': endpointCloud,
   'network-endpoint-diagnostics': endpointDiagnostics,
+  'network-provider-endpoint': providerEndpoint,
   'mcp-servers-connected': mcpServersConnected,
   'mcp-launch-commands': mcpLaunchCommands,
   'runtime-managed-tools': managedTools,

@@ -1,8 +1,17 @@
+import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { BaseService } from '@main/core/lifecycle'
+import type { DoctorScopeKey } from '@shared/types/doctor'
 
 import type { DoctorContext } from '../types'
 
@@ -63,7 +72,8 @@ function createReadyService() {
 // The registry mock implements only a few checks; the catalog lists more.
 const MOCKED = ['config-boot-config-valid', 'storage-userdata-location'] as const
 
-const state = () => application.get('CacheService').getShared('doctor.state')
+const stateOf = (scope: DoctorScopeKey) => application.get('CacheService').getShared(`doctor.state.${scope}`)
+const state = () => stateOf('global')
 const warnWithRepair = {
   status: 'warn',
   attribution: 'user-fixable',
@@ -83,11 +93,30 @@ beforeEach(() => {
 })
 
 describe('DoctorContext.share', () => {
+  it('keeps the default model identity stable while settings change during a run', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'openai::old')
+    registryMocks.bootConfigRun.mockImplementation(async (ctx: DoctorContext) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'openai::new')
+      const { defaultChatModel } = await import('../subjectDefaults')
+      const model = await defaultChatModel(ctx)
+      return { status: 'pass', evidence: [{ key: 'model', value: model?.modelId, dataClass: 'public' }] }
+    })
+    const run = await createReadyService().run({
+      subject: { kind: 'global' },
+      tier: 'quick',
+      checkIds: ['config-boot-config-valid']
+    })
+    expect(run).toMatchObject({
+      status: 'completed',
+      report: { results: [{ evidence: [{ key: 'model', value: 'old' }] }] }
+    })
+  })
+
   const SHARING = ['network-online', 'network-dns-resolution'] as const
 
   it('runs a shared probe once per run even for checks in different layers', async () => {
     const service = createReadyService()
-    const outcome = await service.run({ tier: 'live', checkIds: SHARING })
+    const outcome = await service.run({ subject: { kind: 'global' }, tier: 'live', checkIds: SHARING })
     expect(outcome.status).toBe('completed')
     if (outcome.status !== 'completed') return
     expect(outcome.report.summary).toMatchObject({ pass: 2 })
@@ -96,29 +125,35 @@ describe('DoctorContext.share', () => {
 
   it('probes afresh for every new run', async () => {
     const service = createReadyService()
-    await service.run({ tier: 'live', checkIds: SHARING })
-    await service.run({ tier: 'live', checkIds: SHARING })
+    await service.run({ subject: { kind: 'global' }, tier: 'live', checkIds: SHARING })
+    await service.run({ subject: { kind: 'global' }, tier: 'live', checkIds: SHARING })
     expect(registryMocks.sharedProbe).toHaveBeenCalledTimes(2)
   })
 })
 
 describe('DoctorService.run', () => {
   it('rejects early calls without publishing a running state', async () => {
-    await expect(new DoctorService().run({ tier: 'quick', checkIds: MOCKED })).rejects.toThrow('not ready')
+    await expect(
+      new DoctorService().run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
+    ).rejects.toThrow('not ready')
     expect(state()?.status).not.toBe('running')
   })
 
   it('includes transitive dependencies for selected checks', async () => {
-    const result = await createReadyService().run({ tier: 'live', checkIds: ['network-dns-resolution'] })
+    const result = await createReadyService().run({
+      subject: { kind: 'global' },
+      tier: 'live',
+      checkIds: ['network-dns-resolution']
+    })
     expect(result.status).toBe('completed')
     if (result.status !== 'completed') return
     expect(result.report.results.map((item) => item.id)).toEqual(['network-dns-resolution', 'network-online'])
   })
 
   it('rejects a tier mismatch before publishing running', async () => {
-    await expect(createReadyService().run({ tier: 'quick', checkIds: ['network-dns-resolution'] })).rejects.toThrow(
-      'tier'
-    )
+    await expect(
+      createReadyService().run({ subject: { kind: 'global' }, tier: 'quick', checkIds: ['network-dns-resolution'] })
+    ).rejects.toThrow('tier')
     expect(state()?.status).not.toBe('running')
   })
 
@@ -127,13 +162,17 @@ describe('DoctorService.run', () => {
     vi.spyOn(service as unknown as { collectBasics(): Promise<never> }, 'collectBasics').mockRejectedValueOnce(
       new Error('read failed')
     )
-    await expect(service.run({ tier: 'quick', checkIds: MOCKED })).rejects.toThrow('read failed')
+    await expect(service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })).rejects.toThrow(
+      'read failed'
+    )
     expect(state()).toEqual({ status: 'idle' })
-    expect((await service.run({ tier: 'quick', checkIds: MOCKED })).status).toBe('completed')
+    expect((await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })).status).toBe(
+      'completed'
+    )
   })
   it('publishes running progress and then the completed report on the shared cache', async () => {
     const service = createReadyService()
-    const outcome = await service.run({ tier: 'quick', checkIds: MOCKED })
+    const outcome = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
 
     expect(outcome.status).toBe('completed')
     if (outcome.status !== 'completed') return
@@ -164,6 +203,7 @@ describe('DoctorService.run', () => {
   it('counts a repeated check once', async () => {
     const service = createReadyService()
     const outcome = await service.run({
+      subject: { kind: 'global' },
       tier: 'quick',
       checkIds: ['config-boot-config-valid', 'config-boot-config-valid']
     })
@@ -179,7 +219,7 @@ describe('DoctorService.run', () => {
     registryMocks.userDataRun.mockReturnValue(new Promise((resolve) => (release = () => resolve({ status: 'pass' }))))
     const service = createReadyService()
 
-    const run = service.run({ tier: 'quick', checkIds: MOCKED })
+    const run = service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
     ;(service as unknown as { onStop(): void }).onStop()
     release()
 
@@ -191,15 +231,132 @@ describe('DoctorService.run', () => {
     registryMocks.userDataRun.mockReturnValue(new Promise((resolve) => (release = () => resolve({ status: 'pass' }))))
     const service = createReadyService()
 
-    const first = service.run({ tier: 'quick', checkIds: MOCKED })
-    const busy = await service.run({ tier: 'quick', checkIds: MOCKED })
+    const first = service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
+    const busy = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
     expect(busy.status).toBe('busy')
     if (busy.status !== 'busy') return
-    expect(service.cancel('someone-else')).toEqual({ status: 'not_running' })
-    expect(service.cancel(busy.runId)).toEqual({ status: 'canceled' })
+    expect(service.cancel('global', 'someone-else')).toEqual({ status: 'not_running' })
+    expect(service.cancel('global', busy.runId)).toEqual({ status: 'canceled' })
     release()
     await expect(first).resolves.toEqual({ status: 'canceled', runId: busy.runId })
     expect(state()).toEqual({ status: 'canceled', runId: busy.runId })
+  })
+})
+
+describe('DoctorService scopes', () => {
+  const dbh = setupTestDatabase()
+  const chat = { kind: 'chat', providerId: 'openai', modelId: 'gpt-4o' } as const
+
+  it('keeps a contextual run in its own scope, leaving the global report untouched', async () => {
+    const service = createReadyService()
+    const global = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
+    const scoped = await service.run({ tier: 'quick', subject: chat, checkIds: ['network-online'] })
+    if (global.status !== 'completed' || scoped.status !== 'completed') throw new Error('expected reports')
+
+    expect(scoped.report.scope).toBe('chat:openai/gpt-4o')
+    expect(stateOf('chat:openai/gpt-4o')).toEqual({ status: 'completed', report: scoped.report })
+    expect(state()).toEqual({ status: 'completed', report: global.report })
+  })
+
+  it('lets a contextual run start while the global run is still in flight', async () => {
+    let release!: () => void
+    registryMocks.userDataRun.mockReturnValue(new Promise((resolve) => (release = () => resolve({ status: 'pass' }))))
+    const service = createReadyService()
+
+    const global = service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
+    await expect(service.run({ tier: 'quick', subject: chat, checkIds: ['network-online'] })).resolves.toMatchObject({
+      status: 'completed'
+    })
+    release()
+    await global
+  })
+
+  it('refuses a check whose scope the subject does not satisfy, before publishing anything', async () => {
+    await expect(
+      createReadyService().run({ tier: 'quick', subject: chat, checkIds: ['config-boot-config-valid'] })
+    ).rejects.toThrow('does not apply')
+    expect(stateOf('chat:openai/gpt-4o')).toBeUndefined()
+  })
+
+  it('diagnoses the real Agent model and MCP membership, and refuses a removed association', async () => {
+    dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' }).run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: 'a1',
+        name: 'Agent',
+        instructions: '',
+        type: 'claude-code',
+        model: 'openai::gpt-4o',
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db.insert(mcpServerTable).values({ id: 'srv-1', name: 'MCP', isActive: true }).run()
+    dbh.db.insert(agentMcpServerTable).values({ agentId: 'a1', mcpServerId: 'srv-1' }).run()
+    registryMocks.mcpConnectedRun.mockImplementation(async ({ subject }: DoctorContext) => ({
+      status: 'warn',
+      attribution: 'user-fixable',
+      detail: { variant: 'server_errors', params: { count: 1 } },
+      actions: [{ kind: 'fix', fixId: 'restart', target: subject?.mcpServerIds?.[0] }],
+      evidence: [{ key: 'model', value: `${subject?.providerId}/${subject?.modelId}`, dataClass: 'local_only' }]
+    }))
+    const service = createReadyService()
+    const run = await service.run({
+      tier: 'quick',
+      subject: { kind: 'agent', agentId: 'a1' },
+      checkIds: ['mcp-servers-connected']
+    })
+    if (run.status !== 'completed') throw new Error('Expected report')
+    expect(run.report.results[0]).toMatchObject({
+      actions: [{ kind: 'fix', fixId: 'restart', target: 'srv-1' }],
+      evidence: [{ key: 'model', value: 'openai/gpt-4o' }]
+    })
+    dbh.db.delete(agentMcpServerTable).where(eq(agentMcpServerTable.agentId, 'a1')).run()
+    await expect(
+      service.fix({
+        scope: 'agent:a1',
+        runId: run.report.runId,
+        checkId: 'mcp-servers-connected',
+        fixId: 'restart',
+        target: 'srv-1'
+      })
+    ).resolves.toEqual({ status: 'stale', reason: 'finding_changed' })
+    expect(registryMocks.mcpRestart).not.toHaveBeenCalled()
+  })
+
+  it('gives a global run no subject, so parameterised checks fall back to defaults', async () => {
+    const service = createReadyService()
+    await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: ['mcp-servers-connected'] })
+    expect(registryMocks.mcpConnectedRun).toHaveBeenCalledWith(expect.objectContaining({ subject: null }))
+  })
+
+  it('refuses a fix addressed to a scope other than the report it names', async () => {
+    registryMocks.bootConfigRun.mockResolvedValue(warnWithRepair)
+    const service = createReadyService()
+    const run = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
+    if (run.status !== 'completed') throw new Error('expected a report')
+
+    await expect(
+      service.fix({
+        scope: 'chat:openai/gpt-4o',
+        runId: run.report.runId,
+        checkId: 'config-boot-config-valid',
+        fixId: 'repair'
+      })
+    ).resolves.toEqual({ status: 'stale', reason: 'run_superseded' })
+    expect(registryMocks.bootConfigRepair).not.toHaveBeenCalled()
   })
 })
 
@@ -207,14 +364,14 @@ describe('DoctorService.fix', () => {
   it('rejects expired reports without performing a fix', async () => {
     registryMocks.bootConfigRun.mockResolvedValue(warnWithRepair)
     const service = createReadyService()
-    const run = await service.run({ tier: 'quick', checkIds: MOCKED })
+    const run = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
     if (run.status !== 'completed') throw new Error('expected report')
-    application.get('CacheService').setShared('doctor.state', {
+    application.get('CacheService').setShared('doctor.state.global', {
       status: 'completed',
       report: { ...run.report, expiresAt: new Date(0).toISOString() }
     })
     await expect(
-      service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
+      service.fix({ scope: 'global', runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
     ).resolves.toEqual({ status: 'stale', reason: 'report_expired' })
     expect(registryMocks.bootConfigRepair).not.toHaveBeenCalled()
   })
@@ -224,7 +381,7 @@ describe('DoctorService.fix', () => {
     async (change) => {
       registryMocks.bootConfigRun.mockResolvedValue(warnWithRepair)
       const service = createReadyService()
-      const run = await service.run({ tier: 'quick', checkIds: MOCKED })
+      const run = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
       if (run.status !== 'completed') throw new Error('expected report')
       let release!: (value: typeof warnWithRepair) => void
       registryMocks.bootConfigRun.mockReturnValueOnce(
@@ -232,9 +389,14 @@ describe('DoctorService.fix', () => {
           release = resolve
         })
       )
-      const request = { runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' } as const
+      const request = {
+        scope: 'global',
+        runId: run.report.runId,
+        checkId: 'config-boot-config-valid',
+        fixId: 'repair'
+      } as const
       const fixing = service.fix(request)
-      await expect(service.run({ tier: 'quick', checkIds: MOCKED })).resolves.toEqual({
+      await expect(service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })).resolves.toEqual({
         status: 'busy',
         runId: run.report.runId
       })
@@ -243,7 +405,7 @@ describe('DoctorService.fix', () => {
         ...run.report,
         ...(change === 'superseded' ? { runId: 'replacement' } : { expiresAt: new Date(0).toISOString() })
       }
-      application.get('CacheService').setShared('doctor.state', { status: 'completed', report: replacement })
+      application.get('CacheService').setShared('doctor.state.global', { status: 'completed', report: replacement })
       release(warnWithRepair)
       await expect(fixing).resolves.toMatchObject({
         status: 'stale',
@@ -264,10 +426,11 @@ describe('DoctorService.fix', () => {
     registryMocks.mcpConnectedRun.mockResolvedValueOnce(finding).mockResolvedValueOnce(finding)
     registryMocks.mcpRestart.mockResolvedValue({ status: 'fixed' })
     const service = createReadyService()
-    const run = await service.run({ tier: 'quick', checkIds: ['mcp-servers-connected'] })
+    const run = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: ['mcp-servers-connected'] })
     if (run.status !== 'completed') throw new Error('expected a report')
 
     const fixed = await service.fix({
+      scope: 'global',
       runId: run.report.runId,
       checkId: 'mcp-servers-connected',
       fixId: 'restart',
@@ -287,11 +450,12 @@ describe('DoctorService.fix', () => {
     }
     registryMocks.mcpConnectedRun.mockResolvedValue(finding)
     const service = createReadyService()
-    const run = await service.run({ tier: 'quick', checkIds: ['mcp-servers-connected'] })
+    const run = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: ['mcp-servers-connected'] })
     if (run.status !== 'completed') throw new Error('expected a report')
 
     await expect(
       service.fix({
+        scope: 'global',
         runId: run.report.runId,
         checkId: 'mcp-servers-connected',
         fixId: 'restart',
@@ -305,10 +469,15 @@ describe('DoctorService.fix', () => {
     registryMocks.bootConfigRun.mockResolvedValueOnce(warnWithRepair).mockResolvedValueOnce(warnWithRepair)
     registryMocks.bootConfigRepair.mockResolvedValue({ status: 'requires_relaunch' })
     const service = createReadyService()
-    const run = await service.run({ tier: 'quick', checkIds: MOCKED })
+    const run = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
     if (run.status !== 'completed') throw new Error('expected a report')
 
-    const fixed = await service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
+    const fixed = await service.fix({
+      scope: 'global',
+      runId: run.report.runId,
+      checkId: 'config-boot-config-valid',
+      fixId: 'repair'
+    })
 
     expect(fixed).toMatchObject({
       status: 'requires_relaunch',
@@ -319,9 +488,9 @@ describe('DoctorService.fix', () => {
 
   it('refuses a fix bound to a superseded run', async () => {
     const service = createReadyService()
-    await service.run({ tier: 'quick', checkIds: MOCKED })
+    await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
     await expect(
-      service.fix({ runId: 'old-run', checkId: 'config-boot-config-valid', fixId: 'repair' })
+      service.fix({ scope: 'global', runId: 'old-run', checkId: 'config-boot-config-valid', fixId: 'repair' })
     ).resolves.toEqual({
       status: 'stale',
       reason: 'run_superseded'
@@ -332,15 +501,15 @@ describe('DoctorService.fix', () => {
   it('refuses a fix while a newer run is in flight', async () => {
     registryMocks.bootConfigRun.mockResolvedValue(warnWithRepair)
     const service = createReadyService()
-    const first = await service.run({ tier: 'quick', checkIds: MOCKED })
+    const first = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
     if (first.status !== 'completed') throw new Error('expected a report')
 
     let release!: () => void
     registryMocks.userDataRun.mockReturnValue(new Promise((resolve) => (release = () => resolve({ status: 'pass' }))))
-    const second = service.run({ tier: 'quick', checkIds: MOCKED })
+    const second = service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
 
     await expect(
-      service.fix({ runId: first.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
+      service.fix({ scope: 'global', runId: first.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
     ).resolves.toEqual({ status: 'stale', reason: 'run_superseded' })
     expect(registryMocks.bootConfigRepair).not.toHaveBeenCalled()
 
@@ -355,12 +524,19 @@ describe('DoctorService.fix', () => {
       new Promise((resolve) => (release = () => resolve({ status: 'fixed' })))
     )
     const service = createReadyService()
-    const run = await service.run({ tier: 'quick', checkIds: MOCKED })
+    const run = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
     if (run.status !== 'completed') throw new Error('expected a report')
 
-    const fixing = service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
+    const fixing = service.fix({
+      scope: 'global',
+      runId: run.report.runId,
+      checkId: 'config-boot-config-valid',
+      fixId: 'repair'
+    })
     await vi.waitFor(() => expect(registryMocks.bootConfigRepair).toHaveBeenCalled())
-    expect(await service.run({ tier: 'quick', checkIds: MOCKED })).toMatchObject({ status: 'busy' })
+    expect(await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })).toMatchObject({
+      status: 'busy'
+    })
 
     release()
     await expect(fixing).resolves.toMatchObject({ status: 'fixed' })
@@ -369,10 +545,15 @@ describe('DoctorService.fix', () => {
   it('refuses a fix when a fresh probe no longer offers it', async () => {
     registryMocks.bootConfigRun.mockResolvedValueOnce(warnWithRepair)
     const service = createReadyService()
-    const run = await service.run({ tier: 'quick', checkIds: MOCKED })
+    const run = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
     if (run.status !== 'completed') throw new Error('expected a report')
 
-    const fixed = await service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
+    const fixed = await service.fix({
+      scope: 'global',
+      runId: run.report.runId,
+      checkId: 'config-boot-config-valid',
+      fixId: 'repair'
+    })
     expect(fixed).toMatchObject({ status: 'stale', reason: 'finding_changed', result: { status: 'pass' } })
     expect(registryMocks.bootConfigRepair).not.toHaveBeenCalled()
   })
@@ -381,10 +562,15 @@ describe('DoctorService.fix', () => {
     registryMocks.bootConfigRun.mockResolvedValueOnce(warnWithRepair).mockResolvedValueOnce(warnWithRepair)
     registryMocks.bootConfigRepair.mockRejectedValue(new Error('disk is read-only'))
     const service = createReadyService()
-    const run = await service.run({ tier: 'quick', checkIds: MOCKED })
+    const run = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
     if (run.status !== 'completed') throw new Error('expected a report')
 
-    const fixed = await service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
+    const fixed = await service.fix({
+      scope: 'global',
+      runId: run.report.runId,
+      checkId: 'config-boot-config-valid',
+      fixId: 'repair'
+    })
     expect(fixed).toMatchObject({ status: 'failed', message: 'disk is read-only', result: { status: 'pass' } })
   })
 })

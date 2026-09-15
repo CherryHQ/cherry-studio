@@ -6,7 +6,6 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
-import { useDoctorController } from '@renderer/hooks/doctor'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -38,25 +37,23 @@ import {
   isSerializedError
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
-import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
-import type { DoctorNavigateTarget } from '@shared/types/doctor'
+import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
+import type { DoctorNavigateTarget, DoctorSubjectRef } from '@shared/types/doctor'
 import { parseDataUrl } from '@shared/utils/dataUrl'
+import { doctorScopeKey } from '@shared/utils/doctor'
 
 import Scrollbar from '../Scrollbar'
 import { buildDiagnosticReportDescription, type DiagnosticReportConfig } from './diagnosticReportDescription'
 import { ErrorBasicInformation } from './ErrorBasicInformation'
-import { ErrorDiagnosisPanel } from './ErrorDiagnosisPanel'
-import { ErrorDiagnosticsPanel } from './ErrorDiagnosticsPanel'
+import { ErrorDoctorDiagnostics } from './ErrorDoctorDiagnostics'
 
 interface ErrorDetailContentProps {
   error?: SerializedError
   diagnosisContext?: DiagnosisContext
   diagnosticReport?: DiagnosticReportConfig
-  blockId?: string
-  onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
+  subject?: DoctorSubjectRef
   onOpenDiagnosticReport?: (description: string) => void
   onOpenFullCheck?: () => void
-  cachedDiagnosis?: DiagnosisResult
   onDoctorNavigate?: (target: DoctorNavigateTarget) => void
 }
 
@@ -514,6 +511,7 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
 const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   error,
   diagnosisContext,
+  subject,
   diagnosticReport,
   onOpenDiagnosticReport,
   onOpenFullCheck,
@@ -524,21 +522,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   const { t } = useTranslation()
   const [detailsOpen, setDetailsOpen] = useState(false)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
-  const doctorController = useDoctorController({
-    initialPanel: 'checks',
-    onNavigate: onDoctorNavigate ?? ignoreDoctorNavigation,
-    onReportProblem: onOpenDiagnosticReport
-  })
-
-  useEffect(() => {
-    onDoctorCloseBlockedChange?.(doctorController.isCloseBlocked)
-  }, [doctorController.isCloseBlocked, onDoctorCloseBlockedChange])
-
-  const isDoctorPending =
-    doctorController.isAutoRunPending ||
-    doctorController.viewModel.status === 'running' ||
-    doctorController.session.interaction.kind === 'run'
-
   const copyErrorDetails = useCallback(() => {
     if (!error) {
       return
@@ -600,11 +583,18 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       </DialogHeader>
       <ErrorDetailContainer>
         <div className="space-y-4">
-          <ErrorDiagnosisPanel
-            doctorController={doctorController}
-            onRunFullCheck={onOpenFullCheck ?? (() => void doctorController.run('live'))}
-          />
-          <ErrorDiagnosticsPanel controller={doctorController} isPending={isDoctorPending} />
+          {subject ? (
+            <ErrorDoctorDiagnostics
+              key={doctorScopeKey(subject)}
+              subject={subject}
+              onNavigate={onDoctorNavigate ?? ignoreDoctorNavigation}
+              onReportProblem={onOpenDiagnosticReport}
+              onRunFullCheck={onOpenFullCheck}
+              onCloseBlockedChange={onDoctorCloseBlockedChange}
+            />
+          ) : (
+            <p className="text-muted-foreground text-sm">{t('error.diagnostics.context_unavailable')}</p>
+          )}
           <ErrorBasicInformation
             viewDetailsButtonRef={viewDetailsButtonRef}
             error={error}

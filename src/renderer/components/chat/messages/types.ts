@@ -154,12 +154,6 @@ export interface MessageErrorDiagnosisResult {
   steps: MessageErrorDiagnosisStep[]
 }
 
-export interface MessageErrorDiagnosisContext {
-  errorSource?: string
-  providerName?: string
-  modelId?: string
-}
-
 export interface MessageErrorDiagnosisInput {
   message: MessageListItem
   partId: string
@@ -192,8 +186,6 @@ export interface MessageErrorDetailInput {
   message: MessageListItem
   partId: string
   error?: SerializedError
-  cachedDiagnosis?: MessageErrorDiagnosisResult
-  diagnosisContext?: MessageErrorDiagnosisContext
 }
 
 export interface OpenAgentToolFlowInput {
