@@ -1,23 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, authorizeTokenDanceApiKeyMock, windowManager, windowMock } = vi.hoisted(() => {
-  const windowMock = {
-    isDestroyed: vi.fn(() => false),
-    isMinimized: vi.fn(() => false),
-    restore: vi.fn(),
-    show: vi.fn(),
-    focus: vi.fn()
-  }
-  return {
-    appGetMock: vi.fn(),
-    authorizeTokenDanceApiKeyMock: vi.fn(() => Promise.resolve('td-key')),
-    windowManager: { getWindow: vi.fn(() => windowMock) },
-    windowMock
-  }
-})
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
+const { authorizeTokenDanceApiKeyMock } = vi.hoisted(() => ({
+  authorizeTokenDanceApiKeyMock: vi.fn(() => Promise.resolve('td-key'))
+}))
 vi.mock('@main/services/tokenDanceOAuth', () => ({ authorizeTokenDanceApiKey: authorizeTokenDanceApiKeyMock }))
 
+import { application } from '@application'
 import { OAuthSignInCancelledError } from '@main/services/oauth/errors'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
@@ -40,14 +28,17 @@ const codeCliService = {
   checkClaudeLogin: vi.fn(() => Promise.resolve(true))
 }
 
+const mainWindowService = {
+  showMainWindow: vi.fn()
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
-  windowMock.isDestroyed.mockReturnValue(false)
-  windowMock.isMinimized.mockReturnValue(false)
-  appGetMock.mockImplementation((name: string) => {
-    if (name === 'CodeCliService') return codeCliService
-    if (name === 'WindowManager') return windowManager
-    return runtimeService
+  vi.mocked(application.get).mockImplementation((name: string) => {
+    if (name === 'CodeCliService') return codeCliService as never
+    if (name === 'MainWindowService') return mainWindowService as never
+    if (name === 'OAuthRuntimeService') return runtimeService as never
+    throw new Error(`Unexpected application.get(${name})`)
   })
 })
 
@@ -56,17 +47,14 @@ const provider = { providerId: 'codex' }
 const signInObservation = { providerId: 'codex', requestId: 'request-1' }
 
 describe('oauthHandlers', () => {
-  it('returns the account and restores the initiating window after sign-in', async () => {
-    windowMock.isMinimized.mockReturnValue(true)
+  it('returns the account and asks MainWindowService to raise the main window after sign-in', async () => {
     runtimeService.signIn.mockResolvedValueOnce({ accountId: 'codex-account', apiKeys: 'must-not-cross' })
 
     await expect(oauthHandlers['oauth.sign_in'](signInObservation, ctx)).resolves.toEqual({
       accountId: 'codex-account'
     })
     expect(runtimeService.signIn).toHaveBeenCalledWith('w1', 'codex', 'request-1', {})
-    expect(windowMock.restore).toHaveBeenCalledOnce()
-    expect(windowMock.show).toHaveBeenCalledOnce()
-    expect(windowMock.focus).toHaveBeenCalledOnce()
+    expect(mainWindowService.showMainWindow).toHaveBeenCalledOnce()
   })
 
   it('maps sign_in cancellation to a stable IPC error', async () => {
@@ -122,7 +110,7 @@ describe('oauthHandlers', () => {
 
   it('dispatches check_external_login to CodeCliService', async () => {
     await expect(oauthHandlers['oauth.check_external_login']({ providerId: 'claude-code' }, ctx)).resolves.toBe(true)
-    expect(appGetMock).toHaveBeenCalledWith('CodeCliService')
+    expect(application.get).toHaveBeenCalledWith('CodeCliService')
     expect(codeCliService.checkClaudeLogin).toHaveBeenCalledTimes(1)
   })
 
