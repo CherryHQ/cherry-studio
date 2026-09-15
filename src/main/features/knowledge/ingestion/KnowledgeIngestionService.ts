@@ -618,6 +618,9 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     const relativePath = reserveImportedFileRelativePath(fileName, reserveArtifact, reservedPaths)
     await copyFileIntoKnowledgeBaseAt(baseId, input.data.path, relativePath)
 
+    // Persist the opt-in so a later restore re-admits this off-list file instead of failing the gate.
+    const allowArbitrary = input.data.allowArbitrary === true ? { allowArbitrary: true } : {}
+
     if (input.data.indexedPath) {
       // Copy the already-processed artifact next to the source under the reserved name
       // and pin the item to it, so indexing skips the file processor (see needsFileProcessing).
@@ -626,7 +629,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       return {
         groupId: input.groupId,
         type: 'file',
-        data: { source: input.data.source, relativePath, indexedRelativePath }
+        data: { source: input.data.source, relativePath, indexedRelativePath, ...allowArbitrary }
       }
     }
 
@@ -635,7 +638,8 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       type: 'file',
       data: {
         source: input.data.source,
-        relativePath
+        relativePath,
+        ...allowArbitrary
       }
     }
   }

@@ -992,6 +992,62 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('restores an off-list file admitted via allowArbitrary instead of failing the add-time gate', async () => {
+    const service = new KnowledgeService()
+    const sourceBase = createBase({ id: 'source-kb', fileProcessorId: null })
+    const restoredBase = createBase({ id: 'restored-kb', fileProcessorId: null })
+    knowledgeBaseGetByIdMock.mockReturnValueOnce(sourceBase).mockReturnValue(restoredBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+
+    // The persisted item records the opt-in — the whole point of persisting allowArbitrary.
+    const optedInSourceFile = {
+      ...createFileItem('src-file', 'source-kb', '/Users/me/notes.unknownext'),
+      data: {
+        source: '/Users/me/notes.unknownext',
+        relativePath: 'notes.unknownext' as PosixRelativeFilePath,
+        allowArbitrary: true
+      }
+    }
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([optedInSourceFile])
+
+    const restoredFile = {
+      ...createFileItem('restored-file', 'restored-kb', '/Users/me/notes.unknownext'),
+      data: {
+        source: '/Users/me/notes.unknownext',
+        relativePath: 'notes.unknownext' as PosixRelativeFilePath,
+        allowArbitrary: true
+      }
+    }
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(restoredFile)
+    knowledgeItemGetByIdMock.mockReturnValue(restoredFile)
+
+    // Without the persisted opt-in, the reconstructed add input would hit the curated gate and throw
+    // 'Unsupported knowledge file type', aborting the whole restore.
+    await service.restoreBase({
+      sourceBaseId: 'source-kb',
+      name: 'Restored KB',
+      embeddingModelId: 'provider::embed',
+      dimensions: 3
+    })
+
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
+      'restored-kb',
+      '/mock/feature.knowledgebase.data/source-kb/raw/notes.unknownext',
+      'notes.unknownext'
+    )
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
+      'restored-kb',
+      expect.objectContaining({
+        type: 'file',
+        data: {
+          source: '/Users/me/notes.unknownext',
+          relativePath: 'notes.unknownext' as PosixRelativeFilePath,
+          allowArbitrary: true
+        }
+      })
+    )
+  })
+
   it('restores a url with a captured snapshot by copying it in so the first index reads it offline', async () => {
     const service = new KnowledgeService()
     const sourceBase = createBase({ id: 'source-kb' })
@@ -1288,7 +1344,14 @@ describe('KnowledgeService', () => {
       '/Users/me/notes.unknownext',
       'notes.unknownext'
     )
-    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(1)
+    // The opt-in is persisted so a later restore can re-admit the file past the same gate.
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledWith(
+      'kb-1',
+      expect.objectContaining({
+        type: 'file',
+        data: { source: '/Users/me/notes.unknownext', relativePath: 'notes.unknownext', allowArbitrary: true }
+      })
+    )
   })
 
   it('auto-renames a file whose processed-markdown name would collide', async () => {

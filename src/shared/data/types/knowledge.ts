@@ -308,7 +308,13 @@ export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
   ),
   indexedRelativePath: KnowledgeRelativePathSchema.optional().describe(
     'Knowledge-base-relative, POSIX-normalized path for the file actually indexed, such as a processed markdown artifact.'
-  )
+  ),
+  // Persisted so a restore can re-admit the file: without it, restore rebuilds the add input from
+  // this record and the add-time gate would reject the off-list extension it was first admitted past.
+  allowArbitrary: z
+    .boolean()
+    .optional()
+    .describe('User explicitly opted this off-list file past the curated extension allow-list.')
 })
 export type FileItemData = z.infer<typeof FileItemDataSchema>
 
