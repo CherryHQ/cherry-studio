@@ -1,16 +1,6 @@
 import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import { debounce } from 'es-toolkit/compat'
-import {
-  BadgeQuestionMark,
-  Briefcase,
-  Bug,
-  Building2,
-  Github,
-  Globe,
-  Mail,
-  MessageSquareText,
-  Rss
-} from 'lucide-react'
+import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, MessageSquareText, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

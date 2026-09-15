@@ -3,11 +3,12 @@ import { lazy, Suspense, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { DiagnosticUploadPanelHandle } from '@renderer/components/feedback/DiagnosticUploadPanel'
 import { useDoctorController } from '@renderer/hooks/doctor'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
-import type { DoctorNavigateTarget } from '@shared/types/doctor'
+import type { DoctorNavigateTarget, DoctorRunTier } from '@shared/types/doctor'
 import type { DoctorPanel } from '@shared/utils/doctor'
 
 import { DoctorChecksPanel } from './DoctorChecksPanel'
@@ -32,11 +33,12 @@ const PANEL_TITLE_KEYS = {
 export interface DoctorDialogParams {
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
+  readonly initialRunTier?: DoctorRunTier
 }
 
 type DoctorDialogProps = DoctorDialogParams & PopupInjectedProps<Record<string, never>>
 
-export function DoctorDialog({ initialDescription, initialPanel, open, resolve }: DoctorDialogProps) {
+export function DoctorDialog({ initialDescription, initialPanel, initialRunTier, open, resolve }: DoctorDialogProps) {
   const { t } = useTranslation()
   const reportPanelRef = useRef<DiagnosticUploadPanelHandle>(null)
   const panelHeadingRef = useRef<HTMLDivElement>(null)
@@ -61,9 +63,11 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
   const controller = useDoctorController({
     initialDescription,
     initialPanel,
+    initialRunTier,
     onNavigate: navigate
   })
   const { setPanelInteraction } = controller
+  const isChecksPanel = controller.session.activePanel === 'checks'
 
   const close = useCallback(async () => {
     if (controller.isCloseBlocked) return
@@ -110,6 +114,7 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && void close()}>
       <DialogContent
+        {...(isChecksPanel ? { 'aria-describedby': undefined } : {})}
         size="xl"
         closeLabel={t('common.close')}
         closeOnOverlayClick={!controller.isCloseBlocked}
@@ -118,7 +123,8 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
         onEscapeKeyDown={(event) => {
           if (controller.isCloseBlocked) event.preventDefault()
         }}>
-        <DialogHeader className="flex-row items-start gap-3 border-b border-border px-6 pt-6 pr-12 pb-4">
+        <DialogHeader
+          className={cn('flex-row items-start gap-3 px-6 pt-6 pr-12 pb-4', !isChecksPanel && 'border-b border-border')}>
           {controller.session.activePanel !== 'checks' && canReturnToChecks ? (
             <Button
               type="button"
@@ -132,7 +138,7 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
           ) : null}
           <div ref={panelHeadingRef} tabIndex={-1} className="min-w-0 flex-1 space-y-1">
             <DialogTitle>{panelTitle}</DialogTitle>
-            <DialogDescription>{panelDescription}</DialogDescription>
+            {!isChecksPanel ? <DialogDescription>{panelDescription}</DialogDescription> : null}
           </div>
         </DialogHeader>
 

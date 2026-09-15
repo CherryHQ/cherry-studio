@@ -12,15 +12,12 @@ import {
 
 const labels: DiagnosticReportDescriptionLabels = {
   errorMessage: 'Error message',
-  errorName: 'Error name',
   location: 'Location',
-  model: 'Model',
-  provider: 'Provider',
-  statusCode: 'Status code'
+  model: 'Model'
 }
 
 describe('buildDiagnosticReportDescription', () => {
-  it('projects normalized fields in display order and prefers status over statusCode', () => {
+  it('projects normalized location, combined model, and combined error fields in display order', () => {
     const error = {
       name: ' ProviderError ',
       message: ' failed ',
@@ -37,12 +34,53 @@ describe('buildDiagnosticReportDescription', () => {
       })
     ).toEqual([
       { id: 'location', value: 'Home conversation' },
-      { id: 'provider', value: 'OpenAI' },
+      { id: 'model', value: 'OpenAI:gpt-5' },
+      { id: 'errorMessage', value: 'ProviderError: failed' }
+    ])
+  })
+
+  it('keeps whichever model and error parts are available', () => {
+    expect(
+      diagnosticReportFields({
+        diagnosisContext: { modelId: 'gpt-5' },
+        error: { name: null, message: 'failed', stack: null },
+        location: 'Home conversation'
+      })
+    ).toEqual([
+      { id: 'location', value: 'Home conversation' },
       { id: 'model', value: 'gpt-5' },
-      { id: 'errorName', value: 'ProviderError' },
-      { id: 'statusCode', value: 503 },
       { id: 'errorMessage', value: 'failed' }
     ])
+
+    expect(
+      diagnosticReportFields({
+        error: { name: 'AuthError', message: 'Unauthorized', stack: null },
+        localizedErrorMessage: 'API Key 无效，请检查并重新配置',
+        location: 'Home conversation'
+      })
+    ).toEqual([
+      { id: 'location', value: 'Home conversation' },
+      { id: 'errorMessage', value: 'API Key 无效，请检查并重新配置 (AuthError: Unauthorized)' }
+    ])
+
+    expect(
+      diagnosticReportFields({
+        diagnosisContext: { providerName: 'OpenAI' },
+        error: { name: 'ProviderError', message: null, stack: null },
+        location: 'Home conversation'
+      })
+    ).toEqual([
+      { id: 'location', value: 'Home conversation' },
+      { id: 'model', value: 'OpenAI' },
+      { id: 'errorMessage', value: 'ProviderError' }
+    ])
+
+    expect(
+      diagnosticReportFields({
+        error: { name: null, message: null, stack: null },
+        location: 'Home conversation'
+      })
+    ).toEqual([{ id: 'location', value: 'Home conversation' }])
   })
 
   it('keeps provider-returned text already present in the message without copying payload fields', () => {
@@ -68,11 +106,8 @@ describe('buildDiagnosticReportDescription', () => {
     expect(description).toBe(
       [
         'Location: Home conversation',
-        'Provider: OpenAI',
-        'Model: gpt-5',
-        'Error name: AI_APICallError',
-        'Status code: 429',
-        'Error message: Rate limit exceeded for private-account@example.com'
+        'Model: OpenAI:gpt-5',
+        'Error message: AI_APICallError: Rate limit exceeded for private-account@example.com'
       ].join('\r\n')
     )
     expect(description).not.toContain('secret response payload')

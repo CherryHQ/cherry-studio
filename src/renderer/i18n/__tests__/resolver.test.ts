@@ -51,13 +51,6 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.t('settings.about.diagnostics.sources.summary', { count: 2, size: '2 KB' })).toBe('2 files, about 2 KB')
   })
 
-  it('uses singular and plural Doctor problem summaries in English', async () => {
-    await i18n.changeLanguage('en-US')
-
-    expect(i18n.t('settings.doctor.summary.problems', { count: 1 })).toBe('1 item needs attention')
-    expect(i18n.t('settings.doctor.summary.problems', { count: 2 })).toBe('2 items need attention')
-  })
-
   it('defines English labels for every Doctor check and declared detail', async () => {
     await i18n.changeLanguage('en-US')
 
@@ -81,9 +74,9 @@ describe('renderer i18n lazy init', () => {
     )
 
     await i18n.changeLanguage('zh-CN')
-    expect(i18n.t('settings.doctor.actions.run_basic')).toBe('重跑基础检查')
-    expect(i18n.t('settings.doctor.actions.run_network')).toBe('完整检查')
-    expect(i18n.t('settings.doctor.panel_descriptions.checks')).toBe('完整检查会重新运行基础项，并加入网络与服务检查。')
+    expect(i18n.t('settings.doctor.actions.run_basic')).toBe('运行基础检查')
+    expect(i18n.t('settings.doctor.actions.run_network')).toBe('运行完整检查')
+    expect(i18n.t('settings.doctor.panel_descriptions.checks')).toBe('完整检查会重新运行基础检查，并包含网络与服务检查。')
   })
 
   it('falls back to en-US for a non-catalog language without throwing', async () => {

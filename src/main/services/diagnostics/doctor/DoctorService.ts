@@ -236,11 +236,12 @@ export class DoctorService extends BaseService {
         runId,
         tier: input.tier,
         startedAt: startedAt.toISOString(),
-        results: []
+        results: [],
+        activeCheckIds: []
       }
       this.publish(running)
-      const { results, pendingChecks } = await record.execution.execute(controller.signal, (settled) =>
-        this.publish({ ...running, results: settled })
+      const { results, pendingChecks } = await record.execution.execute(controller.signal, (results, activeCheckIds) =>
+        this.publish({ ...running, results, activeCheckIds })
       )
       if (controller.signal.aborted) {
         this.executions.delete('global')
