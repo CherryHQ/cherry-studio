@@ -930,14 +930,21 @@ describe('SkillService', () => {
         refs: [{ name: 'main', oid }],
         tree: ['SKILL.md', 'scripts/run.ts']
       })
+      vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'content' } as never)
 
-      await skillService.install({
-        installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
-      })
+      try {
+        await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
+        })
 
-      const installedDirectory = installSpy.mock.calls[0][0]
-      await expect(fs.promises.access(path.join(installedDirectory, 'SKILL.md'))).resolves.toBeUndefined()
-      await expect(fs.promises.access(path.join(installedDirectory, '.git'))).rejects.toMatchObject({ code: 'ENOENT' })
+        const installedDirectory = installSpy.mock.calls[0][0]
+        await expect(fs.promises.access(path.join(installedDirectory, 'SKILL.md'))).resolves.toBeUndefined()
+        await expect(fs.promises.access(path.join(installedDirectory, '.git'))).rejects.toMatchObject({
+          code: 'ENOENT'
+        })
+      } finally {
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
     })
 
     it('uses the longest slash-bearing ref for a repository-root SKILL.md', async () => {
@@ -948,24 +955,269 @@ describe('SkillService', () => {
         ],
         tree: ['SKILL.md']
       })
+      vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'content' } as never)
 
-      await skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/feature/foo/SKILL.md' })
+      try {
+        await skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/feature/foo/SKILL.md' })
 
-      expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining(['b'.repeat(40)]))
+        expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining(['b'.repeat(40)]))
+      } finally {
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
     })
 
     it('installs a repository-root Skill from a full commit permalink', async () => {
       const oid = 'c'.repeat(40)
       const { skillService, installSpy, gitCalls } = await setupGithubInstall({ tree: ['SKILL.md'] })
+      // No frontmatter name: the parser falls back to the staging dirname, which the install
+      // must not adopt — it falls back to the repo name instead.
+      vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'content' } as never)
 
-      await skillService.install({ installSource: `github:https://github.com/owner/repo/blob/${oid}/SKILL.md` })
+      try {
+        await skillService.install({ installSource: `github:https://github.com/owner/repo/blob/${oid}/SKILL.md` })
 
-      expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([oid]))
-      expect(installSpy).toHaveBeenCalledWith(
-        expect.stringContaining(`${path.sep}content`),
-        'marketplace',
-        `https://github.com/owner/repo/tree/${oid}`
-      )
+        expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([oid]))
+        const installedDirectory = installSpy.mock.calls[0][0]
+        expect(path.basename(installedDirectory)).toBe('repo')
+        expect(installSpy).toHaveBeenCalledWith(
+          expect.stringContaining(`${path.sep}repo`),
+          'marketplace',
+          `https://github.com/owner/repo/tree/${oid}`
+        )
+      } finally {
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('names a repository-root install from SKILL.md frontmatter', async () => {
+      const oid = 'a'.repeat(40)
+      const { skillService, installSpy } = await setupGithubInstall({
+        refs: [{ name: 'main', oid }],
+        tree: ['SKILL.md']
+      })
+      vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'my-root-skill' } as never)
+
+      try {
+        await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
+        })
+
+        const installedDirectory = installSpy.mock.calls[0][0]
+        expect(path.basename(installedDirectory)).toBe('my-root-skill')
+      } finally {
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('sanitizes a repository-root frontmatter name into a safe folder name', async () => {
+      const oid = 'a'.repeat(40)
+      const { skillService, installSpy } = await setupGithubInstall({
+        refs: [{ name: 'main', oid }],
+        tree: ['SKILL.md']
+      })
+      vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'My Cool Skill!@#' } as never)
+
+      try {
+        await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
+        })
+
+        const installedDirectory = installSpy.mock.calls[0][0]
+        expect(path.basename(installedDirectory)).toBe('My_Cool_Skill___')
+      } finally {
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('disambiguates a repository-root install when the repo itself is named content', async () => {
+      const oid = 'a'.repeat(40)
+      const { skillService, installSpy } = await setupGithubInstall({
+        refs: [{ name: 'main', oid }],
+        tree: ['SKILL.md']
+      })
+      vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'content' } as never)
+
+      try {
+        await skillService.install({
+          installSource: 'github:https://github.com/owner/content/blob/main/SKILL.md'
+        })
+
+        const installedDirectory = installSpy.mock.calls[0][0]
+        expect(path.basename(installedDirectory)).toBe('content-skill')
+      } finally {
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('migrates a pre-fix content install to the skill folder on reinstall', async () => {
+      const root = await createTempDir('github-migrate-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Repo',
+        folderName: 'content',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'content'), { recursive: true })
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'content', 'SKILL.md'), '# old')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'my-skill',
+        name: 'my-skill',
+        description: 'Migrated skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['SKILL.md'],
+        realInstall: true
+      })
+
+      try {
+        const installed = await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
+        })
+
+        expect(installed).toMatchObject({ id: SKILL_ID_1, folderName: 'my-skill' })
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'my-skill', 'SKILL.md'))).resolves.toBeUndefined()
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'content'))).rejects.toMatchObject({
+          code: 'ENOENT'
+        })
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('restores the complete old folder when migration commit fails', async () => {
+      const root = await createTempDir('github-migrate-rollback-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Repo',
+        folderName: 'content',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'content'), { recursive: true })
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'content', 'SKILL.md'), '# old')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'my-skill',
+        name: 'my-skill',
+        description: 'Migrated skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      vi.spyOn(agentGlobalSkillService, 'updateTx').mockImplementationOnce(() => {
+        throw new Error('db down')
+      })
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['SKILL.md'],
+        realInstall: true
+      })
+
+      try {
+        await expect(
+          skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md' })
+        ).rejects.toThrow('db down')
+
+        // Old folder restored with its contents, new folder removed, row untouched.
+        await expect(fs.promises.readFile(path.join(dataSkillsRoot, 'content', 'SKILL.md'), 'utf8')).resolves.toBe(
+          '# old'
+        )
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'my-skill'))).rejects.toMatchObject({
+          code: 'ENOENT'
+        })
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toMatchObject([
+          { id: SKILL_ID_1, folderName: 'content', contentHash: 'old-hash' }
+        ])
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+        vi.mocked(agentGlobalSkillService.updateTx).mockRestore()
+      }
+    })
+
+    it('does not migrate an unrelated skill sharing the same source URL', async () => {
+      const root = await createTempDir('github-no-migrate-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Other',
+        folderName: 'other-skill',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'other-hash',
+        isEnabled: false
+      })
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'my-skill',
+        name: 'my-skill',
+        description: 'New skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['SKILL.md'],
+        realInstall: true
+      })
+
+      try {
+        const installed = await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
+        })
+
+        expect(installed.folderName).toBe('my-skill')
+        expect(installed.id).not.toBe(SKILL_ID_1)
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(2)
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
     })
 
     it('uses an explicit tag namespace when a branch has the same name', async () => {

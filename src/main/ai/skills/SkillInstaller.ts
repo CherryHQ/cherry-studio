@@ -128,6 +128,36 @@ export class SkillInstaller {
   }
 
   /**
+   * Move a replaced library folder aside to a `.bak` rollback marker instead of deleting it.
+   * Startup recovery restores uncommitted markers, so a crash before the caller commits still
+   * brings back the complete old state. Returns null when there is nothing to preserve.
+   */
+  async backupReplacedFolder(dirPath: string): Promise<string | null> {
+    const backupPath = this.getBackupPath(dirPath)
+    try {
+      await fs.promises.rename(dirPath, backupPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+      throw error
+    }
+    return backupPath
+  }
+
+  /**
+   * Commit a backup created by `backupReplacedFolder` once the replacement (files + catalog
+   * row) is durable: turn the rollback marker into a `.cleanup` marker and delete it. An
+   * interruption from here on only leaves markers startup recovery deletes.
+   */
+  async commitReplacedFolder(backupPath: string | null): Promise<void> {
+    if (!backupPath) return
+    const marker = path.basename(backupPath).match(/^\.(.+)\.bak$/)
+    if (!marker?.[1]) throw new Error(`Not a skill backup marker: ${backupPath}`)
+    const cleanupPath = path.join(path.dirname(backupPath), `.${marker[1]}.cleanup`)
+    await fs.promises.rename(backupPath, cleanupPath)
+    await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+  }
+
+  /**
    * Remove a skill folder.
    */
   async uninstall(skillPath: string): Promise<void> {
