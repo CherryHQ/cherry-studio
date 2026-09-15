@@ -325,6 +325,44 @@ describe('renderer PreferenceService write consistency', () => {
     expect(service.getCachedValue(key)).toBe('zh-cn')
   })
 
+  it('rolls a newer failed write back to an earlier confirmed value when reconciliation becomes stale', async () => {
+    const key = 'feature.translate.page.source_language'
+    get.mockResolvedValueOnce('en-us')
+    let resolveReconciliation!: (value: string) => void
+    get.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveReconciliation = resolve
+        })
+    )
+    const service = await createService()
+    await service.get(key)
+
+    let resolveFirst!: () => void
+    const failure = new Error('newer write failed')
+    set
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockRejectedValueOnce(failure)
+
+    const first = service.set(key, 'zh-cn')
+    emitChanged?.(key, 'ja-jp')
+    resolveFirst()
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2))
+
+    const second = service.set(key, 'fr-fr')
+    const secondResult = expect(second).rejects.toBe(failure)
+    resolveReconciliation('zh-cn')
+    await first
+    await secondResult
+
+    expect(service.getCachedValue(key)).toBe('zh-cn')
+  })
+
   it('subscribes when a delayed get becomes stale before it resolves', async () => {
     const key = 'app.developer_mode.enabled'
     let resolveRead!: (value: boolean) => void

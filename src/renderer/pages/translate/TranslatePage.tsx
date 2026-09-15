@@ -275,6 +275,7 @@ const TranslatePage: FC = () => {
 
   const translationDetectionRevisionRef = useRef(0)
   const translationOperationRef = useRef<TranslationOperation | null>(null)
+  const pendingTranslationResponseRef = useRef<string | null>(null)
   const isMountedRef = useRef(true)
   const markContentChanged = useCallback(() => {
     advanceContentIntentRevision()
@@ -286,7 +287,11 @@ const TranslatePage: FC = () => {
   )
   const handleTranslationResponse = useCallback(
     (text: string) => {
-      if (!isTranslationOperationCurrent() || cacheService.get('translate.history_restore_pending') != null) return
+      if (!isTranslationOperationCurrent()) return
+      if (cacheService.get('translate.history_restore_pending') != null) {
+        pendingTranslationResponseRef.current = text
+        return
+      }
       setTranslateOutput(text)
     },
     [isTranslationOperationCurrent, setTranslateOutput]
@@ -879,6 +884,10 @@ const TranslatePage: FC = () => {
       } finally {
         historyRestorePendingRef.current = false
         setPendingHistoryRestore((current) => (current === restoreToken ? null : current))
+        const pendingTranslationResponse = pendingTranslationResponseRef.current
+        pendingTranslationResponseRef.current = null
+        if (!contentRestored && pendingTranslationResponse !== null)
+          handleTranslationResponse(pendingTranslationResponse)
         releaseHistoryRestore(contentRestored)
         if (historyRestoreBarrierRef.current === historyRestoreBarrier) historyRestoreBarrierRef.current = null
       }
@@ -886,6 +895,7 @@ const TranslatePage: FC = () => {
     [
       markContentChanged,
       clearPdfMode,
+      handleTranslationResponse,
       safePersist,
       setTranslateLanguages,
       setTranslateInput,
@@ -999,7 +1009,9 @@ const TranslatePage: FC = () => {
   // Renderer-local only: clears the tracked OCR job so the input pane unlocks.
   // The backend File Processing job keeps running and its result is discarded
   // (deliberate — Cancel/settle is a local "dismiss", not a backend cancel).
-  const clearOcrJob = useCallback(() => setOcrJob(null), [])
+  const clearOcrJob = useCallback((jobId: string) => {
+    setOcrJob((current) => (current?.jobId === jobId ? null : current))
+  }, [])
   const cancelOcrJob = useCallback(() => {
     advanceContentOperationRevision()
     setOcrJob(null)

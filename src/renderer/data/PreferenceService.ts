@@ -610,7 +610,13 @@ export class PreferenceService {
     }
 
     const current = this.optimisticValues.get(key)
-    if (!current || (externalRevision !== null && this.getPreferenceRevision(key) !== readRevision)) return
+    if (
+      !current ||
+      (externalRevision !== null &&
+        this.getPreferenceRevision(key) !== readRevision &&
+        (current.requestId === requestId || current.externalRevision !== externalRevision))
+    )
+      return
     if (current.requestId === requestId) {
       const oldValue = this.cache[key]
       this.cache[key] = persistedValue
