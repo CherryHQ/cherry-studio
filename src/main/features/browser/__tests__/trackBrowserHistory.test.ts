@@ -82,13 +82,14 @@ describe('Browser navigation history', () => {
       ordinary.mock.getURL.mockReturnValue('https://example.com/next')
       ordinary.mock.emit('did-navigate-in-page', {}, ordinary.guest.getURL(), true)
       expect(visits()).toHaveLength(2)
+      const ordinarySession = ordinary.guest.session
       ordinary.mock.close()
       expect(ordinary.mock.listenerCount('did-finish-load')).toBe(0)
       const next = createGuest(33)
       Object.assign(next.mock, {
         getType: () => 'webview',
         isLoadingMainFrame: () => true,
-        session: ordinary.guest.session
+        session: ordinarySession
       })
       events.emit('web-contents-created', {}, next.guest)
       next.mock.emit('did-finish-load')
