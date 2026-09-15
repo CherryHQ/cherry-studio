@@ -25,12 +25,8 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
-<<<<<<< HEAD
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { groupService } from '@data/services/GroupService'
-=======
-import { groupService } from '@data/services/GroupService'
->>>>>>> 1c3ccaac8f (feat(agents): add group organization to agents)
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -2004,7 +2000,7 @@ describe('AgentService', () => {
       expect(agentService.getAgent(created.id)?.groupId).toBe(group.id)
     })
 
-    it('unbinds member agents when the group is deleted (ALTER-added FK has no SET NULL)', async () => {
+    it('unbinds member agents when the group is deleted (agent.group_id FK ON DELETE SET NULL)', async () => {
       const group = await insertGroup()
       const created = createAgentForTest({
         type: 'claude-code',

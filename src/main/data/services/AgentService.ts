@@ -608,7 +608,6 @@ export class AgentService {
     return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
   }
 
-<<<<<<< HEAD
   listAgents(options: ListOptions & { ids?: string[]; inTrash?: boolean; groupId?: string } = {}): {
     agents: AgentEntity[]
     total: number
