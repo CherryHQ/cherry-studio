@@ -1,0 +1,196 @@
+import type { UIMessageChunk } from 'ai'
+
+import type { StreamChunkPayload } from './stream'
+
+export const MAX_ATTACH_REPLAY_CHUNKS = 1000
+
+// Renderer-only, count-bounded attach-replay cap. Main owns byte-bounded
+// buildCompactReplay (ring buffer + delta merge/synthesis); this helper only
+// bounds synchronous replay work during attach before the live stream handoff.
+// Lives in `shared/ai/transport` alongside the stream types so both renderer
+// call sites (IpcChatTransport, TopicStreamSubscription) share one cap path
+// without duplicating protocol-repair logic; it is not imported or used from
+// Main. If a third renderer consumer appears, keep sharing here; if Main ever
+// needs the same cap, extract the pure tail/synthesis core to a shared util
+// and keep the renderer cap wrapper separate.
+
+function scopedPartKey(payload: StreamChunkPayload, kind: 'text' | 'reasoning' | 'tool-input', id: string): string {
+  return JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, `${kind}:${id}`])
+}
+
+function buildTail(chunks: readonly StreamChunkPayload[], max: number): StreamChunkPayload[] {
+  if (chunks.length <= max) return [...chunks]
+
+  const indicesByScope = new Map<string, number[]>()
+  chunks.forEach((p, i) => {
+    const k = JSON.stringify([p.executionId ?? null, p.anchorMessageId ?? null])
+    const arr = indicesByScope.get(k)
+    if (arr) arr.push(i)
+    else indicesByScope.set(k, [i])
+  })
+
+  if (indicesByScope.size <= 1) return chunks.slice(-max)
+
+  let perScope = Math.ceil(max / indicesByScope.size)
+  let surplus = 0
+  for (const idxs of indicesByScope.values()) {
+    if (idxs.length < perScope) surplus += perScope - idxs.length
+  }
+  if (surplus > 0) {
+    const largeScopes = [...indicesByScope.values()].filter((v) => v.length >= perScope)
+    if (largeScopes.length > 0) {
+      const extraPerLarge = Math.ceil(surplus / largeScopes.length)
+      perScope += extraPerLarge
+    }
+  }
+
+  const keepByScope = new Map<string, number[]>()
+  for (const [scope, idxs] of indicesByScope) {
+    const take = Math.min(idxs.length, perScope)
+    keepByScope.set(scope, idxs.slice(-take))
+  }
+
+  const totalKept = [...keepByScope.values()].reduce((sum, arr) => sum + arr.length, 0)
+  if (totalKept > max) {
+    let excess = totalKept - max
+    // Trim oldest entries from the largest scopes first so small scopes keep their allocation.
+    const sortedScopes = [...keepByScope.entries()].sort((a, b) => b[1].length - a[1].length)
+    for (const [, arr] of sortedScopes) {
+      if (excess <= 0) break
+      const drop = Math.min(excess, arr.length)
+      arr.splice(0, drop)
+      excess -= drop
+    }
+  }
+
+  const keep = new Set<number>()
+  for (const arr of keepByScope.values()) for (const i of arr) keep.add(i)
+  return [...keep].sort((a, b) => a - b).map((i) => chunks[i])
+}
+
+export function capAttachReplayChunks(
+  chunks: readonly StreamChunkPayload[],
+  max: number = MAX_ATTACH_REPLAY_CHUNKS
+): StreamChunkPayload[] {
+  if (chunks.length <= max) return [...chunks]
+
+  const tail = buildTail(chunks, max)
+
+  // Collect authoritative tool identity per toolCallId. Scanning the full
+  // buffer (not just the retained tail) keeps the attach→live handoff from
+  // losing its opener when the cap falls inside an active tool-input run: a
+  // tail-starting delta can still synthesize with the real name/dynamic flag.
+  const toolInfoByKey = new Map<string, { toolName: string; dynamic?: boolean }>()
+  for (const payload of chunks) {
+    const c = payload.chunk
+    if ((c.type === 'tool-input-start' || c.type === 'tool-input-available') && c.toolName) {
+      toolInfoByKey.set(scopedPartKey(payload, 'tool-input', c.toolCallId), {
+        toolName: c.toolName,
+        dynamic: c.dynamic
+      })
+    }
+  }
+
+  const openParts = new Set<string>()
+  const seenToolInput = new Set<string>()
+  const out: StreamChunkPayload[] = []
+
+  for (const payload of tail) {
+    const chunk = payload.chunk
+    switch (chunk.type) {
+      case 'text-start':
+      case 'reasoning-start': {
+        const kind = chunk.type === 'text-start' ? 'text' : 'reasoning'
+        openParts.add(scopedPartKey(payload, kind, chunk.id))
+        out.push(payload)
+        break
+      }
+      case 'tool-input-start': {
+        const key = scopedPartKey(payload, 'tool-input', chunk.toolCallId)
+        openParts.add(key)
+        seenToolInput.add(key)
+        out.push(payload)
+        break
+      }
+      case 'text-delta':
+      case 'reasoning-delta': {
+        const kind = chunk.type === 'text-delta' ? 'text' : 'reasoning'
+        const key = scopedPartKey(payload, kind, chunk.id)
+        if (!openParts.has(key)) {
+          openParts.add(key)
+          const startChunk: UIMessageChunk =
+            kind === 'text' ? { type: 'text-start', id: chunk.id } : { type: 'reasoning-start', id: chunk.id }
+          out.push({ ...payload, chunk: startChunk })
+        }
+        out.push(payload)
+        break
+      }
+      case 'tool-input-delta': {
+        const key = scopedPartKey(payload, 'tool-input', chunk.toolCallId)
+        if (!openParts.has(key)) {
+          const known = toolInfoByKey.get(key)
+          // No authoritative name — dropping avoids `tool-unknown` pollution
+          // and the orphan delta would still be orphaned without its start.
+          if (!known) break
+          openParts.add(key)
+          seenToolInput.add(key)
+          const startChunk: UIMessageChunk = known.dynamic
+            ? { type: 'tool-input-start', toolCallId: chunk.toolCallId, toolName: known.toolName, dynamic: true }
+            : { type: 'tool-input-start', toolCallId: chunk.toolCallId, toolName: known.toolName }
+          out.push({ ...payload, chunk: startChunk })
+        } else {
+          seenToolInput.add(key)
+        }
+        out.push(payload)
+        break
+      }
+      case 'tool-input-available': {
+        seenToolInput.add(scopedPartKey(payload, 'tool-input', chunk.toolCallId))
+        out.push(payload)
+        break
+      }
+      case 'text-end':
+      case 'reasoning-end': {
+        const kind = chunk.type === 'text-end' ? 'text' : 'reasoning'
+        const key = scopedPartKey(payload, kind, chunk.id)
+        if (!openParts.has(key)) break
+        out.push(payload)
+        openParts.delete(key)
+        break
+      }
+      default: {
+        // Legacy DeepSeek DSML `tool-input-end` (uses `id`): not in UIMessageChunk,
+        // so handle it here without widening the StreamChunkPayload contract.
+        const chunkType: string = chunk.type
+        if (chunkType === 'tool-input-end') {
+          const legacy = chunk as unknown as { toolCallId?: string; id?: string }
+          const tid = legacy.toolCallId ?? legacy.id
+          if (!tid) {
+            out.push(payload)
+            break
+          }
+          const key = scopedPartKey(payload, 'tool-input', tid)
+          if (!openParts.has(key)) break
+          out.push(payload)
+          openParts.delete(key)
+          break
+        }
+        // Orphan tool-output / approval chunks without a retained input start
+        // make `readUIMessageStream` throw UIMessageStreamError and silently
+        // terminate the stream, dropping all later chunks.
+        if (
+          chunk.type === 'tool-output-available' ||
+          chunk.type === 'tool-output-error' ||
+          chunk.type === 'tool-output-denied' ||
+          chunk.type === 'tool-approval-request'
+        ) {
+          if (!seenToolInput.has(scopedPartKey(payload, 'tool-input', chunk.toolCallId))) break
+        }
+        out.push(payload)
+        break
+      }
+    }
+  }
+
+  return out
+}

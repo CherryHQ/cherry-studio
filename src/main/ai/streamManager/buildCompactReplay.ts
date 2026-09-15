@@ -152,6 +152,20 @@ export function mergeDeltaPayload(
   return undefined
 }
 
+/** Ring eviction that spares a still-open tool call's `tool-input-start`: without the opener a later live delta throws in `readUIMessageStream`. Returns false when every entry is pinned so the caller drops the incoming segment instead — the ring stays bounded without orphaning live deltas. */
+export function evictOldestReplayEntry(buffer: StreamChunkPayload[], openToolInputIds?: ReadonlySet<string>): boolean {
+  let victim = 0
+  if (openToolInputIds && openToolInputIds.size > 0) {
+    const index = buffer.findIndex(
+      (payload) => payload.chunk.type !== 'tool-input-start' || !openToolInputIds.has(payload.chunk.toolCallId)
+    )
+    if (index === -1) return false
+    victim = index
+  }
+  buffer.splice(victim, 1)
+  return true
+}
+
 /**
  * Compact an execution's buffered chunks for replay. Contiguous delta runs
  * are merged, and a missing `text-start` / `reasoning-start` is synthesized
@@ -165,11 +179,13 @@ export function buildCompactReplay(
   const compact: StreamChunkPayload[] = []
   let pending: StreamChunkPayload | undefined
   const openParts = new Set<string>()
+  const openToolInputs = new Set<string>()
 
   const scopedKey = (payload: StreamChunkPayload, id: string): string =>
     JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, id])
   const openPartKey = (payload: StreamChunkPayload, kind: 'text' | 'reasoning', id: string): string =>
     scopedKey(payload, `${kind}:${id}`)
+  const toolInputKey = (payload: StreamChunkPayload, tid: string): string => scopedKey(payload, `tool-input:${tid}`)
 
   const flushPending = () => {
     if (!pending) return
@@ -217,15 +233,48 @@ export function buildCompactReplay(
         break
       }
 
-      case 'tool-input-delta':
+      case 'tool-input-start': {
         flushPending()
-        pending = payload
+        openToolInputs.add(toolInputKey(payload, chunk.toolCallId))
+        compact.push(payload)
         break
+      }
 
-      default:
+      case 'tool-input-available': {
         flushPending()
         compact.push(payload)
         break
+      }
+
+      case 'tool-input-delta': {
+        flushPending()
+        const key = toolInputKey(payload, chunk.toolCallId)
+        if (!openToolInputs.has(key)) break
+        pending = payload
+        break
+      }
+
+      default: {
+        flushPending()
+        // `tool-input-end` is not part of the AI SDK's UIMessageChunk but is
+        // emitted by the legacy DeepSeek DSML parser (uses `id`/`delta`);
+        // handle it here without widening the central StreamChunkPayload type.
+        const raw = chunk as unknown as { type: string; id?: string; toolCallId?: string }
+        if (raw.type === 'tool-input-end') {
+          const tid = raw.toolCallId ?? raw.id
+          if (!tid) {
+            compact.push(payload)
+            break
+          }
+          const key = toolInputKey(payload, tid)
+          if (!openToolInputs.has(key)) break
+          compact.push(payload)
+          openToolInputs.delete(key)
+          break
+        }
+        compact.push(payload)
+        break
+      }
     }
   }
 
