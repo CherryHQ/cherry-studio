@@ -7,6 +7,15 @@ import { GB, KB, MB } from '@shared/utils/constants'
 import { audioExts, createFilePathHandle, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 
 /**
+ * Wildcard entry for an extension allowlist: a list containing it accepts every file,
+ * whatever its extension. Only the composer's capability lists carry it, and only on the
+ * agent surface — there the attachment is forwarded to the agent as a path and never read
+ * by Cherry, so no catalog of presentable formats describes what is attachable. Same token
+ * the file dialogs already use for their "all files" filter.
+ */
+export const anyFileExt = '*'
+
+/**
  * 从文件路径中提取目录路径。
  * @param {string} filePath 文件路径
  * @returns {string} 目录路径
@@ -79,17 +88,31 @@ export function removeSpecialCharactersForFileName(str: string): string {
 }
 
 /**
+ * 判断扩展名是否被允许列表接受，遵守 anyFileExt 通配符。
+ *
+ * 所有对能力列表的接受判断都必须走这里：直接用 `supportExts.includes(ext)` 会悄悄
+ * 恢复通配符已经解除的格式过滤（剪贴板图片粘贴就是这样被拒的）。
+ * @param {string} ext 待判断的扩展名（含点号）
+ * @param {readonly string[]} supportExts 支持的文件扩展名列表
+ * @returns {boolean} 被接受返回true，否则返回false
+ */
+export function isSupportedExtension(ext: string, supportExts: readonly string[]): boolean {
+  return supportExts.includes(anyFileExt) || supportExts.includes(ext)
+}
+
+/**
  * 检查文件是否为支持的类型。
  * 支持的文件类型包括:
- * 1. 文件扩展名在supportExts集合中的文件
- * 2. 文本文件
+ * 1. supportExts 含有通配符 anyFileExt（不做任何过滤）
+ * 2. 文件扩展名在supportExts集合中的文件
+ * 3. 文本文件
  * @param {string} filePath 文件路径
  * @param {Set<string>} supportExts 支持的文件扩展名集合
  * @returns {Promise<boolean>} 如果文件类型受支持返回true，否则返回false
  */
 export async function isSupportedFile(filePath: string, supportExts: Set<string>): Promise<boolean> {
   try {
-    if (supportExts.has(getFileExtension(filePath))) {
+    if (supportExts.has(anyFileExt) || supportExts.has(getFileExtension(filePath))) {
       return true
     }
 

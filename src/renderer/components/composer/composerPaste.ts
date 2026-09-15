@@ -1,6 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
 
-import { getFileExtension } from '@renderer/utils/file'
+import { getFileExtension, isSupportedExtension } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
@@ -23,7 +23,9 @@ export function hasSupportedClipboardImage(
   files: readonly Pick<File, 'name' | 'type'>[],
   supportedExts: readonly string[]
 ) {
-  return files.some((file) => file.type.startsWith('image/') && supportedExts.includes(getFileExtension(file.name)))
+  return files.some(
+    (file) => file.type.startsWith('image/') && isSupportedExtension(getFileExtension(file.name), supportedExts)
+  )
 }
 
 interface ComposerPlainTextPasteOptions {
