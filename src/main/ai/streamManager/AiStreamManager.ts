@@ -1000,6 +1000,17 @@ export class AiStreamManager extends BaseService {
     return (this.terminalPersistenceCounts.get(topicId) ?? 0) > 0
   }
 
+  /** True while archiving this topic could strand an admitted or queued chat turn. */
+  hasUnsettledTopicWork(topicId: string): boolean {
+    const status = this.activeStreams.get(topicId)?.status
+    if (status === 'pending' || status === 'streaming' || status === 'awaiting-approval') return true
+    if (this.hasTerminalPersistenceInFlight(topicId)) return true
+    if (this.terminalDispatchInFlight.has(topicId)) return true
+    if (this.pendingSteers.has(topicId) || this.startingNextChatTopicIds.has(topicId)) return true
+    if (this.inFlightChatContinuations.has(topicId)) return true
+    return [...this.inFlightDispatches.values()].includes(topicId)
+  }
+
   /** Resolves once this topic's in-flight terminal dispatch (listeners + lifecycle) has settled. */
   whenTerminalDispatchSettled(topicId: string): Promise<void> {
     return this.terminalDispatchInFlight.get(topicId)?.settled ?? Promise.resolve()

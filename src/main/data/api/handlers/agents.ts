@@ -53,9 +53,9 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListAgentsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const { search, page, limit } = parsed.data
+      const { inTrash, search, page, limit } = parsed.data
       const offset = (page - 1) * limit
-      const { agents, total } = agentService.listAgents({ limit, offset, search })
+      const { agents, total } = agentService.listAgents({ limit, offset, search, inTrash })
       return { items: agents, total, page }
     }
   },
@@ -74,6 +74,10 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
     }
+  },
+
+  '/agents/:agentId/restore': {
+    POST: async ({ params }) => agentService.restoreAgent(params.agentId)
   },
 
   // Task reads only — task mutations are mixed-effect commands (schedule row +

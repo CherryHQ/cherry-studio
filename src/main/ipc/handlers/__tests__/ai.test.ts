@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AiStreamAdmissionError } from '@main/ai/streamManager'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -66,6 +67,7 @@ const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSes
 const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn() }
 const agentSessionDeliveryService = {
   deleteSessions: vi.fn(),
+  restoreSession: vi.fn(),
   reuseOrCreateSession: vi.fn(),
   deleteAgent: vi.fn(),
   deleteAgentSessions: vi.fn(),
@@ -133,7 +135,23 @@ describe('aiHandlers', () => {
     await expect(aiHandlers['ai.agent.session.delete']({ sessionIds: ['session-1'] }, ctx)).resolves.toEqual({
       deletedIds: ['session-1']
     })
-    expect(agentSessionDeliveryService.deleteSessions).toHaveBeenCalledWith(['session-1'])
+    expect(agentSessionDeliveryService.deleteSessions).toHaveBeenCalledWith(['session-1'], undefined)
+  })
+
+  it('delegates Session restoration to the delivery owner', async () => {
+    const restored = { id: 'session-1' }
+    agentSessionDeliveryService.restoreSession.mockResolvedValue(restored)
+
+    await expect(aiHandlers['ai.agent.session.restore']({ sessionId: 'session-1' }, ctx)).resolves.toBe(restored)
+    expect(agentSessionDeliveryService.restoreSession).toHaveBeenCalledWith('session-1')
+  })
+
+  it('preserves a branchable error when Session restoration loses the lifecycle race', async () => {
+    agentSessionDeliveryService.restoreSession.mockRejectedValue(DataApiErrorFactory.notFound('Session', 'session-1'))
+
+    await expect(aiHandlers['ai.agent.session.restore']({ sessionId: 'session-1' }, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND
+    })
   })
 
   it('delegates placeholder reuse and duplicate cleanup to the delivery owner', async () => {
@@ -160,7 +178,7 @@ describe('aiHandlers', () => {
       deleted: true,
       deletedSessionIds: ['session-1']
     })
-    expect(agentSessionDeliveryService.deleteAgent).toHaveBeenCalledWith('agent-1', true)
+    expect(agentSessionDeliveryService.deleteAgent).toHaveBeenCalledWith('agent-1', true, undefined)
   })
 
   it('delegates mixed-effect Agent Session deletion to the delivery owner', async () => {

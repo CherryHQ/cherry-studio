@@ -57,6 +57,20 @@ describe('useChannels', () => {
       expect(result.current.channels).toEqual(mockChannels)
       expect(result.current.isLoading).toBe(false)
     })
+
+    it('refetches channels when another window publishes a channel projection change', () => {
+      const refetch = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [], refetch })
+      renderHook(() => useChannels())
+
+      act(() => {
+        MockUseDataApiUtils.emitDataChange([
+          { endpoint: '/agent-channels', kind: 'projection', entityIds: ['channel-detached'] }
+        ])
+      })
+
+      expect(refetch).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('createChannel', () => {

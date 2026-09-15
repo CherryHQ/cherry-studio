@@ -1,6 +1,8 @@
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
@@ -53,23 +55,78 @@ async function ensureAdapterLoaded(type: AgentChannelType): Promise<void> {
   await adapterImportMap[type]()
 }
 
+function canConnectChannel(channel: ChannelRow): boolean {
+  if (!channel.isActive || !channel.agentId) return false
+  return agentService.getLifecycleState(channel.agentId) === 'active'
+}
+
+interface ConnectionGuard {
+  managerGeneration: number
+  agentGeneration: number
+  agentId: string
+}
+
+interface AdapterOwnership {
+  adapter: ChannelAdapter
+  guard: ConnectionGuard
+  quarantined: boolean
+}
+
+interface ChannelTransitionWork {
+  completion?: Promise<void>
+}
+
 @Injectable('ChannelManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager'])
 export class ChannelManager extends BaseService {
-  private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
+  private readonly adapters = new Map<string, AdapterOwnership>() // key: channelId
+  private readonly channelTransitions = new KeyedMutex()
   private readonly qrWaiters = new Map<
     string,
     { resolve: (url: string) => void; timer: ReturnType<typeof setTimeout> }
   >()
   private readonly channelLogs = new ChannelLogBuffer()
+  private readonly agentLifecycleGenerations = new Map<string, number>()
+  private readonly agentLifecycleTasks = new Map<string, Promise<void>>()
+  private readonly pendingConnections = new Set<Promise<void>>()
+  private managerGeneration = 0
+  private acceptingConnections = true
 
   protected async onReady(): Promise<void> {
+    this.acceptingConnections = true
+    this.registerDisposable(
+      agentService.onAgentTrashed(({ agentId }) => {
+        const generation = this.invalidateAgentLifecycle(agentId)
+        const guard = this.captureConnectionGuard(agentId, this.managerGeneration, generation)
+        const channelIds = this.captureAgentChannelIds(agentId)
+        this.runAgentLifecycleAction('trashed', agentId, () =>
+          this.disconnectAgentWithGuard(agentId, guard, channelIds)
+        )
+      })
+    )
+    this.registerDisposable(
+      agentService.onAgentRestored(({ agentId }) => {
+        const generation = this.invalidateAgentLifecycle(agentId)
+        const guard = this.captureConnectionGuard(agentId, this.managerGeneration, generation)
+        this.runAgentLifecycleAction('restored', agentId, () => this.restoreAgentChannels(agentId, guard))
+      })
+    )
+    this.registerDisposable(
+      agentService.onAgentPurged(({ agentId }) => {
+        const generation = this.invalidateAgentLifecycle(agentId)
+        const guard = this.captureConnectionGuard(agentId, this.managerGeneration, generation)
+        const channelIds = this.captureAgentChannelIds(agentId)
+        this.runAgentLifecycleAction('purged', agentId, () => this.disconnectAgentWithGuard(agentId, guard, channelIds))
+      })
+    )
     await this.start()
   }
 
   protected async onStop(): Promise<void> {
     await this.stop()
+    await Promise.allSettled(this.pendingConnections)
+    await this.waitForAgentLifecycleActions()
   }
 
   // ── Write quiesce (backup restore) ───────────────────────────────
@@ -93,6 +150,8 @@ export class ChannelManager extends BaseService {
   }
 
   async start(): Promise<void> {
+    this.acceptingConnections = true
+    const managerGeneration = ++this.managerGeneration
     let channels: Awaited<ReturnType<typeof channelService.listChannels>>
     try {
       channels = channelService.listChannels()
@@ -103,35 +162,30 @@ export class ChannelManager extends BaseService {
       return
     }
 
-    const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
+    const activeChannels = channels.filter(canConnectChannel).map((channel) => ({
+      channel,
+      guard: this.captureConnectionGuard(channel.agentId!, managerGeneration)
+    }))
 
-    // Lazy-load only the adapter modules needed for active channels
-    const neededTypes = [...new Set(activeChannels.map((ch) => ch.type))]
-    await Promise.all(neededTypes.map((type) => ensureAdapterLoaded(type)))
-
-    await Promise.all(activeChannels.map((channel) => this.connectChannelFromRow(channel)))
+    await Promise.all(
+      activeChannels.map(({ channel, guard }) =>
+        this.runChannelTransition(channel.id, false, () => this.replaceChannelAdapter(channel.id, guard, false))
+      )
+    )
 
     logger.info('Channel manager started', { adapterCount: this.adapters.size })
   }
 
   async stop(): Promise<void> {
+    this.acceptingConnections = false
+    this.managerGeneration++
     logger.info('Stopping channel manager')
-    const disconnects = Array.from(this.adapters.values()).map((adapter) =>
-      adapter
-        .disconnect()
-        .catch((err) => {
-          logger.warn('Error disconnecting adapter', {
-            agentId: adapter.agentId,
-            channelId: adapter.channelId,
-            error: err instanceof Error ? err.message : String(err)
-          })
-        })
-        .finally(() => {
-          this.publishStatus({ channelId: adapter.channelId, connected: false })
-        })
+    const disconnects = [...this.adapters.keys()].map((channelId) =>
+      this.channelTransitions.runExclusive(channelId, async () => {
+        await this.disconnectOwnedAdapter(channelId, true)
+      })
     )
     await Promise.all(disconnects)
-    this.adapters.clear()
     logger.info('Channel manager stopped')
   }
 
@@ -153,9 +207,8 @@ export class ChannelManager extends BaseService {
   /** Return connection state for all adapters of an agent. */
   getAdapterStatuses(agentId: string): Array<{ channelId: string; connected: boolean }> {
     const result: Array<{ channelId: string; connected: boolean }> = []
-    for (const [key, adapter] of this.adapters) {
+    for (const [channelId, { adapter }] of this.adapters) {
       if (adapter.agentId !== agentId) continue
-      const channelId = key.split(':')[1]
       result.push({ channelId, connected: adapter.connected })
     }
     return result
@@ -164,7 +217,7 @@ export class ChannelManager extends BaseService {
   /** Return all registered adapters for an agent, connected or not (a dropped one stays for reconnect). */
   getAgentAdapters(agentId: string): ChannelAdapter[] {
     const result: ChannelAdapter[] = []
-    for (const [, adapter] of this.adapters) {
+    for (const [, { adapter }] of this.adapters) {
       if (adapter.agentId !== agentId) continue
       result.push(adapter)
     }
@@ -173,10 +226,7 @@ export class ChannelManager extends BaseService {
 
   /** Return the adapter for a specific channel, if connected. */
   getAdapter(channelId: string): ChannelAdapter | undefined {
-    for (const [, adapter] of this.adapters) {
-      if (adapter.channelId === channelId) return adapter
-    }
-    return undefined
+    return this.adapters.get(channelId)?.adapter
   }
 
   /** Get buffered logs for a channel. */
@@ -188,6 +238,125 @@ export class ChannelManager extends BaseService {
     application.get('IpcApiService').broadcastToType(WindowType.Main, event, data)
   }
 
+  private async runChannelTransition(
+    channelId: string,
+    awaitCompletion: boolean,
+    work: () => Promise<ChannelTransitionWork>
+  ): Promise<void> {
+    if (awaitCompletion) {
+      await this.channelTransitions.runExclusive(channelId, async () => {
+        const transition = await work()
+        await transition.completion
+      })
+      return
+    }
+
+    let resolveStarted!: () => void
+    let rejectStarted!: (reason: unknown) => void
+    let startedSettled = false
+    const started = new Promise<void>((resolve, reject) => {
+      resolveStarted = resolve
+      rejectStarted = reject
+    })
+    const completion = this.channelTransitions.runExclusive(channelId, async () => {
+      try {
+        const transition = await work()
+        startedSettled = true
+        resolveStarted()
+        await transition.completion
+      } catch (error) {
+        if (!startedSettled) {
+          startedSettled = true
+          rejectStarted(error)
+        }
+        throw error
+      }
+    })
+    this.trackPendingConnection(completion)
+    await started
+  }
+
+  private trackPendingConnection(connection: Promise<void>): void {
+    this.pendingConnections.add(connection)
+    void connection
+      .catch(() => {})
+      .finally(() => {
+        this.pendingConnections.delete(connection)
+      })
+  }
+
+  private async replaceChannelAdapter(
+    channelId: string,
+    guard: ConnectionGuard | undefined,
+    strictDisconnect: boolean
+  ): Promise<ChannelTransitionWork> {
+    const disconnected = await this.disconnectOwnedAdapter(channelId, !strictDisconnect)
+    if (!disconnected || !guard || !this.isConnectionGuardCurrent(guard)) return {}
+
+    let channel = channelService.getChannel(channelId)
+    if (!channel || channel.agentId !== guard.agentId || !canConnectChannel(channel)) return {}
+
+    await ensureAdapterLoaded(channel.type)
+
+    if (!this.isConnectionGuardCurrent(guard)) return {}
+    channel = channelService.getChannel(channelId)
+    if (!channel || channel.agentId !== guard.agentId || !canConnectChannel(channel)) return {}
+    return { completion: this.connectChannelFromRow(channel, guard) }
+  }
+
+  private async disconnectOwnedAdapter(channelId: string, suppressErrors: boolean): Promise<boolean> {
+    const ownership = this.adapters.get(channelId)
+    if (!ownership) return true
+
+    ownership.quarantined = true
+    try {
+      await ownership.adapter.disconnect()
+      if (this.adapters.get(channelId) === ownership) this.adapters.delete(channelId)
+      return true
+    } catch (error) {
+      if (!suppressErrors) throw error
+      logger.warn('Error disconnecting adapter', {
+        agentId: ownership.adapter.agentId,
+        channelId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return false
+    } finally {
+      this.publishStatus({ channelId: ownership.adapter.channelId, connected: false })
+    }
+  }
+
+  private captureChannelConnectionGuard(channelId: string): ConnectionGuard | undefined {
+    const channel = channelService.getChannel(channelId)
+    const agentId = channel?.agentId ?? this.adapters.get(channelId)?.adapter.agentId
+    return agentId ? this.captureConnectionGuard(agentId) : undefined
+  }
+
+  private captureAgentChannelIds(agentId: string): string[] {
+    const channelIds = new Set(
+      [...this.adapters.entries()]
+        .filter(([, ownership]) => ownership.adapter.agentId === agentId)
+        .map(([channelId]) => channelId)
+    )
+    try {
+      for (const channel of channelService.listChannels({ agentId })) channelIds.add(channel.id)
+    } catch (error) {
+      logger.warn('Failed to list Agent channels for disconnect', {
+        agentId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+    return [...channelIds]
+  }
+
+  private isOwnershipAtOrBeforeGuard(ownership: AdapterOwnership, guard: ConnectionGuard): boolean {
+    return (
+      ownership.guard.agentId === guard.agentId &&
+      ownership.guard.managerGeneration <= guard.managerGeneration &&
+      ownership.guard.agentGeneration <= guard.agentGeneration
+    )
+  }
+
   private publishStatus(status: ChannelStatusEvent): void {
     application.get('CacheService').setShared(`channel.status.${status.channelId}`, status)
   }
@@ -195,26 +364,9 @@ export class ChannelManager extends BaseService {
   /** Disconnect the adapter for a single channel without reconnecting. */
   async disconnectChannel(channelId: string, options: { suppressErrors?: boolean } = {}): Promise<void> {
     const { suppressErrors = true } = options
-    for (const [key, adapter] of this.adapters) {
-      if (adapter.channelId !== channelId) continue
-
-      try {
-        await adapter.disconnect()
-        this.adapters.delete(key)
-      } catch (err) {
-        if (suppressErrors) {
-          logger.warn('Error disconnecting adapter', {
-            key,
-            error: err instanceof Error ? err.message : String(err)
-          })
-          this.adapters.delete(key)
-          continue
-        }
-        throw err
-      } finally {
-        this.publishStatus({ channelId: adapter.channelId, connected: false })
-      }
-    }
+    await this.channelTransitions.runExclusive(channelId, async () => {
+      await this.disconnectOwnedAdapter(channelId, suppressErrors)
+    })
   }
 
   /**
@@ -225,15 +377,19 @@ export class ChannelManager extends BaseService {
     channelId: string,
     options: { awaitConnect?: boolean; strictDisconnect?: boolean } = {}
   ): Promise<void> {
-    const { awaitConnect = false, strictDisconnect = false } = options
-    await this.disconnectChannel(channelId, { suppressErrors: !strictDisconnect })
+    const guard = this.captureChannelConnectionGuard(channelId)
+    await this.syncChannelWithGuard(channelId, options, guard)
+  }
 
-    // Re-read from DB and reconnect if active
-    const channel = channelService.getChannel(channelId)
-    if (channel && channel.isActive && channel.agentId) {
-      await ensureAdapterLoaded(channel.type)
-      await this.connectChannelFromRow(channel, { awaitConnect })
-    }
+  private async syncChannelWithGuard(
+    channelId: string,
+    options: { awaitConnect?: boolean; strictDisconnect?: boolean },
+    lifecycleGuard: ConnectionGuard | undefined
+  ): Promise<void> {
+    const { awaitConnect = false, strictDisconnect = false } = options
+    await this.runChannelTransition(channelId, awaitConnect, () =>
+      this.replaceChannelAdapter(channelId, lifecycleGuard, strictDisconnect)
+    )
   }
 
   /**
@@ -241,25 +397,83 @@ export class ChannelManager extends BaseService {
    * Use when the agent is deleted or its channels should all be torn down.
    */
   async disconnectAgent(agentId: string): Promise<void> {
-    const toDisconnect = [...this.adapters.entries()].filter(([, a]) => a.agentId === agentId)
+    const guard = this.captureConnectionGuard(agentId)
+    const channelIds = this.captureAgentChannelIds(agentId)
+    await this.disconnectAgentWithGuard(agentId, guard, channelIds)
+  }
+
+  private async disconnectAgentWithGuard(agentId: string, guard: ConnectionGuard, channelIds: string[]): Promise<void> {
     await Promise.all(
-      toDisconnect.map(([key, adapter]) =>
-        adapter
-          .disconnect()
-          .catch((err) => {
-            logger.warn('Error disconnecting adapter', {
-              key,
-              error: err instanceof Error ? err.message : String(err)
-            })
-          })
-          .finally(() => {
-            this.adapters.delete(key)
-            this.publishStatus({ channelId: adapter.channelId, connected: false })
-          })
+      channelIds.map((channelId) =>
+        this.channelTransitions.runExclusive(channelId, async () => {
+          const ownership = this.adapters.get(channelId)
+          if (ownership?.adapter.agentId !== agentId) return
+          if (!this.isOwnershipAtOrBeforeGuard(ownership, guard)) return
+          await this.disconnectOwnedAdapter(channelId, true)
+        })
       )
     )
 
     channelMessageHandler.clearSessionTracker(agentId)
+  }
+
+  private async restoreAgentChannels(agentId: string, guard: ConnectionGuard): Promise<void> {
+    if (!this.isConnectionGuardCurrent(guard)) return
+    const channels = channelService.listChannels({ agentId })
+    await Promise.all(channels.map((channel) => this.syncChannelWithGuard(channel.id, { awaitConnect: true }, guard)))
+  }
+
+  private runAgentLifecycleAction(
+    action: 'trashed' | 'restored' | 'purged',
+    agentId: string,
+    work: () => Promise<void>
+  ): void {
+    const previous = this.agentLifecycleTasks.get(agentId) ?? Promise.resolve()
+    const task = previous.catch(() => {}).then(work)
+    this.agentLifecycleTasks.set(agentId, task)
+    void task
+      .catch((error) => {
+        logger.error('Failed to handle Agent lifecycle action for channels', { action, agentId, error })
+      })
+      .finally(() => {
+        if (this.agentLifecycleTasks.get(agentId) === task) this.agentLifecycleTasks.delete(agentId)
+      })
+  }
+
+  private invalidateAgentLifecycle(agentId: string): number {
+    const generation = (this.agentLifecycleGenerations.get(agentId) ?? 0) + 1
+    this.agentLifecycleGenerations.set(agentId, generation)
+    return generation
+  }
+
+  private captureConnectionGuard(
+    agentId: string,
+    managerGeneration = this.managerGeneration,
+    agentGeneration = this.agentLifecycleGenerations.get(agentId) ?? 0
+  ): ConnectionGuard {
+    return { managerGeneration, agentGeneration, agentId }
+  }
+
+  private isConnectionGuardCurrent(guard: ConnectionGuard): boolean {
+    return (
+      this.acceptingConnections &&
+      this.managerGeneration === guard.managerGeneration &&
+      (this.agentLifecycleGenerations.get(guard.agentId) ?? 0) === guard.agentGeneration
+    )
+  }
+
+  private isAdapterEventCurrent(channelId: string, ownership: AdapterOwnership): boolean {
+    return (
+      this.adapters.get(channelId) === ownership &&
+      !ownership.quarantined &&
+      this.isConnectionGuardCurrent(ownership.guard)
+    )
+  }
+
+  private async waitForAgentLifecycleActions(): Promise<void> {
+    while (this.agentLifecycleTasks.size > 0) {
+      await Promise.allSettled(this.agentLifecycleTasks.values())
+    }
   }
 
   /**
@@ -283,9 +497,9 @@ export class ChannelManager extends BaseService {
     await this.syncChannel(channelId)
   }
 
-  private async connectChannelFromRow(row: ChannelRow, options: { awaitConnect?: boolean } = {}): Promise<void> {
+  private async connectChannelFromRow(row: ChannelRow, guard: ConnectionGuard): Promise<void> {
     const agentId = row.agentId
-    if (!agentId) return
+    if (!agentId || !this.isConnectionGuardCurrent(guard)) return
 
     const factory = adapterFactories.get(row.type)
     if (!factory) {
@@ -293,9 +507,10 @@ export class ChannelManager extends BaseService {
       return
     }
 
-    const key = `${agentId}:${row.id}`
+    const key = row.id
     try {
       const adapter = factory(row, agentId)
+      const ownership: AdapterOwnership = { adapter, guard, quarantined: false }
 
       // Seed notifyChatIds from DB-persisted activeChatIds (when allowed_chat_ids is empty)
       const hasAllowedIds = adapter.notifyChatIds.length > 0
@@ -320,6 +535,7 @@ export class ChannelManager extends BaseService {
       }
 
       adapter.on('message', (msg) => {
+        if (!this.isAdapterEventCurrent(key, ownership)) return
         // Write-quiesce intake gate — also skips trackChatId's `activeChatIds` DB write. The
         // handler's own gate is defense in depth; this one stops the config write too.
         if (channelMessageHandler.isWriteQuiesced) {
@@ -343,6 +559,7 @@ export class ChannelManager extends BaseService {
       })
 
       adapter.on('command', (cmd) => {
+        if (!this.isAdapterEventCurrent(key, ownership)) return
         if (channelMessageHandler.isWriteQuiesced) {
           logger.warn('Channel command dropped: intake is write-quiesced', { agentId, channelId: row.id })
           return
@@ -365,6 +582,7 @@ export class ChannelManager extends BaseService {
 
       // Forward QR events to any pending waiters
       adapter.on('qr', (url) => {
+        if (!this.isAdapterEventCurrent(key, ownership)) return
         const waiterKey = `${agentId}:${row.id}`
         const waiter = this.qrWaiters.get(waiterKey)
         if (waiter) {
@@ -377,6 +595,7 @@ export class ChannelManager extends BaseService {
       // When an adapter obtains credentials via QR registration, persist them
       // to the channel config and re-sync so a new adapter connects with creds.
       adapter.on('credentials', (creds) => {
+        if (!this.isAdapterEventCurrent(key, ownership)) return
         this.saveCredentialsAndReconnect(agentId, row.id, creds).catch((err) => {
           logger.error('Failed to save credentials and reconnect', {
             agentId,
@@ -388,25 +607,37 @@ export class ChannelManager extends BaseService {
 
       // Logs remain event-like; connection status is a main-owned shared snapshot.
       adapter.on('log', (entry) => {
+        if (!this.isAdapterEventCurrent(key, ownership)) return
         this.channelLogs.append(entry.channelId, entry)
         this.sendToRenderer('channel.log', entry)
       })
 
       adapter.on('statusChange', (status) => {
+        if (!this.isAdapterEventCurrent(key, ownership)) return
         this.publishStatus(status)
       })
 
       // Register adapter immediately so it's discoverable. Callers can either
       // await connect for strict workflows or leave it in the background.
-      this.adapters.set(key, adapter)
+      this.adapters.set(key, ownership)
       this.publishStatus({ channelId: row.id, connected: adapter.connected })
 
       const connect = async () => {
         try {
           await adapter.connect()
+          const current = channelService.getChannel(row.id)
+          if (
+            !this.isAdapterEventCurrent(key, ownership) ||
+            !current ||
+            current.agentId !== agentId ||
+            !canConnectChannel(current)
+          ) {
+            await this.disconnectOwnedAdapter(key, true)
+            return
+          }
           logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type })
         } catch (error) {
-          this.adapters.delete(key)
+          if (this.adapters.get(key) === ownership) this.adapters.delete(key)
           logger.error('Failed to connect channel adapter', {
             agentId,
             channelId: row.id,
@@ -417,11 +648,7 @@ export class ChannelManager extends BaseService {
         }
       }
 
-      if (options.awaitConnect) {
-        await connect()
-      } else {
-        void connect().catch(() => {})
-      }
+      await connect()
     } catch (error) {
       logger.error('Failed to create channel adapter', {
         agentId,
@@ -435,9 +662,7 @@ export class ChannelManager extends BaseService {
         error: error instanceof Error ? error.message : String(error)
       }
       this.publishStatus(errorStatus)
-      if (options.awaitConnect) {
-        throw error
-      }
+      throw error
     }
   }
 }

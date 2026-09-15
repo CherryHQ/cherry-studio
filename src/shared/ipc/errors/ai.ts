@@ -19,6 +19,8 @@ export const aiErrorCodes = {
   AI_REQUEST_FAILED: 'AI_REQUEST_FAILED',
   /** A live-stream execution change was rejected; `data.reason` is renderer-localized. */
   AI_STREAM_ADMISSION_REJECTED: 'AI_STREAM_ADMISSION_REJECTED',
+  /** A Session restore lost a race with another lifecycle command or referenced a missing row. */
+  AI_AGENT_SESSION_NOT_FOUND: 'AI_AGENT_SESSION_NOT_FOUND',
   /**
    * An `ai.agent.task.*` command referenced a task that does not exist, is not
    * an `agent.task` schedule, or belongs to another agent (the three cases are
@@ -56,4 +58,8 @@ export function aiStreamAdmissionReason(e: unknown): AiStreamAdmissionReason | u
   if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_STREAM_ADMISSION_REJECTED) return undefined
   if (!e.data || typeof e.data !== 'object' || !('reason' in e.data)) return undefined
   return isAiStreamAdmissionReason(e.data.reason) ? e.data.reason : undefined
+}
+
+export function isAgentSessionNotFoundError(e: unknown): e is IpcError {
+  return e instanceof IpcError && e.code === aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND
 }

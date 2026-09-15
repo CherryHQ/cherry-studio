@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type {
@@ -22,6 +22,7 @@ export const useChannels = (type?: AgentChannelType) => {
     query: type ? { type } : undefined,
     swrOptions: { keepPreviousData: false }
   })
+  useDataChange('/agent-channels', () => void refetch())
   const channels = data ?? (EMPTY_CHANNELS as AgentChannelEntity[])
 
   const { trigger: createTrigger } = useMutation('POST', '/agent-channels', { refresh: ['/agent-channels'] })
