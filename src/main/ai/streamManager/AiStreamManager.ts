@@ -32,6 +32,7 @@ import type {
 } from '@shared/ai/transport'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import { hasRenderableContent } from '@shared/data/messageRenderability'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
@@ -56,6 +57,7 @@ import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { TerminalPersistenceError } from './listeners/PersistenceListener'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
+import { dropEmptyContentParts, stripTransientStatusParts } from './persistence/PersistenceBackend'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
 import type {
@@ -293,6 +295,16 @@ function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
 function toolNameFromApprovalChunk(chunk: UIMessageChunk): string | undefined {
   const metadata = (chunk as { providerMetadata?: { cherry?: { toolName?: unknown } } }).providerMetadata
   return typeof metadata?.cherry?.toolName === 'string' ? metadata.cherry.toolName : undefined
+}
+
+function isEmptySuccessTurn(finalMessage: CherryUIMessage | undefined): boolean {
+  if (!finalMessage) return true
+  const parts = finalMessage.parts as CherryMessagePart[]
+  if (!parts || parts.length === 0) return true
+  // Same normalization PersistenceListener applies before storage, then the
+  // shared renderability check (hidden markers + empty structured payloads).
+  const stripped = dropEmptyContentParts(stripTransientStatusParts(parts))
+  return !hasRenderableContent(stripped)
 }
 
 /**
@@ -2030,6 +2042,14 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionPaused(topicId, modelId, exec)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
+    } else if (!request.allowEmptySuccess && isEmptySuccessTurn(exec.finalMessage)) {
+      const noResponseError: SerializedError = {
+        name: 'NoResponseError',
+        message: 'No response',
+        stack: null,
+        i18nKey: 'no_response'
+      }
+      await this.onExecutionError(topicId, modelId, noResponseError, exec)
     } else {
       await this.onExecutionDone(topicId, modelId, exec)
     }

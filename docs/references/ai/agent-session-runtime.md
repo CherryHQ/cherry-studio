@@ -323,7 +323,10 @@ After commit
 Terminal persistence must run before the finalizer. The finalizer treats a unique-result conflict
 as already completed, so a crash after terminal persistence but before or during finalization can
 rerun it without creating a second result. The Agent Session backend persists an empty terminal row when accumulation produced no final
-snapshot; ordinary chat keeps skipping an empty successful reply. If live terminal persistence
+snapshot; agent-session runtime requests are exempt from that conversion because the runtime
+owns its terminal status. Ordinary chat's `AiStreamManager` converts an empty successful stream with no renderable
+content into a `no-response` error before terminal persistence, so the persisted row carries a
+`data-error` part rather than remaining empty. If live terminal persistence
 throws, the Agent Session backend best-effort advances the placeholder from `pending` to `error`
 before the generic terminal event runs. If that repair also fails transiently, the recoverable-row sweep retries it once neither the runtime,
 a live stream, nor terminal persistence owns the placeholder. The runtime resume token remains
