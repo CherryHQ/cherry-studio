@@ -82,6 +82,7 @@ const agentPageMocks = vi.hoisted(() => ({
   isActiveTab: false,
   showSidebar: false,
   routeSearch: { sessionId: 'session-initial' } as Record<string, unknown>,
+  tabUrl: '/app/agents?sessionId=session-initial',
   navigate: vi.fn(),
   composerLaunchOptions: undefined as any,
   dataApiGet: vi.fn(),
@@ -324,6 +325,7 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => agentPageMocks.closeConversationTabs,
+  useCurrentTab: () => ({ id: 'agent-tab', type: 'route' as const, title: 'Agents', url: agentPageMocks.tabUrl }),
   useCurrentTabId: () => 'agent-tab',
   useIsActiveTab: () => agentPageMocks.isActiveTab,
   useTabSelfVisuals: vi.fn()
@@ -714,6 +716,7 @@ describe('AgentPage', () => {
     vi.clearAllMocks()
     agentPageMocks.fileNavigationRequest.mockImplementation((transition) => transition())
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }
+    agentPageMocks.tabUrl = '/app/agents?sessionId=session-initial'
     agentPageMocks.navigate.mockReset()
     agentPageMocks.navigate.mockResolvedValue(undefined)
     agentPageMocks.composerLaunchOptions = undefined
@@ -2713,6 +2716,7 @@ describe('AgentPage', () => {
 
   it('does not close Manage Agents when a leftover agentId remains on a bound session', async () => {
     agentPageMocks.routeSearch = { sessionId: 'session-pinned-agent' }
+    agentPageMocks.tabUrl = '/app/agents?sessionId=session-pinned-agent'
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
       { id: 'agent-b', model: 'model-b', name: 'Agent B' }
@@ -2742,6 +2746,41 @@ describe('AgentPage', () => {
     rerender(<AgentPage />)
 
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-pinned-agent')
+  })
+
+  it('closes Manage Agents when a pinned Agent click retargets a tab already on that session', async () => {
+    agentPageMocks.routeSearch = { sessionId: 'session-pinned-agent' }
+    agentPageMocks.tabUrl = '/app/agents?sessionId=session-pinned-agent'
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.classicLayoutSessions = [
+      {
+        ...agentPageMocks.persistedSession,
+        id: 'session-pinned-agent',
+        agentId: 'agent-a',
+        name: 'Pinned session'
+      }
+    ]
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-pinned-agent',
+      agentId: 'agent-a',
+      name: 'Pinned session'
+    }
+    activeSessionMocks.sessionSource = 'query'
+
+    const { rerender } = render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+
+    agentPageMocks.tabUrl = '/app/agents?agentId=agent-a'
+    rerender(<AgentPage />)
+
+    expect(screen.queryByTestId('resource-catalog-agent')).not.toBeInTheDocument()
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-pinned-agent')
   })
 
