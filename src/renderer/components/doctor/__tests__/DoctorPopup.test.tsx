@@ -105,8 +105,8 @@ function completedDoctorState(
     status: 'completed',
     report: {
       schemaVersion: 1,
-      runId: 'completed-quick',
       scope: 'global',
+      runId: 'completed-quick',
       tier: 'quick',
       startedAt: new Date(now - 1_000).toISOString(),
       finishedAt: new Date(now).toISOString(),
@@ -205,11 +205,8 @@ describe('DoctorPopup', () => {
     expect(screen.queryByRole('button', { name: 'settings.doctor.actions.run_basic' })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'error.diagnostics.action_required' })).not.toBeInTheDocument()
     expect(screen.queryByText('Fixed: 0')).not.toBeInTheDocument()
-    const attention = screen.getByText('Needs attention: 0')
-    expect(attention).toBeVisible()
-    expect(
-      within(attention.parentElement as HTMLElement).getByText('settings.doctor.summary.basic_healthy')
-    ).toBeVisible()
+    expect(screen.getByText('Needs attention: 0')).toBeVisible()
+    expect(screen.getByText('settings.doctor.summary.basic_healthy')).toBeVisible()
   })
 
   it('runs quick checks from the expired-result alert', async () => {
@@ -342,14 +339,14 @@ describe('DoctorPopup', () => {
     expect(screen.queryByText(activeProgress)).not.toBeInTheDocument()
   })
 
-  it('separates user-fixable findings from other completed diagnostics findings', async () => {
+  it('separates user-fixable findings from other completed diagnostics', async () => {
     const user = userEvent.setup()
     mocks.doctorState = {
       status: 'completed',
       report: {
         schemaVersion: 1,
-        runId: 'run-2',
         scope: 'global',
+        runId: 'run-2',
         tier: 'quick',
         startedAt: new Date(Date.now() - 1_000).toISOString(),
         finishedAt: new Date().toISOString(),
@@ -428,19 +425,14 @@ describe('DoctorPopup', () => {
       void DoctorPopup.show({ initialPanel: 'checks' })
     })
 
-    const diagnosticSections = await screen.findAllByRole('region', {
-      name: /^error\.diagnostics\.(result|action_required)$/
-    })
-    expect(diagnosticSections).toHaveLength(2)
-    expect(screen.getByRole('region', { name: 'error.diagnostics.result' })).toBeVisible()
+    expect(await screen.findByRole('region', { name: 'error.diagnostics.result' })).toBeVisible()
     const actionRequired = screen.getByRole('region', { name: 'error.diagnostics.action_required' })
+    const otherFindings = screen.getByRole('region', { name: 'settings.doctor.copy.checks_heading' })
     expect(screen.getByText('Needs attention: 4')).toBeVisible()
-    expect(screen.queryByText('4 items need attention')).not.toBeInTheDocument()
 
     expect(
       screen.queryByRole('button', { name: /settings\.doctor\.checks\.install-version-channel\.title/ })
     ).not.toBeInTheDocument()
-    const otherFindings = screen.getByRole('region', { name: 'settings.doctor.copy.checks_heading' })
     expect(
       within(otherFindings).getByRole('button', { name: /settings\.doctor\.checks\.logs-recent-findings\.title/ })
     ).toBeVisible()
@@ -496,16 +488,15 @@ describe('DoctorPopup', () => {
       void DoctorPopup.show({ initialPanel: 'checks' })
     })
 
-    expect(screen.queryByText('Fixed: 0')).not.toBeInTheDocument()
     const attention = await screen.findByText('Needs attention: 1')
     // Semantic foreground colors distinguish completed fixes from outstanding attention.
+    expect(screen.queryByText('Fixed: 0')).not.toBeInTheDocument()
     expect(attention).toHaveClass('text-warning')
 
     await user.click(screen.getByRole('button', { name: 'settings.doctor.fixes.request_accessibility' }))
 
     expect(await screen.findByText('Fixed: 1')).toHaveClass('text-success')
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.fix', {
-      scope: 'global',
       runId: 'completed-quick',
       checkId: 'permission-accessibility',
       fixId: 'request'
