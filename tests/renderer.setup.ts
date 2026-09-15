@@ -668,7 +668,7 @@ vi.mock('@cherrystudio/ui', async () => {
       }
       return React.createElement('div', triggerProps, children)
     },
-    PopoverContent: ({ children, align, side, sideOffset, ...props }) => {
+    PopoverContent: ({ children, align, onEscapeKeyDown: _onEscapeKeyDown, side, sideOffset, ...props }) => {
       const context = React.useContext(PopoverContext)
       return context.open ? React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children) : null
     },
@@ -1036,8 +1036,18 @@ vi.mock('@cherrystudio/ui', async () => {
     Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
     PopoverTrigger: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children),
-    PopoverContent: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children),
+    PopoverContent: ({ align, children, onEscapeKeyDown: _onEscapeKeyDown, side, sideOffset, ...props }) =>
+      React.createElement(
+        'div',
+        {
+          ...props,
+          'data-align': align,
+          'data-side': side,
+          'data-side-offset': sideOffset,
+          'data-testid': 'popover-content'
+        },
+        children
+      ),
     HoverCard: ({ children, openDelay: _openDelay, closeDelay: _closeDelay, ...props }) =>
       React.createElement('div', props, children),
     HoverCardTrigger: ({ children, asChild, ...props }) => {
