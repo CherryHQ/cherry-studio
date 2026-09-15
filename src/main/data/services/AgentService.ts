@@ -74,6 +74,8 @@ interface EnsureBuiltinAgentInput {
 export interface EnsureBuiltinAgentResult {
   agent: AgentEntity
   created: boolean
+  /** A soft-deleted builtin row was restored (deletedAt cleared) by this call. */
+  restored: boolean
 }
 
 function getAgentDescription(id: string, description: string, configuration: unknown): string {
@@ -441,9 +443,19 @@ export class AgentService {
    * converge on one active system Agent.
    */
   ensureBuiltinAgentTx(tx: DbOrTx, input: EnsureBuiltinAgentInput): EnsureBuiltinAgentResult {
+    let restored = false
     if (input.builtinRole === BUILTIN_AGENT_ROLE.SUPPORT) {
       this.clearUntrustedBuiltinSupportRolesTx(tx)
+      // Detect the restore before claiming: claimBuiltinSupportIdentityTx
+      // clears deletedAt but does not report whether it did.
+      const [preClaim] = tx
+        .select({ deletedAt: agentsTable.deletedAt })
+        .from(agentsTable)
+        .where(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID))
+        .limit(1)
+        .all()
       this.claimBuiltinSupportIdentityTx(tx, { restoreDeleted: true })
+      restored = preClaim?.deletedAt != null
     }
     const existing = this.findBuiltinAgentByRoleTx(tx, input.builtinRole)
 
@@ -455,7 +467,8 @@ export class AgentService {
         : null
       return {
         agent: rowToAgent(existing, modelName, mcps, knowledgeBaseIds),
-        created: false
+        created: false,
+        restored
       }
     }
 
@@ -484,11 +497,12 @@ export class AgentService {
 
     return {
       agent: rowToAgent(created.agent, created.modelName, [], []),
-      created: true
+      created: true,
+      restored: false
     }
   }
 
-  /** Publish an Agent creation only after the caller-owned transaction commits. */
+  /** Publish an Agent creation/restore only after the caller-owned transaction commits. */
   emitAgentCreated(agent: AgentEntity): void {
     this._onAgentCreated.fire({ agentId: agent.id, agent })
   }
@@ -497,7 +511,9 @@ export class AgentService {
   ensureBuiltinAgent(input: EnsureBuiltinAgentInput): AgentEntity {
     const result = application.get('DbService').withWriteTx((tx) => this.ensureBuiltinAgentTx(tx, input))
 
-    if (result.created) {
+    // A restored builtin re-fires the creation event: post-commit
+    // provisioning subscribers (heartbeat schedule sync) must cover both.
+    if (result.created || result.restored) {
       this.emitAgentCreated(result.agent)
     }
     return result.agent

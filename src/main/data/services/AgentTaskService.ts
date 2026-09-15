@@ -77,10 +77,25 @@ export type TaskSessionReuse = {
 }
 
 const TASK_REUSE_METADATA_KEY = 'reuse'
+const CIRCUIT_BREAKER_PAUSED_KEY = 'circuitBreakerPaused'
 
 /** A JSON column can legally hold an array or a primitive; both would spread into garbage. */
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Set by the agent-task circuit breaker (consecutive failed terminal runs) so
+ * config-driven convergence (heartbeat sync) can tell "paused by the breaker"
+ * apart from plain drift and must not silently re-arm it.
+ */
+export function isCircuitBreakerPaused(metadata: unknown): boolean {
+  return isPlainRecord(metadata) && metadata[CIRCUIT_BREAKER_PAUSED_KEY] === true
+}
+
+/** Same merge discipline as writeTaskSessionReuse — the column replaces wholesale. */
+export function writeCircuitBreakerPaused(metadata: unknown, paused: boolean): Record<string, unknown> {
+  return { ...(isPlainRecord(metadata) ? metadata : {}), [CIRCUIT_BREAKER_PAUSED_KEY]: paused }
 }
 
 function referencesWorkspace(value: unknown, workspaceId: string): value is Record<string, unknown> {
@@ -180,7 +195,12 @@ export class AgentTaskService {
   getTaskById(taskId: string): ScheduledTaskEntity | null {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
-    if (!normalizeAgentTaskTemplate(snapshot.jobInputTemplate)) return null
+    const template = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
+    if (!template) return null
+    // Mirror the list side's heartbeat filter: the heartbeat row is derived state
+    // owned by the heartbeat sync — a known schedule id must not hand it to
+    // ordinary task commands.
+    if (template.prompt === HEARTBEAT_PROMPT_SENTINEL) return null
     return this.toScheduledTaskEntity(snapshot, agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null)
   }
 
