@@ -331,8 +331,8 @@ export class DeepSeekHarnessService extends BaseService {
     const child = this.child
     if (!child) return
     this.stoppingChild = child
-    await terminateProcessTree(child, false, 'DeepSeek Harness')
-    if (await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS)) return
+    const gracefulStopSucceeded = await terminateProcessTree(child, false, 'DeepSeek Harness')
+    if (gracefulStopSucceeded && (await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS))) return
 
     await terminateProcessTree(child, true, 'DeepSeek Harness')
     if (!(await waitForProcessExit(child, FORCE_STOP_TIMEOUT_MS))) {
