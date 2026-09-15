@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-09-07T13:21:05.101Z
- * Total icons: 160
+ * Generated at: 2026-09-15T02:04:30.876Z
+ * Total icons: 161
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -160,6 +160,7 @@ export { WorkersAiIcon as WorkersAi } from './workers-ai'
 export { XiaoyiIcon as Xiaoyi } from './xiaoyi'
 export { XinghuoIcon as Xinghuo } from './xinghuo'
 export { XirangIcon as Xirang } from './xirang'
+export { YApiIcon as YApi } from './y-api/y-api'
 export { YouIcon as You } from './you'
 export { YuanbaoIcon as Yuanbao } from './yuanbao'
 export { ZAiIcon as ZAi } from './z-ai'
