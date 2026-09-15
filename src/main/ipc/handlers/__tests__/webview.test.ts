@@ -1,5 +1,6 @@
-import { webviewRequestSchemas } from '@shared/ipc/schemas/webview'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { webviewRequestSchemas } from '@shared/ipc/schemas/webview'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
 

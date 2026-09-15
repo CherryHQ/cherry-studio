@@ -1,9 +1,10 @@
+import * as z from 'zod'
+
 import {
   WEBVIEW_ANNOTATION_LIMITS,
   WebviewAnnotationSchema,
   WebviewAnnotationTargetSchema
 } from '@shared/types/webviewAnnotation'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 

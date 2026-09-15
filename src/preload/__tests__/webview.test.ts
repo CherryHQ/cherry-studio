@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotationHostCommand } from '@shared/types/webviewAnnotation'
 import { MINI_APP_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sendToHost = vi.fn()
 const ipcListeners = new Map<string, (event: unknown, value: unknown) => void>()

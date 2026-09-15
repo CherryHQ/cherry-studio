@@ -1,11 +1,13 @@
+import { existsSync, promises as fs } from 'fs'
+
+import { app, dialog, session, shell, webContents } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, t } from '@main/i18n'
 import type { WindowId } from '@shared/ipc/types'
 import type { WebviewAnnotation, WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import { app, dialog, session, shell, webContents } from 'electron'
-import { existsSync, promises as fs } from 'fs'
 
 import { isSafeExternalUrl } from '../../utils/externalUrlSafety'
 import { exportAnnotationDocument } from './annotationExport'

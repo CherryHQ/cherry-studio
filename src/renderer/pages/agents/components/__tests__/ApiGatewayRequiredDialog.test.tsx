@@ -1,8 +1,8 @@
-import type * as CherryStudioUI from '@cherrystudio/ui'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvider'
 import i18n from '@renderer/i18n/resolver'
 

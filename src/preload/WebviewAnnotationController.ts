@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid'
+
 import {
   WEBVIEW_ANNOTATION_LIMITS,
   WEBVIEW_SHADOW_SELECTOR_SEPARATOR,
@@ -11,7 +13,6 @@ import {
   type WebviewElementLocator,
   type WebviewRegionRect
 } from '@shared/types/webviewAnnotation'
-import { v4 as uuidv4 } from 'uuid'
 
 const TEST_ATTRIBUTES = ['data-testid', 'data-test', 'data-cy'] as const
 const SENSITIVE_EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'OPTION'])

@@ -1,14 +1,15 @@
+import { act, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { WebviewTag } from 'electron'
+import type { ReactNode, RefObject } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as CherryStudioUI from '@cherrystudio/ui'
 import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
   type WebviewAnnotationGuestEvent,
   type WebviewAnnotationHostCommand
 } from '@shared/types/webviewAnnotation'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import type { WebviewTag } from 'electron'
-import type { ReactNode, RefObject } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loggerError, request, toastSuccess, toastError, randomUUID, readPopoverAnchorRect } = vi.hoisted(() => ({
   loggerError: vi.fn(),

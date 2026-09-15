@@ -1,7 +1,9 @@
-import { BaseService } from '@main/core/lifecycle'
-import { app, session } from 'electron'
 import type * as FsModule from 'fs'
+
+import { app, session } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
 
 import { WebviewService } from '../WebviewService'
 

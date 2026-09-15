@@ -1,3 +1,10 @@
+import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
+import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
+import type { FC, RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { v5 as uuidv5 } from 'uuid'
+
 import { Button, Input, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
@@ -11,12 +18,6 @@ import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
-import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
-import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
-import type { FC, RefObject } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { v5 as uuidv5 } from 'uuid'
 
 import { WebviewAnnotationControls } from './WebviewAnnotationControls'
 
@@ -417,7 +418,7 @@ const MinimalToolbar: FC<Props> = ({
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
-            className="h-7 rounded-md border-input bg-background px-2.5 text-muted-foreground text-xs shadow-none focus-visible:text-foreground"
+            className="text-muted-foreground h-7 rounded-md border-input bg-background px-2.5 text-xs shadow-none focus-visible:text-foreground"
           />
         </form>
       )}
@@ -541,7 +542,7 @@ const toolbarButtonClassName = ({ disabled = false, active = false }: { disabled
   cn(
     'rounded shadow-none active:scale-95',
     disabled
-      ? 'cursor-default text-foreground-disabled hover:bg-transparent hover:text-foreground-disabled active:scale-100'
+      ? 'text-foreground-disabled hover:text-foreground-disabled cursor-default hover:bg-transparent active:scale-100'
       : active
         ? 'text-primary hover:text-primary'
         : 'text-muted-foreground hover:text-foreground'

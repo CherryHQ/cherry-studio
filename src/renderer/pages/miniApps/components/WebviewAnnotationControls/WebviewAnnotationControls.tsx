@@ -1,3 +1,9 @@
+import type { WebviewTag } from 'electron'
+import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
+import type { RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Button,
@@ -18,11 +24,6 @@ import {
   type WebviewAnnotationLocale,
   type WebviewAnnotationTarget
 } from '@shared/types/webviewAnnotation'
-import type { WebviewTag } from 'electron'
-import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
-import type { RefObject } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useWebviewAnnotationSession } from './useWebviewAnnotationSession'
 
@@ -137,7 +138,7 @@ export function WebviewAnnotationControls({
               {count > 0 && (
                 <Badge
                   variant="secondary"
-                  className="pointer-events-none h-4 min-w-4 border-0 px-1 text-[10px] text-muted-foreground tabular-nums"
+                  className="text-muted-foreground pointer-events-none h-4 min-w-4 border-0 px-1 text-[10px] tabular-nums"
                   aria-hidden>
                   {count}
                 </Badge>
