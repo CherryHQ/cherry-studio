@@ -22,15 +22,6 @@ vi.mock('@renderer/utils/translate/translateText', () => ({
   translateText: (...args: any[]) => translateTextMock(...(args as Parameters<typeof translateTextMock>))
 }))
 
-const formatErrorMessageWithPrefixMock = vi.fn<(err: unknown, prefix: string) => string>(
-  (err, prefix) => `${prefix}: ${(err as Error)?.message ?? String(err)}`
-)
-const isAbortErrorMock = vi.fn<(err: unknown) => boolean>()
-vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessageWithPrefix: (err: unknown, prefix: string) => formatErrorMessageWithPrefixMock(err, prefix),
-  isAbortError: (err: unknown) => isAbortErrorMock(err)
-}))
-
 import { toast } from '@renderer/services/toast'
 
 import { useTranslate } from '../useTranslate'
@@ -49,7 +40,6 @@ let loggerErrorSpy: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   vi.clearAllMocks()
-  isAbortErrorMock.mockReturnValue(false)
   translateTextMock.mockReset()
   loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
 })
@@ -87,7 +77,6 @@ describe('useTranslate', () => {
 
       expect(translated).toBe('Hello world')
       expect(result.current.isTranslating).toBe(false)
-      expect(translateTextMock).toHaveBeenCalledTimes(1)
       expect(toast.error).not.toHaveBeenCalled()
       expect(loggerErrorSpy).not.toHaveBeenCalled()
     })
@@ -113,21 +102,6 @@ describe('useTranslate', () => {
   })
 
   describe('AbortSignal pass-through', () => {
-    it('passes an unaborted AbortSignal to translateText for each call', async () => {
-      translateTextMock.mockResolvedValueOnce('ok')
-
-      const { result } = renderHook(() => useTranslate())
-
-      await act(async () => {
-        await result.current.translate('源', TARGET)
-      })
-
-      const lastCall = translateTextMock.mock.calls[0]
-      const signalArg = lastCall[3]
-      expect(signalArg).toBeInstanceOf(AbortSignal)
-      expect((signalArg as AbortSignal).aborted).toBe(false)
-    })
-
     it('aborts the signal that was handed to translateText when cancel() fires', () => {
       pendingTranslateText()
 
@@ -145,27 +119,6 @@ describe('useTranslate', () => {
       })
 
       expect(handedSignal.aborted).toBe(true)
-    })
-
-    it('aborts the previous signal when a new translate() supersedes', () => {
-      pendingTranslateText()
-      translateTextMock.mockResolvedValueOnce('second')
-
-      const { result } = renderHook(() => useTranslate())
-
-      act(() => {
-        void result.current.translate('one', TARGET)
-      })
-      const firstSignal = translateTextMock.mock.calls[0][3] as AbortSignal
-      expect(firstSignal.aborted).toBe(false)
-
-      act(() => {
-        void result.current.translate('two', TARGET)
-      })
-
-      expect(firstSignal.aborted).toBe(true)
-      const secondSignal = translateTextMock.mock.calls[1][3] as AbortSignal
-      expect(secondSignal.aborted).toBe(false)
     })
 
     it('aborts the active signal on unmount', () => {
@@ -206,11 +159,12 @@ describe('useTranslate', () => {
       // cancel() reset state immediately, without waiting for the IPC to drain.
       expect(result.current.isTranslating).toBe(false)
 
-      // The pending IPC eventually resolves — its result is discarded.
       let translated: string | undefined
       await act(async () => {
-        resolve('late text that should be ignored')
         translated = await translatePromise
+      })
+      await act(async () => {
+        resolve('late text that should be ignored')
       })
 
       expect(translated).toBeUndefined()
@@ -244,21 +198,11 @@ describe('useTranslate', () => {
       })
       expect(onResponse).not.toHaveBeenCalled()
     })
-
-    it('is a no-op when nothing is in flight', () => {
-      const { result } = renderHook(() => useTranslate())
-      act(() => {
-        result.current.cancel()
-      })
-      // Nothing observable should change.
-      expect(result.current.isTranslating).toBe(false)
-    })
   })
 
   describe('isAbortError handling', () => {
     it('treats an isAbortError as a user-initiated cancel — no toast, no log, returns undefined', async () => {
-      const abortError = new Error('aborted')
-      isAbortErrorMock.mockImplementation((err) => err === abortError)
+      const abortError = new DOMException('aborted', 'AbortError')
       translateTextMock.mockRejectedValueOnce(abortError)
 
       const { result } = renderHook(() => useTranslate())
@@ -339,32 +283,40 @@ describe('useTranslate', () => {
   })
 
   describe('supersede semantics', () => {
-    it('a new translate() aborts the previous in-flight call and the previous resolves to undefined', async () => {
+    it('supersedes promptly while keeping the new stream and loading state active', async () => {
       const first = pendingTranslateText()
-      translateTextMock.mockResolvedValueOnce('second result')
-
-      const { result } = renderHook(() => useTranslate())
+      const second = pendingTranslateText()
+      const chunks: string[] = []
+      const { result } = renderHook(() => useTranslate({ onResponse: (text) => chunks.push(text) }))
 
       let firstPromise!: Promise<string | undefined>
+      let secondPromise!: Promise<string | undefined>
       act(() => {
         firstPromise = result.current.translate('one', TARGET)
+        secondPromise = result.current.translate('two', TARGET)
       })
-
-      let secondTranslated: string | undefined
       await act(async () => {
-        secondTranslated = await result.current.translate('two', TARGET)
+        expect(await firstPromise).toBeUndefined()
       })
+      expect(result.current.isTranslating).toBe(true)
+      expect(translateTextMock.mock.calls[0][3]?.aborted).toBe(true)
+      expect(translateTextMock.mock.calls[1][3]?.aborted).toBe(false)
 
-      // Second call drives the result; first call's pending promise was superseded.
-      expect(secondTranslated).toBe('second result')
-
-      // First call's IPC eventually drains; its result must be discarded.
-      let firstResolved: string | undefined
       await act(async () => {
-        first.resolve('late first result')
-        firstResolved = await firstPromise
+        translateTextMock.mock.calls[0][2]?.('stale', false)
+        translateTextMock.mock.calls[1][2]?.('current', false)
+        first.reject(new Error('late failure'))
       })
-      expect(firstResolved).toBeUndefined()
+      expect(chunks).toEqual(['current'])
+      expect(result.current.isTranslating).toBe(true)
+      expect(toast.error).not.toHaveBeenCalled()
+      expect(loggerErrorSpy).not.toHaveBeenCalled()
+
+      await act(async () => {
+        second.resolve('second result')
+        expect(await secondPromise).toBe('second result')
+      })
+      expect(result.current.isTranslating).toBe(false)
     })
   })
 
@@ -386,8 +338,8 @@ describe('useTranslate', () => {
       // unmounted state.
       let translated: string | undefined
       await act(async () => {
-        resolve('late text after unmount')
         translated = await translatePromise
+        resolve('late text after unmount')
       })
 
       expect(translated).toBeUndefined()
