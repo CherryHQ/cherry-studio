@@ -2,6 +2,7 @@ import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { type GeneratedImageValidation, GeneratedImageValidationSchema } from '@shared/ai/paintingGenerateError'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -152,7 +153,10 @@ const aiImagePayloadSchema = z.strictObject({
 })
 
 // Keep the public output named so declaration emit does not expose FileEntry's private path brand.
-const aiImageOutputSchema: z.ZodType<{ files: FileEntry[] }> = z.object({ files: z.array(FileEntrySchema) })
+const aiImageOutputSchema: z.ZodType<{ files: FileEntry[]; validation?: GeneratedImageValidation }> = z.object({
+  files: z.array(FileEntrySchema),
+  validation: GeneratedImageValidationSchema.optional()
+})
 
 const aiStreamRegenerateShape = {
   trigger: z.literal('regenerate-message'),

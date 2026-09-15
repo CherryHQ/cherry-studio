@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types/file'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
-import { toSafeFileUrl } from '@shared/utils/file'
+import { normalizeExt, toFileUrl, toSafeFileUrl } from '@shared/utils/file'
 
 const logger = loggerService.withContext('paintingFileUrl')
 
@@ -26,5 +26,7 @@ export function getPaintingFileUrl(file: PaintingFileUrlSource): FileUrlString |
     }
     return undefined
   }
+  // Painting outputs are rendered only through <img>, which isolates SVG scripts.
+  if (normalizeExt(file.ext) === 'svg') return toFileUrl(parsedPath.data)
   return toSafeFileUrl(parsedPath.data, file.ext || null)
 }
