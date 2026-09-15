@@ -778,6 +778,36 @@ describe('AgentJobsService', () => {
       ).toEqual(['ws-user-1'])
     })
 
+    it('also removes the heartbeat workspace of a whitespace-corrupted sentinel row (deletion identity matches repair)', async () => {
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-corr',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-corr',
+          type: 'user',
+          orderKey: 'ws-hb-corr'
+        })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: `heartbeat_${AGENT_ID}__disambig0a`,
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '  __heartbeat__  ',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-corr' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+    })
+
     it('keeps a heartbeat workspace row that still has a session bound (no cascade)', async () => {
       dbh.db
         .insert(agentWorkspaceTable)

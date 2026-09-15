@@ -347,7 +347,12 @@ export class AgentJobsService extends BaseService {
     const heartbeatWorkspaceIds = new Set<string>()
     for (const schedule of schedules) {
       const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
-      if (template?.prompt === HEARTBEAT_PROMPT_SENTINEL && template.workspace.type === AGENT_WORKSPACE_TYPE.USER) {
+      // Trim tolerance mirrors the repair-side fallback identity, so a
+      // whitespace-corrupted sentinel row cannot orphan its workspace here.
+      if (
+        template?.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL &&
+        template.workspace.type === AGENT_WORKSPACE_TYPE.USER
+      ) {
         heartbeatWorkspaceIds.add(template.workspace.workspaceId)
       }
     }
