@@ -55,6 +55,9 @@ export function toCreateModelDto(
 ): CreateModelDto {
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
+  // Unmatched models (no presetModelId) never gain capabilities from the registry read
+  // path, so the provider's own report is the only source — persist it. Matched rows
+  // stay empty and derive capabilities from the registry on every read.
   const capabilities = !model.presetModelId && model.capabilities?.length ? model.capabilities : undefined
 
   return {

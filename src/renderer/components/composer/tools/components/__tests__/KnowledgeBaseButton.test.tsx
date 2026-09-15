@@ -11,9 +11,9 @@ import { KnowledgeBaseToolRuntime } from '../KnowledgeBaseButton'
 const mocks = vi.hoisted(() => ({
   knowledgeBases: [] as KnowledgeBase[],
   language: 'en',
-  knowledgeQueryOptions: vi.fn(),
   translationSuffix: '',
   openRoute: vi.fn(),
+  toastError: vi.fn(),
   quickPanel: {
     isVisible: false,
     symbol: '',
@@ -25,15 +25,12 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   useQuickPanel: () => mocks.quickPanel
 }))
 
-vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
-  useKnowledgeBases: (options?: { enabled?: boolean }) => {
-    mocks.knowledgeQueryOptions(options)
-    return { bases: mocks.knowledgeBases, isLoading: false }
-  }
-}))
-
 vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openRoute: mocks.openRoute
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
 }))
 
 vi.mock('lucide-react', async (importOriginal) => ({
@@ -54,6 +51,8 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, unknown>) => {
       const translations: Record<string, string> = {
         'chat.input.knowledge_base': 'Knowledge Base',
+        'chat.input.knowledge_base_link_failed': 'Failed to link',
+        'chat.input.knowledge_base_not_linked': 'not linked',
         'chat.save.knowledge.empty.no_knowledge_base': 'No knowledge base',
         'common.selectedItems': `${options?.count ?? 0} selected`,
         'library.config.knowledge.doc_count': `${options?.count ?? 0} docs${mocks.translationSuffix}`
@@ -82,7 +81,6 @@ describe('KnowledgeBaseToolRuntime', () => {
     mocks.quickPanel.isVisible = false
     mocks.quickPanel.symbol = ''
     mocks.quickPanel.updateList.mockReset()
-    mocks.knowledgeQueryOptions.mockReset()
     mocks.language = 'en'
     mocks.translationSuffix = ''
     mocks.knowledgeBases = [
@@ -90,6 +88,13 @@ describe('KnowledgeBaseToolRuntime', () => {
       createKnowledgeBase({ id: 'kb-2', name: 'Knowledge Two', itemCount: 5 })
     ]
   })
+
+  const openPanel = async (launcher: ToolLauncherApi, quickPanel: { open: ReturnType<typeof vi.fn> }) => {
+    const [knowledgeLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    knowledgeLauncher.action?.({ quickPanel, source: 'root-panel', triggerInfo: { type: 'button' } } as never)
+    await waitFor(() => expect(quickPanel.open).toHaveBeenCalled())
+    return vi.mocked(quickPanel.open).mock.calls[0][0]
+  }
 
   it('opens a multi-select knowledge panel instead of toggling all configured bases', async () => {
     const launcher = createLauncherApi()
@@ -106,7 +111,8 @@ describe('KnowledgeBaseToolRuntime', () => {
     render(
       <KnowledgeBaseToolRuntime
         launcher={launcher}
-        configuredKnowledgeBaseIds={['kb-1', 'kb-2']}
+        bases={mocks.knowledgeBases}
+        unconfiguredBaseIds={new Set()}
         selectedBases={[mocks.knowledgeBases[1]]}
         onSelect={onSelect}
       />
@@ -172,52 +178,167 @@ describe('KnowledgeBaseToolRuntime', () => {
       })
     ])
 
-    panelList[0].action?.({
+    await panelList[0].action?.({
       item: { ...panelList[0], isSelected: true }
     })
 
     expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0], mocks.knowledgeBases[1]])
 
-    panelList[1].action?.({
+    await panelList[1].action?.({
       item: { ...panelList[1], isSelected: false }
     })
 
     expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0]])
   })
 
-  it('shows available knowledge bases when the assistant has no configured knowledge-base ids', async () => {
+  it('shows an unconfigured base with a not-linked note in the chat panel', async () => {
+    const launcher = createLauncherApi()
+    const quickPanel = { open: vi.fn() }
+
+    render(
+      <KnowledgeBaseToolRuntime
+        launcher={launcher}
+        bases={mocks.knowledgeBases}
+        unconfiguredBaseIds={new Set(['kb-2'])}
+        onSelect={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    const openedOptions = await openPanel(launcher, quickPanel)
+
+    expect(openedOptions.list).toEqual([
+      expect.objectContaining({ id: 'knowledge-base:kb-1', description: '2 docs' }),
+      expect.objectContaining({ id: 'knowledge-base:kb-2', description: '5 docs · not linked' })
+    ])
+  })
+
+  it('auto-links an unconfigured base before the pick settles (#20238)', async () => {
+    const launcher = createLauncherApi()
+    const onSelect = vi.fn()
+    const onLinkBase = vi.fn().mockResolvedValue(true)
+    const quickPanel = { open: vi.fn() }
+
+    render(
+      <KnowledgeBaseToolRuntime
+        launcher={launcher}
+        bases={mocks.knowledgeBases}
+        unconfiguredBaseIds={new Set(['kb-1'])}
+        onLinkBase={onLinkBase}
+        selectedBases={[]}
+        onSelect={onSelect}
+      />
+    )
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    const openedOptions = await openPanel(launcher, quickPanel)
+
+    await openedOptions.list[0].action?.({
+      item: { ...openedOptions.list[0], isSelected: true }
+    })
+
+    expect(onLinkBase).toHaveBeenCalledWith(mocks.knowledgeBases[0])
+    expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0]])
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('rolls the pick back when auto-linking fails', async () => {
+    const launcher = createLauncherApi()
+    const onSelect = vi.fn()
+    const onLinkBase = vi.fn().mockResolvedValue(false)
+    const quickPanel = { open: vi.fn() }
+
+    render(
+      <KnowledgeBaseToolRuntime
+        launcher={launcher}
+        bases={mocks.knowledgeBases}
+        unconfiguredBaseIds={new Set(['kb-1'])}
+        onLinkBase={onLinkBase}
+        selectedBases={[]}
+        onSelect={onSelect}
+      />
+    )
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    const openedOptions = await openPanel(launcher, quickPanel)
+
+    // The panel flips its selection through the provider, and the action receives a
+    // copy — the rollback must go back through the provider, not mutate the copy.
+    const updateItemSelection = vi.fn()
+    const item = { ...openedOptions.list[0], isSelected: true }
+    await openedOptions.list[0].action?.({ context: { updateItemSelection }, item })
+
+    expect(onLinkBase).toHaveBeenCalledWith(mocks.knowledgeBases[0])
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(mocks.toastError).toHaveBeenCalledWith('Failed to link')
+    expect(updateItemSelection).toHaveBeenCalledWith(item, false)
+  })
+
+  it('does not let a slow pick commit over a later un-select of the same base', async () => {
+    // Regression (#20238 review): select a base, its auto-link PATCH stalls, the user
+    // un-selects — the stale pick must not re-add the base when its PATCH finally lands.
+    let resolveLink: () => void = () => {}
+    const stalledLink = new Promise<boolean>((resolve) => {
+      resolveLink = () => resolve(true)
+    })
+    const onLinkBase = vi.fn().mockReturnValueOnce(stalledLink)
     const launcher = createLauncherApi()
     const onSelect = vi.fn()
     const quickPanel = { open: vi.fn() }
 
-    render(<KnowledgeBaseToolRuntime launcher={launcher} configuredKnowledgeBaseIds={[]} onSelect={onSelect} />)
+    render(
+      <KnowledgeBaseToolRuntime
+        launcher={launcher}
+        bases={mocks.knowledgeBases}
+        unconfiguredBaseIds={new Set(['kb-1'])}
+        onLinkBase={onLinkBase}
+        selectedBases={[]}
+        onSelect={onSelect}
+      />
+    )
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    const openedOptions = await openPanel(launcher, quickPanel)
+
+    const stalledPick = openedOptions.list[0].action?.({ item: { ...openedOptions.list[0], isSelected: true } })
+    await waitFor(() => expect(onLinkBase).toHaveBeenCalled())
+
+    // The user reconsiders while the PATCH is in flight.
+    await openedOptions.list[0].action?.({ item: { ...openedOptions.list[0], isSelected: false } })
+    expect(onSelect).toHaveBeenLastCalledWith([])
+
+    resolveLink()
+    await stalledPick
+
+    // The un-select stands: the stalled pick must not re-commit the base.
+    expect(onSelect).toHaveBeenLastCalledWith([])
+    expect(onSelect).not.toHaveBeenCalledWith([mocks.knowledgeBases[0]])
+  })
+
+  it('does not auto-link when un-selecting a base', async () => {
+    const launcher = createLauncherApi()
+    const onSelect = vi.fn()
+    const onLinkBase = vi.fn().mockResolvedValue(true)
+    const quickPanel = { open: vi.fn() }
+
+    render(
+      <KnowledgeBaseToolRuntime
+        launcher={launcher}
+        bases={mocks.knowledgeBases}
+        unconfiguredBaseIds={new Set(['kb-1'])}
+        onLinkBase={onLinkBase}
+        selectedBases={[mocks.knowledgeBases[0]]}
+        onSelect={onSelect}
+      />
+    )
 
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
-    expect(mocks.knowledgeQueryOptions).toHaveBeenLastCalledWith({ enabled: false })
+    const openedOptions = await openPanel(launcher, quickPanel)
 
-    const [knowledgeLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
-    expect(knowledgeLauncher).toMatchObject({
-      id: 'knowledge-base',
-      disabled: false,
-      disabledReason: undefined
+    await openedOptions.list[0].action?.({
+      item: { ...openedOptions.list[0], isSelected: false }
     })
 
-    knowledgeLauncher.action?.({
-      quickPanel,
-      source: 'root-panel',
-      triggerInfo: { type: 'button' }
-    } as never)
-
-    await waitFor(() => expect(mocks.knowledgeQueryOptions).toHaveBeenLastCalledWith({ enabled: true }))
-
-    expect(quickPanel.open).toHaveBeenCalledWith(
-      expect.objectContaining({
-        list: [
-          expect.objectContaining({ id: 'knowledge-base:kb-1', label: 'Knowledge One' }),
-          expect.objectContaining({ id: 'knowledge-base:kb-2', label: 'Knowledge Two' })
-        ]
-      })
-    )
+    expect(onLinkBase).not.toHaveBeenCalled()
+    expect(onSelect).toHaveBeenLastCalledWith([])
   })
 
   it('refreshes the open knowledge panel when selected bases change', async () => {
@@ -229,7 +350,8 @@ describe('KnowledgeBaseToolRuntime', () => {
     const view = render(
       <KnowledgeBaseToolRuntime
         launcher={launcher}
-        configuredKnowledgeBaseIds={['kb-1', 'kb-2']}
+        bases={mocks.knowledgeBases}
+        unconfiguredBaseIds={new Set()}
         selectedBases={[]}
         onSelect={onSelect}
       />
@@ -247,7 +369,8 @@ describe('KnowledgeBaseToolRuntime', () => {
     view.rerender(
       <KnowledgeBaseToolRuntime
         launcher={launcher}
-        configuredKnowledgeBaseIds={['kb-1', 'kb-2']}
+        bases={mocks.knowledgeBases}
+        unconfiguredBaseIds={new Set()}
         selectedBases={[mocks.knowledgeBases[0]]}
         onSelect={onSelect}
       />
@@ -265,16 +388,15 @@ describe('KnowledgeBaseToolRuntime', () => {
     mocks.quickPanel.isVisible = true
     mocks.quickPanel.symbol = ComposerPanelSymbol.KnowledgeBase
     const launcher = createLauncherApi()
-    const onSelect = vi.fn()
-    const configuredKnowledgeBaseIds = ['kb-1', 'kb-2']
     const selectedBases: KnowledgeBase[] = []
 
     const view = render(
       <KnowledgeBaseToolRuntime
         launcher={launcher}
-        configuredKnowledgeBaseIds={configuredKnowledgeBaseIds}
+        bases={mocks.knowledgeBases}
+        unconfiguredBaseIds={new Set()}
         selectedBases={selectedBases}
-        onSelect={onSelect}
+        onSelect={vi.fn()}
       />
     )
 
@@ -292,9 +414,10 @@ describe('KnowledgeBaseToolRuntime', () => {
     view.rerender(
       <KnowledgeBaseToolRuntime
         launcher={launcher}
-        configuredKnowledgeBaseIds={configuredKnowledgeBaseIds}
+        bases={mocks.knowledgeBases}
+        unconfiguredBaseIds={new Set()}
         selectedBases={selectedBases}
-        onSelect={onSelect}
+        onSelect={vi.fn()}
       />
     )
 
