@@ -22,6 +22,7 @@ interface PaintingStripProps {
   onDeletePainting: (painting: PaintingData) => void
   onSelectPainting: (painting: PaintingData) => void
   onAddPainting: () => void
+  adding?: boolean
 }
 
 const PaintingStripItem: FC<{
@@ -91,7 +92,8 @@ const PaintingStrip: FC<PaintingStripProps> = ({
   loadMore,
   onDeletePainting,
   onSelectPainting,
-  onAddPainting
+  onAddPainting,
+  adding = false
 }) => {
   const { t } = useTranslation()
   const [pendingDelete, setPendingDelete] = useState<PaintingStripEntry | null>(null)
@@ -120,7 +122,9 @@ const PaintingStrip: FC<PaintingStripProps> = ({
             size="icon-sm"
             className={paintingClasses.historyAddButton}
             aria-label={t('paintings.button.new.image')}
-            onClick={onAddPainting}>
+            onClick={onAddPainting}
+            disabled={adding}
+            loading={adding}>
             <Plus className="size-4" />
           </Button>
         </Tooltip>

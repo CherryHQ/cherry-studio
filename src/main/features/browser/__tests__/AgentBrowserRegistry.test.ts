@@ -188,6 +188,29 @@ describe('Agent browser authority and control lifetime', () => {
     expect(fixture.guest.getBackgroundThrottling()).toBe(true)
   })
 
+  it('releases borrowed observers when Electron destroys their guest', async () => {
+    const guestSession = fixture.mock.session
+    const initialListeners = guestSession.listenerCount('will-download')
+    Object.defineProperty(fixture.mock, 'session', {
+      configurable: true,
+      get: () => {
+        if (fixture.mock.isDestroyed()) throw new TypeError('Object has been destroyed')
+        return guestSession
+      }
+    })
+    const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+    await controller.getSession(false, tabId)
+    expect(guestSession.listenerCount('will-download')).toBe(initialListeners + 1)
+
+    try {
+      expect(() => fixture.mock.close()).not.toThrow()
+    } finally {
+      Object.defineProperty(fixture.mock, 'session', { configurable: true, value: guestSession, writable: true })
+    }
+    expect(guestSession.listenerCount('will-download')).toBe(initialListeners)
+    expect(service.get(fixture.guest.id)).toBeUndefined()
+  })
+
   it('ensures an explicitly requested HTML file in the artifact profile', async () => {
     service.agentBrowser.attach(sessionId, 1, windowId)
     const url = 'file:///workspace/local%20page.html'

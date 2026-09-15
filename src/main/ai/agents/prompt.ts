@@ -87,14 +87,14 @@ export interface AgentPromptParts {
 function memoriesTemplate(agentDataPath: string, sections: string): string {
   return `## Memories
 
-Persistent files in the agent data directory \`${agentDataPath}/\` carry your identity and memory across workspaces and sessions. Update them autonomously — never ask for approval.
+Persistent files in the agent data directory \`${agentDataPath}${path.sep}\` carry your identity and memory across workspaces and sessions. Update them autonomously — never ask for approval.
 
 | File | Purpose | How to update |
 |---|---|---|
-| \`${agentDataPath}/SOUL.md\` | HOW you present yourself — name, personality, tone, and communication style; also the role definition when no Agent System Prompt is configured | Read + Edit tools |
-| \`${agentDataPath}/USER.md\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
-| \`${agentDataPath}/memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`mcp__agent-memory__memory\` update action |
-| \`${agentDataPath}/memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
+| \`${path.join(agentDataPath, 'SOUL.md')}\` | HOW you present yourself — name, personality, tone, and communication style; also the role definition when no Agent System Prompt is configured | Read + Edit tools |
+| \`${path.join(agentDataPath, 'USER.md')}\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
+| \`${path.join(agentDataPath, 'memory', 'FACT.md')}\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`mcp__agent-memory__memory\` update action |
+| \`${path.join(agentDataPath, 'memory', 'JOURNAL.jsonl')}\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
 
 Rules:
 - Your current working directory is the session workspace, not the agent data directory. For SOUL.md and USER.md, use the exact absolute paths shown above.

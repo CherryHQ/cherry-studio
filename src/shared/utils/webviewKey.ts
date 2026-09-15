@@ -1,6 +1,11 @@
 /** Keyboard relay between a webview guest and its host window. */
 
-import { getShortcutBindingFromKeyboardEvent, isValidShortcut, type KeyboardEventLike } from './shortcut'
+import {
+  canonicalTriggerToken,
+  getShortcutBindingFromKeyboardEvent,
+  isValidShortcut,
+  type KeyboardEventLike
+} from './shortcut'
 
 /** `sendToHost` channel the shared webview preload uses to reach its host window. */
 export const WEBVIEW_KEYDOWN_CHANNEL = 'webview:keydown'
@@ -34,9 +39,10 @@ export const isHostOwnedGuestKey = (event: Pick<WebviewKeyPayload, 'key' | 'ctrl
  */
 export const isForwardableGuestKey = (event: KeyboardEventLike): boolean => {
   const binding = getShortcutBindingFromKeyboardEvent(event)
-  // The find overlay drives next-match off a bare Enter. That is component handling
-  // rather than a command, so no binding covers it.
-  return isValidShortcut(binding) || (binding.length === 1 && binding[0] === 'Enter')
+  // The find overlay drives next-match off a bare Enter — main or keypad, the
+  // latter binding as `numenter`. That is component handling, not a command,
+  // so no binding covers it.
+  return isValidShortcut(binding) || (binding.length === 1 && canonicalTriggerToken(binding[0]) === 'Enter')
 }
 
 export const toWebviewKeyPayload = (event: KeyboardEvent): WebviewKeyPayload => ({

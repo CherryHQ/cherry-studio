@@ -253,7 +253,7 @@ const MinimalToolbar: FC<Props> = ({
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
-            className="h-7 rounded-md border-input bg-background px-2.5 text-muted-foreground text-xs shadow-none focus-visible:text-foreground"
+            className="text-muted-foreground h-7 rounded-md border-input bg-background px-2.5 text-xs shadow-none focus-visible:text-foreground"
           />
         </form>
       )}
@@ -367,7 +367,7 @@ const toolbarButtonClassName = ({ disabled = false, active = false }: { disabled
   cn(
     'rounded shadow-none active:scale-95',
     disabled
-      ? 'cursor-default text-foreground-disabled hover:bg-transparent hover:text-foreground-disabled active:scale-100'
+      ? 'text-foreground-disabled hover:text-foreground-disabled cursor-default hover:bg-transparent active:scale-100'
       : active
         ? 'text-primary hover:text-primary'
         : 'text-muted-foreground hover:text-foreground'

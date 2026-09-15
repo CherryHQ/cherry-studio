@@ -10,7 +10,7 @@ import {
   showInFolder as showPathInFolder,
   writeIfUnchangedByPath
 } from '@main/services/file'
-import { DirectoryTreeStoppedError, StaleVersionError } from '@main/services/file'
+import { DirectoryTreeStoppedError, StaleVersionError, type TreeOwner } from '@main/services/file'
 import { copyNew, PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -28,10 +28,10 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
   return senderId == null ? undefined : application.get('WindowManager').getWindow(senderId)?.webContents
 }
 
-function requireSenderWebContents(senderId: WindowId | null): Electron.WebContents {
-  const wc = senderWebContents(senderId)
-  if (!wc) throw new Error('file.tree.create requires a managed window sender')
-  return wc
+function requireManagedSender(senderId: WindowId | null): TreeOwner {
+  const webContents = senderWebContents(senderId)
+  if (senderId == null || !webContents) throw new Error('file.tree.create requires a managed window sender')
+  return { windowId: senderId, webContents }
 }
 
 /**
@@ -155,7 +155,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   },
   'file.tree.create': async ({ rootPath, options }, { senderId }) => {
     try {
-      return await application.get('DirectoryTreeManager').create(requireSenderWebContents(senderId), rootPath, options)
+      return await application.get('DirectoryTreeManager').create(requireManagedSender(senderId), rootPath, options)
     } catch (error) {
       // Shutdown-in-flight, not a failure the user should be toasted about — carry a
       // domain code so the renderer can stay quiet (`error.name` does not survive IpcApi).

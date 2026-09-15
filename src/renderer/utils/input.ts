@@ -3,6 +3,7 @@ import type { FileMetadata } from '@renderer/types/file'
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import {
+  canonicalTriggerToken,
   formatShortcutDisplay,
   getShortcutBindingFromKeyboardEvent,
   isShortcutBinding,
@@ -136,6 +137,7 @@ export const resolveSteerShortcut = (
 
 /** Whether the pressed key combination is `shortcut`. Callers own the IME-composition check. */
 export const matchesComposerShortcut = (event: KeyboardEventLike, shortcut: ComposerShortcut): boolean =>
-  composerShortcutId(getShortcutBindingFromKeyboardEvent(event, shortcutPlatform)) === composerShortcutId(shortcut)
+  composerShortcutId(getShortcutBindingFromKeyboardEvent(event, shortcutPlatform).map(canonicalTriggerToken)) ===
+  composerShortcutId(shortcut)
 
 export const getComposerShortcutLabel = (shortcut: ComposerShortcut): string => formatShortcutDisplay(shortcut, isMac)
