@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 
@@ -12,6 +12,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 const mocks = vi.hoisted(() => ({
   createAssistant: vi.fn(),
+  createFromPreset: vi.fn(),
   pickerProps: undefined as any,
   createDialogProps: undefined as any
 }))
@@ -28,12 +29,23 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
     return (
       <div data-testid="picker" data-open={String(props.open)}>
         {props.toolbar}
+        {props.notice}
         <span data-testid="create-action-icon">{props.createAction?.row('').icon}</span>
         <button type="button" onClick={() => props.createAction?.onSelect('')}>
           create-new
         </button>
         <button type="button" onClick={() => props.createAction?.onSelect('测试助手')}>
           create-new-from-query
+        </button>
+        <button
+          type="button"
+          onClick={() => props.onSelect(props.items.find((item: any) => item.id.startsWith('assistant:')))}>
+          select-assistant
+        </button>
+        <button
+          type="button"
+          onClick={() => props.onSelect(props.items.find((item: any) => item.id.startsWith('catalog:')))}>
+          select-catalog
         </button>
       </div>
     )
@@ -71,7 +83,14 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/hooks/useAssistantCatalogPresets', () => ({
-  useAssistantCatalogPresets: () => ({ presets: [{ id: 'preset-1', name: 'Preset One' }], isLoading: false })
+  useAssistantCatalogPresets: () => ({
+    presets: [{ id: 'preset-1', name: 'Claude', officialVendor: 'anthropic' }],
+    isLoading: false
+  })
+}))
+
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useAssistantPresetCreation: () => ({ createFromPreset: mocks.createFromPreset, isLoading: false })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -100,6 +119,13 @@ afterEach(() => {
   vi.clearAllMocks()
   mocks.pickerProps = undefined
   mocks.createDialogProps = undefined
+})
+
+beforeEach(() => {
+  mocks.createFromPreset.mockResolvedValue({
+    status: 'created',
+    assistant: { id: 'assistant-from-preset', name: 'Claude' }
+  })
 })
 
 describe('AssistantConversationPickerDialog', () => {
@@ -182,6 +208,31 @@ describe('AssistantConversationPickerDialog', () => {
 
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
     expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('materializes a catalog preset before forwarding the persisted assistant', async () => {
+    const onSelect = vi.fn()
+    render(<AssistantConversationPickerDialog open onOpenChange={vi.fn()} assistants={[]} onSelect={onSelect} />)
+
+    fireEvent.click(screen.getByText('select-catalog'))
+
+    await waitFor(() =>
+      expect(mocks.createFromPreset).toHaveBeenCalledWith(expect.objectContaining({ name: 'Claude' }))
+    )
+    expect(onSelect).toHaveBeenCalledWith({ type: 'assistant', assistantId: 'assistant-from-preset' })
+  })
+
+  it('keeps the picker open with inline guidance when the vendor is unavailable', async () => {
+    mocks.createFromPreset.mockResolvedValueOnce({ status: 'configuration-required', providerId: 'anthropic' })
+    const onOpenChange = vi.fn()
+    const onSelect = vi.fn()
+    render(<AssistantConversationPickerDialog open onOpenChange={onOpenChange} assistants={[]} onSelect={onSelect} />)
+
+    fireEvent.click(screen.getByText('select-catalog'))
+
+    expect(await screen.findByText('library.assistant_catalog.provider_required_title')).toBeInTheDocument()
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
   })
 
   it('defaults to the combined view and filters via the popover', async () => {

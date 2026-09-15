@@ -4,17 +4,18 @@ import { type KeyboardEvent, memo, type RefObject, useCallback, useEffect, useMe
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, EmptyState, Input, Skeleton } from '@cherrystudio/ui'
+import { AssistantPresetIcon } from '@renderer/components/resourceCatalog/AssistantPresetIcon'
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail'
-import { useAssistantMutations } from '@renderer/hooks/resourceCatalog'
+import { useAssistantPresetCreation } from '@renderer/hooks/resourceCatalog'
 import {
   ASSISTANT_CATALOG_MY_TAB,
   type AssistantCatalogPreset,
   buildAssistantCatalogTabs,
   filterAssistantCatalogPresets,
   getAssistantPresetCatalogKey,
-  toCreateAssistantDtoFromCatalogPreset,
   useAssistantCatalogPresets
 } from '@renderer/hooks/useAssistantCatalogPresets'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
@@ -46,13 +47,13 @@ function matchesSearch(preset: AssistantCatalogPreset, keyword: string) {
 }
 
 /**
- * The community assistant preset catalog rendered as a self-contained dialog.
+ * The assistant preset catalog rendered as a self-contained dialog.
  *
  * Reuses the preset source (`useAssistantCatalogPresets`), the category grouping helpers, and the
  * preview dialog, but renders dialog-native chrome — a segmented tab bar (with a leading "全部" tab),
  * a right-aligned compact search, and a single-column list — rather than the legacy library page's
  * grid, so the picker feels calmer than the full management view. Adding a preset mirrors the inline
- * flow exactly (`createAssistant(toCreateAssistantDtoFromCatalogPreset(...))`).
+ * flow through the shared preset-materialization hook.
  */
 export function AssistantLibraryDialog({
   open,
@@ -61,13 +62,21 @@ export function AssistantLibraryDialog({
   onOpenAssistantChat
 }: AssistantLibraryDialogProps) {
   const { t } = useTranslation()
-  const { createAssistant } = useAssistantMutations()
-  const { isLoading, presets: rawPresets } = useAssistantCatalogPresets({ enabled: open })
+  const {
+    createFromPreset,
+    resolvePreset,
+    isLoading: creationDependenciesLoading
+  } = useAssistantPresetCreation({
+    enabled: open
+  })
+  const { isLoading: catalogLoading, presets: rawPresets } = useAssistantCatalogPresets({ enabled: open })
+  const isLoading = catalogLoading || creationDependenciesLoading
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<string>(LIBRARY_ALL_TAB)
   const [addingPresetKeys, setAddingPresetKeys] = useState<Set<string>>(new Set())
   const [addedAssistantPresets, setAddedAssistantPresets] = useState<Record<string, string>>({})
   const [previewPreset, setPreviewPreset] = useState<AssistantCatalogPreset | null>(null)
+  const [configurationProviderId, setConfigurationProviderId] = useState<string>()
   const [previewAdding, setPreviewAdding] = useState(false)
   const listScrollRef = useRef<HTMLDivElement>(null)
 
@@ -92,6 +101,7 @@ export function AssistantLibraryDialog({
     setActiveTab(LIBRARY_ALL_TAB)
     setAddedAssistantPresets({})
     setPreviewPreset(null)
+    setConfigurationProviderId(undefined)
   }, [open])
 
   const visiblePresets = useMemo(() => {
@@ -104,7 +114,16 @@ export function AssistantLibraryDialog({
 
   const addPreset = useCallback(
     async (preset: AssistantCatalogPreset) => {
-      const assistant = await createAssistant(toCreateAssistantDtoFromCatalogPreset(preset))
+      const result = await createFromPreset(preset)
+      if (result.status === 'loading') return undefined
+      if (result.status === 'configuration-required') {
+        setPreviewPreset(preset)
+        setConfigurationProviderId(result.providerId)
+        return undefined
+      }
+
+      const assistant = result.assistant
+      setConfigurationProviderId(undefined)
       setAddedAssistantPresets((current) => ({
         ...current,
         [getAssistantPresetCatalogKey(preset)]: assistant.id
@@ -113,7 +132,7 @@ export function AssistantLibraryDialog({
       toast.success(t('common.add_success'))
       return assistant
     },
-    [createAssistant, onAssistantAdded, t]
+    [createFromPreset, onAssistantAdded, t]
   )
 
   const handleAddPreset = useCallback(
@@ -163,8 +182,28 @@ export function AssistantLibraryDialog({
     (nextOpen: boolean) => {
       if (nextOpen || previewAdding) return
       setPreviewPreset(null)
+      setConfigurationProviderId(undefined)
     },
     [previewAdding]
+  )
+
+  const handlePreviewPreset = useCallback(
+    (preset: AssistantCatalogPreset) => {
+      const resolution = resolvePreset(preset)
+      setConfigurationProviderId(resolution.status === 'configuration-required' ? resolution.providerId : undefined)
+      setPreviewPreset(preset)
+    },
+    [resolvePreset]
+  )
+
+  const handleConfigureProvider = useCallback(
+    (providerId: string) => {
+      setPreviewPreset(null)
+      setConfigurationProviderId(undefined)
+      onOpenChange(false)
+      openSettingsTab(`/settings/provider?id=${encodeURIComponent(providerId)}`)
+    },
+    [onOpenChange]
   )
 
   return (
@@ -180,7 +219,7 @@ export function AssistantLibraryDialog({
 
           <div className="flex shrink-0 items-center gap-3 border-b border-border-subtle px-5 pb-3">
             <div
-              className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="min-w-0 flex-1 [scrollbar-width:none] overflow-x-auto [&::-webkit-scrollbar]:hidden"
               data-testid="library-tabs">
               <div className="flex items-center gap-1">
                 {tabs.map((tab) => {
@@ -195,7 +234,7 @@ export function AssistantLibraryDialog({
                         'h-8 shrink-0 rounded-lg px-3 text-sm whitespace-nowrap transition-colors',
                         isActive
                           ? 'bg-secondary font-medium text-secondary-foreground'
-                          : 'font-normal text-muted-foreground hover:bg-accent hover:text-foreground'
+                          : 'text-muted-foreground font-normal hover:bg-accent hover:text-foreground'
                       )}>
                       {tab.label}
                     </button>
@@ -205,12 +244,12 @@ export function AssistantLibraryDialog({
             </div>
 
             <div className="relative w-52 shrink-0">
-              <Search size={14} className="absolute top-1/2 left-2.5 -translate-y-1/2 text-foreground-tertiary" />
+              <Search size={14} className="text-foreground-tertiary absolute top-1/2 left-2.5 -translate-y-1/2" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('library.toolbar.search_placeholder')}
-                className="h-8 rounded-lg border-input bg-background pr-8 pl-8 text-sm placeholder:text-muted-foreground"
+                className="placeholder:text-muted-foreground h-8 rounded-lg border-input bg-background pr-8 pl-8 text-sm"
               />
               {search && (
                 <Button
@@ -218,7 +257,7 @@ export function AssistantLibraryDialog({
                   size="icon-sm"
                   aria-label={t('common.clear')}
                   onClick={() => setSearch('')}
-                  className="absolute top-1/2 right-1 size-6 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  className="text-muted-foreground absolute top-1/2 right-1 size-6 -translate-y-1/2 hover:text-foreground">
                   <X size={13} />
                 </Button>
               )}
@@ -252,7 +291,7 @@ export function AssistantLibraryDialog({
                 addedAssistantPresets={addedAssistantPresets}
                 onAddPreset={handleAddPreset}
                 onOpenChat={handleOpenChat}
-                onPreviewPreset={setPreviewPreset}
+                onPreviewPreset={handlePreviewPreset}
               />
             )}
           </div>
@@ -266,8 +305,10 @@ export function AssistantLibraryDialog({
         addedAssistantId={
           previewPreset ? addedAssistantPresets[getAssistantPresetCatalogKey(previewPreset)] : undefined
         }
+        configurationProviderId={configurationProviderId}
         onOpenChange={handlePreviewOpenChange}
         onAdd={handleAddPreviewPreset}
+        onConfigureProvider={handleConfigureProvider}
         onOpenChat={handleOpenChat}
       />
     </>
@@ -399,13 +440,13 @@ const AssistantLibraryPresetRow = memo(function AssistantLibraryPresetRow({
       aria-label={preset.name}
       onClick={handlePreview}
       onKeyDown={activateOnKeyDown}
-      className="group flex cursor-pointer items-center gap-3 rounded-lg border border-border-subtle bg-card px-3.5 py-2.5 transition-[border-color,background-color] hover:border-border-strong hover:bg-accent">
+      className="group hover:border-border-strong flex cursor-pointer items-center gap-3 rounded-lg border border-border-subtle bg-card px-3.5 py-2.5 transition-[border-color,background-color] hover:bg-accent">
       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-base">
-        {preset.emoji || '🤖'}
+        <AssistantPresetIcon preset={preset} size={20} />
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm leading-5 font-medium text-foreground">{preset.name}</div>
-        {summary && <div className="truncate text-xs leading-4 text-muted-foreground">{summary}</div>}
+        {summary && <div className="text-muted-foreground truncate text-xs leading-4">{summary}</div>}
       </div>
       {/* stopPropagation so the quick add/open action never bubbles to the row's preview. */}
       <div className="shrink-0" onClick={(event) => event.stopPropagation()}>
