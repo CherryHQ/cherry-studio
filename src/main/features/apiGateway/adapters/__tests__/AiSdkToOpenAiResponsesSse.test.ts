@@ -279,6 +279,44 @@ describe('AiSdkToOpenAiResponsesSse', () => {
     })
   })
 
+  describe('Truncated output', () => {
+    const cases = [
+      ['length', 'max_output_tokens'],
+      ['content-filter', 'content_filter']
+    ] as const
+
+    it.each(cases)('finishReason %s ends the stream with response.incomplete (%s)', async (finishReason, reason) => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
+      const stream = createMockStream([createTextDelta('partial'), createFinish(finishReason)])
+      const events = await collectEvents(adapter.transform(stream))
+      const types = typesOf(events)
+
+      expect(types[types.length - 1]).toBe('response.incomplete')
+      expect(types).not.toContain('response.completed')
+
+      const incomplete = events.find((e) => e.type === 'response.incomplete')
+      expect(incomplete?.response.status).toBe('incomplete')
+      expect(incomplete?.response.incomplete_details).toEqual({ reason })
+
+      const itemDone = events.find((e) => e.type === 'response.output_item.done')
+      expect(itemDone?.item).toMatchObject({ type: 'message', status: 'incomplete' })
+    })
+
+    it.each(cases)(
+      'non-streaming response reports finishReason %s as incomplete (%s)',
+      async (finishReason, reason) => {
+        const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
+        const stream = createMockStream([createTextDelta('partial'), createFinish(finishReason)])
+        await collectEvents(adapter.transform(stream))
+
+        const response = adapter.buildNonStreamingResponse()
+        expect(response.status).toBe('incomplete')
+        expect(response.incomplete_details).toEqual({ reason })
+        expect(response.output[0]).toMatchObject({ type: 'message', status: 'incomplete' })
+      }
+    )
+  })
+
   describe('Error Handling', () => {
     it('throws on error chunks (pull path)', async () => {
       const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })

@@ -23,7 +23,8 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId, isGatewayRoutableModel, isReasoningModel, isVisionModel } from '@shared/utils/model'
-import { isLoginBasedProvider } from '@shared/utils/provider'
+import { isLoginBasedProvider, matchesPreset } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { ApiGatewayNotRunningError, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
@@ -76,7 +77,7 @@ function resolveDshAutoReasoningEffort(model: Model): Exclude<DshReasoningEffort
   return isDshAdjustableReasoningEffort(defaultEffort) ? defaultEffort : 'high'
 }
 
-/** Project Cherry's reasoning selection onto the levels supported by dsh rc.6. */
+/** Project Cherry's reasoning selection onto the levels supported by dsh. */
 export function resolveDshReasoningEffort(
   model: Model,
   selection: ReasoningEffortOption = 'default'
@@ -201,7 +202,7 @@ export function buildDshProviderInjection(
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
 
   return {
-    // rc.6 reaches Google Generate Content only through pi-ai's built-in catalog route.
+    // This composition reaches Google Generate Content through pi-ai's built-in catalog route.
     providerName: api === 'google-generative-ai' ? 'google' : provider.id,
     api,
     baseUrl,
@@ -321,13 +322,21 @@ export async function resolveDshProviderInjectionFromSnapshot(
   if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
     throw new Error(`dsh provider credentials changed during materialization: ${provider.id}`)
   }
-  return buildDshProviderInjection(
+  const injection = buildDshProviderInjection(
     provider,
     model,
     resolvedApiKey.value,
     resolvedApiKey.apiKeySelection,
     reasoningEffort
   )
+  // OpenCode Go/Zen reject requests without this header; a header the operator set wins.
+  if (
+    matchesPreset(provider, SystemProviderIds.opencode) &&
+    !Object.keys(injection.headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
+  ) {
+    injection.headers = { ...injection.headers, 'x-opencode-session': sessionId }
+  }
+  return injection
 }
 
 /**

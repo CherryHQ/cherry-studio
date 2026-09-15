@@ -19,7 +19,7 @@
     "src/renderer/ui/**",
     "packages/**/dist",
     "eslint.config.mjs",
-    "v2-refactor-temp/**"
+    "scripts/data-classify/**"
   ],
   "options": {
     "typeAware": true

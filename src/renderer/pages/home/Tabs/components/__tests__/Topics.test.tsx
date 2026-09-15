@@ -1005,6 +1005,8 @@ describe('Topics', () => {
     const unpinButton = pinnedRow?.querySelector('[aria-label="Unpin Conversation"]')
     expect(unpinButton ?? null).toBeInTheDocument()
     expect(unpinButton).not.toHaveAttribute('data-active')
+    expect(unpinButton).toHaveAttribute('aria-pressed', 'true')
+    expect(unpinButton?.closest('[data-resource-list-item-actions="true"]')).toHaveAttribute('data-pinned', 'true')
     expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
     expect(pinnedRow?.querySelector('[aria-label="Delete"]') ?? null).not.toBeInTheDocument()
     expect(
@@ -1344,6 +1346,7 @@ describe('Topics', () => {
     const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-row"]')
     const pinButton = alphaRow?.querySelector('[aria-label="Pin Conversation"]')
     expect(pinButton ?? null).toBeInTheDocument()
+    expect(pinButton).toHaveAttribute('aria-pressed', 'false')
     expect(pinButton?.closest('[data-resource-list-item-actions="true"]')).toBeInTheDocument()
     expect(
       alphaRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Pin Conversation"]') ?? null
