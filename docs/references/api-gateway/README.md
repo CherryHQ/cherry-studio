@@ -143,20 +143,22 @@ session.
 
 ### LAN exposure is confined to pairing + export
 
-Enabling LAN access binds the single listener to `0.0.0.0`, so the generation,
-MCP, and knowledge routes would otherwise be reachable from the network — an
-exposed MCP proxy is remote tool execution, and every `/v1` request would carry
-the desktop API key in cleartext. A root `onRequest` guard (`lanGuard.ts`)
+The local gateway keeps its configured port (default `23333`) on loopback.
+Enabling LAN access starts a separate `ApiGateway` listener on `0.0.0.0` with an
+OS-assigned port; the pairing offer reports that actual port. Disabling LAN
+closes only that listener and invalidates its pairing code. Existing local
+streams and new local requests continue on the original listener.
+
+Both listeners reuse `buildApp()`. A root `onRequest` guard (`lanGuard.ts`)
 screens each request by its socket peer: loopback and in-process callers are
 unrestricted, but a **non-loopback (LAN) peer may reach only `POST /pair` and
 `GET /v1/export/providers`** — everything else returns `403`. The desktop's own
-consumers are unaffected because `gatewayClientOrigin` maps `0.0.0.0` back to
-`127.0.0.1`, so they always connect over loopback.
+consumers use the configured local port; `gatewayClientOrigin` maps the LAN
+preference `0.0.0.0` back to `127.0.0.1`.
 
 The guard also checks the current LAN configuration on every remote request.
-Stopping the gateway restores `feature.api_gateway.host` to `127.0.0.1` when it
-was `0.0.0.0`, so new LAN requests receive `403` even if a local task temporarily
-keeps the existing listener alive.
+Disabling LAN first restores `feature.api_gateway.host` to `127.0.0.1`, so new
+remote requests receive `403` while the LAN listener drains and closes.
 
 ## Request flow (generation routes)
 
@@ -277,16 +279,16 @@ Adapters consume the AI SDK **`UIMessageChunk`** stream (not `fullStream`):
 
 A `BaseService` — `@Injectable('ApiGatewayService')`,
 `@ServicePhase(Phase.WhenReady)`, implements **`Activatable`** — registered one
-line in `src/main/core/application/serviceRegistry.ts`. It owns the `ApiGateway`
-HTTP server (`src/main/features/apiGateway`) and is the single authority for
-running state.
+line in `src/main/core/application/serviceRegistry.ts`. It owns the local and
+LAN `ApiGateway` HTTP listeners (`src/main/features/apiGateway`) and is the
+single authority for their running state.
 
 | Hook | Responsibility |
 |---|---|
 | `onInit` | Subscribe to `feature.api_gateway.enabled`; IpcApi handlers live in `src/main/ipc/handlers/apiGateway.ts`. |
 | `onReady` | Read the persisted desired state and flush the reconciler. |
-| `onActivate` | Snapshot host/port, `ensureValidApiKey()` → `new ApiGateway({ host, port })` → `start()` → publish `running = true`. On failure, tears down partial state and republishes `false`. |
-| `onDeactivate` | Clear the live pairing code, `stop()` the server, publish `running = false`. |
+| `onActivate` | Start the local listener at the configured port (`0.0.0.0` maps to loopback), then restore LAN if enabled. A LAN restore failure leaves the local gateway running. |
+| `onDeactivate` | Clear the live pairing code, stop both listeners, publish both running states as `false`. |
 
 `ensureValidApiKey()` generates a `cs-sk-<uuid>` key into
 `feature.api_gateway.api_key` the first time it is missing.
@@ -299,17 +301,24 @@ changes, IpcApi actions, and temporary run leases, converging actual state to
 server up without persisting an enabled intent. Start/stop persist user intent
 before convergence; restart rebinds only when no lease is active.
 
-An explicit stop atomically persists `enabled = false` and the return from LAN
-to loopback, then clears the active pairing code. A `deferred` stop preserves
-the listener for existing local tasks while denying new LAN requests and pairing
-offers. The final lease release stops the listener. A later ordinary gateway
-start stays on loopback; starting Device Connections explicitly enables LAN
-again. An explicit restart retains the current host configuration.
+LAN commands are serialized with listener cleanup. Enabling LAN requires an
+enabled, running local gateway; it binds the new listener before persisting
+`host = 0.0.0.0`. A bind or preference-write failure closes the new listener
+without changing the local gateway's enabled intent. Disabling LAN persists
+`host = 127.0.0.1` and stops only the LAN listener.
+
+An explicit gateway stop atomically persists `enabled = false` and the return
+from LAN to loopback, then closes the LAN listener and clears its pairing code.
+A `deferred` stop preserves the local listener for existing task leases; the
+final lease release stops it. A later ordinary gateway start stays on loopback.
+An explicit restart retains LAN intent, but creates a new LAN listener whose
+port may differ; mobile clients must obtain its new endpoint from a fresh QR.
 
 ### Running state — Shared Cache, not IPC
 
 `publishRunningState()` writes `feature.api_gateway.running` (boolean) into the
-**Shared Cache** via `CacheService.setShared(...)`. **Main is authoritative**;
+**Shared Cache** via `CacheService.setShared(...)`. It also publishes
+`feature.api_gateway.lan_running` for the LAN listener. **Main is authoritative**;
 the renderer reads it reactively with `useSharedCacheValue('feature.api_gateway.running')`.
 There is deliberately **no status/config pull IPC** — pulling running state or
 config over IPC would be an anti-pattern, since running lives in the shared
@@ -322,6 +331,7 @@ cache and config lives in the Preference subsystem.
 | `api_gateway.start` | `{ success } \| { success:false, error }` | `ApiGatewayService.start()` |
 | `api_gateway.stop` | success includes `outcome: 'stopped' \| 'deferred'` | `ApiGatewayService.stop()` |
 | `api_gateway.restart` | `{ success } \| { success:false, error }` | `ApiGatewayService.restart()` |
+| `api_gateway.lan.set_enabled` | `void`; failures use the standard IpcApi error channel | `ApiGatewayService.setLanEnabled(enabled)` |
 | `api_gateway.create_pairing_offer` | active LAN endpoint + one-time code; failures use the standard IpcApi error channel | `ApiGatewayService.createPairingOffer()` |
 
 `api_gateway.required` is a Main-to-renderer event for an Agent session whose
@@ -334,8 +344,8 @@ already-consumed QR code in every settings window.
 | Key | Type | Default | Notes |
 |---|---|---|---|
 | `feature.api_gateway.enabled` | `boolean` | `false` | Auto-start on launch / toggled from settings |
-| `feature.api_gateway.host` | `string` | `'127.0.0.1'` | Bind address |
-| `feature.api_gateway.port` | `number` | `23333` | TCP port (UI clamps 1000–65535) |
+| `feature.api_gateway.host` | `string` | `'127.0.0.1'` | `0.0.0.0` requests the separate LAN listener; the local listener stays on loopback |
+| `feature.api_gateway.port` | `number` | `23333` | Local TCP port (UI clamps 1000–65535); LAN uses an OS-assigned port |
 | `feature.api_gateway.api_key` | `string \| null` | `null` | Auto-generated `cs-sk-<uuid>` on first activate |
 
 Migrated from v1 `redux/settings/apiServer.{enabled,host,port,apiKey}` via the
@@ -353,12 +363,12 @@ controls, port input, server URL, the (copy/regenerate) API key, an
 `Authorization` header example, and a link to `…/openapi`.
 
 The separate `DeviceConnectionsSettings` page owns LAN exposure, mobile pairing,
-and access revocation. Its start button enables LAN before starting the gateway,
-and its pairing section includes the plain-HTTP credential warning. It asks Main
+and access revocation. It only sends LAN enable/disable commands. When the local
+gateway is disabled or not running, it offers a link to API Gateway settings.
+Its pairing section includes the plain-HTTP credential warning. It asks Main
 for one atomic pairing offer, renders the QR, and uses DataApi to list or revoke
-paired devices. Its strings live under the `deviceConnections` i18n namespace;
-the page reuses the gateway lifecycle as its current HTTP host without exposing
-device management as an API-client setting.
+paired devices. Readiness requires both enabled LAN intent and the live LAN
+running state. Its strings live under the `deviceConnections` i18n namespace.
 
 Paired-device records are SQLite-backed business data in
 `api_gateway_paired_device`. The raw `cs-dt-…` token is returned once by
@@ -373,17 +383,20 @@ pairing body reuses the same entity-derived metadata schema.
 The QR code contains JSON, not a URL:
 
 ```json
-{"v":1,"t":"cherry-studio-pair","name":"Desktop","port":23333,"ips":["192.168.1.8"],"code":"0123456789abcdef0123456789abcdef"}
+{"v":1,"t":"cherry-studio-pair","name":"Desktop","port":34444,"ips":["192.168.1.8"],"code":"0123456789abcdef0123456789abcdef"}
 ```
 
 `v` is the QR format version; `t` identifies a Cherry Studio pairing payload.
 `name` is the desktop hostname. `ips` contains its non-loopback IPv4 addresses;
 the mobile client must choose an address reachable on its network and use
-`http://<ip>:<port>` as the gateway origin. The code is valid for five minutes,
-is consumed by the first successful pairing, and is invalidated after ten wrong
-attempts or an explicit gateway stop. Displaying it again before expiry reuses
-the same live code. Stopping, completing pairing, or leaving the page invalidates
-pending QR requests in the renderer so a late response cannot restore an old QR.
+`http://<ip>:<port>` as the gateway origin. `port` is the active LAN listener
+port, not the configured local API port; it can change after re-enabling LAN or
+restarting the gateway. The code is valid for five minutes, is consumed by the
+first successful pairing, and is invalidated after ten wrong attempts, disabling
+LAN, or a gateway stop/restart. Displaying it again before expiry reuses the same
+live code. Disabling LAN, stopping the gateway, completing pairing, or leaving
+the page invalidates pending QR requests in the renderer so a late response
+cannot restore an old QR.
 
 Send the code with the mobile device's metadata, without an authorization header:
 
@@ -398,9 +411,10 @@ The device name and platform are trimmed, non-empty strings, limited to 64 and
 32 characters respectively; `platform` is not an enum. A successful response is
 `200` with `{ "token": "cs-dt-…", "name": "Desktop", "version": "2.0.0" }`.
 Here `version` is the desktop app version, not the QR format version. Malformed
-metadata receives `400`, an invalid/expired code receives `403`, and a body over
-4 KiB receives `413`. The token is returned only once and remains valid until
-the desktop user revokes that device; stopping the service does not delete it.
+JSON receives `400`, invalid device metadata receives `422`, an invalid/expired
+code receives `403`, and a body over 4 KiB receives `413`. The token is returned
+only once and remains valid until the desktop user revokes that device;
+disabling LAN or stopping the gateway does not delete it.
 
 Use `Authorization: Bearer <token>` for `GET /v1/export/providers`. Its response
 is `{ "version": 1, "providers": [...] }`, containing enabled providers with
@@ -409,7 +423,8 @@ settings. The exact field projection lives in
 [`providerExport.ts`](../../../src/main/features/apiGateway/routes/providerExport.ts).
 Missing credentials receive `401`; unknown or revoked tokens receive `403`.
 After revocation, the device must pair again. Both mobile routes are hidden from
-OpenAPI, and all remote requests receive `403` while LAN access is disabled.
+OpenAPI. Disabling LAN closes its listener; requests arriving during shutdown
+receive `403`.
 Transfers use plain HTTP and include provider secrets; the successful export
 response carries `Cache-Control: no-store`.
 

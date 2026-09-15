@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router'
 import { MonitorSmartphone, QrCode, Trash2, TriangleAlert } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type React from 'react'
@@ -6,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, IndicatorLight, Tooltip } from '@cherrystudio/ui'
+import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import {
   SettingGroup,
@@ -25,14 +27,9 @@ const LAN_HOST = '0.0.0.0'
 const DeviceConnectionsSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const {
-    apiGatewayConfig,
-    apiGatewayRunning,
-    apiGatewayLoading,
-    startApiGateway,
-    stopApiGateway,
-    setApiGatewayConfig
-  } = useApiGateway()
+  const navigate = useNavigate()
+  const { apiGatewayConfig, apiGatewayRunning, apiGatewayLoading } = useApiGateway()
+  const lanRunning = useSharedCacheValue('feature.api_gateway.lan_running') ?? false
   const {
     data: devices = [],
     isLoading: isLoadingDevices,
@@ -45,10 +42,11 @@ const DeviceConnectionsSettings: FC = () => {
   })
 
   const lanEnabled = apiGatewayConfig.host === LAN_HOST
-  const connectionReady = lanEnabled && apiGatewayRunning
+  const gatewayAvailable = apiGatewayConfig.enabled && apiGatewayRunning
+  const connectionReady = lanEnabled && lanRunning && gatewayAvailable
   const [pairingOffer, setPairingOffer] = useState<OutputFor<'api_gateway.create_pairing_offer'>>()
   const [isCreatingOffer, setIsCreatingOffer] = useState(false)
-  const [isStartingConnection, setIsStartingConnection] = useState(false)
+  const [isUpdatingLan, setIsUpdatingLan] = useState(false)
   const [revokingId, setRevokingId] = useState<string>()
   const pairingRequestId = useRef(0)
 
@@ -106,16 +104,16 @@ const DeviceConnectionsSettings: FC = () => {
     [deleteDevice, isRevoking, t]
   )
 
-  const startConnection = async () => {
-    if (apiGatewayRunning || apiGatewayLoading || isStartingConnection) return
-    setIsStartingConnection(true)
+  const setLanAccess = async (enabled: boolean) => {
+    if (apiGatewayLoading || isUpdatingLan) return
+    clearPairingOffer()
+    setIsUpdatingLan(true)
     try {
-      if (!lanEnabled) await setApiGatewayConfig({ host: LAN_HOST })
-      await startApiGateway()
-    } catch {
-      toast.error(t('common.save_failed'))
+      await ipcApi.request('api_gateway.lan.set_enabled', { enabled })
+    } catch (error) {
+      toast.error(t('deviceConnections.lan.error') + ((error as Error).message || error))
     } finally {
-      setIsStartingConnection(false)
+      setIsUpdatingLan(false)
     }
   }
 
@@ -134,11 +132,13 @@ const DeviceConnectionsSettings: FC = () => {
     : lanEnabled
       ? 'deviceConnections.status.stopped'
       : 'deviceConnections.status.disabled'
-  const statusDescriptionKey = !lanEnabled
-    ? 'deviceConnections.toggle.description'
-    : connectionReady
-      ? 'deviceConnections.description'
-      : 'deviceConnections.pairing.requiresRunning'
+  const statusDescriptionKey = !gatewayAvailable
+    ? 'deviceConnections.gateway.required'
+    : !lanEnabled
+      ? 'deviceConnections.toggle.description'
+      : connectionReady
+        ? 'deviceConnections.description'
+        : 'deviceConnections.pairing.requiresRunning'
 
   return (
     <SettingsContentColumn
@@ -171,16 +171,23 @@ const DeviceConnectionsSettings: FC = () => {
             <div className="text-muted-foreground text-xs">{t(statusDescriptionKey)}</div>
           </div>
         </div>
-        {apiGatewayRunning ? (
+        {!gatewayAvailable ? (
           <Button
             variant="outline"
-            loading={apiGatewayLoading || isStartingConnection}
-            onClick={() => void stopApiGateway()}>
-            {t('apiGateway.actions.stop')}
+            disabled={apiGatewayLoading}
+            onClick={() => void navigate({ to: '/settings/api-gateway' })}>
+            {t('deviceConnections.gateway.openSettings')}
+          </Button>
+        ) : lanEnabled ? (
+          <Button
+            variant="outline"
+            loading={apiGatewayLoading || isUpdatingLan}
+            onClick={() => void setLanAccess(false)}>
+            {t('deviceConnections.lan.disable')}
           </Button>
         ) : (
-          <Button loading={apiGatewayLoading || isStartingConnection} onClick={() => void startConnection()}>
-            {t('deviceConnections.service.start')}
+          <Button loading={apiGatewayLoading || isUpdatingLan} onClick={() => void setLanAccess(true)}>
+            {t('deviceConnections.lan.enable')}
           </Button>
         )}
       </StatusCard>
@@ -215,7 +222,7 @@ const DeviceConnectionsSettings: FC = () => {
               </div>
             ) : (
               <div>
-                <Button variant="outline" loading={isCreatingOffer} onClick={showPairingQr}>
+                <Button variant="outline" loading={isCreatingOffer} disabled={isUpdatingLan} onClick={showPairingQr}>
                   {!isCreatingOffer && <QrCode size={14} />}
                   {t('deviceConnections.pairing.show')}
                 </Button>

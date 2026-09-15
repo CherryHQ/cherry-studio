@@ -1,3 +1,4 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -8,16 +9,14 @@ import enUS from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
 import type { OutputFor } from '@shared/ipc/types'
 
-const { requestMock, setConfigMock, startGatewayMock, stopGatewayMock, useApiGatewayMock, useIpcOnMock } = vi.hoisted(
-  () => ({
-    requestMock: vi.fn(),
-    setConfigMock: vi.fn(),
-    startGatewayMock: vi.fn(),
-    stopGatewayMock: vi.fn(),
-    useApiGatewayMock: vi.fn(),
-    useIpcOnMock: vi.fn()
-  })
-)
+const { requestMock, navigateMock, useApiGatewayMock, useIpcOnMock } = vi.hoisted(() => ({
+  requestMock: vi.fn(),
+  navigateMock: vi.fn(),
+  useApiGatewayMock: vi.fn(),
+  useIpcOnMock: vi.fn()
+}))
+
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => await importOriginal())
 
@@ -51,54 +50,72 @@ const createOffer = (code: string): OutputFor<'api_gateway.create_pairing_offer'
   expiresAt: Date.now() + 60_000
 })
 
+const device = {
+  id: '11111111-1111-4111-8111-111111111111',
+  name: 'My phone',
+  platform: 'android',
+  createdAt: '2026-09-15T00:00:00.000Z',
+  updatedAt: '2026-09-15T00:00:00.000Z'
+}
+
 describe('DeviceConnectionsSettings', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [])
     requestMock.mockReset()
-    setConfigMock.mockReset()
-    startGatewayMock.mockReset()
-    stopGatewayMock.mockReset()
+    navigateMock.mockReset()
+    MockUseCacheUtils.resetMocks()
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
     useIpcOnMock.mockReset()
     useApiGatewayMock.mockReturnValue({
       apiGatewayConfig: { enabled: true, host: '0.0.0.0', port: 23333, apiKey: 'cs-sk-test' },
-      apiGatewayRunning: false,
-      apiGatewayLoading: false,
-      startApiGateway: startGatewayMock,
-      stopApiGateway: stopGatewayMock,
-      setApiGatewayConfig: setConfigMock
+      apiGatewayRunning: true,
+      apiGatewayLoading: false
     })
   })
 
-  it('offers a single start control and the risk notice before LAN access is enabled', () => {
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false]
+  ])('opens gateway settings when unavailable (enabled=%s, running=%s)', async (enabled, running) => {
     useApiGatewayMock.mockReturnValue({
       ...useApiGatewayMock(),
-      apiGatewayConfig: { enabled: true, host: '127.0.0.1', port: 23333, apiKey: 'cs-sk-test' }
+      apiGatewayConfig: { enabled, host: '127.0.0.1', port: 23333, apiKey: 'cs-sk-test' },
+      apiGatewayRunning: running
     })
-
+    const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
 
     expect(screen.getByRole('note')).toHaveTextContent(enUS['deviceConnections.toggle.risk'])
-    expect(screen.getByRole('button', { name: 'Start connection service' })).toBeEnabled()
-    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.getByText(enUS['deviceConnections.gateway.required'])).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Open API Gateway settings' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/api-gateway' })
+    expect(requestMock).not.toHaveBeenCalled()
   })
 
-  it('blocks starting a connection while a gateway command is in flight', () => {
-    useApiGatewayMock.mockReturnValue({
-      ...useApiGatewayMock(),
-      apiGatewayLoading: true
-    })
-
+  it('blocks changing LAN access while a gateway command is in flight', () => {
+    useApiGatewayMock.mockReturnValue({ ...useApiGatewayMock(), apiGatewayLoading: true })
     render(<DeviceConnectionsSettings />)
 
-    expect(screen.getByRole('button', { name: 'Start connection service' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Disable LAN access' })).toBeDisabled()
+  })
+
+  it.each([true, false])('changes only LAN access when enabled=%s is requested', async (enabled) => {
+    useApiGatewayMock.mockReturnValue({
+      ...useApiGatewayMock(),
+      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: enabled ? '127.0.0.1' : '0.0.0.0' }
+    })
+    const user = userEvent.setup()
+    render(<DeviceConnectionsSettings />)
+
+    await user.click(screen.getByRole('button', { name: enabled ? 'Enable LAN access' : 'Disable LAN access' }))
+
+    expect(requestMock.mock.calls).toEqual([['api_gateway.lan.set_enabled', { enabled }]])
   })
 
   it('renders the QR from the Main-owned active endpoint offer', async () => {
-    useApiGatewayMock.mockReturnValue({
-      ...useApiGatewayMock(),
-      apiGatewayRunning: true
-    })
     requestMock.mockResolvedValue(createOffer('live-code'))
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
@@ -130,14 +147,13 @@ describe('DeviceConnectionsSettings', () => {
           resolveNew = resolve
         })
       )
-    useApiGatewayMock.mockReturnValue({ ...useApiGatewayMock(), apiGatewayRunning: true })
     const user = userEvent.setup()
     const { rerender } = render(<DeviceConnectionsSettings />)
 
     await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
-    useApiGatewayMock.mockReturnValue({ ...useApiGatewayMock(), apiGatewayRunning: false })
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
     rerender(<DeviceConnectionsSettings />)
-    useApiGatewayMock.mockReturnValue({ ...useApiGatewayMock(), apiGatewayRunning: true })
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', true)
     rerender(<DeviceConnectionsSettings />)
     await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
 
@@ -159,7 +175,6 @@ describe('DeviceConnectionsSettings', () => {
         resolveOffer = resolve
       })
     )
-    useApiGatewayMock.mockReturnValue({ ...useApiGatewayMock(), apiGatewayRunning: true })
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
     await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
@@ -189,15 +204,7 @@ describe('DeviceConnectionsSettings', () => {
 
   it('offers retry after a list failure and shows devices when the retry succeeds', async () => {
     const refetch = vi.fn(async () => {
-      MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [
-        {
-          id: '11111111-1111-4111-8111-111111111111',
-          name: 'My phone',
-          platform: 'android',
-          createdAt: '2026-09-15T00:00:00.000Z',
-          updatedAt: '2026-09-15T00:00:00.000Z'
-        }
-      ])
+      MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [device])
     })
     MockUseDataApiUtils.mockQueryResult('/api-gateway/paired-devices', {
       error: new Error('Unavailable'),
@@ -216,19 +223,60 @@ describe('DeviceConnectionsSettings', () => {
     expect(screen.getByText('My phone')).toBeInTheDocument()
   })
 
-  it('does not start the gateway if enabling LAN access cannot be saved', async () => {
+  it('reports a failed LAN change and allows retry', async () => {
     useApiGatewayMock.mockReturnValue({
       ...useApiGatewayMock(),
       apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '127.0.0.1' }
     })
-    setConfigMock.mockRejectedValueOnce(new Error('disk full'))
+    requestMock.mockRejectedValueOnce(new Error('disk full'))
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
 
-    await user.click(screen.getByRole('button', { name: 'Start connection service' }))
+    await user.click(screen.getByRole('button', { name: 'Enable LAN access' }))
 
-    expect(startGatewayMock).not.toHaveBeenCalled()
-    expect(toast.error).toHaveBeenCalledWith('Save failed')
-    expect(screen.getByRole('button', { name: 'Start connection service' })).toBeEnabled()
+    expect(toast.error).toHaveBeenCalledWith('Failed to change LAN access: disk full')
+    expect(screen.getByRole('button', { name: 'Enable LAN access' })).toBeEnabled()
+  })
+
+  it('removes an expired QR and lets the user request a fresh one', async () => {
+    vi.useFakeTimers()
+    try {
+      requestMock.mockResolvedValue(createOffer('expiring-code'))
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      render(<DeviceConnectionsSettings />)
+      await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
+      expect(screen.getByRole('img', { name: 'Pair a device' })).toBeInTheDocument()
+
+      await act(async () => vi.advanceTimersByTime(60_000))
+
+      expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Show pairing QR code' })).toBeEnabled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([true, false])('revokes the selected device and reports success=%s', async (success) => {
+    const trigger = vi.fn(async () => {
+      if (!success) throw new Error('Unavailable')
+      MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [])
+    })
+    MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [device])
+    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/api-gateway/paired-devices/:id', trigger)
+    const user = userEvent.setup()
+    const { rerender } = render(<DeviceConnectionsSettings />)
+
+    await user.click(screen.getByRole('button', { name: enUS['deviceConnections.devices.revoke'] }))
+    rerender(<DeviceConnectionsSettings />)
+
+    expect(trigger).toHaveBeenCalledWith({ params: { id: device.id } })
+    if (success) {
+      expect(screen.queryByText(device.name)).not.toBeInTheDocument()
+      expect(toast.success).toHaveBeenCalledWith(enUS['deviceConnections.devices.revoked'])
+    } else {
+      expect(screen.getByText(device.name)).toBeInTheDocument()
+      expect(toast.error).toHaveBeenCalledWith(enUS['common.delete_failed'])
+      expect(screen.getByRole('button', { name: enUS['deviceConnections.devices.revoke'] })).toBeEnabled()
+    }
   })
 })

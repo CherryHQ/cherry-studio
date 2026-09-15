@@ -171,4 +171,10 @@ export class ApiGateway {
     logger.debug('isRunning check', { running: this.running, listening: http?.listening, result })
     return result
   }
+
+  getPort(): number {
+    const address = this.serverInfo?.raw?.node?.server?.address()
+    if (!address || typeof address === 'string') throw new Error('API Gateway is not listening on a TCP port')
+    return address.port
+  }
 }

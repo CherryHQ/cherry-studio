@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { hostname, networkInterfaces } from 'node:os'
 
+import { Mutex } from 'async-mutex'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -24,8 +25,9 @@ const INTERNAL_USAGE_TOKEN_HEADER = 'x-cherry-internal-usage-token'
 @ServicePhase(Phase.WhenReady)
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
+  private lanGateway: ApiGateway | null = null
+  private readonly lanMutex = new Mutex()
   private readonly pairing = new ApiGatewayPairing()
-  private activeEndpoint: { host: string; port: number } | null = null
   /** Process-local proof that a gateway request originated from Cherry's agent runtime. */
   private readonly internalUsageToken = uuidv4()
   /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
@@ -90,14 +92,22 @@ export class ApiGatewayService extends BaseService implements Activatable {
       await this.ensureValidApiKey()
       const { ApiGateway } = await import('./server')
       const { host, port } = this.getCurrentConfig()
-      this.apiGateway = new ApiGateway({ host, port })
+      this.apiGateway = new ApiGateway({ host: host === '0.0.0.0' ? '127.0.0.1' : host, port })
       await this.apiGateway.start()
-      this.activeEndpoint = { host, port }
+      if (this.getCurrentConfig().enabled && this.getCurrentConfig().host === '0.0.0.0') {
+        try {
+          await this.lanMutex.runExclusive(async () => {
+            const config = this.getCurrentConfig()
+            if (config.enabled && config.host === '0.0.0.0') await this.startLanGateway()
+          })
+        } catch (error) {
+          logger.warn('Failed to restore LAN access; the local gateway remains available', error as Error)
+        }
+      }
       this.publishRunningState(true)
       logger.info('API Gateway activated')
     } catch (error) {
       // Activatable failure contract: clean up partial state before throwing
-      this.activeEndpoint = null
       if (this.apiGateway) {
         await this.apiGateway.stop().catch(() => {})
         this.apiGateway = null
@@ -108,12 +118,11 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async onDeactivate(): Promise<void> {
-    this.pairing.clearCode()
+    await this.lanMutex.runExclusive(() => this.stopLanGateway())
     if (this.apiGateway) {
       await this.apiGateway.stop()
       this.apiGateway = null
     }
-    this.activeEndpoint = null
     this.publishRunningState(false)
     logger.info('API Gateway deactivated')
   }
@@ -131,6 +140,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private publishRunningState(running: boolean): void {
     try {
       application.get('CacheService').setShared('feature.api_gateway.running', running)
+      application
+        .get('CacheService')
+        .setShared('feature.api_gateway.lan_running', this.lanGateway?.isRunning() ?? false)
     } catch (error) {
       logger.warn('Failed to publish API gateway running state', error as Error)
     }
@@ -162,7 +174,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     } else {
       await preferenceService.set('feature.api_gateway.enabled', enabled)
     }
-    if (!enabled) this.pairing.clearCode()
+    if (!enabled) await this.lanMutex.runExclusive(() => this.stopLanGateway())
     // `subscribeChange` fires only on an actual change, so drive the reconciler here as well.
     await this.converge(enabled)
   }
@@ -279,10 +291,56 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return this.apiGateway?.isRunning() ?? false
   }
 
+  async setLanEnabled(enabled: boolean): Promise<void> {
+    await this.lanMutex.runExclusive(async () => {
+      const preferences = application.get('PreferenceService')
+      if (!enabled) {
+        await preferences.set('feature.api_gateway.host', '127.0.0.1')
+        await this.stopLanGateway()
+        return
+      }
+      if (!this.getCurrentConfig().enabled || !this.isRunning()) {
+        throw new Error('Start the API Gateway in its settings before enabling LAN access')
+      }
+      try {
+        await this.startLanGateway()
+        // A gateway stop can land while the LAN socket is binding.
+        if (!this.getCurrentConfig().enabled || !this.isRunning()) throw new Error('API Gateway was stopped')
+        await preferences.set('feature.api_gateway.host', '0.0.0.0')
+        this.publishRunningState(this.isRunning())
+      } catch (error) {
+        await this.stopLanGateway()
+        throw error
+      }
+    })
+  }
+
+  private async startLanGateway(): Promise<void> {
+    if (this.lanGateway?.isRunning()) return
+    const { ApiGateway } = await import('./server')
+    this.lanGateway = new ApiGateway({ host: '0.0.0.0', port: 0 })
+    try {
+      await this.lanGateway.start()
+    } catch (error) {
+      await this.stopLanGateway()
+      throw error
+    }
+  }
+
+  private async stopLanGateway(): Promise<void> {
+    this.pairing.clearCode()
+    try {
+      await this.lanGateway?.stop()
+    } finally {
+      this.lanGateway = null
+      this.publishRunningState(this.isRunning())
+    }
+  }
+
   createPairingOffer(): OutputFor<'api_gateway.create_pairing_offer'> {
-    const endpoint = this.activeEndpoint
-    if (!this.isRunning() || !endpoint) throw new Error('API Gateway is not running')
-    if (endpoint.host !== '0.0.0.0' || this.getCurrentConfig().host !== '0.0.0.0') {
+    const lanGateway = this.lanGateway
+    if (!this.isRunning()) throw new Error('API Gateway is not running')
+    if (!lanGateway?.isRunning() || this.getCurrentConfig().host !== '0.0.0.0') {
       throw new Error('LAN access is disabled')
     }
 
@@ -293,7 +351,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
     return {
       hostname: hostname(),
-      port: endpoint.port,
+      port: lanGateway.getPort(),
       addresses,
       ...this.pairing.createCode()
     }

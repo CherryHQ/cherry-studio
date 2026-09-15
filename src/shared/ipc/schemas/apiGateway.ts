@@ -30,6 +30,7 @@ export const apiGatewayRequestSchemas = {
   'api_gateway.start': defineRoute({ input: z.void(), output: statusResultSchema }),
   'api_gateway.stop': defineRoute({ input: z.void(), output: stopResultSchema }),
   'api_gateway.restart': defineRoute({ input: z.void(), output: statusResultSchema }),
+  'api_gateway.lan.set_enabled': defineRoute({ input: z.object({ enabled: z.boolean() }), output: z.void() }),
   'api_gateway.create_pairing_offer': defineRoute({ input: z.void(), output: pairingOfferSchema })
 }
 

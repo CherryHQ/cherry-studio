@@ -3,23 +3,36 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IpcRouter } from '@main/ipc/IpcRouter'
 import { apiGatewayRequestSchemas } from '@shared/ipc/schemas/apiGateway'
 
-const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
+const { apiGatewayService } = vi.hoisted(() => ({
+  apiGatewayService: {
+    start: vi.fn(),
+    stop: vi.fn(),
+    restart: vi.fn(),
+    setLanEnabled: vi.fn(),
+    createPairingOffer: vi.fn()
+  }
+}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ ApiGatewayService: apiGatewayService } as any)
+})
 
 import { apiGatewayHandlers } from '../apiGateway'
 
-const apiGatewayService = { start: vi.fn(), stop: vi.fn(), restart: vi.fn(), createPairingOffer: vi.fn() }
 const ctx = { senderId: 'w1' }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  appGetMock.mockImplementation((name: string) => {
-    if (name === 'ApiGatewayService') return apiGatewayService
-    throw new Error(`Unexpected application.get(${name})`)
-  })
 })
 
 describe('apiGatewayHandlers', () => {
+  it('propagates LAN startup failures through the IpcApi error channel', async () => {
+    apiGatewayService.setLanEnabled.mockRejectedValueOnce(new Error('bind failed'))
+    const router = new IpcRouter(apiGatewayRequestSchemas, apiGatewayHandlers)
+
+    await expect(router.dispatch('api_gateway.lan.set_enabled', { enabled: true }, ctx)).rejects.toThrow('bind failed')
+  })
+
   it('propagates pairing failures to the IpcApi error channel', async () => {
     apiGatewayService.createPairingOffer.mockImplementation(() => {
       throw new Error('API Gateway is not running')
