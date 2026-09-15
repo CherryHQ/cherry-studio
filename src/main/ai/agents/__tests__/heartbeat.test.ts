@@ -38,6 +38,9 @@ const readableHandle = (content: string, stat = regularFile()) => ({
 describe('readHeartbeat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Windows runners execute the lstat guard POSIX never reaches; a cleared
+    // mock returns undefined and blows up its `.catch` chain before open.
+    mockedLstat.mockResolvedValue(regularFile() as never)
   })
 
   it('returns content when file exists', async () => {
@@ -54,7 +57,8 @@ describe('readHeartbeat', () => {
     await readHeartbeat('/workspace')
     const [pathArg, flags] = mockedOpen.mock.calls[0]
     expect(String(pathArg)).toContain('heartbeat.md')
-    expect((flags as number) & constants.O_NOFOLLOW).toBe(constants.O_NOFOLLOW)
+    const nofollow = process.platform === 'win32' ? 0 : constants.O_NOFOLLOW
+    expect((flags as number) & nofollow).toBe(nofollow)
   })
 
   it('adds O_NONBLOCK on POSIX only, so a FIFO at the path cannot park the open', async () => {
