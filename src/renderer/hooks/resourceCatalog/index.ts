@@ -16,3 +16,8 @@ export { skillAdapter, useSkillMutationsById } from './skillAdapter'
 export type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 export { useResourceCatalogController } from './useResourceCatalogController'
 export { useResourceLibrary, type UseResourceLibraryOptions, type UseResourceLibraryResult } from './useResourceLibrary'
+export {
+  type AssistantPresetCreationResult,
+  type AssistantPresetModelResolution,
+  useAssistantPresetCreation
+} from './useAssistantPresetCreation'
