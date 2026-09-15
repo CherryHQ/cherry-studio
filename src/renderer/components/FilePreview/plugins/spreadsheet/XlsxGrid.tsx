@@ -336,6 +336,10 @@ const ChartHost = ({ chart, renderChart }: ChartHostProps) => {
   return <div ref={setRef} className="h-full w-full" role="img" aria-label={chart.title || t('xlsx_preview.chart')} />
 }
 
+/** True for a pointer target inside the floating layer (chart or image), which owns its own pointer interactions. */
+const isFloatingObject = (target: EventTarget | null) =>
+  target instanceof Element && target.closest('[data-xlsx-floating]') !== null
+
 const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, renderChart }: XlsxGridProps) => {
   const scrollElRef = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<GridSelection | null>(null)
@@ -344,6 +348,8 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   // Pointer and key handlers extend the live selection, so they read it from a ref instead of the render snapshot.
   const selectionRef = useRef<GridSelection | null>(null)
   const dragRef = useRef<{ pointerId: number; selection: GridSelection } | null>(null)
+  /** Last pointer client position while picking, so a scroll can re-resolve the hover with the pointer standing still. */
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
   const suppressClickRef = useRef(false)
   const pendingKeyCommitRef = useRef(false)
   const [viewport, setViewport] = useState<ViewportRect>({ top: 0, left: 0, bottom: 0, right: 0 })
@@ -397,11 +403,6 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
       right: el.scrollLeft + el.clientWidth
     }),
     []
-  )
-
-  const handleScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => setViewport(readViewport(e.currentTarget)),
-    [readViewport]
   )
 
   const scrollElCallback = useCallback(
@@ -538,7 +539,10 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     if (pickerWasActiveRef.current === isActive) return
     pickerWasActiveRef.current = isActive
     if (isActive) clearSelection()
-    else setHoverRect(null)
+    else {
+      lastPointerRef.current = null
+      setHoverRect(null)
+    }
   }, [pickerActive, clearSelection])
 
   // Keyboard navigation may target an unmounted virtualized cell, so scroll to it after moving.
@@ -662,6 +666,9 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     (e: React.PointerEvent<HTMLDivElement>) => {
       // A drag released outside the window never gets its trailing click, so clear the flag when the next one starts.
       suppressClickRef.current = false
+      // Charts and images sit above the grid and handle their own presses; capturing the pointer here would
+      // swallow the click ECharts needs for its legend and tooltip.
+      if (isFloatingObject(e.target)) return
       if (e.button !== 0) return
       // The selection visuals own the screen from here, so the hover highlight steps aside.
       if (pickerActive) setHoverRect(null)
@@ -688,6 +695,33 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     setHoverRect((current) => (sameRect(current, next) ? current : next))
   }, [])
 
+  // cellAtPointer reads scrollTop/scrollLeft live, so the same client point resolves exactly after a scroll too.
+  const resolveHover = useCallback(
+    (clientX: number, clientY: number) => {
+      const hovered = cellAtPointer(clientX, clientY)
+      if (!hovered || hovered.inHeader || hovered.row > sheet.rowCount || hovered.col > sheet.colCount) {
+        updateHoverRect(null)
+        return
+      }
+      // A merged range highlights as the one unit a click on it would pick.
+      const hoveredMerge = findMerge(hovered.row, hovered.col)
+      updateHoverRect(hoveredMerge ?? { top: hovered.row, left: hovered.col, bottom: hovered.row, right: hovered.col })
+    },
+    [cellAtPointer, findMerge, sheet.colCount, sheet.rowCount, updateHoverRect]
+  )
+
+  // A scroll slides a different cell under a stationary pointer, which emits no pointermove of its own, so the
+  // highlight is recomputed here from the last position instead of being left on the cell that used to be there.
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      setViewport(readViewport(e.currentTarget))
+      const last = lastPointerRef.current
+      if (!pickerActive || dragRef.current || !last) return
+      resolveHover(last.x, last.y)
+    },
+    [pickerActive, readViewport, resolveHover]
+  )
+
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current
@@ -695,16 +729,14 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
         // No drag in flight: while picking, the highlight follows the pointer. With the picker off the grid has
         // no hover visual at all, so a plain move stays the no-op it has always been.
         if (!pickerActive) return
-        const hovered = cellAtPointer(e.clientX, e.clientY)
-        if (!hovered || hovered.inHeader || hovered.row > sheet.rowCount || hovered.col > sheet.colCount) {
+        if (isFloatingObject(e.target)) {
+          // A chart or image is not a pickable cell, so entering one ends the hover and forgets the position.
+          lastPointerRef.current = null
           updateHoverRect(null)
           return
         }
-        // A merged range highlights as the one unit a click on it would pick.
-        const hoveredMerge = findMerge(hovered.row, hovered.col)
-        updateHoverRect(
-          hoveredMerge ?? { top: hovered.row, left: hovered.col, bottom: hovered.row, right: hovered.col }
-        )
+        lastPointerRef.current = { x: e.clientX, y: e.clientY }
+        resolveHover(e.clientX, e.clientY)
         return
       }
       if (drag.pointerId !== e.pointerId) return
@@ -727,7 +759,16 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
       dragRef.current = { pointerId: drag.pointerId, selection: next }
       applySelection(next)
     },
-    [applySelection, cellAtPointer, findMerge, pickerActive, sheet.colCount, sheet.rowCount, updateHoverRect]
+    [
+      applySelection,
+      cellAtPointer,
+      findMerge,
+      pickerActive,
+      resolveHover,
+      sheet.colCount,
+      sheet.rowCount,
+      updateHoverRect
+    ]
   )
 
   // Every pointer termination commits what the grid is already showing. pointerdown moves the visual selection
@@ -757,6 +798,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
 
   // The pointer left the grid, so there is no cell under it to highlight any more.
   const handlePointerLeave = useCallback(() => {
+    lastPointerRef.current = null
     if (pickerActive) setHoverRect(null)
   }, [pickerActive])
 
@@ -954,8 +996,9 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
             })}
           </div>
 
-          {/* Floating layer: images and charts are absolutely positioned in zoom=1 PxRect coordinates. */}
-          <div className="pointer-events-none absolute">
+          {/* Floating layer: images and charts are absolutely positioned in zoom=1 PxRect coordinates. The marker
+              is how the pointer handlers tell a press on one of them from a press on a cell. */}
+          <div className="pointer-events-none absolute" data-xlsx-floating="">
             {sheet.floatingImages.map((img, i) => {
               const src = imageUrls[img.imageId]
               if (!src) return null
