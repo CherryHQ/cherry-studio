@@ -352,6 +352,21 @@ describe('AddKnowledgeItemDialog', () => {
       expect(toast.warning).not.toHaveBeenCalled()
     })
 
+    it('treats a bare-dotfile named like a curated extension as an opt-in, not a plain add', async () => {
+      // `.yaml` passes the renderer's split('.') classifier but path.extname('.yaml') === '' in the
+      // main guard; admitting it as a plain add would throw there and roll back the batch. It must
+      // ride in with allowArbitrary so it takes the gate-skipping path both classifiers agree on.
+      mockFileSelect.mockResolvedValueOnce([createSelectedFile('.yaml', '/picked/.yaml')])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'file', data: { source: '/picked/.yaml', path: '/picked/.yaml', allowArbitrary: true } }],
+          'detect'
+        )
+      })
+    })
+
     it('submits page-level pending files without opening the picker', async () => {
       setPendingAddFiles([createMockFile('external.pdf', 1024), createMockFile('external.exe', 1024)])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)

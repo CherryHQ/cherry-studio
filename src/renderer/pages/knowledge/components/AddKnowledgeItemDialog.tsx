@@ -40,9 +40,17 @@ const isDirectPickSource = (source: KnowledgeItemType) => source === 'file' || s
 // content-checked at index time rather than by extension.
 const knowledgeSupportedPickerExtensions = Array.from(knowledgeIndexableFileExtSet, (ext) => ext.replace(/^\./, ''))
 
+// A bare dotfile (`.yaml`, `.env`) has no extension per main's path.extname but looks like one to
+// split('.'); treat it as off-list so it takes the opt-in path instead of failing the main gate.
+const isBareDotfile = (fileName: string) => {
+  const base = fileName.split(/[/\\]/).pop() ?? fileName
+  return base.startsWith('.') && !base.slice(1).includes('.')
+}
+
 // Whether a file's extension is on the curated allow-list. An off-list file is only reachable via
 // the "All files" filter, so treat it as the user's explicit opt-in (`allowArbitrary`).
-const isSupportedKnowledgeFile = (fileName: string) => knowledgeIndexableFileExtSet.has(getFileExtension(fileName))
+const isSupportedKnowledgeFile = (fileName: string) =>
+  !isBareDotfile(fileName) && knowledgeIndexableFileExtSet.has(getFileExtension(fileName))
 
 const resolveFileEntryDataFromFile = (file: File) => {
   const filePath = window.api.file.getPathForFile(file)

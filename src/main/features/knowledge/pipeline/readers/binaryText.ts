@@ -14,9 +14,11 @@
 export const BINARY_SNIFF_BYTES = 8000
 
 /**
- * True when a file's raw bytes look binary: a NUL byte within the sampled prefix is the same signal
- * Git uses to classify a blob as binary. Cheap, cross-platform, and runs before any decode, so a
- * binary file is rejected without being read as text.
+ * True when a file's raw bytes look binary: a NUL byte in the sampled prefix, the same signal Git
+ * uses. Runs before any decode, so a binary file is rejected without being read as text.
+ *
+ * UTF-16 text also has NUL bytes and is rejected — acceptable, since the fallback reader only decodes
+ * UTF-8 anyway. Supporting other encodings needs decoding before the reader, not relaxing this sniff.
  */
 export function bytesLookBinary(bytes: Uint8Array): boolean {
   return bytes.includes(0)

@@ -358,6 +358,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
         }
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
+          // Wrap so map's index isn't passed as the `allowArbitrary` arg (would fail its Zod schema).
           const fileResults = await Promise.allSettled(
             result.files.map((file) => resolveKnowledgeFileMetadataEntryData(file))
           )
