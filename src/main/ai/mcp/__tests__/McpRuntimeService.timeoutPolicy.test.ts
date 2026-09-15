@@ -14,7 +14,7 @@ import { BaseService } from '@main/core/lifecycle'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 
 const mcpCatalogMock = vi.hoisted(() => ({
-  clearSharedToolsCache: vi.fn(),
+  invalidateTools: vi.fn(),
   refreshTools: vi.fn().mockResolvedValue(undefined)
 }))
 
