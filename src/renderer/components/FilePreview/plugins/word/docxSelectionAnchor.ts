@@ -11,7 +11,7 @@ import type { DocumentAnchor } from '@renderer/types/selectionReference'
  *
  * `w:tab` needs no case: docx-preview renders it as a span holding U+2003, which is inside the
  * whitespace class `normalizeSelectionText` collapses — the same single space python's `\t` collapses
- * to. Every other element contributes no separator of its own, so recursing into it is the whole mapping, so recursing into it is the whole mapping.
+ * to. Every other element contributes no separator of its own, so recursing into it is the whole mapping.
  */
 export function paragraphExcerpt(paragraph: HTMLElement): string {
   const walker = paragraph.ownerDocument.createTreeWalker(paragraph, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT)

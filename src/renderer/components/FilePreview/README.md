@@ -206,13 +206,15 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 
 - A plugin that owns a view → structure inverse mapping declares `supportsSelectionReference` and, while
   the callback is present, lets the user pick one addressable unit (docx body paragraph, pptx slide, pdf page,
-  xlsx cell range) and reports it; it reports `null` when the pick is cleared. The callback's presence is the
-  capture switch: the embedding surface passes it only while its picker is on, so a plugin never needs a
+  xlsx cell range) and reports it; it reports `null` when the pick is cleared, and the pdf producer
+  reports `null` again the moment a new page pick starts, before that page's text has arrived. The callback's
+  presence is the capture switch: the embedding surface passes it only while its picker is on, so a plugin never needs a
   separate mode flag. Plugins without such a mapping ignore the prop entirely.
 - The xlsx grid follows the same picker model as the block producers: while the callback is present it starts
   from an empty selection, highlights the cell or merged range under the pointer, and commits on click or drag.
-  It also picks from the keyboard — arrows move the cursor, Shift+Arrow extends the range, Enter or Space
-  commits — which the block producers do not: their pickers are pointer-only.
+  It also picks from the keyboard — an arrow moves the cursor and commits the new cell, Shift+Arrow extends
+  the range and commits it on key release, and Enter or Space commits the cursor cell — which the block
+  producers do not: their pickers are pointer-only.
 - Unlike the block producers, the xlsx grid holds a selection whether or not capture is on — a cell clicked
   to read a value stays selected. Capture therefore arms empty: the commit that switches capture on reports
   nothing, so a browsing selection never becomes a pick the user did not make, and every selection after it
@@ -232,6 +234,8 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   navigate from their own listener before the pick handler runs — pdf.js binds an internal destination
   with `link.onclick`, and the PPTX renderer's in-deck links are `role="link"` spans that stop
   propagation — so those links jump instead. External hyperlinks are intercepted and pick normally.
+  A press on a floating chart or image in the xlsx grid picks nothing either: the cell beneath it is reachable
+  only from the keyboard.
 - The docx excerpt is not the paragraph's `textContent`: it is walked so that docx-preview's `<br>` and
   `<wbr>` become the `\n` and `-` python-docx's `Paragraph.text` spells, because the office-transform
   skill checks the excerpt against that string. Two gaps remain — docx-preview drops `w:cr` and `w:ptab`
