@@ -7,7 +7,6 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
-import { agentSessionForkContextService } from '@data/services/AgentSessionForkContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -77,17 +76,6 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
       if (forkState.status !== 'available') throw error
       logger.warn('Fork checkpoint persistence failed; retrying completed answer without checkpoint', { error })
       save(FORK_CHECKPOINT_FAILED)
-    }
-    if (status === 'success' && runtimeResumeToken) {
-      try {
-        agentSessionForkContextService.confirmSend(
-          this.opts.sessionId,
-          runtimeResumeToken,
-          finalMessage?.id ?? this.opts.assistantMessageId
-        )
-      } catch (error) {
-        logger.warn('Fork context receipt remains pending reconciliation', { error })
-      }
     }
   }
 

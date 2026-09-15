@@ -115,7 +115,6 @@ patchedDependencies:
   # Remove when an upstream release includes the blocked-initial-animation remount fix.
   motion-dom@12.42.0: patches/motion-dom@12.42.0.patch
   "@tiptap/extension-list@3.26.1": patches/@tiptap__extension-list@3.26.1.patch
-  "@deepseek-ai/dsh-fs-local@0.1.2-rc.1": patches/@deepseek-ai__dsh-fs-local@0.1.2-rc.1.patch
 
 allowBuilds:
   "@deepseek-ai/dsh-subprocess-local": true

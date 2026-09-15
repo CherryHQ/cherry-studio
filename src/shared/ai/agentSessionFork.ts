@@ -14,10 +14,6 @@ export function isAgentSessionForkUnavailableReason(value: unknown): value is Ag
   return typeof value === 'string' && AGENT_SESSION_FORK_UNAVAILABLE_REASONS.some((reason) => reason === value)
 }
 
-export function canRebuildAgentSessionFork(reason: string): boolean {
-  return isAgentSessionForkUnavailableReason(reason) && reason !== 'not_turn_boundary'
-}
-
 export const AGENT_SESSION_FORK_FAILURE_REASONS = [
   ...AGENT_SESSION_FORK_UNAVAILABLE_REASONS,
   'workspace_changed',

@@ -66,7 +66,6 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
-import { withClaudeFileWriteProtection } from './claudeFileWrites'
 import { captureClaudeForkCheckpoint, forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import {
@@ -379,6 +378,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
+    if (agentSessionService.isFork(this.input.sessionId) && !this.resumeToken)
+      throw new Error('history_missing: this fork requires its existing native history.')
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
     // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
@@ -444,7 +445,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.createQuery = createClaudeQuery
     this.query = consumedWarmQuery
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
-      : createClaudeQuery({ prompt: this.sdkInputQueue, options: withClaudeFileWriteProtection(options) })
+      : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
@@ -485,16 +486,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   refreshTraceContext(context: AgentRuntimeTraceContext): void {
     application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
-  }
-
-  async getForkContextEnvironment() {
-    const { default: manifest } = await import('../../../../../package.json')
-    return {
-      sdkVersion: manifest.dependencies['@anthropic-ai/claude-agent-sdk'],
-      systemPrompt: { prompt: this.spawnOptions?.systemPrompt, signature: this.connectionConfig?.rebuildSignature },
-      tools: { allowed: this.spawnOptions?.allowedTools, metadata: this.mcpToolMetadata },
-      opaqueEnvelope: true
-    }
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
@@ -819,7 +810,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  /** Rebuilds one failed resumed query without its corrupt or missing conversation history. */
+  /** Retries one failed non-fork query without its corrupt or missing conversation history. */
   private tryRecoverWithoutResume(error: unknown): boolean {
     const createClaudeQuery = this.createQuery
     if (
@@ -864,7 +855,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
     this.query = createClaudeQuery({
       prompt: this.sdkInputQueue,
-      options: withClaudeFileWriteProtection({ ...this.spawnOptions, resume: undefined })
+      options: { ...this.spawnOptions, resume: undefined }
     })
     return true
   }

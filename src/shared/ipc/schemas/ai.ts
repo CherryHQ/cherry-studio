@@ -328,8 +328,7 @@ export const aiRequestSchemas = {
   'ai.agent.session.fork': defineRoute({
     input: z.strictObject({
       sourceSessionId: z.uuid(),
-      messageId: z.uuid(),
-      allowHistoryRebuild: z.boolean().default(false)
+      messageId: z.uuid()
     }),
     output: z.strictObject({ sessionId: z.uuid() })
   }),

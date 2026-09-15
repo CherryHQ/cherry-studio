@@ -1,17 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 
-import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionForkContextTable } from '@data/db/schemas/agentSessionForkContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
@@ -20,22 +14,12 @@ import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
-import type { ForkContextCompatibility } from '@data/services/agentSessionForkContext'
-import { forkContextHash } from '@data/services/agentSessionForkContextContent'
-import { agentSessionForkContextService } from '@data/services/AgentSessionForkContextService'
-import type { AgentSessionForkJournal } from '@data/services/agentSessionForkJournal'
+import { AgentSessionForkJournalSchema } from '@data/services/agentSessionForkJournal'
 import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
-import { AgentSessionForkOperations } from '@main/ai/agentSession/AgentSessionForkOperations'
-import { forkFileIdentity } from '@main/ai/agentSession/forkFiles'
-import { buildForkHistory } from '@main/ai/agentSession/forkHistory'
-import { ForkContextPreparer, prepareForkContext } from '@main/ai/agentSession/prepareForkContext'
-import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/forkCheckpoint'
-import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
@@ -110,785 +94,62 @@ describe('AgentSessionMessageService', () => {
   })
 
   describe('native fork persistence', () => {
-    const compatibility = (runtime: string): ForkContextCompatibility => ({
-      runtime,
-      schemaVersion: 1,
-      sdkVersion: 'fixture-v1',
-      systemPromptHash: forkContextHash('system'),
-      toolsetHash: forkContextHash('tools'),
-      compressorHash: forkContextHash('compressor'),
-      modelHash: forkContextHash('model')
-    })
-
-    function recordNative(
-      ...args: Parameters<typeof agentSessionForkContextService.recordNative> extends [...infer P, unknown] ? P : never
-    ) {
-      const state = agentSessionMessageService
-        .readForkPrefixTx(dbh.db, args[0], args[1], args[2])
-        .at(-1)!.runtimeForkState
-      const capture = agentSessionForkContextService.captureNativePrefix(args[0], args[1], args[2], state)!
-      agentSessionForkContextService.recordNative(...args, capture)
-    }
-
-    async function contextSource() {
-      await seedAgent('context-agent', 'Context Agent')
-      await seedSession({ id: 'context-source', agentId: 'context-agent', name: 'History', orderKey: 'context-a' })
+    it('rolls back checkpoint invalidation and deletion together on a real SQLite failure', () => {
       agentSessionMessageService.saveMessage({
-        sessionId: 'context-source',
+        sessionId: SESSION_ID,
         runtimeForkState: {
           version: 1,
           status: 'available',
-          checkpoint: { runtime: 'pi', runtimeSessionId: 'fixture', leafId: 'leaf' }
+          checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' }
         },
         message: {
           id: ASSISTANT_MESSAGE_ID,
           role: 'assistant',
           status: 'success',
-          data: {
-            parts: [
-              { type: 'text', text: 'OLD_VERBOSE_PAST '.repeat(3000) },
-              { type: 'data-compaction-anchor', data: { status: 'done', phase: 'agent-session' } }
-            ]
-          }
+          data: { parts: [{ type: 'text', text: 'answer' }] }
         }
       })
-    }
-
-    async function contextChild(sourceId: string, childId: string, boundary: string) {
-      const source = agentSessionMessageService.readForkPrefixTx(dbh.db, sourceId, boundary)
-      await seedSession({ id: childId, agentId: 'context-agent', name: childId, orderKey: childId })
-      const rows = source.map((row) => ({ ...row, id: randomUUID(), runtimeResumeToken: null, runtimeForkState: null }))
-      agentSessionMessageService.insertForkMessagesTx(dbh.db, childId, rows)
-      agentSessionService.setForkSourceTx(dbh.db, childId, {
-        sessionId: sourceId,
-        messageId: boundary,
-        operationId: randomUUID(),
-        historyMessageId: rows.at(-1)!.id
-      })
-      agentSessionForkContextService.createTx(dbh.db, childId, rows, sourceId, source)
-      return rows
-    }
-
-    it.each(['edit', 'delete', 'append'] as const)('validates the frozen native capture after %s', async (change) => {
-      await contextSource()
-      const state = agentSessionMessageService
-        .readForkPrefixTx(dbh.db, 'context-source', ASSISTANT_MESSAGE_ID)
-        .at(-1)!.runtimeForkState
-      const capture = agentSessionForkContextService.captureNativePrefix(
-        'context-source',
-        ASSISTANT_MESSAGE_ID,
-        [],
-        state
-      )!
-      if (change === 'edit')
-        agentSessionMessageService.updateSessionMessage('context-source', ASSISTANT_MESSAGE_ID, {
-          data: { parts: [{ type: 'text', text: 'changed' }] }
-        })
-      if (change === 'delete') agentSessionMessageService.deleteSessionMessage('context-source', ASSISTANT_MESSAGE_ID)
-      if (change === 'append')
-        agentSessionMessageService.saveMessage({
-          sessionId: 'context-source',
-          message: {
-            id: randomUUID(),
-            role: 'user',
-            status: 'success',
-            data: { parts: [{ type: 'text', text: 'FUTURE_SECRET' }] }
-          }
-        })
-      const save = () =>
-        agentSessionForkContextService.recordNative(
-          'context-source',
-          ASSISTANT_MESSAGE_ID,
-          [],
-          compatibility('pi'),
-          { identity: 'capture', messages: [{ role: 'user', content: 'BOUNDARY_ONLY' }] },
-          capture
-        )
-      if (change === 'delete') expect(save).toThrow('source_missing')
-      else save()
-      const document = agentSessionForkContextService.get('context-source')?.document
-      if (change === 'append') {
-        expect(document?.summaries).toHaveLength(1)
-        expect(JSON.stringify(document)).not.toContain('FUTURE_SECRET')
-        expect(document?.summaries[0].captureProof).toBeDefined()
-      } else expect(document).toBeUndefined()
-    })
-
-    it('rolls back checkpoint invalidation and deletion together on a real SQLite failure', async () => {
-      await contextSource()
       const remove = agentSessionMessageService.deleteSessionMessageTx.bind(agentSessionMessageService)
       vi.spyOn(agentSessionMessageService, 'deleteSessionMessageTx').mockImplementation((...args) => {
         remove(...args)
         throw new Error('transaction failed after delete')
       })
-      expect(() => agentSessionMessageService.deleteSessionMessage('context-source', ASSISTANT_MESSAGE_ID)).toThrow(
+      expect(() => agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow(
         'transaction failed'
       )
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).forkAvailability).toEqual({
+        status: 'available'
+      })
+    })
+
+    it('reads legacy cleanup journals without restoring reservations or losing ownership', () => {
+      const journal = {
+        version: 2 as const,
+        operationId: randomUUID(),
+        sourceSessionId: randomUUID(),
+        messageId: ASSISTANT_MESSAGE_ID,
+        targetSessionId: randomUUID(),
+        createdAt: Date.now(),
+        artifactDirectory: '/owned-fork',
+        artifactIdentity: 'artifact-identity',
+        workspace: '/owned-workspace',
+        workspaceIdentity: 'workspace-identity',
+        workspaceDisposition: 'retained' as const,
+        published: [{ source: '/owned-fork/native', target: '/native-copy', identity: 'native-identity' }],
+        committed: false
+      }
+      const legacyJournal = { ...journal, cleanupState: 'active', cleanupClaim: 'obsolete' }
+      agentSessionForkService.writeJournal(legacyJournal)
+
+      const persisted = agentSessionForkService.journals()[0]
+      const parsed = AgentSessionForkJournalSchema.parse(persisted)
+      expect(parsed).toEqual(journal)
       expect(
-        agentSessionMessageService.getSessionMessage('context-source', ASSISTANT_MESSAGE_ID).forkAvailability
-      ).toEqual({ status: 'available' })
-    })
-
-    it('uses durable receipts rather than initialization tokens and preserves sent state during v1 upgrade', async () => {
-      await contextSource()
-      recordNative('context-source', ASSISTANT_MESSAGE_ID, [], compatibility('pi'), {
-        identity: 'native',
-        messages: [{ role: 'user', content: 'PAST_ONLY' }]
-      })
-      await contextChild('context-source', 'receipt-child', ASSISTANT_MESSAGE_ID)
-      const compress = compressor()
-      const input = {
-        sessionId: 'receipt-child',
-        compatibility: compatibility('pi'),
-        budget: 2000,
-        resolveCompressor: compress.resolveCompressor,
-        signal: new AbortController().signal
-      }
-      const prepared = (await prepareForkContext(input))!
-      expect(agentSessionForkContextService.needsPreparation('receipt-child')).toBe(true)
-      agentSessionForkContextService.fail('receipt-child', { code: 'network', category: 'retryable' })
-      expect((await prepareForkContext(input))!.preparedContextId).toBe(prepared.preparedContextId)
-      const receiptId = randomUUID()
-      agentSessionForkContextService.beginSend('receipt-child', prepared.preparedContextId, randomUUID(), receiptId)
-      expect(() => agentSessionForkContextService.needsPreparation('receipt-child')).toThrow('native_uncertain')
-      agentSessionMessageService.saveMessage({
-        sessionId: 'receipt-child',
-        runtimeResumeToken: 'native-child',
-        message: {
-          id: receiptId,
-          role: 'assistant',
-          status: 'success',
-          data: { parts: [{ type: 'text', text: 'received' }] }
-        }
-      })
-      expect(agentSessionForkContextService.needsPreparation('receipt-child')).toBe(false)
-      const sent = agentSessionForkContextService.get('receipt-child')!.document
-      dbh.db
-        .update(agentSessionForkContextTable)
-        .set({ document: { ...sent, version: 1 } })
-        .where(eq(agentSessionForkContextTable.sessionId, 'receipt-child'))
-        .run()
-      const upgraded = agentSessionForkContextService.get('receipt-child')!.document
-      expect(upgraded.version).toBe(2)
-      expect(upgraded.state).toBe('sent')
-      expect(upgraded.summaries).toHaveLength(0)
-      expect(upgraded.audits[0]).toMatchObject({ outcome: 'sent', resumeToken: 'native-child' })
-      expect(agentSessionForkContextService.needsPreparation('receipt-child')).toBe(false)
-      expect(compress.resolveCompressor).not.toHaveBeenCalled()
-      dbh.db
-        .delete(agentSessionForkContextTable)
-        .where(eq(agentSessionForkContextTable.sessionId, 'receipt-child'))
-        .run()
-      expect(() => agentSessionForkContextService.needsPreparation('receipt-child')).toThrow('native_uncertain')
-    })
-
-    it.each(['owned', 'adopted', 'legacy'] as const)(
-      'safely recovers %s workspace cleanup and registration claims',
-      async (kind) => {
-        dbh.db.update(agentWorkspaceTable).set({ orderKey: 'a0' }).run()
-        const root = await mkdtemp(path.join(tmpdir(), 'cherry-fork-cleanup-'))
-        const originalGetPath = application.getPath.bind(application)
-        vi.spyOn(application, 'getPath').mockImplementation((key, ...args) =>
-          key === 'feature.agents.forks'
-            ? path.join(root, 'forks')
-            : key === 'feature.agents.system_workspaces'
-              ? path.join(root, 'system')
-              : originalGetPath(key, ...args)
-        )
-        const container = application.getContainer()
-        const originalGet = container.get.bind(container)
-        vi.spyOn(container, 'get').mockImplementation((name) =>
-          name === 'AgentFileWriteService' ? { hasWritesInside: () => false } : originalGet(name)
-        )
-        const operationId = randomUUID()
-        const targetSessionId = randomUUID()
-        const createdAt = Date.now()
-        const workspace = agentWorkspaceService.buildSystemWorkspacePath(
-          path.join(root, 'system'),
-          targetSessionId,
-          createdAt
-        )
-        const artifactDirectory = path.join(root, 'forks', operationId)
-        try {
-          await mkdir(path.join(workspace, 'adopted'), { recursive: true })
-          await mkdir(artifactDirectory, { recursive: true })
-          await writeFile(path.join(workspace, 'adopted', 'keep.txt'), 'keep')
-          const journal: AgentSessionForkJournal = {
-            version: kind === 'legacy' ? 1 : 2,
-            operationId,
-            sourceSessionId: randomUUID(),
-            messageId: randomUUID(),
-            targetSessionId,
-            createdAt,
-            artifactDirectory,
-            artifactIdentity: await forkFileIdentity(artifactDirectory),
-            workspace,
-            workspaceIdentity: await forkFileIdentity(workspace),
-            published: [],
-            committed: true
-          }
-          const adopted =
-            kind === 'adopted' ? agentWorkspaceService.findOrCreateByPath(path.join(workspace, 'adopted')) : undefined
-          agentSessionForkService.writeJournal(journal)
-          agentSessionForkService.beginCleanup(journal)
-          expect(() => agentWorkspaceService.findOrCreateByPath(path.join(root, 'new'))).toThrow('fork cleanup')
-          // Simulate a crash with the claim persisted: startup recovery must first release it.
-          await new AgentSessionForkOperations().recover(true)
-          const registered = agentWorkspaceService.findOrCreateByPath(path.join(root, 'new'))
-          expect(registered.path).toBe(path.join(root, 'new'))
-          if (kind === 'owned') await expect(readFile(path.join(workspace, 'adopted', 'keep.txt'))).rejects.toThrow()
-          else {
-            expect(await readFile(path.join(workspace, 'adopted', 'keep.txt'), 'utf8')).toBe('keep')
-            expect(agentSessionForkService.journals()).toContainEqual(
-              expect.objectContaining({ operationId, workspaceDisposition: 'retained', cleanupComplete: true })
-            )
-            if (adopted) agentWorkspaceService.deleteByIdTx(dbh.db, adopted.id)
-            await new AgentSessionForkOperations().recover(true)
-            expect(await readFile(path.join(workspace, 'adopted', 'keep.txt'), 'utf8')).toBe('keep')
-          }
-        } finally {
-          await rm(root, { recursive: true, force: true })
-        }
-      }
-    )
-
-    function compressor() {
-      const prompts: unknown[] = []
-      const model: LanguageModelV3 = {
-        specificationVersion: 'v3',
-        provider: 'fixture',
-        modelId: 'compressor',
-        supportedUrls: {},
-        async doGenerate(input) {
-          prompts.push(input.prompt)
-          return {
-            content: [{ type: 'text', text: '<summary>Past work was completed.</summary>' }],
-            finishReason: { unified: 'stop', raw: undefined },
-            warnings: [],
-            usage: {
-              inputTokens: { total: 50, noCache: 50, cacheRead: 0, cacheWrite: 0 },
-              outputTokens: { total: 10, text: 10, reasoning: 0 }
-            }
-          }
-        },
-        async doStream() {
-          throw new Error('No model stream permitted')
-        }
-      }
-      const resolveCompressor = vi.fn(async () => ({ languageModel: model, contextWindow: 8192 }))
-      return { prompts, resolveCompressor }
-    }
-
-    it.each(['pi', 'dsh'])(
-      'serves %s compacted context without a model call after source and child deletion',
-      async (runtime) => {
-        await contextSource()
-        const config = compatibility(runtime)
-        recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
-          identity: 'native-compaction',
-          messages: [{ role: 'user', content: 'COMPACTED_PAST' }]
-        })
-        const rows = await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
-        const compress = compressor()
-        const input = {
-          sessionId: 'context-child',
-          compatibility: config,
-          budget: 2000,
-          resolveCompressor: compress.resolveCompressor,
-          signal: new AbortController().signal
-        }
-        const prepared = (await prepareForkContext(input))!
-        expect(buildForkHistory(prepared)).toContain('COMPACTED_PAST')
-        expect(buildForkHistory(prepared)).not.toContain('OLD_VERBOSE_PAST')
-        expect(compress.prompts).toHaveLength(0)
-        expect(compress.resolveCompressor).not.toHaveBeenCalled()
-        expect(agentSessionMessageService.getSessionMessage('context-child', rows[0].id).data.parts?.[0]).toMatchObject(
-          {
-            text: 'OLD_VERBOSE_PAST '.repeat(3000)
-          }
-        )
-        expect((await prepareForkContext(input))?.preparedContextId).toBe(prepared.preparedContextId)
-        await contextChild('context-child', 'context-grandchild', rows[0].id)
-        agentSessionService.deleteTx(dbh.db, 'context-source')
-        agentSessionService.deleteTx(dbh.db, 'context-child')
-        const grandchild = (await prepareForkContext({ ...input, sessionId: 'context-grandchild' }))!
-        expect(buildForkHistory(grandchild)).toContain('COMPACTED_PAST')
-        expect(compress.prompts).toHaveLength(0)
-        expect(
-          dbh.db
-            .select()
-            .from(agentSessionForkContextTable)
-            .where(eq(agentSessionForkContextTable.sessionId, 'context-child'))
-            .get()
-        ).toBeUndefined()
-      }
-    )
-
-    it.each(['damaged', 'missing'])('recompresses a %s summary without including future input', async (damage) => {
-      await contextSource()
-      const config = compatibility('pi')
-      recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
-        identity: 'native-compaction',
-        messages: [{ role: 'user', content: 'COMPACTED_PAST' }]
-      })
-      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
-      const record = agentSessionForkContextService.get('context-child')!
-      if (damage === 'missing') record.document.summaries = []
-      else record.document.summaries[0].segments[0].text = 'CORRUPT_FUTURE_CANARY'
-      agentSessionForkContextService.save('context-child', record.revision, record.document)
-      agentSessionMessageService.saveMessage({
-        sessionId: 'context-child',
-        message: {
-          id: USER_MESSAGE_ID,
-          role: 'user',
-          status: 'success',
-          data: { parts: [{ type: 'text', text: 'FUTURE_MESSAGE_CANARY' }] }
-        }
-      })
-      const compress = compressor()
-      const prepared = (await prepareForkContext({
-        sessionId: 'context-child',
-        compatibility: config,
-        budget: 1500,
-        resolveCompressor: compress.resolveCompressor,
-        signal: new AbortController().signal
-      }))!
-      expect(compress.prompts.length).toBeGreaterThan(0)
-      expect(JSON.stringify(compress.prompts)).not.toContain('FUTURE_MESSAGE_CANARY')
-      expect(JSON.stringify(compress.prompts)).not.toContain('CORRUPT_FUTURE_CANARY')
-      expect(buildForkHistory(prepared)).not.toContain('OLD_VERBOSE_PAST')
-      expect(buildForkHistory(prepared)).not.toContain('FUTURE_MESSAGE_CANARY')
-    })
-
-    it('shares preparation across callers and reuses the durable result after host restart', async () => {
-      await contextSource()
-      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
-      const compress = compressor()
-      const input = {
-        sessionId: 'context-child',
-        compatibility: compatibility('pi'),
-        budget: 1500,
-        resolveCompressor: compress.resolveCompressor,
-        signal: new AbortController().signal
-      }
-      const host = new ForkContextPreparer()
-      const first = host.prepare(input)
-      expect(host.prepare(input)).toBe(first)
-      await expect(host.prepare({ ...input, budget: 1600 })).rejects.toMatchObject({
-        detail: { code: 'configuration' }
-      })
-      const prepared = (await first)!
-      const count = compress.prompts.length
-      expect((await new ForkContextPreparer().prepare(input))?.preparedContextId).toBe(prepared.preparedContextId)
-      expect(compress.prompts).toHaveLength(count)
-    })
-
-    it('cancels before compression and retries without an injection receipt', async () => {
-      await contextSource()
-      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
-      const compress = compressor()
-      const controller = new AbortController()
-      controller.abort()
-      const input = {
-        sessionId: 'context-child',
-        compatibility: compatibility('pi'),
-        budget: 1500,
-        resolveCompressor: compress.resolveCompressor,
-        signal: controller.signal
-      }
-      await expect(prepareForkContext(input)).rejects.toBeDefined()
-      expect(compress.prompts).toHaveLength(0)
-      expect(agentSessionForkContextService.get('context-child')!.document).toMatchObject({
-        state: 'cancelled',
-        audits: []
-      })
-      expect(await prepareForkContext({ ...input, signal: new AbortController().signal })).toBeDefined()
-    })
-
-    it.each([
-      [503, 'network', 'retryable'],
-      [401, 'configuration', 'not_retryable']
-    ])('preserves compressor failure classification for HTTP %s', async (statusCode, code, category) => {
-      await contextSource()
-      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
-      await expect(
-        prepareForkContext({
-          sessionId: 'context-child',
-          compatibility: compatibility('pi'),
-          budget: 1500,
-          resolveCompressor: async () => {
-            throw Object.assign(new Error('fixture failure'), { statusCode })
-          },
-          signal: new AbortController().signal
-        })
-      ).rejects.toMatchObject({ detail: { code, category } })
-      expect(agentSessionForkContextService.get('context-child')!.document.error).toEqual({ code, category })
-    })
-
-    it('rebuilds malformed summary records without discarding the verified input snapshot', async () => {
-      await contextSource()
-      const config = compatibility('pi')
-      recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
-        identity: 'native',
-        messages: [{ role: 'user', content: 'COMPACTED_PAST' }]
-      })
-      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
-      const record = agentSessionForkContextService.get('context-child')!
-      record.document.summaries[0].segments[0].contentHash = 'malformed-hash'
-      dbh.db
-        .update(agentSessionForkContextTable)
-        .set({ document: record.document })
-        .where(eq(agentSessionForkContextTable.sessionId, 'context-child'))
-        .run()
-      const compress = compressor()
-      const prepared = await prepareForkContext({
-        sessionId: 'context-child',
-        compatibility: config,
-        budget: 1500,
-        resolveCompressor: compress.resolveCompressor,
-        signal: new AbortController().signal
-      })
-      expect(prepared).toBeDefined()
-      expect(compress.prompts.length).toBeGreaterThan(0)
-      expect(JSON.stringify(compress.prompts)).not.toContain('COMPACTED_PAST')
-      expect(agentSessionForkContextService.get('context-child')!.document.snapshot.hash).toBe(
-        record.document.snapshot.hash
-      )
-    })
-
-    it('requires the exact successful assistant receipt to reconcile a crash', async () => {
-      await contextSource()
-      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
-      const compress = compressor()
-      const input = {
-        sessionId: 'context-child',
-        compatibility: compatibility('pi'),
-        budget: 1500,
-        resolveCompressor: compress.resolveCompressor,
-        signal: new AbortController().signal
-      }
-      const prepared = (await prepareForkContext(input))!
-      agentSessionForkContextService.beginSend('context-child', prepared.preparedContextId, 'new-user', USER_MESSAGE_ID)
-      agentSessionForkContextService.fail('context-child', { code: 'cancelled', category: 'cancelled' })
-      agentSessionForkContextService.fail('context-child', { code: 'network', category: 'retryable' })
-      agentSessionForkContextService.confirmSend('context-child', 'wrong-token', 'different-assistant')
-      await expect(prepareForkContext(input)).rejects.toMatchObject({ detail: { category: 'needs_reconciliation' } })
-      agentSessionMessageService.saveMessage({
-        sessionId: 'context-child',
-        runtimeResumeToken: 'confirmed-native-token',
-        message: {
-          id: USER_MESSAGE_ID,
-          role: 'assistant',
-          status: 'success',
-          data: { parts: [] }
-        }
-      })
-      expect(await prepareForkContext(input)).toBeUndefined()
-      expect(agentSessionForkContextService.get('context-child')!.document).toMatchObject({
-        state: 'sent',
-        audits: [{ outcome: 'sent', resumeToken: 'confirmed-native-token' }]
-      })
-    })
-
-    it('rejects corrupt ancestry even when the most recent summary is valid', async () => {
-      await contextSource()
-      const config = compatibility('pi')
-      recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
-        identity: 'first',
-        messages: [{ role: 'user', content: 'ANCESTOR' }]
-      })
-      recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
-        identity: 'second',
-        messages: [{ role: 'user', content: 'LATEST_VALID_SUMMARY' }]
-      })
-      const rows = await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
-      const record = agentSessionForkContextService.get('context-child')!
-      expect(record.document.summaries).toHaveLength(2)
-      record.document.summaries[0].segments[0].text = 'CORRUPT_ANCESTOR'
-      agentSessionForkContextService.save('context-child', record.revision, record.document)
-      await contextChild('context-child', 'context-grandchild', rows[0].id)
-      const compress = compressor()
-      const prepared = (await prepareForkContext({
-        sessionId: 'context-grandchild',
-        compatibility: config,
-        budget: 1500,
-        resolveCompressor: compress.resolveCompressor,
-        signal: new AbortController().signal
-      }))!
-      expect(compress.prompts.length).toBeGreaterThan(0)
-      expect(buildForkHistory(prepared)).not.toContain('LATEST_VALID_SUMMARY')
-      expect(JSON.stringify(compress.prompts)).not.toContain('CORRUPT_ANCESTOR')
-    })
-
-    it('persists a send intent and refuses ambiguous retries without reinjecting', async () => {
-      await contextSource()
-      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
-      const compress = compressor()
-      const input = {
-        sessionId: 'context-child',
-        compatibility: compatibility('claude-code'),
-        budget: 1500,
-        resolveCompressor: compress.resolveCompressor,
-        signal: new AbortController().signal
-      }
-      const prepared = (await prepareForkContext(input))!
-      agentSessionForkContextService.beginSend('context-child', prepared.preparedContextId, 'new-user', 'new-assistant')
-      await expect(prepareForkContext(input)).rejects.toMatchObject({
-        detail: { code: 'native_uncertain', category: 'needs_reconciliation' }
-      })
-      agentSessionForkContextService.confirmSend('context-child', 'durable-native-token')
-      expect(await prepareForkContext(input)).toBeUndefined()
-      const audit = agentSessionForkContextService.get('context-child')!.document.audits[0]
-      expect(audit.historyHash).toBe(forkContextHash(buildForkHistory(prepared)))
-      expect(audit.messageId).toBe('new-user')
-      expect(audit.outcome).toBe('sent')
-    })
-
-    it.each(['pi', 'claude-code', 'dsh'] as const)(
-      'rebuilds a %s child and grandchild without parent history or execution state',
-      async (type) => {
-        const directory = await mkdtemp(path.join(tmpdir(), 'cherry-fork-history-'))
-        const preferences = application.get('PreferenceService')
-        const originalLanguage = preferences.get('app.language')
-        await preferences.set('app.language', 'zh-CN')
-        const originalGetPath = application.getPath.bind(application)
-        vi.spyOn(application, 'getPath').mockImplementation((key, ...args) =>
-          key === 'feature.agents.forks' ? directory : originalGetPath(key, ...args)
-        )
-        const fork = vi.fn().mockRejectedValue(new AgentSessionForkError('history_missing'))
-        runtimeDriverRegistry.register({
-          type,
-          capabilities: ['agent-session'],
-          fork,
-          connect: vi.fn(),
-          validateSession: vi.fn(),
-          listAvailableTools: vi.fn()
-        })
-        try {
-          await seedAgent('history-agent', 'History Agent')
-          dbh.db.update(agentTable).set({ type }).where(eq(agentTable.id, 'history-agent')).run()
-          const sourceId = randomUUID()
-          await seedSession({ id: sourceId, agentId: 'history-agent', name: 'Source', orderKey: 'history-order' })
-          const selected = agentSessionMessageService.saveMessage({
-            sessionId: sourceId,
-            runtimeForkState: null,
-            message: {
-              id: randomUUID(),
-              role: 'assistant',
-              status: 'success',
-              data: {
-                parts: [
-                  { type: 'text', text: 'included amber' },
-                  {
-                    type: 'tool-Bash',
-                    toolCallId: 'approval-call',
-                    state: 'approval-requested',
-                    input: { command: 'echo amber' },
-                    approval: { id: 'must-not-inherit' }
-                  }
-                ]
-              }
-            }
-          })
-          agentSessionMessageService.saveMessage({
-            sessionId: sourceId,
-            message: {
-              id: randomUUID(),
-              role: 'user',
-              status: 'success',
-              data: { parts: [{ type: 'text', text: 'excluded violet' }] }
-            }
-          })
-          // Shipped history has SQL NULL, unlike newly created messages' explicit boundary state.
-          dbh.db
-            .update(agentSessionMessageTable)
-            .set({ runtimeForkState: null })
-            .where(eq(agentSessionMessageTable.id, selected.id))
-            .run()
-          const operations = new AgentSessionForkOperations()
-          const sessionsBefore = dbh.db.select().from(agentSessionTable).all().length
-          await expect(operations.fork(sourceId, selected.id, false)).rejects.toMatchObject({
-            reason: 'legacy_history'
-          })
-          expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(sessionsBefore)
-          const first = operations.fork(sourceId, selected.id, true)
-          expect(operations.fork(sourceId, selected.id, true)).toBe(first)
-          const childId = await first
-          expect(agentSessionService.getById(childId).name).toBe('Source (1)')
-          const siblingId = await operations.fork(sourceId, selected.id, true)
-          expect(agentSessionService.getById(siblingId).name).toBe('Source (2)')
-          expect(agentSessionService.getById(sourceId).name).toBe('Source')
-          expect(fork).not.toHaveBeenCalled()
-          const history = agentSessionMessageService.getForkHistory(childId)!
-          expect(history).toHaveLength(1)
-          expect(history[0].id).not.toBe(selected.id)
-          expect(JSON.stringify(history)).toContain('included amber')
-          expect(JSON.stringify(history)).not.toContain('excluded violet')
-          expect(JSON.stringify(history)).not.toContain('must-not-inherit')
-          expect(history[0]).toMatchObject({ runtimeResumeToken: null, delivery: null, stats: null })
-          expect(history[0].data.parts?.[1]).toMatchObject({
-            state: 'output-error',
-            errorText: '此分叉会话未继承原来的执行状态。'
-          })
-          const grandchildId = await operations.fork(childId, history[0].id, true)
-          expect(agentSessionService.getById(grandchildId).name).toBe('Source (3)')
-          agentSessionService.deleteTx(dbh.db, sourceId)
-          agentSessionService.deleteTx(dbh.db, childId)
-          expect(agentSessionMessageService.getForkHistory(grandchildId)?.[0].data.parts?.[0]).toEqual({
-            type: 'text',
-            text: 'included amber'
-          })
-
-          {
-            const grandchildMessage = agentSessionMessageService.getForkHistory(grandchildId)![0]
-            const checkpoint =
-              type === 'pi'
-                ? { runtime: type, runtimeSessionId: 'native', leafId: 'leaf' }
-                : type === 'claude-code'
-                  ? {
-                      runtime: type,
-                      runtimeSessionId: 'native',
-                      messageUuid: randomUUID(),
-                      configDir: directory,
-                      sourceCwd: directory,
-                      prefixBytes: 1,
-                      prefixHash: 'a'.repeat(64)
-                    }
-                  : { runtime: type, runtimeSessionId: 'native', boundary: 7, prefixHash: 'a'.repeat(64) }
-            dbh.db
-              .update(agentSessionMessageTable)
-              .set({
-                runtimeForkState: { version: 1, status: 'available', checkpoint }
-              })
-              .where(eq(agentSessionMessageTable.id, grandchildMessage.id))
-              .run()
-            for (const error of [
-              new AgentSessionForkError('history_missing'),
-              new Error('Fork worker timed out'),
-              new AgentSessionForkError('unrecognized SDK failure')
-            ]) {
-              fork.mockRejectedValue(error)
-              const fallbackId = await operations.fork(grandchildId, grandchildMessage.id, true)
-              const fallbackHistory = agentSessionMessageService.getForkHistory(fallbackId)!
-              expect(fallbackHistory).toHaveLength(1)
-              expect(fallbackHistory[0]).toMatchObject({ runtimeResumeToken: null, delivery: null, stats: null })
-              expect(fallbackHistory[0].data.parts?.[0]).toEqual({ type: 'text', text: 'included amber' })
-              expect(JSON.stringify(fallbackHistory)).not.toContain('excluded violet')
-            }
-            expect(fork).toHaveBeenCalledTimes(3)
-            expect(agentSessionMessageService.getForkHistory(grandchildId)![0].runtimeForkState).toEqual({
-              version: 1,
-              status: 'available',
-              checkpoint
-            })
-            fork.mockResolvedValue({
-              resumeToken: 'native-child',
-              checkpoints: [{ ...checkpoint, runtimeSessionId: 'native-child' }],
-              publish: []
-            })
-            const nativeId = await operations.fork(grandchildId, grandchildMessage.id, true)
-            expect(agentSessionMessageService.getForkHistory(nativeId)).toBeUndefined()
-            expect(agentSessionMessageService.getLastRuntimeResumeToken(nativeId)).toBe('native-child')
-            fork.mockRejectedValue(new Error('disk full'))
-            await expect(operations.fork(grandchildId, grandchildMessage.id)).rejects.toThrow('disk full')
-
-            const started = Promise.withResolvers<void>()
-            fork.mockImplementation(
-              ({ signal }: RuntimeForkInput) =>
-                new Promise((_resolve, reject) => {
-                  signal.addEventListener('abort', () => reject(signal.reason), { once: true })
-                  started.resolve()
-                })
-            )
-            const countBeforeCancel = dbh.db.select().from(agentSessionTable).all().length
-            const pending = operations.fork(grandchildId, grandchildMessage.id, true)
-            const assertion = expect(pending).rejects.toMatchObject({ reason: 'cancelled' })
-            await started.promise
-            await operations.cancel(grandchildId)
-            await assertion
-            expect(agentSessionMessageService.getForkHistory(grandchildId)![0].runtimeForkState).toMatchObject({
-              status: 'available',
-              checkpoint
-            })
-            expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(countBeforeCancel)
-            const queued = operations.fork(grandchildId, grandchildMessage.id, true)
-            const queuedAssertion = expect(queued).rejects.toMatchObject({ reason: 'cancelled' })
-            await operations.cancel(grandchildId)
-            await queuedAssertion
-            expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(countBeforeCancel)
-          }
-        } finally {
-          runtimeDriverRegistry.clearForTest()
-          await preferences.set('app.language', originalLanguage)
-          await rm(directory, { recursive: true, force: true })
-        }
-      }
-    )
-
-    it('rebuilds legacy DSH checkpoints without losing their excluded input IDs', async () => {
-      const directory = await mkdtemp(path.join(tmpdir(), 'cherry-fork-legacy-'))
-      const originalGetPath = application.getPath.bind(application)
-      vi.spyOn(application, 'getPath').mockImplementation((key, ...args) =>
-        key === 'feature.agents.forks' ? directory : originalGetPath(key, ...args)
-      )
-      const fork = vi.fn()
-      runtimeDriverRegistry.register({
-        type: 'dsh',
-        capabilities: ['agent-session'],
-        fork,
-        connect: vi.fn(),
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn()
-      })
-      try {
-        await seedAgent('legacy-agent', 'Legacy Agent')
-        dbh.db.update(agentTable).set({ type: 'dsh' }).where(eq(agentTable.id, 'legacy-agent')).run()
-        const sourceId = randomUUID()
-        await seedSession({ id: sourceId, agentId: 'legacy-agent', name: 'Legacy', orderKey: 'legacy-order' })
-        const excluded = agentSessionMessageService.saveMessage({
-          sessionId: sourceId,
-          message: {
-            id: randomUUID(),
-            role: 'user',
-            status: 'success',
-            data: { parts: [{ type: 'text', text: 'future input already delivered in the parent' }] }
-          }
-        })
-        const selected = agentSessionMessageService.saveMessage({
-          sessionId: sourceId,
-          message: {
-            id: randomUUID(),
-            role: 'assistant',
-            status: 'success',
-            data: { parts: [{ type: 'text', text: 'safe completed answer' }] }
-          }
-        })
-        // Previously persisted records have no prefix fingerprint.
-        dbh.db
-          .update(agentSessionMessageTable)
-          .set({
-            runtimeForkState: {
-              version: 1,
-              status: 'available',
-              checkpoint: { runtime: 'dsh', runtimeSessionId: 'native', boundary: 7 },
-              excludedMessageIds: [excluded.id]
-            }
-          })
-          .where(eq(agentSessionMessageTable.id, selected.id))
-          .run()
-        const operations = new AgentSessionForkOperations()
-        await expect(operations.fork(sourceId, selected.id)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
-        const child = await operations.fork(sourceId, selected.id, true)
-        const history = agentSessionMessageService.getForkHistory(child)!
-        expect(fork).not.toHaveBeenCalled()
-        expect(history).toHaveLength(1)
-        expect(history[0].data.parts).toEqual([{ type: 'text', text: 'safe completed answer' }])
-        const grandchild = await operations.fork(child, history[0].id, true)
-        expect(agentSessionMessageService.getForkHistory(grandchild)?.[0].data.parts).toEqual(history[0].data.parts)
-      } finally {
-        runtimeDriverRegistry.clearForTest()
-        await rm(directory, { recursive: true, force: true })
-      }
+        AgentSessionForkJournalSchema.safeParse({
+          ...parsed,
+          published: [{ ...journal.published[0], unrecognizedOwnership: true }]
+        }).success
+      ).toBe(false)
     })
 
     it('keeps native checkpoints private and invalidates a selected history after edits', () => {
@@ -978,6 +239,19 @@ describe('AgentSessionMessageService', () => {
       expect(agentSessionService.getById('fork-source').name).toBe(sourceName)
       const child = agentSessionMessageService.getSessionMessage('fork-child', FILE_ENTRY_ID)
       expect(child.runtimeResumeToken).toBe('child-token')
+      expect(child.data).toEqual(source.messages[0].data)
+      expect(child.forkAvailability).toEqual({ status: 'available' })
+      expect(
+        agentSessionMessageService.readForkPrefixTx(dbh.db, 'fork-child', FILE_ENTRY_ID)[0].runtimeForkState
+      ).toEqual(source.messages[0].runtimeForkState)
+      expect(
+        dbh.db
+          .select({ forkedFrom: agentSessionTable.forkedFrom })
+          .from(agentSessionTable)
+          .where(eq(agentSessionTable.id, 'fork-child'))
+          .get()?.forkedFrom
+      ).toEqual({ sessionId: 'fork-source', messageId: ASSISTANT_MESSAGE_ID, operationId: journal.operationId })
+      expect(agentSessionForkService.journals()).toEqual([{ ...journal, committed: true }])
       expect(child.stats).toBeNull()
       expect(child.delivery).toBeNull()
       if (sourceName === 'test(1)' && existingName === 'unrelated') {

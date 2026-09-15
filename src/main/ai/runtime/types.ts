@@ -17,7 +17,7 @@ import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/mod
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import type { RuntimeForkCheckpoint, RuntimeForkInput, RuntimeForkResult, RuntimeForkState } from './forkCheckpoint'
+import type { RuntimeForkInput, RuntimeForkResult, RuntimeForkState } from './forkCheckpoint'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
 
@@ -184,14 +184,6 @@ export type AgentRuntimeEvent =
 export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'failed'
 
 export interface AgentRuntimeConnection {
-  readForkContext?(checkpoint: RuntimeForkCheckpoint): Promise<{ identity: string; messages: unknown[] } | undefined>
-  getForkContextEnvironment?(): Promise<{
-    sdkVersion: string
-    systemPrompt: unknown
-    tools: unknown
-    contextWindow?: number
-    opaqueEnvelope: boolean
-  }>
   readonly events: AsyncIterable<AgentRuntimeEvent>
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>

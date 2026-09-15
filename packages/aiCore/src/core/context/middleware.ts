@@ -319,8 +319,7 @@ function toCompressRole(role: string): CompressRole {
  */
 export function createCompressionAdapter(
   model: LanguageModel,
-  maxOutputTokens: number = COMPRESSION_MIN_OUTPUT_TOKENS,
-  abortSignal?: AbortSignal
+  maxOutputTokens: number = COMPRESSION_MIN_OUTPUT_TOKENS
 ): (messages: ContextMessage[]) => Promise<string> {
   return async (messages: ContextMessage[]): Promise<string> => {
     const formatted = messages.map((m): { role: CompressRole; content: string } => {
@@ -348,7 +347,6 @@ export function createCompressionAdapter(
     const { text } = await generateText({
       model,
       messages: formatted,
-      abortSignal,
       maxOutputTokens
     })
 
@@ -364,7 +362,6 @@ export function createCompressionAdapter(
 
 /** Options for {@link summarizeModelMessages}. */
 export interface SummarizeMessagesOptions extends SummarizeHistoryOptions {
-  abortSignal?: AbortSignal
   /**
    * Output budget for the summarize call. Derive it from the compression
    * model's window via {@link resolveCompressionOutputTokens} — a fixed value
@@ -392,7 +389,7 @@ export async function summarizeModelMessages(
   model: LanguageModel,
   opts: SummarizeMessagesOptions = {}
 ): Promise<string> {
-  const { maxOutputTokens, abortSignal, ...summarizeOpts } = opts
+  const { maxOutputTokens, ...summarizeOpts } = opts
   const ir = fromModelMessages(messages).filter((m) => m.role !== 'system')
-  return summarizeHistory(ir, createCompressionAdapter(model, maxOutputTokens, abortSignal), summarizeOpts)
+  return summarizeHistory(ir, createCompressionAdapter(model, maxOutputTokens), summarizeOpts)
 }

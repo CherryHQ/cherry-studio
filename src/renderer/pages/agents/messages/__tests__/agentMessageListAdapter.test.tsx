@@ -63,11 +63,6 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
 }))
 const openRouteMock = vi.hoisted(() => vi.fn())
 const ipcApiRequest = vi.hoisted(() => vi.fn())
-const confirmFork = vi.hoisted(() => vi.fn())
-vi.mock('@renderer/services/popup', async (importOriginal) => {
-  const actual = await importOriginal<{ popup: object }>()
-  return { ...actual, popup: { ...actual.popup, confirm: confirmFork } }
-})
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
   on: vi.fn(() => vi.fn()),
@@ -192,7 +187,6 @@ const {
 describe('useAgentMessageListProviderValue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    confirmFork.mockReset()
     clearPendingAgentSessionImageActionsForTest()
     window.api.file.openPath = vi.fn()
     ipcApiRequest.mockReset()
@@ -207,7 +201,7 @@ describe('useAgentMessageListProviderValue', () => {
   })
 
   it.each(['success', 'workspace_changed', 'checkpoint_failed', 'cancelled'] as const)(
-    'makes one native-first fork request without a confirmation or renderer retry: %s',
+    'requires an available checkpoint and makes one native fork request: %s',
     async (scenario) => {
       let value: MessageListProviderValue | undefined
       const Probe = () => {
@@ -235,50 +229,54 @@ describe('useAgentMessageListProviderValue', () => {
         )
       render(<Probe />)
       const capability = value!.actions.forkSession!
-      const selectedMessage = { id: 'selected-message', role: 'assistant', status: 'success' } as MessageListItem
+      const selectedMessage = {
+        id: 'selected-message',
+        role: 'assistant',
+        status: 'success',
+        forkAvailability: { status: 'available' }
+      } as MessageListItem
       expect(capability.label).toBe('agent_session_fork.label')
-      expect(capability.availability(selectedMessage)).toMatchObject({ visible: true, enabled: true })
-      expect(capability.availability({ ...selectedMessage, forkAvailability: { status: 'available' } })).toMatchObject({
+      expect(capability.availability({ ...selectedMessage, forkAvailability: undefined })).toEqual({
+        visible: true,
+        enabled: false,
+        reason: 'agent_session_fork.legacy_history'
+      })
+      expect(capability.availability(selectedMessage)).toMatchObject({
         visible: true,
         enabled: true
       })
-      for (const reason of [
-        'legacy_history',
-        'checkpoint_failed',
-        'history_missing',
-        'history_corrupt',
-        'unsupported_checkpoint',
-        'history_changed'
+      for (const [reason, label] of [
+        ['legacy_history', 'agent_session_fork.legacy_history'],
+        ['checkpoint_failed', 'agent_session_fork.checkpoint_failed'],
+        ['history_missing', 'agent_session_fork.history_missing'],
+        ['history_corrupt', 'agent_session_fork.history_corrupt'],
+        ['unsupported_checkpoint', 'agent_session_fork.unsupported_checkpoint'],
+        ['history_changed', 'agent_session_fork.history_changed'],
+        ['not_turn_boundary', 'agent_session_fork.not_turn_boundary']
       ] as const) {
         expect(
           capability.availability({ ...selectedMessage, forkAvailability: { status: 'unavailable', reason } })
-        ).toMatchObject({
+        ).toEqual({
           visible: true,
-          enabled: true
+          enabled: false,
+          reason: label
         })
       }
-      expect(
-        capability.availability({
-          ...selectedMessage,
-          forkAvailability: { status: 'unavailable', reason: 'not_turn_boundary' }
-        })
-      ).toEqual({
+      expect(capability.availability({ ...selectedMessage, status: 'pending' })).toEqual({
         visible: true,
         enabled: false,
         reason: 'agent_session_fork.not_turn_boundary'
       })
-      expect(capability.availability({ ...selectedMessage, status: 'pending' })).toMatchObject({ enabled: false })
       expect(capability.availability({ ...selectedMessage, role: 'user' })).toBe(false)
+      expect(ipcApiRequest).not.toHaveBeenCalled()
       const action = value!.actions.forkSession!.run('selected-message')
       if (scenario === 'cancelled') await expect(action).rejects.toThrow('message.tools.cancelled')
       else if (scenario !== 'success') await expect(action).rejects.toThrow()
       else await action
       expect(ipcApiRequest).toHaveBeenNthCalledWith(1, 'ai.agent.session.fork', {
         sourceSessionId: 'source',
-        messageId: 'selected-message',
-        allowHistoryRebuild: true
+        messageId: 'selected-message'
       })
-      expect(confirmFork).not.toHaveBeenCalled()
       expect(ipcApiRequest).toHaveBeenCalledTimes(1)
       if (scenario === 'success') expect(openRouteMock).toHaveBeenCalledWith('/app/agents', { sessionId: 'child' })
       else expect(openRouteMock).not.toHaveBeenCalled()

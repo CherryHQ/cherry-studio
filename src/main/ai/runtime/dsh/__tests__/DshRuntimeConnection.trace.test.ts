@@ -34,10 +34,8 @@ vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan } as never)
 const runtimeMocks = vi.hoisted(() => ({
   snapshot: undefined as any,
   isFork: vi.fn(),
-  needsPreparation: vi.fn(),
   bridgeRequest: vi.fn().mockResolvedValue(undefined),
   clientClose: vi.fn().mockResolvedValue(undefined),
-  runtimeExited: vi.fn(),
   resolveInjection: vi.fn(),
   usesDshGateway: vi.fn(),
   harnessOptions: undefined as Record<string, any> | undefined,
@@ -114,9 +112,6 @@ vi.mock('../dshConnectionSignature', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { isFork: runtimeMocks.isFork }
 }))
-vi.mock('@data/services/AgentSessionForkContextService', () => ({
-  agentSessionForkContextService: { needsPreparation: runtimeMocks.needsPreparation }
-}))
 vi.mock('../modelInjection', () => ({
   resolveDshProviderInjectionFromSnapshot: runtimeMocks.resolveInjection,
   usesDshGateway: runtimeMocks.usesDshGateway
@@ -133,7 +128,6 @@ vi.mock('../DshBridgeServer', () => ({
       listen: vi.fn().mockResolvedValue(undefined),
       whenReady: vi.fn().mockResolvedValue(undefined),
       request: runtimeMocks.bridgeRequest,
-      runtimeExited: runtimeMocks.runtimeExited,
       close: vi.fn().mockResolvedValue(undefined)
     }
   })
@@ -203,7 +197,6 @@ const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 beforeEach(() => {
   runtimeMocks.snapshot = baseSnapshot()
   runtimeMocks.isFork.mockReset().mockReturnValue(false)
-  runtimeMocks.needsPreparation.mockReset().mockReturnValue(false)
   runtimeMocks.harnessOptions = undefined
   runtimeMocks.getShellEnv.mockReset().mockResolvedValue({
     PATH: ['/opt/homebrew/bin', '/usr/bin'].join(path.delimiter),
@@ -212,7 +205,6 @@ beforeEach(() => {
   })
   runtimeMocks.bridgeRequest.mockReset().mockResolvedValue(undefined)
   runtimeMocks.clientClose.mockReset().mockResolvedValue(undefined)
-  runtimeMocks.runtimeExited.mockReset()
   runtimeMocks.resolveInjection.mockReset().mockReturnValue(baseInjection())
   runtimeMocks.usesDshGateway.mockReset().mockReturnValue(false)
   vi.mocked(DshBridgeServer).mockClear()
@@ -295,7 +287,7 @@ describe('DshRuntimeConnection tracing', () => {
     ['session/fork-snapshot timed out after 60000ms', 'checkpoint_failed'],
     ['history_changed', 'history_changed'],
     ['history_corrupt', 'history_corrupt']
-  ])('classifies a live snapshot failure for history reconstruction: %s', async (message, reason) => {
+  ])('classifies a live snapshot failure without falling back to stored history: %s', async (message, reason) => {
     const driver = new DshRuntimeDriver()
     const connection = await driver.connect(connectInput)
     const checkpoint = {
@@ -350,59 +342,37 @@ describe('DshRuntimeConnection tracing', () => {
     }
   })
 
-  it.each([false, true])('uses durable preparation state for fork resume strictness (unsent=%s)', async (unsent) => {
+  it('requires existing native history when resuming a fork', async () => {
     runtimeMocks.isFork.mockReturnValue(true)
-    runtimeMocks.needsPreparation.mockReturnValue(unsent)
     const connection = await new DshRuntimeConnection({ ...connectInput, resumeToken: 'session-1' }).start()
     try {
       expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
         'session/open',
-        expect.objectContaining({ resume: true, requireExistingHistory: !unsent })
+        expect.objectContaining({ resume: true, requireExistingHistory: true })
       )
     } finally {
       await connection.close()
     }
   })
 
-  it('rejects a native fork without a token before creating a runtime', async () => {
+  it('rejects any fork without a token, including a legacy rebuild, before creating a runtime', async () => {
     runtimeMocks.isFork.mockReturnValue(true)
     await expect(new DshRuntimeConnection(connectInput).start()).rejects.toThrow('history_missing')
     expect(runtimeMocks.harnessOptions).toBeUndefined()
   })
-  it('closes the SDK after a bridge-only disconnect, retaining leases until process exit', async () => {
-    const stopped = Promise.withResolvers<void>()
-    runtimeMocks.clientClose.mockReturnValue(stopped.promise)
-    await new DshRuntimeConnection(connectInput).start()
+  it('reports a bridge disconnect and closes the runtime event stream', async () => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const events: AgentRuntimeEvent[] = []
+    const consume = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
     vi.mocked(DshBridgeServer).mock.calls[0][0].onDisconnect!()
-    await vi.waitFor(() => expect(runtimeMocks.clientClose).toHaveBeenCalled())
-    expect(runtimeMocks.runtimeExited).not.toHaveBeenCalled()
-    stopped.resolve()
-    await vi.waitFor(() => expect(runtimeMocks.runtimeExited).toHaveBeenCalledOnce())
-  })
-  it('releases file-write ownership only after SDK process shutdown is confirmed', async () => {
-    const stopped = Promise.withResolvers<void>()
-    const closing = Promise.withResolvers<void>()
-    runtimeMocks.clientClose.mockImplementation(() => {
-      closing.resolve()
-      return stopped.promise
-    })
-    const connection = await new DshRuntimeConnection(connectInput).start()
-    const pending = connection.close()
-    await closing.promise
-    try {
-      expect(runtimeMocks.runtimeExited).not.toHaveBeenCalled()
-    } finally {
-      stopped.resolve()
-      await pending
-    }
-    expect(runtimeMocks.runtimeExited).toHaveBeenCalledTimes(1)
-  })
-
-  it('retains file-write ownership when SDK process shutdown cannot be confirmed', async () => {
-    runtimeMocks.clientClose.mockRejectedValue(new Error('process is still alive'))
-    const connection = await new DshRuntimeConnection(connectInput).start()
     await connection.close()
-    expect(runtimeMocks.runtimeExited).not.toHaveBeenCalled()
+    await consume
+    expect(events).toContainEqual({
+      type: 'error',
+      error: new Error('dsh bridge disconnected; runtime execution is stopping')
+    })
   })
 
   it('establishes the gateway baseline after starting the gateway', async () => {

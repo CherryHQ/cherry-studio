@@ -7,16 +7,9 @@ import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessag
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import type { DbOrTx } from '@data/db/types'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import { AgentSessionForkSourceError } from './agentSessionFork'
-import { agentSessionForkContextService } from './AgentSessionForkContextService'
-import {
-  AgentSessionForkJournalSchema,
-  FORK_JOURNAL_PREFIX,
-  hasActiveAgentSessionForkCleanupTx,
-  type AgentSessionForkJournal
-} from './agentSessionForkJournal'
+import { FORK_JOURNAL_PREFIX, type AgentSessionForkJournal } from './agentSessionForkJournal'
 import { agentSessionMessageService } from './AgentSessionMessageService'
 import { agentSessionService } from './AgentSessionService'
 
@@ -70,46 +63,6 @@ export class AgentSessionForkService {
       .run()
   }
 
-  /** Serialize cleanup admission with workspace registration in SQLite, not an async check-then-delete. */
-  beginCleanup(journal: AgentSessionForkJournal): void {
-    application.get('DbService').withWriteTx((tx) => {
-      if (hasActiveAgentSessionForkCleanupTx(tx))
-        throw DataApiErrorFactory.resourceLocked('Workspace', journal.operationId, 'fork cleanup; retry')
-      if (journal.version === 1) journal.workspaceDisposition = 'retained'
-      journal.version = 2
-      journal.cleanupState = 'active'
-      this.writeJournal(journal, tx)
-    })
-  }
-
-  finishCleanup(journal: AgentSessionForkJournal): void {
-    delete journal.cleanupState
-    if (journal.cleanupComplete && journal.workspaceDisposition !== 'retained') this.removeJournal(journal.operationId)
-    else this.writeJournal(journal)
-  }
-
-  /** Startup only, before admitting new forks. A stale claim is not proof of ownership. */
-  resetCleanupClaims(): void {
-    application.get('DbService').withWriteTx((tx) => {
-      const rows = tx
-        .select()
-        .from(appStateTable)
-        .where(like(appStateTable.key, FORK_JOURNAL_PREFIX + '%'))
-        .all()
-      for (const row of rows) {
-        if (!row.value || typeof row.value !== 'object' || !('cleanupState' in row.value)) continue
-        const value = { ...row.value }
-        delete value.cleanupState
-        const parsed = AgentSessionForkJournalSchema.safeParse(value)
-        if (parsed.success && parsed.data.version === 1) parsed.data.workspaceDisposition = 'retained'
-        tx.update(appStateTable)
-          .set({ value: parsed.success ? parsed.data : value })
-          .where(eq(appStateTable.key, row.key))
-          .run()
-      }
-    })
-  }
-
   hasCommittedChild(journal: AgentSessionForkJournal): boolean {
     const row = application
       .get('DbService')
@@ -126,7 +79,6 @@ export class AgentSessionForkService {
     source: ReturnType<AgentSessionForkService['read']>
     excludedIds: readonly string[]
     messages: AgentSessionMessageRow[]
-    rebuildHistory?: boolean
   }): void {
     const { journal, source } = input
     application.get('DbService').withWriteTx((tx) => {
@@ -176,18 +128,9 @@ export class AgentSessionForkService {
       agentSessionService.setForkSourceTx(tx, journal.targetSessionId, {
         sessionId: journal.sourceSessionId,
         messageId: journal.messageId,
-        operationId: journal.operationId,
-        ...(input.rebuildHistory ? { historyMessageId: input.messages.at(-1)!.id } : {})
+        operationId: journal.operationId
       })
       agentSessionMessageService.insertForkMessagesTx(tx, journal.targetSessionId, input.messages)
-      if (input.rebuildHistory)
-        agentSessionForkContextService.createTx(
-          tx,
-          journal.targetSessionId,
-          input.messages,
-          journal.sourceSessionId,
-          source.messages
-        )
       this.writeJournal({ ...journal, committed: true }, tx)
     })
     agentSessionService.notifyReadModelChange([journal.targetSessionId], 'membership')

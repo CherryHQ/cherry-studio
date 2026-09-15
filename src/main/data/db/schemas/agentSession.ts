@@ -28,7 +28,6 @@ export const agentSessionTable = sqliteTable(
       sessionId: string
       messageId: string
       operationId: string
-      historyMessageId?: string
     }>(),
     ...orderKeyColumns,
     // Dedicated conversation activity time. Name, owner, workspace and order

@@ -181,8 +181,7 @@ export function useAgentMessageListProviderValue({
       try {
         const result = await ipcApi.request('ai.agent.session.fork', {
           sourceSessionId: sessionId,
-          messageId,
-          allowHistoryRebuild: true
+          messageId
         })
         openRoute('/app/agents', { sessionId: result.sessionId })
       } catch (error) {

@@ -18,7 +18,7 @@ import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-app
 import type { AskUserQuestionAnswer, AskUserQuestionRequest } from '@deepseek-ai/dsh-user-questions'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createForkCheckpoint, forkSession, readForkContext } from '../src/fork'
+import { createForkCheckpoint, forkSession } from '../src/fork'
 import { apply } from '../src/plugin'
 import { BRIDGE_SOCKET_ENV, BRIDGE_TOKEN_ENV, type BridgePermissionMode } from '../src/protocol'
 
@@ -72,7 +72,6 @@ async function startHost(
   return {
     socketPath,
     requests,
-    disconnect: () => peer?.destroy(),
     request: (method: string, params: object) => {
       if (!transport) throw new Error('plugin has not connected')
       return transport.request(method, params)
@@ -166,7 +165,7 @@ describe('cherry bridge plugin', () => {
     expect(resumeSession).toHaveBeenCalledTimes(resume ? 1 : 0)
   })
 
-  it('can recreate missing storage for an unsent rebuild without required native history', async () => {
+  it('can recreate missing storage for a non-fork session without required native history', async () => {
     const host = await startHost()
     const create = vi.fn().mockResolvedValue(undefined)
     const ctx = makeContext({
@@ -281,7 +280,6 @@ describe('cherry bridge plugin', () => {
         events: live ? events : undefined
       }
       await expect(forkSession(input)).rejects.toThrow('history_changed')
-      expect(() => readForkContext({ events, ...checkpoint })).toThrow('history_changed')
       const current = createForkCheckpoint(events, end.seq)
       await expect(forkSession({ ...input, ...current })).rejects.toThrow('history_changed')
       const reader = new Context()
@@ -298,270 +296,7 @@ describe('cherry bridge plugin', () => {
       await Promise.all([source.fiber.dispose(), replacement.fiber.dispose()])
     }
   })
-  it.each(['write', 'edit'])(
-    'protects shared %s targets through publication and rejects stale retries',
-    async (toolName) => {
-      const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-shared-write-'))
-      cleanup.push(() => rm(directory, { recursive: true, force: true }))
-      await writeFile(path.join(directory, 'shared.txt'), 'original')
-      const contexts: Context[] = []
-      const leases = new Map<string, string>()
-      const makePeer = async (id: string) => {
-        const context = new Context()
-        contexts.push(context)
-        await context.plugin(SystemPrompt)
-        await context.plugin(ToolRuntime)
-        await context.plugin(LocalFileSystem, { cwd: directory })
-        await context.plugin(fileTools)
-        const agent = {
-          id: SessionId(id),
-          session: Session.create(
-            SessionId(id),
-            [],
-            {
-              id: SessionId(id),
-              version: 0,
-              createdAt: Date.now(),
-              cwd: directory,
-              isSeeded: id !== 'source',
-              ...(id === 'source' ? {} : { parentSession: SessionId('source') })
-            },
-            SessionLogOffset(0)
-          )
-        } as Agent
-        let beforeAcquire: (() => Promise<void>) | undefined
-        const host = await startHost(async (method, params) => {
-          if (method === 'ready') return {}
-          if (params.sessionId !== id) throw new Error('wrong file write owner')
-          if (method === 'guard/check') return { kind: 'allow' }
-          if (method === 'file-write/acquire') {
-            const wait = beforeAcquire
-            beforeAcquire = undefined
-            await wait?.()
-            if (leases.has(params.path as string)) throw new Error('FILE_WRITE_BUSY')
-            leases.set(params.path as string, params.leaseId as string)
-            return { acquired: true }
-          }
-          if (method === 'file-write/release') {
-            for (const [target, lease] of leases) if (lease === params.leaseId) leases.delete(target)
-            return {}
-          }
-          throw new Error(`unexpected ${method}`)
-        })
-        process.env[BRIDGE_SOCKET_ENV] = host.socketPath
-        process.env[BRIDGE_TOKEN_ENV] = 'token'
-        apply(
-          makeContext({
-            agents: { resume: async () => ({ agent }), get: (key: string) => (key === id ? agent : undefined) },
-            tools: context.tools,
-            on: context.on.bind(context),
-            effect: context.effect.bind(context),
-            get: context.get.bind(context)
-          })
-        )
-        await expect.poll(() => host.requests[0]?.method).toBe('ready')
-        await host.request('session/open', {
-          ...openParams,
-          sessionId: id,
-          cwd: directory,
-          policy: {
-            ...openParams.policy,
-            permissionMode: 'acceptEdits',
-            allowedRoots: [directory],
-            readTools: ['read'],
-            editTools: ['write', 'edit']
-          }
-        })
-        return {
-          context,
-          delayNextAcquire: (wait: () => Promise<void>) => {
-            beforeAcquire = wait
-          },
-          execute: (name: string, args: object, signal = AbortSignal.timeout(5000)) =>
-            context.tools.execute({
-              name,
-              arguments: args,
-              agent,
-              signal,
-              callId: ToolCallId(randomUUID())
-            })
-        }
-      }
-      let unblock!: () => void
-      let pending: Promise<unknown> | undefined
-      try {
-        const parent = await makePeer('source')
-        const child = await makePeer('child')
-        const input = { file_path: 'shared.txt' }
-        const mutation = (text: string) =>
-          toolName === 'write' ? { ...input, content: text } : { ...input, old_string: 'original', new_string: text }
-        expect((await child.execute(toolName, mutation('unobserved overwrite'))).isError).toBe(true)
-        expect(await readFile(path.join(directory, 'shared.txt'), 'utf8')).toBe('original')
-        expect(leases.size).toBe(0)
-        expect((await parent.execute('read', input)).isError).toBe(false)
-        expect((await child.execute('read', input)).isError).toBe(false)
-        const staged = Promise.withResolvers<void>()
-        const held = Promise.withResolvers<void>()
-        unblock = held.resolve
-        ;(parent.context.fs as LocalFileSystem).internals.inspectTemp = async () => {
-          staged.resolve()
-          await held.promise
-        }
-        pending = parent.execute(toolName, mutation('parent result'))
-        await staged.promise
-        const busy = await child.execute(toolName, mutation('child stale result'))
-        expect(busy.isError).toBe(true)
-        expect(JSON.stringify(busy.content)).toContain('FILE_WRITE_BUSY')
-        expect((await child.execute('read', input)).isError).toBe(false)
-        expect((await child.execute('write', { file_path: 'independent.txt', content: 'independent' })).isError).toBe(
-          false
-        )
-        expect(await readFile(path.join(directory, 'independent.txt'), 'utf8')).toBe('independent')
-        unblock()
-        expect(await pending).toMatchObject({ isError: false })
-        expect(leases.size).toBe(0)
-        const stale = await child.execute(toolName, mutation('must not overwrite'))
-        expect(stale.isError).toBe(true)
-        expect(JSON.stringify(stale)).toContain('FS_STALE_VERSION')
-        expect(await readFile(path.join(directory, 'shared.txt'), 'utf8')).toBe('parent result')
-        expect(leases.size).toBe(0)
-        expect((await child.execute('read', input)).isError).toBe(false)
-        const fresh =
-          toolName === 'write'
-            ? { ...input, content: 'child merged' }
-            : { ...input, old_string: 'parent result', new_string: 'child merged' }
-        expect((await child.execute(toolName, fresh)).isError).toBe(false)
-        expect(await readFile(path.join(directory, 'shared.txt'), 'utf8')).toBe('child merged')
-        expect(leases.size).toBe(0)
-        expect((await parent.execute('read', input)).isError).toBe(false)
-        const acquireEntered = Promise.withResolvers<void>()
-        const acquireHeld = Promise.withResolvers<void>()
-        unblock = acquireHeld.resolve
-        child.delayNextAcquire(async () => {
-          acquireEntered.resolve()
-          await acquireHeld.promise
-        })
-        pending = child.execute('write', { ...input, content: 'obsolete pending write' })
-        await acquireEntered.promise
-        expect((await parent.execute('write', { ...input, content: 'newer parent result' })).isError).toBe(false)
-        expect((await child.execute('read', input)).isError).toBe(false)
-        unblock()
-        const concurrentRead = await pending
-        expect(concurrentRead).toMatchObject({ isError: true })
-        expect(JSON.stringify(concurrentRead)).toContain('FS_STALE_VERSION')
-        expect(await readFile(path.join(directory, 'shared.txt'), 'utf8')).toBe('newer parent result')
-        expect(leases.size).toBe(0)
-        const cancellation = new AbortController()
-        const cancelledStaging = Promise.withResolvers<void>()
-        const cancelledHold = Promise.withResolvers<void>()
-        unblock = cancelledHold.resolve
-        ;(parent.context.fs as LocalFileSystem).internals.inspectTemp = async () => {
-          cancelledStaging.resolve()
-          await cancelledHold.promise
-        }
-        const cancelledInput = { file_path: 'cancelled.txt', content: 'cancelled write' }
-        pending = parent.execute('write', cancelledInput, cancellation.signal)
-        await cancelledStaging.promise
-        cancellation.abort()
-        const duringAbort = await child.execute('write', cancelledInput)
-        expect(duringAbort.isError).toBe(true)
-        expect(JSON.stringify(duringAbort.content)).toContain('FILE_WRITE_BUSY')
-        unblock()
-        expect(await pending).toMatchObject({ isError: true })
-        expect(leases.size).toBe(0)
-        expect((await child.execute('write', { ...cancelledInput, content: 'after cancellation' })).isError).toBe(false)
-        expect(await readFile(path.join(directory, 'cancelled.txt'), 'utf8')).toBe('after cancellation')
-        // Exercise the actual SDK result serialization: cause/errno alone never reaches the model.
-        const fs = parent.context.fs as LocalFileSystem
-        fs.internals.inspectTemp = undefined
-        for (const [code, reason] of [
-          ['ENOTSUP', 'FILE_ATOMIC_CREATE_UNSUPPORTED'],
-          ['EPERM', 'FILE_PERMISSION_DENIED'],
-          ['ENOSPC', 'FILE_DISK_ERROR']
-        ]) {
-          fs.internals.linkFile = async () => {
-            throw Object.assign(new Error('injected publication failure'), { code })
-          }
-          const target = `rejected-${code}.txt`
-          const result = await parent.execute('write', { file_path: target, content: 'must not be published' })
-          expect(result.isError).toBe(true)
-          expect(JSON.stringify(result.content)).toContain(reason)
-          await expect(readFile(path.join(directory, target))).rejects.toThrow()
-          expect(leases.size).toBe(0)
-        }
-        fs.internals.linkFile = undefined
-      } finally {
-        unblock?.()
-        await pending
-        await Promise.all(contexts.map((context) => context.fiber.dispose()))
-      }
-    }
-  )
-
-  it('rejects a write denied by the host without changing the file', async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-write-guard-'))
-    cleanup.push(() => rm(directory, { recursive: true, force: true }))
-    const context = new Context()
-    try {
-      await context.plugin(SystemPrompt)
-      await context.plugin(ToolRuntime)
-      await context.plugin(LocalFileSystem, { cwd: directory })
-      await context.plugin(fileTools)
-      const agent = {
-        id: SessionId('session-1'),
-        session: Session.create(
-          SessionId('session-1'),
-          [],
-          {
-            id: SessionId('session-1'),
-            version: 0,
-            createdAt: Date.now(),
-            cwd: directory,
-            isSeeded: false
-          },
-          SessionLogOffset(0)
-        )
-      } as Agent
-      const host = await startHost((method) => {
-        if (method === 'ready') return {}
-        if (method === 'guard/check') return { kind: 'allow' }
-        if (method === 'file-write/acquire')
-          throw new Error('FILE_WRITE_BUSY: another conversation is writing this file')
-        return {}
-      })
-      process.env[BRIDGE_SOCKET_ENV] = host.socketPath
-      process.env[BRIDGE_TOKEN_ENV] = 'token'
-      apply(
-        makeContext({
-          agents: { resume: async () => ({ agent }), get: () => agent },
-          tools: context.tools,
-          on: context.on.bind(context),
-          effect: context.effect.bind(context),
-          get: context.get.bind(context)
-        })
-      )
-      await expect.poll(() => host.requests[0]?.method).toBe('ready')
-      await host.request('session/open', {
-        ...openParams,
-        cwd: directory,
-        policy: { ...openParams.policy, permissionMode: 'acceptEdits', allowedRoots: [directory], editTools: ['write'] }
-      })
-      const result = await context.tools.execute({
-        callId: ToolCallId('denied-write'),
-        name: 'write',
-        arguments: { file_path: 'new.txt', content: 'must not be written' },
-        agent,
-        signal: AbortSignal.timeout(3000)
-      })
-      expect(result.isError).toBe(true)
-      expect(JSON.stringify(result.content)).toContain('FILE_WRITE_BUSY')
-      await expect(readFile(path.join(directory, 'new.txt'))).rejects.toMatchObject({ code: 'ENOENT' })
-    } finally {
-      await context.fiber.dispose()
-    }
-  })
-
-  it.each([false, true])('executes fork I/O while the source writes (disconnect=%s)', async (disconnectOnRelease) => {
+  it('executes fork I/O while the source writes', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-fork-io-'))
     cleanup.push(() => rm(directory, { recursive: true, force: true }))
     const sourceCwd = path.join(directory, 'source')
@@ -606,11 +341,6 @@ describe('cherry bridge plugin', () => {
         if (method === 'ready') return {}
         if (params.sessionId !== child.id) throw new Error('wrong session')
         if (method === 'guard/check') return { kind: 'allow' }
-        if (method === 'file-write/acquire') return { acquired: true }
-        if (method === 'file-write/release') {
-          if (disconnectOnRelease) host.disconnect()
-          return {}
-        }
         throw new Error(`unexpected request ${method}`)
       })
       process.env[BRIDGE_SOCKET_ENV] = host.socketPath
@@ -668,17 +398,6 @@ describe('cherry bridge plugin', () => {
       })
       expect(write.isError, JSON.stringify(write.content)).toBe(false)
       expect(await readFile(path.join(childCwd, 'test2.txt'), 'utf8')).toBe('child created')
-      if (disconnectOnRelease) {
-        const blocked = await childContext.tools.execute({
-          callId: ToolCallId('write-after-disconnect'),
-          name: 'write',
-          arguments: { file_path: 'blocked.txt', content: 'must not be written' },
-          agent: child,
-          signal
-        })
-        expect(blocked.isError).toBe(true)
-        await expect(readFile(path.join(childCwd, 'blocked.txt'))).rejects.toMatchObject({ code: 'ENOENT' })
-      }
       expect(writeFinished).toBe(false)
       releaseWrite()
       await pendingWrite

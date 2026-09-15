@@ -1,9 +1,15 @@
+import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
+import type * as FsPromises from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
-import { createForkContextSnapshot, forkContextSegment } from '@data/services/agentSessionForkContextContent'
+import type { AgentSessionForkJournal } from '@data/services/agentSessionForkJournal'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
@@ -15,9 +21,7 @@ const mocks = vi.hoisted(() => ({
   hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
-  getForkHistory: vi.fn(),
-  prepareForkContext: vi.fn(),
-  needsPreparation: vi.fn(() => true),
+  isFork: vi.fn(() => false),
   findCrashOrphanedAssistantMessages: vi.fn(),
   resolveCrashOrphanedMessages: vi.fn(),
   updateSessionDeliveryStatus: vi.fn(),
@@ -45,32 +49,33 @@ const mocks = vi.hoisted(() => ({
   trackTokenUsage: vi.fn()
 }))
 
-vi.mock('@data/services/AgentSessionForkService', () => ({
-  agentSessionForkService: { journals: vi.fn(() => []), resetCleanupClaims: vi.fn() }
+const forkRecoveryMocks = vi.hoisted(() => ({
+  getPath: vi.fn<(key: string) => string>(),
+  journals: vi.fn<() => AgentSessionForkJournal[]>(() => []),
+  hasCommittedChild: vi.fn(() => false),
+  writeJournal: vi.fn<(journal: AgentSessionForkJournal) => void>(),
+  removeJournal: vi.fn<(operationId: string) => void>(),
+  read: vi.fn()
 }))
 
-vi.mock('../prepareForkContext', () => ({
-  ForkContextPreparer: class {
-    prepare = mocks.prepareForkContext
-  }
-}))
-vi.mock('../forkContextEnvironment', () => ({
-  resolveForkContextInput: async (input: object) => ({ ...input, compatibility: {}, budget: 2000 })
-}))
-vi.mock('@data/services/AgentSessionForkContextService', () => ({
-  ForkContextFailure: class extends Error {},
-  agentSessionForkContextService: {
-    needsPreparation: mocks.needsPreparation,
-    captureNativePrefix: vi.fn(),
-    beginSend: vi.fn(),
-    confirmSend: vi.fn(),
-    fail: vi.fn()
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsPromises>()
+  return { ...actual, rm: vi.fn(actual.rm) }
+})
+
+vi.mock('@data/services/AgentSessionForkService', () => ({
+  agentSessionForkService: {
+    journals: forkRecoveryMocks.journals,
+    hasCommittedChild: forkRecoveryMocks.hasCommittedChild,
+    writeJournal: forkRecoveryMocks.writeJournal,
+    removeJournal: forkRecoveryMocks.removeJournal,
+    read: forkRecoveryMocks.read
   }
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
-    isFork: vi.fn(() => false),
+    isFork: mocks.isFork,
     getById: mocks.getSessionById,
     ensureTraceId: mocks.ensureTraceId
   }
@@ -88,7 +93,6 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
-    getForkHistory: mocks.getForkHistory,
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages,
     updateSessionDeliveryStatus: mocks.updateSessionDeliveryStatus,
@@ -111,9 +115,11 @@ vi.mock('@main/services/TopicNamingService', () => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet }
+  application: { get: mocks.applicationGet, getPath: forkRecoveryMocks.getPath }
 }))
 
+const realFs = await vi.importActual<typeof FsPromises>('node:fs/promises')
+const { AgentSessionForkOperations } = await import('../AgentSessionForkOperations')
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
 const { toolApprovalRegistry } = await import('../../toolApproval/ToolApprovalRegistry')
@@ -262,6 +268,205 @@ function createDeferred<T>() {
   return { promise, resolve, reject }
 }
 
+describe('AgentSessionForkOperations recovery', () => {
+  const journals = new Map<string, AgentSessionForkJournal>()
+  let temporaryDirectory: string | undefined
+  let forkRoot: string
+  let workspaceRoot: string
+  let registeredPaths: string[]
+  let workspaceList: MockInstance<typeof agentWorkspaceService.list> | undefined
+
+  function resetRecoveryMocks(): void {
+    forkRecoveryMocks.getPath.mockReset()
+    forkRecoveryMocks.journals.mockReset().mockReturnValue([])
+    forkRecoveryMocks.hasCommittedChild.mockReset().mockReturnValue(false)
+    forkRecoveryMocks.writeJournal.mockReset()
+    forkRecoveryMocks.removeJournal.mockReset()
+    forkRecoveryMocks.read.mockReset()
+    vi.mocked(rm).mockReset().mockImplementation(realFs.rm)
+  }
+
+  beforeEach(async () => {
+    resetRecoveryMocks()
+    journals.clear()
+    registeredPaths = []
+    temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'agent-session-fork-recover-'))
+    forkRoot = path.join(temporaryDirectory, 'forks')
+    workspaceRoot = path.join(temporaryDirectory, 'system')
+    forkRecoveryMocks.getPath.mockImplementation((key) => {
+      if (key === 'feature.agents.forks') return forkRoot
+      if (key === 'feature.agents.system_workspaces') return workspaceRoot
+      throw new Error(`Unexpected recovery path: ${key}`)
+    })
+    forkRecoveryMocks.journals.mockImplementation(() => [...journals.values()].map((value) => structuredClone(value)))
+    forkRecoveryMocks.writeJournal.mockImplementation((journal) => {
+      journals.set(journal.operationId, structuredClone(journal))
+    })
+    forkRecoveryMocks.removeJournal.mockImplementation((operationId) => {
+      journals.delete(operationId)
+    })
+    workspaceList = vi.spyOn(agentWorkspaceService, 'list').mockImplementation(() =>
+      registeredPaths.map((workspace) => ({
+        id: workspace,
+        name: 'Registered workspace',
+        path: workspace,
+        type: 'user' as const,
+        orderKey: 'a0',
+        createdAt: '2026-09-15T00:00:00.000Z',
+        updatedAt: '2026-09-15T00:00:00.000Z'
+      }))
+    )
+  })
+
+  afterEach(async () => {
+    workspaceList?.mockRestore()
+    workspaceList = undefined
+    resetRecoveryMocks()
+    journals.clear()
+    const ownedDirectory = temporaryDirectory
+    temporaryDirectory = undefined
+    if (ownedDirectory) await realFs.rm(ownedDirectory, { recursive: true, force: true })
+  })
+
+  async function createOwnedFork() {
+    const operationId = randomUUID()
+    const targetSessionId = randomUUID()
+    const createdAt = Date.UTC(2026, 8, 15)
+    const artifactDirectory = path.join(forkRoot, operationId)
+    const workspace = agentWorkspaceService.buildSystemWorkspacePath(workspaceRoot, targetSessionId, createdAt)
+    await mkdir(artifactDirectory, { recursive: true })
+    await mkdir(workspace, { recursive: true })
+    await writeFile(path.join(artifactDirectory, 'native.jsonl'), 'native fork artifact')
+    await writeFile(path.join(workspace, 'owned.txt'), 'copied workspace content')
+    const artifactInfo = await lstat(artifactDirectory, { bigint: true })
+    const workspaceInfo = await lstat(workspace, { bigint: true })
+    const journal: AgentSessionForkJournal = {
+      version: 2,
+      operationId,
+      sourceSessionId: randomUUID(),
+      messageId: randomUUID(),
+      targetSessionId,
+      createdAt,
+      artifactDirectory,
+      artifactIdentity: `${artifactInfo.dev}:${artifactInfo.ino}`,
+      workspace,
+      workspaceIdentity: `${workspaceInfo.dev}:${workspaceInfo.ino}`,
+      published: [],
+      committed: true
+    }
+    journals.set(operationId, structuredClone(journal))
+    return { journal, workspace, artifactDirectory }
+  }
+
+  async function detachedContent(artifactDirectory: string): Promise<string> {
+    const files = await readdir(artifactDirectory, { recursive: true })
+    const copiedFile = files.find((file) => path.basename(file) === 'owned.txt')
+    if (!copiedFile) throw new Error('Copied workspace was not detached into its owned artifact directory')
+    return readFile(path.join(artifactDirectory, copiedFile), 'utf8')
+  }
+
+  it('permanently retains an overlapping registered child even after it is unregistered', async () => {
+    const { journal, workspace, artifactDirectory } = await createOwnedFork()
+    const child = path.join(workspace, 'registered-child')
+    await mkdir(child)
+    await writeFile(path.join(child, 'user.txt'), 'adopted workspace content')
+    registeredPaths = [child]
+    vi.mocked(rm).mockRejectedValueOnce(Object.assign(new Error('cleanup interrupted'), { code: 'EBUSY' }))
+
+    await new AgentSessionForkOperations().recover()
+    expect(journals.get(journal.operationId)).toMatchObject({ workspaceDisposition: 'retained' })
+    expect(journals.get(journal.operationId)?.cleanupComplete).not.toBe(true)
+    expect(await readFile(path.join(child, 'user.txt'), 'utf8')).toBe('adopted workspace content')
+
+    registeredPaths = []
+    await new AgentSessionForkOperations().recover()
+    await new AgentSessionForkOperations().recover()
+
+    expect(journals.get(journal.operationId)).toMatchObject({
+      workspaceDisposition: 'retained',
+      cleanupComplete: true
+    })
+    await expect(lstat(artifactDirectory)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await readFile(path.join(child, 'user.txt'), 'utf8')).toBe('adopted workspace content')
+    expect(await readFile(path.join(workspace, 'owned.txt'), 'utf8')).toBe('copied workspace content')
+  })
+
+  it('preserves a recreated and registered original path while detached files are being deleted', async () => {
+    const { journal, workspace, artifactDirectory } = await createOwnedFork()
+    const deleting = createDeferred<void>()
+    const releaseDeletion = createDeferred<void>()
+    vi.mocked(rm).mockImplementation(async (target, options) => {
+      if (target === artifactDirectory) {
+        deleting.resolve()
+        await releaseDeletion.promise
+      }
+      return realFs.rm(target, options)
+    })
+
+    const recovery = new AgentSessionForkOperations().recover()
+    try {
+      await Promise.race([
+        deleting.promise,
+        recovery.then(() => {
+          throw new Error('Recovery finished before deleting the detached workspace')
+        })
+      ])
+      await expect(lstat(workspace)).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(await detachedContent(artifactDirectory)).toBe('copied workspace content')
+      await mkdir(workspace)
+      await writeFile(path.join(workspace, 'new.txt'), 'new owner content')
+      registeredPaths = [workspace]
+    } finally {
+      releaseDeletion.resolve()
+      await recovery
+    }
+
+    expect(await readFile(path.join(workspace, 'new.txt'), 'utf8')).toBe('new owner content')
+    await expect(lstat(artifactDirectory)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(journals.has(journal.operationId)).toBe(false)
+  })
+
+  it('recovers an interrupted deletion using only the journal-owned disposal directory', async () => {
+    const { journal, workspace, artifactDirectory } = await createOwnedFork()
+    const unrelatedDirectory = path.join(forkRoot, randomUUID())
+    await mkdir(unrelatedDirectory)
+    await writeFile(path.join(unrelatedDirectory, 'keep.txt'), 'another operation owns this')
+    vi.mocked(rm).mockImplementationOnce(async (target, options) => {
+      if (target !== artifactDirectory) return realFs.rm(target, options)
+      await realFs.rm(path.join(artifactDirectory, 'native.jsonl'))
+      throw Object.assign(new Error('recursive deletion interrupted'), { code: 'EBUSY' })
+    })
+
+    await new AgentSessionForkOperations().recover()
+    expect(journals.has(journal.operationId)).toBe(true)
+    expect(journals.get(journal.operationId)?.cleanupComplete).not.toBe(true)
+    await expect(lstat(workspace)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await detachedContent(artifactDirectory)).toBe('copied workspace content')
+
+    await new AgentSessionForkOperations().recover()
+    await new AgentSessionForkOperations().recover()
+
+    await expect(lstat(artifactDirectory)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(lstat(workspace)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await readFile(path.join(unrelatedDirectory, 'keep.txt'), 'utf8')).toBe('another operation owns this')
+    expect(journals.has(journal.operationId)).toBe(false)
+  })
+
+  it('rejects a missing checkpoint before creating fork artifacts or rebuilding history', async () => {
+    forkRecoveryMocks.read.mockReturnValue({
+      messages: [{ role: 'assistant', status: 'success', runtimeForkState: null }]
+    })
+
+    await expect(new AgentSessionForkOperations().fork(randomUUID(), randomUUID())).rejects.toMatchObject({
+      name: 'AgentSessionForkError',
+      reason: 'legacy_history'
+    })
+    await expect(lstat(forkRoot)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(lstat(workspaceRoot)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(journals.size).toBe(0)
+  })
+})
+
 describe('AgentSessionRuntimeService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -288,20 +493,7 @@ describe('AgentSessionRuntimeService', () => {
     })
     mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-    mocks.getForkHistory.mockReturnValue(undefined)
-    mocks.prepareForkContext.mockReset()
-    mocks.needsPreparation.mockReset().mockReturnValue(true)
-    mocks.prepareForkContext.mockImplementation(async () => {
-      const rows = mocks.getForkHistory()?.map((row: any, index: number) => ({ ...row, id: `history-${index}` })) ?? []
-      const snapshot = createForkContextSnapshot(rows)
-      return {
-        preparedContextId: 'prepared-history',
-        compatibility: {},
-        segments: snapshot.entries.map((entry) =>
-          forkContextSegment(snapshot, entry.ordinal, entry.ordinal + 1, entry.text, 'history')
-        )
-      }
-    })
+    mocks.isFork.mockReturnValue(false)
     mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
     mocks.resolveCrashOrphanedMessages.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
@@ -4240,28 +4432,11 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it.each(['pi', 'claude-code', 'dsh'])(
-    'injects reconstructed history once at the %s runtime boundary',
+    'resumes a native %s fork and sends only the new user messages',
     async (agentType) => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: agentType, model: baseTurnInput.modelId })
-      mocks.getForkHistory.mockReturnValue([
-        {
-          role: 'assistant',
-          data: {
-            parts: [
-              { type: 'text', text: 'Historical fact: amber' },
-              {
-                type: 'tool-Bash',
-                toolCallId: 'old-tool',
-                state: 'output-available',
-                input: { command: 'echo amber' },
-                output: 'amber',
-                approval: { id: 'old-approval', approved: true }
-              },
-              { type: 'file', filename: 'old.png', mediaType: 'image/png', url: 'data:image/png;base64,SECRET' }
-            ]
-          }
-        }
-      ])
+      mocks.isFork.mockReturnValue(true)
+      mocks.getLastRuntimeResumeToken.mockReturnValue('native-child-token')
       const events = createAsyncQueue<any>()
       const connection = {
         events: events.iterable,
@@ -4269,21 +4444,17 @@ describe('AgentSessionRuntimeService', () => {
         close: vi.fn(),
         reconcile: vi.fn().mockResolvedValue('current')
       }
+      const connect = vi.fn().mockResolvedValue(connection)
       runtimeDriverRegistry.register({
         type: agentType,
         capabilities: ['agent-session'],
-        connect: vi.fn().mockImplementation(async () => {
-          events.push({ type: 'resume-token', token: 'fresh-child-token' })
-          return connection
-        }),
+        connect,
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([])
       })
       const service = new AgentSessionRuntimeService()
       const firstMessage = userMessage('first-user')
       const first = service.beginTurn({ ...baseTurnInput, agentType, userMessage: firstMessage })
-      // An empty prewarmed session may hand its token to a replacement before any turn is persisted.
-      getEntry(service).lastResumeToken = 'empty-prewarmed-token'
       const reader = service
         .openTurnStream({
           sessionId: 'session-1',
@@ -4293,20 +4464,12 @@ describe('AgentSessionRuntimeService', () => {
         .getReader()
       await reader.read()
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
-      const input = connection.send.mock.calls[0][0].message
-      const text = input.data.parts[0].text
-      expect(text).toContain('Historical fact: amber')
-      expect(text).toContain('Historical tool')
-      expect(text).not.toContain('echo amber')
-      expect(text).toContain('old.png')
-      expect(text).not.toContain('old-approval')
-      expect(text).not.toContain('SECRET')
-      expect(input.data.parts.every((part: any) => part.type === 'text')).toBe(true)
-      expect(firstMessage.data.parts).toEqual([{ type: 'text', text: 'hello' }])
+      expect(connect).toHaveBeenCalledWith(expect.objectContaining({ resumeToken: 'native-child-token' }))
+      expect(connection.send.mock.calls[0][0]).toEqual({ message: firstMessage, systemReminder: false })
+      expect(connection.send.mock.calls[0][0].message.data.parts).toEqual([{ type: 'text', text: 'hello' }])
       events.push({ type: 'turn-complete' })
       await reader.read()
       await terminalListener(first).onDone({ status: 'success', isTopicDone: true })
-      mocks.needsPreparation.mockReturnValue(false)
       const secondMessage = userMessage('second-user')
       const second = service.beginTurn({
         ...baseTurnInput,
@@ -4329,9 +4492,41 @@ describe('AgentSessionRuntimeService', () => {
     }
   )
 
+  it.each(['pi', 'claude-code', 'dsh'])(
+    'rejects a %s fork without native history before the driver can initialize an empty session',
+    async (agentType) => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: agentType, model: baseTurnInput.modelId })
+      mocks.isFork.mockReturnValue(true)
+      const connect = vi.fn()
+      runtimeDriverRegistry.register({
+        type: agentType,
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const turn = service.beginTurn({ ...baseTurnInput, agentType, userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: turn.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+
+      await reader.read()
+      await expect(reader.read()).rejects.toMatchObject({
+        name: 'AgentSessionForkError',
+        reason: 'history_missing'
+      })
+      expect(connect).not.toHaveBeenCalled()
+      await service.closeSession('session-1')
+    }
+  )
+
   it('hydrates the persisted resume token before connecting a cold historical session', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue('resume-db')
-    mocks.getForkHistory.mockReturnValue(undefined)
     const events = createAsyncQueue<any>()
     const connection = {
       events: events.iterable,

@@ -14,7 +14,6 @@ import {
   type BridgePermissionMode,
   type BridgePolicy
 } from '@cherrystudio/dsh-bridge'
-import { agentSessionForkContextService } from '@data/services/AgentSessionForkContextService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
@@ -43,7 +42,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
-import { FORK_CHECKPOINT_FAILED, type RuntimeForkCheckpoint, RuntimeForkStateSchema } from '../forkCheckpoint'
+import { FORK_CHECKPOINT_FAILED, RuntimeForkStateSchema } from '../forkCheckpoint'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -69,7 +68,6 @@ import {
   type DshConnectionSnapshot,
   DshInvalidConnectionSnapshotError
 } from './dshConnectionSignature'
-import { readDshForkContext } from './dshFork'
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
@@ -141,7 +139,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private turnEpoch = 0
   private modelId = ''
   private contextWindow = 0
-  private forkSystemPrompt = ''
   private reasoningEffort: ReasoningEffortOption = 'default'
   private workspacePath = ''
   private agentDataPath = ''
@@ -244,9 +241,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   async start(): Promise<this> {
     if (this.input.resumeToken) assertValidDshResumeToken(this.input.resumeToken)
-    const requireExistingHistory =
-      agentSessionService.isFork(this.input.sessionId) &&
-      !agentSessionForkContextService.needsPreparation(this.input.sessionId)
+    const requireExistingHistory = agentSessionService.isFork(this.input.sessionId)
     if (requireExistingHistory && !this.input.resumeToken)
       throw new Error('history_missing: this fork requires its existing native history.')
     const resolveInjection = async (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> => {
@@ -333,7 +328,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     const persona = [prompt.base.kind === 'custom' ? prompt.base.content : undefined, prompt.append || undefined]
       .filter(Boolean)
       .join('\n\n')
-    this.forkSystemPrompt = persona
 
     const yaml = buildDshCompositionYaml({
       providerName: injection.providerName,
@@ -443,7 +437,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         provider: injection.providerName,
         model: injection.modelId,
         cwd: workspacePath,
-        // Only an unsent history rebuild may recreate missing native fork storage.
+        // Forks must restore native history; missing storage cannot become an empty session.
         resume: Boolean(this.input.resumeToken),
         requireExistingHistory,
         policy: this.buildPolicy(),
@@ -465,26 +459,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       await this.disposeRuntime()
       throw error
     }
-  }
-
-  async getForkContextEnvironment() {
-    const { default: manifest } = await import('../../../../../package.json')
-    return {
-      sdkVersion: manifest.dependencies['@deepseek-ai/dsh-sdk-client'],
-      systemPrompt: { persona: this.forkSystemPrompt, signature: this.connectionSignature },
-      tools: this.toolBridge?.tools ?? [],
-      contextWindow: this.contextWindow,
-      opaqueEnvelope: true
-    }
-  }
-
-  async readForkContext(checkpoint: RuntimeForkCheckpoint) {
-    if (checkpoint.runtime !== 'dsh' || checkpoint.runtimeSessionId !== this.resumeToken) return undefined
-    return readDshForkContext(
-      await this.snapshotForFork(checkpoint.boundary),
-      checkpoint.boundary,
-      checkpoint.prefixHash
-    )
   }
 
   async send(input: Parameters<AgentRuntimeConnection['send']>[0]): Promise<void> {
@@ -701,10 +675,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.traceRecorder = undefined
     try {
       await this.client?.close()
-      this.bridge?.runtimeExited()
     } catch (error) {
-      // A failed SDK close can leave the process alive; socket cleanup is not proof of exit.
-      // Keep its write leases until shutdown is confirmed, never release them in finally.
       logger.warn('dsh client close failed', { error })
     }
     this.client = undefined

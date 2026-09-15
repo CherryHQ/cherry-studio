@@ -3,8 +3,6 @@ import { createHash } from 'node:crypto'
 import { Context } from '@deepseek-ai/cordis'
 import { Inbox } from '@deepseek-ai/dsh-agent'
 import {
-  deriveEventMessage,
-  foldSurface,
   interruptedTurnClosers,
   type SessionEvent,
   SessionId,
@@ -48,20 +46,6 @@ export function createForkCheckpoint(events: readonly SessionEvent[], boundary: 
       : value
   )
   return { boundary, prefixHash: createHash('sha256').update(canonical).digest('hex') }
-}
-
-export function readForkContext(input: { events: SessionEvent[]; boundary: number; prefixHash: string }) {
-  const events = input.events.slice(0, input.boundary + 1)
-  if (createForkCheckpoint(events, input.boundary).prefixHash !== input.prefixHash) throw new Error('history_changed')
-  const surface = foldSurface(events)
-  if (!surface.replacements.length) return undefined
-  return {
-    identity: String(surface.replacements.at(-1)!.seq),
-    messages: surface.nodes.flatMap((seq) => {
-      const message = deriveEventMessage(events[seq])
-      return message ? [message] : []
-    })
-  }
 }
 
 /** This context deliberately has no Agent, loop, tools, goals or subagent services. */

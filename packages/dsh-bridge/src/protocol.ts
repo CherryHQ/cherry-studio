@@ -112,7 +112,7 @@ export interface BridgeHostRequestMap {
       maxTokens?: number
       cwd: string
       resume: boolean
-      /** A native/sent fork must never fall back to an empty session with the same id. */
+      /** A fork must never fall back to an empty session with the same id. */
       requireExistingHistory?: boolean
       policy: BridgePolicy
       tools: BridgeToolDescriptor[]
@@ -142,14 +142,6 @@ export interface BridgeHostRequestMap {
 /** Plugin→host request methods. `ready` is the authentication handshake and MUST be first. */
 export interface BridgePluginRequestMap {
   ready: { params: { pid: number; token: string }; result: Record<string, never> }
-  'file-write/acquire': {
-    params: { sessionId: string; leaseId: string; path: string }
-    result: { acquired: true }
-  }
-  'file-write/release': {
-    params: { sessionId: string; leaseId: string }
-    result: Record<string, never>
-  }
   'guard/check': {
     params: { sessionId: string; toolName: string; args: unknown; cwd: string }
     result: { kind: 'allow' } | { kind: 'deny'; ruleId: 'user-data-sqlite-write'; reason: string }

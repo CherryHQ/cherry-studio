@@ -9,13 +9,6 @@ import type { RuntimeForkCheckpoint } from './forkCheckpoint'
 
 export type ForkWorkerInput =
   | {
-      runtime: 'dsh-context'
-      modulePath: string
-      events: unknown[]
-      boundary: number
-      prefixHash: string
-    }
-  | {
       runtime: 'claude-code'
       entries: SessionStoreEntry[]
       checkpoint: Extract<RuntimeForkCheckpoint, { runtime: 'claude-code' }>
@@ -39,10 +32,6 @@ export type ForkWorkerInput =
     }
 
 async function run(input: ForkWorkerInput): Promise<unknown> {
-  if (input.runtime === 'dsh-context') {
-    const sdk = await import(/* @vite-ignore */ input.modulePath)
-    return sdk.readForkContext(input)
-  }
   if (input.runtime === 'dsh') {
     const sdk = await import(/* @vite-ignore */ input.modulePath)
     return sdk.forkSession(input)

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { lstat, mkdir, readdir, rm } from 'node:fs/promises'
+import { lstatSync, mkdtempSync, renameSync } from 'node:fs'
+import { lstat, mkdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -10,13 +11,11 @@ import { type AgentSessionForkJournal, agentSessionForkService } from '@data/ser
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
-import { canRebuildAgentSessionFork, isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 
 import {
   AgentSessionForkError,
   type RuntimeForkCheckpoint,
   RuntimeForkMetadataSchema,
-  type RuntimeForkResult,
   RuntimeForkStateSchema
 } from '../runtime/forkCheckpoint'
 import { runtimeDriverRegistry } from '../runtime/registry'
@@ -42,14 +41,14 @@ export class AgentSessionForkOperations {
     { sourceSessionId: string; promise: Promise<string>; controller: AbortController }
   >()
 
-  fork(sourceSessionId: string, messageId: string, allowHistoryRebuild = false): Promise<string> {
-    const key = JSON.stringify([sourceSessionId, messageId, allowHistoryRebuild])
+  fork(sourceSessionId: string, messageId: string): Promise<string> {
+    const key = JSON.stringify([sourceSessionId, messageId])
     const current = this.pending.get(key)
     if (current) return current.promise
     const controller = new AbortController()
     // Register before any asynchronous work can escape the host's backup/shutdown drain.
     const promise = Promise.resolve()
-      .then(() => this.run(sourceSessionId, messageId, controller.signal, allowHistoryRebuild))
+      .then(() => this.run(sourceSessionId, messageId, controller.signal))
       .finally(() => this.pending.delete(key))
     this.pending.set(key, { sourceSessionId, promise, controller })
     return promise
@@ -70,7 +69,6 @@ export class AgentSessionForkOperations {
   }
 
   private async recoverOnce(includeUncommitted: boolean): Promise<void> {
-    if (includeUncommitted) agentSessionForkService.resetCleanupClaims()
     for (const value of agentSessionForkService.journals()) {
       const parsed = AgentSessionForkJournalSchema.safeParse(value)
       if (!parsed.success) {
@@ -89,12 +87,7 @@ export class AgentSessionForkOperations {
     }
   }
 
-  private async run(
-    sourceSessionId: string,
-    messageId: string,
-    signal: AbortSignal,
-    allowHistoryRebuild: boolean
-  ): Promise<string> {
+  private async run(sourceSessionId: string, messageId: string, signal: AbortSignal): Promise<string> {
     signal.throwIfAborted()
     const preliminary = agentSessionForkService.read(sourceSessionId, messageId)
     const selected = preliminary.messages.at(-1)!
@@ -102,13 +95,8 @@ export class AgentSessionForkOperations {
     if (selected.role !== 'assistant' || selected.status !== 'success')
       throw new AgentSessionForkError('not_turn_boundary')
     const availability = getAgentSessionForkAvailability(selected.runtimeForkState)
-    if (availability.status === 'unavailable' && !canRebuildAgentSessionFork(availability.reason))
-      throw new AgentSessionForkError(availability.reason)
-    const nativeState = state.success && state.data.status === 'available' ? state.data : undefined
-    if (!nativeState && !allowHistoryRebuild)
-      throw new AgentSessionForkError(
-        availability.status === 'unavailable' ? availability.reason : 'unsupported_checkpoint'
-      )
+    if (availability.status === 'unavailable') throw new AgentSessionForkError(availability.reason)
+    if (!state.success || state.data.status !== 'available') throw new AgentSessionForkError('unsupported_checkpoint')
     const excludedIds = [
       ...new Set([
         ...(RuntimeForkMetadataSchema.safeParse(selected.runtimeForkState).data?.excludedMessageIds ?? []),
@@ -125,10 +113,9 @@ export class AgentSessionForkOperations {
       ])
     ]
     const source = agentSessionForkService.read(sourceSessionId, messageId, excludedIds)
-    const checkpoint = nativeState?.checkpoint
+    const checkpoint = state.data.checkpoint
     const driver = runtimeDriverRegistry.getAgentSessionDriver(source.agent.type)
-    if (!driver) throw new AgentSessionForkError('unsupported_checkpoint')
-    if ((!checkpoint || source.agent.type !== checkpoint.runtime || !driver.fork) && !allowHistoryRebuild)
+    if (source.agent.type !== checkpoint.runtime || !driver?.fork)
       throw new AgentSessionForkError('unsupported_checkpoint')
     const checkpoints: RuntimeForkCheckpoint[] = []
     for (const row of source.messages) {
@@ -172,44 +159,20 @@ export class AgentSessionForkOperations {
         })
       }
       signal.throwIfAborted()
-      let result: RuntimeForkResult | undefined
-      if (checkpoint && source.agent.type === checkpoint.runtime && driver.fork) {
-        try {
-          result = await driver.fork({
-            sourceSessionId,
-            checkpoint,
-            checkpoints,
-            targetSessionId: journal.targetSessionId,
-            targetCwd,
-            artifactDirectory: journal.artifactDirectory,
-            signal
-          })
-          if (result.checkpoints.length !== checkpoints.length) throw new AgentSessionForkError('history_corrupt')
-        } catch (error) {
-          signal.throwIfAborted()
-          const reason =
-            error instanceof AgentSessionForkError && isAgentSessionForkFailureReason(error.reason)
-              ? error.reason
-              : 'checkpoint_failed'
-          if (!allowHistoryRebuild || !canRebuildAgentSessionFork(reason)) throw error
-          result = undefined
-          logger.info('Rebuilding fork from message history', { operationId, reason })
-        }
-      }
+      const result = await driver.fork({
+        sourceSessionId,
+        checkpoint,
+        checkpoints,
+        targetSessionId: journal.targetSessionId,
+        targetCwd,
+        artifactDirectory: journal.artifactDirectory,
+        signal
+      })
+      if (!result.resumeToken.trim() || result.checkpoints.length !== checkpoints.length)
+        throw new AgentSessionForkError('history_corrupt')
       signal.throwIfAborted()
-      const messages = cloneMessages(
-        source.messages,
-        journal.targetSessionId,
-        result?.resumeToken ?? null,
-        result?.checkpoints ?? []
-      )
-      if (!result) {
-        if ((await forkFileIdentity(journal.artifactDirectory)) !== journal.artifactIdentity)
-          throw new Error('Fork artifact ownership changed')
-        for (const name of await readdir(journal.artifactDirectory))
-          await rm(path.join(journal.artifactDirectory, name), { recursive: true, force: true })
-      }
-      for (const artifact of result?.publish ?? []) {
+      const messages = cloneMessages(source.messages, journal.targetSessionId, result.resumeToken, result.checkpoints)
+      for (const artifact of result.publish) {
         if (!isInside(journal.artifactDirectory, artifact.source)) throw new Error('Unowned SDK fork artifact')
         await forkFileIdentity(artifact.source)
         await mkdir(path.dirname(artifact.target), { recursive: true })
@@ -224,7 +187,7 @@ export class AgentSessionForkOperations {
         })
       }
       signal.throwIfAborted()
-      agentSessionForkService.commit({ journal, source, excludedIds, messages, rebuildHistory: !result })
+      agentSessionForkService.commit({ journal, source, excludedIds, messages })
       journal.committed = true
       return journal.targetSessionId
     } catch (error) {
@@ -244,13 +207,14 @@ export class AgentSessionForkOperations {
 
   private async cleanup(journal: AgentSessionForkJournal): Promise<void> {
     if (journal.cleanupComplete || agentSessionForkService.hasCommittedChild(journal)) return
-    // This claim also covers rollback of unpublished products, which can already have been adopted.
-    agentSessionForkService.beginCleanup(journal)
+    if (journal.version === 1) journal.workspaceDisposition = 'retained'
     try {
       await this.cleanupOwned(journal)
       journal.cleanupComplete = true
     } finally {
-      agentSessionForkService.finishCleanup(journal)
+      if (journal.cleanupComplete && journal.workspaceDisposition !== 'retained')
+        agentSessionForkService.removeJournal(journal.operationId)
+      else agentSessionForkService.writeJournal(journal)
     }
   }
 
@@ -276,12 +240,17 @@ export class AgentSessionForkOperations {
         journal.createdAt
       )
       if (path.resolve(expected) !== path.resolve(journal.workspace)) throw new Error('Unowned fork workspace')
-      try {
-        if (!journal.workspaceIdentity || (await forkFileIdentity(expected)) !== journal.workspaceIdentity) {
+      const workspaceInfo = lstatSync(expected, { bigint: true, throwIfNoEntry: false })
+      if (workspaceInfo) {
+        if (
+          !workspaceInfo.isDirectory() ||
+          workspaceInfo.ino === 0n ||
+          [workspaceInfo.dev, workspaceInfo.ino].join(':') !== journal.workspaceIdentity
+        ) {
           throw new Error('Fork workspace ownership is unproven; retained for recovery')
         }
         if (
-          await workspaceHasReferences(
+          workspaceHasReferences(
             expected,
             agentWorkspaceService.list({ includeSystem: true }).map((row) => row.path)
           )
@@ -290,14 +259,17 @@ export class AgentSessionForkOperations {
           journal.workspaceDisposition = 'retained'
           agentSessionForkService.writeJournal(journal)
         } else {
-          if (application.get('AgentFileWriteService').hasWritesInside(expected))
-            throw new Error('Fork workspace still has active file writes; retained for recovery')
-          if ((await forkFileIdentity(expected)) !== journal.workspaceIdentity)
-            throw new Error('Fork workspace ownership changed')
-          await rm(expected, { recursive: true, force: true })
+          const artifactInfo = lstatSync(journal.artifactDirectory, { bigint: true })
+          if (
+            !artifactInfo.isDirectory() ||
+            artifactInfo.ino === 0n ||
+            [artifactInfo.dev, artifactInfo.ino].join(':') !== journal.artifactIdentity
+          )
+            throw new Error('Fork directory ownership is unproven; retained for recovery')
+          // No await between the reference check and detach; later cleanup never targets a recreated workspace.
+          const disposal = mkdtempSync(path.join(journal.artifactDirectory, 'workspace-disposal-'))
+          renameSync(expected, path.join(disposal, 'workspace'))
         }
-      } catch (error) {
-        if (!isMissing(error)) throw error
       }
     }
     try {
@@ -318,7 +290,7 @@ export class AgentSessionForkOperations {
 function cloneMessages(
   rows: readonly AgentSessionMessageRow[],
   targetSessionId: string,
-  resumeToken: string | null,
+  resumeToken: string,
   checkpoints: RuntimeForkCheckpoint[]
 ): AgentSessionMessageRow[] {
   // Preserve the existing (createdAt, id) order even when several source rows share a timestamp.
@@ -328,11 +300,8 @@ function cloneMessages(
   return rows.map((row) => {
     const state = RuntimeForkStateSchema.safeParse(row.runtimeForkState)
     const metadata = RuntimeForkMetadataSchema.safeParse(row.runtimeForkState)
-    const forkState = !resumeToken
-      ? state.success && state.data.status === 'unavailable' && state.data.reason === 'not_turn_boundary'
-        ? state.data
-        : null
-      : state.success && state.data.status === 'available'
+    const forkState =
+      state.success && state.data.status === 'available'
         ? {
             ...state.data,
             checkpoint: checkpoints[checkpointIndex++],

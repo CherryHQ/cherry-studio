@@ -38,6 +38,7 @@ interface FakeSpan {
 
 const mocks = vi.hoisted(() => ({
   getById: vi.fn(),
+  isFork: vi.fn(() => false),
   getAgent: vi.fn(),
   broadcast: vi.fn(),
   skillList: vi.fn(),
@@ -56,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   startSpan: vi.fn(),
   spans: [] as FakeSpan[],
   readdirSync: vi.fn(),
+  readFileSync: vi.fn(),
   // agent MCP collaborators
   findChannelBySessionId: vi.fn(),
   buildPromptParts: vi.fn(),
@@ -101,7 +103,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('node:fs', async (importOriginal) => ({
   ...(await importOriginal<typeof NodeFs>()),
-  readdirSync: mocks.readdirSync
+  readdirSync: mocks.readdirSync,
+  readFileSync: mocks.readFileSync
 }))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
@@ -122,7 +125,7 @@ vi.mock('@application', () => ({
   }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getById: mocks.getById, isFork: vi.fn(() => false) }
+  agentSessionService: { getById: mocks.getById, isFork: mocks.isFork }
 }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/AgentChannelService', () => ({
@@ -236,9 +239,7 @@ const fakePi = {
     }
   },
   createAgentSession: mocks.createAgentSession,
-  createBashToolDefinition: mocks.createBashToolDefinition,
-  createWriteToolDefinition: () => ({ name: 'write', execute: vi.fn() }),
-  createEditToolDefinition: () => ({ name: 'edit', execute: vi.fn() })
+  createBashToolDefinition: mocks.createBashToolDefinition
 }
 
 const input: AgentRuntimeConnectInput = {
@@ -300,6 +301,7 @@ async function nextEventWithin(events: AsyncIterable<AgentRuntimeEvent>): Promis
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.isFork.mockReturnValue(false)
   toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
   mocks.createOpts = undefined
@@ -831,8 +833,17 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.unregisterApiProviders).toHaveBeenCalledOnce()
   })
 
-  it('reopens the session file by scanning for the resume session id', async () => {
+  it.each([false, true])('reopens the native session file by resume id (fork=%s)', async (isFork) => {
+    mocks.isFork.mockReturnValue(isFork)
     mocks.readdirSync.mockReturnValue(['2026-07-06T00-00-00-000Z_sess-1.jsonl'])
+    mocks.readFileSync.mockReturnValue(
+      [
+        JSON.stringify({ type: 'session', id: SESSION_ID }),
+        JSON.stringify({ type: 'message', id: 'leaf', message: { role: 'assistant', content: [] } }),
+        ''
+      ].join('\n')
+    )
+    mocks.sessionOpen.mockReturnValue({ getSessionId: () => SESSION_ID, getLeafId: () => 'leaf' })
 
     await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
     expect(mocks.sessionOpen).toHaveBeenCalledWith(
@@ -879,6 +890,33 @@ describe('PiRuntimeConnection', () => {
     await new PiRuntimeConnection({ ...input, resumeToken: 'missing-id' }).start()
     expect(mocks.sessionOpen).not.toHaveBeenCalled()
     expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: SESSION_ID })
+  })
+
+  it.each([undefined, 'missing-id'])('rejects a fork without native history (token=%s)', async (resumeToken) => {
+    mocks.isFork.mockReturnValue(true)
+    await expect(new PiRuntimeConnection({ ...input, resumeToken }).start()).rejects.toMatchObject({
+      reason: 'history_missing'
+    })
+    expect(mocks.sessionCreate).not.toHaveBeenCalled()
+    expect(mocks.createAgentSession).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    '',
+    'invalid-json\n',
+    JSON.stringify({ type: 'session', id: SESSION_ID }) + '\n',
+    JSON.stringify({ type: 'session', id: SESSION_ID }) + '\ninvalid-json\n',
+    JSON.stringify({ type: 'session', id: 'replaced-id' }) + '\n' + JSON.stringify({ type: 'message', id: 'leaf' })
+  ])('rejects corrupt fork history before the SDK can initialize or truncate it (%j)', async (history) => {
+    mocks.isFork.mockReturnValue(true)
+    mocks.readdirSync.mockReturnValue(['2026-07-06T00-00-00-000Z_sess-1.jsonl'])
+    mocks.readFileSync.mockReturnValue(history)
+    await expect(new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()).rejects.toMatchObject({
+      reason: 'history_corrupt'
+    })
+    expect(mocks.sessionOpen).not.toHaveBeenCalled()
+    expect(mocks.sessionCreate).not.toHaveBeenCalled()
+    expect(mocks.createAgentSession).not.toHaveBeenCalled()
   })
 
   it('emits turn-complete only on agent_end, not per turn_end, plus a resume token', async () => {
@@ -1560,8 +1598,6 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES])
     expect(mocks.createOpts?.customTools).toEqual([
       MANAGED_BASH_TOOL,
-      expect.objectContaining({ name: 'write', execute: expect.any(Function) }),
-      expect.objectContaining({ name: 'edit', execute: expect.any(Function) }),
       ...CODE_MODE_TOOL_NAMES.map((name) => ({ name }))
     ])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
@@ -1726,8 +1762,6 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.buildMcpToolDefinitions).toHaveBeenCalledWith(mocks.buildAgentMcpServers.mock.results[0].value)
       expect(mocks.createOpts?.customTools).toEqual([
         MANAGED_BASH_TOOL,
-        expect.objectContaining({ name: 'write', execute: expect.any(Function) }),
-        expect.objectContaining({ name: 'edit', execute: expect.any(Function) }),
         { name: 'tool_search' },
         { name: 'tool_describe' },
         { name: 'tool_call' },
@@ -1852,8 +1886,6 @@ describe('PiRuntimeConnection', () => {
       )
       expect(mocks.createOpts?.customTools).toEqual([
         MANAGED_BASH_TOOL,
-        expect.objectContaining({ name: 'write', execute: expect.any(Function) }),
-        expect.objectContaining({ name: 'edit', execute: expect.any(Function) }),
         { name: 'tool_search' },
         { name: 'tool_describe' },
         { name: 'tool_call' },
@@ -1957,7 +1989,7 @@ describe('PiRuntimeConnection', () => {
     it('uses the always-on persona and code-mode tools for a standard agent', async () => {
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.createOpts?.customTools).toHaveLength(7)
+      expect(mocks.createOpts?.customTools).toHaveLength(5)
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledOnce()
       expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, undefined, true, AGENT_DATA_PATH)
       expect(appendedSystemPrompt()).toContain('AGENT PROMPT')

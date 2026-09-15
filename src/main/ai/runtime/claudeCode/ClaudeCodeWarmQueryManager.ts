@@ -16,7 +16,6 @@ import {
   createSpawnClaudeCodeProcess,
   spawnClaudeCodeProcess
 } from './ClaudeCodeProcessManager'
-import { withClaudeFileWriteProtection } from './claudeFileWrites'
 import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
@@ -165,7 +164,7 @@ export function createClaudeCodeWarmQuerySignature(
 @ServicePhase(Phase.WhenReady)
 // Warm queries spawn CLI children through ClaudeCodeProcessManager. Declaring it keeps that owner
 // stopping LAST, so its sweep runs after these entries are disposed — do not drop it as unused.
-@DependsOn(['ClaudeCodeProcessManager', 'AgentFileWriteService'])
+@DependsOn(['ClaudeCodeProcessManager'])
 export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly entries = new Map<string, WarmQueryEntry>()
 
@@ -240,10 +239,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
     const processDiagnostics = createClaudeCodeProcessDiagnostics()
     const promise = startup({
-      options: withClaudeFileWriteProtection({
-        ...warmOptions,
-        spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics)
-      }),
+      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
       initializeTimeoutMs: request.initializeTimeoutMs
     }).catch((error) => {
       if (this.entries.get(request.key)?.promise === promise) {

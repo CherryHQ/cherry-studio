@@ -108,6 +108,112 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('drops obsolete fork context after 0022 while preserving native forks, visible history and files', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0023_shallow_black_widow'))
+    seedBaselineRows()
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('fork-workspace', 'Workspace', '/tmp/fork-migration', 'user', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    const insertSession = sqlite.prepare(
+      `INSERT INTO agent_session
+        (id, name, workspace_id, forked_from, order_key, last_activity_at, created_at, updated_at)
+       VALUES (?, ?, 'fork-workspace', ?, ?, ?, ?, ?)`
+    )
+    const forkedFrom = { sessionId: 'fork-source', messageId: 'source-message', operationId: 'fork-operation' }
+    insertSession.run('fork-source', 'Source', null, 'a0', now, now, now)
+    insertSession.run('native-child', 'Native child', JSON.stringify(forkedFrom), 'a1', now, now, now)
+    insertSession.run(
+      'rebuilt-child',
+      'Previous rebuilt child',
+      JSON.stringify({ ...forkedFrom, historyMessageId: 'rebuilt-message' }),
+      'a2',
+      now,
+      now,
+      now
+    )
+    const checkpoint = JSON.stringify({
+      version: 1,
+      status: 'available',
+      checkpoint: { runtime: 'pi', runtimeSessionId: 'native-child-token', leafId: 'native-leaf' }
+    })
+    const insertMessage = sqlite.prepare(
+      `INSERT INTO agent_session_message
+        (id, session_id, role, data, status, runtime_resume_token, runtime_fork_state, created_at, updated_at)
+       VALUES (?, ?, 'assistant', ?, 'success', ?, ?, ?, ?)`
+    )
+    insertMessage.run(
+      'native-message',
+      'native-child',
+      JSON.stringify({ parts: [{ type: 'text', text: 'Native visible history' }] }),
+      'native-child-token',
+      checkpoint,
+      now,
+      now
+    )
+    insertMessage.run(
+      'rebuilt-message',
+      'rebuilt-child',
+      JSON.stringify({ parts: [{ type: 'text', text: 'Previous rebuilt visible history' }] }),
+      null,
+      null,
+      now,
+      now
+    )
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session_message_file_ref (id, file_entry_id, source_id, role, created_at, updated_at)
+         VALUES ('fork-file-ref', '11111111-1111-7111-8111-111111111111', 'native-message', 'attachment', ?, ?)`
+      )
+      .run(now, now)
+    const insertContext = sqlite.prepare('INSERT INTO agent_session_fork_context (session_id, document) VALUES (?, ?)')
+    insertContext.run('native-child', JSON.stringify({ version: 2, summaries: [] }))
+    insertContext.run('rebuilt-child', JSON.stringify({ version: 2, summaries: [] }))
+    sqlite.prepare('INSERT INTO app_state (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)').run(
+      'agent-session-fork:fork-operation',
+      JSON.stringify({
+        version: 2,
+        operationId: 'fork-operation',
+        sourceSessionId: 'fork-source',
+        messageId: 'source-message',
+        targetSessionId: 'native-child',
+        createdAt: now,
+        artifactDirectory: '/owned-fork',
+        artifactIdentity: 'artifact-identity',
+        workspace: '/owned-workspace',
+        workspaceIdentity: 'workspace-identity',
+        published: [{ source: '/owned-fork/native', target: '/native-copy', identity: 'native-identity' }],
+        committed: true
+      }),
+      now,
+      now
+    )
+    const preservedTables = [
+      'agent_workspace',
+      'agent_session',
+      'agent_session_message',
+      'file_entry',
+      'provider_logo_file_ref',
+      'agent_session_message_file_ref',
+      'app_state'
+    ]
+    const before = preservedTables.map((table) => sqlite.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all())
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(
+      sqlite.prepare("SELECT name FROM sqlite_master WHERE name = 'agent_session_fork_context'").get()
+    ).toBeUndefined()
+    expect(preservedTables.map((table) => sqlite.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all())).toEqual(
+      before
+    )
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
+  })
+
   it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
     const now = Date.now()

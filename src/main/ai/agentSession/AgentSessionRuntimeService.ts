@@ -4,8 +4,6 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
-import { forkContextHash } from '@data/services/agentSessionForkContextContent'
-import { agentSessionForkContextService, ForkContextFailure } from '@data/services/AgentSessionForkContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
@@ -59,7 +57,7 @@ import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shar
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
-import type { RuntimeForkState } from '../runtime/forkCheckpoint'
+import { AgentSessionForkError, type RuntimeForkState } from '../runtime/forkCheckpoint'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
@@ -105,10 +103,7 @@ import {
   transitionAgentSessionRuntime,
   willAgentSessionRuntimeContinue
 } from './agentSessionRuntimeState'
-import { resolveForkContextInput } from './forkContextEnvironment'
-import { buildForkHistory, withForkHistory } from './forkHistory'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
-import { ForkContextPreparer } from './prepareForkContext'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
@@ -199,7 +194,6 @@ export interface AgentSessionInteractionState {
 }
 
 type AgentSessionTurn = {
-  forkContextAttempt?: string
   forkState?: RuntimeForkState
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
@@ -284,7 +278,6 @@ type AgentSessionRuntimeEntry = {
   usageCapture?: AgentSessionUsageCapture
   connectionLoop?: Promise<void>
   lastResumeToken?: string
-  forkContextPending?: boolean
   idleTimer?: ReturnType<typeof setTimeout>
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
   lastContextUsageRefreshAt?: number
@@ -342,14 +335,13 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // The dependency is runtime, not lexical: this service's connections spawn CLI children through
 // ClaudeCodeProcessManager. Declaring it keeps that owner stopping LAST, so its sweep runs after
 // these entries are closed — do not drop it as unused. Covered by a stop-order test.
-@DependsOn(['ClaudeCodeProcessManager', 'AgentFileWriteService'])
+@DependsOn(['ClaudeCodeProcessManager'])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly forks = new AgentSessionForkOperations()
-  private readonly forkContextPreparer = new ForkContextPreparer()
 
-  forkSession(sourceSessionId: string, messageId: string, allowHistoryRebuild = false): Promise<string> {
+  forkSession(sourceSessionId: string, messageId: string): Promise<string> {
     if (this.isShuttingDown || this.isWriteQuiesced) return Promise.reject(new Error('Session writes are paused'))
-    return this.forks.fork(sourceSessionId, messageId, allowHistoryRebuild)
+    return this.forks.fork(sourceSessionId, messageId)
   }
 
   cancelSessionForks(sourceSessionId: string): Promise<void> {
@@ -979,7 +971,6 @@ export class AgentSessionRuntimeService extends BaseService {
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
     if (!entry) return priorClosing?.promise ?? Promise.resolve()
-    this.markForkContextUncertain(entry)
     const fallbackConnection = this.currentConnection(entry)
     const connectionAttempt = this.connectionAttempts.get(sessionId)?.promise
     let closing: Promise<void>
@@ -1694,15 +1685,9 @@ export class AgentSessionRuntimeService extends BaseService {
   private hydrateResumeToken(entry: AgentSessionRuntimeEntry): void {
     const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
     if (runtimeResumeToken && !entry.lastResumeToken) entry.lastResumeToken = runtimeResumeToken
-    if (entry.forkContextPending === undefined) {
-      entry.forkContextPending = Boolean(agentSessionMessageService.getForkHistory(entry.sessionId))
-    }
     // Validate before a driver can mint a new, empty initialization token.
-    const requiresNativeHistory = entry.forkContextPending
-      ? !agentSessionForkContextService.needsPreparation(entry.sessionId)
-      : agentSessionService.isFork(entry.sessionId)
-    if (requiresNativeHistory && !entry.lastResumeToken)
-      throw new ForkContextFailure({ code: 'native_uncertain', category: 'needs_reconciliation' })
+    if (agentSessionService.isFork(entry.sessionId) && !entry.lastResumeToken?.trim())
+      throw new AgentSessionForkError('history_missing')
   }
 
   private async runConnectionLoop(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): Promise<void> {
@@ -2440,20 +2425,7 @@ export class AgentSessionRuntimeService extends BaseService {
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
   }
 
-  private markForkContextUncertain(entry: AgentSessionRuntimeEntry): void {
-    if (!this.currentTurn(entry)?.forkContextAttempt) return
-    try {
-      agentSessionForkContextService.fail(entry.sessionId, {
-        code: 'native_uncertain',
-        category: 'needs_reconciliation'
-      })
-    } catch (error) {
-      logger.warn('Could not record fork context interruption', { sessionId: entry.sessionId, error })
-    }
-  }
-
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
-    this.markForkContextUncertain(entry)
     this.clearApiRetry(entry)
     this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
     if (isAgentSessionRuntimeCompacting(entry.runtimeState)) {
@@ -2490,78 +2462,10 @@ export class AgentSessionRuntimeService extends BaseService {
     await this.refreshTurnTraceContext(entry, turn)
     const connection = this.currentConnection(entry)
     if (!connection) throw new Error('Agent runtime connection unavailable')
-    let history: string | undefined
-    if (entry.forkContextPending) {
-      try {
-        if (!agentSessionForkContextService.needsPreparation(entry.sessionId)) {
-          if (!entry.lastResumeToken)
-            throw new ForkContextFailure({ code: 'native_uncertain', category: 'needs_reconciliation' })
-          entry.forkContextPending = false
-        }
-        if (entry.forkContextPending) {
-          const input = await resolveForkContextInput({
-            sessionId: entry.sessionId,
-            runtime: entry.agentType,
-            modelId: turn.modelId,
-            message: turn.userMessage,
-            connection,
-            signal: turn.abortController.signal
-          })
-          const prepared = await this.forkContextPreparer.prepare(input)
-          if (!prepared && !entry.lastResumeToken)
-            throw new ForkContextFailure({ code: 'native_uncertain', category: 'needs_reconciliation' })
-          turn.abortController.signal.throwIfAborted()
-          if (!this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
-          if (prepared) {
-            const current = await resolveForkContextInput({
-              sessionId: entry.sessionId,
-              runtime: entry.agentType,
-              modelId: turn.modelId,
-              message: turn.userMessage,
-              connection,
-              signal: turn.abortController.signal
-            })
-            if (
-              forkContextHash(current.compatibility) !== forkContextHash(prepared.compatibility) ||
-              current.budget < input.budget
-            )
-              throw new ForkContextFailure({ code: 'configuration', category: 'not_retryable' })
-            turn.abortController.signal.throwIfAborted()
-            if (!this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
-            history = buildForkHistory(prepared)
-            turn.forkContextAttempt = agentSessionForkContextService.beginSend(
-              entry.sessionId,
-              prepared.preparedContextId,
-              turn.userMessage.id,
-              turn.assistantMessageId
-            )
-          }
-        }
-      } catch (error) {
-        agentSessionForkContextService.fail(
-          entry.sessionId,
-          turn.abortController.signal.aborted
-            ? { code: 'cancelled', category: 'cancelled' }
-            : error instanceof ForkContextFailure
-              ? error.detail
-              : { code: 'configuration', category: 'not_retryable' }
-        )
-        throw error
-      }
-    }
-    try {
-      await connection.send({
-        message: withForkHistory(turn.userMessage, history),
-        systemReminder: turn.systemReminder === true
-      })
-    } catch (error) {
-      if (history)
-        agentSessionForkContextService.fail(entry.sessionId, {
-          code: 'native_uncertain',
-          category: 'needs_reconciliation'
-        })
-      throw error
-    }
+    await connection.send({
+      message: turn.userMessage,
+      systemReminder: turn.systemReminder === true
+    })
   }
 
   private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {
@@ -3223,46 +3127,11 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     const { assistantMessageId, modelId } = currentTurn
     const userText = extractMessageText(userMessage)
-    const afterPersist = async (finalMessage: CherryUIMessage) => {
-      const connection = this.currentConnection(entry)
-      const state = currentTurn.forkState
-      if (connection?.readForkContext && state?.status === 'available') {
-        try {
-          const capture = agentSessionForkContextService.captureNativePrefix(
-            entry.sessionId,
-            assistantMessageId,
-            state.excludedMessageIds ?? [],
-            state
-          )
-          const native = capture ? await connection.readForkContext(state.checkpoint) : undefined
-          if (native && capture) {
-            const resolved = await resolveForkContextInput({
-              sessionId: entry.sessionId,
-              runtime: entry.agentType,
-              modelId,
-              message: { ...userMessage, data: { parts: [] } },
-              connection,
-              signal: currentTurn.abortController.signal
-            })
-            agentSessionForkContextService.recordNative(
-              entry.sessionId,
-              assistantMessageId,
-              state.excludedMessageIds ?? [],
-              resolved.compatibility,
-              native,
-              capture
-            )
-          }
-        } catch (error) {
-          logger.warn('Portable compaction capture unavailable; completed answer preserved', {
-            sessionId: entry.sessionId,
-            error
-          })
+    const afterPersist = currentTurn.shouldAutoName
+      ? async (finalMessage: CherryUIMessage) => {
+          await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
         }
-      }
-      if (currentTurn.shouldAutoName)
-        await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
-    }
+      : undefined
     return new PersistenceListener({
       topicId: entry.topicId,
       modelId,

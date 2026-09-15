@@ -292,19 +292,6 @@ function terminalResultData(
 }
 
 export class AgentSessionMessageService {
-  /** Read the child's own inherited prefix; no dependency on a surviving parent. */
-  getForkHistory(sessionId: string): SessionMessageRow[] | undefined {
-    const db = application.get('DbService').getDb()
-    const session = db
-      .select({ forkedFrom: sessionTable.forkedFrom })
-      .from(sessionTable)
-      .where(eq(sessionTable.id, sessionId))
-      .get()
-    const messageId = session?.forkedFrom?.historyMessageId
-    if (!messageId) return undefined
-    return this.readForkPrefixTx(db, sessionId, messageId)
-  }
-
   markForkUnavailable(sessionId: string, messageId: string, value: string): void {
     if (!isAgentSessionForkUnavailableReason(value)) return
     application

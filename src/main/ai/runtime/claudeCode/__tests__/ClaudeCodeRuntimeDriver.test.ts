@@ -168,6 +168,7 @@ const externalFileUrl = (name: string) => `file:///${process.platform === 'win32
 
 const mocks = vi.hoisted(() => ({
   buildRequest: vi.fn(),
+  isFork: vi.fn(() => false),
   deriveConfig: vi.fn(),
   getAgent: vi.fn(),
   getModelByKey: vi.fn(),
@@ -207,7 +208,7 @@ vi.mock('@data/services/AgentService', () => ({
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { isFork: vi.fn(() => false) }
+  agentSessionService: { isFork: mocks.isFork }
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -500,6 +501,7 @@ function userMessage() {
 describe('ClaudeCodeRuntimeDriver', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isFork.mockReturnValue(false)
     mocks.adapterInstances.length = 0
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeWarmQueryManager') {
@@ -3205,6 +3207,56 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('rejects any fork without a native resume token, including a legacy rebuild', async () => {
+    mocks.isFork.mockReturnValue(true)
+    await expect(
+      new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+    ).rejects.toThrow('history_missing')
+    expect(mocks.createClaudeQuery).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'No conversation found with session ID: stale-token',
+    'messages.2.content.1: `tool_use` ids must be unique'
+  ])('reports a fork resume failure without replaying into an empty session: %s', async (failure) => {
+    mocks.isFork.mockReturnValue(true)
+    const queue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      resumeToken: 'stale-token'
+    })
+    const seen: any[] = []
+    const consume = (async () => {
+      for await (const event of connection.events) seen.push(event)
+    })()
+    try {
+      await connection.send({ message: userMessage() })
+      queue.push({
+        type: 'result',
+        subtype: 'error_during_execution',
+        session_id: 'stale-token',
+        usage: {},
+        errors: [failure]
+      })
+      await consume
+      expect(seen).toContainEqual(expect.objectContaining({ type: 'error' }))
+      expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
+      expect(seen).not.toContainEqual(
+        expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
+      )
+      expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    } finally {
+      await connection.close()
+    }
+  })
+
   it('degrades a stale resume token by re-spawning without it and replaying the pending message', async () => {
     const staleQueue = createAsyncQueue<any>()
     const freshQueue = createAsyncQueue<any>()
@@ -3247,13 +3299,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(retrySpawn.options).toMatchObject({
       model: 'sonnet',
       resume: undefined,
-      spawnClaudeCodeProcess: expect.any(Function),
-      hooks: { PreToolUse: expect.any(Array), PostToolBatch: expect.any(Array) }
+      spawnClaudeCodeProcess: expect.any(Function)
     })
-    // Each replacement process needs a fresh lease owner; it must not reuse the old wrapper.
-    expect(retrySpawn.options.spawnClaudeCodeProcess).not.toBe(
-      mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
-    )
     const replayed = await retrySpawn.prompt[Symbol.asyncIterator]().next()
     expect(replayed.value).toMatchObject({ type: 'user', session_id: '' })
 
@@ -3316,12 +3363,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(retrySpawn.options).toMatchObject({
       model: 'sonnet',
       resume: undefined,
-      spawnClaudeCodeProcess: expect.any(Function),
-      hooks: { PreToolUse: expect.any(Array), PostToolBatch: expect.any(Array) }
+      spawnClaudeCodeProcess: expect.any(Function)
     })
-    expect(retrySpawn.options.spawnClaudeCodeProcess).not.toBe(
-      mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
-    )
     await expect(retrySpawn.prompt[Symbol.asyncIterator]().next()).resolves.toMatchObject({
       value: { type: 'user', session_id: '' },
       done: false

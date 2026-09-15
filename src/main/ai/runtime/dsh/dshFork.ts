@@ -7,19 +7,6 @@ import { resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../forkCheckpoint'
 import { runForkWorker } from '../runForkWorker'
 
-export function readDshForkContext(events: unknown[], boundary: number, prefixHash: string) {
-  return runForkWorker<{ identity: string; messages: unknown[] } | undefined>(
-    {
-      runtime: 'dsh-context',
-      modulePath: pathToFileURL(resolveBundledDshRuntimeEntry('@cherrystudio/dsh-bridge/fork')).href,
-      events,
-      boundary,
-      prefixHash
-    },
-    AbortSignal.timeout(10_000)
-  )
-}
-
 export async function forkDshSession(input: RuntimeForkInput, snapshotEvents?: unknown[]): Promise<RuntimeForkResult> {
   const checkpoint = input.checkpoint
   if (checkpoint.runtime !== 'dsh') throw new AgentSessionForkError('unsupported_checkpoint')

@@ -285,7 +285,7 @@ export class AgentSessionService {
     })
   }
 
-  /** Bump metadata modification time from a foreign service's transaction. */
+  /** Persist fork provenance within the publishing transaction. */
   setForkSourceTx(tx: DbOrTx, id: string, source: NonNullable<SessionRow['forkedFrom']>): void {
     tx.update(sessionsTable).set({ forkedFrom: source }).where(eq(sessionsTable.id, id)).run()
   }

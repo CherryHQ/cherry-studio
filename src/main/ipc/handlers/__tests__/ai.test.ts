@@ -129,19 +129,18 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
-  it('forwards one native-first fork request with reconstruction enabled', async () => {
+  it('forwards a native fork request with only the source session and checkpoint message', async () => {
     agentSessionRuntimeService.forkSession.mockResolvedValue('child')
     await expect(
       aiHandlers['ai.agent.session.fork'](
         {
           sourceSessionId: 'source',
-          messageId: 'selected',
-          allowHistoryRebuild: true
+          messageId: 'selected'
         },
         ctx
       )
     ).resolves.toEqual({ sessionId: 'child' })
-    expect(agentSessionRuntimeService.forkSession).toHaveBeenCalledWith('source', 'selected', true)
+    expect(agentSessionRuntimeService.forkSession).toHaveBeenCalledWith('source', 'selected')
   })
 
   it.each([
@@ -156,8 +155,7 @@ describe('aiHandlers', () => {
     const result = aiHandlers['ai.agent.session.fork'](
       {
         sourceSessionId: 'source',
-        messageId: 'selected',
-        allowHistoryRebuild: true
+        messageId: 'selected'
       },
       ctx
     )

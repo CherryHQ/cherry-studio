@@ -236,12 +236,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.delete': ({ sessionIds }) =>
     application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
-  'ai.agent.session.fork': async ({ sourceSessionId, messageId, allowHistoryRebuild }) => {
+  'ai.agent.session.fork': async ({ sourceSessionId, messageId }) => {
     try {
       return {
-        sessionId: await application
-          .get('AgentSessionRuntimeService')
-          .forkSession(sourceSessionId, messageId, allowHistoryRebuild)
+        sessionId: await application.get('AgentSessionRuntimeService').forkSession(sourceSessionId, messageId)
       }
     } catch (error) {
       logger.warn('Agent session fork failed', { sourceSessionId, messageId, error })

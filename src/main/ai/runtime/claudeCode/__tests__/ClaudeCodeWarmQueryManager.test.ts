@@ -101,8 +101,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
       options: {
         model: 'sonnet',
         resume: 'sdk-1',
-        spawnClaudeCodeProcess: expect.any(Function),
-        hooks: expect.objectContaining({ PreToolUse: expect.any(Array), PostToolBatch: expect.any(Array) })
+        spawnClaudeCodeProcess: expect.any(Function)
       },
       initializeTimeoutMs: undefined
     })
@@ -124,8 +123,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(startupMock).toHaveBeenCalledWith({
       options: {
         model: 'sonnet',
-        spawnClaudeCodeProcess: expect.any(Function),
-        hooks: expect.objectContaining({ PreToolUse: expect.any(Array), PostToolBatch: expect.any(Array) })
+        spawnClaudeCodeProcess: expect.any(Function)
       },
       initializeTimeoutMs: undefined
     })

@@ -1,4 +1,4 @@
-import { lstat, realpath, stat } from 'node:fs/promises'
+import { lstatSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 function contains(root: string, candidate: string): boolean {
@@ -6,29 +6,23 @@ function contains(root: string, candidate: string): boolean {
   return !relative || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
 }
 
-async function resolveWorkspace(candidate: string): Promise<string> {
+function resolveWorkspace(candidate: string): string {
   try {
-    return await realpath(candidate)
+    return realpathSync(candidate)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    const entry = await lstat(candidate).catch((failure: NodeJS.ErrnoException) => {
-      if (failure.code !== 'ENOENT') throw failure
-      return undefined
-    })
+    const entry = lstatSync(candidate, { throwIfNoEntry: false })
     if (entry) throw new Error('Workspace alias cannot be resolved; retaining fork files')
     const parent = path.dirname(candidate)
     if (parent === candidate) throw error
-    return path.join(await resolveWorkspace(parent), path.basename(candidate))
+    return path.join(resolveWorkspace(parent), path.basename(candidate))
   }
 }
 
-async function ancestry(candidate: string): Promise<Set<string>> {
+function ancestry(candidate: string): Set<string> {
   const identities = new Set<string>()
   for (let current = candidate; ; current = path.dirname(current)) {
-    const info = await stat(current, { bigint: true }).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error
-      return undefined
-    })
+    const info = statSync(current, { bigint: true, throwIfNoEntry: false })
     if (info) {
       if (!info.isDirectory() || info.ino === 0n) throw new Error('Workspace identity cannot be verified')
       identities.add(`${info.dev}:${info.ino}`)
@@ -37,22 +31,19 @@ async function ancestry(candidate: string): Promise<Set<string>> {
   }
 }
 
-/** Called only under a persistent registration claim. Unverifiable paths throw, never authorize deletion. */
-export async function workspaceHasReferences(directory: string, workspaces: readonly string[]): Promise<boolean> {
-  const root = await realpath(directory)
-  const rootInfo = await stat(root, { bigint: true })
+/** The caller must detach in the same synchronous turn. Unverifiable paths throw, never authorize deletion. */
+export function workspaceHasReferences(directory: string, workspaces: readonly string[]): boolean {
+  const root = realpathSync(directory)
+  const rootInfo = statSync(root, { bigint: true })
   if (!rootInfo.isDirectory() || rootInfo.ino === 0n) throw new Error('Fork workspace identity cannot be verified')
   const rootIdentity = `${rootInfo.dev}:${rootInfo.ino}`
-  const rootParents = await ancestry(root)
+  const rootParents = ancestry(root)
   for (const workspace of workspaces) {
-    const candidate = await resolveWorkspace(workspace)
+    const candidate = resolveWorkspace(workspace)
     if (contains(root, candidate) || contains(candidate, root)) return true
-    const candidateParents = await ancestry(candidate)
+    const candidateParents = ancestry(candidate)
     if (candidateParents.has(rootIdentity)) return true
-    const info = await stat(candidate, { bigint: true }).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== 'ENOENT') throw error
-      return undefined
-    })
+    const info = statSync(candidate, { bigint: true, throwIfNoEntry: false })
     if (info && rootParents.has(`${info.dev}:${info.ino}`)) return true
   }
   return false
