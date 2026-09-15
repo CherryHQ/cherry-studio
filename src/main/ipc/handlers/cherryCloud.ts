@@ -27,5 +27,6 @@ export const cherryCloudHandlers: IpcHandlersFor<typeof cherryCloudRequestSchema
   'cherry_cloud.login.start': startLogin,
   'cherry_cloud.login.cancel': async () => application.get('CherryCloudService').cancelLogin(),
   'cherry_cloud.session.revoke': async () => application.get('CherryCloudService').revokeCurrentSession(),
-  'cherry_cloud.models.sync': async () => application.get('CherryCloudService').syncEntitledModelsIfStale()
+  'cherry_cloud.models.sync': async () => application.get('CherryCloudService').syncEntitledModelsIfStale(),
+  'cherry_cloud.account_plans.get': async () => application.get('CherryCloudService').getAccountPlans()
 }

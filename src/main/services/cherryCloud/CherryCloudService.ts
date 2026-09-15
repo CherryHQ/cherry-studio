@@ -16,12 +16,17 @@ import {
   type ModelCapability,
   parseUniqueModelId
 } from '@shared/data/types/model'
-import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+import type {
+  CherryCloudAccountPlans,
+  CherryCloudModelSyncResult,
+  CherryCloudStatus
+} from '@shared/ipc/schemas/cherryCloud'
 
 import { cherryAccountCredentialStore } from './CherryAccountCredentialStore'
 import { CherryCloudLoopbackCallback } from './CherryCloudLoopbackCallback'
 import {
   accountSnapshotSchema,
+  accountPlansSchema,
   cloudModelListSchema,
   createDesktopAuthorizationResponseSchema,
   exchangeDesktopAuthorizationResponseSchema,
@@ -597,6 +602,12 @@ export class CherryCloudService extends BaseService {
       return cached.result
     }
     return this.syncEntitledModels()
+  }
+
+  public async getAccountPlans(): Promise<CherryCloudAccountPlans> {
+    return this.getAuthenticatedJson('/api/v1/account/plans', accountPlansSchema, {
+      signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
+    })
   }
 
   private async syncEntitledModelsOnce(
