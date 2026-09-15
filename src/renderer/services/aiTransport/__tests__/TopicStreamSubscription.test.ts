@@ -511,7 +511,7 @@ describe('TopicStreamSubscription', () => {
   })
 
   it('cap retains protocol opener: slicing mid-execution synthesizes missing text-start', async () => {
-    const startChunk = { type: 'text-start', id: 't' } as UIMessageChunk
+    const startChunk: UIMessageChunk = { type: 'text-start', id: 't' }
     const bufferedChunks: StreamChunkPayload[] = [
       { topicId: TOPIC, executionId: A, attemptId: 1, chunk: startChunk },
       ...Array.from({ length: 1200 }, (_, i) => ({

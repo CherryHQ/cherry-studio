@@ -325,7 +325,7 @@ describe('IpcChatTransport', () => {
       executionId: undefined,
       attemptId: undefined,
       anchorMessageId: undefined,
-      chunk: { type: 'text-delta', id: 't', delta: `chunk-${i}` } as UIMessageChunk
+      chunk: { type: 'text-delta', id: 't', delta: `chunk-${i}` }
     }))
     mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', bufferedChunks })
 
@@ -359,7 +359,7 @@ describe('IpcChatTransport', () => {
     const filler = Array.from({ length: 1100 }, (_, i) => ({
       topicId,
       executionId: execId,
-      chunk: { type: 'text-delta', id: 'x', delta: `f-${i}` } as UIMessageChunk
+      chunk: { type: 'text-delta', id: 'x', delta: `f-${i}` }
     }))
     const toolOutput = {
       topicId,
@@ -369,7 +369,7 @@ describe('IpcChatTransport', () => {
     const trailingText = {
       topicId,
       executionId: execId,
-      chunk: { type: 'text-delta', id: 'x', delta: 'after' } as UIMessageChunk
+      chunk: { type: 'text-delta', id: 'x', delta: 'after' }
     }
     const bufferedChunks = [toolStart, ...filler, toolOutput, trailingText]
     mock.mockApi.streamAttach.mockResolvedValue({ status: 'attached', bufferedChunks })
@@ -395,9 +395,9 @@ describe('IpcChatTransport', () => {
 
     const execA = 'provider-a::model-a' as UniqueModelId
     const execB = 'provider-b::model-b' as UniqueModelId
-    mock.emitChunk(topicId, { type: 'text-start', id: '0' } as UIMessageChunk, execA)
-    mock.emitChunk(topicId, { type: 'text-delta', id: '0', delta: 'from-A' } as UIMessageChunk, execA)
-    mock.emitChunk(topicId, { type: 'text-delta', id: '0', delta: 'from-B' } as UIMessageChunk, execB)
+    mock.emitChunk(topicId, { type: 'text-start', id: '0' }, execA)
+    mock.emitChunk(topicId, { type: 'text-delta', id: '0', delta: 'from-A' }, execA)
+    mock.emitChunk(topicId, { type: 'text-delta', id: '0', delta: 'from-B' }, execB)
     mock.emitDone(topicId, undefined, true)
 
     const first = await reader.read()
