@@ -107,6 +107,8 @@ beforeEach(() => {
   mocks.mcpList.mockReset()
   mocks.modelGetByKey.mockReset()
   mocks.providerGetById.mockReset()
+  mocks.diagnoseEndpoint.mockReset()
+  mocks.doctorRun.mockReset()
   mocks.mcpList.mockReturnValue({ items: [] })
   mocks.modelGetByKey.mockReturnValue({ id: 'anthropic::claude-sonnet' })
   mocks.agentCreate.mockReturnValue({
