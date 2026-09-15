@@ -32,10 +32,6 @@ vi.mock('@renderer/components/ErrorDetailModal', () => {
   return { showErrorDetailPopup: mocks.showErrorDetailPopup }
 })
 
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn()
-}))
-
 const { cacheService } = await import('@data/CacheService')
 const { useMessageErrorActions } = await import('../useMessageErrorActions')
 const modulesEvaluatedDuringHookImport = {
