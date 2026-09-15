@@ -8,6 +8,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 
+import { sanitizeEnvNullBytes } from './binaryEnv'
 import { getShellEnv } from './shellEnv'
 
 const execFileAsync = promisify(execFile)
@@ -46,7 +47,7 @@ export function runInstallScript(scriptPath: string, extraEnv?: Record<string, s
     logger.info(`Running script at: ${installScriptPath}`)
 
     const nodeProcess = spawn(process.execPath, [installScriptPath], {
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...extraEnv }
+      env: sanitizeEnvNullBytes({ ...process.env, ELECTRON_RUN_AS_NODE: '1', ...extraEnv })
     })
 
     nodeProcess.stdout.on('data', (data) => {
@@ -74,15 +75,21 @@ export function runInstallScript(scriptPath: string, extraEnv?: Record<string, s
  *
  * cross-spawn invokes batch shims through cmd.exe while quoting each argument,
  * unlike `shell: true`, which concatenates arbitrary arguments into one shell
- * command line. This boundary deliberately owns launch mechanics only; callers
- * continue to choose their execution environment.
+ * command line. Callers choose their execution environment, but this boundary
+ * still normalizes it: a NUL anywhere in a value makes Node reject the whole
+ * env before the subprocess starts (#20344).
  */
 export function crossPlatformSpawn(
   command: string,
   args: string[],
   options: SpawnOptions & { env: NodeJS.ProcessEnv }
 ): ChildProcess {
-  return crossSpawn(command, args, { ...options, windowsHide: true, stdio: options.stdio ?? 'pipe' })
+  return crossSpawn(command, args, {
+    ...options,
+    env: sanitizeEnvNullBytes(options.env),
+    windowsHide: true,
+    stdio: options.stdio ?? 'pipe'
+  })
 }
 
 /**
@@ -98,14 +105,19 @@ export function crossPlatformSpawn(
  */
 export function killProcessTree(child: ChildProcess): void {
   if (isWin && child.pid) {
-    execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], (error) => {
-      if (error) {
-        // Usually the child already exited (a common cancel-after-finish race), so taskkill
-        // reports "process not found" — debug, not warn, to avoid noise on normal cancels.
-        logger.debug('taskkill did not terminate the process tree, falling back to child.kill()', error)
-        child.kill()
+    execFile(
+      'taskkill',
+      ['/PID', String(child.pid), '/T', '/F'],
+      { env: sanitizeEnvNullBytes({ ...process.env }) },
+      (error) => {
+        if (error) {
+          // Usually the child already exited (a common cancel-after-finish race), so taskkill
+          // reports "process not found" — debug, not warn, to avoid noise on normal cancels.
+          logger.debug('taskkill did not terminate the process tree, falling back to child.kill()', error)
+          child.kill()
+        }
       }
-    })
+    )
     return
   }
   if (child.pid) {
@@ -137,7 +149,10 @@ export async function terminateProcessTree(child: ChildProcess, force: boolean, 
   if (!child.pid) return
   if (isWin) {
     const args = ['/PID', String(child.pid), '/T', ...(force ? ['/F'] : [])]
-    await execFileAsync('taskkill', args, { windowsHide: true }).catch((error) => {
+    await execFileAsync('taskkill', args, {
+      windowsHide: true,
+      env: sanitizeEnvNullBytes({ ...process.env })
+    }).catch((error) => {
       if (child.exitCode !== null || child.signalCode !== null) return
       if (force) throw error
       logger.warn(`Failed to gracefully stop the managed ${label} process tree`, error as Error)

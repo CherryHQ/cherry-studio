@@ -7,6 +7,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { validatePath } from '@main/ai/mcp/servers/filesystem'
+import { sanitizeEnvNullBytes } from '@main/utils/binaryEnv'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 const logger = loggerService.withContext('AssistantFileSafety')
@@ -190,6 +191,7 @@ function runUnlinkOwnedPathChild(
     if (process.env.SystemRoot) env.SystemRoot = process.env.SystemRoot
     if (process.env.SYSTEMROOT) env.SYSTEMROOT = process.env.SYSTEMROOT
   }
+  const sanitizedEnv = sanitizeEnvNullBytes(env)
 
   return new Promise<void>((resolve, reject) => {
     execFile(
@@ -207,7 +209,7 @@ function runUnlinkOwnedPathChild(
       {
         cwd: parentPath,
         encoding: 'utf8',
-        env,
+        env: sanitizedEnv,
         maxBuffer: CLEANUP_CHILD_MAX_BUFFER_BYTES,
         timeout: CLEANUP_CHILD_TIMEOUT_MS,
         windowsHide: true
