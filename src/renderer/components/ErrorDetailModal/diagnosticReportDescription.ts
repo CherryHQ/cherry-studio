@@ -10,11 +10,8 @@ export interface DiagnosticReportConfig {
 
 export interface DiagnosticReportDescriptionLabels {
   errorMessage: string
-  errorName: string
   location: string
   model: string
-  provider: string
-  statusCode: string
 }
 
 interface BuildDiagnosticReportDescriptionInput extends DiagnosticReportConfig {
@@ -46,6 +43,20 @@ function diagnosticReportField(id: DiagnosticReportField['id'], value: unknown):
   return text ? { id, value: text } : undefined
 }
 
+function combineErrorParts(name: unknown, message: unknown): string | undefined {
+  const errorName = nonEmptyText(name)
+  const errorMessage = nonEmptyText(message)
+  if (errorName && errorMessage) return `${errorName}: ${errorMessage}`
+  return errorName ?? errorMessage
+}
+
+function combineModelParts(provider: unknown, model: unknown): string | undefined {
+  const providerName = nonEmptyText(provider)
+  const modelId = nonEmptyText(model)
+  if (providerName && modelId) return `${providerName}:${modelId}`
+  return providerName ?? modelId
+}
+
 function truncateUtf8(value: string): string {
   const encoder = new TextEncoder()
   let byteLength = 0
@@ -66,15 +77,10 @@ export function diagnosticReportFields({
   error,
   location
 }: DiagnosticReportFieldsInput): DiagnosticReportField[] {
-  const errorRecord = error as Record<string, unknown> | undefined
-
   return [
     diagnosticReportField('location', location),
-    diagnosticReportField('provider', diagnosisContext?.providerId),
-    diagnosticReportField('model', diagnosisContext?.modelId),
-    diagnosticReportField('errorName', error?.name),
-    diagnosticReportField('statusCode', errorRecord?.status ?? errorRecord?.statusCode),
-    diagnosticReportField('errorMessage', error?.message)
+    diagnosticReportField('model', combineModelParts(diagnosisContext?.providerId, diagnosisContext?.modelId)),
+    diagnosticReportField('errorMessage', combineErrorParts(error?.name, error?.message))
   ].filter((field): field is DiagnosticReportField => field !== undefined)
 }
 

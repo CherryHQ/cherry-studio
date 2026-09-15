@@ -1259,6 +1259,7 @@
   "error.diagnostics.action_required": "Acción requerida",
   "error.diagnostics.back_to_overview": "Volver al resumen de diagnóstico",
   "error.diagnostics.basic_information": "Información básica",
+  "error.diagnostics.basic_information_with_location": "Información básica ({{location}})",
   "error.diagnostics.checking_progress": "Comprobando: {{check}} · {{completed}}/{{total}}",
   "error.diagnostics.context_unavailable": "El objeto del diagnóstico no está disponible. Puedes consultar los detalles del error original.",
   "error.diagnostics.diagnosing": "Diagnosticando",

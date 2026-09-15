@@ -1259,6 +1259,7 @@
   "error.diagnostics.action_required": "Handlungsbedarf",
   "error.diagnostics.back_to_overview": "Zurück zur Diagnoseübersicht",
   "error.diagnostics.basic_information": "Grundinformationen",
+  "error.diagnostics.basic_information_with_location": "Grundinformationen ({{location}})",
   "error.diagnostics.checking_progress": "Wird geprüft: {{check}} · {{completed}}/{{total}}",
   "error.diagnostics.context_unavailable": "Das Diagnoseziel ist nicht verfügbar. Die ursprünglichen Fehlerdetails können weiterhin angezeigt werden.",
   "error.diagnostics.diagnosing": "Diagnose läuft",

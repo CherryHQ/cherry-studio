@@ -108,6 +108,7 @@ const translations: Record<string, string> = {
   'error.diagnostics.action_required': 'Action required',
   'error.diagnostics.back_to_overview': 'Back to diagnostic overview',
   'error.diagnostics.basic_information': 'Basic information',
+  'error.diagnostics.basic_information_with_location': 'Basic information ({{location}})',
   'error.diagnostics.checking_progress': 'Checking: {{check}} · {{completed}}/{{total}}',
   'error.diagnostics.diagnosing': 'Diagnosing',
   'error.diagnostics.preparing_result': 'Preparing results…',
@@ -313,13 +314,15 @@ describe('ErrorDetailContent diagnostics', () => {
       error: providerError
     })
 
-    const basicInformation = screen.getByRole('region', { name: 'Basic information' })
+    const basicInformation = screen.getByRole('region', { name: 'Basic information (Home conversation)' })
     expect(basicInformation).toBeInTheDocument()
     expect(basicInformation).toHaveAttribute('data-variant', 'sectioned')
-    expect(screen.getByText('Home conversation')).toBeInTheDocument()
-    expect(screen.getByText('OpenAI')).toBeInTheDocument()
-    expect(screen.getByText('gpt-5')).toBeInTheDocument()
-    expect(screen.getByText('503')).toBeInTheDocument()
+    expect(screen.getByText('OpenAI:gpt-5')).toBeInTheDocument()
+    expect(screen.getByText('ProviderError: failed')).toBeInTheDocument()
+    expect(screen.queryByText('Home conversation')).not.toBeInTheDocument()
+    expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
+    expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
+    expect(screen.queryByText('503')).not.toBeInTheDocument()
     expect(screen.queryByText('private stack')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
 
@@ -712,7 +715,8 @@ describe('ErrorDetailContent diagnostics', () => {
     await user.click(reportProblem)
 
     const description = onOpenDiagnosticReport.mock.calls[0][0]
-    expect(description).toContain('Error message: failed')
+    expect(description).toContain('Error message: ProviderError: failed')
+    expect(description).toContain('Location: Agent conversation')
     expect(description).not.toContain('private Doctor evidence')
     expect(description).not.toContain('private stack')
     expect(mocks.diagnoseError).not.toHaveBeenCalled()

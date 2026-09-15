@@ -1259,6 +1259,7 @@
   "error.diagnostics.action_required": "Action requise",
   "error.diagnostics.back_to_overview": "Retour à la vue d’ensemble du diagnostic",
   "error.diagnostics.basic_information": "Informations de base",
+  "error.diagnostics.basic_information_with_location": "Informations de base ({{location}})",
   "error.diagnostics.checking_progress": "Vérification : {{check}} · {{completed}}/{{total}}",
   "error.diagnostics.context_unavailable": "La cible du diagnostic est indisponible. Vous pouvez toujours consulter les détails de l’erreur d’origine.",
   "error.diagnostics.diagnosing": "Diagnostic en cours",

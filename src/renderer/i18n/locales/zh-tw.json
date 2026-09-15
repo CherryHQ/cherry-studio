@@ -1259,6 +1259,7 @@
   "error.diagnostics.action_required": "需要處理",
   "error.diagnostics.back_to_overview": "返回診斷概覽",
   "error.diagnostics.basic_information": "基本資訊",
+  "error.diagnostics.basic_information_with_location": "基本資訊（{{location}}）",
   "error.diagnostics.checking_progress": "正在檢查：{{check}} · {{completed}}/{{total}}",
   "error.diagnostics.context_unavailable": "無法確定診斷對象，仍可查看原始錯誤詳情。",
   "error.diagnostics.diagnosing": "診斷中",
