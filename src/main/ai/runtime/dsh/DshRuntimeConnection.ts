@@ -388,10 +388,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       const loginShellEnv = await getShellEnv()
       const loginPath = getPathFromEnvironment(loginShellEnv)
       const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
-      // Complete replacement env — deliberate credential scope: the child sees
-      // only managed binary locations, the routed API key, and the bridge socket.
-      // Assembled after `binaryExecutionEnv`, so the injected key is sanitized
-      // here too — a NUL in it would abort the spawn (#20344).
+      // Sanitize after credential injection so the final child environment is valid.
       const clientEnv = sanitizeEnvNullBytes({
         ...binaryExecutionEnv,
         ...(loginShellEnv.HOME !== undefined

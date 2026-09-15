@@ -1035,7 +1035,11 @@ export class BinaryManager extends BaseService {
     // cwd is always a throwaway tmp dir so mise never picks up a project-local
     // mise.toml from the main process's working directory.
     try {
-      return await execFileAsync(this.miseBin, args, { cwd: os.tmpdir(), env, timeout: timeoutMs })
+      return await execFileAsync(this.miseBin, args, {
+        cwd: os.tmpdir(),
+        env: sanitizeEnvNullBytes(env),
+        timeout: timeoutMs
+      })
     } catch (error) {
       if (error instanceof Error) {
         // A timeout kill leaves stderr at whatever progress line mise printed

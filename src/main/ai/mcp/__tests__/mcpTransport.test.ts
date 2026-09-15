@@ -167,6 +167,18 @@ describe('createTransport', () => {
     expect(entries[0]).toMatchObject({ level: 'stderr', message: 'server crashed', source: 'stdio' })
   })
 
+  it('removes invalid manual server env entries before SDK handoff without changing server config', async () => {
+    const env = { GOOD: 'keep', BROKEN: 'bad\0value', ['BAD\0KEY']: 'value' }
+    const transport = (await create({ type: 'stdio', command: 'npx', env })) as unknown as FakeStdioTransport
+
+    expect(transport.params.env.GOOD).toBe('keep')
+    expect(
+      Object.entries(transport.params.env).some(([key, value]) => key.includes('\0') || String(value).includes('\0'))
+    ).toBe(false)
+    expect(env.BROKEN).toBe('bad\0value')
+    expect(env['BAD\0KEY']).toBe('value')
+  })
+
   it('forwards the underlying spawn error details to app and server logs', async () => {
     const entries: McpServerLogEntry[] = []
     const transport = (await create(
