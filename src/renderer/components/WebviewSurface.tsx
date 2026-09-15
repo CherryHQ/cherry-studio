@@ -99,14 +99,12 @@ export function WebviewSurface({ anchor, guest, overlay }: Props) {
     <>
       <div
         ref={guestPlaneRef}
-        data-webview-guest-plane=""
         className="fixed z-10 overflow-hidden"
         style={{ left: 0, top: 0, width: 960, height: 720, opacity: 0, pointerEvents: 'none' }}>
         {guest}
       </div>
       <div
         ref={overlayPlaneRef}
-        data-webview-overlay-plane=""
         className="pointer-events-none fixed z-50 overflow-hidden"
         style={{ left: 0, top: 0, width: 960, height: 720, opacity: 0, pointerEvents: 'none' }}>
         {overlay}

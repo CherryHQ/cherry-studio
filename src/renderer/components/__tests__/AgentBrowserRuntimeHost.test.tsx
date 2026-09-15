@@ -125,8 +125,8 @@ describe('AgentBrowserRuntimeHost', () => {
 
     const guest = view.getByTestId('webview-browser-guest')
     const cursor = await view.findByTestId('browser-cursor-overlay')
-    const guestPlane = guest.closest('[data-webview-guest-plane]')
-    const overlayPlane = cursor.closest('[data-webview-overlay-plane]')
+    const guestPlane = guest.parentElement
+    const overlayPlane = cursor.parentElement
 
     // Electron compositing requires body siblings, with the overlay above the z-40 pane host.
     expect(guestPlane).not.toBeNull()
