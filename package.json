@@ -123,7 +123,7 @@
     "@napi-rs/canvas": "0.1.80",
     "@napi-rs/system-ocr": "1.1.0",
     "@node-rs/xxhash": "1.7.6",
-    "@paymoapp/electron-shutdown-handler": "1.1.2",
+    "@paymoapp/electron-shutdown-handler": "1.2.0",
     "@sentry/electron": "7.18.0",
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/env": "^0.1.0",
