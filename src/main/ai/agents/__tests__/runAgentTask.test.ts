@@ -93,7 +93,7 @@ vi.mock('@main/ai/agents/heartbeat', () => ({
 
 const { syncHeartbeatScheduleMock } = vi.hoisted(() => ({ syncHeartbeatScheduleMock: vi.fn(async () => 'noop') }))
 vi.mock('@main/ai/agents/heartbeatSchedule', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/ai/agents/heartbeatSchedule')>()),
+  ...(await importOriginal()),
   syncHeartbeatSchedule: syncHeartbeatScheduleMock
 }))
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
