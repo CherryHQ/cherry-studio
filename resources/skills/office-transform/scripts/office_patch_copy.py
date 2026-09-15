@@ -262,17 +262,22 @@ def make_tag(sample_tag: str, local_name: str) -> str:
     return local_name
 
 
-# The whitespace class shared with the renderer's normalizeSelectionText, written out rather than
-# left to `\s`. The two runtimes disagree on `\s` — Python counts U+0085 and U+001C-U+001F, JavaScript
-# counts U+FEFF, and neither is a superset of the other — so "both sides call \s" is two different
-# rules, not one shared one. Spelling the set out is what makes it a contract.
+# Written out rather than left to `\s`: the two runtimes disagree on `\s` and neither class is a
+# superset of the other, so spelling the set out is what makes this one shared rule.
 SELECTION_WHITESPACE = re.compile(
     "[\t\n\x0b\x0c\r \x85\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff\x1c-\x1f]+"
 )
 
 
 def normalize_text(text: str) -> str:
-    """Mirror of the renderer's normalizeSelectionText: NFC, collapse whitespace, trim."""
+    """Mirror of the renderer's normalizeSelectionText: NFC, collapse whitespace, trim.
+
+    SELECTION_WHITESPACE is the character-for-character counterpart of the class in
+    `src/renderer/components/FilePreview/selectionReference.ts`. Both sides must collapse exactly
+    the same set, because the text normalized here is compared against text the renderer normalized
+    there. `\\s` cannot carry that contract: Python counts U+0085 and U+001C-U+001F in it,
+    JavaScript counts U+FEFF, and neither is a superset of the other.
+    """
     return SELECTION_WHITESPACE.sub(" ", unicodedata.normalize("NFC", text)).strip(
         "\t\n\x0b\x0c\r \x85\xa0\u1680\u2028\u2029\u202f\u205f\u3000\ufeff\x1c\x1d\x1e\x1f"
         "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
@@ -890,9 +895,8 @@ def patch_docx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
             matches = [p for p in paragraphs if paragraph_para_id(p) == para_id]
             if len(matches) > 1:
                 fail(f"paraId {para_id!r} matches {len(matches)} paragraphs; refusing an ambiguous edit")
-            # No match means the paragraph was deleted or its id changed. Falling back to the
-            # ordinal here would edit whatever text now sits at that position — the silent
-            # wrong pick this gate exists to prevent.
+            # No match means the paragraph was deleted or re-ided; falling back to the ordinal
+            # would edit whatever text now sits there — the silent wrong pick this gate prevents.
             if not matches:
                 fail(
                     f"paraId {para_id!r} matches no body paragraph — the document changed since the "
