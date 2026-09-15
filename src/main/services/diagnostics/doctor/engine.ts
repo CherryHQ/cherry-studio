@@ -23,11 +23,19 @@ export type EngineResult<Id extends string, Outcome> = { readonly id: Id; readon
   | { readonly status: 'error'; readonly message: string }
 )
 
+export type EngineAdmission<Outcome> =
+  | { readonly status: 'run' | 'defer' }
+  | { readonly status: 'settled'; readonly outcome: Outcome }
+
 export interface EngineOptions<Id extends string, Outcome> {
   readonly checks: readonly EngineCheck<Id, Outcome>[]
+  /** Completed work survives continuation; deferred checks and their dependents do not run. */
+  readonly initialResults?: readonly EngineResult<Id, Outcome>[]
+  readonly admit?: (id: Id) => Promise<EngineAdmission<Outcome>>
   /** Cancels the whole run: running probes are aborted, unstarted ones settle as canceled errors. */
   readonly signal?: AbortSignal
   readonly laneLimits?: Readonly<Record<string, number>>
+  readonly onStart?: (id: Id) => void
   readonly onResult?: (result: EngineResult<Id, Outcome>) => void
   readonly now?: () => number
 }
@@ -70,8 +78,11 @@ async function probe<Outcome>(
   const started = now()
   const timeout = AbortSignal.timeout(check.timeoutMs)
   const signal = runSignal ? AbortSignal.any([runSignal, timeout]) : timeout
+  const deadlineController = new AbortController()
   // The sleep rejects on cancel and resolves on timeout, so a probe that ignores its signal still settles.
-  const deadline = sleep(check.timeoutMs, undefined, { signal: runSignal }).then(() => {
+  const deadline = sleep(check.timeoutMs, undefined, {
+    signal: runSignal ? AbortSignal.any([runSignal, deadlineController.signal]) : deadlineController.signal
+  }).then(() => {
     throw new Error(`Timed out after ${check.timeoutMs}ms`)
   })
   try {
@@ -87,6 +98,8 @@ async function probe<Outcome>(
           ? error.message
           : String(error)
     return { status: 'error', message, durationMs: now() - started }
+  } finally {
+    deadlineController.abort()
   }
 }
 
@@ -97,7 +110,7 @@ export async function runDoctorChecks<Id extends string, Outcome extends { reado
   const lanes = new Map(
     Object.entries(options.laneLimits ?? {}).map(([name, concurrency]) => [name, new PQueue({ concurrency })])
   )
-  const results = new Map<Id, EngineResult<Id, Outcome>>()
+  const results = new Map<Id, EngineResult<Id, Outcome>>(options.initialResults?.map((result) => [result.id, result]))
 
   const settle = (result: EngineResult<Id, Outcome>) => {
     results.set(result.id, result)
@@ -107,6 +120,8 @@ export async function runDoctorChecks<Id extends string, Outcome extends { reado
   for (const checks of layer(options.checks)) {
     await Promise.all(
       checks.map(async (check) => {
+        if (results.has(check.id)) return
+        if (check.requires.some((id) => !results.has(id))) return
         const blocker = check.requires.find((dep) => BLOCKING_STATUSES.has(results.get(dep)?.status ?? ''))
         if (blocker !== undefined) {
           settle({ id: check.id, status: 'skip', skippedBy: blocker, durationMs: 0 })
@@ -116,13 +131,39 @@ export async function runDoctorChecks<Id extends string, Outcome extends { reado
           settle({ id: check.id, status: 'error', message: CANCELED_MESSAGE, durationMs: 0 })
           return
         }
+        if (options.admit) {
+          try {
+            const admission = await options.admit(check.id)
+            if (admission.status === 'defer') return
+            if (admission.status === 'settled') {
+              settle({ id: check.id, ...admission.outcome, durationMs: 0 })
+              return
+            }
+          } catch (error) {
+            settle({
+              id: check.id,
+              status: 'error',
+              message: error instanceof Error ? error.message : String(error),
+              durationMs: 0
+            })
+            return
+          }
+        }
         const lane = lanes.get(check.lane)
-        const run = () => probe(check, options.signal, now)
+        const run = () => {
+          if (options.signal?.aborted)
+            return Promise.resolve({ status: 'error' as const, message: CANCELED_MESSAGE, durationMs: 0 })
+          options.onStart?.(check.id)
+          return probe(check, options.signal, now)
+        }
         settle({ id: check.id, ...(lane ? await lane.add(run, { throwOnTimeout: true }) : await run()) })
       })
     )
   }
   // Preserve the caller's order so the report reads like the catalog; `results` is keyed by id,
   // so a repeated id must not yield a repeated entry.
-  return [...new Set(options.checks.map((check) => check.id))].map((id) => results.get(id)!)
+  return [...new Set(options.checks.map((check) => check.id))].flatMap((id) => {
+    const result = results.get(id)
+    return result ? [result] : []
+  })
 }

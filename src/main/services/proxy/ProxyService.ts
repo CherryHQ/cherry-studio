@@ -105,12 +105,6 @@ export class ProxyService extends BaseService {
     }
   }
 
-  /** Routing policy for isolated runtimes. All proxy/bypass semantics stay in main. */
-  async getRoutingSnapshot(): Promise<ProxyRoutingSnapshot> {
-    await this.proxyReconciler.flush()
-    return this.getNodeProxyController().getRoutingSnapshot()
-  }
-
   /**
    * Apply the proxy from user preferences on startup, then re-apply whenever the proxy
    * preferences change. Without this the global proxy mechanism is never wired to settings —
