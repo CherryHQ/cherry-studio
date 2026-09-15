@@ -346,8 +346,6 @@ describe('Browser settings workflows', () => {
 
   it('requires an explicit clear action and retries only categories that have not been cleared', async () => {
     const user = userEvent.setup()
-    const historyDeleted = vi.fn().mockResolvedValue({ success: true })
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/browser-visits', historyDeleted)
     const cleared: string[] = []
     let fail = true
     vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
@@ -362,7 +360,6 @@ describe('Browser settings workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Clear Clear browsing data' }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(cleared).toEqual([])
-    expect(historyDeleted).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Clear Clear browsing data' }))
     await user.click(screen.getByRole('checkbox', { name: 'History' }))
     await user.click(screen.getByRole('checkbox', { name: 'Website data' }))
@@ -370,12 +367,11 @@ describe('Browser settings workflows', () => {
     await screen.findByRole('alert')
     expect(screen.getByRole('checkbox', { name: 'History' })).not.toBeChecked()
     expect(screen.getByRole('checkbox', { name: 'Website data' })).toBeChecked()
-    expect(historyDeleted).toHaveBeenCalledTimes(1)
+    expect(cleared).toEqual(['history'])
     fail = false
     await user.click(screen.getByRole('button', { name: 'Clear' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(cleared).toEqual(['site_data', 'cache'])
-    expect(historyDeleted).toHaveBeenCalledTimes(1)
+    expect(cleared).toEqual(['history', 'site_data', 'cache'])
   })
 
   it('appends visits to the same day while retaining earlier records and stops requesting at the end', async () => {

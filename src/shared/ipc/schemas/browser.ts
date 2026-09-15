@@ -8,7 +8,7 @@ export const browserRequestSchemas = {
   'browser.import.sources': defineRoute({ input: z.void(), output: z.array(BrowserImportSourceSchema) }),
   'browser.import.run': defineRoute({ input: BrowserImportOptionsSchema, output: BrowserImportResultSchema }),
   'browser.data.clear': defineRoute({
-    input: z.strictObject({ kind: z.enum(['site_data', 'cache']) }),
+    input: z.strictObject({ kind: z.enum(['site_data', 'cache', 'history']) }),
     output: z.void()
   }),
   'browser.pane.attach': defineRoute({
