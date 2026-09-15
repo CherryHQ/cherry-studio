@@ -37,7 +37,7 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
-import { assertAgentStoragePath } from '@main/ai/agents/agentDataDirectory'
+import { assertAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { pauseHeartbeatSchedule, syncHeartbeatSchedule } from '@main/ai/agents/heartbeatSchedule'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
@@ -266,10 +266,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     const workspacePath = workspaceRow.path
     // The provisioning-time storage check is not enough: a parent directory
     // swapped for a symlink afterwards would make the heartbeat.md read escape
-    // managed storage (readHeartbeat only lstats the file itself). Re-validate
-    // the full chain on every fire and skip the tick when it no longer holds.
+    // managed storage, and a regular file at the path would tick-and-skip in
+    // the no-file branch forever. Re-validate on every fire.
     try {
-      await assertAgentStoragePath(application.getPath('feature.agents.data'), workspacePath)
+      await assertAgentStorageDirectory(application.getPath('feature.agents.data'), workspacePath)
     } catch (error) {
       logger.warn('Heartbeat workspace failed the storage check; skipping tick', {
         agentId,
@@ -277,10 +277,13 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         workspacePath,
         error
       })
-      // Same tick-and-skip pathology as the deleted-workspace pause: the next
-      // heartbeat sync re-arms the row once the path is trusted again.
+      // Same tick-and-skip pathology as the deleted-workspace pause: converge
+      // now instead of waiting for an unrelated sync trigger.
       if (scheduleId && liveScheduleTargetsWorkspace(scheduleSnapshot, agentId, workspace.workspaceId)) {
         pauseHeartbeatSchedule(agentId, scheduleId, 'Failed to pause heartbeat schedule on an untrusted workspace path')
+        void syncHeartbeatSchedule(agentId).catch((error) => {
+          logger.warn('Post-pause heartbeat sync failed', { agentId, scheduleId, error })
+        })
       }
       return { result: 'Skipped (untrusted workspace path)' }
     }

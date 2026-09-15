@@ -25,7 +25,7 @@ const {
   mockIsSessionBusy,
   mockUpdateJobScheduleTx,
   mockSyncJobScheduleTimerById,
-  mockAssertAgentStoragePath,
+  mockAssertAgentStorageDirectory,
   captured
 } = vi.hoisted(() => {
   const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
@@ -41,7 +41,7 @@ const {
     mockIsSessionBusy: vi.fn(() => false),
     mockUpdateJobScheduleTx: vi.fn(),
     mockSyncJobScheduleTimerById: vi.fn(),
-    mockAssertAgentStoragePath: vi.fn(),
+    mockAssertAgentStorageDirectory: vi.fn(),
     captured
   }
 })
@@ -97,7 +97,7 @@ vi.mock('@main/ai/agents/heartbeatSchedule', async (importOriginal) => ({
   syncHeartbeatSchedule: syncHeartbeatScheduleMock
 }))
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
-  assertAgentStoragePath: mockAssertAgentStoragePath
+  assertAgentStorageDirectory: mockAssertAgentStorageDirectory
 }))
 
 import { agentChannelService } from '@data/services/AgentChannelService'
@@ -248,7 +248,7 @@ describe('runAgentTask', () => {
     mockIsSessionBusy.mockReset().mockReturnValue(false)
     vi.mocked(agentWorkspaceService.getById).mockReset()
     vi.mocked(readHeartbeat).mockReset()
-    mockAssertAgentStoragePath.mockReset().mockResolvedValue(undefined)
+    mockAssertAgentStorageDirectory.mockReset().mockResolvedValue(undefined)
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockReturnValue([])
     mockStartRun.mockClear()
     mockAbort.mockClear()
@@ -475,17 +475,19 @@ describe('runAgentTask', () => {
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
     vi.mocked(agentWorkspaceService.getById).mockReturnValueOnce({ id: 'ws-1', type: 'user', path: '/ws/a' } as never)
-    mockAssertAgentStoragePath.mockRejectedValueOnce(new Error('Agent storage path contains a symbolic link'))
+    mockAssertAgentStorageDirectory.mockRejectedValueOnce(new Error('Agent storage path contains a symbolic link'))
 
     const out = await runAgentTask(makeCtx())
 
     expect(out).toEqual({ result: 'Skipped (untrusted workspace path)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
-    // Pauses like the deleted-workspace path instead of tick-and-skipping;
-    // the next heartbeat sync re-arms the row once the path is trusted again.
+    // Pauses like the deleted-workspace path instead of tick-and-skipping, and
+    // the pause kicks that sync right away so the row re-arms as soon as the
+    // path is trusted (or repaired) again.
     expect(mockUpdateJobScheduleTx).toHaveBeenCalledWith(expect.anything(), 's1', { enabled: false })
     expect(mockSyncJobScheduleTimerById).toHaveBeenCalledWith('s1')
+    expect(syncHeartbeatScheduleMock).toHaveBeenCalledWith('a1')
   })
 
   it('does not pause on an untrusted path when the schedule was repaired onto a new workspace after this job was queued', async () => {
@@ -507,13 +509,14 @@ describe('runAgentTask', () => {
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(repaired)
     vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
     vi.mocked(agentWorkspaceService.getById).mockReturnValueOnce({ id: 'ws-1', type: 'user', path: '/ws/a' } as never)
-    mockAssertAgentStoragePath.mockRejectedValueOnce(new Error('Agent storage path contains a symbolic link'))
+    mockAssertAgentStorageDirectory.mockRejectedValueOnce(new Error('Agent storage path contains a symbolic link'))
 
     const out = await runAgentTask(makeCtx())
 
     expect(out).toEqual({ result: 'Skipped (untrusted workspace path)' })
     expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
     expect(mockSyncJobScheduleTimerById).not.toHaveBeenCalled()
+    expect(syncHeartbeatScheduleMock).not.toHaveBeenCalled()
   })
 
   it('skips an ad-hoc heartbeat with a deleted workspace without pausing (no schedule)', async () => {

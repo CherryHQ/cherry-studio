@@ -80,6 +80,19 @@ export async function assertAgentStoragePath(agentsDataRoot: string, targetPath:
   }
 }
 
+/**
+ * Validate a Data/Agents path is contained by the root AND a real directory.
+ * `assertAgentStoragePath` deliberately skips the final component, so a regular
+ * file at the target would pass it.
+ */
+export async function assertAgentStorageDirectory(agentsDataRoot: string, targetPath: string): Promise<void> {
+  await assertAgentStoragePath(agentsDataRoot, targetPath)
+  const targetStat = await lstat(asAbsolutePath(path.resolve(targetPath)))
+  if (!targetStat.isDirectory || targetStat.isSymbolicLink) {
+    throw new Error(`Agent storage directory must be a real directory: ${targetPath}`)
+  }
+}
+
 /** Ensure a Data/Agents path is a real directory contained by the Agent storage root. */
 export async function ensureAgentStorageDirectory(agentsDataRoot: string, targetPath: string): Promise<void> {
   await ensureDir(asAbsolutePath(path.resolve(agentsDataRoot)))

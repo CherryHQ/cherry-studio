@@ -1,5 +1,5 @@
 import { lstatSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, symlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -8,7 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const AGENT_ID = '11111111-1111-4111-8111-111111111111'
 let agentsDataRoot = ''
 
-const { createAgentDataDirectory, ensureAgentDataDirectory } = await import('../agentDataDirectory')
+const { assertAgentStorageDirectory, createAgentDataDirectory, ensureAgentDataDirectory } =
+  await import('../agentDataDirectory')
 
 describe('agentDataDirectory', () => {
   beforeEach(async () => {
@@ -66,5 +67,29 @@ describe('agentDataDirectory', () => {
     } finally {
       await rm(outsideRoot, { recursive: true, force: true })
     }
+  })
+
+  describe('assertAgentStorageDirectory', () => {
+    it('accepts a real directory inside the root', async () => {
+      const agentPath = path.join(agentsDataRoot, AGENT_ID)
+      await mkdir(agentPath)
+
+      await expect(assertAgentStorageDirectory(agentsDataRoot, agentPath)).resolves.toBeUndefined()
+    })
+
+    it('rejects a regular file at the target path', async () => {
+      const filePath = path.join(agentsDataRoot, AGENT_ID)
+      await writeFile(filePath, 'not a workspace')
+
+      // assertAgentStoragePath only validates parents + containment, so a
+      // regular file at the target passes it.
+      await expect(assertAgentStorageDirectory(agentsDataRoot, filePath)).rejects.toThrow(/must be a real directory/)
+    })
+
+    it('rejects a missing target path', async () => {
+      const agentPath = path.join(agentsDataRoot, AGENT_ID)
+
+      await expect(assertAgentStorageDirectory(agentsDataRoot, agentPath)).rejects.toThrow()
+    })
   })
 })
