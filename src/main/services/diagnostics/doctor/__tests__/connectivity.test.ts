@@ -52,6 +52,7 @@ describe('model connectivity against an HTTP provider', () => {
   let server: Server
   let url: string
   let listStatus: number
+  let listError: { message: string; code?: string }
   let ids: string[]
   let paths: string[]
   let requests: Record<string, unknown>[]
@@ -74,6 +75,7 @@ describe('model connectivity against an HTTP provider', () => {
       return filename ? path.join(root, filename) : root
     })
     listStatus = 200
+    listError = { message: 'test failure' }
     ids = ['wire-model']
     paths = []
     requests = []
@@ -81,11 +83,7 @@ describe('model connectivity against an HTTP provider', () => {
       paths.push(`${req.method} ${req.url}`)
       if (req.url === '/v1/models') {
         res.writeHead(listStatus, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify(
-            listStatus === 200 ? { data: ids.map((id) => ({ id })) } : { error: { message: 'test failure' } }
-          )
-        )
+        res.end(JSON.stringify(listStatus === 200 ? { data: ids.map((id) => ({ id })) } : { error: listError }))
       } else if (req.url === '/v1/chat/completions') {
         let body = ''
         for await (const chunk of req) body += chunk
@@ -205,7 +203,20 @@ describe('model connectivity against an HTTP provider', () => {
   it('does not turn a models authentication error into an empty or unsupported catalog', async () => {
     listStatus = 401
     const report = await check()
-    expect(report.modelList).toMatchObject({ status: 'fail', reason: 'authentication', httpStatus: 401 })
+    expect(report.modelList).toMatchObject({ status: 'fail', reason: 'auth', httpStatus: 401 })
+    expect(report.conversation.status).toBe('pass')
+  })
+
+  it.each([
+    [403, { message: 'Forbidden' }, 'permission'],
+    [403, { message: 'Request rejected', code: 'unsupported_country' }, 'region'],
+    [429, { message: 'Request rejected', code: 'insufficient_balance' }, 'quota'],
+    [400, { message: 'Invalid API key' }, 'auth']
+  ] as const)('classifies models HTTP %s using provider error details', async (status, error, reason) => {
+    listStatus = status
+    listError = error
+    const report = await check()
+    expect(report.modelList).toMatchObject({ status: 'fail', reason, httpStatus: status })
     expect(report.conversation.status).toBe('pass')
   })
 
@@ -257,7 +268,7 @@ describe('model connectivity against an HTTP provider', () => {
       .run()
     conversationStatus = 503
     const result = await check()
-    expect(result.conversation).toMatchObject({ status: 'fail', reason: 'request_failed', httpStatus: 503 })
+    expect(result.conversation).toMatchObject({ status: 'fail', reason: 'server', httpStatus: 503 })
     expect(requests).toHaveLength(1)
     expect(requests[0].model).toBe('wire-model')
   })

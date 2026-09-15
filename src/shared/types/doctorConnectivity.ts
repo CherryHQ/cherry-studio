@@ -1,4 +1,5 @@
 import type { UniqueModelId } from '../data/types/model'
+import type { ErrorCategory } from '../utils/errorCategory'
 import type { DoctorScopeKey, DoctorSubjectRef } from './doctor'
 
 export type DoctorConnectivitySubject = Exclude<DoctorSubjectRef, { kind: 'global' }>
@@ -12,11 +13,16 @@ export type ConnectivityProbeOutcome =
     }
   | {
       readonly status: 'fail'
-      readonly reason: 'network' | 'authentication' | 'timeout' | 'request_failed'
+      readonly reason: ErrorCategory
       readonly httpStatus?: number
     }
 
-export type ConnectivityProbeResult = ConnectivityProbeOutcome & { readonly durationMs: number }
+export type ConnectivityProbeResult = (
+  | ConnectivityProbeOutcome
+  | { readonly status: 'error'; readonly message: string }
+) & {
+  readonly durationMs: number
+}
 
 export interface ModelConnectivityReport {
   readonly uniqueModelId: UniqueModelId

@@ -106,7 +106,8 @@ the scope key and run ID, so a stale caller cannot cancel a newer run. A second 
 scope returns `busy`; different scopes run independently. Service shutdown cancels pending work.
 
 Ownership follows `DoctorService → AiService / NetworkService`. Doctor's `connectivity.ts` owns
-sequencing, per-probe deadlines and result classification. `AiService.prepareModelCheck` captures
+the three check definitions and the model-list skip policy. The existing Doctor engine owns
+sequencing, deadlines, cancellation and timing; provider errors use the shared error classification. `AiService.prepareModelCheck` captures
 the selected model/provider configuration and exposes the resolved Base URL, normalized wire model
 ID, remote listing capability, and cancellable list/conversation operations. The AI layer has no
 dependency on Doctor result types, scope, cache, or run IDs. NetworkService owns network probes.
@@ -115,7 +116,7 @@ The Base URL probe uses the selected model's endpoint configuration; an HTTP 404
 reachability. Model listing uses the provider's remote API, without merging the registry catalog.
 Registry-only providers skip this step. HTTP 404/405/501 means the configured listing endpoint is
 unavailable and is reported as skipped; authentication failures remain failures. An unlisted model
-is a warning, since successful conversation is stronger evidence than catalog membership. Every
+is a warning, since successful conversation is stronger evidence than catalog membership. Failures use the shared `ErrorCategory`; engine timeouts remain `error` results. Every
 step runs even when a previous step fails, with a 15-second deadline per step.
 
 Conversation reuses `AiService.checkModel` in chat-only mode, without history or tools and without
