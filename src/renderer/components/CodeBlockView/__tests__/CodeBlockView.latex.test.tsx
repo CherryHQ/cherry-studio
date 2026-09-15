@@ -73,14 +73,15 @@ describe('LaTeX code block preview', () => {
     const user = userEvent.setup()
     const { rerender } = render(
       <CodeBlockView language="latex" editable={false} isStreaming>
-        {'\\frac{a}{'}
+        {'x = \\frac{a}{'}
       </CodeBlockView>
     )
-    expect(await screen.findByText('\\frac{a}{')).toBeInTheDocument()
+    expect(await screen.findByRole('math', { hidden: true })).toHaveTextContent('x=')
+    expect(screen.queryByText('x = \\frac{a}{')).not.toBeInTheDocument()
 
     rerender(
       <CodeBlockView language="latex" editable={false} isStreaming>
-        {'\\frac{a}{b}'}
+        {'x = \\frac{a}{b}'}
       </CodeBlockView>
     )
     expect(await screen.findByRole('math', { hidden: true })).toHaveTextContent('ab')

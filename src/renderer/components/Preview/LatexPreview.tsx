@@ -10,6 +10,7 @@ import { remarkLatexMath } from '@renderer/components/markdown'
 import type { BasicPreviewProps } from './types'
 
 const MATH_PLUGINS = { math: withMath({ singleDollar: true }) }
+const STREAMING_MATH_PLUGINS = { math: withMath({ singleDollar: true, streaming: true }) }
 
 const remarkBareLatex: Plugin<[], Root> = () => (tree, file) => {
   let hasMath = false
@@ -22,13 +23,13 @@ const remarkBareLatex: Plugin<[], Root> = () => (tree, file) => {
 
 const REMARK_PLUGINS = [remarkLatexMath, remarkBareLatex]
 
-const LatexPreview = ({ children }: BasicPreviewProps) => {
+const LatexPreview = ({ children, isStreaming }: BasicPreviewProps) => {
   const id = useId()
 
   return (
     <Markdown
       id={id}
-      plugins={MATH_PLUGINS}
+      plugins={isStreaming ? STREAMING_MATH_PLUGINS : MATH_PLUGINS}
       remarkPlugins={REMARK_PLUGINS}
       className="latex-preview special-preview min-w-0 overflow-x-auto px-4 py-3 text-foreground [&_.katex-display]:m-0">
       {children}
