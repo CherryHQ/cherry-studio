@@ -135,9 +135,11 @@ const SECRET_KEY_VALUE_PATTERN =
 // Bearer/Basic must run before the key=value pass — see the tests for why.
 const BEARER_SCHEME_PATTERN = /\b(Bearer|Basic)\s+("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s"',;}\]]+)/gi
 
+const URL_USERINFO_PATTERN = /((?:\b[a-z][a-z\d+.-]*:)?\/\/)[^\s/\\?#]+@/gi
+
 /**
  * Redact likely-secret fragments embedded in free text: `key = value`,
- * `"key": value`, and `Bearer <token>` schemes. `extraKeys` extends the key
+ * `"key": value`, URL userinfo, and `Bearer <token>` schemes. `extraKeys` extends the key
  * alternation for scope-limited names like OAuth's `code`.
  */
 export function redactSecretText(text: string, extraKeys: readonly string[] = []): string {
@@ -147,7 +149,10 @@ export function redactSecretText(text: string, extraKeys: readonly string[] = []
     escaped.length === 0
       ? SECRET_KEY_VALUE_PATTERN
       : new RegExp(SECRET_KEY_VALUE_PATTERN.source.replace('|apikey', `|apikey|${escaped.join('|')}`), 'gi')
-  return text.replace(BEARER_SCHEME_PATTERN, `$1 ${REDACTED}`).replace(withExtras, `$1"${REDACTED}"`)
+  return text
+    .replace(URL_USERINFO_PATTERN, `$1${REDACTED}@`)
+    .replace(BEARER_SCHEME_PATTERN, `$1 ${REDACTED}`)
+    .replace(withExtras, `$1"${REDACTED}"`)
 }
 
 /** Redact an exact runtime-known secret literal wherever it occurs. */
