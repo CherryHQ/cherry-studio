@@ -150,9 +150,14 @@ async function loadModules() {
 }
 
 describe('CodeCliService', () => {
+  // Each resetModules reload re-registers launchScript's exit handler; track
+  // the count so afterEach can drop only what this case added.
+  let exitListenerBaseline = 0
+
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    exitListenerBaseline = process.listeners('exit').length
     platformMock.isMac = true
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
@@ -185,6 +190,13 @@ describe('CodeCliService', () => {
       geminiDir: '/mock/antigravity data',
       model: 'gemini-2.5-pro'
     })
+  })
+
+  afterEach(() => {
+    // Drop the exit handlers this case's fresh launchScript import registered.
+    for (const handler of process.listeners('exit').slice(exitListenerBaseline)) {
+      process.off('exit', handler)
+    }
   })
 
   it('should extend BaseService', async () => {
@@ -427,7 +439,7 @@ describe('CodeCliService', () => {
     it('launches without --model and disables OpenCode auto-update via env', async () => {
       vi.useFakeTimers()
       try {
-        const { spawn } = await import('child_process')
+        const fs = (await import('node:fs')).default
         const { codeCliService } = await loadModules()
 
         const result = await codeCliService.run({
@@ -439,11 +451,9 @@ describe('CodeCliService', () => {
         })
 
         expect(result.success).toBe(true)
-        const call = vi.mocked(spawn).mock.calls.at(-1)
-        expect(call).toBeDefined()
-        const script = (call![1] as string[]).join(' ')
-        expect(script).not.toContain('--model')
-        expect(script).toContain('OPENCODE_DISABLE_AUTOUPDATE=')
+        const body = String((vi.mocked(fs.writeFileSync).mock.calls.at(-1) as [string, string])[1])
+        expect(body).not.toContain('--model')
+        expect(body).toContain('OPENCODE_DISABLE_AUTOUPDATE=')
       } finally {
         vi.useRealTimers()
       }
@@ -458,7 +468,7 @@ describe('CodeCliService', () => {
       })
       vi.useFakeTimers()
       try {
-        const { spawn } = await import('child_process')
+        const fs = (await import('node:fs')).default
         const { codeCliService } = await loadModules()
 
         const result = await codeCliService.run({
@@ -470,11 +480,9 @@ describe('CodeCliService', () => {
         })
 
         expect(result.success).toBe(true)
-        const call = vi.mocked(spawn).mock.calls.at(-1)
-        expect(call).toBeDefined()
-        const script = (call![1] as string[]).join(' ')
-        expect(script).toContain('OPENCODE_DISABLE_AUTOUPDATE=')
-        expect(script).not.toContain('_cherry_mise_key')
+        const body = String((vi.mocked(fs.writeFileSync).mock.calls.at(-1) as [string, string])[1])
+        expect(body).toContain('OPENCODE_DISABLE_AUTOUPDATE=')
+        expect(body).not.toContain('_cherry_mise_key')
       } finally {
         vi.useRealTimers()
       }
@@ -501,13 +509,13 @@ describe('CodeCliService', () => {
     const launchScript = async (input: CodeCliRunInput) => {
       vi.useFakeTimers()
       try {
-        const { spawn } = await import('child_process')
+        const fs = (await import('node:fs')).default
         const { codeCliService } = await loadModules()
         const result = await codeCliService.run(input)
         expect(result.success).toBe(true)
-        const call = vi.mocked(spawn).mock.calls.at(-1)
-        expect(call).toBeDefined()
-        return (call![1] as string[]).join(' ')
+        // The darwin branch launches via a temp .sh script; assert on its written body.
+        const writeCall = vi.mocked(fs.writeFileSync).mock.calls.at(-1) as [string, string]
+        return String(writeCall[1])
       } finally {
         vi.useRealTimers()
       }
@@ -581,17 +589,19 @@ describe('CodeCliService', () => {
       vi.useFakeTimers()
       try {
         const { spawn } = await import('child_process')
+        const fs = (await import('node:fs')).default
         const { codeCliService } = await loadModules()
         const result = await codeCliService.run(input)
         const call = vi.mocked(spawn).mock.calls.at(-1)
-        return { result, script: call ? (call[1] as string[]).join(' ') : '' }
+        const writeCall = vi.mocked(fs.writeFileSync).mock.calls.at(-1) as [string, string] | undefined
+        return { result, script: call ? (call[1] as string[]).join(' ') : '', body: String(writeCall?.[1] ?? '') }
       } finally {
         vi.useRealTimers()
       }
     }
 
     it('quotes the isolated directory and model while injecting Cherry credentials for a normal launch', async () => {
-      const { result, script } = await launchScript({
+      const { result, body } = await launchScript({
         mode: 'normal',
         cliTool: CodeCli.ANTIGRAVITY_CLI,
         providerId: 'gemini',
@@ -603,13 +613,14 @@ describe('CodeCliService', () => {
       expect(antigravityLaunchMock).toHaveBeenCalledWith(
         expect.objectContaining({ providerId: 'gemini', model: 'gemini-2.5-pro' })
       )
-      expect(script).toContain("'--gemini_dir=/mock/antigravity data'")
-      expect(script).toContain("--model '\\''gemini-2.5-pro'\\''")
-      expect(script).toContain("GEMINI_API_KEY='\\''antigravity-secret'\\''")
+      // posixQuote wraps each token in single quotes inside the temp .sh body.
+      expect(body).toContain("'--gemini_dir=/mock/antigravity data'")
+      expect(body).toContain("--model 'gemini-2.5-pro'")
+      expect(body).toContain("GEMINI_API_KEY='antigravity-secret'")
     })
 
     it('leaves the user Google login and global Antigravity settings untouched in own-login mode', async () => {
-      const { result, script } = await launchScript({
+      const { result, body } = await launchScript({
         mode: 'own-login',
         cliTool: CodeCli.ANTIGRAVITY_CLI,
         directory: '/tmp/project'
@@ -617,9 +628,9 @@ describe('CodeCliService', () => {
 
       expect(result.success).toBe(true)
       expect(antigravityLaunchMock).not.toHaveBeenCalled()
-      expect(script).not.toContain('--gemini_dir')
-      expect(script).not.toContain('GEMINI_API_KEY')
-      expect(script).not.toContain('--model')
+      expect(body).not.toContain('--gemini_dir')
+      expect(body).not.toContain('GEMINI_API_KEY')
+      expect(body).not.toContain('--model')
     })
 
     it('rejects an unsafe resolved model before opening a terminal', async () => {
@@ -675,8 +686,8 @@ describe('CodeCliService', () => {
     })
   })
 
-  // Reviewer A4: the launch directory is interpolated into a shell string (macOS: wrapped again by
-  // AppleScript). It must be single-quoted so a path with spaces / $() / backticks can't inject.
+  // Reviewer A4: the launch directory is interpolated into a shell string (macOS: now the body of a
+  // temp .sh script). It must be single-quoted so a path with spaces / $() / backticks can't inject.
   // Skipped on win32: `process.platform` is pinned to darwin below, but `node:path` still follows
   // the host, so the assembled command mixes `\` separators and `;` PATH delimiters into sh syntax.
   describe.skipIf(process.platform === 'win32')('run (launch command shell-quotes the directory)', () => {
@@ -695,14 +706,49 @@ describe('CodeCliService', () => {
       Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
     })
 
+    const darwinLaunch = async (input: CodeCliRunInput) => {
+      const { spawn } = await import('child_process')
+      const fs = (await import('node:fs')).default
+      const { codeCliService } = await loadModules()
+      const result = await codeCliService.run(input)
+      const launchCall = vi.mocked(spawn).mock.calls.at(-1)
+      const writeCall = vi.mocked(fs.writeFileSync).mock.calls.at(-1) as [string, string] | undefined
+      return {
+        result,
+        launchArgs: (launchCall?.[1] ?? []).join(' '),
+        scriptPath: String(writeCall?.[0] ?? ''),
+        body: String(writeCall?.[1] ?? '')
+      }
+    }
+
+    it('launches via a short sh command pointing at a 0600 temp script (#20338)', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        claude: { name: 'claude', availability: { source: 'system', path: '/usr/local/bin/claude' } }
+      })
+      const fs = (await import('node:fs')).default
+      const { result, launchArgs, scriptPath, body } = await darwinLaunch({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      expect(scriptPath).toMatch(/launch_claude-code_\d+_[0-9a-f]{8}\.sh$/)
+      expect(body).toMatch(/^#!\/bin\/sh\n/)
+      expect(vi.mocked(fs.chmodSync)).toHaveBeenCalledWith(scriptPath, 0o600)
+      // The command typed into the terminal must stay far below the AppleEvent
+      // text-injection truncation zone that swallowed the old 2KB inline command.
+      const typed = launchArgs.match(/do script "(.+?)" in front window/)?.[1] ?? ''
+      expect(typed.startsWith("sh '\\''/mock/binary-data/launch_claude-code_")).toBe(true)
+      expect(typed).toMatch(/\d+_[0-9a-f]{8}\.sh'\\''$/) // timestamped+random name, then the closing quote sequence
+      expect(typed.length).toBeLessThan(200)
+    })
+
     it('launches a system PATH binary without installing a managed copy', async () => {
       binaryManagerMock.getToolSnapshots.mockResolvedValue({
         claude: { name: 'claude', availability: { source: 'system', path: '/usr/local/bin/claude' } }
       })
-      const { spawn } = await import('child_process')
-      const { codeCliService } = await loadModules()
-
-      const result = await codeCliService.run({
+      const { result, body } = await darwinLaunch({
         mode: 'login-flow',
         cliTool: CodeCli.CLAUDE_CODE,
         directory: '/tmp/project'
@@ -711,11 +757,8 @@ describe('CodeCliService', () => {
       expect(result.success).toBe(true)
       expect(binaryManagerMock.installByName).not.toHaveBeenCalled()
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledWith(['claude'])
-      const launchCall = vi.mocked(spawn).mock.calls.at(-1)
-      expect(launchCall).toBeDefined()
-      const launchArgs = (launchCall?.[1] ?? []).join(' ')
-      expect(launchArgs).toContain('/usr/local/bin/claude')
-      expect(launchArgs).not.toContain('MISE_DATA_DIR')
+      expect(body).toContain("'/usr/local/bin/claude'")
+      expect(body).not.toContain('MISE_DATA_DIR')
     })
 
     it('single-quotes a system executable path containing shell metacharacters', async () => {
@@ -725,19 +768,18 @@ describe('CodeCliService', () => {
           availability: { source: 'system', path: '/tmp/$(touch pwned)/`whoami`/claude' }
         }
       })
-      const { spawn } = await import('child_process')
-      const { codeCliService } = await loadModules()
-
-      const result = await codeCliService.run({
+      const { result, launchArgs, body } = await darwinLaunch({
         mode: 'login-flow',
         cliTool: CodeCli.CLAUDE_CODE,
         directory: '/tmp/project'
       })
 
       expect(result.success).toBe(true)
-      const launchArgs = (vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []).join(' ')
-      expect(launchArgs).toContain("'\\''/tmp/$(touch pwned)/`whoami`/claude'\\''")
-      expect(launchArgs).not.toContain('"/tmp/$(touch pwned)')
+      // posixQuote in the script body keeps the metacharacters inert data.
+      expect(body).toContain("'/tmp/$(touch pwned)/`whoami`/claude'")
+      expect(body).not.toContain('"/tmp/$(touch pwned)')
+      // The Terminal.app adapter additionally rewrites those quotes for its osascript -e layer.
+      expect(launchArgs).toContain('do script "sh')
     })
 
     it('lazily recovers a missing CLI by name only, writing no Preference', async () => {
@@ -751,9 +793,7 @@ describe('CodeCliService', () => {
             availability: { source: 'mise', path: '/mock/binary-data/shims/claude', version: '1.0.0' }
           }
         })
-      const { codeCliService } = await loadModules()
-
-      const result = await codeCliService.run({
+      const { result } = await darwinLaunch({
         mode: 'login-flow',
         cliTool: CodeCli.CLAUDE_CODE,
         directory: '/tmp/project'
@@ -777,30 +817,30 @@ describe('CodeCliService', () => {
           availability: { source: 'mise', path: '/mock/binary-data/shims/claude', version: '1.0.0' }
         }
       })
-      const { spawn } = await import('child_process')
-      const { codeCliService } = await loadModules()
-
-      const result = await codeCliService.run({
+      const { result, launchArgs, body } = await darwinLaunch({
         mode: 'login-flow',
         cliTool: CodeCli.CLAUDE_CODE,
         directory: '/tmp/project'
       })
 
       expect(result.success).toBe(true)
-      const launchCall = vi.mocked(spawn).mock.calls.at(-1)!
-      const launchArgs = (launchCall[1] ?? []).join(' ')
-      const launchEnv = launchCall[2]?.env as Record<string, string>
-      expect(launchArgs).toContain(
-        "PATH='\\''/mock/binary-data/shims:/mock/binary-data:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'\\''"
+      expect(body).toContain(
+        "PATH='/mock/binary-data/shims:/mock/binary-data:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'"
       )
-      expect(launchArgs).toContain("MISE_DATA_DIR='\\''/mock/binary-data'\\''")
-      expect(launchArgs).toContain('for _cherry_mise_key in $(env | sed -n')
-      expect(launchArgs).toContain('do unset')
-      expect(launchArgs).toContain('$_cherry_mise_key')
-      expect(launchArgs.indexOf('unset')).toBeLessThan(launchArgs.indexOf('export MISE_DATA_DIR'))
-      expect(launchArgs).not.toContain('MISE_CONFIG_FILE')
-      expect(launchArgs).not.toContain('PRIVATE_TOKEN')
-      expect(launchArgs).not.toContain('must-not-be-exported')
+      expect(body).toContain("MISE_DATA_DIR='/mock/binary-data'")
+      expect(body).toContain('for _cherry_mise_key in $(env | sed -n')
+      expect(body).toContain('do unset')
+      expect(body).toContain('$_cherry_mise_key')
+      expect(body.indexOf('unset')).toBeLessThan(body.indexOf('export MISE_DATA_DIR'))
+      expect(body).not.toContain('MISE_CONFIG_FILE')
+      expect(body).not.toContain('PRIVATE_TOKEN')
+      expect(body).not.toContain('must-not-be-exported')
+      // The typed terminal command must not carry the env exports inline anymore.
+      expect(launchArgs).not.toContain('MISE_DATA_DIR=')
+      const launchEnv = vi.mocked((await import('child_process')).spawn).mock.calls.at(-1)![2]?.env as Record<
+        string,
+        string
+      >
       expect(launchEnv.MISE_CONFIG_FILE).toBeUndefined()
       expect(launchEnv.MISE_DATA_DIR).toBe('/mock/binary-data')
       expect(launchEnv.PRIVATE_TOKEN).toBe('must-not-be-exported')
@@ -811,25 +851,15 @@ describe('CodeCliService', () => {
       // awaits depends on them — the mocked probe resolves via microtasks).
       vi.useFakeTimers()
       try {
-        const { spawn } = await import('child_process')
-        const { codeCliService } = await loadModules()
-
-        // The login-flow mode exempts Claude Code from the provider/model requirement, so control
-        // reaches the command assembly + spawn without needing a provider.
-        const result = await codeCliService.run({
+        const { body } = await darwinLaunch({
           mode: 'login-flow',
           cliTool: CodeCli.CLAUDE_CODE,
           directory: '/tmp/$(reboot) proj'
         })
 
-        expect(result.success).toBe(true)
-        const call = vi.mocked(spawn).mock.calls.at(-1)
-        expect(call).toBeDefined()
-        const script = (call![1] as string[]).join(' ')
-        // posixQuote wraps the directory in single quotes; the Terminal.app adapter then rewrites those
-        // quotes to the sh-safe '\'' form for its `osascript -e '…'` layer. Either way $(reboot) sits
+        // posixQuote wraps the directory in single quotes inside the temp script; $(reboot) sits
         // inside the quotes as inert data — never a substitution.
-        expect(script).toContain("cd '\\''/tmp/$(reboot) proj'\\''")
+        expect(body).toContain("cd '/tmp/$(reboot) proj'")
       } finally {
         vi.useRealTimers()
       }
@@ -898,7 +928,7 @@ describe('CodeCliService', () => {
         const writeCall = vi.mocked(fs.writeFileSync).mock.calls.at(-1)
         expect(writeCall).toBeDefined()
         const [batPath, batContent] = writeCall! as unknown as [string, string]
-        expect(batPath).toMatch(/launch_claude-code_\d+\.bat$/)
+        expect(batPath).toMatch(/launch_claude-code_\d+_[0-9a-f]{8}\.bat$/)
         // CMD expands %…% even inside double quotes, so the bat writer must double them.
         expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj" goto :dir_missing')
         expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj"')
