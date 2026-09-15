@@ -1768,6 +1768,50 @@ describe('AgentSessionRuntimeService', () => {
     }
   })
 
+  it('reads the agent once per session on a push reconcile, not twice', async () => {
+    // `agentService.getAgent` is four uncached queries. `handleAgentUpdated` already holds the
+    // updated entity, so walking every session of that agent must not re-read it per session.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    seedIdleSiblings(service, 'high')
+    mocks.getAgent.mockClear()
+
+    await service.handleAgentUpdated(
+      'agent-1',
+      { name: 'Renamed' },
+      { id: 'agent-1', name: 'Renamed', model: baseTurnInput.modelId, configuration: { reasoning_effort: 'high' } }
+    )
+
+    // None: the target is built from the entity the caller passed in, and a `current` verdict
+    // never reaches the knowledge-scope comparison.
+    expect(mocks.getAgent).not.toHaveBeenCalled()
+  })
+
+  it('compares a target against one agent read, not one per field group', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    seedIdleSiblings(service, 'high')
+    const entry = service.entries.get('session-1')
+    const target = service.connectionTarget(entry)
+    mocks.getAgent.mockClear()
+
+    expect(service.connectionTargetEquals(entry, target)).toBe(true)
+
+    // The target it builds to compare against and the knowledge scope it resolves come from the
+    // same read.
+    expect(mocks.getAgent).toHaveBeenCalledTimes(1)
+  })
+
   it('rebuilds idle sibling connections when the agent reasoning effort actually changes', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

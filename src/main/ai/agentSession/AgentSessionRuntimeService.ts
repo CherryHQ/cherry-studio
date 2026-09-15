@@ -700,18 +700,18 @@ export class AgentSessionRuntimeService extends BaseService {
       // Bookkeeping: fresh turns are stamped with (and steers gated on) the entry's latest model. A
       // live turn keeps its captured `turn.modelId` regardless.
       if (agent.model) entry.modelId = agent.model
-      reconciles.push(this.reconcileEntryConnection(entry))
+      reconciles.push(this.reconcileEntryConnection(entry, agent))
     }
     await Promise.all(reconciles)
   }
 
-  private async reconcileEntryConnection(entry: AgentSessionRuntimeEntry): Promise<void> {
+  private async reconcileEntryConnection(entry: AgentSessionRuntimeEntry, agent?: AgentEntity): Promise<void> {
     const connection = this.currentConnection(entry)
     if (!connection) return
 
     let verdict: AgentRuntimeReconcileResult
     try {
-      verdict = await connection.reconcile(this.connectionTarget(entry))
+      verdict = await connection.reconcile(this.connectionTarget(entry, agent))
     } catch (error) {
       logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
       this.closeFailedPolicyUpdateConnection(entry, connection)
@@ -1434,7 +1434,14 @@ export class AgentSessionRuntimeService extends BaseService {
    * does not repeat it. A configured reasoning effort is not a selection — it is what the next turn
    * uses absent an override — so reading it here is what keeps idle free of permanent drift.
    */
-  private connectionTarget(entry: AgentSessionRuntimeEntry): AgentSessionConnectionTarget {
+  private connectionTarget(
+    entry: AgentSessionRuntimeEntry,
+    // `agentService.getAgent` is four queries (the row, its MCPs, its knowledge bases, the model
+    // name) and is not cached, so a caller that already holds the agent hands it over rather than
+    // paying for it again. The push reconcile is the one that matters: it walks every session of
+    // one agent and already has the updated entity.
+    agent: AgentEntity | null = agentService.getAgent(entry.agentId)
+  ): AgentSessionConnectionTarget {
     const turn =
       this.currentTurn(entry) ??
       (entry.runtimeState.execution.kind === 'autonomous-turn' ? entry.runtimeState.execution.contextTurn : undefined)
@@ -1454,7 +1461,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       : {
           modelId: entry.modelId,
-          reasoningEffort: agentService.getAgent(entry.agentId)?.configuration?.reasoning_effort ?? 'default',
+          reasoningEffort: agent?.configuration?.reasoning_effort ?? 'default',
           serviceTier: 'standard',
           knowledgeBaseIds: [],
           fastMode: false,
@@ -1463,8 +1470,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private connectionTargetEquals(entry: AgentSessionRuntimeEntry, target: AgentSessionConnectionTarget): boolean {
-    const current = this.connectionTarget(entry)
-    const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
+    const agent = agentService.getAgent(entry.agentId)
+    const current = this.connectionTarget(entry, agent)
+    const configuredKnowledgeBaseIds = agent?.knowledgeBaseIds
     return (
       current.modelId === target.modelId &&
       current.reasoningEffort === target.reasoningEffort &&
