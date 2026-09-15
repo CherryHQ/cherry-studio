@@ -1,46 +1,38 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, cherryInOAuthService, runtimeService, windowManager, windowMock } = vi.hoisted(() => {
-  const windowMock = {
-    isDestroyed: vi.fn(() => false),
-    isMinimized: vi.fn(() => false),
-    restore: vi.fn(),
-    show: vi.fn(),
-    focus: vi.fn()
+const { cherryInOAuthService, runtimeService } = vi.hoisted(() => ({
+  cherryInOAuthService: {
+    getBalance: vi.fn(() => Promise.resolve({ balance: 1, profile: null })),
+    logout: vi.fn(() => Promise.resolve())
+  },
+  runtimeService: {
+    signIn: vi.fn(() => Promise.resolve({ accountId: null, apiKeys: 'sk-cherryin' }))
   }
-  return {
-    appGetMock: vi.fn(),
-    cherryInOAuthService: {
-      getBalance: vi.fn(() => Promise.resolve({ balance: 1, profile: null })),
-      logout: vi.fn(() => Promise.resolve())
-    },
-    runtimeService: {
-      signIn: vi.fn(() => Promise.resolve({ accountId: null, apiKeys: 'sk-cherryin' }))
-    },
-    windowManager: { getWindow: vi.fn(() => windowMock) },
-    windowMock
-  }
-})
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
+}))
 vi.mock('@main/services/oauth/CherryInOAuthService', () => ({ cherryInOAuthService }))
 
+import { application } from '@application'
 import { OAuthSignInCancelledError } from '@main/services/oauth/errors'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 
 import { cherryinHandlers } from '../cherryin'
 
+const mainWindowService = {
+  showMainWindow: vi.fn()
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
-  windowMock.isDestroyed.mockReturnValue(false)
-  windowMock.isMinimized.mockReturnValue(false)
-  appGetMock.mockImplementation((name: string) => (name === 'WindowManager' ? windowManager : runtimeService))
+  vi.mocked(application.get).mockImplementation((name: string) => {
+    if (name === 'MainWindowService') return mainWindowService as never
+    if (name === 'OAuthRuntimeService') return runtimeService as never
+    throw new Error(`Unexpected application.get(${name})`)
+  })
 })
 
 describe('cherryinHandlers', () => {
-  it('returns provisioned API keys and focuses the initiating window after sign-in', async () => {
-    windowMock.isMinimized.mockReturnValue(true)
-
+  it('returns provisioned API keys and asks MainWindowService to raise the main window after sign-in', async () => {
     await expect(
       cherryinHandlers['cherryin.sign_in'](
         {
@@ -55,9 +47,7 @@ describe('cherryinHandlers', () => {
       oauthServer: 'https://open.cherryin.ai',
       apiHost: 'https://open.cherryin.ai'
     })
-    expect(windowMock.restore).toHaveBeenCalledOnce()
-    expect(windowMock.show).toHaveBeenCalledOnce()
-    expect(windowMock.focus).toHaveBeenCalledOnce()
+    expect(mainWindowService.showMainWindow).toHaveBeenCalledOnce()
   })
 
   it('maps sign-in cancellation to the shared OAuth IPC error', async () => {
@@ -70,7 +60,7 @@ describe('cherryinHandlers', () => {
 
     expect(error).toBeInstanceOf(IpcError)
     expect(error).toHaveProperty('code', oauthErrorCodes.SIGN_IN_CANCELLED)
-    expect(windowMock.focus).not.toHaveBeenCalled()
+    expect(mainWindowService.showMainWindow).not.toHaveBeenCalled()
   })
 
   it('dispatches get_balance to the service', async () => {
