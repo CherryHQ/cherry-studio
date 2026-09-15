@@ -1,5 +1,10 @@
+import { Handle, type NodeProps, Position } from '@xyflow/react'
+import dayjs from 'dayjs'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
-import { useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -8,10 +13,6 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
 import { cn } from '@renderer/utils/style'
 import type { MessageRole, MessageStatus } from '@shared/data/types/message'
-import { Handle, type NodeProps, Position } from '@xyflow/react'
-import dayjs from 'dayjs'
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { TopicMessageFlowNodeModel } from './types'
 
@@ -92,10 +93,16 @@ function TopicMessageFlowNodePreviewCard({
   const {
     data: message,
     error,
-    isLoading
+    isLoading,
+    mutate
   } = useQuery('/messages/:id', {
     enabled: open,
     params: { id: messageId }
+  })
+  useDataChange('/messages/:id', (effects) => {
+    if (open && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(messageId))) {
+      void mutate()
+    }
   })
   const uiMessage = useMemo(() => (message ? sharedMessageToUIMessage(message) : null), [message])
   const messageItems = useMemo(
@@ -114,7 +121,7 @@ function TopicMessageFlowNodePreviewCard({
 
   return (
     <div className="flex min-h-0 flex-col">
-      <div className="mb-3 flex min-w-0 items-start justify-between gap-3 border-border-subtle border-b pb-2">
+      <div className="mb-3 flex min-w-0 items-start justify-between gap-3 border-b border-border-subtle pb-2">
         <div className="flex min-w-0 items-center gap-2">
           <span
             className={cn(

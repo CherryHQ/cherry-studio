@@ -7,10 +7,11 @@
 import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetAgent,
@@ -65,7 +66,7 @@ vi.mock('@application', async () => {
       get: (name: string) =>
         name === 'AgentSessionRuntimeService'
           ? { getTurnTrustedNotifyChannels: () => undefined }
-          : module.application.get(name as never),
+          : module.application.get(name),
       getPath: mockGetPath
     }
   }

@@ -1,6 +1,7 @@
+import { net } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { net } from 'electron'
 
 const logger = loggerService.withContext('RegionService')
 

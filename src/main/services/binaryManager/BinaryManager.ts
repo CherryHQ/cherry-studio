@@ -6,6 +6,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { Mutex } from 'async-mutex'
+import { satisfies as semverSatisfies, valid as semverValid } from 'semver'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -41,8 +44,6 @@ import type {
   BinaryRemoveResult,
   BinaryToolSnapshot
 } from '@shared/types/binary'
-import { Mutex } from 'async-mutex'
-import { satisfies as semverSatisfies, valid as semverValid } from 'semver'
 
 import { sanitizedCommandError } from './commandError'
 import { provideManagedPython } from './pythonRuntime'
@@ -1381,7 +1382,14 @@ export class BinaryManager extends BaseService {
       const definitions = await this.appliedRuntimeDefinitions(this.getCustomDefinitions())
       const runtime = await this.selectRuntime(definition, definitions)
       if (!runtime) throw new Error(`Runtime requirement is missing for ${name}`)
-      return this.prepareNpmRuntime(runtime)
+      const exactRuntime = await this.resolveExactRuntime(runtime)
+      let node = await this.resolveMiseBinaryForTool('node', exactRuntime)
+      if (!node) {
+        await this.runMise(['install', '--force', exactRuntime], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+        node = await this.resolveMiseBinaryForTool('node', exactRuntime)
+      }
+      if (!node) throw new Error(`mise runtime is not runnable after reinstall: ${exactRuntime}`)
+      return path.dirname(node.canonicalPath)
     })
   }
 

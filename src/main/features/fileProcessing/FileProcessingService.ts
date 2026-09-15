@@ -1,3 +1,5 @@
+import { net } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { EnqueueOptions } from '@main/core/job/types'
@@ -6,7 +8,6 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
-import { net } from 'electron'
 
 import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { ocrImageToText } from './ocrImageToText'

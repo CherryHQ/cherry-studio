@@ -1,9 +1,10 @@
 import type * as NodeModule from 'node:module'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockCreateRequire = vi.hoisted(() => vi.fn())
 const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
@@ -240,7 +241,7 @@ describe('BinaryManager', () => {
     // first registration only happens once onAllReady fires (all phases ready).
     it('does not touch PreferenceService during the initial-bootstrap onInit', async () => {
       const service = new BinaryManager()
-      ;(application.get as unknown as ReturnType<typeof vi.fn>).mockClear()
+      ;(application.get as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockClear()
 
       await (service as any).onInit()
 
@@ -2199,6 +2200,71 @@ describe('BinaryManager', () => {
     })
   })
 
+  describe('prepareRuntimeForExecution', () => {
+    it.each([
+      { nodeVersion: '20.19.4', expectedRuntime: 'node@22.19.0', expectedVersion: '22.19.0' },
+      { nodeVersion: '24.11.1', expectedRuntime: 'core:node@24.11.1', expectedVersion: '24.11.1' }
+    ])('uses a compatible execution path without changing the global Node $nodeVersion', async (testCase) => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      manifestRef.value = [{ name: 'node', tool: 'core:node', requestedVersion: testCase.nodeVersion }]
+      let globalNode = testCase.nodeVersion
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ node: [{ version: globalNode, active: true }] }), stderr: '' }
+        if (args[0] === 'latest') return { stdout: '22.19.0\n', stderr: '' }
+        if (args[0] === 'use') globalNode = args.at(-1)!.split('@').at(-1)!
+        if (args[0] === 'which') {
+          const version = args.includes('--tool') ? args.at(-1)!.split('@').at(-1)! : globalNode
+          return { stdout: `/mock/mise/installs/node/${version}/bin/${args[1]}\n`, stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.prepareRuntimeForExecution('mcode')).resolves.toBe(
+        `/mock/mise/installs/node/${testCase.expectedVersion}/bin`
+      )
+
+      expect(globalNode).toBe(testCase.nodeVersion)
+      const commands = mockExecFileAsync.mock.calls.map(([, args]) => args)
+      expect(commands).toContainEqual(['which', 'node', '--tool', testCase.expectedRuntime])
+      expect(commands.some((args) => args[0] === 'use' || args[0] === 'install')).toBe(false)
+    })
+
+    it.each([true, false])(
+      'repairs a missing runtime without globally selecting it (repair succeeds: %s)',
+      async (repairWorks) => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+        let installed = false
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'latest') return { stdout: '22.19.0\n', stderr: '' }
+          if (args[0] === 'install') installed = true
+          if (args[0] === 'which' && installed && repairWorks) {
+            return { stdout: '/mock/mise/installs/node/22.19.0/bin/node\n', stderr: '' }
+          }
+          return { stdout: '', stderr: '' }
+        })
+
+        const result = service.prepareRuntimeForExecution('mcode')
+        if (repairWorks) await expect(result).resolves.toBe('/mock/mise/installs/node/22.19.0/bin')
+        else await expect(result).rejects.toThrow('runtime is not runnable after reinstall: node@22.19.0')
+
+        const commands = mockExecFileAsync.mock.calls.map(([, args]) => args)
+        expect(commands).toContainEqual(['install', '--force', 'node@22.19.0'])
+        expect(commands.some((args) => args[0] === 'use')).toBe(false)
+      }
+    )
+
+    it('does not prepare a runtime for tools without a requirement', async () => {
+      const service = new BinaryManager()
+      await expect(service.prepareRuntimeForExecution('claude')).resolves.toBeUndefined()
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+  })
+
   describe('installByName (name-only fixed/custom install)', () => {
     const makeService = () => {
       const service = new BinaryManager()
@@ -3994,11 +4060,11 @@ describe('BinaryManager', () => {
   })
 
   describe('extractBundledBinaries', () => {
-    let mockFsp: Record<string, ReturnType<typeof vi.fn>>
+    let mockFsp: Record<string, ReturnType<typeof vi.fn<(...args: any[]) => any>>>
 
     beforeEach(async () => {
       const fspModule = await import('node:fs/promises')
-      mockFsp = fspModule.default as unknown as Record<string, ReturnType<typeof vi.fn>>
+      mockFsp = fspModule.default as unknown as Record<string, ReturnType<typeof vi.fn<(...args: any[]) => any>>>
     })
 
     it('skips extraction when bundled version matches installed version', async () => {

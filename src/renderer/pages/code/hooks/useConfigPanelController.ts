@@ -1,3 +1,6 @@
+import { useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
@@ -5,8 +8,6 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { isFileConfiguredCli } from '@shared/utils/cliConfig'
-import { useCallback, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   activateMiniMaxCodeOfficial,
@@ -73,7 +74,7 @@ export function useConfigPanelController({
   const { t } = useTranslation()
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const pendingEnableProviderIdRef = useRef<string | null>(null)
-  const writesCliConfig = isFileConfiguredCli(selectedCliTool)
+  const writesCliConfig = isFileConfiguredCli(selectedCliTool) || selectedCliTool === CodeCli.MCODE
 
   // For a gateway write: start the gateway if needed and resolve its configured key, then hand back the
   // synthetic provider + key so `writeCliConfigDraft` injects the gateway URL/key (never the real
@@ -252,7 +253,7 @@ export function useConfigPanelController({
           try {
             if (isEnabling && selectedCliTool === CodeCli.MCODE) {
               await activateMiniMaxCodeOfficial()
-            } else if (writesCliConfig || selectedCliTool === CodeCli.MCODE) {
+            } else if (writesCliConfig) {
               await clearCliConfig({ cliTool: selectedCliTool })
             }
             if (isEnabling && isOwnLoginConfigurable(selectedCliTool)) {

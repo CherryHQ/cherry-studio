@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import enUs from '@renderer/i18n/locales/en-us.json'
 import zhCn from '@renderer/i18n/locales/zh-cn.json'
 import { MINI_APP_NAMESPACES, MINI_APP_PERMISSIONS } from '@shared/types/miniAppManifest'
-import { describe, expect, it } from 'vitest'
 
 import { groupPermissionsByNamespace, permissionLabel } from '../miniAppPermission'
 

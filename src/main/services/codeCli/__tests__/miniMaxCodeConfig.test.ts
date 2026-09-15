@@ -2,10 +2,11 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import type { prepareAtomicWrite } from '@main/utils/file'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
+
+import type { prepareAtomicWrite } from '@main/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import {
   activateMiniMaxCodeModel,

@@ -1,9 +1,17 @@
+import type * as CryptoModule from 'node:crypto'
 import path from 'node:path'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import type { BinaryRemoveRequest, BinaryRemoveResult } from '@shared/types/binary'
 import { CodeCli, TerminalApp } from '@shared/types/codeCli'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const candidateName = '[Cherry Studio] DeepSeek (70d91810-b493-40e0-959f-926a342727b4)'
+vi.mock('node:crypto', async (importOriginal) => ({
+  ...(await importOriginal<typeof CryptoModule>()),
+  randomUUID: () => '70d91810-b493-40e0-959f-926a342727b4'
+}))
 
 const binaryManagerMock = vi.hoisted(() => ({
   installByName: vi.fn(() => Promise.resolve()),
@@ -268,7 +276,7 @@ describe('CodeCliService', () => {
           providerList([
             { providerId: 'custom_provider:user', name: 'User Provider', kind: 'custom' },
             { providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' },
-            { providerId: 'custom_provider:cherry-deepseek', name: '[Cherry Studio] DeepSeek', kind: 'custom' }
+            { providerId: 'custom_provider:cherry-deepseek', name: candidateName, kind: 'custom' }
           ])
         )
         .mockResolvedValueOnce(JSON.stringify({ success: true, status: { state: 'available' } }))
@@ -278,7 +286,7 @@ describe('CodeCliService', () => {
             { providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' },
             {
               providerId: 'custom_provider:cherry-deepseek',
-              name: '[Cherry Studio] DeepSeek',
+              name: candidateName,
               kind: 'custom',
               active: true,
               models: [{ modelId: 'deepseek-reasoner', selected: true }]
@@ -304,7 +312,7 @@ describe('CodeCliService', () => {
         'provider',
         'add',
         '--name',
-        '[Cherry Studio] DeepSeek',
+        candidateName,
         '--base-url',
         'https://api.deepseek.com/v1',
         '--api-format',
@@ -355,27 +363,36 @@ describe('CodeCliService', () => {
       expect(processRunnerMock.executeCommand).toHaveBeenCalledTimes(2)
     })
 
-    it('keeps the exact managed provider when mcode updates it in place', async () => {
-      const providers = [
-        { providerId: 'custom_provider:target', name: '[Cherry Studio] DeepSeek', kind: 'custom' },
-        { providerId: 'custom_provider:stale', name: '[Cherry Studio] Stale', kind: 'custom' }
-      ]
-      processRunnerMock.executeCommand
-        .mockResolvedValueOnce(providerList(providers))
-        .mockResolvedValueOnce('Provider updated: [Cherry Studio] DeepSeek')
-        .mockResolvedValueOnce(providerList(providers))
-        .mockResolvedValueOnce(JSON.stringify({ success: true, status: { state: 'available' } }))
-        .mockResolvedValueOnce(
-          providerList([
-            {
-              ...providers[0],
-              active: true,
-              models: [{ modelId: 'deepseek-reasoner', selected: true }]
-            },
-            providers[1]
-          ])
-        )
-        .mockResolvedValueOnce('Provider removed: custom_provider:stale')
+    it('preserves the previous credentials when updating the same provider fails its test', async () => {
+      const oldProvider = {
+        providerId: 'custom_provider:target',
+        name: '[Cherry Studio] DeepSeek',
+        kind: 'custom',
+        apiKey: 'previous-secret',
+        baseUrl: 'https://previous.example/v1'
+      }
+      const providers = [structuredClone(oldProvider)]
+      processRunnerMock.executeCommand.mockImplementation(async (_path, args, options) => {
+        if (args[1] === 'list') return providerList(providers)
+        if (args[1] === 'add') {
+          const name = args[args.indexOf('--name') + 1]
+          const existing = providers.find((provider) => provider.name === name)
+          const update = {
+            apiKey: options.env.CHERRY_STUDIO_MCODE_API_KEY,
+            baseUrl: args[args.indexOf('--base-url') + 1]
+          }
+          if (existing) Object.assign(existing, update)
+          else providers.push({ providerId: 'custom_provider:candidate', name, kind: 'custom', ...update })
+          return 'Provider saved'
+        }
+        if (args[1] === 'test') return JSON.stringify({ success: false, message: 'Unauthorized' })
+        if (args[1] === 'remove') {
+          const index = providers.findIndex((provider) => provider.providerId === args[2])
+          if (index >= 0) providers.splice(index, 1)
+          return 'Provider removed'
+        }
+        throw new Error(`Unexpected provider command: ${args[1]}`)
+      })
       const { codeCliService } = await loadModules()
 
       await expect(
@@ -386,14 +403,69 @@ describe('CodeCliService', () => {
           model: 'deepseek-reasoner',
           apiKey: 'sk-secret'
         })
+      ).resolves.toEqual({ success: false, message: 'Unauthorized' })
+
+      expect(providers).toEqual([oldProvider])
+      expect(miniMaxCodeConfigMock.activateMiniMaxCodeModel).not.toHaveBeenCalled()
+    })
+
+    it('retries a stale successful list and selects only the candidate from this apply', async () => {
+      const old = { providerId: 'custom_provider:old', name: '[Cherry Studio] Old', kind: 'custom' }
+      const unrelated = { providerId: 'custom_provider:other', name: '[Cherry Studio] Other', kind: 'custom' }
+      const candidate = { providerId: 'custom_provider:new', name: candidateName, kind: 'custom' }
+      processRunnerMock.executeCommand
+        .mockResolvedValueOnce(providerList([old]))
+        .mockResolvedValueOnce('Provider added')
+        .mockResolvedValueOnce(providerList([old, unrelated]))
+        .mockResolvedValueOnce(providerList([old, unrelated, candidate]))
+        .mockResolvedValueOnce(JSON.stringify({ success: true }))
+        .mockResolvedValueOnce(
+          providerList([old, unrelated, { ...candidate, active: true, models: [{ modelId: 'model', selected: true }] }])
+        )
+        .mockResolvedValueOnce('Provider removed')
+      const { codeCliService } = await loadModules()
+
+      await expect(
+        codeCliService.applyMiniMaxCodeProvider({
+          providerName: 'DeepSeek',
+          baseUrl: 'https://api.deepseek.com/v1',
+          apiFormat: 'openai-responses',
+          model: 'model',
+          apiKey: 'sk-secret'
+        })
       ).resolves.toEqual({ success: true })
 
-      expect(processRunnerMock.executeCommand.mock.calls[5][1]).toEqual([
-        'provider',
-        'remove',
-        'custom_provider:stale',
-        '--yes'
+      const commands = processRunnerMock.executeCommand.mock.calls.map(([, args]) => args)
+      expect(commands.filter((args) => args[1] === 'test')).toEqual([
+        ['provider', 'test', 'custom_provider:new', '--model', 'model', '--json']
       ])
+      expect(commands.filter((args) => args[1] === 'remove')).toEqual([
+        ['provider', 'remove', 'custom_provider:old', '--yes']
+      ])
+    })
+
+    it('fails without activating an old provider when every discovery list stays stale', async () => {
+      const previous = providerList([
+        { providerId: 'custom_provider:old', name: '[Cherry Studio] DeepSeek', kind: 'custom' }
+      ])
+      processRunnerMock.executeCommand
+        .mockResolvedValue(previous)
+        .mockResolvedValueOnce(previous)
+        .mockResolvedValueOnce('Provider added')
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.applyMiniMaxCodeProvider({
+        providerName: 'DeepSeek',
+        baseUrl: 'https://api.deepseek.com/v1',
+        apiFormat: 'openai-responses',
+        model: 'model',
+        apiKey: 'sk-secret'
+      })
+
+      expect(result).toMatchObject({ success: false, message: expect.stringContaining('rollback incomplete') })
+      expect(miniMaxCodeConfigMock.activateMiniMaxCodeModel).not.toHaveBeenCalled()
+      expect(processRunnerMock.executeCommand.mock.calls.map(([, args]) => args[1])).not.toContain('test')
+      expect(processRunnerMock.executeCommand.mock.calls.map(([, args]) => args[1])).not.toContain('remove')
     })
 
     it('removes a newly added provider when its connectivity test fails', async () => {
@@ -405,7 +477,7 @@ describe('CodeCliService', () => {
         .mockResolvedValueOnce(
           providerList([
             { providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' },
-            { providerId: 'custom_provider:cherry-new', name: '[Cherry Studio] DeepSeek', kind: 'custom' }
+            { providerId: 'custom_provider:cherry-new', name: candidateName, kind: 'custom' }
           ])
         )
         .mockResolvedValueOnce(JSON.stringify({ success: false, status: { lastErrorMessage: 'Unauthorized' } }))
@@ -437,7 +509,7 @@ describe('CodeCliService', () => {
       ])
       const withCandidate = providerList([
         { providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' },
-        { providerId: 'custom_provider:cherry-new', name: '[Cherry Studio] DeepSeek', kind: 'custom' }
+        { providerId: 'custom_provider:cherry-new', name: candidateName, kind: 'custom' }
       ])
       processRunnerMock.executeCommand
         .mockResolvedValueOnce(previous)
@@ -472,11 +544,11 @@ describe('CodeCliService', () => {
         .mockResolvedValueOnce(providerList([]))
         .mockResolvedValueOnce('Provider added: [Cherry Studio] DeepSeek')
         .mockResolvedValueOnce(
-          providerList([{ providerId: 'custom_provider:cherry-new', name: '[Cherry Studio] DeepSeek', kind: 'custom' }])
+          providerList([{ providerId: 'custom_provider:cherry-new', name: candidateName, kind: 'custom' }])
         )
         .mockResolvedValueOnce(JSON.stringify({ success: true, status: { state: 'available' } }))
         .mockResolvedValueOnce(
-          providerList([{ providerId: 'custom_provider:cherry-new', name: '[Cherry Studio] DeepSeek', kind: 'custom' }])
+          providerList([{ providerId: 'custom_provider:cherry-new', name: candidateName, kind: 'custom' }])
         )
         .mockResolvedValueOnce('Provider removed: custom_provider:cherry-new')
       const { codeCliService } = await loadModules()

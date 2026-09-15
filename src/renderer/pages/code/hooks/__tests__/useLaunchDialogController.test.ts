@@ -1,8 +1,9 @@
+import { act, renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   availableTerminals: [] as { id: string; name: string }[],
@@ -466,9 +467,9 @@ describe('useLaunchDialogController', () => {
     const gatewayModelsById = new Map<UniqueModelId, Model>([[managedModel.id, managedModel]])
 
     function renderGatewayLaunch(
-      getApiKey: ReturnType<typeof vi.fn>,
+      getApiKey: ReturnType<typeof vi.fn<(...args: any[]) => any>>,
       availableModels: Map<UniqueModelId, Model> = gatewayModelsById,
-      ensureRunning: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(undefined),
+      ensureRunning: ReturnType<typeof vi.fn<(...args: any[]) => any>> = vi.fn().mockResolvedValue(undefined),
       selectedCliTool: CodeCli = CodeCli.CLAUDE_CODE
     ) {
       const upsertProviderConfig = vi.fn().mockResolvedValue(CLI_API_GATEWAY_PROVIDER_ID)
@@ -533,9 +534,9 @@ describe('useLaunchDialogController', () => {
       expect(mocks.requestMock).not.toHaveBeenCalled()
     })
 
-    it('re-verifies the gateway and rewrites the config with its key before running', async () => {
+    it.each([CodeCli.CLAUDE_CODE, CodeCli.MCODE])('refreshes the gateway key before running %s', async (cliTool) => {
       const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
-      const { result } = renderGatewayLaunch(getApiKey)
+      const { result } = renderGatewayLaunch(getApiKey, gatewayModelsById, undefined, cliTool)
 
       await act(async () => {
         result.current.launchDialogProps.onLaunch()
@@ -545,13 +546,14 @@ describe('useLaunchDialogController', () => {
 
       expect(getApiKey).toHaveBeenCalledTimes(1)
       expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith({
-        cliTool: CodeCli.CLAUDE_CODE,
+        cliTool,
         modelId: 'deepseek::deepseek-chat',
         configBlob: { permissionMode: 'plan' },
         writePrimaryModel: true,
         gateway: { provider: gatewayProvider, apiKey: 'cs-sk-current' }
       })
       expect(mocks.requestMock).toHaveBeenCalledWith('code_cli.run', expect.objectContaining({ mode: 'normal' }))
+      if (cliTool === CodeCli.MCODE) expect(mocks.readCliConfigFiles).not.toHaveBeenCalled()
       // The rebuild must complete before the CLI is spawned.
       expect(mocks.writeCliConfigDraft.mock.invocationCallOrder[0]).toBeLessThan(
         mocks.requestMock.mock.invocationCallOrder[0]

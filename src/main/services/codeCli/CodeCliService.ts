@@ -1,5 +1,10 @@
+import { execFile, spawn } from 'child_process'
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { promisify } from 'util'
+
+import { app } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -36,9 +41,6 @@ import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { REDACTED } from '@shared/utils/redaction'
-import { execFile, spawn } from 'child_process'
-import { app } from 'electron'
-import { promisify } from 'util'
 
 import { prepareAntigravityLaunch } from './antigravity'
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
@@ -302,14 +304,20 @@ export class CodeCliService extends BaseService {
     })
   }
 
-  private async listManagedMiniMaxCodeProvidersWithRetry(runtime: {
-    path: string
-    env: Record<string, string>
-  }): Promise<MiniMaxCodeListedProvider[]> {
+  private async findMiniMaxCodeCandidateWithRetry(
+    runtime: { path: string; env: Record<string, string> },
+    managedName: string,
+    previousIds: ReadonlySet<string>
+  ): Promise<MiniMaxCodeListedProvider> {
     let lastError: unknown
     for (let attempt = 1; attempt <= MCODE_PROVIDER_DISCOVERY_ATTEMPTS; attempt += 1) {
       try {
-        return await this.listManagedMiniMaxCodeProviders(runtime)
+        const providers = await this.listManagedMiniMaxCodeProviders(runtime)
+        const candidates = providers.filter(
+          (provider) => provider.name === managedName && !previousIds.has(provider.providerId)
+        )
+        if (candidates.length !== 1) throw new Error('MiniMax Code did not identify a unique new provider')
+        return candidates[0]
       } catch (error) {
         lastError = error
         logger.warn('Failed to enumerate MiniMax Code providers', { attempt, error: error as Error })
@@ -352,7 +360,7 @@ export class CodeCliService extends BaseService {
       let selectionReceipt: MiniMaxCodeSelectionReceipt | undefined
       let providerPersisted = false
       let previousIds = new Set<string>()
-      const managedName = `${MCODE_PROVIDER_NAME_PREFIX}${input.providerName}`
+      const managedName = `${MCODE_PROVIDER_NAME_PREFIX}${input.providerName} (${randomUUID()})`
       try {
         runtime = await this.resolveMiniMaxCodeCommand()
         const previousProviders = await this.listManagedMiniMaxCodeProviders(runtime)
@@ -376,13 +384,8 @@ export class CodeCliService extends BaseService {
         )
         providerPersisted = true
 
-        const providers = await this.listManagedMiniMaxCodeProvidersWithRetry(runtime)
-        const appliedProvider =
-          providers.find((provider) => !previousIds.has(provider.providerId)) ??
-          providers.find((provider) => provider.name === managedName) ??
-          providers.at(-1)
-        if (!appliedProvider) throw new Error('MiniMax Code did not retain the applied provider')
-        if (!previousIds.has(appliedProvider.providerId)) createdProviderId = appliedProvider.providerId
+        const appliedProvider = await this.findMiniMaxCodeCandidateWithRetry(runtime, managedName, previousIds)
+        createdProviderId = appliedProvider.providerId
 
         const testOutput = await this.runMiniMaxCodeProviderCommand(runtime, [
           'test',
@@ -409,7 +412,7 @@ export class CodeCliService extends BaseService {
         }
 
         for (const provider of verifiedProviders) {
-          if (provider.providerId === appliedProvider.providerId) continue
+          if (!previousIds.has(provider.providerId)) continue
           await this.runMiniMaxCodeProviderCommand(runtime, ['remove', provider.providerId, '--yes']).catch((error) =>
             logger.warn('Failed to remove a stale Cherry-managed MiniMax Code provider', error as Error)
           )
@@ -431,10 +434,8 @@ export class CodeCliService extends BaseService {
           let rollbackProviderIds = createdProviderId ? [createdProviderId] : []
           if (rollbackProviderIds.length === 0) {
             try {
-              const currentProviders = await this.listManagedMiniMaxCodeProvidersWithRetry(runtime)
-              rollbackProviderIds = currentProviders
-                .filter((provider) => !previousIds.has(provider.providerId) && provider.name === managedName)
-                .map((provider) => provider.providerId)
+              const candidate = await this.findMiniMaxCodeCandidateWithRetry(runtime, managedName, previousIds)
+              rollbackProviderIds = [candidate.providerId]
             } catch (enumerateError) {
               rollbackFailures.push('new MiniMax Code provider could not be identified for cleanup')
               logger.warn(

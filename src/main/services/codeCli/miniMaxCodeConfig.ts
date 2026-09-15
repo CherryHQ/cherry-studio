@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { Document, isMap, parseDocument } from 'yaml'
+
 import {
   assertPathVersionUnchanged,
   atomicWriteFile,
@@ -11,7 +13,6 @@ import {
 } from '@main/utils/file'
 import type { ContentHash } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { Document, isMap, parseDocument } from 'yaml'
 
 const MCODE_CONFIG_FILE_MODE = 0o600
 

@@ -1,14 +1,15 @@
+import type { ComponentProps } from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { type CodeCli, isApiGatewayProviderId, PROVIDERLESS_CLI_TOOLS } from '@shared/types/codeCli'
+import { CodeCli, isApiGatewayProviderId, PROVIDERLESS_CLI_TOOLS } from '@shared/types/codeCli'
 import { isFileConfiguredCli } from '@shared/utils/cliConfig'
-import type { ComponentProps } from 'react'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   type CliConfigFileDraft,
@@ -172,15 +173,21 @@ export function useLaunchDialogController({
       if (isGatewayProvider && apiGatewayProvider) {
         await apiGatewayProvider.ensureRunning()
       }
-      if (isGatewayProvider && apiGatewayProvider && isFileConfiguredCli(selectedCliTool)) {
+      if (
+        isGatewayProvider &&
+        apiGatewayProvider &&
+        (isFileConfiguredCli(selectedCliTool) || selectedCliTool === CodeCli.MCODE)
+      ) {
         const apiKey = await apiGatewayProvider.getApiKey()
         let onDiskFiles: CliConfigFileDraft[] | undefined
-        try {
-          onDiskFiles = await readCliConfigFiles(selectedCliTool)
-        } catch (err) {
-          // Reading is only needed to preserve a raw gateway model. If it fails, rebuild the managed
-          // config from preference so launch still uses the current gateway connection.
-          logger.warn('Failed to read CLI config for gateway reconciliation; rewriting', err as Error)
+        if (isFileConfiguredCli(selectedCliTool)) {
+          try {
+            onDiskFiles = await readCliConfigFiles(selectedCliTool)
+          } catch (err) {
+            // Reading is only needed to preserve a raw gateway model. If it fails, rebuild the managed
+            // config from preference so launch still uses the current gateway connection.
+            logger.warn('Failed to read CLI config for gateway reconciliation; rewriting', err as Error)
+          }
         }
 
         let modelId = cliConfigContext.modelId

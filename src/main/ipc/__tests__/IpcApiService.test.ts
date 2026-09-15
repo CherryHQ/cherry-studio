@@ -1,10 +1,11 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { ipcMain } from 'electron'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService, Phase } from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { IpcChannel } from '@shared/IpcChannel'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { ipcMain } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { IpcApiService } from '../IpcApiService'
 
@@ -14,9 +15,9 @@ vi.mock('@application', () => ({ application: { get: appGetMock, getPath: getPat
 const dispatchMock = vi.fn()
 const sendSpy = vi.fn()
 let windowManager: {
-  getWindowIdByWebContents: ReturnType<typeof vi.fn>
-  getWindow: ReturnType<typeof vi.fn>
-  broadcast: ReturnType<typeof vi.fn>
+  getWindowIdByWebContents: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getWindow: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  broadcast: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 /** Build a service, then field-inject a dispatch stub (the router itself is tested separately). */

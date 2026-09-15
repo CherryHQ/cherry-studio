@@ -1,7 +1,8 @@
-import ProviderApiKeyListDrawer from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/ProviderApiKeyListDrawer'
-import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import ProviderApiKeyListDrawer from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/ProviderApiKeyListDrawer'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
 
 const addApiKeyMock = vi.fn()
 const updateApiKeyMock = vi.fn()

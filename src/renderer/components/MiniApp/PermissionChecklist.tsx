@@ -1,3 +1,6 @@
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Checkbox, InfoTooltip, Tooltip } from '@cherrystudio/ui'
 import {
   groupPermissionsByNamespace,
@@ -7,8 +10,6 @@ import {
   permissionNamespaceTitle
 } from '@renderer/utils/miniAppPermission'
 import { cn } from '@renderer/utils/style'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export interface PermissionLeafItem {
   key: string

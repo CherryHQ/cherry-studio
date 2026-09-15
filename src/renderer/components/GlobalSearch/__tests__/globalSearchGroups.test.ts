@@ -1,5 +1,6 @@
-import type { EntitySearchResponse } from '@shared/data/api/schemas/search'
 import { describe, expect, it } from 'vitest'
+
+import type { EntitySearchResponse } from '@shared/data/api/schemas/search'
 
 import {
   buildGlobalMessageSearchGroups,
