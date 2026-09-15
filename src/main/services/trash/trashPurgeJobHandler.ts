@@ -27,12 +27,14 @@ const PURGE_BATCH_SIZE = 500
 const DAY_MS = 86_400_000
 
 interface PurgeBatch {
-  purgedIds: string[]
-  hasMore: boolean
+  readonly purgedIds: readonly string[]
+  readonly hasMore: boolean
+  /** Run immediately after the batch's write transaction commits. */
+  readonly notifyPurged: () => void
 }
 
-function completedPurgeBatch(purgedIds: string[], limit: number): PurgeBatch {
-  return { purgedIds, hasMore: purgedIds.length === limit }
+function completedPurgeBatch(purgedIds: readonly string[], hasMore: boolean, notifyPurged: () => void): PurgeBatch {
+  return { purgedIds, hasMore, notifyPurged }
 }
 
 /**
@@ -45,12 +47,6 @@ function completedPurgeBatch(purgedIds: string[], limit: number): PurgeBatch {
 const PURGE_DOMAINS: ReadonlyArray<{
   name: string
   purgeExpired: (cutoffMs: number, limit: number) => PurgeBatch | Promise<PurgeBatch>
-  /**
-   * Post-commit read-model refresh. The `*Tx` variants stay silent so they compose
-   * inside a caller's transaction, which leaves the notification owing here — without
-   * it a scheduled 03:00 purge leaves every open list rendering deleted rows.
-   */
-  notifyPurged: (ids: string[]) => void
 }> = [
   {
     name: 'topic',
@@ -58,27 +54,26 @@ const PURGE_DOMAINS: ReadonlyArray<{
       const purgedIds = application
         .get('DbService')
         .withWriteTx((tx) => topicService.purgeExpiredTx(tx, cutoffMs, limit))
-      return completedPurgeBatch(purgedIds, limit)
-    },
-    notifyPurged: (ids) => topicService.notifyPurged(ids)
+      return completedPurgeBatch(purgedIds, purgedIds.length === limit, () => topicService.notifyPurged(purgedIds))
+    }
   },
   {
     name: 'session',
-    purgeExpired: (cutoffMs, limit) =>
-      application.get('AgentSessionDeliveryService').purgeExpiredSessions(cutoffMs, limit),
-    notifyPurged: (ids) => agentSessionService.notifyPurged(ids)
+    purgeExpired: async (cutoffMs, limit) => {
+      const batch = await application.get('AgentSessionDeliveryService').purgeExpiredSessions(cutoffMs, limit)
+      return completedPurgeBatch(batch.purgedIds, batch.hasMore, () =>
+        agentSessionService.notifyPurged(batch.purgedIds)
+      )
+    }
   },
   {
     name: 'agent',
     purgeExpired: (cutoffMs, limit) => {
-      const purgedIds = application
-        .get('DbService')
-        .withWriteTx((tx) => agentService.purgeExpiredTx(tx, cutoffMs, limit))
-      return completedPurgeBatch(purgedIds, limit)
-    },
-    // Retention is the first and only moment a trashed agent's prompt bindings are
-    // dropped — they deliberately survive Delete — so this is the only chance to say so.
-    notifyPurged: (ids) => agentService.notifyPurged(ids)
+      const impact = application.get('DbService').withWriteTx((tx) => agentService.purgeExpiredTx(tx, cutoffMs, limit))
+      return completedPurgeBatch(impact.purgedIds, impact.purgedIds.length === limit, () =>
+        agentService.notifyPurged(impact)
+      )
+    }
   },
   {
     name: 'assistant',
@@ -86,11 +81,10 @@ const PURGE_DOMAINS: ReadonlyArray<{
       const purgedIds = application
         .get('DbService')
         .withWriteTx((tx) => assistantDataService.purgeExpiredTx(tx, cutoffMs, limit))
-      return completedPurgeBatch(purgedIds, limit)
-    },
-    notifyPurged: (ids) => {
-      assistantDataService.notifyReadModelChange(ids, 'membership')
-      promptService.notifyTargetBindingsChanged()
+      return completedPurgeBatch(purgedIds, purgedIds.length === limit, () => {
+        assistantDataService.notifyReadModelChange(purgedIds, 'membership')
+        promptService.notifyTargetBindingsChanged()
+      })
     }
   },
   {
@@ -99,9 +93,10 @@ const PURGE_DOMAINS: ReadonlyArray<{
       const purgedIds = application
         .get('DbService')
         .withWriteTx((tx) => paintingService.purgeExpiredTx(tx, cutoffMs, limit))
-      return completedPurgeBatch(purgedIds, limit)
-    },
-    notifyPurged: (ids) => paintingService.notifyReadModelChange(ids, 'membership')
+      return completedPurgeBatch(purgedIds, purgedIds.length === limit, () =>
+        paintingService.notifyReadModelChange(purgedIds, 'membership')
+      )
+    }
   },
   {
     name: 'fileEntry',
@@ -109,13 +104,13 @@ const PURGE_DOMAINS: ReadonlyArray<{
       const purgedIds = application
         .get('DbService')
         .withWriteTx((tx) => fileEntryService.purgeExpiredTx(tx, cutoffMs, limit))
-      return completedPurgeBatch(purgedIds, limit)
-    },
-    notifyPurged: (ids) =>
-      notifyDataApiDataChange([
-        { endpoint: '/files/entries', kind: 'membership', entityIds: ids },
-        { endpoint: '/files/entries/:id', entityIds: ids }
-      ])
+      return completedPurgeBatch(purgedIds, purgedIds.length === limit, () =>
+        notifyDataApiDataChange([
+          { endpoint: '/files/entries', kind: 'membership', entityIds: purgedIds },
+          { endpoint: '/files/entries/:id', entityIds: purgedIds }
+        ])
+      )
+    }
   }
 ]
 
@@ -156,7 +151,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
         batch = await domain.purgeExpired(cutoffMs, PURGE_BATCH_SIZE)
         purgedIds.push(...batch.purgedIds)
         // A later batch may fail after this transaction has already committed.
-        if (batch.purgedIds.length > 0) domain.notifyPurged(batch.purgedIds)
+        if (batch.purgedIds.length > 0) batch.notifyPurged()
       } while (batch.hasMore)
       purged[domain.name] = purgedIds.length
       ctx.reportProgress(Math.round(((index + 1) / totalSteps) * 100))

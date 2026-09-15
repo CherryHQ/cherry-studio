@@ -24,6 +24,7 @@ import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
 import { getErrorMessage } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'
@@ -140,6 +141,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
             id,
             restore: restoreSession,
             getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+            isNotFound: isAgentSessionNotFoundError,
             refresh: reload
           })
       })
@@ -194,6 +196,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
               ids: deletedIds,
               restore: restoreSession,
               getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+              isNotFound: isAgentSessionNotFoundError,
               refresh: reload
             })
         })

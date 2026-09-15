@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
@@ -1165,6 +1166,106 @@ describe('AgentService', () => {
         { endpoint: '/agents', kind: 'membership', entityIds: [id] },
         { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
       ])
+    })
+
+    it('returns retention purge impact and publishes detached child projections post-commit', async () => {
+      const purgedAgent = await insertAgent({ id: 'agent-retention-impact', deletedAt: 1 })
+      const retainedAgent = await insertAgent({ id: 'agent-retention-retained', deletedAt: 2_000 })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-retention-impact',
+        name: 'Workspace',
+        path: '/tmp/agent-retention-impact',
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'session-retention-impact',
+          agentId: purgedAgent.id,
+          name: '',
+          workspaceId: 'workspace-retention-impact',
+          orderKey: 'a0'
+        },
+        {
+          id: 'session-retention-retained',
+          agentId: retainedAgent.id,
+          name: '',
+          workspaceId: 'workspace-retention-impact',
+          orderKey: 'a1'
+        }
+      ])
+      await dbh.db.insert(agentChannelTable).values([
+        {
+          id: 'channel-retention-impact',
+          type: 'telegram',
+          name: 'Impact',
+          agentId: purgedAgent.id,
+          workspace: { type: 'system' },
+          config: {}
+        },
+        {
+          id: 'channel-retention-retained',
+          type: 'telegram',
+          name: 'Retained',
+          agentId: retainedAgent.id,
+          workspace: { type: 'system' },
+          config: {}
+        }
+      ])
+      notifyDataApiDataChangeMock.mockClear()
+
+      const impact = dbh.db.transaction((tx) => agentService.purgeExpiredTx(tx, 1_000, 10))
+
+      expect(impact).toEqual({
+        purgedIds: [purgedAgent.id],
+        affectedSessionIds: ['session-retention-impact'],
+        affectedChannelIds: ['channel-retention-impact']
+      })
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+      expect(
+        dbh.db
+          .select({ id: agentSessionTable.id, agentId: agentSessionTable.agentId })
+          .from(agentSessionTable)
+          .orderBy(agentSessionTable.id)
+          .all()
+      ).toEqual([
+        { id: 'session-retention-impact', agentId: null },
+        { id: 'session-retention-retained', agentId: retainedAgent.id }
+      ])
+      expect(
+        dbh.db
+          .select({ id: agentChannelTable.id, agentId: agentChannelTable.agentId })
+          .from(agentChannelTable)
+          .orderBy(agentChannelTable.id)
+          .all()
+      ).toEqual([
+        { id: 'channel-retention-impact', agentId: null },
+        { id: 'channel-retention-retained', agentId: retainedAgent.id }
+      ])
+
+      const purgedEvents: string[] = []
+      const disposable = agentService.onAgentPurged(({ agentId }) => purgedEvents.push(agentId))
+      try {
+        agentService.notifyPurged(impact)
+      } finally {
+        disposable.dispose()
+      }
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-retention-impact'] },
+        {
+          endpoint: '/agent-sessions',
+          kind: 'order',
+          dimension: 'lastActivityAt',
+          entityIds: ['session-retention-impact']
+        },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-retention-impact'] },
+        { endpoint: '/agent-sessions/latest' }
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-channels', kind: 'projection', entityIds: ['channel-retention-impact'] },
+        { endpoint: '/agent-channels/:channelId', entityIds: ['channel-retention-impact'] }
+      ])
+      expect(purgedEvents).toEqual([purgedAgent.id])
     })
 
     it('keeps active sessions attached when moving only the agent to the Recycle Bin', async () => {

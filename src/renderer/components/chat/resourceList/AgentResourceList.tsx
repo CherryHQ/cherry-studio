@@ -22,13 +22,14 @@ import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import {
+  restoreRecycleBinItems,
   restoreRecycleBinUndoGroup,
   showRecycleBinBatchUndo,
   showRecycleBinUndo
 } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { SESSION_UNKNOWN_AGENT_GROUP_ID } from '@renderer/utils/chat/sessionListHelpers'
-import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
@@ -340,32 +341,14 @@ export function AgentResourceList({
           if (deleteSessionsOnly) {
             showRecycleBinBatchUndo({
               itemCount: deletedSessionIds.length,
-              onUndo: async () => {
-                const outcomes = await Promise.allSettled(
-                  deletedSessionIds.map((sessionId) => restoreSession(sessionId))
-                )
-                await refreshAfterRestore()
-                const activeAfterNotFound = await Promise.all(
-                  outcomes.map(async (outcome, index) => {
-                    if (outcome.status === 'fulfilled' || !isAgentSessionNotFoundError(outcome.reason)) return false
-                    try {
-                      await dataApiService.get(`/agent-sessions/${deletedSessionIds[index]}`)
-                      return true
-                    } catch {
-                      return false
-                    }
-                  })
-                )
-                return outcomes.reduce(
-                  (result, outcome, index) => {
-                    const sessionId = deletedSessionIds[index]
-                    if (outcome.status === 'fulfilled' || activeAfterNotFound[index]) result.restored.push(sessionId)
-                    else result.failed.push({ id: sessionId, error: getErrorMessage(outcome.reason) })
-                    return result
-                  },
-                  { restored: [] as string[], failed: [] as Array<{ id: string; error: string }> }
-                )
-              }
+              onUndo: () =>
+                restoreRecycleBinItems({
+                  ids: deletedSessionIds,
+                  restore: restoreSession,
+                  getActive: (id) => dataApiService.get(`/agent-sessions/${id}`),
+                  isNotFound: isAgentSessionNotFoundError,
+                  refresh: refreshAfterRestore
+                })
             })
           } else {
             showRecycleBinUndo({
@@ -380,7 +363,8 @@ export function AgentResourceList({
                   related: {
                     ids: deletedSessionIds,
                     restore: restoreSession,
-                    getActive: (id) => dataApiService.get(`/agent-sessions/${id}`)
+                    getActive: (id) => dataApiService.get(`/agent-sessions/${id}`),
+                    isNotFound: isAgentSessionNotFoundError
                   },
                   refresh: refreshAfterRestore
                 })

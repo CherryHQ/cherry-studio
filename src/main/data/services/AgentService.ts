@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
+import { agentChannelTable } from '@data/db/schemas/agentChannel'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
@@ -62,6 +64,12 @@ export interface AgentRestoredEvent {
 
 export interface AgentPurgedEvent {
   agentId: string
+}
+
+export interface AgentPurgeImpact {
+  readonly purgedIds: readonly string[]
+  readonly affectedSessionIds: readonly string[]
+  readonly affectedChannelIds: readonly string[]
 }
 
 export type AgentLifecycleState = 'active' | 'trashed' | 'missing'
@@ -281,11 +289,20 @@ export class AgentService {
   }
 
   /** Publish the post-commit effects of a retention purge. */
-  notifyPurged(agentIds: readonly string[]): void {
-    if (agentIds.length === 0) return
-    const entityIds = [...new Set(agentIds)]
+  notifyPurged(impact: AgentPurgeImpact): void {
+    if (impact.purgedIds.length === 0) return
+    const entityIds = [...new Set(impact.purgedIds)]
     this.notifyReadModelChange(entityIds, 'membership')
+    // Prompt bindings deliberately survive trashing and disappear only at retention purge.
     promptService.notifyTargetBindingsChanged()
+    agentSessionService.notifyReadModelChange(impact.affectedSessionIds, 'projection')
+    if (impact.affectedChannelIds.length > 0) {
+      const affectedChannelIds = [...new Set(impact.affectedChannelIds)]
+      notifyDataApiDataChange([
+        { endpoint: '/agent-channels', kind: 'projection', entityIds: affectedChannelIds },
+        { endpoint: '/agent-channels/:channelId', entityIds: affectedChannelIds }
+      ])
+    }
     for (const agentId of entityIds) this._onAgentPurged.fire({ agentId })
   }
 
@@ -951,16 +968,33 @@ export class AgentService {
     return agent
   }
 
-  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): AgentPurgeImpact {
     const rows = tx
       .select({ id: agentsTable.id })
       .from(agentsTable)
       .where(and(isNotNull(agentsTable.deletedAt), lt(agentsTable.deletedAt, cutoffMs)))
       .limit(limit)
       .all()
-    const ids = rows.map((row) => row.id)
-    for (const id of ids) this.deleteAgentTx(tx, id)
-    return ids
+    const purgedIds = rows.map((row) => row.id)
+    if (purgedIds.length === 0) return { purgedIds, affectedSessionIds: [], affectedChannelIds: [] }
+
+    const affectedSessionIds = tx
+      .select({ id: agentSessionTable.id })
+      .from(agentSessionTable)
+      .where(inArray(agentSessionTable.agentId, purgedIds))
+      .orderBy(asc(agentSessionTable.id))
+      .all()
+      .map((row) => row.id)
+    const affectedChannelIds = tx
+      .select({ id: agentChannelTable.id })
+      .from(agentChannelTable)
+      .where(inArray(agentChannelTable.agentId, purgedIds))
+      .orderBy(asc(agentChannelTable.id))
+      .all()
+      .map((row) => row.id)
+
+    for (const id of purgedIds) this.deleteAgentTx(tx, id)
+    return { purgedIds, affectedSessionIds, affectedChannelIds }
   }
 
   agentExists(id: string): boolean {

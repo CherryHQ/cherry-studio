@@ -26,10 +26,10 @@ export interface AgentSweepReport {
 }
 
 /**
- * Orphan sweep for the app-managed agent disk state. DB rows are the single
- * source of truth (Recycle Bin RFC §4.2): an artifact survives iff a row still
- * claims it, so purging a session/agent row reclaims its residue on the next
- * run — same contract as the file orphan sweep.
+ * Orphan sweep for the app-managed agent disk state. DB rows are the durable
+ * source of truth (Recycle Bin RFC §4.2) for agent and workspace artifacts.
+ * Runtime session artifacts additionally survive while the live runtime snapshot
+ * claims their resume token, and are reclaimed once neither source claims them.
  *
  * Three passes, because the layouts differ:
  *  - `{agents.data}/{agent.id}` — per-agent identity/memory dirs. They sit next
@@ -38,8 +38,8 @@ export interface AgentSweepReport {
  *  - `{agents.system_workspaces}/{date}/{sessionId}` — app-owned session
  *    workspaces, claimed by `agent_workspace.path`. Workspace rows survive
  *    Delete and are removed at session purge.
- *  - each runtime driver's own session persistence, claimed by the resume
- *    tokens on surviving `agent_session_message` rows.
+ *  - each runtime driver's own session persistence, claimed by the union of
+ *    resume tokens on surviving `agent_session_message` rows and the live runtime snapshot.
  *
  * Trashed agents/sessions keep everything: their rows (and tokens) are still
  * there, so restore stays lossless. Removal failures are logged for the next run.
@@ -120,7 +120,10 @@ async function reclaimRuntimeSessions(
   const drivers = runtimeDriverRegistry.getAgentSessionDrivers().filter((driver) => driver.reclaimOrphanSessions)
   if (drivers.length === 0) return { runtimeSessions: {}, failedDrivers: [] }
 
-  const keptResumeTokens = agentSessionMessageService.listAllRuntimeResumeTokens()
+  const keptResumeTokens = new Set([
+    ...agentSessionMessageService.listAllRuntimeResumeTokens(),
+    ...application.get('AgentSessionRuntimeService').listClaimedResumeTokens()
+  ])
   const runtimeSessions: Record<string, number> = {}
   const failedDrivers: string[] = []
 

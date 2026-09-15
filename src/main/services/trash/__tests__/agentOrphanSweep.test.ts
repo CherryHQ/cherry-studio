@@ -37,11 +37,21 @@ const AGENT_GONE = '33333333-3333-4333-8333-333333333333'
 
 describe('sweepAgentOrphans', () => {
   const dbh = setupTestDatabase()
+  const applicationGet = application.get as Mock
+  const originalApplicationGet = applicationGet.getMockImplementation()!
+  const runtimeClaimedResumeTokens = new Set<string>()
   let root: string
   let workspacesRoot: string
 
   beforeEach(() => {
     restoreJournalMock.hasPendingRestore.mockReturnValue(false)
+    runtimeClaimedResumeTokens.clear()
+    applicationGet.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') {
+        return { listClaimedResumeTokens: () => new Set(runtimeClaimedResumeTokens) }
+      }
+      return originalApplicationGet(name)
+    })
     // Mirrors pathRegistry: system workspaces live *inside* the agents data root.
     root = mkdtempSync(path.join(tmpdir(), 'cs-agent-sweep-'))
     workspacesRoot = path.join(root, 'system')
@@ -54,6 +64,7 @@ describe('sweepAgentOrphans', () => {
 
   afterEach(() => {
     rmSync(root, { recursive: true, force: true })
+    applicationGet.mockImplementation(originalApplicationGet)
     vi.mocked(application.getPath as Mock).mockReset()
   })
 
@@ -253,6 +264,31 @@ describe('sweepAgentOrphans', () => {
 
       // Purge drops the session row; the FK cascade takes its token with it.
       await dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, 'session-trashed'))
+      const { removed } = await sweepAgentOrphans()
+
+      expect(removed).toContain(transcript)
+      expect(existsSync(transcript)).toBe(false)
+    })
+
+    it('keeps a runtime-claimed pi transcript until a later snapshot releases it', async () => {
+      const piSessions = path.join(root, 'pi-sessions')
+      mkdirSync(piSessions, { recursive: true })
+      const transcript = path.join(piSessions, '2026-08-19T00-00-00-000Z_token-runtime-only.jsonl')
+      writeFileSync(transcript, 'x')
+      utimesSync(transcript, STALE_SECONDS, STALE_SECONDS)
+      ;(application.getPath as Mock).mockImplementation((key: string) => {
+        if (key === 'feature.agents.data') return root
+        if (key === 'feature.agents.system_workspaces') return workspacesRoot
+        if (key === 'feature.agents.pi.sessions') return piSessions
+        return path.join(root, `unused-${key}`)
+      })
+      runtimeDriverRegistry.register(new PiRuntimeDriver())
+      runtimeClaimedResumeTokens.add('token-runtime-only')
+
+      await sweepAgentOrphans()
+      expect(existsSync(transcript)).toBe(true)
+
+      runtimeClaimedResumeTokens.clear()
       const { removed } = await sweepAgentOrphans()
 
       expect(removed).toContain(transcript)

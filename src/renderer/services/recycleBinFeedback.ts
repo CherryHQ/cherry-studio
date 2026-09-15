@@ -34,6 +34,7 @@ interface RestoreRecycleBinItemsInput {
   ids: readonly string[]
   restore: (id: string) => Promise<unknown>
   getActive: (id: string) => Promise<unknown>
+  isNotFound?: (error: unknown) => boolean
   refresh: () => Promise<unknown>
 }
 
@@ -41,6 +42,7 @@ interface RestoreRecycleBinItemTarget {
   id: string
   restore: RestoreRecycleBinItemsInput['restore']
   getActive: RestoreRecycleBinItemsInput['getActive']
+  isNotFound?: RestoreRecycleBinItemsInput['isNotFound']
 }
 
 interface RestoreRecycleBinUndoGroupInput {
@@ -52,12 +54,13 @@ interface RestoreRecycleBinUndoGroupInput {
 async function restoreOrConfirmActive(
   id: string,
   restore: RestoreRecycleBinItemsInput['restore'],
-  getActive: RestoreRecycleBinItemsInput['getActive']
+  getActive: RestoreRecycleBinItemsInput['getActive'],
+  isNotFound: NonNullable<RestoreRecycleBinItemsInput['isNotFound']> = isDataApiNotFoundError
 ): Promise<void> {
   try {
     await restore(id)
   } catch (error) {
-    if (!isDataApiNotFoundError(error)) throw error
+    if (!isNotFound(error)) throw error
     try {
       await getActive(id)
     } catch {
@@ -68,7 +71,7 @@ async function restoreOrConfirmActive(
 
 async function restoreItems(input: Omit<RestoreRecycleBinItemsInput, 'refresh'>): Promise<BatchUndoResult> {
   const outcomes = await Promise.allSettled(
-    input.ids.map((id) => restoreOrConfirmActive(id, input.restore, input.getActive))
+    input.ids.map((id) => restoreOrConfirmActive(id, input.restore, input.getActive, input.isNotFound))
   )
   return outcomes.reduce<BatchUndoResult>(
     (result, outcome, index) => {
@@ -105,7 +108,12 @@ export async function restoreRecycleBinItem(input: Omit<RestoreRecycleBinItemsIn
 export async function restoreRecycleBinUndoGroup(input: RestoreRecycleBinUndoGroupInput): Promise<void> {
   let relatedResult: BatchUndoResult = { restored: [], failed: [] }
   try {
-    await restoreOrConfirmActive(input.primary.id, input.primary.restore, input.primary.getActive)
+    await restoreOrConfirmActive(
+      input.primary.id,
+      input.primary.restore,
+      input.primary.getActive,
+      input.primary.isNotFound
+    )
     relatedResult = await restoreItems(input.related)
   } finally {
     await refreshAfterRestore(input.refresh)

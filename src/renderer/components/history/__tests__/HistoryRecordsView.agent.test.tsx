@@ -8,9 +8,10 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 type VirtualListRenderRow = (item: unknown, index: number) => ReactNode
 
@@ -1197,7 +1198,9 @@ describe('HistoryRecordsView agent mode', () => {
   })
 
   it('deletes a session from the history row action column without selecting the row', async () => {
-    hookMocks.restoreSession.mockRejectedValueOnce(DataApiErrorFactory.notFound('Session', 'session-alpha'))
+    hookMocks.restoreSession.mockRejectedValueOnce(
+      new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session active')
+    )
     const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-alpha' })
     const { onClose, onRecordSelect } = setupAgentHistory()
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]')

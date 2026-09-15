@@ -13,6 +13,8 @@ import type { TopicStreamStatus } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const conversationOwnerPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
 
@@ -293,6 +295,7 @@ const tabsContextMocks = vi.hoisted(() => ({
 const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'window' }))
 
 const dataApiMocks = vi.hoisted(() => ({
+  dataChangeSubscriptions: [] as Array<{ endpoints: string[]; listener: () => void }>,
   deleteAgent: vi.fn().mockResolvedValue(undefined),
   deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   deleteWorkspace: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
@@ -304,6 +307,7 @@ const dataApiMocks = vi.hoisted(() => ({
   }),
   refetchWorkspaces: vi.fn().mockResolvedValue(undefined),
   refetchAgents: vi.fn().mockResolvedValue(undefined),
+  refetchChannels: vi.fn().mockResolvedValue(undefined),
   reorderAgent: vi.fn().mockResolvedValue(undefined),
   reorderWorkspace: vi.fn().mockResolvedValue(undefined),
   restoreAgent: vi.fn().mockResolvedValue(undefined),
@@ -469,6 +473,12 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useDataChange: (endpoints: string | string[], listener: () => void) => {
+    dataApiMocks.dataChangeSubscriptions.push({
+      endpoints: Array.isArray(endpoints) ? endpoints : [endpoints],
+      listener
+    })
+  },
   useInvalidateCache: () => dataApiMocks.invalidate,
   useQuery: vi.fn((path: string, options?: { enabled?: boolean }) => {
     dataApiMocks.useQuery(path, options)
@@ -506,6 +516,17 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
         isRefreshing: dataApiMocks.workspacesRefreshing,
         error: dataApiMocks.workspacesError,
         refetch: dataApiMocks.refetchWorkspaces,
+        mutate: vi.fn()
+      }
+    }
+
+    if (path === '/agent-channels') {
+      return {
+        data: [],
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: dataApiMocks.refetchChannels,
         mutate: vi.fn()
       }
     }
@@ -894,6 +915,7 @@ describe('Sessions', () => {
     dataApiMocks.workspacesError = undefined
     dataApiMocks.workspacesLoading = false
     dataApiMocks.workspacesRefreshing = false
+    dataApiMocks.dataChangeSubscriptions.length = 0
     dataApiMocks.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: [] })
     dataApiMocks.deleteAgentSessions.mockResolvedValue({ deletedIds: [] })
     dataApiMocks.deleteWorkspace.mockResolvedValue({ deletedIds: [] })
@@ -1048,6 +1070,24 @@ describe('Sessions', () => {
 
     expect(dataApiMocks.useQuery).toHaveBeenCalledWith('/agent-channels', { enabled: false })
     expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: false })
+    act(() => {
+      for (const subscription of dataApiMocks.dataChangeSubscriptions) {
+        if (subscription.endpoints.includes('/agent-channels')) subscription.listener()
+      }
+    })
+    expect(dataApiMocks.refetchChannels).not.toHaveBeenCalled()
+  })
+
+  it('refreshes channel labels when another window publishes a channel projection change', () => {
+    render(<SessionsForTest />)
+
+    act(() => {
+      for (const subscription of dataApiMocks.dataChangeSubscriptions) {
+        if (subscription.endpoints.includes('/agent-channels')) subscription.listener()
+      }
+    })
+
+    expect(dataApiMocks.refetchChannels).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the sortable session list mounted and preserves scroll position during refresh', () => {
@@ -2368,7 +2408,9 @@ describe('Sessions', () => {
   })
 
   it('requires the shared Recycle Bin confirmation before deleting a session and offers Undo', async () => {
-    sessionDataMocks.restoreSession.mockRejectedValueOnce(DataApiErrorFactory.notFound('Session', 'session-a'))
+    sessionDataMocks.restoreSession.mockRejectedValueOnce(
+      new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session active')
+    )
     const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-a' })
     render(<SessionsForTest />)
 
@@ -3891,7 +3933,9 @@ describe('Sessions', () => {
       onUndo: expect.any(Function)
     })
 
-    sessionDataMocks.restoreSession.mockRejectedValueOnce(DataApiErrorFactory.notFound('Session', 'session-a'))
+    sessionDataMocks.restoreSession.mockRejectedValueOnce(
+      new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session active')
+    )
     const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-a' })
     const reloadCountBeforeUndo = sessionDataMocks.reload.mock.calls.length
     await expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({

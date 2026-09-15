@@ -181,6 +181,9 @@ describe('ResourceDeleteConfirmDialog', () => {
   it('moves only the returned Agent Sessions when cascade is selected', async () => {
     const user = userEvent.setup()
     mocks.ipcRequest.mockResolvedValueOnce({ deleted: true, deletedSessionIds: ['session-2'] })
+    mocks.restoreSession.mockRejectedValueOnce(
+      new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session already active')
+    )
 
     render(<ResourceDeleteConfirmDialog resource={createResource('agent')} onClose={vi.fn()} />)
 
@@ -195,10 +198,11 @@ describe('ResourceDeleteConfirmDialog', () => {
     )
     expect(mocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-2'])
 
-    await mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+    await expect(mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
 
     expect(mocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
     expect(mocks.restoreSession).toHaveBeenCalledExactlyOnceWith({ sessionId: 'session-2' })
+    expect(mocks.getActiveResource).toHaveBeenCalledWith('/agent-sessions/session-2')
   })
 
   it('treats an Agent restore NOT_FOUND as complete only when refresh confirms it is active', async () => {

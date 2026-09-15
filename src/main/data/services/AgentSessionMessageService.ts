@@ -468,7 +468,7 @@ export class AgentSessionMessageService {
     return this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId) !== null
   }
 
-  listCreatedInRangeMetadataPage({
+  listLiveCreatedInRangeMetadataPage({
     fromMs,
     toMs,
     cursor: rawCursor,
@@ -494,10 +494,12 @@ export class AgentSessionMessageService {
         sessionId: sessionMessagesTable.sessionId
       })
       .from(sessionMessagesTable)
+      .innerJoin(sessionTable, eq(sessionTable.id, sessionMessagesTable.sessionId))
       .where(
         and(
           gte(sessionMessagesTable.createdAt, fromMs),
           lte(sessionMessagesTable.createdAt, toMs),
+          isNull(sessionTable.deletedAt),
           cursor ? ordering.where(cursor) : undefined
         )
       )
@@ -1438,7 +1440,7 @@ export class AgentSessionMessageService {
         const callerExists = tx
           .select({ id: sessionTable.id })
           .from(sessionTable)
-          .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+          .where(and(eq(sessionTable.id, request.delivery.sender.sessionId), isNull(sessionTable.deletedAt)))
           .limit(1)
           .all()[0]
         if (!callerExists) {
@@ -1522,7 +1524,7 @@ export class AgentSessionMessageService {
         const callerExists = tx
           .select({ id: sessionTable.id })
           .from(sessionTable)
-          .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+          .where(and(eq(sessionTable.id, request.delivery.sender.sessionId), isNull(sessionTable.deletedAt)))
           .limit(1)
           .all()[0]
         const existingResult = tx
@@ -1711,7 +1713,7 @@ export class AgentSessionMessageService {
       const callerExists = tx
         .select({ id: sessionTable.id })
         .from(sessionTable)
-        .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+        .where(and(eq(sessionTable.id, request.delivery.sender.sessionId), isNull(sessionTable.deletedAt)))
         .limit(1)
         .get()
       if (!callerExists) continue

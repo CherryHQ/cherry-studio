@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -456,6 +457,71 @@ describe('trashPurgeJobHandler', () => {
     } finally {
       spy.mockRestore()
     }
+  })
+
+  it('publishes session and channel projections detached by an Agent retention batch', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-impact-expired',
+      type: 'claude-code',
+      name: 'expired',
+      instructions: 'i',
+      orderKey: 'a0',
+      deletedAt: OLD
+    })
+    await dbh.db.insert(agentWorkspaceTable).values({
+      id: 'workspace-agent-impact',
+      name: 'Workspace',
+      path: '/tmp/trash-purge-test/workspace-agent-impact',
+      orderKey: 'a0'
+    })
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-agent-impact',
+      agentId: 'agent-impact-expired',
+      name: 'Session',
+      workspaceId: 'workspace-agent-impact',
+      orderKey: 'a0'
+    })
+    await dbh.db.insert(agentChannelTable).values({
+      id: 'channel-agent-impact',
+      type: 'telegram',
+      name: 'Channel',
+      agentId: 'agent-impact-expired',
+      workspace: { type: 'system' },
+      config: {}
+    })
+    notifyDataApiDataChangeMock.mockClear()
+
+    await trashPurgeJobHandler.execute(makeCtx({}))
+
+    expect(
+      dbh.db
+        .select({ agentId: agentSessionTable.agentId })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-agent-impact'))
+        .get()
+    ).toEqual({ agentId: null })
+    expect(
+      dbh.db
+        .select({ agentId: agentChannelTable.agentId })
+        .from(agentChannelTable)
+        .where(eq(agentChannelTable.id, 'channel-agent-impact'))
+        .get()
+    ).toEqual({ agentId: null })
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-agent-impact'] },
+      {
+        endpoint: '/agent-sessions',
+        kind: 'order',
+        dimension: 'lastActivityAt',
+        entityIds: ['session-agent-impact']
+      },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-agent-impact'] },
+      { endpoint: '/agent-sessions/latest' }
+    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agent-channels', kind: 'projection', entityIds: ['channel-agent-impact'] },
+      { endpoint: '/agent-channels/:channelId', entityIds: ['channel-agent-impact'] }
+    ])
   })
 
   it('continues Session pagination when a full candidate page purges fewer rows', async () => {

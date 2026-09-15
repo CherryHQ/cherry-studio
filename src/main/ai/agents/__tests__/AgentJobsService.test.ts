@@ -822,8 +822,8 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.getById(task.id)).not.toBeNull()
       expect(subscriptionRows(task.id)).toHaveLength(1)
 
-      const purgedIds = dbh.db.transaction((tx) => agentService.purgeExpiredTx(tx, Number.MAX_SAFE_INTEGER, 10))
-      agentService.notifyPurged(purgedIds)
+      const purgeImpact = dbh.db.transaction((tx) => agentService.purgeExpiredTx(tx, Number.MAX_SAFE_INTEGER, 10))
+      agentService.notifyPurged(purgeImpact)
 
       await vi.waitFor(() => expect(jobScheduleService.getById(task.id)).toBeNull())
       expect(subscriptionRows(task.id)).toHaveLength(0)

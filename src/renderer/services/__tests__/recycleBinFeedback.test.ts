@@ -189,6 +189,51 @@ describe('recycleBinFeedback', () => {
     expect(refresh).toHaveBeenCalledOnce()
   })
 
+  it('uses a custom not-found classifier before confirming concurrent restores through the active endpoint', async () => {
+    const activeError = new Error('ipc session not found')
+    const missingError = new Error('another ipc session not found')
+    const restore = vi.fn().mockRejectedValueOnce(activeError).mockRejectedValueOnce(missingError)
+    const getActive = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 'session-active' })
+      .mockRejectedValueOnce(new Error('still missing'))
+    const isNotFound = vi.fn((error: unknown) => error === activeError || error === missingError)
+
+    await expect(
+      restoreRecycleBinItems({
+        ids: ['session-active', 'session-missing'],
+        restore,
+        getActive,
+        refresh: vi.fn().mockResolvedValue(undefined),
+        isNotFound
+      })
+    ).resolves.toEqual({
+      restored: ['session-active'],
+      failed: [{ id: 'session-missing', error: missingError.message }]
+    })
+
+    expect(isNotFound).toHaveBeenCalledTimes(2)
+    expect(getActive).toHaveBeenNthCalledWith(1, 'session-active')
+    expect(getActive).toHaveBeenNthCalledWith(2, 'session-missing')
+  })
+
+  it('does not probe the active endpoint when a custom classifier rejects the restore error', async () => {
+    const restoreError = new Error('ordinary ipc failure')
+    const getActive = vi.fn()
+
+    await expect(
+      restoreRecycleBinItem({
+        id: 'session-a',
+        restore: vi.fn().mockRejectedValue(restoreError),
+        getActive,
+        refresh: vi.fn().mockResolvedValue(undefined),
+        isNotFound: () => false
+      })
+    ).rejects.toThrow('ordinary ipc failure')
+
+    expect(getActive).not.toHaveBeenCalled()
+  })
+
   it('undoes only the primary item and related IDs returned by the delete operation', async () => {
     const calls: string[] = []
     const restorePrimary = vi.fn(async (id: string) => {
@@ -212,5 +257,33 @@ describe('recycleBinFeedback', () => {
     expect(calls).toEqual(['primary:assistant-1', 'related:topic-1', 'related:topic-2'])
     expect(restoreRelated).toHaveBeenCalledTimes(2)
     expect(refresh).toHaveBeenCalledOnce()
+  })
+
+  it('applies separate custom not-found classifiers to a restore group primary and related items', async () => {
+    const primaryError = new Error('primary not found')
+    const relatedError = new Error('related not found')
+    const primaryIsNotFound = vi.fn((error: unknown) => error === primaryError)
+    const relatedIsNotFound = vi.fn((error: unknown) => error === relatedError)
+
+    await expect(
+      restoreRecycleBinUndoGroup({
+        primary: {
+          id: 'agent-1',
+          restore: vi.fn().mockRejectedValue(primaryError),
+          getActive: vi.fn().mockResolvedValue({ id: 'agent-1' }),
+          isNotFound: primaryIsNotFound
+        },
+        related: {
+          ids: ['session-1'],
+          restore: vi.fn().mockRejectedValue(relatedError),
+          getActive: vi.fn().mockResolvedValue({ id: 'session-1' }),
+          isNotFound: relatedIsNotFound
+        },
+        refresh: vi.fn().mockResolvedValue(undefined)
+      })
+    ).resolves.toBeUndefined()
+
+    expect(primaryIsNotFound).toHaveBeenCalledWith(primaryError)
+    expect(relatedIsNotFound).toHaveBeenCalledWith(relatedError)
   })
 })

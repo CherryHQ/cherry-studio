@@ -33,7 +33,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
@@ -100,6 +100,7 @@ import {
   type AgentWorkspaceEntity
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
+import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 import {
   type AgentSessionImageActionRequest,
@@ -444,7 +445,8 @@ const Sessions = ({
       rejectPendingActions: rejectPendingAgentSessionImageActions
     })
 
-  const { data: channels } = useQuery('/agent-channels', { enabled: dataEnabled })
+  const { data: channels, refetch: refetchChannels } = useQuery('/agent-channels', { enabled: dataEnabled })
+  useDataChange(dataEnabled ? '/agent-channels' : [], () => void refetchChannels())
   const channelTypeMap = useMemo(() => {
     const map: Record<string, string> = {}
     for (const ch of channels ?? []) {
@@ -841,6 +843,7 @@ const Sessions = ({
               id,
               restore: restoreSession,
               getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+              isNotFound: isAgentSessionNotFoundError,
               refresh: reload
             })
         })
@@ -1317,6 +1320,7 @@ const Sessions = ({
                     ids: restoredIds,
                     restore: restoreSession,
                     getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+                    isNotFound: isAgentSessionNotFoundError,
                     refresh: reload
                   })
               })
@@ -1334,7 +1338,8 @@ const Sessions = ({
                   related: {
                     ids: deletedSessionIds,
                     restore: restoreSession,
-                    getActive: (id) => dataApiService.get(`/agent-sessions/${id}`)
+                    getActive: (id) => dataApiService.get(`/agent-sessions/${id}`),
+                    isNotFound: isAgentSessionNotFoundError
                   },
                   refresh: refreshAgentResources
                 })

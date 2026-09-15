@@ -208,7 +208,8 @@ const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>
             related: {
               ids: deletedSessionIds,
               restore: restoreSession,
-              getActive: (id) => dataApiService.get(`/agent-sessions/${id}`)
+              getActive: (id) => dataApiService.get(`/agent-sessions/${id}`),
+              isNotFound: isAgentSessionNotFoundError
             },
             refresh: refreshAffected
           })
