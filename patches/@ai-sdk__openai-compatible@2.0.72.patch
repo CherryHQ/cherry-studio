@@ -1,7 +1,8 @@
 diff --git a/dist/index.js b/dist/index.js
+index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..13825304a8132a0c43ace8c123fdb27b3da848f4 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -257,7 +257,11 @@
+@@ -257,7 +257,11 @@ function convertToOpenAICompatibleChatMessages(prompt) {
          messages.push({
            role: "assistant",
            content: toolCalls.length > 0 ? text || null : text,
@@ -14,7 +15,7 @@ diff --git a/dist/index.js b/dist/index.js
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
-@@ -599,6 +603,17 @@
+@@ -599,6 +603,17 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
@@ -32,7 +33,7 @@ diff --git a/dist/index.js b/dist/index.js
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -758,6 +773,17 @@
+@@ -758,6 +773,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -50,7 +51,32 @@ diff --git a/dist/index.js b/dist/index.js
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -983,6 +1009,14 @@
+@@ -966,7 +992,23 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
+     import_v43.z.object({
+       message: import_v43.z.object({
+         role: import_v43.z.literal("assistant").nullish(),
+-        content: import_v43.z.string().nullish(),
++        // Volcano Ark sends array-form `content` on thinking+tool turns; fold text/refusal
++        // parts to text (empty → null), throw on any other shape so nothing drops silently.
++        content: import_v43.z.union([
++          import_v43.z.string(),
++          import_v43.z.array(import_v43.z.union([import_v43.z.string(), import_v43.z.looseObject({})])),
++          import_v43.z.null()
++        ]).nullish().transform((content) => {
++          if (!Array.isArray(content)) return content;
++          if (content.length === 0) return null;
++          const text = content.map((part) => {
++            if (typeof part === "string") return part;
++            if (typeof part === "object" && part !== null && typeof part.text === "string") return part.text;
++            if (typeof part === "object" && part !== null && typeof part.refusal === "string") return part.refusal;
++            throw new Error("Unsupported content part shape");
++          }).join("");
++          return text.length > 0 ? text : null;
++        }),
+         reasoning_content: import_v43.z.string().nullish(),
+         reasoning: import_v43.z.string().nullish(),
+         tool_calls: import_v43.z.array(
+@@ -983,6 +1025,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -65,7 +91,32 @@ diff --git a/dist/index.js b/dist/index.js
          ).nullish()
        }),
        finish_reason: import_v43.z.string().nullish()
-@@ -1019,6 +1053,14 @@
+@@ -998,7 +1048,23 @@ var chunkBaseSchema = import_v43.z.looseObject({
+     import_v43.z.object({
+       delta: import_v43.z.object({
+         role: import_v43.z.enum(["assistant", ""]).nullish(),
+-        content: import_v43.z.string().nullish(),
++        // Volcano Ark sends array-form `content` on thinking+tool turns; fold text/refusal
++        // parts to text (empty → null), throw on any other shape so nothing drops silently.
++        content: import_v43.z.union([
++          import_v43.z.string(),
++          import_v43.z.array(import_v43.z.union([import_v43.z.string(), import_v43.z.looseObject({})])),
++          import_v43.z.null()
++        ]).nullish().transform((content) => {
++          if (!Array.isArray(content)) return content;
++          if (content.length === 0) return null;
++          const text = content.map((part) => {
++            if (typeof part === "string") return part;
++            if (typeof part === "object" && part !== null && typeof part.text === "string") return part.text;
++            if (typeof part === "object" && part !== null && typeof part.refusal === "string") return part.refusal;
++            throw new Error("Unsupported content part shape");
++          }).join("");
++          return text.length > 0 ? text : null;
++        }),
+         // Most openai-compatible models set `reasoning_content`, but some
+         // providers serving `gpt-oss` set `reasoning`. See #7866
+         reasoning_content: import_v43.z.string().nullish(),
+@@ -1019,6 +1085,14 @@ var chunkBaseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -80,7 +131,7 @@ diff --git a/dist/index.js b/dist/index.js
          ).nullish()
        }).nullish(),
        finish_reason: import_v43.z.string().nullish()
-@@ -1577,7 +1619,7 @@
+@@ -1577,7 +1651,7 @@ var OpenAICompatibleEmbeddingModel = class {
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -89,7 +140,7 @@ diff --git a/dist/index.js b/dist/index.js
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1585,13 +1627,23 @@
+@@ -1585,13 +1659,23 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = import_v47.z.object({
    data: import_v47.z.array(import_v47.z.object({ embedding: import_v47.z.array(import_v47.z.number()) })),
@@ -114,7 +165,7 @@ diff --git a/dist/index.js b/dist/index.js
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1667,7 +1719,11 @@
+@@ -1667,7 +1751,11 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -127,7 +178,7 @@ diff --git a/dist/index.js b/dist/index.js
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1676,7 +1732,7 @@
+@@ -1676,7 +1764,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -136,7 +187,7 @@ diff --git a/dist/index.js b/dist/index.js
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1687,8 +1743,8 @@
+@@ -1687,8 +1775,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -147,7 +198,7 @@ diff --git a/dist/index.js b/dist/index.js
        },
        failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1699,8 +1755,28 @@
+@@ -1699,8 +1787,28 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -177,7 +228,7 @@ diff --git a/dist/index.js b/dist/index.js
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1711,7 +1787,7 @@
+@@ -1711,7 +1819,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = import_v48.z.object({
@@ -187,9 +238,10 @@ diff --git a/dist/index.js b/dist/index.js
  async function fileToBlob(file) {
    if (file.type === "url") {
 diff --git a/dist/index.mjs b/dist/index.mjs
+index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..c763f9a9e00f6fadcfea697ff42ae610499af428 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -241,7 +241,11 @@
+@@ -241,7 +241,11 @@ function convertToOpenAICompatibleChatMessages(prompt) {
          messages.push({
            role: "assistant",
            content: toolCalls.length > 0 ? text || null : text,
@@ -202,7 +254,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
-@@ -585,6 +589,17 @@
+@@ -585,6 +589,17 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
@@ -220,7 +272,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -744,6 +759,17 @@
+@@ -744,6 +759,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -238,7 +290,32 @@ diff --git a/dist/index.mjs b/dist/index.mjs
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -969,6 +995,14 @@
+@@ -952,7 +978,23 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
+     z3.object({
+       message: z3.object({
+         role: z3.literal("assistant").nullish(),
+-        content: z3.string().nullish(),
++        // Volcano Ark sends array-form `content` on thinking+tool turns; fold text/refusal
++        // parts to text (empty → null), throw on any other shape so nothing drops silently.
++        content: z3.union([
++          z3.string(),
++          z3.array(z3.union([z3.string(), z3.looseObject({})])),
++          z3.null()
++        ]).nullish().transform((content) => {
++          if (!Array.isArray(content)) return content;
++          if (content.length === 0) return null;
++          const text = content.map((part) => {
++            if (typeof part === "string") return part;
++            if (typeof part === "object" && part !== null && typeof part.text === "string") return part.text;
++            if (typeof part === "object" && part !== null && typeof part.refusal === "string") return part.refusal;
++            throw new Error("Unsupported content part shape");
++          }).join("");
++          return text.length > 0 ? text : null;
++        }),
+         reasoning_content: z3.string().nullish(),
+         reasoning: z3.string().nullish(),
+         tool_calls: z3.array(
+@@ -969,6 +1011,14 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -253,7 +330,32 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          ).nullish()
        }),
        finish_reason: z3.string().nullish()
-@@ -1005,6 +1039,14 @@
+@@ -984,7 +1034,23 @@ var chunkBaseSchema = z3.looseObject({
+     z3.object({
+       delta: z3.object({
+         role: z3.enum(["assistant", ""]).nullish(),
+-        content: z3.string().nullish(),
++        // Volcano Ark sends array-form `content` on thinking+tool turns; fold text/refusal
++        // parts to text (empty → null), throw on any other shape so nothing drops silently.
++        content: z3.union([
++          z3.string(),
++          z3.array(z3.union([z3.string(), z3.looseObject({})])),
++          z3.null()
++        ]).nullish().transform((content) => {
++          if (!Array.isArray(content)) return content;
++          if (content.length === 0) return null;
++          const text = content.map((part) => {
++            if (typeof part === "string") return part;
++            if (typeof part === "object" && part !== null && typeof part.text === "string") return part.text;
++            if (typeof part === "object" && part !== null && typeof part.refusal === "string") return part.refusal;
++            throw new Error("Unsupported content part shape");
++          }).join("");
++          return text.length > 0 ? text : null;
++        }),
+         // Most openai-compatible models set `reasoning_content`, but some
+         // providers serving `gpt-oss` set `reasoning`. See #7866
+         reasoning_content: z3.string().nullish(),
+@@ -1005,6 +1071,14 @@ var chunkBaseSchema = z3.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -268,7 +370,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          ).nullish()
        }).nullish(),
        finish_reason: z3.string().nullish()
-@@ -1581,7 +1623,7 @@
+@@ -1581,7 +1655,7 @@ var OpenAICompatibleEmbeddingModel = class {
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -277,7 +379,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1589,7 +1631,7 @@
+@@ -1589,7 +1663,7 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = z7.object({
    data: z7.array(z7.object({ embedding: z7.array(z7.number()) })),
@@ -286,7 +388,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
    providerMetadata: z7.record(z7.string(), z7.record(z7.string(), z7.any())).optional()
  });
  
-@@ -1605,6 +1647,16 @@
+@@ -1605,6 +1679,16 @@ import {
    postJsonToApi as postJsonToApi4
  } from "@ai-sdk/provider-utils";
  import { z as z8 } from "zod/v4";
@@ -303,7 +405,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1680,7 +1732,11 @@
+@@ -1680,7 +1764,11 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -316,7 +418,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1689,7 +1745,7 @@
+@@ -1689,7 +1777,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -325,7 +427,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1700,8 +1756,8 @@
+@@ -1700,8 +1788,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -336,7 +438,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        },
        failedResponseHandler: createJsonErrorResponseHandler4(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1712,8 +1768,28 @@
+@@ -1712,8 +1800,28 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -366,7 +468,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1724,7 +1800,7 @@
+@@ -1724,7 +1832,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = z8.object({
