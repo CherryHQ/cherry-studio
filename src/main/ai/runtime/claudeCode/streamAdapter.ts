@@ -1150,25 +1150,38 @@ export class ClaudeCodeStreamAdapter {
 
     const sdkParentToolUseId = message.parent_tool_use_id
     const content = message.message.content
-    const tools = this.extractToolUses(content)
-    const results = this.extractToolResults(content)
 
-    if (ctx.textPartId && (tools.length > 0 || results.length > 0)) {
-      this.closeActiveTextPart(ctx)
+    const text = content
+      .filter((block): block is Extract<BetaContentBlock, { type: 'text' }> => block.type === 'text')
+      .map((block) => block.text)
+      .join('')
+    const streamedTextLength = ctx.hasReceivedStreamEvents ? ctx.streamedTextLength : 0
+    let textOffset = 0
+
+    for (const block of content) {
+      if (block.type === 'text') {
+        this.handleAssistantText(block.text, sdkParentToolUseId, ctx, textOffset, streamedTextLength)
+        textOffset += block.text.length
+        continue
+      }
+
+      const tool = this.extractToolUses([block])[0]
+      if (tool) {
+        this.closeActiveTextPart(ctx)
+        this.handleAssistantToolUse(tool, sdkParentToolUseId, ctx)
+        continue
+      }
+
+      const result = this.extractToolResults([block])[0]
+      if (result) {
+        this.closeActiveTextPart(ctx)
+        this.handleToolResult(result, sdkParentToolUseId, ctx)
+      }
     }
 
-    for (const tool of tools) {
-      this.handleAssistantToolUse(tool, sdkParentToolUseId, ctx)
-    }
-
-    for (const result of results) {
-      this.handleToolResult(result, sdkParentToolUseId, ctx)
-    }
-
-    const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
-
-    if (text) {
-      this.handleAssistantText(text, sdkParentToolUseId, ctx)
+    if (text && ctx.hasReceivedStreamEvents) {
+      ctx.accumulatedText = text
+      ctx.streamedTextLength = text.length
     }
   }
 
@@ -1239,12 +1252,17 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
+  private handleAssistantText(
+    text: string,
+    sdkParentToolUseId: SdkParentToolUseId,
+    ctx: StreamContext,
+    textOffset: number,
+    streamedTextLength: number
+  ): void {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
     if (ctx.hasReceivedStreamEvents) {
-      const newTextStart = ctx.streamedTextLength
-      const deltaText = text.length > newTextStart ? text.slice(newTextStart) : ''
-      ctx.accumulatedText = text
+      const streamedBlockLength = Math.max(0, streamedTextLength - textOffset)
+      const deltaText = text.length > streamedBlockLength ? text.slice(streamedBlockLength) : ''
 
       if (ctx.options.responseFormat?.type !== 'json' && deltaText) {
         if (!ctx.textPartId) {
@@ -1253,7 +1271,6 @@ export class ClaudeCodeStreamAdapter {
         }
         ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: deltaText })
       }
-      ctx.streamedTextLength = text.length
     } else {
       ctx.accumulatedText += text
       if (ctx.options.responseFormat?.type !== 'json') {

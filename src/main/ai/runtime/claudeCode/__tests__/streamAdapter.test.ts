@@ -576,6 +576,44 @@ describe('ClaudeCodeStreamAdapter', () => {
     ])
   })
 
+  it('removes separators across text blocks in a complete assistant message', () => {
+    const { adapter, parts } = createAdapter()
+    const separators = '\u2050\u2051\u2052\u2053\u2054\u2055\u2056\u2057\u2063'
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        content: [
+          { type: 'text', text: `before${separators.slice(0, 3)}` },
+          { type: 'tool_use', id: 'tool-1', name: 'Read', input: {} },
+          { type: 'text', text: `${separators.slice(3)}after` }
+        ]
+      }
+    } as any)
+    adapter.handleMessage(successResult())
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe('beforeafter')
+    expect(parts.map((part) => part.type)).toEqual([
+      'text-start',
+      'text-delta',
+      'text-end',
+      'tool-input-start',
+      'tool-input-delta',
+      'text-start',
+      'text-delta',
+      'text-end',
+      'tool-input-available',
+      'finish'
+    ])
+  })
+
   it('preserves separator characters in ordinary text without a tool boundary', () => {
     const { adapter, parts } = createAdapter()
     const separators = '\u2050\u2051\u2052\u2053\u2054\u2055\u2056\u2057\u2063'
