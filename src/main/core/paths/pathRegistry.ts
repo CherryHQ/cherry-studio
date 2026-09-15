@@ -249,6 +249,7 @@ export function buildPathRegistry() {
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
 
     // Feature-owned temp dirs (all under app.temp)
+    'feature.browser.import.temp': path.join(appTemp, 'browser-import'),
     'feature.backup.temp': path.join(appTemp, 'backup'),
     'feature.cli.temp': path.join(appTemp, 'cli'),
     'feature.dxt.uploads.temp': path.join(appTemp, 'dxt_uploads'),
@@ -268,6 +269,48 @@ export function buildPathRegistry() {
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
+    'external.browser.chrome': isMac
+      ? path.join(sysHome, 'Library/Application Support/Google/Chrome')
+      : isWin
+        ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Google/Chrome/User Data')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'google-chrome'),
+    'external.browser.edge': isMac
+      ? path.join(sysHome, 'Library/Application Support/Microsoft Edge')
+      : isWin
+        ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Microsoft/Edge/User Data')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'microsoft-edge'),
+    'external.browser.brave': isMac
+      ? path.join(sysHome, 'Library/Application Support/BraveSoftware/Brave-Browser')
+      : isWin
+        ? path.join(
+            process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'),
+            'BraveSoftware/Brave-Browser/User Data'
+          )
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'BraveSoftware/Brave-Browser'),
+    'external.browser.vivaldi': isMac
+      ? path.join(sysHome, 'Library/Application Support/Vivaldi')
+      : isWin
+        ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Vivaldi/User Data')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'vivaldi'),
+    'external.browser.opera': isMac
+      ? path.join(sysHome, 'Library/Application Support/com.operasoftware.Opera')
+      : isWin
+        ? path.join(process.env.APPDATA || path.join(sysHome, 'AppData/Roaming'), 'Opera Software/Opera Stable')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'opera'),
+    'external.browser.chromium': isMac
+      ? path.join(sysHome, 'Library/Application Support/Chromium')
+      : isWin
+        ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Chromium/User Data')
+        : path.join(process.env.XDG_CONFIG_HOME || path.join(sysHome, '.config'), 'chromium'),
+    'external.browser.dia': path.join(sysHome, 'Library/Application Support/Dia/User Data'),
+    'external.browser.comet': isWin
+      ? path.join(process.env.LOCALAPPDATA || path.join(sysHome, 'AppData/Local'), 'Perplexity/Comet/User Data')
+      : path.join(sysHome, 'Library/Application Support/Comet'),
+    'external.browser.firefox': isMac
+      ? path.join(sysHome, 'Library/Application Support/Firefox/Profiles')
+      : isWin
+        ? path.join(process.env.APPDATA || path.join(sysHome, 'AppData/Roaming'), 'Mozilla/Firefox/Profiles')
+        : path.join(sysHome, '.mozilla/firefox'),
     'external.openclaw.config': path.join(sysHome, '.openclaw'),
     'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
     'external.hermes.default_home': isWin

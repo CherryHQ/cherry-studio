@@ -1,11 +1,4 @@
 {
-  "frameId": "4A4526C1CEE5AD160190FD58F62E18AC",
-  "viewport": {
-    "h": 668,
-    "w": 900,
-    "x": 0,
-    "y": 0
-  },
   "ax": [
     {
       "backendDOMNodeId": 1,
@@ -2228,5 +2221,12 @@
       "\n  document.querySelector('#shadow').attachShadow({ mode: 'open' }).innerHTML = '<button>Shadow action</button>'\n",
       "\n\n"
     ]
+  },
+  "frameId": "4A4526C1CEE5AD160190FD58F62E18AC",
+  "viewport": {
+    "h": 668,
+    "w": 900,
+    "x": 0,
+    "y": 0
   }
 }

@@ -1,18 +1,9 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { InputHTMLAttributes, ReactNode, RefObject } from 'react'
+import type { InputHTMLAttributes, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
-import { type WebviewAnnotationTarget, WebviewAnnotationTargetSchema } from '@shared/types/webviewAnnotation'
-
-const mocks = vi.hoisted(() => ({
-  annotationTarget: undefined as WebviewAnnotationTarget | undefined,
-  annotationWebviewRef: undefined as RefObject<Electron.WebviewTag | null> | undefined,
-  annotationWebviewRevision: undefined as number | undefined
-}))
-
-vi.unmock('uuid')
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => (
@@ -22,22 +13,6 @@ vi.mock('@cherrystudio/ui', () => ({
   ),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
-}))
-vi.mock('@renderer/components/WebviewAnnotationControls', () => ({
-  WebviewAnnotationControls: ({
-    target,
-    webviewRef,
-    webviewRevision
-  }: {
-    target: WebviewAnnotationTarget
-    webviewRef: RefObject<Electron.WebviewTag | null>
-    webviewRevision: number
-  }) => {
-    mocks.annotationTarget = target
-    mocks.annotationWebviewRef = webviewRef
-    mocks.annotationWebviewRevision = webviewRevision
-    return <button type="button" aria-label="annotation-controls" />
-  }
 }))
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({ pinned: [], allApps: [], updateAppStatus: vi.fn(() => Promise.resolve()) })
@@ -77,7 +52,6 @@ const renderToolbar = (app: MiniAppType) =>
       webviewRevision={0}
       currentUrl={null}
       isWebviewReady
-      isHostActive
       onReload={vi.fn()}
       onOpenDevTools={vi.fn()}
       splitMode="open"
@@ -85,12 +59,7 @@ const renderToolbar = (app: MiniAppType) =>
     />
   )
 
-afterEach(() => {
-  cleanup()
-  mocks.annotationTarget = undefined
-  mocks.annotationWebviewRef = undefined
-  mocks.annotationWebviewRevision = undefined
-})
+afterEach(cleanup)
 
 describe('MinimalToolbar', () => {
   it('does not schedule attachment polling while no concrete webview exists', () => {
@@ -127,45 +96,13 @@ describe('MinimalToolbar', () => {
     expect(screen.getByRole('button', { name: /open links|打开链接/i })).toBeInTheDocument()
   })
 
-  it('offers navigation and annotation controls to site guests only', () => {
+  it('offers navigation to site guests only', () => {
     renderToolbar(localApp)
     expect(screen.queryByRole('textbox')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'annotation-controls' })).toBeNull()
 
     cleanup()
     renderToolbar(site)
     expect(screen.getByRole('textbox')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'annotation-controls' })).toBeInTheDocument()
-    expect(mocks.annotationWebviewRef?.current).toBeNull()
-    expect(mocks.annotationWebviewRevision).toBe(0)
-  })
-
-  it('preserves annotation target IDs that already fit the shared contract', () => {
-    renderToolbar(site)
-
-    expect(mocks.annotationTarget?.id).toBe('mini-app:google')
-  })
-
-  it('maps oversized custom app IDs to distinct annotation targets within the shared contract', () => {
-    renderToolbar({ ...site, appId: 'a'.repeat(152) })
-    const firstTarget = mocks.annotationTarget
-
-    expect(WebviewAnnotationTargetSchema.safeParse(firstTarget).success).toBe(true)
-
-    cleanup()
-    renderToolbar({ ...site, appId: `${'a'.repeat(151)}b` })
-    expect(mocks.annotationTarget?.id).not.toBe(firstTarget?.id)
-
-    const digestLikeAppId = firstTarget?.id.split(':').at(-1)
-    cleanup()
-    renderToolbar({ ...site, appId: digestLikeAppId! })
-    expect(mocks.annotationTarget?.id).not.toBe(firstTarget?.id)
-  })
-
-  it('provides a valid annotation target for a whitespace-only custom app name', () => {
-    renderToolbar({ ...site, name: '   ' })
-
-    expect(WebviewAnnotationTargetSchema.safeParse(mocks.annotationTarget).success).toBe(true)
   })
 
   it('shows DevTools for local apps and sites alike', () => {

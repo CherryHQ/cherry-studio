@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
-import type { CdpBrowserController } from '../controller'
+import { BrowserSessionError } from '../../session/BrowserSessionError'
+import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
@@ -16,7 +17,7 @@ export const listTabsToolDefinition = {
   inputSchema: ListTabsSchema
 }
 
-export async function handleListTabs(controller: CdpBrowserController, args: unknown) {
+export async function handleListTabs(controller: BrowserController, args: unknown) {
   try {
     const { privateMode } = ListTabsSchema.parse(args)
     const tabs = await controller.listTabs(privateMode ?? false)
@@ -40,9 +41,10 @@ export const switchTabToolDefinition = {
   inputSchema: SwitchTabSchema
 }
 
-export async function handleSwitchTab(controller: CdpBrowserController, args: unknown) {
+export async function handleSwitchTab(controller: BrowserController, args: unknown) {
   try {
     const { tabId, privateMode } = SwitchTabSchema.parse(args)
+    if (!controller.switchTab) throw new BrowserSessionError('not_allowed')
     await controller.switchTab(privateMode ?? false, tabId)
     return successResponse(JSON.stringify({ switched: tabId }))
   } catch (error) {
@@ -64,9 +66,10 @@ export const closeTabToolDefinition = {
   inputSchema: CloseTabSchema
 }
 
-export async function handleCloseTab(controller: CdpBrowserController, args: unknown) {
+export async function handleCloseTab(controller: BrowserController, args: unknown) {
   try {
     const { tabId, privateMode } = CloseTabSchema.parse(args)
+    if (!controller.closeTab) throw new BrowserSessionError('not_allowed')
     await controller.closeTab(privateMode ?? false, tabId)
     return successResponse(JSON.stringify({ closed: tabId }))
   } catch (error) {

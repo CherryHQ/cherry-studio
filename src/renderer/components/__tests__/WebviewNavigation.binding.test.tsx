@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { WebviewNavigation } from '../WebviewNavigation'
@@ -35,6 +35,7 @@ describe('WebviewNavigation guest replacement', () => {
       second.dispatchEvent(Object.assign(new Event('did-navigate'), { url: 'https://current.example/' }))
     })
     const address = screen.getByRole('textbox')
+    fireEvent.focus(address)
     expect(address).toHaveValue('https://current.example/')
     act(() => {
       first.dispatchEvent(Object.assign(new Event('did-navigate'), { url: 'https://stale.example/' }))

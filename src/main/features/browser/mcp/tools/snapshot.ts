@@ -1,7 +1,7 @@
 import * as z from 'zod'
 
 import { snapshotOptionsSchema } from '../../browserUse'
-import type { CdpBrowserController } from '../controller'
+import type { BrowserController } from '../browserController'
 import { browserResult } from './result'
 
 export const targetShape = {
@@ -16,7 +16,7 @@ export const snapshotToolDefinition = {
   inputSchema: SnapshotSchema
 }
 
-export async function handleSnapshot(controller: CdpBrowserController, args: unknown, signal?: AbortSignal) {
+export async function handleSnapshot(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   const { tabId, privateMode, ...options } = SnapshotSchema.parse(args ?? {})
   return browserResult(controller, { tabId, privateMode }, signal, async (session, commands) => ({
     snapshot: (await session.snapshot(options, commands)).text

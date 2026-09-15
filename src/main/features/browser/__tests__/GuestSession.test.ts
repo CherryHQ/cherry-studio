@@ -125,6 +125,34 @@ describe('GuestSession command lifetime', () => {
     expect(session.busy).toBe(false)
   })
 
+  it('cancels a queued caller without interrupting the current lease or dispatching its operation later', async () => {
+    const { session } = setup()
+    const started = new Signal<void>()
+    const resume = new Signal<void>()
+    const active = session.run(async () => {
+      started.resolve()
+      await resume
+      return 'retained'
+    })
+    await started
+    const abort = new AbortController()
+    let dispatched = false
+    const queued = session.run(
+      async () => {
+        dispatched = true
+      },
+      { signal: abort.signal }
+    )
+    const rejected = expect(queued).rejects.toThrow('cancelled queued call')
+    abort.abort(new Error('cancelled queued call'))
+    await rejected
+    expect(dispatched).toBe(false)
+    resume.resolve()
+    expect(await active).toBe('retained')
+    expect(await session.run(async () => 'next')).toBe('next')
+    expect(dispatched).toBe(false)
+  })
+
   it('interrupts delays on disposal and rejects delays started afterward', async () => {
     const { session } = setup()
     const paused = expect(session.pause(60_000)).rejects.toMatchObject({ code: 'debugger_unavailable' })
@@ -280,6 +308,30 @@ describe('GuestSession command lifetime', () => {
     await survivor
     expect(session.documentId).toBe('document-1')
     expect(session.isAvailable()).toBe(true)
+  })
+
+  it('rejects in-flight commands and releases listeners after native guest destruction', async () => {
+    const { session, mock } = setup()
+    const debuggerEvents = mock.debugger
+    const electronSession = mock.session
+    const observation = await session.observe()
+    const started = new Signal<void>()
+    debuggerEvents.sendCommand.mockImplementation(() => {
+      started.resolve()
+      return new Promise(() => undefined)
+    })
+    const command = session.send('Runtime.evaluate', { expression: '1' })
+    const rejected = expect(command).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    await started
+
+    expect(() => mock.close()).not.toThrow()
+    await rejected
+    expect(() => observation.dispose()).not.toThrow()
+    expect(() => session.dispose()).not.toThrow()
+    expect(debuggerEvents.listenerCount('message')).toBe(0)
+    expect(debuggerEvents.listenerCount('detach')).toBe(0)
+    expect(electronSession.listenerCount('will-download')).toBe(0)
+    expect(mock.listenerCount('destroyed')).toBe(0)
   })
 
   it('aborts a pending command and removes its listeners on disposal', async () => {

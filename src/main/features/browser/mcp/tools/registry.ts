@@ -1,6 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
-import type { CdpBrowserController } from '../controller'
+import type { BrowserController } from '../browserController'
 import { dialogToolDefinition, handleDialog } from './dialog'
 import { executeToolDefinition, handleExecute } from './execute'
 import { handleConsoleMessages, handleFind, handleNetworkRequests, inspectToolDefinitions } from './inspect'
@@ -36,7 +36,7 @@ export const toolDefinitions = [
 
 export const toolHandlers: Record<
   string,
-  (controller: CdpBrowserController, args: unknown, signal?: AbortSignal) => Promise<CallToolResult>
+  (controller: BrowserController, args: unknown, signal?: AbortSignal) => Promise<CallToolResult>
 > = {
   open: handleOpen,
   execute: handleExecute,

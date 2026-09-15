@@ -13,6 +13,25 @@ Controller disposal waits for managed contents to emit `destroyed` and windows
 to emit `closed`, including when Electron completes native teardown asynchronously.
 Shutdown failures are reported after remaining guest leases are released.
 
+## Visible Agent host
+
+The `browser` server mounted by Agent runtimes uses `AgentBrowserController`, bound to a trusted
+Agent/Session and its visible right-pane guest. It exposes 18 tools: `switch_tab`, `close_tab` and
+`reset` are absent. `open` reveals/navigates that page; private/new-tab requests are rejected.
+`list_tabs` returns only that session's target. Ordinary HTTP(S) popup links navigate the same visible
+page. Unsupported destinations, POST popups and isolated preview/artifact popups remain blocked;
+subsequent action results report `popupUnsupported`. No hidden replacement tab is created. Calls on this single-page host
+are serialized, and target revocation cancels active and queued work.
+
+The UI owns these guests. Control uses borrowed leases with explicit inspection observers;
+releasing control preserves the guest and concurrent annotation leases. Native dialogs are not
+auto-dismissed, and hidden-page focus emulation is not applied. Fresh observation clears browser
+refs without invalidating a running annotation capture. The setting defaults off and runtime
+connection signatures reflect changes. Enabling Browser control grants all known browser tools
+without per-action approval until the user turns it off. Runtime gates and queued dispatch enforce
+revocation even in Full Access. Disabling the browser group in an Agent blocks its controller without
+closing the page.
+
 ## Observe, act, verify
 
 1. `open({ url })` returns `{ currentUrl, title, tabId }`.

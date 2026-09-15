@@ -1,6 +1,6 @@
 import { existsSync, promises as fs } from 'fs'
 
-import { app, dialog, session, shell, webContents } from 'electron'
+import { app, dialog, session, webContents } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -20,6 +20,7 @@ const WEBVIEW_PARTITION = 'persist:webview'
 /** Sessions whose guests run the annotation preload: mini-app sites plus the agent browser panes. */
 const ANNOTATION_PARTITIONS = [
   WEBVIEW_PARTITION,
+  getWebviewPartition(WebviewSecurityProfile.AgentBrowser),
   getWebviewPartition(WebviewSecurityProfile.AgentDevPreview),
   getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact)
 ] as const
@@ -44,9 +45,12 @@ interface ExportAnnotationsInput {
  */
 function configureOpenLinkExternal(webview: Electron.WebContents, isExternal: boolean) {
   webview.setWindowOpenHandler(({ url }) => {
-    if (isExternal) {
+    if (isExternal || application.get('PreferenceService').get('app.browser.open_links_in_browser')) {
       if (isSafeExternalUrl(url)) {
-        void shell.openExternal(url)
+        void application
+          .get('MainWindowService')
+          .openWebsite(url, isExternal)
+          .catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
       }

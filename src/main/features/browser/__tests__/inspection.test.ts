@@ -37,6 +37,26 @@ function setup(ownership: 'managed' | 'borrowed' = 'managed') {
 }
 
 describe('per-guest browser inspection', () => {
+  it('observes a visible borrowed page only while a control lease is held without taking page ownership', async () => {
+    const { session, mock, log, request } = setup('borrowed')
+    log('before control')
+    const first = await session.observe()
+    const second = await session.observe()
+    log('visible page')
+    request('visible-request')
+    first.dispose()
+    expect(session.consoleMessages().messages.map((message) => message.text)).toEqual(['visible page'])
+    expect(session.networkRequests().requests.map((entry) => entry.url)).toEqual(['https://example.com/data'])
+    second.dispose()
+    second.dispose()
+    log('after control')
+    expect(session.consoleMessages().messages).toEqual([])
+    expect(session.networkRequests().requests).toEqual([])
+    expect(mock.isDestroyed()).toBe(false)
+    expect(session.isAvailable()).toBe(true)
+    expect(session.ownership).toBe('borrowed')
+  })
+
   it('records console warnings and exceptions, and clears only the selected level', () => {
     const { session, log, emit } = setup()
     log('info')

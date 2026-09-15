@@ -2,7 +2,7 @@ import * as z from 'zod'
 
 import { settleAction } from '../../actions/settle'
 import { BrowserSessionError } from '../../session/BrowserSessionError'
-import type { CdpBrowserController } from '../controller'
+import type { BrowserController } from '../browserController'
 import { browserResult } from './result'
 import { targetShape } from './snapshot'
 
@@ -17,7 +17,7 @@ export const dialogToolDefinition = {
     'Accept or dismiss the pending JavaScript dialog. promptText is used for prompts. No blocked command is replayed.',
   inputSchema: dialogSchema
 }
-export async function handleDialog(controller: CdpBrowserController, args: unknown, signal?: AbortSignal) {
+export async function handleDialog(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   const { tabId, privateMode, ...input } = dialogSchema.parse(args)
   return browserResult(controller, { tabId, privateMode }, signal, async (session, options) => {
     if (!session.pendingDialog) throw new BrowserSessionError('not_found')

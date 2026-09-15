@@ -4,6 +4,8 @@ import type {
   DidNavigateInPageEvent,
   DidStartNavigationEvent,
   IpcMessageEvent,
+  PageFaviconUpdatedEvent,
+  PageTitleUpdatedEvent,
   WebviewTag
 } from 'electron'
 import type { CSSProperties } from 'react'
@@ -39,6 +41,8 @@ interface Props {
   onReadyToShow?: () => void
   onDidNavigate?: (event: DidNavigateEvent | DidNavigateInPageEvent) => void
   onDidFailLoad?: (event: DidFailLoadEvent) => void
+  onPageTitleUpdated?: (event: PageTitleUpdatedEvent) => void
+  onPageFaviconUpdated?: (event: PageFaviconUpdatedEvent) => void
 }
 
 /**
@@ -51,7 +55,7 @@ export function WebviewHost({
   securityProfile,
   reloadKey,
   allowPopups = false,
-  openLinksExternal = true,
+  openLinksExternal,
   userAgent,
   className,
   style,
@@ -65,12 +69,15 @@ export function WebviewHost({
   onDidFinishLoad,
   onReadyToShow,
   onDidNavigate,
-  onDidFailLoad
+  onDidFailLoad,
+  onPageTitleUpdated,
+  onPageFaviconUpdated
 }: Props) {
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [webview, setWebview] = useState<WebviewTag | null>(null)
   const onWebviewChangeRef = useRef(onWebviewChange)
   const readyWebviewRef = useRef<WebviewTag | null>(null)
+  const committedLocationRef = useRef<{ webview: WebviewTag; url: string } | null>(null)
   const loadedSourceRef = useRef<{ reloadKey?: number | string; src?: string; webview?: WebviewTag }>({})
 
   const handleRef = useCallback(
@@ -103,9 +110,11 @@ export function WebviewHost({
         void ipcApi
           .request('webview.set_spell_check_enabled', { webviewId, isEnable: enableSpellCheck })
           .catch((error) => logger.debug('Failed to update WebView spell check', { id, error }))
-        void ipcApi
-          .request('webview.set_open_link_external', { webviewId, isExternal: openLinksExternal })
-          .catch((error) => logger.debug('Failed to update WebView link handling', { id, error }))
+        if (openLinksExternal !== undefined) {
+          void ipcApi
+            .request('webview.set_open_link_external', { webviewId, isExternal: openLinksExternal })
+            .catch((error) => logger.debug('Failed to update WebView link handling', { id, error }))
+        }
       } catch (error) {
         logger.debug('WebView is not ready for guest preferences', { id, error })
       }
@@ -125,7 +134,12 @@ export function WebviewHost({
       if (readyWebviewRef.current === webview) readyWebviewRef.current = null
       onDidStartLoading?.()
     }
-    const handleNavigate = (event: DidNavigateEvent | DidNavigateInPageEvent) => onDidNavigate?.(event)
+    const handleNavigate = (event: DidNavigateEvent | DidNavigateInPageEvent) => {
+      if (!('isMainFrame' in event) || event.isMainFrame) {
+        committedLocationRef.current = { webview, url: event.url }
+      }
+      onDidNavigate?.(event)
+    }
 
     // Replay the guest's keydown on the host window so the normal keybinding
     // resolution (find-in-page and friends) sees it; `target` identifies the webview.
@@ -149,6 +163,15 @@ export function WebviewHost({
     webview.addEventListener('did-navigate', handleNavigate)
     webview.addEventListener('did-navigate-in-page', handleNavigate)
     webview.addEventListener('did-fail-load', onDidFailLoad ?? noop)
+    webview.addEventListener('page-title-updated', onPageTitleUpdated ?? noop)
+    webview.addEventListener('page-favicon-updated', onPageFaviconUpdated ?? noop)
+
+    try {
+      // Activity can resume an already-loaded guest without another dom-ready event.
+      if (webview.getWebContentsId() && !webview.isLoading()) handleDomReady()
+    } catch {
+      // New guests report readiness through dom-ready once their native contents exist.
+    }
 
     return () => {
       webview.removeEventListener('ipc-message', handleGuestKeydown)
@@ -160,6 +183,8 @@ export function WebviewHost({
       webview.removeEventListener('did-navigate', handleNavigate)
       webview.removeEventListener('did-navigate-in-page', handleNavigate)
       webview.removeEventListener('did-fail-load', onDidFailLoad ?? noop)
+      webview.removeEventListener('page-title-updated', onPageTitleUpdated ?? noop)
+      webview.removeEventListener('page-favicon-updated', onPageFaviconUpdated ?? noop)
       if (readyWebviewRef.current === webview) readyWebviewRef.current = null
     }
   }, [
@@ -170,6 +195,8 @@ export function WebviewHost({
     onDidStartLoading,
     onDidStartNavigation,
     onDomReady,
+    onPageTitleUpdated,
+    onPageFaviconUpdated,
     onReadyToShow,
     webview
   ])
@@ -180,6 +207,7 @@ export function WebviewHost({
     loadedSourceRef.current = { reloadKey, src, webview }
 
     if (previous.webview !== webview || previous.src !== src) {
+      if (committedLocationRef.current?.webview === webview && committedLocationRef.current.url === src) return
       webview.setAttribute('src', src)
       return
     }

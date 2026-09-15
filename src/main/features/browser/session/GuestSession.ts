@@ -49,6 +49,7 @@ export class GuestSession implements Disposable {
   private readonly refs = new Map<BrowserRef, number>()
   private readonly nodeRefs = new Map<number, BrowserRef>()
   private readonly refTargets = new Map<BrowserRef, { role: string; name: string }>()
+  private observers = 0
   private readonly inspection = new BrowserInspection()
   private readonly pending = new Set<(error: Error) => void>()
   private dialogTimer?: ReturnType<typeof setTimeout>
@@ -62,16 +63,55 @@ export class GuestSession implements Disposable {
   private readonly downloadItems = new Map<DownloadItem, () => void>()
   private readonly downloadUpdates = new Map<DownloadItem, { filename: string; state: string }>()
   private dismissedDialog?: BrowserDialog
+  private readonly electronSession: Electron.Session
+  private readonly electronDebugger: Electron.Debugger
 
   constructor(
     readonly guest: Electron.WebContents,
     ownership: SessionOwnership['ownership']
   ) {
     this.ownership = ownership
-    guest.debugger.on('message', this.onMessage)
-    guest.debugger.on('detach', this.onDetach)
+    this.electronSession = guest.session
+    this.electronDebugger = guest.debugger
+    this.electronDebugger.on('message', this.onMessage)
+    this.electronDebugger.on('detach', this.onDetach)
     guest.once('destroyed', this.onDestroyed)
-    if (ownership === 'managed') guest.session.on('will-download', this.onDownload)
+    if (ownership === 'managed') this.electronSession.on('will-download', this.onDownload)
+  }
+
+  private get observing(): boolean {
+    return this.ownership === 'managed' || this.observers > 0
+  }
+
+  async observe(options: CommandOptions = {}): Promise<Disposable> {
+    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    if (!this.observing) {
+      this.clearBrowserRefs()
+      this.electronSession.on('will-download', this.onDownload)
+    }
+    this.observers++
+    let released = false
+    const dispose = () => {
+      if (released) return
+      released = true
+      this.observers--
+      if (!this.observing) this.stopObserving()
+    }
+    try {
+      await this.send('Network.enable', undefined, options)
+      return { dispose }
+    } catch (error) {
+      dispose()
+      throw error
+    }
+  }
+
+  private stopObserving(): void {
+    this.electronSession.removeListener('will-download', this.onDownload)
+    for (const cleanup of this.downloadItems.values()) cleanup()
+    this.downloadItems.clear()
+    this.downloadUpdates.clear()
+    this.inspection.clear()
   }
 
   get documentId() {
@@ -92,13 +132,17 @@ export class GuestSession implements Disposable {
       !this.guest.isDestroyed() &&
       !this.guest.isDevToolsOpened() &&
       this.attached &&
-      this.guest.debugger.isAttached()
+      this.electronDebugger.isAttached()
     )
   }
 
   private invalidateDocument() {
     this.epoch++
     this.invalidateAnnotationContext()
+    this.clearBrowserRefs()
+  }
+
+  private clearBrowserRefs() {
     this.refs.clear()
     this.nodeRefs.clear()
     this.refTargets.clear()
@@ -153,7 +197,7 @@ export class GuestSession implements Disposable {
         this.dialogTimer.unref()
       }
     } else if (method === 'Page.javascriptDialogClosed') this.clearDialog()
-    if (this.ownership === 'managed') this.inspection.record(event)
+    if (this.observing) this.inspection.record(event)
     this.events.fire(event)
   }
 
@@ -209,9 +253,9 @@ export class GuestSession implements Disposable {
       throw new BrowserSessionError('debugger_unavailable')
     if (this.attaching) return this.attaching
     if (this.isAvailable()) return
-    if (this.guest.debugger.isAttached()) throw new BrowserSessionError('debugger_unavailable')
+    if (this.electronDebugger.isAttached()) throw new BrowserSessionError('debugger_unavailable')
     try {
-      this.guest.debugger.attach('1.3')
+      this.electronDebugger.attach('1.3')
       this.attached = true
     } catch {
       throw new BrowserSessionError('debugger_unavailable')
@@ -225,7 +269,7 @@ export class GuestSession implements Disposable {
         'Runtime.enable',
         'DOM.enable',
         'Accessibility.enable',
-        ...(this.ownership === 'managed' ? (['Network.enable'] as const) : [])
+        ...(this.observing ? (['Network.enable'] as const) : [])
       ] as const) {
         options.signal.throwIfAborted()
         if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
@@ -256,7 +300,7 @@ export class GuestSession implements Disposable {
     method: M,
     params: ProtocolMapping.Commands[NoInfer<M>]['paramsType'][0]
   ): Promise<ProtocolMapping.Commands[M]['returnType']> {
-    return this.guest.debugger.sendCommand(method, params)
+    return this.electronDebugger.sendCommand(method, params)
   }
 
   async send<M extends CdpMethod>(
@@ -294,15 +338,29 @@ export class GuestSession implements Disposable {
     }
   }
 
-  async run<T>(operation: () => Promise<T>): Promise<T> {
+  async run<T>(operation: () => Promise<T>, options: CommandOptions = {}): Promise<T> {
     if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    options.signal?.throwIfAborted()
     this.operations++
+    const acquisition = this.actionMutex.acquire()
+    let release: (() => void) | undefined
     try {
-      return await this.actionMutex.runExclusive(() => {
-        if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
-        return operation()
-      })
+      try {
+        release =
+          options.signal || options.deadline !== undefined ? await this.wait(acquisition, options) : await acquisition
+      } catch (error) {
+        void acquisition.then(
+          (unlock) => unlock(),
+          () => undefined
+        )
+        throw error
+      }
+      if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+      options.signal?.throwIfAborted()
+      if (options.deadline !== undefined && options.deadline <= Date.now()) throw new BrowserSessionError('timeout')
+      return await operation()
     } finally {
+      release?.()
       this.operations--
       this.lastActive = Date.now()
     }
@@ -502,7 +560,7 @@ export class GuestSession implements Disposable {
           if (!sessionId && method === 'Runtime.executionContextDestroyed')
             destroyedContexts.add(params.executionContextId)
         }
-        this.guest.debugger.on('message', onContextDestroyed)
+        this.electronDebugger.on('message', onContextDestroyed)
         try {
           const world = await this.send(
             'Page.createIsolatedWorld',
@@ -521,7 +579,7 @@ export class GuestSession implements Disposable {
             throw new BrowserSessionError('stale_ref')
           this.annotationContextId = world.executionContextId
         } finally {
-          this.guest.debugger.removeListener('message', onContextDestroyed)
+          this.electronDebugger.removeListener('message', onContextDestroyed)
         }
       }
       const result = await describeElement(
@@ -542,9 +600,9 @@ export class GuestSession implements Disposable {
   }
 
   private detach() {
-    if (this.attached && this.guest.debugger.isAttached()) {
+    if (this.attached && !this.guest.isDestroyed() && this.electronDebugger.isAttached()) {
       try {
-        this.guest.debugger.detach()
+        this.electronDebugger.detach()
       } catch (error) {
         logger.debug('Failed to detach browser debugger', { error })
       }
@@ -558,17 +616,13 @@ export class GuestSession implements Disposable {
     this.actionMutex.cancel()
     this.snapshotMutex.cancel()
     this.clearDialog()
-    if (this.ownership === 'managed') this.guest.session.removeListener('will-download', this.onDownload)
-    for (const cleanup of this.downloadItems.values()) cleanup()
-    this.downloadItems.clear()
-    this.downloadUpdates.clear()
-    this.inspection.clear()
+    this.stopObserving()
     this.events.dispose()
     this.rejectPending(new BrowserSessionError('debugger_unavailable'))
     this.detach()
     this.invalidateDocument()
-    this.guest.debugger.removeListener('message', this.onMessage)
-    this.guest.debugger.removeListener('detach', this.onDetach)
+    this.electronDebugger.removeListener('message', this.onMessage)
+    this.electronDebugger.removeListener('detach', this.onDetach)
     this.guest.removeListener('destroyed', this.onDestroyed)
   }
 }

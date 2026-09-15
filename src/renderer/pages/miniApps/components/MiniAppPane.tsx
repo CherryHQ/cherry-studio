@@ -29,8 +29,6 @@ interface Props {
   onSplit: () => void
   /** Whether this pane answers the host window's Find shortcut. */
   hostShortcutEnabled?: boolean
-  /** Whether annotation commands from this host pane may control the guest. */
-  isHostActive: boolean
   /** Fired when the user interacts with this pane, so the page can track focus. */
   onActivate?: () => void
   className?: string
@@ -64,7 +62,6 @@ const MiniAppPane: FC<Props> = ({
   splitActive,
   onSplit,
   hostShortcutEnabled,
-  isHostActive,
   onActivate,
   className
 }) => {
@@ -133,7 +130,6 @@ const MiniAppPane: FC<Props> = ({
           // currentUrl may be null (navigation not yet captured); fallback to app.url when opening externally
           currentUrl={currentUrl}
           isWebviewReady={isWebviewReady}
-          isHostActive={isHostActive}
           onReload={handleReload}
           onOpenDevTools={handleOpenDevTools}
           splitMode={splitMode}

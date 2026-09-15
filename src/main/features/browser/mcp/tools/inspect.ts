@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import type { CdpBrowserController } from '../controller'
+import type { BrowserController } from '../browserController'
 import { browserResult } from './result'
 import { targetShape } from './snapshot'
 
@@ -39,12 +39,12 @@ export const inspectToolDefinitions = [
   }
 ]
 
-export async function handleFind(controller: CdpBrowserController, args: unknown, signal?: AbortSignal) {
+export async function handleFind(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   const input = findSchema.parse(args ?? {})
   return browserResult(controller, input, signal, (session, options) => session.find(input, options))
 }
 
-export async function handleConsoleMessages(controller: CdpBrowserController, args: unknown, signal?: AbortSignal) {
+export async function handleConsoleMessages(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   const input = consoleSchema.parse(args ?? {})
   return browserResult(controller, input, signal, async (session, options) => {
     await session.send('Runtime.enable', undefined, options)
@@ -52,7 +52,7 @@ export async function handleConsoleMessages(controller: CdpBrowserController, ar
   })
 }
 
-export async function handleNetworkRequests(controller: CdpBrowserController, args: unknown, signal?: AbortSignal) {
+export async function handleNetworkRequests(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   const input = networkSchema.parse(args ?? {})
   return browserResult(controller, input, signal, async (session, options) => {
     await session.send('Network.enable', undefined, options)
