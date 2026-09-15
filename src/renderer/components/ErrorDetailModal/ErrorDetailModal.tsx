@@ -55,6 +55,7 @@ interface ErrorDetailContentProps {
   blockId?: string
   onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
   onOpenDiagnosticReport?: (description: string) => void
+  onOpenFullCheck?: () => void
   cachedDiagnosis?: DiagnosisResult
   onDoctorNavigate?: (target: DoctorNavigateTarget) => void
 }
@@ -515,6 +516,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   diagnosisContext,
   diagnosticReport,
   onOpenDiagnosticReport,
+  onOpenFullCheck,
   onDoctorNavigate,
   doctorCloseBlocked = false,
   onDoctorCloseBlockedChange
@@ -601,7 +603,10 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       </DialogHeader>
       <ErrorDetailContainer>
         <div className="space-y-4">
-          <ErrorDiagnosisPanel doctorController={doctorController} />
+          <ErrorDiagnosisPanel
+            doctorController={doctorController}
+            onRunFullCheck={onOpenFullCheck ?? (() => void doctorController.run('live'))}
+          />
           <ErrorDiagnosticsPanel controller={doctorController} isPending={isDoctorPending} />
           <ErrorBasicInformation
             viewDetailsButtonRef={viewDetailsButtonRef}
@@ -658,7 +663,10 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   )
 }
 
-type ErrorDetailPopupParams = Omit<ErrorDetailContentProps, 'onDoctorNavigate' | 'onOpenDiagnosticReport'>
+type ErrorDetailPopupParams = Omit<
+  ErrorDetailContentProps,
+  'onDoctorNavigate' | 'onOpenDiagnosticReport' | 'onOpenFullCheck'
+>
 
 const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps & PopupInjectedProps<void>) => {
   const [doctorCloseBlocked, setDoctorCloseBlocked] = useState(false)
@@ -702,6 +710,10 @@ export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
   void ErrorDetailPopup.show({
     ...params,
     onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
+    onOpenFullCheck: () =>
+      finishHandoff(() => {
+        void DoctorPopup.show({ initialPanel: 'checks', initialRunTier: 'live' })
+      }),
     onOpenDiagnosticReport: (initialDescription) =>
       finishHandoff(() => {
         void DoctorPopup.show({ initialPanel: 'report', initialDescription })

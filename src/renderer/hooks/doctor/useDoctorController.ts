@@ -27,6 +27,7 @@ const IDLE_DOCTOR_STATE: DoctorState = { status: 'idle' }
 interface UseDoctorControllerOptions {
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
+  readonly initialRunTier?: DoctorRunTier
   readonly onNavigate: (target: DoctorNavigateTarget) => void
   readonly onReportProblem?: (description: string) => void
 }
@@ -52,6 +53,7 @@ function fixRequestFor(
 export function useDoctorController({
   initialPanel,
   initialDescription,
+  initialRunTier,
   onNavigate,
   onReportProblem
 }: UseDoctorControllerOptions) {
@@ -135,13 +137,18 @@ export function useDoctorController({
       setIsAutoRunPending(false)
       return
     }
+    if (initialRunTier) {
+      autoRunRequestedRef.current = true
+      void run(initialRunTier).finally(() => setIsAutoRunPending(false))
+      return
+    }
     if (doctorState.status !== 'idle') {
       setIsAutoRunPending(false)
       return
     }
     autoRunRequestedRef.current = true
     void run('quick').finally(() => setIsAutoRunPending(false))
-  }, [doctorState.status, run, sharedCacheReady])
+  }, [doctorState.status, initialRunTier, run, sharedCacheReady])
 
   const cancel = useCallback(async () => {
     if (!canCancelDoctorRun(doctorState)) return

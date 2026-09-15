@@ -630,6 +630,24 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'live' })
   })
 
+  it('opens System Doctor for the full check after error details close', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = completedDoctorState([passingVersionResult])
+    render(<PopupHost />)
+
+    act(() => showErrorDetailPopup({ error: providerError }))
+    await user.click(screen.getByRole('button', { name: 'Full check' }))
+
+    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'live' })
+    expect(mocks.showDoctor).not.toHaveBeenCalled()
+    expect(popupService.getSnapshot()[0]?.open).toBe(false)
+
+    await waitFor(() =>
+      expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'checks', initialRunTier: 'live' })
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it.each(['quick', 'live'] as const)('cancels an active %s run from the diagnostics header', async (tier) => {
     const user = userEvent.setup()
     mocks.doctorState = runningDoctorState(tier)

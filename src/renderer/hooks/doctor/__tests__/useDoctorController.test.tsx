@@ -201,6 +201,32 @@ describe('useDoctorController', () => {
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
   })
 
+  it('starts one full check when handed an existing basic report', async () => {
+    mocks.doctorState = completedDoctorState()
+
+    const { rerender } = renderHook(() =>
+      useDoctorController({ initialPanel: 'checks', initialRunTier: 'live', onNavigate: vi.fn() })
+    )
+
+    await waitFor(() =>
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toEqual([
+        ['diagnostics.doctor.run', { tier: 'live' }]
+      ])
+    )
+    rerender()
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
+  })
+
+  it('starts only the requested full check when no prior report exists', async () => {
+    renderHook(() => useDoctorController({ initialPanel: 'checks', initialRunTier: 'live', onNavigate: vi.fn() }))
+
+    await waitFor(() =>
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toEqual([
+        ['diagnostics.doctor.run', { tier: 'live' }]
+      ])
+    )
+  })
+
   it('switches a report action to the report panel without copying Doctor results into the draft', async () => {
     mocks.doctorState = { status: 'canceled', runId: 'run-1' }
     const { result } = renderHook(() =>

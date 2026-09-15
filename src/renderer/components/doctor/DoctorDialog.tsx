@@ -8,7 +8,7 @@ import type { DiagnosticUploadPanelHandle } from '@renderer/components/feedback/
 import { useDoctorController } from '@renderer/hooks/doctor'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
-import type { DoctorNavigateTarget } from '@shared/types/doctor'
+import type { DoctorNavigateTarget, DoctorRunTier } from '@shared/types/doctor'
 import type { DoctorPanel } from '@shared/utils/doctor'
 
 import { DoctorChecksPanel } from './DoctorChecksPanel'
@@ -33,11 +33,12 @@ const PANEL_TITLE_KEYS = {
 export interface DoctorDialogParams {
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
+  readonly initialRunTier?: DoctorRunTier
 }
 
 type DoctorDialogProps = DoctorDialogParams & PopupInjectedProps<Record<string, never>>
 
-export function DoctorDialog({ initialDescription, initialPanel, open, resolve }: DoctorDialogProps) {
+export function DoctorDialog({ initialDescription, initialPanel, initialRunTier, open, resolve }: DoctorDialogProps) {
   const { t } = useTranslation()
   const reportPanelRef = useRef<DiagnosticUploadPanelHandle>(null)
   const panelHeadingRef = useRef<HTMLDivElement>(null)
@@ -62,6 +63,7 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
   const controller = useDoctorController({
     initialDescription,
     initialPanel,
+    initialRunTier,
     onNavigate: navigate
   })
   const { setPanelInteraction } = controller

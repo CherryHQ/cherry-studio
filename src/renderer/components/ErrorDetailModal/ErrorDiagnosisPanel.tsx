@@ -10,13 +10,14 @@ import { doctorCheckTitleKey } from '@shared/utils/doctor'
 
 interface ErrorDiagnosisPanelProps {
   readonly doctorController: DoctorController
+  readonly onRunFullCheck: () => void
 }
 
 function FixedSummary({ children, enabled }: { children?: ReactNode; enabled: boolean }) {
   return enabled ? <span className="text-success">{children}</span> : null
 }
 
-export function ErrorDiagnosisPanel({ doctorController }: ErrorDiagnosisPanelProps) {
+export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck }: ErrorDiagnosisPanelProps) {
   const { t } = useTranslation()
   const { interaction } = doctorController.session
   const activeDoctorTier =
@@ -84,7 +85,7 @@ export function ErrorDiagnosisPanel({ doctorController }: ErrorDiagnosisPanelPro
             variant="outline"
             size="sm"
             disabled={doctorController.isInteracting || !doctorController.viewModel.report}
-            onClick={() => void doctorController.run('live')}>
+            onClick={onRunFullCheck}>
             {t('settings.doctor.actions.run_network')}
           </Button>
         ) : null
