@@ -113,7 +113,7 @@ interface KnowledgePageProviderProps extends PropsWithChildren {
 
 export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: KnowledgePageProviderProps) => {
   const { t } = useTranslation()
-  const { bases, isLoading } = useKnowledgeBases()
+  const { bases, isLoading, error: basesError } = useKnowledgeBases()
   const { groups } = useKnowledgeGroups()
   const { createGroup, isCreating: isCreatingGroup } = useCreateKnowledgeGroup()
   const { createBase, isCreating: isCreatingBase } = useCreateKnowledgeBase()
@@ -176,7 +176,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
   )
 
   useEffect(() => {
-    if (isLoading) return
+    if (isLoading || basesError) return
 
     if (pendingSelectedBaseId) {
       if (bases.some((base) => base.id === pendingSelectedBaseId)) {
@@ -210,7 +210,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
       setSelectedItemId(null)
       onBaseIdChange?.(bases[0].id)
     }
-  }, [bases, isLoading, onBaseIdChange, pendingSelectedBaseId, resetBaseNavigation, selectedBaseId])
+  }, [bases, basesError, isLoading, onBaseIdChange, pendingSelectedBaseId, resetBaseNavigation, selectedBaseId])
 
   const selectBaseState = useCallback(
     (baseId: string) => {

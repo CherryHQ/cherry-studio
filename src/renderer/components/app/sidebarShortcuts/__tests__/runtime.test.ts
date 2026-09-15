@@ -1,12 +1,23 @@
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { createElement, type PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab/useTabsContext'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 // @vitest-environment jsdom
 import { createSidebarShortcutId, type SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
 
 import { createSidebarShortcutTarget } from '../../../../utils/sidebar'
+import { CORE_SIDEBAR_SHORTCUT_PROVIDERS } from '../providers'
 import { SidebarShortcutRegistry } from '../registry'
-import { resolveSidebarShortcuts, useResolvedSidebarShortcuts } from '../runtime'
+import {
+  resolveSidebarShortcuts,
+  useResolvedSidebarShortcuts,
+  useSidebarActivationGateway,
+  useSidebarNavigationSnapshot
+} from '../runtime'
 import type { ResolvedShortcut, SidebarShortcutProvider } from '../types'
 
 function item(providerId: string, resourceId: string, activationId?: string): SidebarShortcutItem {
@@ -17,6 +28,85 @@ function item(providerId: string, resourceId: string, activationId?: string): Si
 function resolved(target: SidebarShortcutItem['target'], label: string) {
   return new Map([[createSidebarShortcutId(target), { label, renderIcon: () => null }]])
 }
+
+function tabContext(tabs: Tab[]): TabsContextValue {
+  return {
+    tabs,
+    activeTab: tabs[0],
+    activeTabId: tabs[0].id,
+    isLoading: false,
+    addTab: vi.fn(),
+    closeTab: vi.fn(),
+    closeTabs: vi.fn(),
+    setActiveTab: vi.fn(),
+    updateTab: vi.fn(),
+    openTab: vi.fn(() => 'new-tab'),
+    pinTab: vi.fn(),
+    unpinTab: vi.fn(),
+    reorderTabs: vi.fn(),
+    detachTab: vi.fn(),
+    attachTab: vi.fn()
+  }
+}
+
+describe('sidebar conversation navigation', () => {
+  it.each([
+    ['core.assistant', '/topics/latest', 'topic', '/app/chat?extra=1&topicId=conversation-1'],
+    ['core.agent', '/agent-sessions/latest', 'session', '/app/agents?extra=1&sessionId=conversation-1']
+  ] as const)(
+    'reuses an existing canonical conversation for %s, but honors an explicit new tab',
+    async (providerId, endpoint, field, url) => {
+      MockDataApiUtils.setCustomResponse(endpoint, 'GET', { [field]: { id: 'conversation-1' } })
+      const tabs = tabContext([
+        { id: 'other', type: 'route', url: '/app/files', title: 'Files' },
+        { id: 'conversation', type: 'route', url, title: 'Conversation' }
+      ])
+      const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+      const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+      const provider = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === providerId)!
+      const target = createSidebarShortcutTarget(providerId, 'owner-1')
+
+      await act(async () => provider.activate(target, result.current))
+      expect(tabs.setActiveTab).toHaveBeenCalledWith('conversation')
+      expect(tabs.updateTab).not.toHaveBeenCalled()
+      expect(tabs.openTab).not.toHaveBeenCalled()
+
+      await act(async () =>
+        provider.activate(target, {
+          ...result.current,
+          openWorkspace: (destination) => result.current.openWorkspace(destination, { inNewTab: true })
+        })
+      )
+      expect(tabs.openTab).toHaveBeenCalledWith(
+        expect.stringContaining('conversation-1'),
+        expect.objectContaining({ forceNew: true })
+      )
+      MockDataApiUtils.resetMocks()
+    }
+  )
+
+  it('drops the previous conversation owner as soon as the route changes', () => {
+    MockUseDataApiUtils.mockQueryData('/topics/topic-1', {
+      id: 'topic-1',
+      assistantId: 'assistant-1',
+      name: 'Conversation',
+      isNameManuallyEdited: false,
+      orderKey: 'a0',
+      lastActivityAt: '2026-09-15T00:00:00Z',
+      createdAt: '2026-09-15T00:00:00Z',
+      updatedAt: '2026-09-15T00:00:00Z'
+    })
+    const tabs = tabContext([{ id: 'chat', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat' }])
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result, rerender } = renderHook(() => useSidebarNavigationSnapshot(), { wrapper })
+    expect(result.current.assistantId).toBe('assistant-1')
+    tabs.activeTab = { ...tabs.activeTab!, url: '/app/files' }
+    rerender()
+    expect(result.current.assistantId).toBeUndefined()
+    expect(result.current.agentId).toBeUndefined()
+    MockUseDataApiUtils.resetMocks()
+  })
+})
 
 describe('resolveSidebarShortcuts', () => {
   it('batches each provider once and distinguishes missing resources', async () => {

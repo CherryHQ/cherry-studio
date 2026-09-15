@@ -803,6 +803,30 @@ describe('FilesPage file operations', () => {
     expect(onEntryIdChange).toHaveBeenCalledWith()
   })
 
+  it('does not cancel a pending document reveal when opening an image', async () => {
+    let resolveEntry!: (value: FileEntry) => void
+    dataApiMocks.get.mockReturnValue(
+      new Promise<FileEntry>((resolve) => {
+        resolveEntry = resolve
+      })
+    )
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_physical_paths')
+        return Promise.resolve({ [entry.id]: '/tmp/report.md', [imageEntry.id]: '/tmp/photo.png' })
+      if (route === 'file.batch_get_metadata' || route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    mockFiles([imageEntry])
+    render(<FilesPage entryId={entry.id} onEntryIdChange={vi.fn()} />)
+    fireEvent.click(screen.getByText('files.image'))
+    fireEvent.click(await screen.findByAltText('photo.png'))
+    await waitFor(() => expect(imagePreviewMocks.show).toHaveBeenCalledWith('file:///tmp/photo.png'))
+    await act(async () => {
+      resolveEntry(entry)
+    })
+    expect(await screen.findByRole('region', { name: 'report.md' })).toBeInTheDocument()
+  })
+
   it('reports a file preview path resolution failure', async () => {
     const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     renderFilesPage()

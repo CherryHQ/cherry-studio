@@ -18,15 +18,13 @@ type ResourceCatalogDialogsProps = {
   onOpenAssistantChat?: (assistantId: string) => void
   onRefetch: ReturnType<typeof useResourceCatalogController>['refetch']
   resourceType: Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
-  onSelectedSkillIdChange?: (skillId: string | undefined) => void
 }
 
 export function ResourceCatalogDialogs({
   dialogs,
   onOpenAssistantChat,
   onRefetch,
-  resourceType,
-  onSelectedSkillIdChange
+  resourceType
 }: ResourceCatalogDialogsProps) {
   return (
     <>
@@ -36,7 +34,6 @@ export function ResourceCatalogDialogs({
         onOpenChange={(open) => {
           if (!open) {
             dialogs.setSelectedSkill(null)
-            onSelectedSkillIdChange?.(undefined)
           }
         }}
       />

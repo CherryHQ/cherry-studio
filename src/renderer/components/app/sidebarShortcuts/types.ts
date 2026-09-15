@@ -1,16 +1,25 @@
 import type { ReactNode } from 'react'
 
 import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
+import type { ConversationNavigationTarget } from '@shared/types/navigation'
 
 import type { SidebarIconPresentation } from '../../Sidebar'
 
 export interface SidebarNavigationSnapshot {
   url: string
+  assistantId?: string
+  agentId?: string
 }
 
 export interface SidebarActivationGateway {
   openWorkspace(
-    destination: { url: string; title: string; icon?: string; matchesCurrent?: (url: string) => boolean },
+    destination: {
+      url: string
+      title: string
+      icon?: string
+      conversation?: ConversationNavigationTarget
+      matchesCurrent?: (url: string) => boolean
+    },
     options?: { inNewTab?: boolean }
   ): void
   openSettings(path: string): void

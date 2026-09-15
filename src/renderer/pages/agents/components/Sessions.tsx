@@ -545,11 +545,7 @@ const Sessions = ({
   const { updateSession } = useUpdateSession()
 
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
-  const {
-    shortcuts: sidebarShortcuts,
-    toggle: toggleSidebarShortcut,
-    remove: removeSidebarShortcut
-  } = useSidebarShortcuts()
+  const { shortcuts: sidebarShortcuts, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
   const sidebarAgentFavoriteIdSet = useMemo(
     () =>
       new Set(
@@ -575,18 +571,24 @@ const Sessions = ({
   const handleToggleAgentSidebar = useCallback(
     (agentId: string) => {
       const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT, agentId)
-      if (sidebarAgentFavoriteIdSet.has(agentId)) removeSidebarShortcut(target)
-      else toggleSidebarShortcut(target)
+      setSidebarShortcutPinned(
+        target,
+        !sidebarAgentFavoriteIdSet.has(agentId),
+        agents.find((agent) => agent.id === agentId)?.name
+      )
     },
-    [removeSidebarShortcut, sidebarAgentFavoriteIdSet, toggleSidebarShortcut]
+    [agents, setSidebarShortcutPinned, sidebarAgentFavoriteIdSet]
   )
   const handleToggleSessionSidebar = useCallback(
     (session: AgentSessionEntity) => {
       const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT_SESSION, session.id)
-      if (sidebarSessionFavoriteIdSet.has(session.id)) removeSidebarShortcut(target)
-      else toggleSidebarShortcut(target, session.name.trim() || t('agent.session.new'))
+      setSidebarShortcutPinned(
+        target,
+        !sidebarSessionFavoriteIdSet.has(session.id),
+        session.name.trim() || t('agent.session.new')
+      )
     },
-    [removeSidebarShortcut, sidebarSessionFavoriteIdSet, t, toggleSidebarShortcut]
+    [setSidebarShortcutPinned, sidebarSessionFavoriteIdSet, t]
   )
   const agentsForDisplay = useMemo(() => {
     if (!optimisticAgentOrderIds) return agents

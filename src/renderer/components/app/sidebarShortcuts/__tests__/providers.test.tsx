@@ -34,6 +34,7 @@ describe('core sidebar shortcut providers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.preferenceGet.mockResolvedValue('openai')
+    mocks.dataGet.mockResolvedValue({ topic: null, session: null })
   })
 
   it.each([
@@ -64,6 +65,38 @@ describe('core sidebar shortcut providers', () => {
     const target: SidebarShortcutTarget = createSidebarShortcutTarget(shortcutProvider.id, 'resource', 'run')
 
     expect(shortcutProvider.validate(target)).toBe(false)
+  })
+
+  it.each([
+    ['core.assistant', '/topics/latest', 'topic', 'assistant', '/app/chat?topicId=conversation-1'],
+    ['core.agent', '/agent-sessions/latest', 'session', 'agent', '/app/agents?sessionId=conversation-1']
+  ])(
+    'resolves %s to a stable conversation before opening',
+    async (providerId, endpoint, field, conversationType, url) => {
+      mocks.dataGet.mockResolvedValue({ [field]: { id: 'conversation-1' } })
+      await provider(providerId).activate(createSidebarShortcutTarget(providerId, 'owner-1'), gateway)
+      expect(mocks.dataGet).toHaveBeenCalledWith(endpoint, { query: { [`${conversationType}Id`]: 'owner-1' } })
+      expect(openWorkspace).toHaveBeenCalledWith(
+        expect.objectContaining({ url, conversation: { conversationType, conversationId: 'conversation-1' } })
+      )
+    }
+  )
+
+  it.each(['core.assistant', 'core.agent'])('does not navigate when %s entry resolution fails', async (providerId) => {
+    mocks.dataGet.mockRejectedValue(new Error('offline'))
+    await expect(
+      provider(providerId).activate(createSidebarShortcutTarget(providerId, 'owner-1'), gateway)
+    ).rejects.toThrow('offline')
+    expect(openWorkspace).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['core.assistant', 'assistantId', '/app/chat?topicId=topic-1'],
+    ['core.agent', 'agentId', '/app/agents?sessionId=session-1']
+  ])('highlights %s by the current conversation owner after redirect', (providerId, ownerKey, url) => {
+    const target = createSidebarShortcutTarget(providerId, 'owner-1')
+    expect(provider(providerId).isActive?.(target, { url, [ownerKey]: 'owner-1' })).toBe(true)
+    expect(provider(providerId).isActive?.(target, { url, [ownerKey]: 'other-owner' })).toBe(false)
   })
 
   it.each(['core.skill', 'core.mcp-server', 'core.provider'])('does not register %s', (providerId) => {

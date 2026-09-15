@@ -7,6 +7,10 @@ import { dataApiService } from '@renderer/data/DataApiService'
 import { preferenceService } from '@renderer/data/PreferenceService'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
+import {
+  resolveAgentEntrySessionIdForAgent,
+  resolveChatEntryTopicIdForAssistant
+} from '@renderer/utils/conversationEntry'
 import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import {
   getSidebarApp,
@@ -198,13 +202,20 @@ const agentProvider: SidebarShortcutProvider = {
     )
   },
   subscribe: collectionSubscription('/agents'),
-  activate(target, gateway) {
+  async activate(target, gateway) {
     if (!this.validate(target)) return
+    const sessionId = await resolveAgentEntrySessionIdForAgent(target.locator.resourceId)
     gateway.openWorkspace({
-      url: `/app/agents?agentId=${encodeURIComponent(target.locator.resourceId)}`,
+      url: sessionId
+        ? getSidebarApp('agents')!.conversationRoute!.urlForKey(sessionId)
+        : `/app/agents?agentId=${encodeURIComponent(target.locator.resourceId)}`,
+      conversation: sessionId ? { conversationType: 'agent', conversationId: sessionId } : undefined,
       title: target.locator.resourceId
     })
-  }
+  },
+  isActive: (target, navigation) =>
+    navigation.agentId === target.locator.resourceId ||
+    isActiveResourceUrl(navigation.url, '/app/agents', 'agentId', target.locator.resourceId)
 }
 
 const assistantProvider: SidebarShortcutProvider = {
@@ -235,13 +246,20 @@ const assistantProvider: SidebarShortcutProvider = {
     )
   },
   subscribe: collectionSubscription('/assistants'),
-  activate(target, gateway) {
+  async activate(target, gateway) {
     if (!this.validate(target)) return
+    const topicId = await resolveChatEntryTopicIdForAssistant(target.locator.resourceId)
     gateway.openWorkspace({
-      url: `/app/chat?assistantId=${encodeURIComponent(target.locator.resourceId)}`,
+      url: topicId
+        ? getSidebarApp('assistants')!.conversationRoute!.urlForKey(topicId)
+        : `/app/chat?assistantId=${encodeURIComponent(target.locator.resourceId)}`,
+      conversation: topicId ? { conversationType: 'assistant', conversationId: topicId } : undefined,
       title: target.locator.resourceId
     })
-  }
+  },
+  isActive: (target, navigation) =>
+    navigation.assistantId === target.locator.resourceId ||
+    isActiveResourceUrl(navigation.url, '/app/chat', 'assistantId', target.locator.resourceId)
 }
 
 const knowledgeBaseProvider: SidebarShortcutProvider = {
@@ -291,6 +309,7 @@ const topicProvider: SidebarShortcutProvider = {
     if (!this.validate(target)) return
     gateway.openWorkspace({
       url: `/app/chat?topicId=${encodeURIComponent(target.locator.resourceId)}`,
+      conversation: { conversationType: 'assistant', conversationId: target.locator.resourceId },
       title: target.locator.resourceId
     })
   },
@@ -318,6 +337,7 @@ const agentSessionProvider: SidebarShortcutProvider = {
     if (!this.validate(target)) return
     gateway.openWorkspace({
       url: `/app/agents?sessionId=${encodeURIComponent(target.locator.resourceId)}`,
+      conversation: { conversationType: 'agent', conversationId: target.locator.resourceId },
       title: target.locator.resourceId
     })
   },

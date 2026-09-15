@@ -3573,7 +3573,7 @@ describe('Topics', () => {
     )
   })
 
-  it('pins an assistant to the sidebar from the assistant group menu', async () => {
+  it('keeps repeated add commands pinned with the assistant name', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [])
 
@@ -3583,11 +3583,14 @@ describe('Topics', () => {
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.click(moreButton)
 
+    const addButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'Add to sidebar' })
+    fireEvent.click(addButton)
+    fireEvent.click(moreButton)
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Add to sidebar' }))
 
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
-        sidebarShortcut('core.assistant', 'assistant-1')
+        { ...sidebarShortcut('core.assistant', 'assistant-1'), fallbackLabel: 'Alpha Assistant' }
       ])
     )
   })

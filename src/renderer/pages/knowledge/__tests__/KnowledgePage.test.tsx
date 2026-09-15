@@ -896,6 +896,31 @@ describe('KnowledgePage', () => {
     expect(onBaseIdChange).toHaveBeenCalledWith('base-1')
   })
 
+  it('retains a deep link through a failed initial fetch and recovers without another navigation', async () => {
+    const onBaseIdChange = vi.fn()
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [],
+      isLoading: false,
+      error: new Error('offline'),
+      refetch: vi.fn()
+    })
+    const { rerender } = render(<KnowledgePage baseId="base-2" onBaseIdChange={onBaseIdChange} />)
+    expect(onBaseIdChange).not.toHaveBeenCalled()
+
+    mockUseKnowledgeBases.mockReturnValue({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+    rerender(<KnowledgePage baseId="base-2" onBaseIdChange={onBaseIdChange} />)
+    await waitFor(() => expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 2'))
+    expect(onBaseIdChange).not.toHaveBeenCalled()
+  })
+
   it('keeps a global search knowledge selection until cold-start bases load', async () => {
     let bases: KnowledgeBase[] = []
 

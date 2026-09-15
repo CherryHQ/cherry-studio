@@ -327,10 +327,14 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   const previewErrorMessage = t('files.preview.error')
   const { isPinned: isSidebarShortcutPinned, toggle: toggleSidebarShortcut } = useSidebarShortcuts()
   const [embeddedPreview, setEmbeddedPreview] = useState<EmbeddedFilePreview | null>(null)
-  // Guards the async open flow: each open bumps the token, and stale physical-path
-  // resolutions (success or failure) are ignored so a slower earlier click can never
-  // overwrite — or error over — the file the user most recently opened.
   const openRequestTokenRef = useRef(0)
+  const imageRequestTokenRef = useRef(0)
+  useEffect(
+    () => () => {
+      imageRequestTokenRef.current += 1
+    },
+    []
+  )
   const [metadataById, setMetadataById] = useState<FileMetadataById>({})
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
@@ -553,10 +557,11 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         return
       }
 
-      const requestToken = ++openRequestTokenRef.current
+      const requestRef = file.type === 'image' ? imageRequestTokenRef : openRequestTokenRef
+      const requestToken = ++requestRef.current
       void requestBatchedFileRecords('file.batch_get_physical_paths', [file.id])
         .then((physicalPaths) => {
-          if (openRequestTokenRef.current !== requestToken) return
+          if (requestRef.current !== requestToken) return
           const filePath = physicalPaths[file.id]
           if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
           const normalizedPath = normalizeFilePreviewPath(filePath)
@@ -575,7 +580,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
           }))
         })
         .catch((error: unknown) => {
-          if (openRequestTokenRef.current !== requestToken) return
+          if (requestRef.current !== requestToken) return
           const normalized = error instanceof Error ? error : new Error(String(error))
           logger.error('Failed to open file preview', normalized)
           toast.error(t('files.preview.error'))

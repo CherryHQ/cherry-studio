@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
@@ -98,6 +99,29 @@ const assistantResource = {
 } as unknown as ResourceItem
 
 describe('useResourceCatalogController', () => {
+  it('keeps route selection authoritative when switching and closing skill details', () => {
+    const skillA = { id: 'skill-a', type: 'skill', raw: { id: 'skill-a', name: 'Skill A' } } as ResourceItem
+    const skillB = { id: 'skill-b', type: 'skill', raw: { id: 'skill-b', name: 'Skill B' } } as ResourceItem
+    controllerMocks.resourceLibraryState.allResources = [skillA, skillB]
+    const { result, rerender } = renderHook(() => {
+      const [id, onChange] = useState<string | undefined>('skill-a')
+      return { id, onChange, controller: useResourceCatalogController('skill', { id, onChange }) }
+    })
+
+    expect(result.current.controller.dialogs.selectedSkill?.id).toBe('skill-a')
+    act(() => result.current.controller.gridProps.onEdit(skillB))
+    rerender()
+    expect(result.current.id).toBe('skill-b')
+    expect(result.current.controller.dialogs.selectedSkill?.id).toBe('skill-b')
+
+    act(() => result.current.onChange('skill-a'))
+    expect(result.current.controller.dialogs.selectedSkill?.id).toBe('skill-a')
+    act(() => result.current.controller.dialogs.setSelectedSkill(null))
+    rerender()
+    expect(result.current.id).toBeUndefined()
+    expect(result.current.controller.dialogs.selectedSkill).toBeNull()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     controllerMocks.createAssistant.mockResolvedValue({ id: 'assistant-created' })

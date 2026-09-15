@@ -51,7 +51,7 @@ function EntryContextMenu({
 }
 
 function createAuxClickHandler(entry: ResolvedSidebarEntry, guardClick: SidebarClickGuard) {
-  if (!entry.onOpenNewTab) return undefined
+  if (entry.disabled || !entry.onOpenNewTab) return undefined
   return guardClick(entry.key, (e: React.MouseEvent) => {
     if (e.button === 1) {
       e.preventDefault()
@@ -89,7 +89,7 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
       onReorder={onReorder}
       className="flex flex-col items-center gap-0.5 px-1.5 [-webkit-app-region:no-drag]">
       {(entry, guardClick) => {
-        const isActive = entry.isActive(active)
+        const isActive = !entry.disabled && entry.isActive(active)
 
         return (
           <SidebarTooltip key={entry.key} content={entry.label}>
@@ -106,7 +106,9 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 } ${
                   isActive
                     ? 'bg-[var(--sidebar-active-bg)] text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                    : entry.disabled
+                      ? 'text-muted-foreground'
+                      : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                 }`}>
                 {isActive && <ActiveIndicator className="rounded-full" />}
                 <SidebarEntryIcon entry={entry} presentation={ICON_ICON_PRESENTATION} />
@@ -127,7 +129,7 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
       onReorder={onReorder}
       className="space-y-0.5 px-2 [-webkit-app-region:no-drag]">
       {(entry, guardClick: SidebarClickGuard) => {
-        const isActive = entry.isActive(active)
+        const isActive = !entry.disabled && entry.isActive(active)
 
         return (
           <div key={entry.key} className="relative">
@@ -141,7 +143,7 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
                 onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
-                className="rounded-xl aria-disabled:cursor-not-allowed aria-disabled:opacity-55 data-[active=true]:bg-[var(--sidebar-active-bg)]"
+                className="rounded-xl aria-disabled:cursor-not-allowed aria-disabled:text-muted-foreground aria-disabled:opacity-55 aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted-foreground data-[active=true]:bg-[var(--sidebar-active-bg)]"
               />
             </EntryContextMenu>
             {isActive && <ActiveIndicator className="rounded-xl" />}

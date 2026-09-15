@@ -2,18 +2,6 @@ import type { ReactNode } from 'react'
 
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 
-export interface SidebarMiniApp {
-  id: string
-  color?: string
-  url?: string
-  logo?: string
-}
-
-export interface SidebarMiniAppTab {
-  title: string
-  miniApp: SidebarMiniApp
-}
-
 /** The active-route state a resolved entry matches itself against. */
 export interface SidebarActiveState {
   /** Active built-in app id. */

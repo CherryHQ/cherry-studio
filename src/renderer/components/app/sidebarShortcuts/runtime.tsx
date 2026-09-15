@@ -1,13 +1,21 @@
 import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { useQuery, useDataChange } from '@renderer/data/hooks/useDataApi'
 import { useTabs } from '@renderer/hooks/tab'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { findConversationTab } from '@renderer/utils/conversationNavigation'
 import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
+import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import type { SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
 import { createSidebarShortcutId } from '@shared/data/preference/preferenceTypes'
 
 import type { SidebarShortcutRegistry } from './registry'
-import type { SidebarActivationGateway, SidebarShortcutProvider, SidebarShortcutResolution } from './types'
+import type {
+  SidebarActivationGateway,
+  SidebarNavigationSnapshot,
+  SidebarShortcutProvider,
+  SidebarShortcutResolution
+} from './types'
 
 const RegistryContext = createContext<SidebarShortcutRegistry | null>(null)
 
@@ -216,6 +224,39 @@ export function useResolvedSidebarShortcuts(
   })
 }
 
+export function useSidebarNavigationSnapshot(): SidebarNavigationSnapshot {
+  const { activeTab } = useTabs()
+  const url = activeTab?.url ?? '/'
+  const chatApp = getSidebarApp('assistants')!
+  const agentApp = getSidebarApp('agents')!
+  const topicId = tabBelongsToApp(chatApp, url) ? chatApp.conversationRoute?.keyFromUrl(url) : undefined
+  const sessionId = tabBelongsToApp(agentApp, url) ? agentApp.conversationRoute?.keyFromUrl(url) : undefined
+  const { data: topic, mutate: refreshTopic } = useQuery(`/topics/${topicId}`, {
+    enabled: !!topicId,
+    swrOptions: { keepPreviousData: false }
+  })
+  const { data: session, mutate: refreshSession } = useQuery('/agent-sessions/:sessionId', {
+    params: { sessionId: sessionId! },
+    enabled: !!sessionId,
+    swrOptions: { keepPreviousData: false }
+  })
+  useDataChange(
+    '/topics/:id',
+    (effects) => {
+      if (topicId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(topicId)))
+        void refreshTopic()
+    },
+    { routeParams: topicId ? { id: topicId } : undefined }
+  )
+  useDataChange('/agent-sessions/:sessionId', (effects) => {
+    if (sessionId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(sessionId)))
+      void refreshSession()
+  })
+  const assistantId = topic?.id === topicId ? topic?.assistantId : undefined
+  const agentId = session?.id === sessionId ? (session?.agentId ?? undefined) : undefined
+  return useMemo(() => ({ url, assistantId, agentId }), [url, assistantId, agentId])
+}
+
 export function useSidebarActivationGateway(): SidebarActivationGateway {
   const { activeTab, tabs, openTab, setActiveTab, updateTab } = useTabs()
 
@@ -223,7 +264,12 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
     (destination, options) => {
       if (!options?.inNewTab) {
         if (activeTab && destination.matchesCurrent?.(activeTab.url)) return
-        const existing = tabs.find((tab) => tab.type === 'route' && tab.url === destination.url)
+        if (activeTab && destination.conversation && findConversationTab([activeTab], destination.conversation)) return
+        const existing = destination.conversation
+          ? findConversationTab(tabs, destination.conversation)
+          : tabs.find(
+              (tab) => tab.type === 'route' && (destination.matchesCurrent?.(tab.url) ?? tab.url === destination.url)
+            )
         if (existing) {
           setActiveTab(existing.id)
           return

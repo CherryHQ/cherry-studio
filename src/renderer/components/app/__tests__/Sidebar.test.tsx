@@ -27,6 +27,7 @@ vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
 }))
 vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: vi.fn() }))
 vi.mock('../sidebarShortcuts', () => ({
+  useSidebarNavigationSnapshot: () => ({ url: '/' }),
   useResolvedSidebarShortcuts: () => mocks.resolutions,
   useSidebarActivationGateway: () => ({
     openSettings: mocks.gatewayOpenSettings,

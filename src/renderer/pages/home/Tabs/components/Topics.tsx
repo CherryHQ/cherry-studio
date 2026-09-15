@@ -353,10 +353,12 @@ export function Topics({
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const {
-    shortcuts: sidebarShortcuts,
-    toggle: toggleSidebarShortcut,
-    remove: removeSidebarShortcut
-  } = useSidebarShortcuts()
+    assistants,
+    isLoading: isAssistantsLoading,
+    error: assistantsError,
+    refetch: refreshAssistants
+  } = useAssistantsApi()
+  const { shortcuts: sidebarShortcuts, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
   const sidebarAssistantFavoriteIdSet = useMemo(
     () =>
       new Set(
@@ -382,18 +384,24 @@ export function Topics({
   const handleToggleAssistantSidebar = useCallback(
     (assistantId: string) => {
       const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT, assistantId)
-      if (sidebarAssistantFavoriteIdSet.has(assistantId)) removeSidebarShortcut(target)
-      else toggleSidebarShortcut(target)
+      setSidebarShortcutPinned(
+        target,
+        !sidebarAssistantFavoriteIdSet.has(assistantId),
+        assistants.find((assistant) => assistant.id === assistantId)?.name
+      )
     },
-    [removeSidebarShortcut, sidebarAssistantFavoriteIdSet, toggleSidebarShortcut]
+    [assistants, setSidebarShortcutPinned, sidebarAssistantFavoriteIdSet]
   )
   const handleToggleTopicSidebar = useCallback(
     (topic: Topic) => {
       const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.TOPIC, topic.id)
-      if (sidebarTopicFavoriteIdSet.has(topic.id)) removeSidebarShortcut(target)
-      else toggleSidebarShortcut(target, topic.name.trim() || t('chat.conversation.new'))
+      setSidebarShortcutPinned(
+        target,
+        !sidebarTopicFavoriteIdSet.has(topic.id),
+        topic.name.trim() || t('chat.conversation.new')
+      )
     },
-    [removeSidebarShortcut, sidebarTopicFavoriteIdSet, t, toggleSidebarShortcut]
+    [setSidebarShortcutPinned, sidebarTopicFavoriteIdSet, t]
   )
   const {
     topics: apiTopics,
@@ -405,12 +413,6 @@ export function Topics({
     refreshError,
     refetch: refetchTopics
   } = assistantTopicsSource
-  const {
-    assistants,
-    isLoading: isAssistantsLoading,
-    error: assistantsError,
-    refetch: refreshAssistants
-  } = useAssistantsApi()
   const {
     groups: assistantGroups,
     isLoading: isAssistantGroupsLoading,

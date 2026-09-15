@@ -10,8 +10,8 @@ describe('getProviderIconAssetMetrics', () => {
     })
   })
 
-  it('preserves full-canvas provider tiles', () => {
-    expect(getProviderIconAssetMetrics({ kind: 'provider', iconId: 'anthropic' })).toEqual({
+  it.each(['anthropic', 'felo', 'abacus', 'coze'])('preserves the full canvas of %s without enlargement', (iconId) => {
+    expect(getProviderIconAssetMetrics({ kind: 'provider', iconId })).toEqual({
       canvasScale: 1,
       kind: 'tile'
     })

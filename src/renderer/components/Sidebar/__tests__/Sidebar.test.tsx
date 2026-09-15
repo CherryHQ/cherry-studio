@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { LucideIcon } from 'lucide-react'
 import { Search } from 'lucide-react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -13,9 +13,8 @@ import {
   SIDEBAR_ICON_WIDTH,
   SIDEBAR_MAX_WIDTH
 } from '../constants'
-import { MiniAppIcon } from '../primitives'
 import { Sidebar } from '../Sidebar'
-import type { ResolvedSidebarEntry, SidebarMiniAppTab } from '../types'
+import type { ResolvedSidebarEntry } from '../types'
 
 type AppItem = {
   id: string
@@ -110,20 +109,6 @@ vi.mock('@renderer/components/command', () => ({
   }
 }))
 
-vi.mock('@renderer/components/icons/miniAppsLogo', () => {
-  const QwenLogo = ({ style, ...props }: { style?: CSSProperties }) => (
-    <svg data-testid="resolved-mini-app-logo" style={style} {...props} />
-  )
-  QwenLogo.Avatar = ({ size }: { size: number }) => (
-    <span data-size={size} data-testid="resolved-mini-app-logo-avatar" />
-  )
-  return {
-    getMiniAppsLogoRef: (logo?: string) =>
-      logo === 'qwen' ? { kind: 'provider', key: 'qwen', meta: { id: 'qwen', colorPrimary: '#000' } } : undefined,
-    useMiniAppLogo: (logo?: string) => (logo === 'qwen' ? QwenLogo : undefined)
-  }
-})
-
 // Build the type-agnostic resolved entries the real registry would produce, so the
 // presentation tests exercise the same shape without depending on app wiring.
 const appEntry = (item: AppItem): ResolvedSidebarEntry => ({
@@ -137,18 +122,6 @@ const appEntry = (item: AppItem): ResolvedSidebarEntry => ({
   onOpen: () => {},
   contextMenuItems: item.contextMenuItems
 })
-const miniEntry = (
-  tab: SidebarMiniAppTab,
-  contextMenuItems?: ResolvedSidebarEntry['contextMenuItems']
-): ResolvedSidebarEntry => ({
-  key: `mini_app:${tab.miniApp.id}`,
-  label: tab.title,
-  renderIcon: ({ slotSize }) => <MiniAppIcon tab={tab} size={slotSize === 24 ? 'lg' : 'md'} />,
-  isActive: (active) => active.activeTabId === tab.miniApp.id,
-  onOpen: () => {},
-  contextMenuItems
-})
-
 const items: AppItem[] = [
   {
     id: 'chat',
@@ -473,70 +446,17 @@ describe('Sidebar resize handle', () => {
     }
   })
 
-  it('renders apps and direct mini app icons together in one full docked list', () => {
-    render(
-      <Sidebar
-        width={SIDEBAR_FULL_THRESHOLD}
-        setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
-        entries={[
-          ...entries,
-          miniEntry({
-            title: 'Qwen',
-            miniApp: { id: 'qwen', logo: 'qwen' }
-          })
-        ]}
-      />
-    )
-
-    expect(screen.getByText('Chat')).toBeInTheDocument()
-    expect(screen.getByText('Qwen')).toBeInTheDocument()
-    expect(screen.getByLabelText('Qwen')).toBeInTheDocument()
-  })
-
-  it('names icon-only docked mini app buttons from the full title when the logo is missing', () => {
+  it('names icon-only resource buttons from their full label', () => {
     render(
       <Sidebar
         width={SIDEBAR_ICON_WIDTH}
         setWidth={vi.fn()}
         active={{ activeItem: 'chat' }}
-        entries={[
-          ...entries,
-          miniEntry({
-            title: 'Custom Tool',
-            miniApp: { id: 'custom' }
-          })
-        ]}
+        entries={[...entries, appEntry({ id: 'custom', label: 'Custom Tool', icon: Search })]}
       />
     )
 
     expect(screen.getByRole('button', { name: 'Custom Tool' })).toBeInTheDocument()
-  })
-
-  it('wires context menu actions for docked mini app icons', () => {
-    const onRemove = vi.fn()
-
-    render(
-      <Sidebar
-        width={SIDEBAR_ICON_WIDTH}
-        setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
-        entries={[
-          ...entries,
-          miniEntry(
-            {
-              title: 'Qwen',
-              miniApp: { id: 'qwen', logo: 'qwen' }
-            },
-            [{ type: 'item', id: 'remove-qwen', label: 'Remove from Sidebar', onSelect: onRemove }]
-          )
-        ]}
-      />
-    )
-
-    fireEvent.click(screen.getByTestId('context-menu-remove-qwen'))
-
-    expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
   it('suppresses only the dragged sidebar entry immediate post-drag click', () => {

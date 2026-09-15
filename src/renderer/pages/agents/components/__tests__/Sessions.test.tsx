@@ -3669,7 +3669,9 @@ describe('Sessions', () => {
     fireEvent.click(pinMenuItem as HTMLElement)
 
     await vi.waitFor(() =>
-      expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([sidebarShortcut('core.agent', 'agent-a')])
+      expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([
+        { ...sidebarShortcut('core.agent', 'agent-a'), fallbackLabel: 'Alpha agent' }
+      ])
     )
   })
 

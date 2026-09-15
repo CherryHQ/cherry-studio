@@ -7,10 +7,10 @@ import { useTranslation } from 'react-i18next'
 
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
-import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
 import { canRemoveSidebarShortcut } from '@renderer/utils/sidebar'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
@@ -29,6 +29,7 @@ import UserPopup from '../UserPopup'
 import {
   useResolvedSidebarShortcuts,
   useSidebarActivationGateway,
+  useSidebarNavigationSnapshot,
   useSidebarShortcutRegistry
 } from './sidebarShortcuts'
 
@@ -59,7 +60,7 @@ export default function Sidebar({
   const registry = useSidebarShortcutRegistry()
   const resolutions = useResolvedSidebarShortcuts(shortcuts, registry)
   const gateway = useSidebarActivationGateway()
-  const { activeTab } = useTabs()
+  const navigation = useSidebarNavigationSnapshot()
 
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
@@ -93,7 +94,6 @@ export default function Sidebar({
 
   const [hoverVisible, setHoverVisible] = useState(false)
   const layout = getSidebarLayout(activeSidebarWidth)
-  const navigation = useMemo(() => ({ url: activeTab?.url ?? '/' }), [activeTab?.url])
   const resolvedEntries = useMemo(
     () =>
       resolutions.map((resolution) => {
@@ -133,7 +133,9 @@ export default function Sidebar({
                 options
               )
           }
-          void provider.activate(shortcut.target, resourceGateway)
+          void Promise.resolve(provider.activate(shortcut.target, resourceGateway)).catch(() =>
+            toast.error(t('common.error'))
+          )
         }
         const activateInNewTab =
           isResolved && provider && resolution.resource.supportsNewTab
@@ -150,7 +152,9 @@ export default function Sidebar({
                       { inNewTab: true }
                     )
                 }
-                void provider.activate(shortcut.target, resourceGateway)
+                void Promise.resolve(provider.activate(shortcut.target, resourceGateway)).catch(() =>
+                  toast.error(t('common.error'))
+                )
               }
             : undefined
 
