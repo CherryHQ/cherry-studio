@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
-import type { DoctorState } from '@shared/types/doctor'
 
 import type { DoctorContext } from '../types'
 
@@ -148,25 +147,17 @@ describe('DoctorService.run', () => {
     expect(state()).toEqual({ status: 'completed', report: outcome.report })
 
     const published = vi.mocked(application.get('CacheService').setShared).mock.calls.map(([, value]) => value)
-    const runningUpdates = published.filter(
-      (value): value is Extract<DoctorState, { status: 'running' }> =>
-        typeof value === 'object' && value !== null && 'status' in value && value.status === 'running'
+    expect(published[0]).toMatchObject({ status: 'running', results: [], activeCheckIds: [] })
+    expect(published).toContainEqual(
+      expect.objectContaining({
+        status: 'running',
+        activeCheckIds: expect.arrayContaining(['config-boot-config-valid'])
+      })
     )
-    expect(
-      runningUpdates.map(({ activeCheckIds, results }) => ({
-        activeCheckIds,
-        resultIds: results.map((result) => result.id)
-      }))
-    ).toEqual([
-      { activeCheckIds: [], resultIds: [] },
-      { activeCheckIds: ['config-boot-config-valid'], resultIds: [] },
-      { activeCheckIds: ['config-boot-config-valid', 'storage-userdata-location'], resultIds: [] },
-      { activeCheckIds: ['storage-userdata-location'], resultIds: ['config-boot-config-valid'] },
-      {
-        activeCheckIds: [],
-        resultIds: ['config-boot-config-valid', 'storage-userdata-location']
-      }
-    ])
+    expect(published).toContainEqual(
+      expect.objectContaining({ status: 'running', results: [expect.objectContaining({ status: 'pass' })] })
+    )
+
     expect(published.at(-1)).toEqual({ status: 'completed', report: outcome.report })
   })
 

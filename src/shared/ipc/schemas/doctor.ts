@@ -3,6 +3,7 @@ import * as z from 'zod'
 import {
   DOCTOR_CHECK_IDS,
   type DoctorCancelResult,
+  type DoctorConfirmResult,
   type DoctorFixRequest,
   type DoctorFixResult,
   type DoctorRunResult,
@@ -21,6 +22,10 @@ const scopeKeySchema = z.custom<DoctorScopeKey>(isDoctorScopeKey)
 
 /** Progress and the last report are read from the shared cache key `doctor.state`, not via IPC. */
 export const doctorRequestSchemas = {
+  'diagnostics.doctor.confirm_check': defineRoute({
+    input: z.object({ scope: scopeKeySchema, runId: z.string().min(1), requestId: z.uuid() }).strict(),
+    output: z.custom<DoctorConfirmResult>()
+  }),
   'diagnostics.doctor.connectivity': defineRoute({
     input: z.object({ subject: z.discriminatedUnion('kind', contextualSubjects), runId: z.uuid() }).strict(),
     output: z.custom<DoctorConnectivityResult>()
