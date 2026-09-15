@@ -1,3 +1,8 @@
+import { Maximize2, Minimize2 } from 'lucide-react'
+import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react'
+import { Activity, createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { RightSidebarCollapseIcon } from '@renderer/components/icons/SidebarToggleIcons'
@@ -5,17 +10,8 @@ import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { cn } from '@renderer/utils/style'
-import { Maximize2, Minimize2 } from 'lucide-react'
-import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react'
-import { Activity, createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import {
-  ARTIFACT_RIGHT_PANE_CACHE_KEY,
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH
-} from '../../shell/paneLayout'
+import { getRightPaneWidthPolicy, type RightPaneWidthPolicy, type RightPaneWidthPreset } from '../../shell/paneLayout'
 import { PersistentRightPaneHost, type RightPaneLayoutMode } from '../../shell/RightPaneHost'
 
 export type RightPanelReadiness = 'ready' | 'pending' | 'unavailable'
@@ -43,6 +39,8 @@ export interface RightPanelInstance {
 export interface RightPanelCapability<TScope> {
   component: ComponentType<RightPanelComponentProps<TScope>>
   resolve: (scope: TScope) => RightPanelInstance | null
+  /** Which named width policy this panel sizes by; omitted means the inspector preset. */
+  widthPreset?: RightPaneWidthPreset
 }
 
 /** Shape every right-pane module exposes; apply with `satisfies` to keep component types precise. */
@@ -54,11 +52,14 @@ export interface RightPanelComposition {
 
 interface ResolvedRightPanelEntry<TScope = unknown> extends RightPanelInstance {
   component: ComponentType<RightPanelComponentProps<TScope>>
+  widthPreset?: RightPaneWidthPreset
 }
 
 export interface RightPanelState {
   /** The ready panel selected for presentation; visibility is reported separately. */
   activePanelId?: string
+  /** Width policy of the presented panel, so the host sizes it without knowing panel ids. */
+  activePaneWidth: RightPaneWidthPolicy
   /** First ready entry, then first pending entry, then the first catalog entry. */
   defaultPanelId?: string
   /** Raw maximize intent, retained while environmental presentation is disabled. */
@@ -114,6 +115,7 @@ const RightPanelRenderContext = createContext<RightPanelRenderContextValue | nul
 const RightPanelStateContext = createContext<RightPanelState | null>(null)
 const RightPanelActionsContext = createContext<RightPanelControllerActions | null>(null)
 const RightPanelPresentationMaximizedContext = createContext(false)
+const RightPanelComposerElevatedContext = createContext(false)
 
 function resolveRightPanelEntries<TScope>(
   capabilities: readonly RightPanelCapability<TScope>[],
@@ -129,7 +131,8 @@ function resolveRightPanelEntries<TScope>(
     panelIds.add(instance.id)
     entries.push({
       ...instance,
-      component: capability.component as ComponentType<RightPanelComponentProps<unknown>>
+      component: capability.component as ComponentType<RightPanelComponentProps<unknown>>,
+      widthPreset: capability.widthPreset
     })
   }
 
@@ -261,6 +264,9 @@ export function RightPanelProvider<TScope>({
   const reconciledEntry = activeEntry ?? pendingEntry
   const presentationOpen = present && open && Boolean(activeEntry)
   const presentationMaximized = presentationOpen && maximized
+  // The pane keeps covering the centre until its phase ends, so the composer has to stay lifted
+  // past the click that started the restore. `fullWidthActive` lands a commit late, hence the union.
+  const composerElevated = presentationMaximized || fullWidthActive
 
   useLayoutEffect(() => {
     if (!reconciledEntry || reconciledEntry.id === requestedPanelId) return
@@ -325,6 +331,7 @@ export function RightPanelProvider<TScope>({
   const state = useMemo<RightPanelState>(
     () => ({
       activePanelId: activeEntry?.id,
+      activePaneWidth: getRightPaneWidthPolicy(activeEntry?.widthPreset),
       defaultPanelId: defaultEntry?.id,
       maximized,
       presentationOpen,
@@ -340,6 +347,7 @@ export function RightPanelProvider<TScope>({
     }),
     [
       activeEntry?.id,
+      activeEntry?.widthPreset,
       defaultEntry?.id,
       fullWidthActive,
       isActive,
@@ -386,9 +394,11 @@ export function RightPanelProvider<TScope>({
   return (
     <RightPanelActionsContext value={actions}>
       <RightPanelPresentationMaximizedContext value={presentationMaximized}>
-        <RightPanelStateContext value={state}>
-          <RightPanelRenderContext value={renderValue}>{children}</RightPanelRenderContext>
-        </RightPanelStateContext>
+        <RightPanelComposerElevatedContext value={composerElevated}>
+          <RightPanelStateContext value={state}>
+            <RightPanelRenderContext value={renderValue}>{children}</RightPanelRenderContext>
+          </RightPanelStateContext>
+        </RightPanelComposerElevatedContext>
       </RightPanelPresentationMaximizedContext>
     </RightPanelActionsContext>
   )
@@ -397,6 +407,11 @@ export function RightPanelProvider<TScope>({
 /** Effective maximized presentation shared by shell layout and composer consumers. */
 export function useRightPanelPresentationMaximized(): boolean {
   return use(RightPanelPresentationMaximizedContext)
+}
+
+/** Whether the composer must paint above the pane — true from the click until the pane settles. */
+export function useRightPanelComposerElevated(): boolean {
+  return use(RightPanelComposerElevatedContext)
 }
 
 export function useRightPanelState(): RightPanelState {
@@ -436,7 +451,7 @@ export function RightPanelHeaderControls({ canMaximize = false }: { canMaximize?
       <Tooltip content={maximizeLabel} delay={800}>
         <NavbarIcon
           tone="conversation"
-          className="[&_svg]:!size-3.5 shrink-0"
+          className="shrink-0 [&_svg]:!size-3.5"
           aria-label={maximizeLabel}
           aria-pressed={state.presentationMaximized}
           onClick={actions.toggleMaximized}>
@@ -448,7 +463,10 @@ export function RightPanelHeaderControls({ canMaximize = false }: { canMaximize?
   return (
     <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
       {maximizeButton}
-      <Tooltip content={closeLabel} delay={800}>
+      {/* Closing hides the pane subtree via Activity (display:none), which zeroes the
+          trigger's rect; Radix then parks the still-exiting tooltip at the viewport
+          origin. Unmounting the tooltip as the panel closes removes that window. */}
+      <Tooltip content={closeLabel} delay={800} isDisabled={!state.presentationOpen}>
         <NavbarIcon tone="conversation" aria-label={closeLabel} onClick={actions.close}>
           <RightSidebarCollapseIcon />
         </NavbarIcon>
@@ -464,12 +482,12 @@ function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolea
     <div
       data-testid="shell-tab-list"
       className={cn(
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]',
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-2 [-webkit-app-region:no-drag]',
         state.presentationMaximized && 'bg-card'
       )}>
       <div
         data-testid="shell-tab-title"
-        className="min-w-0 flex-1 select-none truncate px-1 font-medium text-foreground text-sm">
+        className="min-w-0 flex-1 truncate px-1 text-sm font-medium text-foreground select-none">
         {title}
       </div>
       <RightPanelHeaderControls canMaximize={canMaximize} />
@@ -556,6 +574,7 @@ function RightPanelKeyboardShortcut() {
 export function RightPanelViewport({ children = <RightPanel /> }: { children?: ReactNode }) {
   const state = useRightPanelState()
   const actions = useRightPanelControllerActions()
+  const paneWidth = state.activePaneWidth
 
   return (
     <>
@@ -563,12 +582,10 @@ export function RightPanelViewport({ children = <RightPanel /> }: { children?: R
       <PersistentRightPaneHost
         open={state.presentationOpen}
         maximized={state.presentationMaximized}
-        width={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
         resizable
-        minWidth={ARTIFACT_RIGHT_PANE_MIN_WIDTH}
-        defaultWidth={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
-        maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
-        cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}
+        minWidth={paneWidth.minWidth}
+        maxWidth={paneWidth.maxWidth}
+        cacheKey={paneWidth.cacheKey}
         onLayoutAnimationComplete={actions.completeLayoutAnimation}
         onFullWidthPhaseChange={actions.reportFullWidthPhase}
         onResizingChange={actions.reportPaneResizing}
@@ -619,7 +636,7 @@ export function RightPanelShortcut({
     <NavbarIcon
       {...buttonProps}
       tone="conversation"
-      className={cn('[&_svg]:!size-3.5 shrink-0', className)}
+      className={cn('shrink-0 [&_svg]:!size-3.5', className)}
       active={active}
       disabled={disabled}
       aria-label={label}

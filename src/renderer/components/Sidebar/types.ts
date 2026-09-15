@@ -1,5 +1,6 @@
-import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import type { ReactNode } from 'react'
+
+import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 
 export interface SidebarMiniApp {
   id: string
@@ -35,6 +36,7 @@ export interface ResolvedSidebarEntry {
   renderIcon: (size: number, miniAppSize: 'md' | 'lg') => ReactNode
   isActive: (active: SidebarActiveState) => boolean
   onOpen: () => void
+  onOpenNewTab?: () => void
   contextMenuItems?: readonly CommandContextMenuExtraItem[]
 }
 

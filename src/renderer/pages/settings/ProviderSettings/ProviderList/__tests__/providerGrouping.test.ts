@@ -1,5 +1,6 @@
-import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
+
+import type { Provider } from '@shared/data/types/provider'
 
 import { groupProvidersByPreset } from '../providerGrouping'
 
@@ -10,7 +11,7 @@ function provider(id: string, presetProviderId?: string): Provider {
     presetProviderId,
     apiKeys: [],
     authType: 'api-key',
-    apiFeatures: {},
+    reportsActualCost: false,
     settings: {},
     isEnabled: true
   } as unknown as Provider

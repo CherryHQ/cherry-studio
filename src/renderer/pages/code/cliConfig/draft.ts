@@ -10,6 +10,7 @@ import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/p
 
 import { getAdapter, sanitizeCliConfigBlob } from './adapters'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
+import { readConfigFiles } from './file'
 import type {
   CliConfigDraftBuildArgs,
   CliConfigFileDraft,
@@ -76,12 +77,10 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
     dataApiService.get(`/providers/${providerId}/api-keys`) as Promise<{ keys?: ApiKeyEntry[] } | undefined>,
     // Model metadata only tunes optional fields (endpoint pick, context window),
     // so a fetch failure degrades the config quietly — leave a breadcrumb.
-    dataApiService
-      .get(`/models/${args.modelId}`)
-      .catch((error) => {
-        logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
-        return null
-      })
+    dataApiService.get(`/models/${args.modelId}`).catch((error) => {
+      logger.warn(`Failed to load model record for ${args.modelId}`, error as Error)
+      return null
+    })
   ])
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
@@ -109,9 +108,9 @@ export async function readCliConfigFiles(
   cliTool: string,
   options: { includeEmpty?: boolean } = {}
 ): Promise<CliConfigFileDraft[]> {
-  const files = await Promise.all(
-    getCliConfigTargets(cliTool).map(async (target) => makeDraftFile(target, await readDraftFileText(target)))
-  )
+  const targets = getCliConfigTargets(cliTool)
+  const read = await readConfigFiles(targets)
+  const files = targets.map((target) => makeDraftFile(target, readDraftFileText(target, undefined, read), read))
   return options.includeEmpty || files.some((file) => file.content.trim()) ? files : []
 }
 

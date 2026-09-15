@@ -1,6 +1,7 @@
 import type { Mistral } from '@mistralai/mistralai'
-import type { FileInfo } from '@shared/types/file'
 import * as z from 'zod'
+
+import type { FileInfo } from '@shared/types/file'
 
 export type PreparedMistralContext = {
   file: FileInfo
@@ -26,9 +27,19 @@ export const MistralOcrResponseSchema = z.object({
   pages: z
     .array(
       z.object({
-        markdown: z.string()
+        markdown: z.string(),
+        tables: z
+          .array(
+            z.object({
+              id: z.string(),
+              content: z.string()
+            })
+          )
+          .optional()
       })
     )
     .min(1),
   usageInfo: z.unknown().optional()
 })
+
+export type MistralOcrPage = z.infer<typeof MistralOcrResponseSchema>['pages'][number]

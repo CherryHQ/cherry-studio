@@ -3,6 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'qiniu',
   name: 'Qiniu',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.qnaigc.com',
   anthropic: 'https://api.qnaigc.com',
   website: {
@@ -11,8 +12,6 @@ export default openaiCompatible({
     models: 'https://developer.qiniu.com/aitokenapi/12883/model-list',
     official: 'https://qiniu.com'
   },
-  apiFeatures: {
-    developerRole: false
-  },
+  dialect: { developerRole: false },
   modelsDevProvider: 'qiniu-ai'
 })

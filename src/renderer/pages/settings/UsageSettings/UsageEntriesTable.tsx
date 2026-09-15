@@ -1,3 +1,7 @@
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   EmptyState,
@@ -18,9 +22,6 @@ import {
   type AiUsageRecordModality,
   getAiUsageRecordTotalTokens
 } from '@shared/data/types/aiUsageRecord'
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { displayModelId, getGenerationTokensPerSecond } from './usageAnalytics'
 import { formatCost } from './usageDisplay'
@@ -73,6 +74,7 @@ export function UsageEntriesTable({
   const locale = i18n.resolvedLanguage
   const durationFormatter = useMemo(() => createDurationFormatter(locale), [locale])
   const integerFormatter = useMemo(() => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }), [locale])
+  const isInitialLoading = isLoading && entries.length === 0
   const getAriaSort = (column: AiUsageRecordListSortBy) =>
     sortBy === column ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'
   const renderSortHeader = (column: AiUsageRecordListSortBy, label: string, align: 'left' | 'right' = 'left') => {
@@ -107,12 +109,12 @@ export function UsageEntriesTable({
     <UsagePanel>
       <UsagePanelHeader className="flex min-w-0 items-center justify-between gap-3">
         <UsagePanelTitle>{t('settings.usage.explore.entries')}</UsagePanelTitle>
-        <div className="text-foreground-tertiary text-xs">
+        <div className="text-xs text-foreground-tertiary">
           {t('settings.usage.explore.totalEntries', { count: entryTotal })}
         </div>
       </UsagePanelHeader>
-      <div className="min-w-0 p-3">
-        {isLoading ? (
+      <div className="min-w-0 p-3" aria-busy={isLoading || isRefreshing}>
+        {isInitialLoading ? (
           <div className="flex flex-col gap-2">
             {Array.from({ length: 6 }, (_, index) => (
               <Skeleton key={index} className="h-9 rounded-md" />
@@ -169,17 +171,17 @@ export function UsageEntriesTable({
                         <div className="flex min-w-0 items-center gap-2">
                           <UsageModelAvatar modelId={entry.modelId} providerId={entry.providerId ?? ''} size={18} />
                           <div className="min-w-0">
-                            <div className="truncate font-medium text-foreground text-sm leading-5" title={modelName}>
+                            <div className="truncate text-sm leading-5 font-medium text-foreground" title={modelName}>
                               {modelName}
                             </div>
-                            <div className="truncate text-muted-foreground text-xs leading-4" title={providerName}>
+                            <div className="truncate text-xs leading-4 text-muted-foreground" title={providerName}>
                               {providerName}
                             </div>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell className="min-w-0">
-                        <div className="min-w-0 truncate text-foreground text-sm">
+                        <div className="min-w-0 truncate text-sm text-foreground">
                           {entry.sourceId ? (
                             <UsageSourceLabel
                               sourceType={entry.sourceType}
@@ -193,7 +195,7 @@ export function UsageEntriesTable({
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="min-w-0 text-muted-foreground text-xs">
+                      <TableCell className="min-w-0 text-xs text-muted-foreground">
                         <time
                           dateTime={entry.createdAt}
                           className="block truncate whitespace-nowrap tabular-nums"
@@ -201,18 +203,18 @@ export function UsageEntriesTable({
                           {createdAtLabel}
                         </time>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
+                      <TableCell className="text-right font-medium whitespace-nowrap tabular-nums">
                         {totalTokens === null ? EMPTY_VALUE : formatCompactNumber(totalTokens)}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-right tabular-nums">
+                      <TableCell className="text-right whitespace-nowrap tabular-nums">
                         {entry.cost !== null && entry.cost !== undefined
                           ? formatCost(entry.cost, entry.costCurrency)
                           : EMPTY_VALUE}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-right tabular-nums">
+                      <TableCell className="text-right whitespace-nowrap tabular-nums">
                         {formatMilliseconds(entry.timeFirstTokenMs)}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-right tabular-nums">{formatTps(tps)}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap tabular-nums">{formatTps(tps)}</TableCell>
                     </TableRow>
                   )
                 })}

@@ -1,6 +1,11 @@
 import '@data/services/AgentSessionMessageService'
-
 import { randomUUID } from 'node:crypto'
+import { resolve } from 'node:path'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { eq, sql } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
@@ -11,6 +16,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 // Importing the singleton loads AgentGlobalSkillService so it self-registers in the
@@ -20,15 +26,13 @@ import { agentService } from '@data/services/AgentService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
+import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
-import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq, sql } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -178,6 +182,136 @@ describe('AgentService', () => {
   }
 
   describe('createAgent', () => {
+    it('creates preset and custom provider agents inside database initialization transactions', () => {
+      const presetProviderId = 'startup-preset'
+      const customProviderId = 'startup-custom'
+      const presetModelId = createUniqueModelId(presetProviderId, 'claude-sonnet-4-5')
+      const customModelId = createUniqueModelId(customProviderId, 'gpt-oss-120b')
+
+      dbh.db
+        .insert(userProviderTable)
+        .values([
+          {
+            providerId: presetProviderId,
+            presetProviderId: 'anthropic',
+            name: 'Startup Anthropic',
+            orderKey: generateOrderKeyBetween(null, null)
+          },
+          {
+            providerId: customProviderId,
+            name: 'Startup Custom',
+            presetProviderId: 'groq',
+            orderKey: generateOrderKeyBetween(null, null)
+          }
+        ])
+        .run()
+      dbh.db
+        .insert(userModelTable)
+        .values([
+          {
+            id: presetModelId,
+            providerId: presetProviderId,
+            modelId: 'claude-sonnet-4-5',
+            presetModelId: 'claude-sonnet-4-5',
+            name: 'Preset Reasoner',
+            capabilities: [MODEL_CAPABILITY.REASONING],
+            orderKey: generateOrderKeyBetween(null, null)
+          },
+          {
+            id: customModelId,
+            providerId: customProviderId,
+            modelId: 'gpt-oss-120b',
+            presetModelId: 'gpt-oss-120b',
+            name: 'Custom Reasoner',
+            capabilities: [MODEL_CAPABILITY.REASONING],
+            reasoning: { controls: [{ kind: 'effort', values: ['low', 'high'] }] },
+            supportsStreaming: true,
+            orderKey: generateOrderKeyBetween(null, null)
+          }
+        ])
+        .run()
+
+      const getPathMock = vi.mocked(application.getPath)
+      const originalGetPathImplementation = getPathMock.getMockImplementation()
+      getPathMock.mockImplementation((key, filename) =>
+        key === 'feature.provider_registry.data' && filename
+          ? resolve(process.cwd(), 'packages/provider-registry/data', filename)
+          : key === 'app.root'
+            ? resolve(process.cwd(), filename ?? '')
+            : (originalGetPathImplementation?.(key, filename) ?? `/mock/${key}${filename ? `/${filename}` : ''}`)
+      )
+      providerRegistryService.clearCache()
+
+      const dbService = application.get('DbService')
+      const getDbMock = vi.mocked(dbService.getDb)
+      getDbMock.mockImplementation(() => {
+        throw new Error('Database is not initialized, please call init() first!')
+      })
+
+      const [presetCreated, customCreated, presetModel, customModel] = (() => {
+        try {
+          return dbh.db.transaction((tx) => {
+            const presetCreated = agentService.createAgentTx(tx, 'startup-preset-agent', {
+              id: 'startup-preset-agent',
+              type: 'claude-code',
+              name: 'Preset Agent',
+              description: '',
+              instructions: '',
+              model: presetModelId,
+              configuration: { reasoning_effort: 'high' }
+            })
+            const customCreated = agentService.createAgentTx(tx, 'startup-custom-agent', {
+              id: 'startup-custom-agent',
+              type: 'claude-code',
+              name: 'Custom Agent',
+              description: '',
+              instructions: '',
+              model: customModelId,
+              configuration: { reasoning_effort: 'low' }
+            })
+            return [
+              presetCreated,
+              customCreated,
+              modelService.findByIdTx(tx, presetModelId),
+              modelService.findByIdTx(tx, customModelId)
+            ] as const
+          })
+        } finally {
+          getDbMock.mockImplementation(() => dbh.db)
+          if (originalGetPathImplementation) getPathMock.mockImplementation(originalGetPathImplementation)
+          providerRegistryService.clearCache()
+        }
+      })()
+
+      expect(presetCreated?.modelName).toBe('Preset Reasoner')
+      expect(customCreated?.modelName).toBe('Custom Reasoner')
+
+      expect(presetModel?.capabilities).toContain(MODEL_CAPABILITY.REASONING)
+      expect(presetModel?.reasoning?.controls).toEqual([{ kind: 'budget', min: 1024, max: 64_000 }, { kind: 'toggle' }])
+      expect(customModel?.capabilities).toContain(MODEL_CAPABILITY.REASONING)
+      expect(customModel?.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high'] }])
+      expect(customModel?.requestControls?.serviceTier).toEqual({
+        default: 'standard',
+        options: ['standard', 'auto', 'fast', 'flex']
+      })
+      expect(agentService.getAgent('startup-preset-agent')?.configuration?.reasoning_effort).toBe('high')
+      expect(agentService.getAgent('startup-custom-agent')?.configuration?.reasoning_effort).toBe('low')
+    })
+
+    it('notifies live agent lists after creation', () => {
+      notifyDataApiDataChangeMock.mockClear()
+
+      const agent = createAgentForTest({
+        type: 'claude-code',
+        name: 'Externally Created',
+        model: TEST_MODEL_ID
+      })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [agent.id] }
+      ])
+    })
+
     it('persists plan and small models when provided', async () => {
       const agent = createAgentForTest({
         type: 'claude-code',
@@ -192,6 +326,22 @@ describe('AgentService', () => {
         planModel: TEST_MODEL_ID,
         smallModel: TEST_MODEL_ID
       })
+    })
+
+    it('clears plan and small models when PATCHed with null', async () => {
+      const created = await insertAgent({
+        model: TEST_MODEL_ID,
+        planModel: TEST_MODEL_ID,
+        smallModel: TEST_MODEL_ID
+      })
+
+      const updated = agentService.updateAgent(created.id, { planModel: null, smallModel: null })
+
+      // The entity reports the tiers as unset; the row itself holds SQL NULL.
+      expect(updated).toMatchObject({ planModel: undefined, smallModel: undefined })
+      const [row] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, created.id))
+      expect(row.planModel).toBeNull()
+      expect(row.smallModel).toBeNull()
     })
 
     it('does not mislabel non-skill FK failures as stale selected skills', async () => {
@@ -400,6 +550,37 @@ describe('AgentService', () => {
   })
 
   describe('model updates', () => {
+    it('normalizes a stored medium effort when switching the agent to Kimi K3', async () => {
+      const kimiK3ModelId = createUniqueModelId('moonshot', 'kimi-k3')
+      await dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'moonshot',
+          presetProviderId: 'moonshot',
+          name: 'Moonshot',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      await dbh.db
+        .insert(userModelTable)
+        .values({
+          id: kimiK3ModelId,
+          providerId: 'moonshot',
+          modelId: 'kimi-k3',
+          presetModelId: 'kimi-k3',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      const created = await insertAgent({ configuration: { reasoning_effort: 'medium' } })
+
+      const updated = agentService.updateAgent(created.id, { model: kimiK3ModelId })
+
+      expect(updated).toMatchObject({
+        model: kimiK3ModelId,
+        configuration: { reasoning_effort: 'high' }
+      })
+    })
+
     it('atomically normalizes the agent reasoning effort and preserves configuration', async () => {
       const created = await insertAgent({
         configuration: { avatar: '🤖', reasoning_effort: 'high' }
@@ -1051,6 +1232,7 @@ describe('AgentService', () => {
   describe('deleteAgent', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
+      notifyDataApiDataChangeMock.mockClear()
 
       const result = agentService.deleteAgent(id)
 
@@ -1058,6 +1240,10 @@ describe('AgentService', () => {
       expect(result.deletedSessionIds).toBeUndefined()
       const rows = await dbh.db.select().from(agentTable)
       expect(rows.find((r) => r.id === id)).toBeUndefined()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
+      ])
     })
 
     it('purges agent pins on delete (pin table has no FK)', async () => {
@@ -1071,7 +1257,21 @@ describe('AgentService', () => {
 
       const remaining = pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
+    })
+
+    it('purges prompt bindings without deleting the global prompt', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_prompt_001' })
+      const promptId = '550e8400-e29b-41d4-a716-446655440021'
+      await dbh.db
+        .insert(promptTable)
+        .values({ id: promptId, title: 'Bound', content: 'Body', visibility: 'restricted', orderKey: 'a0' })
+      await dbh.db.insert(promptBindingTable).values({ promptId, targetType: 'agent', targetId: id, orderKey: 'a0' })
+
+      agentService.deleteAgent(id)
+
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(promptTable)).toHaveLength(1)
     })
 
     it('cascade-removes knowledge-base bindings when deleting an agent', async () => {
@@ -1117,7 +1317,7 @@ describe('AgentService', () => {
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)
       expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'membership', entityIds: ['session-delete-with-agent'] },
         {
           endpoint: '/agent-sessions',
@@ -1128,8 +1328,7 @@ describe('AgentService', () => {
         { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-delete-with-agent'] },
         { endpoint: '/agent-sessions/latest' }
       ])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
     })
 
     it('clears a task binding before default agent deletion detaches its session', async () => {

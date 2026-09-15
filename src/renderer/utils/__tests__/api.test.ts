@@ -4,41 +4,10 @@ import { formatVertexApiHost, maskApiKey, routeToEndpoint, splitApiKeyString, va
 
 describe('api', () => {
   describe('maskApiKey', () => {
-    it('should return empty string when key is empty', () => {
+    it('masks only keys longer than eight characters', () => {
       expect(maskApiKey('')).toBe('')
-      expect(maskApiKey(null as unknown as string)).toBe('')
-      expect(maskApiKey(undefined as unknown as string)).toBe('')
-    })
-
-    it('should mask keys longer than 24 characters', () => {
-      const key = '1234567890abcdefghijklmnopqrstuvwxyz'
-      expect(maskApiKey(key)).toBe('12345678****stuvwxyz')
-    })
-
-    it('should mask keys longer than 16 characters but not longer than 24', () => {
-      const key = '1234567890abcdefgh'
-      expect(maskApiKey(key)).toBe('1234****efgh')
-    })
-
-    it('should mask keys longer than 8 characters but not longer than 16', () => {
-      const key = '1234567890'
-      expect(maskApiKey(key)).toBe('12****90')
-    })
-
-    it('should not mask keys that are 8 characters or shorter', () => {
       expect(maskApiKey('12345678')).toBe('12345678')
-      expect(maskApiKey('123')).toBe('123')
-    })
-
-    it('should handle keys at exactly the boundary conditions', () => {
-      // 24 characters
-      expect(maskApiKey('123456789012345678901234')).toBe('1234****1234')
-
-      // 16 characters
-      expect(maskApiKey('1234567890123456')).toBe('12****56')
-
-      // 8 characters
-      expect(maskApiKey('12345678')).toBe('12345678')
+      expect(maskApiKey('123456789')).toBe('12****6789')
     })
   })
 

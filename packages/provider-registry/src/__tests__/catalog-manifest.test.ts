@@ -3,15 +3,17 @@ import { describe, expect, it } from 'vitest'
 import {
   CatalogManifestSchema,
   isCatalogManifestCompatible,
-  REGISTRY_MIN_APP_VERSION,
+  REGISTRY_SCHEMA_VERSION,
   REMOTE_REGISTRY_FILES
 } from '../registry-loader'
 
+// Literal version window on the CURRENT wire schema — the range contract under
+// test must not drift when REGISTRY_MIN_APP_VERSION moves.
 const manifest = CatalogManifestSchema.parse({
-  minAppVersion: REGISTRY_MIN_APP_VERSION,
+  minAppVersion: '2.0.7',
   sourceAppVersion: '2.0.7',
   revision: 1,
-  schemaVersion: 1,
+  schemaVersion: REGISTRY_SCHEMA_VERSION,
   files: { 'models.json': 'models-v1', 'provider-models.json': 'overrides-v1' }
 })
 
@@ -23,7 +25,9 @@ describe('remote registry manifest', () => {
   })
 
   it('rejects a manifest for another wire schema', () => {
-    expect(isCatalogManifestCompatible({ ...manifest, schemaVersion: 2 }, '2.0.7')).toBe(false)
+    expect(isCatalogManifestCompatible({ ...manifest, schemaVersion: REGISTRY_SCHEMA_VERSION + 1 }, '2.0.7')).toBe(
+      false
+    )
   })
 
   it('requires a non-negative monotonic revision', () => {

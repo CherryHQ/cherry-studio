@@ -1,3 +1,7 @@
+import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -12,6 +16,7 @@ import { useAgents } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -19,9 +24,6 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
-import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   buildResolvedIconTypeMenuAction,
@@ -39,10 +41,7 @@ const AGENT_ENTITY_EDIT_ACTION_ID = 'agent-entity.edit'
 const AGENT_ENTITY_TOGGLE_PIN_ACTION_ID = 'agent-entity.toggle-pin'
 const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
 const AGENT_ENTITY_DELETE_ACTION_ID = 'agent-entity.delete'
-
-type SessionListItem = AgentSessionEntity & {
-  pinned?: boolean
-}
+const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
 
 type AgentResourceListProps = {
   activeAgentId?: string | null
@@ -87,8 +86,6 @@ export function AgentResourceList({
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
-    sessions,
-    pinIdBySessionId,
     isLoading,
     isLoadingAll,
     isFullyLoaded,
@@ -112,10 +109,8 @@ export function AgentResourceList({
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
-  const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
-    [pinIdBySessionId, sessions]
-  )
+  const { agentFavoriteIds: sidebarAgentFavoriteIds, toggleAgent, removeAgent } = useSidebarFavorites()
+  const sidebarAgentFavoriteIdSet = useMemo(() => new Set(sidebarAgentFavoriteIds), [sidebarAgentFavoriteIds])
   const handleActivationError = useCallback(
     (error: unknown) => {
       logger.error('Failed to activate agent resource from classic-layout rail', { error })
@@ -163,9 +158,8 @@ export function AgentResourceList({
     [agentPinnedIdSet, agents, assistantIconType, defaultModelId, handleCreateSession, t]
   )
 
-  const getSessionAgentId = useCallback((session: SessionListItem) => session.agentId, [])
   const handlePickSession = useCallback(
-    (session: SessionListItem) => onSelectSession(session.id, session),
+    (session: AgentSessionEntity) => onSelectSession(session.id, session),
     [onSelectSession]
   )
   const reorderAgentEntity = useCallback(
@@ -183,8 +177,6 @@ export function AgentResourceList({
   )
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
-    resources: sessionItems,
-    getResourceParentId: getSessionAgentId,
     activeEntityId: activeAgentId,
     isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
     isError: !!(agentsError || sessionsError),
@@ -297,6 +289,7 @@ export function AgentResourceList({
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
       const pinned = agentPinnedIdSet.has(item.id)
+      const sidebarPinned = sidebarAgentFavoriteIdSet.has(item.id)
       const deleteTasksOnly = isProtectedBuiltinAgentRole(
         agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role
       )
@@ -314,6 +307,12 @@ export function AgentResourceList({
           icon: pinned ? <PinOff size={14} /> : <Pin size={14} />,
           order: 20,
           availability: { visible: true, enabled: !isAgentPinActionDisabled }
+        }),
+        buildResolvedResourceEntityMenuAction({
+          id: AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID,
+          label: sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
+          icon: sidebarPinned ? <PinOff size={14} /> : <Pin size={14} />,
+          order: 22
         }),
         buildResolvedIconTypeMenuAction(
           AGENT_ENTITY_ICON_TYPE_ACTION_ID,
@@ -334,7 +333,15 @@ export function AgentResourceList({
         })
       ]
     },
-    [agentPinnedIdSet, agents, assistantIconType, deletingAgentId, isAgentPinActionDisabled, t]
+    [
+      agentPinnedIdSet,
+      agents,
+      assistantIconType,
+      deletingAgentId,
+      isAgentPinActionDisabled,
+      sidebarAgentFavoriteIdSet,
+      t
+    ]
   )
 
   const handleContextMenuAction = useCallback(
@@ -347,6 +354,11 @@ export function AgentResourceList({
         void handleToggleAgentPin(item.id)
         return
       }
+      if (action.id === AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID) {
+        if (sidebarAgentFavoriteIdSet.has(item.id)) removeAgent(item.id)
+        else toggleAgent(item.id)
+        return
+      }
       if (action.id.startsWith(`${AGENT_ENTITY_ICON_TYPE_ACTION_ID}.`)) {
         void setAssistantIconType(action.id.slice(AGENT_ENTITY_ICON_TYPE_ACTION_ID.length + 1) as AssistantIconType)
         return
@@ -355,7 +367,15 @@ export function AgentResourceList({
         void handleDeleteAgent(item.id)
       }
     },
-    [handleDeleteAgent, handleToggleAgentPin, openAgentEditor, setAssistantIconType]
+    [
+      handleDeleteAgent,
+      handleToggleAgentPin,
+      openAgentEditor,
+      removeAgent,
+      setAssistantIconType,
+      sidebarAgentFavoriteIdSet,
+      toggleAgent
+    ]
   )
 
   return (

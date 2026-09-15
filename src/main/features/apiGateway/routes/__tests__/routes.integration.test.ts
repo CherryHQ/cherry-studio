@@ -109,8 +109,10 @@ describe('API gateway routes (integration)', () => {
       const { body } = await read(await get(app, '/openapi/json', {}))
       expect(body.servers).toEqual([{ url: 'http://127.0.0.1:23333' }])
 
+      // A wildcard bind is not a dialable target, so the advertised URL must be the
+      // loopback the curl example can actually reach.
       const custom = await read(await get(buildApp({ host: '0.0.0.0', port: 8080 }), '/openapi/json', {}))
-      expect(custom.body.servers).toEqual([{ url: 'http://0.0.0.0:8080' }])
+      expect(custom.body.servers).toEqual([{ url: 'http://127.0.0.1:8080' }])
     })
   })
 
@@ -428,6 +430,17 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
+    it('normalizes an Antigravity custom model path to the gateway model address', async () => {
+      await read(
+        await post(app, '/v1beta/models/provider-a/models/models/gemini-flash:streamGenerateContent', geminiBody)
+      )
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'provider-a:models/gemini-flash',
+        streaming: true,
+        inputFormat: 'gemini'
+      })
+    })
+
     it('strips the gemini-cli sentinel suffix off the model before routing', async () => {
       // Cherry hands gemini-cli the address with an `@cherry` suffix so its model
       // normalization can't rewrite names ending in "flash"; the route must strip it.
@@ -436,6 +449,23 @@ describe('API gateway routes (integration)', () => {
       )
       expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
         modelString: '618d8838:agent/deepseek-v4-flash',
+        streaming: true
+      })
+    })
+
+    it('routes a sentinel-suffixed model whose apiModelId itself contains "/models/"', async () => {
+      // Fireworks ids are `accounts/fireworks/models/<name>` (16 of them in the registry), so
+      // deciding the address protocol by looking for "/models/" misreads them as Antigravity
+      // paths and rejects a perfectly valid gemini-cli request.
+      await read(
+        await post(
+          app,
+          '/v1beta/models/fireworks:accounts/fireworks/models/deepseek-v4-flash@cherry:streamGenerateContent',
+          geminiBody
+        )
+      )
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'fireworks:accounts/fireworks/models/deepseek-v4-flash',
         streaming: true
       })
     })

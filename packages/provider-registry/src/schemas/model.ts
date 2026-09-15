@@ -13,7 +13,9 @@ import {
   VersionSchema,
   ZodCurrencySchema
 } from './common'
-import { CANONICAL_PARAM_KEY, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
+import { CANONICAL_PARAM_KEY, CURRENCY, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
+import { looseArray } from './forwardCompat'
+import { EndpointTypeSchema } from './provider'
 
 export const ModalitySchema = z.enum(objectValues(MODALITY))
 export type ModalityType = z.infer<typeof ModalitySchema>
@@ -54,7 +56,7 @@ export const ReasoningControlSchema = z.discriminatedUnion('kind', [
      *  UI display order. The active endpoint profile may map those values to a
      *  narrower wire vocabulary (`'none'` present ⇔ reasoning can be disabled). */
     kind: z.literal('effort'),
-    values: z.array(ReasoningEffortSchema).min(1),
+    values: looseArray(ReasoningEffortSchema, { min: 1 }),
     default: ReasoningEffortSchema.optional()
   }),
   z.object({
@@ -140,7 +142,7 @@ export const ReasoningFamilyRuleSchema = z
     /** Case-insensitive regex source. Must compile. */
     pattern: compilableRegexSource,
     /** Intrinsic effort vocabulary, in UI display order. */
-    effort: z.array(ReasoningEffortSchema).min(1).optional(),
+    effort: looseArray(ReasoningEffortSchema, { min: 1 }).optional(),
     /**
      * Thinking on/off switch. `false` is an EXPLICIT "always-on, no switch"
      * declaration that stops broader family rules below from applying
@@ -176,9 +178,9 @@ export type ReasoningFamilyRule = z.infer<typeof ReasoningFamilyRuleSchema>
 export const CommonReasoningFieldsSchema = {
   /** Source of truth for the model's reasoning knobs (at most one per kind).
    *  The legacy fields below are DERIVED from it when present. */
-  controls: z.array(ReasoningControlSchema).optional(),
+  controls: looseArray(ReasoningControlSchema).optional(),
   thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
-  supportedEfforts: z.array(ReasoningEffortSchema).optional(),
+  supportedEfforts: looseArray(ReasoningEffortSchema).optional(),
   /** What the API does when no reasoning param is sent. */
   defaultEffort: ReasoningEffortSchema.optional(),
   /** Native-protocol dialect this model generation speaks, when its protocol
@@ -254,7 +256,19 @@ const RangeSpecSchema = z
     min: z.number(),
     max: z.number(),
     default: z.number().optional(),
+    /** Omitted means the numeric input accepts any precision; renderers may
+     *  still choose an interaction step for controls such as sliders. */
     step: z.number().optional()
+  })
+  .refine((r) => r.min <= r.max, { message: 'min must be ≤ max' })
+
+export const RangeIntSpecSchema = z
+  .object({
+    type: z.literal('range'),
+    min: z.number().int(),
+    max: z.number().int(),
+    default: z.number().int().optional(),
+    step: z.number().int().positive().default(1)
   })
   .refine((r) => r.min <= r.max, { message: 'min must be ≤ max' })
 
@@ -282,6 +296,29 @@ export const SupportSpecSchema = z.discriminatedUnion('type', [
   TextSpecSchema
 ])
 
+const INTEGER_RANGE_PARAM_KEYS = [
+  CANONICAL_PARAM_KEY.NUM_IMAGES,
+  CANONICAL_PARAM_KEY.MAX_IMAGES,
+  CANONICAL_PARAM_KEY.NUM_INFERENCE_STEPS,
+  CANONICAL_PARAM_KEY.SAFETY_TOLERANCE,
+  CANONICAL_PARAM_KEY.OUTPUT_COMPRESSION
+] as const
+
+const ImageSupportsSchema = z.partialRecord(CanonicalParamKeySchema, SupportSpecSchema).transform((supports, ctx) => {
+  const normalized = { ...supports }
+  for (const key of INTEGER_RANGE_PARAM_KEYS) {
+    const spec = supports[key]
+    if (spec === undefined) continue
+    const result = RangeIntSpecSchema.safeParse(spec)
+    if (result.success) {
+      normalized[key] = result.data
+    } else {
+      for (const issue of result.error.issues) ctx.addIssue({ ...issue, path: [key, ...issue.path] })
+    }
+  }
+  return normalized
+})
+
 /**
  * Per-mode model capability declaration. The renderer iterates `supports`
  * and dispatches `specToField` by `spec.type`; no per-vendor logic. `supports`
@@ -299,7 +336,7 @@ export const SupportSpecSchema = z.discriminatedUnion('type', [
  * instead of a hand-maintained routing table.
  */
 const ImageModeDefSchema = z.object({
-  supports: z.partialRecord(CanonicalParamKeySchema, SupportSpecSchema),
+  supports: ImageSupportsSchema,
   maxInputImages: z.number().int().positive().optional(),
   vendorTransport: z
     .object({
@@ -364,12 +401,23 @@ export const ParameterSupportSchema = z.object({
  * - perImage: DALL-E (per-image), Midjourney (per-image)
  * - perMinute: Whisper, ElevenLabs (per-minute audio billing)
  */
-export const ModelPricingSchema = z.object({
+const ModelPricingObjectSchema = z.object({
   input: PricePerTokenSchema,
   output: PricePerTokenSchema,
 
   cacheRead: PricePerTokenSchema.optional(),
   cacheWrite: PricePerTokenSchema.optional(),
+  inputTokenTiers: z
+    .array(
+      z.object({
+        minInputTokens: z.number().int().positive().refine(Number.isSafeInteger),
+        input: PricePerTokenSchema,
+        output: PricePerTokenSchema,
+        cacheRead: PricePerTokenSchema.optional(),
+        cacheWrite: PricePerTokenSchema.optional()
+      })
+    )
+    .optional(),
 
   perImage: z
     .object({
@@ -387,6 +435,45 @@ export const ModelPricingSchema = z.object({
     .optional()
 })
 
+function validateInputTokenPricingTiers(
+  pricing: Partial<z.infer<typeof ModelPricingObjectSchema>>,
+  ctx: z.RefinementCtx
+): void {
+  for (let index = 1; index < (pricing.inputTokenTiers?.length ?? 0); index++) {
+    if (pricing.inputTokenTiers![index].minInputTokens <= pricing.inputTokenTiers![index - 1].minInputTokens) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['inputTokenTiers', index, 'minInputTokens'],
+        message: 'minInputTokens must be strictly increasing'
+      })
+    }
+  }
+
+  if (!pricing.inputTokenTiers?.length) return
+
+  const rates = [
+    ...(pricing.input ? [{ rate: pricing.input, path: ['input'] }] : []),
+    ...(pricing.output ? [{ rate: pricing.output, path: ['output'] }] : []),
+    ...(pricing.cacheRead ? [{ rate: pricing.cacheRead, path: ['cacheRead'] }] : []),
+    ...(pricing.cacheWrite ? [{ rate: pricing.cacheWrite, path: ['cacheWrite'] }] : []),
+    ...pricing.inputTokenTiers.flatMap((tier, index) => [
+      { rate: tier.input, path: ['inputTokenTiers', index, 'input'] },
+      { rate: tier.output, path: ['inputTokenTiers', index, 'output'] },
+      ...(tier.cacheRead ? [{ rate: tier.cacheRead, path: ['inputTokenTiers', index, 'cacheRead'] }] : []),
+      ...(tier.cacheWrite ? [{ rate: tier.cacheWrite, path: ['inputTokenTiers', index, 'cacheWrite'] }] : [])
+    ])
+  ]
+  const currency = rates[0]?.rate.currency ?? CURRENCY.USD
+  for (const { rate, path } of rates) {
+    if ((rate.currency ?? CURRENCY.USD) !== currency) {
+      ctx.addIssue({ code: 'custom', path: [...path, 'currency'], message: 'pricing currencies must match' })
+    }
+  }
+}
+
+export const ModelPricingSchema = ModelPricingObjectSchema.superRefine(validateInputTokenPricingTiers)
+export const PartialModelPricingSchema = ModelPricingObjectSchema.partial().superRefine(validateInputTokenPricingTiers)
+
 // Model configuration schema
 export const ModelConfigSchema = z.object({
   // Basic information
@@ -395,26 +482,24 @@ export const ModelConfigSchema = z.object({
   description: z.string().optional(),
 
   // Capabilities
-  capabilities: z
-    .array(ModelCapabilityTypeSchema)
+  capabilities: looseArray(ModelCapabilityTypeSchema)
     .refine((arr) => new Set(arr).size === arr.length, {
       message: 'Capabilities must be unique'
     })
     .optional(),
 
   // Modalities
-  inputModalities: z
-    .array(ModalitySchema)
+  inputModalities: looseArray(ModalitySchema)
     .refine((arr) => new Set(arr).size === arr.length, {
       message: 'Input modalities must be unique'
     })
     .optional(),
-  outputModalities: z
-    .array(ModalitySchema)
+  outputModalities: looseArray(ModalitySchema)
     .refine((arr) => new Set(arr).size === arr.length, {
       message: 'Output modalities must be unique'
     })
     .optional(),
+  endpointTypes: looseArray(EndpointTypeSchema).optional(),
 
   // Limits
   contextWindow: z.number().optional(),
@@ -452,7 +537,7 @@ export const ModelConfigSchema = z.object({
 // Model list container schema for JSON files
 export const ModelListSchema = z.object({
   version: VersionSchema,
-  models: z.array(ModelConfigSchema)
+  models: looseArray(ModelConfigSchema)
 })
 
 export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>

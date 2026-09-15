@@ -45,6 +45,7 @@ export const CHERRY_MCP_SERVER = {
   CHERRY_TOOLS: 'cherry-tools',
   AGENT_MEMORY: 'agent-memory',
   SKILLS: 'skills',
+  MCP_MANAGER: 'mcp-manager',
   ASSISTANT: 'assistant',
   ASSISTANT_FILES: 'assistant-files'
 } as const
@@ -99,12 +100,16 @@ const BUILTIN_TOOL_POLICIES = {
   agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),
   searchSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'search_skills', 'auto'),
   installSkill: tool(CHERRY_MCP_SERVER.SKILLS, 'install_skill', 'runtime'),
+  // A stdio install launches an arbitrary local command with the caller's env, so this asks per call
+  // like cli_install rather than deferring to the runtime's permission mode.
+  installMcpServer: tool(CHERRY_MCP_SERVER.MCP_MANAGER, 'install_mcp_server', 'required'),
 
   assistantNavigate: tool(CHERRY_MCP_SERVER.ASSISTANT, 'navigate', 'auto'),
   assistantProductInfo: tool(CHERRY_MCP_SERVER.ASSISTANT, 'product_info', 'auto'),
   assistantDiagnose: tool(CHERRY_MCP_SERVER.ASSISTANT, 'diagnose', 'required'),
   assistantApplySetting: tool(CHERRY_MCP_SERVER.ASSISTANT, 'apply_setting', 'required'),
   assistantCreateAgent: tool(CHERRY_MCP_SERVER.ASSISTANT, 'create_agent', 'required'),
+  assistantPrepareDiagnosticReport: tool(CHERRY_MCP_SERVER.ASSISTANT, 'prepare_diagnostic_report', 'auto'),
   assistantReadFile: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, READ_FILE_TOOL_NAME, 'auto'),
   assistantMoveToTrash: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, MOVE_TO_TRASH_TOOL_NAME, 'required'),
   assistantSaveAttachment: tool(CHERRY_MCP_SERVER.ASSISTANT_FILES, SAVE_ATTACHMENT_TOOL_NAME, 'required')

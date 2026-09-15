@@ -148,6 +148,25 @@ vi.mock('@cherrystudio/ui', () => ({
   DialogHeader: ({ children }: { children: ReactNode }) => <header>{children}</header>,
   DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
+  Switch: ({
+    checked,
+    onCheckedChange,
+    size: _size,
+    ...props
+  }: ComponentProps<'button'> & {
+    checked: boolean
+    onCheckedChange: (checked: boolean) => void
+    size?: string
+  }) => (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      data-size={_size}
+      onClick={() => onCheckedChange(!checked)}
+      {...props}
+    />
+  ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -163,6 +182,7 @@ describe('PromptEditDialog', () => {
           id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
           title: 'Old title',
           content: 'Old content',
+          visibility: 'global',
           orderKey: 'a0',
           createdAt: '2026-05-01T00:00:00.000Z',
           updatedAt: '2026-05-01T00:00:00.000Z'
@@ -185,7 +205,8 @@ describe('PromptEditDialog', () => {
     await waitFor(() => {
       expect(onSave).toHaveBeenCalledWith({
         title: 'Old title',
-        content: 'Updated content'
+        content: 'Updated content',
+        visibility: 'global'
       })
     })
   })
@@ -201,6 +222,7 @@ describe('PromptEditDialog', () => {
           id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
           title: 'Old title',
           content: 'Old content',
+          visibility: 'global',
           orderKey: 'a0',
           createdAt: '2026-05-01T00:00:00.000Z',
           updatedAt: '2026-05-01T00:00:00.000Z'
@@ -221,7 +243,8 @@ describe('PromptEditDialog', () => {
     await waitFor(() => {
       expect(onSave).toHaveBeenCalledWith({
         title: 'Old title',
-        content: 'Polished library prompt'
+        content: 'Polished library prompt',
+        visibility: 'global'
       })
     })
   })
@@ -234,6 +257,7 @@ describe('PromptEditDialog', () => {
           id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
           title: 'Old title',
           content: '',
+          visibility: 'global',
           orderKey: 'a0',
           createdAt: '2026-05-01T00:00:00.000Z',
           updatedAt: '2026-05-01T00:00:00.000Z'
@@ -275,6 +299,7 @@ describe('PromptEditDialog', () => {
           id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
           title: 'Old title',
           content: 'Old content',
+          visibility: 'global',
           orderKey: 'a0',
           createdAt: '2026-05-01T00:00:00.000Z',
           updatedAt: '2026-05-01T00:00:00.000Z'
@@ -304,6 +329,7 @@ describe('PromptEditDialog', () => {
           id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
           title: 'Old title',
           content: 'Old content',
+          visibility: 'global',
           orderKey: 'a0',
           createdAt: '2026-05-01T00:00:00.000Z',
           updatedAt: '2026-05-01T00:00:00.000Z'
@@ -317,5 +343,38 @@ describe('PromptEditDialog', () => {
 
     expect(onCancel).not.toHaveBeenCalled()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('saves when making a restricted prompt global', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <PromptEditDialog
+        open
+        prompt={{
+          id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
+          title: 'Shared prompt',
+          content: 'Shared content',
+          visibility: 'restricted',
+          orderKey: 'a0',
+          createdAt: '2026-05-01T00:00:00.000Z',
+          updatedAt: '2026-05-01T00:00:00.000Z'
+        }}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('switch', { name: 'settings.prompts.visibility.global.label' }))
+    await user.click(screen.getByRole('button', { name: 'common.confirm' }))
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        title: 'Shared prompt',
+        content: 'Shared content',
+        visibility: 'global'
+      })
+    )
   })
 })

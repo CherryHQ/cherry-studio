@@ -1,11 +1,13 @@
+import { app } from 'electron'
+
 import { application } from '@application'
 import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
-import { APP_NAME, LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
-import { app } from 'electron'
+import { APP_NAME } from '@shared/utils/constants'
 
 const logger = loggerService.withContext('AnalyticsService')
 
@@ -13,6 +15,7 @@ const logger = loggerService.withContext('AnalyticsService')
 @ServicePhase(Phase.WhenReady)
 export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
+  private hasTrackedAppLaunch = false
   /** Latest desired running state — requires both data collection and current policy consent. */
   private desiredEnabled = false
   /**
@@ -37,9 +40,10 @@ export class AnalyticsService extends BaseService implements Activatable {
 
   private refreshDesiredEnabled(): void {
     const preferenceService = application.get('PreferenceService')
-    this.desiredEnabled =
-      preferenceService.get('app.privacy.data_collection.enabled') &&
-      preferenceService.get('app.privacy.policy_version') === LATEST_PRIVACY_POLICY_VERSION
+    this.desiredEnabled = isDataCollectionConsented(
+      preferenceService.get('app.privacy.data_collection.enabled'),
+      preferenceService.get('app.privacy.policy_version')
+    )
     this.reconciler.request()
   }
 
@@ -79,14 +83,13 @@ export class AnalyticsService extends BaseService implements Activatable {
       }
     })
 
-    // FIXME: trackAppLaunch is called on every activate.
-    // Original code called it once in onInit. When the user toggles the preference
-    // off then on at runtime, this produces an extra launch event.
-    // This is beyond the scope of the Activatable refactoring — keeping as-is.
-    this.client.trackAppLaunch({
-      version: app.getVersion(),
-      os: process.platform
-    })
+    if (!this.hasTrackedAppLaunch) {
+      this.client.trackAppLaunch({
+        version: app.getVersion(),
+        os: process.platform
+      })
+      this.hasTrackedAppLaunch = true
+    }
 
     logger.info('Analytics service activated')
   }
@@ -100,7 +103,7 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
-    if (!this.isActivated || !this.desiredEnabled) return
+    if (!this.isActivated || !this.desiredEnabled || (data.input_tokens === 0 && data.output_tokens === 0)) return
     this.client!.trackTokenUsage(data)
   }
 

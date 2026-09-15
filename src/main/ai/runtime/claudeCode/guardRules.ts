@@ -12,6 +12,8 @@
  * denial declares no `bypassBehavior`; there is no effect for bypass to skip.
  */
 
+import path from 'node:path'
+
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import {
   findBuiltinToolPolicy,
@@ -21,10 +23,14 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
+import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
+import { imageExts } from '@shared/utils/file'
 
+import { BASH_NO_PROGRESS_HARD_THRESHOLD } from './bashNoProgress'
 import { isPathWithinAllowedRoots } from './pathContainment'
+import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
 export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
@@ -67,9 +73,28 @@ const globalInstallCommand = (ctx: ToolGuardContext): GuardHit | null => {
   return reason ? { evidence: reason } : null
 }
 
+const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
+  const decision = await evaluateUserDataSqliteGuard({
+    runtime: 'claude-code',
+    toolName: ctx.toolName,
+    args: ctx.input,
+    cwd: ctx.cwd,
+    workspacePath: ctx.cwd,
+    signal: ctx.signal
+  })
+  return decision ? {} : null
+}
+
 const mutatingConfigAction = (ctx: ToolGuardContext): GuardHit | null => {
   const action = typeof ctx.input?.action === 'string' ? ctx.input.action : ''
   return HEADLESS_CONFIG_MUTATION_ACTIONS.has(action) ? {} : null
+}
+
+const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
+  if (ctx.supportsImages !== false) return null
+  const requestedPath = ctx.input?.file_path
+  if (typeof requestedPath !== 'string' || !imageExts.includes(path.extname(requestedPath).toLowerCase())) return null
+  return { evidence: requestedPath }
 }
 
 const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
@@ -81,6 +106,22 @@ const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit 
   if (typeof requestedPath !== 'string' || !requestedPath.trim()) return null
   if (await isPathWithinAllowedRoots(ctx.cwd, ctx.agentDataPath, requestedPath)) return null
   return { evidence: requestedPath }
+}
+
+const skillWithAbsentDependency = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
+  const skillName = ctx.input?.skill
+  if (typeof skillName !== 'string' || !skillName) return null
+  const { deny } = await checkSkillRuntimeDependencies(skillName, ctx.cwd, ctx.pluginDirectories)
+  return deny ? { evidence: deny } : null
+}
+
+const bashRepeatWithoutProgress = (ctx: ToolGuardContext): GuardHit | null => {
+  const command = bashCommand(ctx)
+  if (!command) return null
+  const run = ctx.bashNoProgressRun?.(command)
+  // Hard tier only: the soft tier (a one-shot warning at BASH_NO_PROGRESS_THRESHOLD) lives in the
+  // hook plane, the same split as skill-dependency's deny/advisory halves.
+  return run !== undefined && run >= BASH_NO_PROGRESS_HARD_THRESHOLD ? { evidence: String(run) } : null
 }
 
 const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' | 'enforce'): GuardHit | null => {
@@ -97,6 +138,21 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     reason: (_hit, ctx) => `The ${ctx.toolName} tool is disabled for this agent.`
   },
   {
+    id: 'user-data-sqlite-write',
+    bypassBehavior: 'enforce',
+    match: { when: userDataSqliteWrite },
+    effect: 'deny',
+    reason: USER_DATA_SQLITE_GUARD_REASON
+  },
+  {
+    id: 'unsupported-image-read',
+    bypassBehavior: 'enforce',
+    match: { tool: 'Read', when: unsupportedImageRead },
+    effect: 'deny',
+    reason: (hit) =>
+      `The selected model does not support image input, so Read cannot open ${hit.evidence}. Use a vision-capable model or inspect the file through a text-only alternative.`
+  },
+  {
     // Global/shared installs leak into ~/.bun, ~/.local/share/uv, … shared by every agent, so this
     // is a safety block, not an approval — bypassPermissions does not lift it.
     id: 'global-install',
@@ -105,6 +161,26 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'deny',
     reason: (hit) =>
       `Blocked to avoid cross-agent dependency pollution: ${hit.evidence}. Install project dependencies in the current workspace (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\`; for persistent CLIs use \`cli_search\` then \`cli_install\`.`
+  },
+  {
+    // The SDK forks a skill whether or not its declared subagent exists, degrading into unrelated
+    // output instead of an error. Only a provably absent dependency blocks; everything else is
+    // advisory context (see skillDependencies). Not an approval — bypassPermissions does not lift it.
+    id: 'skill-absent-dependency',
+    bypassBehavior: 'enforce',
+    match: { tool: SKILL_TOOL_NAME, when: skillWithAbsentDependency },
+    effect: 'deny',
+    reason: (hit) => hit.evidence ?? 'The skill declares a runtime dependency that is not installed.'
+  },
+  {
+    // A stuck loop burns tokens fastest on unattended bypass runs, so this is a conduct rule, not
+    // an approval — bypassPermissions does not lift it.
+    id: 'bash-repeat-no-progress',
+    bypassBehavior: 'enforce',
+    match: { tool: 'Bash', when: bashRepeatWithoutProgress },
+    effect: 'deny',
+    reason: (hit) =>
+      `This exact Bash command already ran ${hit.evidence} times in a row with byte-identical output — repeating it yields no new information. Diagnose why the output is not changing, vary the command, or report the blocker instead of retrying.`
   },
   {
     id: 'headless-config-mutation',

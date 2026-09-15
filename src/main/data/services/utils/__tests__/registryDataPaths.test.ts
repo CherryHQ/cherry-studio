@@ -15,6 +15,8 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+import { REGISTRY_SCHEMA_VERSION } from '@cherrystudio/provider-registry/node'
+
 import { resolveRegistryPaths } from '../registryDataPaths'
 
 const OVERRIDE = '/mock/feature.provider_registry.override'
@@ -33,11 +35,12 @@ const bundledPaths = {
 }
 
 const FILES = { 'models.json': 'a', 'provider-models.json': 'c' }
+// Track the live wire schema: a snapshot is only accepted on the current version.
 const VALID_MANIFEST = JSON.stringify({
   minAppVersion: '1.0.0',
   sourceAppVersion: '2.0.0',
   revision: 1,
-  schemaVersion: 1,
+  schemaVersion: REGISTRY_SCHEMA_VERSION,
   files: FILES
 })
 
@@ -72,7 +75,11 @@ describe('registryDataPaths.resolveRegistryPaths', () => {
   it('ignores an override written for a newer schema (app downgrade) — falls back to bundled', () => {
     existsSyncMock.mockImplementation(completeOverride)
     readFileSyncMock.mockReturnValue(
-      JSON.stringify({ ...JSON.parse(VALID_MANIFEST), schemaVersion: 2, sourceAppVersion: '2.5.0' })
+      JSON.stringify({
+        ...JSON.parse(VALID_MANIFEST),
+        schemaVersion: REGISTRY_SCHEMA_VERSION + 1,
+        sourceAppVersion: '2.5.0'
+      })
     )
     expect(resolveRegistryPaths()).toEqual(bundledPaths)
   })

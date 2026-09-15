@@ -70,7 +70,8 @@ vi.mock('@main/core/paths/constants', () => ({
   CHERRY_HOME: '/mock/home/.cherrystudio',
   CHERRY_HOME_DIRNAME: '.cherrystudio',
   BOOT_CONFIG_PATH: '/mock/home/.cherrystudio/boot-config.json',
-  LOGS_DIR: '/mock/logs'
+  LOGS_DIR: '/mock/logs',
+  resolveDevUserDataPath: () => '/mock/userDataDev'
 }))
 
 vi.mock('@logger', () => ({
@@ -336,7 +337,7 @@ function applyFs(desc: FsDesc) {
   vi.mocked(fs.readFileSync).mockImplementation((p) => {
     const c = contents[p as string]
     if (c === undefined) throw new Error(`ENOENT: ${String(p)}`)
-    return c as never
+    return c
   })
   vi.mocked(fs.statSync).mockImplementation((p) => {
     const key = p as string

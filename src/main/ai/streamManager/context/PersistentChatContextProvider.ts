@@ -5,6 +5,9 @@
  * per-execution `PersistenceListener`s.
  */
 
+import { type Span, SpanStatusCode } from '@opentelemetry/api'
+import type { ModelMessage, UIMessage } from 'ai'
+
 import { application } from '@application'
 import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
@@ -13,8 +16,7 @@ import { loggerService } from '@logger'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
-  CONTEXT_COMPACT_TRIGGER_RATIO
+  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
 } from '@main/ai/constants'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
@@ -22,7 +24,6 @@ import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/
 import { messageService } from '@main/data/services/MessageService'
 import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
 import { aiStreamAdmissionReasons, applyApprovalDecisions } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
@@ -36,7 +37,6 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
-import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
@@ -78,8 +78,7 @@ const logger = loggerService.withContext('PersistentChatContextProvider')
  * replaces the spinner rather than appending a second anchor.
  */
 function toCompactionSink(subscriber: StreamListener): CompactionSink {
-  return (anchorId, data) =>
-    subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk)
+  return (anchorId, data) => subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data })
 }
 
 /** Media cost table for the turn. Unreachable provider row → the openai table. */
@@ -303,6 +302,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         listeners: [subscriber],
         pendingSteerUserMessageId: userMessage.id,
         pendingSteerReasoningEffort: req.reasoningEffort,
+        pendingSteerServiceTier: req.serviceTier,
         pendingSteerFastMode: req.fastMode === true,
         reservedMessages: [toReservedUIMessage(userMessage)]
       }
@@ -315,6 +315,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     let liveGroupSourceAnchorMessageId: string | undefined
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
+      serviceTier: req.serviceTier,
       fastMode: req.fastMode === true
     }
 
@@ -483,6 +484,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           placeholder.id,
           knowledgeBaseIds,
           turnOptions.reasoningEffort,
+          turnOptions.serviceTier,
           turnOptions.fastMode === true,
           retainedContext
         ),
@@ -547,6 +549,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     )
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort ?? target.data.turnOptions?.reasoningEffort,
+      serviceTier: req.serviceTier ?? target.data.turnOptions?.serviceTier,
       fastMode: req.fastMode ?? target.data.turnOptions?.fastMode ?? false
     }
     const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
@@ -571,6 +574,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         target.id,
         getKnowledgeBaseIdsFromParts(parent.data.parts ?? []),
         turnOptions.reasoningEffort,
+        turnOptions.serviceTier,
         turnOptions.fastMode === true,
         retainedContext
       )
@@ -722,6 +726,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               anchor.id,
               knowledgeBaseIds,
               anchor.data.turnOptions?.reasoningEffort,
+              anchor.data.turnOptions?.serviceTier,
               anchor.data.turnOptions?.fastMode === true,
               retainedContext
             ),
@@ -760,6 +765,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
+      serviceTier: req.serviceTier,
       fastMode: req.fastMode
     }
 
@@ -821,6 +827,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               placeholder.id,
               getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []),
               req.reasoningEffort,
+              req.serviceTier,
               req.fastMode,
               retainedContext
             ),
@@ -840,7 +847,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     return {
       id: m.id,
       role: m.role,
-      parts: (m.data?.parts ?? []) as CompactionRow['parts'],
+      parts: m.data?.parts ?? [],
       compactionSummary: m.compactionSummary ?? undefined,
       contextTokens: m.stats?.contextTokens ?? undefined
     }
@@ -935,6 +942,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(
       models[0],
+      { id: topicId, topicId },
       assistantContextOverride
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
@@ -966,12 +974,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Selects the media cost tables only; text stays on tokenx, matching the
     // in-loop hook so the two triggers cannot disagree on the same history.
     const dialect = resolveRowDialect(models[0])
-    if (this.estimateContext(effective, dialect) <= Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)) {
+    const trigger = Math.floor((inputRoom * contextSettings.compress.thresholdPercent) / 100)
+    if (this.estimateContext(effective, dialect) <= trigger) {
       return serve(effective)
     }
 
     const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
-    const keepIdx = planKeepBoundary(recent, Math.floor(inputRoom * CONTEXT_COMPACT_KEEP_BUDGET_RATIO), dialect)
+    const keepIdx = planKeepBoundary(recent, Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER), dialect)
     // Over-budget-without-compacting edge: when everything in `recent` fits the keep
     // budget yet `effective` still exceeds the trigger (a large prior `oldSummary`),
     // there is no boundary to snap, so we serve the marker-applied history as-is. Not a
@@ -1077,11 +1086,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     messageId: string,
     knowledgeBaseIds: string[] | undefined,
     reasoningEffort: AiStreamRequest['reasoningEffort'],
+    serviceTier: AiStreamRequest['serviceTier'],
     fastMode: boolean,
     retainedContext?: RetainedContext
   ): AiStreamRequest {
     return {
-      chatId: topicId,
+      conversation: { id: topicId, topicId },
       trigger: 'submit-message',
       assistantId,
       uniqueModelId,
@@ -1089,6 +1099,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       messageId,
       knowledgeBaseIds,
       reasoningEffort,
+      serviceTier,
       fastMode,
       ...(retainedContext ? { retainedContext } : {})
     }

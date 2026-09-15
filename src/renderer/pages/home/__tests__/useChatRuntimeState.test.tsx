@@ -1,10 +1,11 @@
+import { act, render } from '@testing-library/react'
+import { Activity, useMemo } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
 import type { Topic } from '@renderer/types/topic'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { act, render } from '@testing-library/react'
-import { Activity, useMemo } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   turnControllerConfig: null as any,
@@ -16,7 +17,8 @@ const mocks = vi.hoisted(() => ({
   overlayExecutions: [] as ActiveExecution[],
   liveMessageIds: [] as string[],
   liveAssistants: [] as CherryUIMessage[],
-  overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null
+  overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
+  sendTurn: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -80,7 +82,7 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   useConversationTurnController: (config: unknown) => {
     mocks.turnControllerConfig = config
-    return { send: vi.fn(), phase: 'idle' }
+    return { send: mocks.sendTurn, phase: 'idle' }
   }
 }))
 
@@ -125,6 +127,8 @@ vi.mock('../hooks/useTopicMessagesCache', () => ({
 
 import { useChatRuntimeState } from '../useChatRuntimeState'
 
+let latestRuntime: ReturnType<typeof useChatRuntimeState> | null = null
+
 function makeTopic(id: string): Topic {
   return {
     id,
@@ -156,7 +160,7 @@ function RuntimeHost({
   messages?: CherryUIMessage[]
 }) {
   const topic = useMemo(() => makeTopic(topicId), [topicId])
-  useChatRuntimeState({
+  latestRuntime = useChatRuntimeState({
     topic,
     isHistoryLoading: false,
     initialMessages: messages,
@@ -190,6 +194,52 @@ describe('useChatRuntimeState', () => {
     mocks.liveMessageIds = []
     mocks.liveAssistants = []
     mocks.overlayOnFinish = null
+    mocks.sendTurn.mockReset()
+    mocks.sendTurn.mockResolvedValue(true)
+    latestRuntime = null
+  })
+
+  it('reports a blocked stream open as not sent', async () => {
+    mocks.sendTurn.mockResolvedValueOnce(false)
+    render(<RuntimeHost topicId="topic-1" />)
+
+    let sent: boolean | undefined
+    await act(async () => {
+      sent = await latestRuntime?.sendMessage('keep this draft')
+    })
+
+    expect(sent).toBe(false)
+  })
+
+  it('returns the viewport to bottom-follow after opening a conversation turn', async () => {
+    const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    const scrollToBottom = vi.fn()
+    render(<RuntimeHost topicId="topic-1" />)
+    latestRuntime?.bindMessageListRuntime({
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: vi.fn(),
+      scrollToBottom
+    })
+
+    await act(async () => {
+      await latestRuntime?.sendMessage('follow this response')
+    })
+
+    expect(scrollToBottom).toHaveBeenCalledOnce()
+    requestAnimationFrame.mockRestore()
+  })
+
+  it('keeps sendMessage stable across runtime rerenders', () => {
+    const view = render(<RuntimeHost topicId="topic-1" />)
+    const sendMessage = latestRuntime?.sendMessage
+
+    view.rerender(<RuntimeHost topicId="topic-1" />)
+
+    expect(latestRuntime?.sendMessage).toBe(sendMessage)
   })
 
   it('keeps branch-live state across an <Activity> hide/show and clears it when the topic changes', async () => {

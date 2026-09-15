@@ -1,11 +1,12 @@
-import { cacheService } from '@renderer/data/CacheService'
-import type * as UseCacheModule from '@renderer/data/hooks/useCache'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { AgentEntity } from '@shared/data/types/agent'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@renderer/data/CacheService'
+import type * as UseCacheModule from '@renderer/data/hooks/useCache'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentEntity } from '@shared/data/types/agent'
 
 type VirtualListRenderRow = (item: unknown, index: number) => ReactNode
 
@@ -191,7 +192,6 @@ vi.mock('@renderer/utils/aiGeneration', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    CLEAR_MESSAGES: 'CLEAR_MESSAGES',
     COPY_TOPIC_IMAGE: 'COPY_TOPIC_IMAGE',
     EXPORT_TOPIC_IMAGE: 'EXPORT_TOPIC_IMAGE'
   },
@@ -960,6 +960,12 @@ describe('HistoryRecordsView agent mode', () => {
   })
 
   it('renames a session from the history row context menu without selecting the row', async () => {
+    let resolveRename!: (session: AgentSessionEntity) => void
+    hookMocks.updateSession.mockReturnValueOnce(
+      new Promise<AgentSessionEntity>((resolve) => {
+        resolveRename = resolve
+      })
+    )
     const { onClose, onRecordSelect } = setupAgentHistory()
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
@@ -990,6 +996,14 @@ describe('HistoryRecordsView agent mode', () => {
         { showSuccessToast: false }
       )
     )
+    expect(screen.getByText('Renamed session')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveRename(createSession({ name: 'Renamed session' }))
+    })
+    expect(screen.getByText('Renamed session')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
   })
 
   it('pins a session from the history row context menu without selecting the row', async () => {

@@ -1,8 +1,11 @@
+import type { ChatRequestOptions } from 'ai'
+import { useCallback, useMemo, useRef, useState } from 'react'
+
 /**
  * Build the `ChatWriteActions` bag passed down through context.
  *
  * Everything here is a write-side handler (delete / edit / regenerate /
- * resend / fork / setActiveNode / clearTopic) that:
+ * resend / fork / setActiveNode) that:
  *   1. seeds the optimistic branch-response cache and/or mutates
  *      `useChat.state.messages`,
  *   2. fires the DataApi mutation trigger (from `useBranchCacheOps`),
@@ -14,11 +17,11 @@
  */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import type { ReservedMessageSeedOptions } from '@renderer/hooks/useConversationTurnController'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
@@ -33,8 +36,6 @@ import type {
 } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
-import type { ChatRequestOptions } from 'ai'
-import { useCallback, useMemo, useRef, useState } from 'react'
 
 import type { useTopicMessagesCache } from './useTopicMessagesCache'
 
@@ -73,6 +74,7 @@ function getInheritedTurnOptions(
 function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined): AssistantTurnOptions {
   return {
     ...(turnOptions?.reasoningEffort !== undefined && { reasoningEffort: turnOptions.reasoningEffort }),
+    ...(turnOptions?.serviceTier !== undefined && { serviceTier: turnOptions.serviceTier }),
     ...(turnOptions?.fastMode !== undefined && { fastMode: turnOptions.fastMode })
   }
 }
@@ -119,14 +121,12 @@ export function useChatWriteActions(params: Params): Result {
     seedOptimisticBranch,
     seedReservedMessages: seedMessagesCache,
     rollbackBranch,
-    clearBranchCache,
     deleteMessageTrigger,
     deleteMessageGroupTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
     createMessageTrigger,
-    setActiveNodeTrigger,
-    clearTopicMessagesTrigger
+    setActiveNodeTrigger
   } = cache
   const startNewContextPromiseRef = useRef<Promise<void> | null>(null)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
@@ -196,18 +196,6 @@ export function useChatWriteActions(params: Params): Result {
   ])
   const canStartNewContext = Boolean(activeNodeId) && !startNewContextBlocked && !isStartingNewContext
 
-  const handleClearTopicMessages = useCallback(async () => {
-    await clearBranchCache()
-    try {
-      const result = await clearTopicMessagesTrigger({ params: { topicId: topic.id } })
-      invalidateCachedMessageUiStates(result.deletedIds)
-      logger.info('Cleared all messages', { topicId: topic.id, count: result.deletedIds.length })
-    } catch (err) {
-      await rollbackBranch()
-      throw err
-    }
-  }, [clearBranchCache, clearTopicMessagesTrigger, rollbackBranch, topic.id])
-
   const getMessageDeleteAvailability = useCallback<ChatWriteActions['getMessageDeleteAvailability']>(
     (id: string) => {
       const message = uiMessages.find((item) => item.id === id)
@@ -232,9 +220,8 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error('Message deletion is unavailable')
       }
 
-      const optimisticIds = new Set([id])
-      await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
-
+      // Main owns context inheritance and reparenting; wait for its authoritative
+      // refresh to preserve the surviving replies in the group.
       try {
         await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
         invalidateCachedMessageUiStates([id])
@@ -244,7 +231,7 @@ export function useChatWriteActions(params: Params): Result {
       }
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, getMessageDeleteAvailability, rollbackBranch, seedOptimisticBranch]
+    [deleteMessageTrigger, getMessageDeleteAvailability, rollbackBranch]
   )
 
   const handleDeleteMessageGroup = useCallback<ChatWriteActions['deleteMessageGroup']>(
@@ -307,19 +294,19 @@ export function useChatWriteActions(params: Params): Result {
       // Anchor semantics depend on the target role:
       //   - assistant: keep parent user intact, spawn sibling — anchor = parentId
       //   - user:      keep the user itself, spawn assistant child — anchor = target.id
-      // `mentionedModels`: plain retry on an assistant uses the target's
-      // own model (otherwise retrying kimi would produce a gemini reply
-      // when assistant default is gemini). User resend picks the default.
+      // Ordinary regeneration leaves the model unspecified so Main observes the current default.
+      // Failed in-place retries keep their original model; an explicit model always wins.
       const target = messageId ? uiMessages.find((m) => m.id === messageId) : undefined
       const parentAnchorId = target
         ? target.role === 'user'
           ? target.id
           : (target.metadata?.parentId ?? undefined)
         : undefined
-      const regenModelId =
+      const regenerateModelId = options?.modelId
+      const retryModelId =
         target?.role === 'assistant'
-          ? (options?.modelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
-          : options?.modelId
+          ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
+          : regenerateModelId
       const turnOptions = options?.turnOptions ?? getInheritedTurnOptions(uiMessages, target)
       const targetStatus = target?.metadata?.status
       const isFailedAssistant =
@@ -329,7 +316,7 @@ export function useChatWriteActions(params: Params): Result {
       const canRetryInPlace =
         isFailedAssistant &&
         parentAnchorId !== undefined &&
-        regenModelId !== undefined &&
+        retryModelId !== undefined &&
         (options?.modelId === undefined || options.modelId === target.metadata?.modelId)
 
       if (canRetryInPlace) {
@@ -338,7 +325,7 @@ export function useChatWriteActions(params: Params): Result {
           topicId: topic.id,
           parentAnchorId,
           retryMessageId: target.id,
-          mentionedModelIds: [regenModelId],
+          mentionedModelIds: [retryModelId],
           ...turnOptionsRequestFields(turnOptions)
         })
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
@@ -382,7 +369,7 @@ export function useChatWriteActions(params: Params): Result {
         body: {
           ...capabilityBody,
           ...(parentAnchorId && { parentAnchorId }),
-          ...(regenModelId && { mentionedModels: [regenModelId] }),
+          ...(regenerateModelId && { mentionedModels: [regenerateModelId] }),
           ...turnOptionsRequestFields(turnOptions)
         }
       })
@@ -411,7 +398,7 @@ export function useChatWriteActions(params: Params): Result {
             status: newMessage.status,
             createdAt: newMessage.createdAt
           }
-        } as CherryUIMessage
+        }
       ])
       // Sync `useChat` from DB before regenerate. The server flipped
       // `activeNodeId` to the new branch in the same transaction.
@@ -532,6 +519,12 @@ export function useChatWriteActions(params: Params): Result {
     [setActiveNodeTrigger, topic.id]
   )
 
+  const handlePause = useCallback<ChatWriteActions['pause']>(() => {
+    void stop().catch((error) => {
+      logger.error('Failed to pause chat stream', { topicId: topic.id, error })
+    })
+  }, [stop, topic.id])
+
   const actions = useMemo<ChatWriteActions>(
     () => ({
       canStartNewContext,
@@ -541,8 +534,7 @@ export function useChatWriteActions(params: Params): Result {
       getMessageDeleteAvailability,
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
-      pause: stop,
-      clearTopicMessages: handleClearTopicMessages,
+      pause: handlePause,
       editMessage: handleEditMessage,
       forkAndResend: handleForkAndResend,
       setActiveNode: handleSetActiveNode,
@@ -557,8 +549,7 @@ export function useChatWriteActions(params: Params): Result {
       getMessageDeleteAvailability,
       handleDeleteMessage,
       handleDeleteMessageGroup,
-      stop,
-      handleClearTopicMessages,
+      handlePause,
       handleEditMessage,
       handleForkAndResend,
       handleSetActiveNode,

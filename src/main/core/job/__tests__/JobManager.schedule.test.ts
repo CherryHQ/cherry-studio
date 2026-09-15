@@ -11,6 +11,11 @@
  * lifecycle CRUD.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
@@ -21,10 +26,6 @@ import type { Disposable } from '@main/core/lifecycle/event'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Locally augment JobRegistry so test payloads type-check. The dummy entry is
 // removed from the JS surface after compile and never enters production code.
@@ -81,7 +82,7 @@ describe('JobManager schedule control APIs', () => {
 
     const dbSvc = MockMainDbServiceExport.dbService
     const cacheSvc = MockMainCacheServiceExport.cacheService
-    ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+    ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
       switch (name) {
         case 'DbService':
           return dbSvc
@@ -139,11 +140,43 @@ describe('JobManager schedule control APIs', () => {
   // ----------------------------------------------------------------------
 
   describe('by-id', () => {
+    it('persists the next automatic fire as soon as cron, interval and once schedules are armed', () => {
+      const cron = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'next-cron',
+        trigger: { kind: 'cron', expr: '0 0 1 1 *' },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const beforeInterval = Date.now()
+      const interval = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'next-interval',
+        trigger: baseTrigger,
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const onceAt = Date.now() + 120_000
+      const once = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'next-once',
+        trigger: { kind: 'once', at: onceAt },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(jobScheduleService.getById(cron.id)?.nextRun).not.toBeNull()
+      const intervalNextRun = jobScheduleService.getById(interval.id)?.nextRun
+      expect(intervalNextRun).not.toBeNull()
+      expect(Date.parse(intervalNextRun ?? '')).toBeGreaterThanOrEqual(beforeInterval + 60_000)
+      expect(jobScheduleService.getById(once.id)?.nextRun).toBe(new Date(onceAt).toISOString())
+    })
+
     it('pauseJobScheduleById returns true for existing, false for missing', async () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -151,11 +184,28 @@ describe('JobManager schedule control APIs', () => {
       expect(await jobManager.pauseJobScheduleById('does-not-exist')).toBe(false)
     })
 
+    it('pause clears nextRun and resume computes a new automatic fire', async () => {
+      const schedule = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'pause-resume-next-run',
+        trigger: baseTrigger,
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      expect(jobScheduleService.getById(schedule.id)?.nextRun).not.toBeNull()
+
+      await jobManager.pauseJobScheduleById(schedule.id)
+      expect(jobScheduleService.getById(schedule.id)?.nextRun).toBeNull()
+
+      expect(jobManager.resumeJobScheduleById(schedule.id)).toBe(true)
+      expect(jobScheduleService.getById(schedule.id)?.nextRun).not.toBeNull()
+    })
+
     it('resumeJobScheduleById returns true for existing, false for missing', async () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -167,7 +217,7 @@ describe('JobManager schedule control APIs', () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -186,7 +236,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'nightly',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -198,7 +248,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'morning',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -210,11 +260,77 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'evening',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
       expect(await jobManager.triggerJobScheduleNow(DUMMY_TYPE, 'evening')).toBe(true)
+    })
+
+    it('manual interval and early-once runs preserve their automatic fire', async () => {
+      const interval = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'manual-interval',
+        trigger: baseTrigger,
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const onceAt = Date.now() + 120_000
+      const once = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'manual-once',
+        trigger: { kind: 'once', at: onceAt },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const intervalNextRun = jobScheduleService.getById(interval.id)?.nextRun
+      const onceNextRun = jobScheduleService.getById(once.id)?.nextRun
+      expect(intervalNextRun).not.toBeNull()
+      expect(onceNextRun).not.toBeNull()
+
+      expect(await jobManager.triggerJobScheduleNowById(interval.id)).toBe(true)
+      expect(await jobManager.triggerJobScheduleNowById(once.id)).toBe(true)
+
+      expect(jobScheduleService.getById(interval.id)).toMatchObject({ nextRun: intervalNextRun })
+      expect(jobScheduleService.getById(once.id)).toMatchObject({ nextRun: onceNextRun })
+      expect(jobScheduleService.getById(interval.id)?.lastRun).not.toBeNull()
+      expect(jobScheduleService.getById(once.id)?.lastRun).not.toBeNull()
+    })
+
+    it('clears nextRun after a once schedule fires naturally', async () => {
+      const onceAt = Date.now() + 10
+      const schedule = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'natural-once',
+        trigger: { kind: 'once', at: onceAt },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      expect(jobScheduleService.getById(schedule.id)?.nextRun).toBe(new Date(onceAt).toISOString())
+
+      await new Promise((resolve) => setTimeout(resolve, 40))
+
+      expect(jobScheduleService.getById(schedule.id)).toMatchObject({ nextRun: null })
+      expect(jobScheduleService.getById(schedule.id)?.lastRun).not.toBeNull()
+    })
+
+    it('advances persisted nextRun after an interval fires naturally', async () => {
+      const schedule = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'natural-interval',
+        trigger: { kind: 'interval', ms: 20 },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const initialNextRun = jobScheduleService.getById(schedule.id)?.nextRun
+      expect(initialNextRun).not.toBeNull()
+
+      await new Promise((resolve) => setTimeout(resolve, 30))
+
+      const advancedNextRun = jobScheduleService.getById(schedule.id)?.nextRun
+      // Bound against the fire cadence, not Date.now(): a stalled event loop
+      // can let the interval fire again and leave the last write in the past.
+      expect(Date.parse(advancedNextRun ?? '')).toBeGreaterThanOrEqual(Date.parse(initialNextRun ?? '') + 20)
     })
 
     it('unregisterJobSchedule(type, name) deletes the row', async () => {
@@ -222,7 +338,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'to-delete',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -234,7 +350,7 @@ describe('JobManager schedule control APIs', () => {
       jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -246,14 +362,14 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'a',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         name: 'b',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -281,7 +397,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-a',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
@@ -290,6 +406,9 @@ describe('JobManager schedule control APIs', () => {
 
       expect(updated?.enabled).toBe(true)
       expect(armSpy).toHaveBeenCalledTimes(1)
+      expect(updated?.nextRun).not.toBeNull()
+      expect(Date.parse(updated?.nextRun ?? '')).toBeLessThanOrEqual(Date.now() + 30_000)
+      armSpy.mockRestore()
     })
 
     it('(b) trigger + enabled false: disposes and does not re-arm', async () => {
@@ -297,7 +416,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-b',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
@@ -307,6 +426,7 @@ describe('JobManager schedule control APIs', () => {
       expect(updated?.enabled).toBe(false)
       expect(armSpy).not.toHaveBeenCalled()
       expect(getScheduleDisposables().has(snap.id)).toBe(false)
+      armSpy.mockRestore()
     })
 
     it('(c) enabled-only false→true: re-arms', async () => {
@@ -314,7 +434,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-c',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       // Disable first; this disposes the in-process entry but keeps the row.
@@ -326,6 +446,7 @@ describe('JobManager schedule control APIs', () => {
 
       expect(updated?.enabled).toBe(true)
       expect(armSpy).toHaveBeenCalledTimes(1)
+      armSpy.mockRestore()
     })
 
     it('(d) enabled-only true→false: disposes', async () => {
@@ -333,7 +454,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-d',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       expect(getScheduleDisposables().has(snap.id)).toBe(true)
@@ -364,6 +485,7 @@ describe('JobManager schedule control APIs', () => {
 
       expect(await jobManager.triggerJobScheduleNowById(snap.id)).toBe(true)
       expect(jobService.list({ scheduleId: snap.id })).toEqual([expect.objectContaining({ input: latestTemplate })])
+      armSpy.mockRestore()
     })
 
     it('keeps an interval timer armed while its next automatic fire reads the latest template', async () => {
@@ -395,7 +517,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-f',
         trigger: { kind: 'once', at: Date.now() + 600_000 },
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       expect(getScheduleDisposables().has(snap.id)).toBe(true)
@@ -421,6 +543,7 @@ describe('JobManager schedule control APIs', () => {
 
       expect(result).toBeNull()
       expect(armSpy).not.toHaveBeenCalled()
+      armSpy.mockRestore()
     })
   })
 

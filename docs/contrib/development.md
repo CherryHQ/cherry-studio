@@ -13,7 +13,7 @@ description: Developer environment setup covering IDE configuration, Windows sym
 
 ### Zed
 
-1. Install extensions: [Biome](https://github.com/biomejs/biome-zed), [oxc](https://github.com/oxc-project/zed-oxc)
+1. Install the [Oxc extension](https://github.com/oxc-project/zed-oxc) for Oxfmt and Oxlint.
 2. Copy the example settings file to your local Zed config:
    ```bash
    cp .zed/settings.json.example .zed/settings.json
@@ -38,8 +38,6 @@ This project uses symlinks to synchronize files such as AGENTS.md and skills. Wi
 ```bash
 pnpm install
 ```
-
-### Development
 
 ### Setup Node.js
 
@@ -91,7 +89,10 @@ CS_DEV_USER_DATA_SUFFIX=DevQuito pnpm dev
 CS_DEV_USER_DATA_SUFFIX=DevParis pnpm dev
 ```
 
-Blank values are ignored and fall back to `Dev`.
+The suffix must be a single path component (no path separator, drive colon,
+`* ? " < > |`, control character, or trailing dot). Blank values fall back to
+`Dev`; anything else that breaks those rules stops the dev run instead of
+falling back, so two instances never end up sharing one directory.
 
 ### Debug
 

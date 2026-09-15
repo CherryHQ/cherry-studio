@@ -1,6 +1,6 @@
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { canonicalizeFilePath } from '@shared/utils/file'
 
 /**
  * Pure path / selection helpers shared by `ArtifactPane` and the
@@ -16,9 +16,20 @@ export interface ArtifactPaneFileSelection {
   filePath: string
 }
 
-/** The canonical absolute path a selection edits — the `useFileEditSession` key. */
+/** The normalized absolute path a selection edits — the `useFileEditSession` key. */
 export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath =>
-  canonicalizeFilePath(`${selection.workspacePath}/${selection.filePath}`)
+  normalizeFilePreviewPath(`${selection.workspacePath}/${selection.filePath}`)
+
+/**
+ * Clipboard form of an absolute path: on Windows fold `/` to the native `\`
+ * (covers drive paths and both UNC spellings); on POSIX return verbatim, where
+ * `\` is an ordinary filename character. Separator swap only — never resolves
+ * `.`/`..` (lexical collapse can change the target across symlinks) and never
+ * alters roots, unlike `canonicalizeFilePath`, whose persistence-key contract
+ * collapses a `//server/share` root and rejects `\\server\share`.
+ */
+export const getCopyableAbsolutePath = (path: string, isWindows: boolean): string =>
+  isWindows ? path.replace(/\//g, '\\') : path
 
 export const getPathBasename = (path: string): string => {
   const trimmed = path.trim().replace(/[\\/]+$/, '')

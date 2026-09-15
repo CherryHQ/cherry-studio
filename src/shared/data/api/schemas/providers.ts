@@ -8,7 +8,6 @@ import * as z from 'zod'
 
 import { ENDPOINT_TYPE, type EndpointType, type Model, objectValues } from '../../types/model'
 import {
-  ApiFeaturesSchema,
   type ApiKeyEntry,
   ApiKeyEntrySchema,
   type AuthConfig,
@@ -47,12 +46,37 @@ const ProviderEndpointConfigsSchema = z.partialRecord(EndpointTypeSchema, Endpoi
   Partial<Record<EndpointType, EndpointConfigOverride>>
 >
 
-/**
- * Provider-settings is a loose bag today (e.g. OAuth tokens, provider-specific
- * knobs); keep `Partial<ProviderSettings>` as the DTO shape for parity with
- * the existing API surface.
- */
-const ProviderSettingsPartialSchema = ProviderSettingsSchema.partial()
+/** Provider settings accepted while creating a provider. */
+const ProviderSettingsCreateSchema = ProviderSettingsSchema.partial()
+
+/** RFC 7396 merge patch accepted while updating an existing provider. */
+const ProviderSettingsMergePatchSchema = z.object({
+  streamOptions: z
+    .object({
+      includeUsage: ProviderSettingsSchema.shape.streamOptions.unwrap().shape.includeUsage.nullable().optional()
+    })
+    .nullable()
+    .optional(),
+  apiVersion: ProviderSettingsSchema.shape.apiVersion.nullable().optional(),
+  cacheControl: z
+    .object({
+      enabled: z.boolean().nullable().optional(),
+      tokenThreshold: z.number().nullable().optional(),
+      cacheSystemMessage: z.boolean().nullable().optional(),
+      cacheLastNMessages: z.number().nullable().optional(),
+      ttl: ProviderSettingsSchema.shape.cacheControl.unwrap().shape.ttl.nullable().optional()
+    })
+    .nullable()
+    .optional(),
+  keepAliveTime: ProviderSettingsSchema.shape.keepAliveTime.nullable().optional(),
+  rateLimit: ProviderSettingsSchema.shape.rateLimit.nullable().optional(),
+  timeout: ProviderSettingsSchema.shape.timeout.nullable().optional(),
+  extraHeaders: z.record(z.string(), z.string().nullable()).nullable().optional(),
+  notes: ProviderSettingsSchema.shape.notes.nullable().optional(),
+  isAuthed: ProviderSettingsSchema.shape.isAuthed.nullable().optional(),
+  oauthUsername: ProviderSettingsSchema.shape.oauthUsername.nullable().optional(),
+  oauthAvatar: ProviderSettingsSchema.shape.oauthAvatar.nullable().optional()
+})
 
 // ============================================================================
 // DTOs
@@ -80,10 +104,8 @@ export const CreateProviderSchema = z.strictObject({
   apiKeys: z.array(ApiKeyEntrySchema).optional(),
   /** Authentication configuration */
   authConfig: AuthConfigSchema.optional(),
-  /** API feature support */
-  apiFeatures: ApiFeaturesSchema.optional(),
   /** Provider-specific settings */
-  providerSettings: ProviderSettingsPartialSchema.optional()
+  providerSettings: ProviderSettingsCreateSchema.optional()
 })
 export type CreateProviderDto = z.infer<typeof CreateProviderSchema>
 
@@ -97,12 +119,12 @@ const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
   name: true,
   endpointConfigs: true,
   defaultChatEndpoint: true,
-  authConfig: true,
-  apiFeatures: true,
-  providerSettings: true
+  authConfig: true
 })
 
 export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend({
+  /** RFC 7396 merge patch; null removes a stored setting. */
+  providerSettings: ProviderSettingsMergePatchSchema.optional(),
   /**
    * Whether this provider is enabled. A persisted false-to-true transition also
    * moves the provider to the first position atomically; redundant true updates

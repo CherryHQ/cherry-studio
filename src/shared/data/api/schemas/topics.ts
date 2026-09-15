@@ -213,6 +213,7 @@ export type TopicSchemas = {
    * `assistantId=unlinked` covers topics without a live assistant.
    *
    * @example GET /topics/latest
+   * @example GET /topics/latest?assistantId=asst_123
    */
   '/topics/latest': {
     GET: {

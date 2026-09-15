@@ -1,7 +1,3 @@
-import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
-import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
-import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import type {
   DataUIPart,
   DynamicToolUIPart,
@@ -16,6 +12,13 @@ import type {
 } from 'ai'
 import * as z from 'zod'
 
+import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
+import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
+import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
+
+import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
 
 /**
@@ -139,6 +142,7 @@ export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
 /** Request controls frozen when an assistant turn is created. */
 export interface AssistantTurnOptions {
   reasoningEffort?: ReasoningEffortOption
+  serviceTier?: ServiceTierSelection
   fastMode?: boolean
 }
 
@@ -213,6 +217,8 @@ export interface CherryUIMessageMetadata {
   stats?: MessageStats
   /** Trusted cross-session sender attribution and durable delivery lifecycle. */
   delivery?: AgentSessionDelivery
+  /** Why a runtime opened this assistant turn with no user message (goal round, background work). */
+  turnOrigin?: AutonomousTurnOrigin
 }
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
@@ -407,6 +413,12 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
     if (
       v.turnOptions.reasoningEffort !== undefined &&
       !ReasoningEffortOptionSchema.safeParse(v.turnOptions.reasoningEffort).success
+    ) {
+      return false
+    }
+    if (
+      v.turnOptions.serviceTier !== undefined &&
+      !ServiceTierSelectionSchema.safeParse(v.turnOptions.serviceTier).success
     ) {
       return false
     }

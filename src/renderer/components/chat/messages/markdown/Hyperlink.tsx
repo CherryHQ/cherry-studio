@@ -1,13 +1,14 @@
+import React, { memo, useMemo, useState } from 'react'
+
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { OgCard } from '@renderer/components/OgCard'
-import React, { memo, useMemo, useState } from 'react'
 
 interface HyperLinkProps {
   children: React.ReactNode
   href: string
 }
 
-const HYPERLINK_CARD_OPEN_DELAY = 1500
+const HYPERLINK_CARD_OPEN_DELAY = 500
 const HYPERLINK_CARD_CLOSE_DELAY = 100
 
 const Hyperlink: React.FC<HyperLinkProps> = ({ children, href }) => {

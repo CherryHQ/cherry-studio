@@ -1,5 +1,6 @@
-import { SafeExtSchema } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
+
+import { SafeExtSchema } from '@shared/types/file'
 
 import { ContentHashSchema, FileEntryIdSchema, FileEntrySchema, SafeNameSchema } from '../file'
 
@@ -185,7 +186,6 @@ describe('FileEntrySchema origin invariants', () => {
       // strictObject parses external without externalPath as a missing field;
       // discriminator routing still picks the external arm via `origin`.
       const base = makeExternal()
-      // biome-ignore lint/performance/noDelete: we want the absent-field semantics
       delete (base as { externalPath?: string }).externalPath
       expect(FileEntrySchema.safeParse(base).success).toBe(false)
     })
@@ -251,7 +251,6 @@ describe('FileEntrySchema size/ext boundaries', () => {
 
   it('rejects internal with absent size (internal size is mandatory)', () => {
     const base = makeInternal()
-    // biome-ignore lint/performance/noDelete: we want the absent-field semantics
     delete (base as { size?: number }).size
     expect(FileEntrySchema.safeParse(base).success).toBe(false)
   })

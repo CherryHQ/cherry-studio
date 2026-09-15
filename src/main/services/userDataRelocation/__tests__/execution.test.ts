@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import type { cp, statfs, symlink } from 'node:fs/promises'
+import type * as FsPromises from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -12,7 +12,6 @@ const {
   bootConfigPersistMock,
   bootConfigSetMock,
   electronState,
-  platformState,
   relaunchMock,
   updateProgressMock,
   windowCloseMock,
@@ -26,7 +25,6 @@ const {
   bootConfigPersistMock: vi.fn(),
   bootConfigSetMock: vi.fn(),
   electronState: { isPackaged: true },
-  platformState: { isLinux: false, isMac: false, isWin: false },
   relaunchMock: vi.fn(),
   updateProgressMock: vi.fn(),
   windowCloseMock: vi.fn(),
@@ -52,19 +50,6 @@ vi.mock('@application', () => ({
     relaunch: relaunchMock
   }
 }))
-vi.mock('@main/core/platform', () => ({
-  isDev: false,
-  isPortable: false,
-  get isLinux() {
-    return platformState.isLinux
-  },
-  get isMac() {
-    return platformState.isMac
-  },
-  get isWin() {
-    return platformState.isWin
-  }
-}))
 // userDataLocation is intentionally NOT mocked: the private commit step runs
 // for real, so these flow tests cover the BootConfig commit transaction too.
 // getNormalizedExecutablePath() resolves to app.getPath('exe') = '/mock/exe'.
@@ -86,11 +71,30 @@ vi.mock('electron', () => ({
     },
     getPath: vi.fn((key: string) => (key === 'exe' ? '/mock/exe' : '/mock/unknown')),
     setPath: appSetPathMock,
+    // Consumed by core/paths/constants.ts (in this module's import graph via
+    // userDataLocation → resolveDevUserDataSuffix) when isPackaged is false.
+    setAppLogsPath: vi.fn(),
     whenReady: vi.fn().mockResolvedValue(undefined)
   }
 }))
 
 const roots: string[] = []
+
+const fsPromisesMocks = vi.hoisted(() => ({
+  cp: vi.fn<typeof FsPromises.cp>(),
+  statfs: vi.fn<typeof FsPromises.statfs>(),
+  symlink: vi.fn<typeof FsPromises.symlink>()
+}))
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsPromises>()
+  const overrides = {
+    cp: fsPromisesMocks.cp,
+    statfs: fsPromisesMocks.statfs,
+    symlink: fsPromisesMocks.symlink
+  }
+  return { ...actual, ...overrides, default: { ...actual, ...overrides } }
+})
 
 function makeRoot(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-relocation-'))
@@ -113,14 +117,17 @@ function expectNotCommitted() {
   expect(bootConfigPersistMock).not.toHaveBeenCalled()
 }
 
-type FsPromisesOverrides = Partial<{ cp: typeof cp; statfs: typeof statfs; symlink: typeof symlink }>
+type FsPromisesOverrides = Partial<{
+  cp: typeof FsPromises.cp
+  statfs: typeof FsPromises.statfs
+  symlink: typeof FsPromises.symlink
+}>
 
 async function usePromises(overrides: FsPromisesOverrides = {}) {
-  vi.doMock('node:fs/promises', async () => {
-    const actual = await vi.importActual<Record<string, unknown>>('node:fs/promises')
-    const merged = { ...actual, ...overrides }
-    return { ...merged, default: merged }
-  })
+  const actual = await vi.importActual<typeof FsPromises>('node:fs/promises')
+  fsPromisesMocks.cp.mockReset().mockImplementation(overrides.cp ?? actual.cp)
+  fsPromisesMocks.statfs.mockReset().mockImplementation(overrides.statfs ?? actual.statfs)
+  fsPromisesMocks.symlink.mockReset().mockImplementation(overrides.symlink ?? actual.symlink)
 }
 
 async function loadDomain() {
@@ -131,9 +138,6 @@ beforeEach(async () => {
   vi.resetModules()
   vi.clearAllMocks()
   electronState.isPackaged = true
-  platformState.isLinux = false
-  platformState.isMac = false
-  platformState.isWin = false
   await usePromises()
 
   const appTemp = makeRoot()
@@ -337,47 +341,80 @@ describe('userDataRelocation execution', () => {
     expectCommitted(target)
   })
 
-  it('rewrites an absolute symlink that points inside the copied source tree', async () => {
-    if (process.platform === 'win32') return
+  it('materializes symlinks without creating links in the target', async () => {
     const root = makeRoot()
     const source = path.join(root, 'source')
     const target = path.join(root, 'target')
-    fs.mkdirSync(source)
-    fs.writeFileSync(path.join(source, 'data.txt'), 'data')
-    fs.symlinkSync(path.join(source, 'data.txt'), path.join(source, 'data-link'))
+    const realDirectory = path.join(source, 'real')
+    fs.mkdirSync(realDirectory, { recursive: true })
+    fs.writeFileSync(path.join(realDirectory, 'data.txt'), 'data')
+    fs.symlinkSync(
+      realDirectory,
+      path.join(source, 'directory-link'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    )
+    if (process.platform !== 'win32') {
+      fs.symlinkSync(path.join(realDirectory, 'data.txt'), path.join(source, 'file-link'), 'file')
+    }
     relocationState['app.userdata'] = source
     relocationState['temp.user_data_relocation'] = pending(source, target)
-
-    const { runUserDataRelocation } = await loadDomain()
-    await expect(runUserDataRelocation()).resolves.toBe('handled')
-
-    expect(fs.readlinkSync(path.join(target, 'data-link'))).toBe(path.join(fs.realpathSync(target), 'data.txt'))
-    expect(updateProgressMock).toHaveBeenCalledWith(expect.objectContaining({ stage: 'completed' }))
-  })
-
-  it('resolves a relative directory link before creating a Windows junction', async () => {
-    const root = makeRoot()
-    const source = path.join(root, 'source')
-    const target = path.join(root, 'target')
-    fs.mkdirSync(path.join(source, 'real'), { recursive: true })
-    fs.symlinkSync('real', path.join(source, 'relative-link'), 'dir')
-    relocationState['app.userdata'] = source
-    relocationState['temp.user_data_relocation'] = pending(source, target)
-    platformState.isWin = true
-    const symlinkMock = vi.fn<typeof symlink>().mockImplementation(async (targetValue, linkPath) => {
-      fs.symlinkSync(targetValue, linkPath)
-    })
+    const permissionError = Object.assign(new Error('operation not permitted'), { code: 'EPERM' })
+    const symlinkMock = vi.fn<typeof FsPromises.symlink>().mockRejectedValue(permissionError)
     await usePromises({ symlink: symlinkMock })
 
     const { runUserDataRelocation } = await loadDomain()
     await expect(runUserDataRelocation()).resolves.toBe('handled')
 
-    expect(symlinkMock).toHaveBeenCalledWith(
-      // `.native` to match fsp.realpath, which expands Windows 8.3 short names.
-      path.join(fs.realpathSync.native(target), 'real'),
-      path.join(root, `.target.cherry-relocation-${TASK_ID}-work`, 'payload', 'relative-link'),
-      'junction'
+    expect(symlinkMock).not.toHaveBeenCalled()
+    expect(fs.lstatSync(path.join(target, 'directory-link')).isSymbolicLink()).toBe(false)
+    expect(fs.readFileSync(path.join(target, 'directory-link', 'data.txt'), 'utf8')).toBe('data')
+    if (process.platform !== 'win32') {
+      expect(fs.lstatSync(path.join(target, 'file-link')).isSymbolicLink()).toBe(false)
+      expect(fs.readFileSync(path.join(target, 'file-link'), 'utf8')).toBe('data')
+    }
+    expectCommitted(target)
+  })
+
+  it('skips a circular directory symlink while materializing the rest of the tree', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    const backups = path.join(source, 'backups')
+    fs.mkdirSync(backups, { recursive: true })
+    fs.writeFileSync(path.join(backups, 'data.txt'), 'data')
+    fs.symlinkSync(backups, path.join(backups, 'current'), process.platform === 'win32' ? 'junction' : 'dir')
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocation } = await loadDomain()
+    await expect(runUserDataRelocation()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(target, 'backups', 'data.txt'), 'utf8')).toBe('data')
+    expect(fs.existsSync(path.join(target, 'backups', 'current'))).toBe(false)
+    expectCommitted(target)
+  })
+
+  it('skips a broken symlink whose target traverses a file', async () => {
+    const root = makeRoot()
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    const obstructingFile = path.join(source, 'not-a-directory')
+    fs.mkdirSync(source)
+    fs.writeFileSync(path.join(source, 'data.txt'), 'data')
+    fs.writeFileSync(obstructingFile, 'file')
+    fs.symlinkSync(
+      path.join(obstructingFile, 'child'),
+      path.join(source, 'broken-link'),
+      process.platform === 'win32' ? 'junction' : 'dir'
     )
+    relocationState['app.userdata'] = source
+    relocationState['temp.user_data_relocation'] = pending(source, target)
+
+    const { runUserDataRelocation } = await loadDomain()
+    await expect(runUserDataRelocation()).resolves.toBe('handled')
+
+    expect(fs.readFileSync(path.join(target, 'data.txt'), 'utf8')).toBe('data')
+    expect(fs.existsSync(path.join(target, 'broken-link'))).toBe(false)
     expectCommitted(target)
   })
 
@@ -391,7 +428,7 @@ describe('userDataRelocation execution', () => {
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     await usePromises({
-      cp: vi.fn<typeof cp>().mockImplementation(async (_source, destination, options) => {
+      cp: vi.fn<typeof FsPromises.cp>().mockImplementation(async (_source, destination, options) => {
         const sourcePath = path.join(source, 'volatile.txt')
         fs.mkdirSync(String(destination), { recursive: true })
         fs.rmSync(sourcePath)
@@ -596,7 +633,9 @@ describe('userDataRelocation execution', () => {
     relocationState['temp.user_data_relocation'] = pending(source, target)
 
     await usePromises({
-      cp: vi.fn<typeof cp>().mockRejectedValue(Object.assign(new Error('file is locked'), { code: 'EACCES' }))
+      cp: vi
+        .fn<typeof FsPromises.cp>()
+        .mockRejectedValue(Object.assign(new Error('file is locked'), { code: 'EACCES' }))
     })
     const { runUserDataRelocation } = await loadDomain()
     await expect(runUserDataRelocation()).resolves.toBe('handled')

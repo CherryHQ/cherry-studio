@@ -12,9 +12,10 @@ import type { OpenAIProvider, OpenAIProviderSettings } from '@ai-sdk/openai'
 import type { OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
 import type { ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { XaiProvider, XaiProviderSettings } from '@ai-sdk/xai'
-import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import type { OpenRouterProvider, OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
 import { customProvider, type LanguageModel } from 'ai'
+
+import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 
 import type {
   ExtensionConfigToIdResolutionMap,
@@ -187,7 +188,16 @@ const OpenAICompatibleExtension = ProviderExtension.create({
     if (!settings) {
       throw new Error('OpenAI Compatible provider requires settings')
     }
-    return (await import('@ai-sdk/openai-compatible')).createOpenAICompatible(settings)
+    const [{ createOpenAICompatible }, { applyReasoningModelMaxTokensConversion }] = await Promise.all([
+      import('@ai-sdk/openai-compatible'),
+      import('@cherrystudio/ai-sdk-provider')
+    ])
+    const { transformRequestBody } = settings
+    return createOpenAICompatible({
+      ...settings,
+      transformRequestBody: (args) =>
+        applyReasoningModelMaxTokensConversion(transformRequestBody ? transformRequestBody(args) : args)
+    })
   },
   createRerankingModel: (modelId, settings) => {
     if (!settings) {

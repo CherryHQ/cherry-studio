@@ -1,7 +1,7 @@
-import type { AiStreamOpenResponse } from '@shared/ai/transport'
-import type { CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AiStreamOpenResponse } from '@shared/ai/transport'
 
 import { type ConversationHistoryAdapter, useConversationTurnController } from '../useConversationTurnController'
 
@@ -75,7 +75,7 @@ describe('useConversationTurnController', () => {
     mocks.streamOpen.mockReturnValueOnce(pendingAck.promise)
     const { result, rerender, historyAdapter, refreshMetadata } = renderController('agent-session:a')
 
-    let sendFromA!: Promise<AiStreamOpenResponse | null>
+    let sendFromA!: Promise<boolean>
     act(() => {
       sendFromA = result.current.send('from A')
     })
@@ -85,7 +85,7 @@ describe('useConversationTurnController', () => {
     await act(async () => {
       pendingAck.resolve({
         mode: 'started',
-        reservedMessages: [{ id: 'assistant-a', role: 'assistant', parts: [] } as CherryUIMessage]
+        reservedMessages: [{ id: 'assistant-a', role: 'assistant', parts: [] }]
       })
       await sendFromA
     })
@@ -98,10 +98,12 @@ describe('useConversationTurnController', () => {
     )
 
     mocks.streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    let sentFromB: boolean | undefined
     await act(async () => {
-      await result.current.send('from B')
+      sentFromB = await result.current.send('from B')
     })
 
+    expect(sentFromB).toBe(true)
     expect(result.current.phase).toBe('streaming')
   })
 
@@ -113,10 +115,12 @@ describe('useConversationTurnController', () => {
     })
     const { result, historyAdapter } = renderController()
 
+    let sent: boolean | undefined
     await act(async () => {
-      await result.current.send('blocked message')
+      sent = await result.current.send('blocked message')
     })
 
+    expect(sent).toBe(false)
     expect(result.current.phase).toBe('ready')
     expect(mocks.toastError).toHaveBeenCalledWith('Workspace access is required')
     expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()

@@ -94,8 +94,24 @@
   animation: animation-chat-composer-dock-down 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+@keyframes animation-usage-heatmap-cell-enter {
+  from {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animation-usage-heatmap-cell-enter {
+  animation: animation-usage-heatmap-cell-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animation-chat-composer-dock-down {
+  .animation-chat-composer-dock-down,
+  .animation-usage-heatmap-cell-enter {
     transform: none;
     animation: none;
   }
@@ -291,5 +307,30 @@
   .animation-migration-confetti-piece {
     opacity: 0;
     animation: none;
+  }
+}
+
+/* 设置搜索跳转高亮：目标行闪烁 1.6s 后恢复 */
+@keyframes search-hit-flash {
+  0%,
+  60% {
+    background-color: color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.search-hit-highlight {
+  animation: search-hit-flash 1.6s ease-out;
+  border-radius: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-hit-highlight {
+    animation: none;
+    /* No flashing under reduced motion — hold a steady tint instead so the
+       jump target stays visibly marked until the class is removed */
+    background-color: color-mix(in srgb, var(--primary) 18%, transparent);
   }
 }

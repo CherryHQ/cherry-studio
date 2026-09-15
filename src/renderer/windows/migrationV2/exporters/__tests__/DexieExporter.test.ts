@@ -1,5 +1,6 @@
-import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 
 interface LegacyRecord {
   id: string
@@ -212,6 +213,22 @@ describe('DexieExporter', () => {
         'NotReadableError'
       )
     )
+    dexieMock.table.mockReturnValue(table)
+
+    await new DexieExporter('/export').exportAll()
+
+    expect(JSON.parse(exportedText())).toEqual(rows.slice(1))
+  })
+
+  it('skips a record whose large IndexedDB value is unreadable', async () => {
+    const rows = [{ id: 'block-1' }, { id: 'block-2' }, { id: 'block-3' }]
+    const table = createTableMock(rows)
+    // Dexie re-wraps Chromium's UnknownError into a DexieError, so it is not a DOMException.
+    const wrapped = new Error(
+      'Failed to read large IndexedDB value\n UnknownError: Failed to read large IndexedDB value'
+    )
+    wrapped.name = 'UnknownError'
+    table.get.mockRejectedValueOnce(wrapped)
     dexieMock.table.mockReturnValue(table)
 
     await new DexieExporter('/export').exportAll()

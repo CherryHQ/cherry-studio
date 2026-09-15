@@ -24,6 +24,8 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { v7 as uuidv7 } from 'uuid'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import { type SingleFileRefSourceType, singleFileRefTablesBySourceType } from '@data/db/schemas/fileRelations'
 import type { DbType } from '@data/db/types'
@@ -32,7 +34,6 @@ import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/utils/image'
 import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { v7 as uuidv7 } from 'uuid'
 
 const logger = loggerService.withContext('ImageMigration')
 

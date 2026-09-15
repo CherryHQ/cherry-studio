@@ -2,26 +2,14 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-type I18NValue = string | { [key: string]: I18NValue }
-type I18N = { [key: string]: I18NValue }
+/** Catalogs are flat: every key is a dotted path mapping straight to its translated string. */
+type I18N = { [key: string]: string }
 type Glossary = { doNotTranslate: string[] }
 
 const ROOT = path.resolve(__dirname, '..')
 const BASE_LOCALE = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
 const CATALOG_DIRECTORIES = ['src/renderer/i18n/locales', 'src/main/i18n/locales']
 const ALLOWED_EMPTY_SOURCE_KEYS = new Set(['src/renderer/i18n/locales:settings.provider.oauth.provided_by_suffix'])
-
-const flatten = (obj: I18N, prefix = '', out: Record<string, string> = {}): Record<string, string> => {
-  for (const [key, value] of Object.entries(obj)) {
-    const fullKey = prefix ? `${prefix}.${key}` : key
-    if (typeof value === 'string') {
-      out[fullKey] = value
-    } else if (value !== null && typeof value === 'object') {
-      flatten(value, fullKey, out)
-    }
-  }
-  return out
-}
 
 const interpolations = (text: string) => (text.match(/{{[^}]*}}/g) ?? []).sort()
 const tagPlaceholders = (text: string) => (text.match(/<\/?[\w-]+\s*\/?>/g) ?? []).sort()
@@ -84,7 +72,7 @@ export const checkTranslationValues = (): { checked: number; failures: string[] 
   for (const catalogDirectory of CATALOG_DIRECTORIES) {
     const catalogPath = path.join(ROOT, catalogDirectory)
     const basePath = path.join(catalogPath, `${BASE_LOCALE}.json`)
-    const base = flatten(readJson(basePath))
+    const base = readJson(basePath)
 
     for (const [key, source] of Object.entries(base)) {
       checked++
@@ -96,7 +84,7 @@ export const checkTranslationValues = (): { checked: number; failures: string[] 
     for (const filename of fs.readdirSync(catalogPath).filter((file) => file.endsWith('.json'))) {
       if (filename === `${BASE_LOCALE}.json`) continue
 
-      const target = flatten(readJson(path.join(catalogPath, filename)))
+      const target = readJson(path.join(catalogPath, filename))
       for (const [key, translation] of Object.entries(target)) {
         const english = base[key]
         if (english === undefined) continue

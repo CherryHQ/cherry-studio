@@ -1,7 +1,13 @@
-import { REASONING_FORMAT_PROFILES, type ReasoningWireProfile } from '@cherrystudio/provider-registry'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  type ProtoReasoningSupport,
+  REASONING_FORMAT_PROFILES,
+  type ReasoningWireProfile
+} from '@cherrystudio/provider-registry'
+import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
 import { ENDPOINT_TYPE, type EndpointType, type Model, type RuntimeReasoning } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   mapAnthropicThinkingToProviderOptions,
@@ -13,9 +19,13 @@ const mocks = vi.hoisted(() => ({
   resolveReasoningProfile: vi.fn()
 }))
 
-vi.mock('@data/services/ProviderRegistryService', () => ({
-  providerRegistryService: { resolveReasoningProfile: mocks.resolveReasoningProfile }
-}))
+vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
+  const actual = await importOriginal<typeof ProviderRegistryServiceModule>()
+  return {
+    ...actual,
+    providerRegistryService: { resolveReasoningProfile: mocks.resolveReasoningProfile }
+  }
+})
 
 const anthropicBudgetWire: ReasoningWireProfile = {
   off: {
@@ -67,7 +77,7 @@ function model(providerId: string, modelId: string, endpointType: EndpointType, 
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
 const anthropicBudgetModel = model('anthropic', 'claude-3-7-sonnet', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, {
@@ -81,6 +91,11 @@ const openAIModel = model('openai', 'gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, {
   controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }],
   thinkingTokenLimits: { min: 1000, max: 11_000 }
 })
+
+const registryReasoningSupportWithBudget: ProtoReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }],
+  thinkingTokenLimits: { min: 1000, max: 11_000 }
+}
 
 const geminiModel = model('google', 'gemini-2.5-flash', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, {
   selectableEfforts: ['none', 'low', 'medium', 'high', 'auto'],
@@ -142,6 +157,46 @@ describe('same-dialect lossless pass-through', () => {
 })
 
 describe('cross-dialect descriptor translation', () => {
+  it.each(['none', 'high'] as const)(
+    'projects registry reasoning support when the runtime model omits it for %s',
+    (effort) => {
+      const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
+      const modelWithoutRuntimeReasoning = {
+        ...openAIModel,
+        capabilities: [],
+        reasoning: undefined
+      } as Model
+      const support: ProtoReasoningSupport = {
+        controls: [{ kind: 'effort', values: ['none', 'high'] }]
+      }
+      mocks.resolveReasoningProfile.mockReturnValueOnce({
+        format: 'openai-responses',
+        support,
+        wire: REASONING_FORMAT_PROFILES['openai-responses'].wire
+      })
+
+      expect(mapReasoningEffortToProviderOptions(target, modelWithoutRuntimeReasoning, effort)).toEqual({
+        openai: { reasoningEffort: effort, forceReasoning: true }
+      })
+    }
+  )
+
+  it('does not force Responses reasoning when the registry cannot emit the selected effort', () => {
+    const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
+    const modelWithoutRuntimeReasoning = {
+      ...openAIModel,
+      capabilities: [],
+      reasoning: undefined
+    } as Model
+    mocks.resolveReasoningProfile.mockReturnValueOnce({
+      format: 'openai-responses',
+      support: { controls: [{ kind: 'effort', values: ['none'] }] },
+      wire: REASONING_FORMAT_PROFILES['openai-responses'].wire
+    })
+
+    expect(mapReasoningEffortToProviderOptions(target, modelWithoutRuntimeReasoning, 'high')).toEqual({})
+  })
+
   it('computes Anthropic budgets from descriptor limits instead of a fixed budget table', () => {
     const target = provider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 
@@ -170,6 +225,23 @@ describe('cross-dialect descriptor translation', () => {
     expect(mapAnthropicThinkingToProviderOptions(target, openAIModel, { type: 'disabled' })).toEqual({
       openai: { reasoningEffort: 'none', forceReasoning: true }
     })
+  })
+
+  it('uses registry token limits when translating an Anthropic budget without runtime reasoning', () => {
+    const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
+    const modelWithoutRuntimeReasoning = { ...openAIModel, capabilities: [], reasoning: undefined } as Model
+    mocks.resolveReasoningProfile.mockReturnValueOnce({
+      format: 'openai-responses',
+      support: registryReasoningSupportWithBudget,
+      wire: REASONING_FORMAT_PROFILES['openai-responses'].wire
+    })
+
+    expect(
+      mapAnthropicThinkingToProviderOptions(target, modelWithoutRuntimeReasoning, {
+        type: 'enabled',
+        budget_tokens: 1500
+      })
+    ).toEqual({ openai: { reasoningEffort: 'low', forceReasoning: true } })
   })
 
   it('falls back to high when Anthropic budget translation has no descriptor limits', () => {
@@ -201,6 +273,20 @@ describe('cross-dialect descriptor translation', () => {
     })
     expect(mapGeminiThinkingToProviderOptions(target, openAIModel, { thinkingBudget: 6000 })).toEqual({
       openai: { reasoningEffort: 'medium', forceReasoning: true }
+    })
+  })
+
+  it('uses registry token limits when translating a Gemini budget without runtime reasoning', () => {
+    const target = provider('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)
+    const modelWithoutRuntimeReasoning = { ...openAIModel, capabilities: [], reasoning: undefined } as Model
+    mocks.resolveReasoningProfile.mockReturnValueOnce({
+      format: 'openai-responses',
+      support: registryReasoningSupportWithBudget,
+      wire: REASONING_FORMAT_PROFILES['openai-responses'].wire
+    })
+
+    expect(mapGeminiThinkingToProviderOptions(target, modelWithoutRuntimeReasoning, { thinkingBudget: 1500 })).toEqual({
+      openai: { reasoningEffort: 'low', forceReasoning: true }
     })
   })
 

@@ -7,11 +7,15 @@
  * - Registry import support
  */
 
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
+
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
@@ -23,8 +27,10 @@ import {
   projectRuntimeReasoning,
   providerRegistryService,
   type ReasoningProviderContext,
-  type ResolvedReasoningProfile
+  type ResolvedReasoningProfile,
+  type ResolvedServiceTierControl
 } from '@data/services/ProviderRegistryService'
+import { isProviderIdentityAvailable, providerService } from '@data/services/ProviderService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -44,11 +50,25 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
-import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
-import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
+
+/**
+ * Model rows joined to their provider's identity columns, so edition availability
+ * is decided from this one query. Every `user_model` row has a provider row (FK,
+ * ON DELETE CASCADE), so the inner join drops nothing.
+ */
+function selectWithProviderIdentity(tx: Pick<DbType, 'select'>) {
+  return tx
+    .select({
+      model: userModelTable,
+      providerId: userProviderTable.providerId,
+      presetProviderId: userProviderTable.presetProviderId
+    })
+    .from(userModelTable)
+    .innerJoin(userProviderTable, eq(userProviderTable.providerId, userModelTable.providerId))
+}
 
 /** Reason string for DataApiError when deleting a model currently set as a user default */
 const MODEL_IN_USE_AS_DEFAULT_REASON = 'model is in use as the default model'
@@ -115,6 +135,12 @@ function assertManagedCherryAiDefaultModelMutationAllowed(
   throw DataApiErrorFactory.invalidOperation(operation, 'managed CherryAI default model cannot be modified')
 }
 
+function assertProvidersAvailable(providerIds: Iterable<string>): void {
+  for (const providerId of new Set(providerIds)) {
+    providerService.assertAvailable(providerId)
+  }
+}
+
 /**
  * Registry data for model creation.
  * Must stay in sync with the return type of {@link ProviderRegistryService.lookupModel}.
@@ -122,6 +148,7 @@ function assertManagedCherryAiDefaultModelMutationAllowed(
  */
 type CreateModelRegistryData = ModelLookupResult & {
   reasoningProfile: ResolvedReasoningProfile
+  serviceTierControl?: ResolvedServiceTierControl
 }
 
 type ReconcileRemovalFilterResult = {
@@ -217,6 +244,16 @@ export interface CreateModelInput {
   registryData?: CreateModelRegistryData
 }
 
+interface ProviderModelReconcilePayload {
+  toAdd: CreateModelInput[]
+  toRemove: string[]
+}
+
+interface ProviderModelReconcileResult {
+  models: Model[]
+  deletedIds: string[]
+}
+
 type NewUserModelInput = Omit<InsertUserModelRow, 'orderKey'>
 
 function createModelsSqliteHandlers(values: NewUserModelInput[]): SqliteErrorHandlers {
@@ -276,10 +313,11 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     name: dto.name ?? dto.modelId,
     description: dto.description ?? null,
     group: dto.group ?? null,
-    capabilities: (dto.capabilities ?? []) as ModelCapability[],
-    inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
-    outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
-    endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
+    capabilities: dto.capabilities ?? [],
+    inputModalities: dto.inputModalities ?? null,
+    inputModalitiesExplicit: dto.inputModalities !== undefined,
+    outputModalities: dto.outputModalities ?? null,
+    endpointTypes: dto.endpointTypes ?? null,
     contextWindow: dto.contextWindow ?? null,
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
@@ -340,10 +378,11 @@ function presetDeltaToNewUserModel(
     name: fields.has('name') ? (dto.name ?? null) : null,
     description: fields.has('description') ? (dto.description ?? null) : null,
     group: fields.has('group') ? (dto.group ?? null) : null,
-    capabilities: fields.has('capabilities') ? ((dto.capabilities ?? null) as ModelCapability[] | null) : null,
-    inputModalities: fields.has('inputModalities') ? ((dto.inputModalities ?? null) as Modality[] | null) : null,
-    outputModalities: fields.has('outputModalities') ? ((dto.outputModalities ?? null) as Modality[] | null) : null,
-    endpointTypes: fields.has('endpointTypes') ? ((dto.endpointTypes ?? null) as EndpointType[] | null) : null,
+    capabilities: fields.has('capabilities') ? (dto.capabilities ?? null) : null,
+    inputModalities: fields.has('inputModalities') ? (dto.inputModalities ?? null) : null,
+    inputModalitiesExplicit: fields.has('inputModalities'),
+    outputModalities: fields.has('outputModalities') ? (dto.outputModalities ?? null) : null,
+    endpointTypes: fields.has('endpointTypes') ? (dto.endpointTypes ?? null) : null,
     contextWindow: fields.has('contextWindow') ? (dto.contextWindow ?? null) : null,
     maxInputTokens: fields.has('maxInputTokens') ? (dto.maxInputTokens ?? null) : null,
     maxOutputTokens: fields.has('maxOutputTokens') ? (dto.maxOutputTokens ?? null) : null,
@@ -434,8 +473,12 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
   }
 }
 
-function createPresetFallback(row: UserModelRow, profile?: ResolvedReasoningProfile['wire']): Model {
-  const baseline = createCustomModel(row.providerId, row.modelId, profile)
+function createPresetFallback(
+  row: UserModelRow,
+  profile?: ResolvedReasoningProfile['wire'],
+  serviceTierControl?: ResolvedServiceTierControl
+): Model {
+  const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
   return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
 }
 
@@ -445,13 +488,20 @@ class ModelService {
     modelId: string,
     reasoningConfigCache?: Map<string, ReasoningProviderContext>
   ): Model | null {
-    const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
+    const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = providerRegistryService.lookupModel(
       providerId,
       modelId,
       reasoningConfigCache
     )
     if (!presetModel) return null
-    return mergePresetModel(presetModel, registryOverride, providerId, reasoningProfile.wire, reasoningProfile.support)
+    return mergePresetModel(
+      presetModel,
+      registryOverride,
+      providerId,
+      reasoningProfile.wire,
+      reasoningProfile.support,
+      serviceTierControl
+    )
   }
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
@@ -464,7 +514,8 @@ class ModelService {
         registryData?.registryOverride ?? null,
         dto.providerId,
         registryData?.reasoningProfile.wire,
-        registryData?.reasoningProfile.support
+        registryData?.reasoningProfile.support,
+        registryData?.serviceTierControl
       )
       const deltaFields = collectPresetDeltaFields(dto, baseline)
       return presetDeltaToNewUserModel(dto, presetModel.id, deltaFields)
@@ -526,6 +577,7 @@ class ModelService {
         ;(updates as Record<string, unknown>)[dbKey] = value
       }
     }
+    if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
     return updates
   }
 
@@ -612,6 +664,12 @@ class ModelService {
   list(query: ListModelsQuery): Model[] {
     const db = application.get('DbService').getDb()
 
+    if (query.providerId && !providerService.isAvailableByProviderId(query.providerId)) {
+      return []
+    }
+
+    const availableProviderIds = query.providerId ? undefined : providerService.listAvailableProviderIds()
+
     const conditions: SQL[] = []
 
     if (query.providerId) {
@@ -629,11 +687,13 @@ class ModelService {
       .orderBy(asc(userModelTable.providerId), asc(userModelTable.orderKey))
       .all()
 
-    let models = this.enrichRowsFromRegistry(rows)
+    let models = this.enrichRowsFromRegistry(
+      availableProviderIds ? rows.filter((row) => availableProviderIds.has(row.providerId)) : rows
+    )
 
     // Post-filter by capability (JSON array column, can't filter in SQL easily)
     if (query.capability !== undefined) {
-      const cap = query.capability as ModelCapability
+      const cap = query.capability
       models = models.filter((m) => m.capabilities.includes(cap))
     }
 
@@ -643,22 +703,21 @@ class ModelService {
   /**
    * Registry resolution shared by every row-serving path. Preset-backed rows
    * use the current registry as their baseline and apply every non-null sparse
-   * config column. Complete custom rows keep their row-owned capabilities and
-   * receive only the narrow metadata/reasoning enrichment used for recognized
-   * models. Nothing is written back.
+   * config column. Complete custom rows keep their row-owned identity and
+   * capabilities while recognized models receive narrow metadata/reasoning
+   * enrichment plus missing limits and pricing. Nothing is written back.
    */
-  private enrichRowsFromRegistry(rows: UserModelRow[]): Model[] {
-    const reasoningConfigCache = new Map<string, ReasoningProviderContext>()
+  private enrichRowsFromRegistry(
+    rows: UserModelRow[],
+    reasoningConfigCache = new Map<string, ReasoningProviderContext>()
+  ): Model[] {
     return rows.map((row) => {
       if (row.presetModelId) {
         try {
-          const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
-            row.providerId,
-            row.modelId,
-            reasoningConfigCache
-          )
+          const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+            providerRegistryService.lookupModel(row.providerId, row.modelId, reasoningConfigCache)
           if (!presetModel) {
-            return createPresetFallback(row, reasoningProfile.wire)
+            return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
           }
 
           const baseline = mergePresetModel(
@@ -666,7 +725,8 @@ class ModelService {
             registryOverride,
             row.providerId,
             reasoningProfile.wire,
-            reasoningProfile.support
+            reasoningProfile.support,
+            serviceTierControl
           )
           const resolved = applyStoredPresetDeltas(baseline, row)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
@@ -685,27 +745,59 @@ class ModelService {
       const modelId = model.apiModelId
       if (!modelId) return model
       try {
-        const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
-          model.providerId,
-          modelId,
-          reasoningConfigCache
-        )
+        const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+          providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache)
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
+        const registryModel = presetModel
+          ? mergePresetModel(
+              presetModel,
+              registryOverride,
+              model.providerId,
+              reasoningProfile.wire,
+              reasoningProfile.support,
+              serviceTierControl
+            )
+          : undefined
 
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
+        if (model.description === undefined && registryModel?.description !== undefined) {
+          updates.description = registryModel.description
+        }
+        const hasExplicitInputModalities =
+          row.inputModalitiesExplicit || (row.inputModalities !== null && row.inputModalities.length > 0)
+        if (!hasExplicitInputModalities && registryModel?.inputModalities !== undefined) {
+          updates.inputModalities = registryModel.inputModalities
+        }
+        if (model.outputModalities === undefined && registryModel?.outputModalities !== undefined) {
+          updates.outputModalities = registryModel.outputModalities
+        }
+        if (model.contextWindow === undefined && registryModel?.contextWindow !== undefined) {
+          updates.contextWindow = registryModel.contextWindow
+        }
+        if (model.maxInputTokens === undefined && registryModel?.maxInputTokens !== undefined) {
+          updates.maxInputTokens = registryModel.maxInputTokens
+        }
+        if (model.maxOutputTokens === undefined && registryModel?.maxOutputTokens !== undefined) {
+          updates.maxOutputTokens = registryModel.maxOutputTokens
+        }
+        if (model.parameterSupport === undefined && registryModel?.parameterSupport !== undefined) {
+          updates.parameterSupport = registryModel.parameterSupport
+        }
+        if (model.pricing === undefined && registryModel?.pricing !== undefined) {
+          updates.pricing = registryModel.pricing
+        }
         if (registryOverride?.supportsFastMode) updates.supportsFastMode = true
+        if (serviceTierControl) {
+          updates.requestControls = {
+            serviceTier: { default: serviceTierControl.default, options: serviceTierControl.options }
+          }
+        }
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined
-        if (presetModel) {
-          reasoning = mergePresetModel(
-            presetModel,
-            registryOverride,
-            model.providerId,
-            reasoningProfile.wire,
-            reasoningProfile.support
-          ).reasoning
+        if (registryModel) {
+          reasoning = registryModel.reasoning
         } else if (model.reasoning?.controls?.length) {
           reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
         } else {
@@ -735,22 +827,23 @@ class ModelService {
    *
    * Foreign services call this inside their own transaction when they need a
    * soft fallback instead of a thrown not-found error. The caller owns the
-   * domain-specific validation message; this method only returns the row.
+   * domain-specific validation message. Providers unavailable in the current
+   * edition are treated as missing before the row is enriched.
    */
   findByIdTx(tx: Pick<DbType, 'select'>, id: string): Model | null {
-    const [row] = tx.select().from(userModelTable).where(eq(userModelTable.id, id)).limit(1).all()
-    return row ? this.enrichRowsFromRegistry([row])[0] : null
+    const [row] = selectWithProviderIdentity(tx).where(eq(userModelTable.id, id)).limit(1).all()
+    if (!row) return null
+
+    const reasoningConfigCache = providerService.getReasoningContextsByProviderIdsTx(tx, [row.providerId])
+    return reasoningConfigCache.has(row.providerId)
+      ? this.enrichRowsFromRegistry([row.model], reasoningConfigCache)[0]
+      : null
   }
 
-  /** Check model existence without resolving a registry-backed runtime model. */
+  /** Check model existence under a provider available in the current edition. */
   existsByIdTx(tx: Pick<DbType, 'select'>, id: string): boolean {
-    const [row] = tx
-      .select({ id: userModelTable.id })
-      .from(userModelTable)
-      .where(eq(userModelTable.id, id))
-      .limit(1)
-      .all()
-    return Boolean(row)
+    const [row] = selectWithProviderIdentity(tx).where(eq(userModelTable.id, id)).limit(1).all()
+    return row !== undefined && isProviderIdentityAvailable(row)
   }
 
   /**
@@ -776,9 +869,16 @@ class ModelService {
     const ids = Array.from(new Set(uniqueIds.filter((id): id is string => typeof id === 'string' && id.length > 0)))
     if (ids.length === 0) return result
 
-    const rows = tx.select().from(userModelTable).where(inArray(userModelTable.id, ids)).all()
+    const rows = selectWithProviderIdentity(tx).where(inArray(userModelTable.id, ids)).all()
 
-    for (const model of this.enrichRowsFromRegistry(rows)) {
+    const reasoningConfigCache = providerService.getReasoningContextsByProviderIdsTx(
+      tx,
+      rows.map((row) => row.providerId)
+    )
+    for (const model of this.enrichRowsFromRegistry(
+      rows.filter((row) => reasoningConfigCache.has(row.providerId)).map((row) => row.model),
+      reasoningConfigCache
+    )) {
       if (model.name) result.set(model.id, model.name)
     }
     return result
@@ -788,6 +888,8 @@ class ModelService {
    * Get a model by composite key (providerId + modelId)
    */
   getByKey(providerId: string, modelId: string): Model {
+    providerService.assertAvailable(providerId)
+
     const db = application.get('DbService').getDb()
 
     const [row] = db
@@ -825,6 +927,7 @@ class ModelService {
    */
   create(items: CreateModelInput[]): Model[] {
     if (items.length === 0) return []
+    assertProvidersAvailable(items.map(({ dto }) => dto.providerId))
     for (const { dto } of items) {
       assertManagedCherryAiDefaultModelMutationAllowed(
         dto.providerId,
@@ -883,6 +986,7 @@ class ModelService {
    * Update an existing model
    */
   update(providerId: string, modelId: string, dto: UpdateModelDto): Model {
+    providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
 
     const db = application.get('DbService').getDb()
@@ -930,6 +1034,7 @@ class ModelService {
    */
   bulkUpdate(items: Array<{ providerId: string; modelId: string; patch: UpdateModelDto }>): Model[] {
     if (items.length === 0) return []
+    assertProvidersAvailable(items.map((item) => item.providerId))
 
     const db = application.get('DbService').getDb()
 
@@ -990,61 +1095,19 @@ class ModelService {
    * one. Pins for removed models are purged in the same transaction.
    */
   reconcileForProvider(providerId: string, payload: { toAdd: CreateModelInput[]; toRemove: string[] }): Model[] {
+    providerService.assertAvailable(providerId)
     if (payload.toAdd.length === 0 && payload.toRemove.length === 0) {
       return this.list({ providerId })
     }
 
     const db = application.get('DbService').getDb()
-    const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
     const removalFilter = this.filterReconcileRemovals(providerId, payload.toRemove, db)
     const toRemove = removalFilter.toRemove
-
-    let actuallyDeleted = 0
-    const deletedIds: string[] = []
-    const rows = withSqliteErrors(
-      () =>
-        db.transaction((tx) => {
-          if (toRemove.length > 0) {
-            for (let i = 0; i < toRemove.length; i += SQLITE_INARRAY_CHUNK) {
-              const chunk = toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
-              const deletedRows = tx
-                .delete(userModelTable)
-                .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
-                .returning({ id: userModelTable.id })
-                .all()
-              actuallyDeleted += deletedRows.length
-              deletedIds.push(...deletedRows.map((row) => row.id))
-
-              if (deletedRows.length > 0) {
-                pinService.purgeForEntitiesTx(
-                  tx,
-                  'model',
-                  deletedRows.map((row) => row.id)
-                )
-              }
-            }
-          }
-
-          if (values.length > 0) {
-            // Chunk per-INSERT to stay under SQLite's compound-statement parameter limit.
-            const INSERT_CHUNK_SIZE = 500
-            for (let offset = 0; offset < values.length; offset += INSERT_CHUNK_SIZE) {
-              insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
-                pkColumn: userModelTable.id,
-                scope: eq(userModelTable.providerId, providerId)
-              })
-            }
-          }
-
-          return tx
-            .select()
-            .from(userModelTable)
-            .where(eq(userModelTable.providerId, providerId))
-            .orderBy(asc(userModelTable.orderKey))
-            .all() as UserModelRow[]
-        }),
-      createModelsSqliteHandlers(values)
-    )
+    const result = this.applyProviderModelReconcile(providerId, {
+      toAdd: payload.toAdd,
+      toRemove
+    })
+    const actuallyDeleted = result.deletedIds.length
 
     if (actuallyDeleted < toRemove.length) {
       // Stale renderer state — caller's toRemove referenced IDs that no longer
@@ -1059,9 +1122,7 @@ class ModelService {
       })
     }
 
-    if (actuallyDeleted > 0) pinService.notifyPurged()
-
-    const deletedPresetBackedIds = deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
+    const deletedPresetBackedIds = result.deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
     if (deletedPresetBackedIds.length > 0) {
       logger.info('Deleted preset-backed models during reconcile', {
         providerId,
@@ -1072,17 +1133,68 @@ class ModelService {
 
     logger.info('Reconciled provider models', {
       providerId,
-      added: values.length,
+      added: payload.toAdd.length,
       removed: actuallyDeleted
     })
 
-    return this.enrichRowsFromRegistry(rows)
+    return result.models
+  }
+
+  private applyProviderModelReconcile(
+    providerId: string,
+    payload: ProviderModelReconcilePayload
+  ): ProviderModelReconcileResult {
+    const dbService = application.get('DbService')
+    const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
+    const deletedIds: string[] = []
+    const rows = withSqliteErrors(
+      () =>
+        dbService.withWriteTx((tx) => {
+          for (let i = 0; i < payload.toRemove.length; i += SQLITE_INARRAY_CHUNK) {
+            const chunk = payload.toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+            const deletedRows = tx
+              .delete(userModelTable)
+              .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
+              .returning({ id: userModelTable.id })
+              .all()
+            deletedIds.push(...deletedRows.map((row) => row.id))
+            if (deletedRows.length > 0) {
+              pinService.purgeForEntitiesTx(
+                tx,
+                'model',
+                deletedRows.map((row) => row.id)
+              )
+            }
+          }
+
+          // Chunk per-INSERT to stay under SQLite's compound-statement parameter limit.
+          const INSERT_CHUNK_SIZE = 500
+          for (let offset = 0; offset < values.length; offset += INSERT_CHUNK_SIZE) {
+            insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
+              pkColumn: userModelTable.id,
+              scope: eq(userModelTable.providerId, providerId)
+            })
+          }
+
+          return tx
+            .select()
+            .from(userModelTable)
+            .where(eq(userModelTable.providerId, providerId))
+            .orderBy(asc(userModelTable.orderKey))
+            .all()
+        }),
+      createModelsSqliteHandlers(values)
+    )
+
+    if (deletedIds.length > 0) pinService.notifyPurged()
+    return { models: this.enrichRowsFromRegistry(rows), deletedIds }
   }
 
   /**
    * Delete a model
    */
   delete(providerId: string, modelId: string): void {
+    providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `delete model ${providerId}/${modelId}`)
 
     const uniqueModelId = createUniqueModelId(providerId, modelId)
@@ -1115,6 +1227,7 @@ class ModelService {
    */
   bulkDelete(items: { providerId: string; modelId: string }[]): void {
     if (items.length === 0) return
+    assertProvidersAvailable(items.map((item) => item.providerId))
 
     const uniqueItems = new Map<string, { providerId: string; modelId: string }>()
 

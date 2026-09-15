@@ -1,18 +1,18 @@
 ---
 name: cherry-tool-guide
-description: Cherry Studio first-party tool and bundled-shell routing for general agents. For straightforward local work in shell-capable sessions, run JS/TS with `bun <file>` and one-off JS tools with `bun x`; run Python with `uv run [--with <pkg>] python` and one-off Python CLIs with `uvx`; search with `rg`. Load this guide before changing project dependencies, deciding whether a tool should be ephemeral or reusable, reading or converting local Office/PDF files, coordinating or delegating across Agent Sessions, or using Cherry-owned web/browser, knowledge, persistent memory, schedules/notifications, IM channels, image generation, artifact reporting, managed CLI, or skill capabilities—even if the user names no tool. Consult it before shell/file workarounds; live tool schemas are authoritative.
-version: 1.3.0
+description: Cherry Studio first-party tool and bundled-shell routing for general agents. For straightforward local work in shell-capable sessions, run JS/TS with `bun <file>` and one-off JS tools with `bun x`; run Python with `uv run [--with <pkg>] python` and one-off Python CLIs with `uvx`; search with `rg`. Load this guide before changing project dependencies, deciding whether a tool should be ephemeral or reusable, reading or converting local Office/PDF files, coordinating or delegating across Agent Sessions, or using Cherry-owned web/browser, knowledge, persistent memory, schedules/notifications, IM channels, image generation, artifact reporting, managed CLI, skill, or MCP-server-registration capabilities—even if the user names no tool. Consult it before shell/file workarounds; live tool schemas are authoritative.
+version: 1.4.0
 ---
 
 # Cherry Tool Guide
 
-Cherry Studio injects first-party tools into your session over three MCP servers
-(`mcp__cherry-tools__*`, `mcp__agent-memory__*`, `mcp__skills__*`) and gives
-shell-capable general agents bundled runtimes for local execution. The MCP tools act on
-the running app — the user's knowledge bases, IM channels, schedules, managed CLIs, and
-skill library — through boundaries only Cherry owns. Shell and file tools cannot reach
-those app boundaries correctly; use the bundled runtimes only for the local execution
-cases routed below.
+Cherry Studio injects first-party tools into your session over four MCP servers
+(`mcp__cherry-tools__*`, `mcp__agent-memory__*`, `mcp__skills__*`, `mcp__mcp-manager__*`)
+and gives shell-capable general agents bundled runtimes for local execution. The MCP
+tools act on the running app — the user's knowledge bases, IM channels, schedules,
+managed CLIs, skill library, and MCP server registry — through boundaries only Cherry
+owns. Shell and file tools cannot reach those app boundaries correctly; use the bundled
+runtimes only for the local execution cases routed below.
 
 **This file is a router.** It carries only the global rules and the intent → tool →
 reference table. Each reference holds that domain's prerequisites, sequencing,
@@ -32,15 +32,15 @@ parameter names, enums, and required fields. Read it before every call.
   this session* — say so honestly and stop; never pretend a call succeeded or fabricate
   a result.
 - **Don't reach around Cherry's mutation boundaries.** Knowledge bases, IM channels,
-  schedules, managed CLIs, and skills are mutated only through these tools. Do not shell
-  out to `npm install`, `git clone`, `crontab`, or hand-edit knowledge files to
-  accomplish these — the tool does bookkeeping (registration, scoping, approval, sync)
+  schedules, managed CLIs, skills, and registered MCP servers are mutated only through
+  these tools. Do not shell out to `npm install`, `git clone`, `crontab`, or hand-edit
+  knowledge or MCP settings files to accomplish these — the tool does bookkeeping (registration, scoping, approval, sync)
   that a raw shell command skips. Shell is fine for *inspection* (e.g. `command -v` to
   probe PATH) — just not to perform the owned mutation.
 - **Honor approval.** `mcp__cherry-tools__kb_manage`, `mcp__cherry-tools__cli_install`,
-  `mcp__cherry-tools__session_create`, `mcp__cherry-tools__session_send`, and
-  `mcp__skills__install_skill` are gated by the
-  session's approval mode. Call them only once the user's intent is clear; if approval is
+  `mcp__cherry-tools__session_create`, `mcp__cherry-tools__session_send`,
+  `mcp__skills__install_skill`, and `mcp__mcp-manager__install_mcp_server` are gated by
+  the session's approval mode. Call them only once the user's intent is clear; if approval is
   declined, stop and report — do not retry the same effect through another route.
 - **Intent still gates auto-approved effects.** Memory writes, schedule changes,
   notifications, and agent/channel configuration may execute without an approval card.
@@ -67,6 +67,7 @@ parameter names, enums, and required fields. Read it before every call.
 | Run JS/TS or Python, invoke a one-off package, search local code/files | bundled `bun`, `uv` / `uvx`, or `rg` according to task lifetime | [cli.md](references/cli.md) |
 | Find / install a command-line tool | `command -v` check → `mcp__cherry-tools__cli_list` → `mcp__cherry-tools__cli_search` → `mcp__cherry-tools__cli_install` (approval) | [cli.md](references/cli.md) |
 | Find / install a new capability skill | `mcp__skills__search_skills` → `mcp__skills__install_skill` (approval) | [skills.md](references/skills.md) |
+| Register a new MCP server the user supplied | `mcp__mcp-manager__install_mcp_server` (approval; never invent the config) | [mcp.md](references/mcp.md) |
 
 ## When a tool isn't there
 
@@ -88,8 +89,9 @@ approval**, stop and report — never re-attempt the mutation through a differen
 
 ## Out of scope
 
-Not covered here: SDK-native `Read`/`Edit`/`Bash` and orchestration tools; third-party
-(user-configured) MCP servers; the AI-SDK chat `read_file` attachment reader (a
+Not covered here: SDK-native `Read`/`Edit`/`Bash` and orchestration tools; *calling* the
+tools of a third-party (user-configured) MCP server — only registering one is in scope,
+see [mcp.md](references/mcp.md); the AI-SDK chat `read_file` attachment reader (a
 chat-path tool, not exposed on this MCP surface); and the role-specific
 `mcp__assistant__*` navigation/diagnosis tools, which belong to the Cherry Assistant and
 its own guide.

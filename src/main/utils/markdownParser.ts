@@ -1,10 +1,12 @@
-import { loggerService } from '@logger'
-import type { PluginMetadata } from '@main/utils/plugin'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
-import matter from 'gray-matter'
 import * as path from 'path'
+
+import matter from 'gray-matter'
 import { parse } from 'yaml'
+
+import { loggerService } from '@logger'
+import type { PluginMetadata } from '@main/utils/plugin'
 
 import { getDirectorySize } from './fileOperations'
 
@@ -186,7 +188,7 @@ export async function parsePluginMetadata(
         yaml: (s) => parse(s, YAML_PARSE_OPTIONS) as object
       }
     })
-    data = (parsed.data ?? {}) as Record<string, unknown>
+    data = parsed.data ?? {}
   } catch (error: any) {
     logger.warn('Failed to parse plugin frontmatter, attempting recovery', {
       filePath,
@@ -344,7 +346,7 @@ export async function parseSkillMetadata(
         yaml: (s) => parse(s, YAML_PARSE_OPTIONS) as object
       }
     })
-    data = (parsed.data ?? {}) as Record<string, unknown>
+    data = parsed.data ?? {}
   } catch (error: any) {
     logger.warn('Failed to parse SKILL.md frontmatter, attempting recovery', {
       skillMdPath,
@@ -371,8 +373,10 @@ export async function parseSkillMetadata(
     }
   }
 
-  // Parse tools (skills use 'tools', not 'allowed_tools')
   const tools = toStringArray(data.tools)
+  const allowedTools = toStringArray(data['allowed-tools'] ?? data.allowed_tools)
+  const context = toString(data.context)
+  const agent = toString(data.agent)
 
   // Parse tags
   const tags = toStringArray(data.tags)
@@ -406,7 +410,10 @@ export async function parseSkillMetadata(
     name,
     slug,
     description,
+    allowed_tools: allowedTools,
     tools,
+    context,
+    agent,
     category, // "skills" for flat structure
     type: 'skill',
     tags,

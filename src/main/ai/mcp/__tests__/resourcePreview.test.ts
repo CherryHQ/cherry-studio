@@ -1,5 +1,6 @@
-import type { McpResource } from '@shared/types/mcp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { McpResource } from '@shared/types/mcp'
 
 const getResource = vi.fn()
 

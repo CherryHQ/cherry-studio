@@ -1,3 +1,8 @@
+import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -25,15 +30,11 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import { AddCatalogPopover, type CatalogItem } from './CatalogPicker'
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './DialogFormFields'
@@ -45,7 +46,10 @@ const submenuItemClassName =
 
 // Neutralize TabsTrigger's default-variant layout leak (justify-center + flex-1) when a
 // MenuItem is rendered as a vertical tab via `asChild`, keeping rail items left-aligned at h-8.
-const railTabItemClassName = cn(submenuItemClassName, 'data-[state=active]:!shadow-none flex-none justify-start')
+export const resourceDialogRailItemClassName = cn(
+  submenuItemClassName,
+  'data-[state=active]:!shadow-none flex-none justify-start'
+)
 
 const logger = loggerService.withContext('EditDialogShared')
 
@@ -64,7 +68,8 @@ export type ModelLabels = Record<ModelLabelKey, string | null>
 export type EditDialogBaseProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  modelFilter?: (model: Model) => boolean
+  modelFilter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
   /** Leaf tab id to open on first render (e.g. `tools.mcp`, `tools.skills`); falls back to `basic`. */
   initialTab?: string
 }
@@ -220,19 +225,21 @@ export function FieldLabelWithHelp({
   help,
   helpTrigger,
   className,
+  labelClassName,
   formLabel = true
 }: {
   label: string
   help?: ReactNode
   helpTrigger?: ReactNode
   className?: string
+  labelClassName?: string
   formLabel?: boolean
 }) {
   const { t } = useTranslation()
   const labelContent = formLabel ? (
-    <FormLabel className="font-normal">{label}</FormLabel>
+    <FormLabel className={cn('font-normal', labelClassName)}>{label}</FormLabel>
   ) : (
-    <span className="font-normal text-foreground text-sm leading-none">{label}</span>
+    <span className={cn('font-normal text-foreground text-sm leading-none', labelClassName)}>{label}</span>
   )
 
   return (
@@ -268,12 +275,14 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   form,
   portalContainer,
   formLabel = true,
+  labelClassName,
   disabled = false,
   onOpenKnowledgePage
 }: {
   form: UseFormReturn<TValues>
   portalContainer: HTMLElement | null
   formLabel?: boolean
+  labelClassName?: string
   disabled?: boolean
   onOpenKnowledgePage?: () => void
 }) {
@@ -318,6 +327,7 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
               label={t('library.config.knowledge.linked')}
               help={t('library.config.knowledge.linked_hint')}
               formLabel={formLabel}
+              labelClassName={labelClassName}
             />
             <AddCatalogPopover
               items={catalog}
@@ -489,7 +499,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                             <MenuItem
                               label={child.label}
                               active={activeTab === child.id}
-                              className={railTabItemClassName}
+                              className={resourceDialogRailItemClassName}
                             />
                           </TabsTrigger>
                         ))
@@ -519,7 +529,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                               <MenuItem
                                 label={tab.label}
                                 active={activeTab === tab.id}
-                                className={railTabItemClassName}
+                                className={resourceDialogRailItemClassName}
                               />
                             </TabsTrigger>
                           )}
@@ -530,7 +540,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                                   <MenuItem
                                     label={child.label}
                                     active={activeTab === child.id}
-                                    className={railTabItemClassName}
+                                    className={resourceDialogRailItemClassName}
                                   />
                                 </TabsTrigger>
                               ))}
@@ -612,6 +622,7 @@ export function TextInputField({
   form,
   name,
   label,
+  labelClassName,
   description,
   placeholder,
   required = false,
@@ -620,6 +631,7 @@ export function TextInputField({
   form: UseFormReturn<any>
   name: 'name' | 'description'
   label: string
+  labelClassName?: string
   description?: string
   placeholder?: string
   required?: boolean
@@ -637,7 +649,8 @@ export function TextInputField({
           <FormLabel
             className={cn(
               layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal',
-              layout === 'row' && name === 'description' && 'self-start pt-3'
+              layout === 'row' && name === 'description' && 'self-start pt-3',
+              labelClassName
             )}>
             {label}
           </FormLabel>
@@ -670,10 +683,13 @@ export function CompactModelField({
   form,
   name,
   label,
+  labelClassName,
   description,
   allowClear = false,
   emptyLabel,
   filter,
+  isModelDisabled,
+  includeAgentOnlyModels = false,
   portalContainer,
   modelLabels,
   setModelLabels,
@@ -685,11 +701,14 @@ export function CompactModelField({
   form: UseFormReturn<any>
   name: ModelLabelKey
   label: string
+  labelClassName?: string
   description?: string
   allowClear?: boolean
   /** Trigger text when no model is picked (defaults to the generic "pick a model"). */
   emptyLabel?: string
-  filter?: (model: Model) => boolean
+  filter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
+  includeAgentOnlyModels?: boolean
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
@@ -722,14 +741,18 @@ export function CompactModelField({
       name={name}
       render={({ field }) => (
         <FormItem className={layout === 'row' ? editDialogFormRowClassName : undefined}>
-          <FormLabel className={layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal'}>{label}</FormLabel>
+          <FormLabel className={cn(layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal', labelClassName)}>
+            {label}
+          </FormLabel>
           <DialogModelFrame>
             <div className="group/model-field relative flex w-full min-w-0 items-center">
               <ModelSelector
                 multiple={false}
+                includeAgentOnlyModels={includeAgentOnlyModels}
                 selectionType="id"
                 value={selectorValue}
                 filter={filter}
+                isModelDisabled={isModelDisabled}
                 portalContainer={portalContainer}
                 onSettingsNavigate={onSettingsNavigate}
                 onSelect={(selection: UniqueModelId | Model | undefined) => {

@@ -4,7 +4,7 @@
  * Path utilities — validation and resolution helpers.
  */
 
-import { access, constants } from 'node:fs/promises'
+import { access, constants, lstat, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
 import { isMac, isWin } from '@main/core/platform'
@@ -56,6 +56,63 @@ export function isSameOrInside(candidate: string, container: string): boolean {
     normalizePathForComparison(candidate) === normalizePathForComparison(container) ||
     isPathInside(candidate, container)
   )
+}
+
+/**
+ * True iff an already-computed `path.relative()` result escapes its base.
+ *
+ * Distinct from `!isSameOrInside`: it takes the relative path the caller
+ * already has, treats `''` (the base itself) as inside, and matches `..` only
+ * as a whole segment — so a child directory literally named `..archive` is not
+ * mistaken for an escape. It also compares exactly what was passed, without the
+ * platform case folding `isPathInside` applies.
+ */
+export function isOutsidePath(relativePath: string): boolean {
+  return relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)
+}
+
+/**
+ * Resolve `target` through symlinks for a containment check.
+ *
+ * A missing target resolves through its nearest existing ancestor with the missing suffix
+ * re-appended, so a file that is about to be created can still be checked. Returns `undefined`
+ * when the location is ambiguous: a dangling symlink at the target or at a missing ancestor, an
+ * error other than `ENOENT`, or a missing target when `allowMissing` is false. Callers must treat
+ * `undefined` as outside.
+ */
+export async function canonicalizePathForContainment(
+  target: string,
+  { allowMissing }: { allowMissing: boolean }
+): Promise<string | undefined> {
+  try {
+    return await realpath(target)
+  } catch (error) {
+    if (!allowMissing || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+    try {
+      await lstat(target)
+      return undefined
+    } catch (statError) {
+      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+    }
+  }
+
+  let parent = path.dirname(target)
+  while (true) {
+    try {
+      return path.resolve(await realpath(parent), path.relative(parent, target))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+      try {
+        await lstat(parent)
+        return undefined
+      } catch (statError) {
+        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
+      }
+      const next = path.dirname(parent)
+      if (next === parent) return undefined
+      parent = next
+    }
+  }
 }
 
 /** Check if a path is writable for the current process. */

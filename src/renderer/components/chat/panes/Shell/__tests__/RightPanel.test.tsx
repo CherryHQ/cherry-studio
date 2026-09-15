@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ErrorInfo, PropsWithChildren, ReactNode } from 'react'
-import { Activity, useState } from 'react'
+import { Activity, useLayoutEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { getRightPaneWidthPolicy } from '../../../shell/paneLayout'
+import { createResourcePaneCapability, type ResourcePaneConfig } from '../resourcePane'
 import {
   RightPanel,
   type RightPanelCapability,
@@ -13,14 +15,25 @@ import {
   RightPanelShortcut,
   RightPanelViewport,
   useRightPanelActions,
+  useRightPanelComposerElevated,
   useRightPanelPresentationMaximized,
   useRightPanelState
 } from '../RightPanel'
 
+const LIST_POLICY = getRightPaneWidthPolicy('navigation-list')
+const INSPECTOR_POLICY = getRightPaneWidthPolicy('inspector')
+
 const commandMock = vi.hoisted(() => ({ handler: undefined as (() => void) | undefined }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  Tooltip: ({ children, content, isDisabled }: PropsWithChildren<{ content?: unknown; isDisabled?: boolean }>) => (
+    <div
+      data-testid="tooltip-trigger"
+      data-content={typeof content === 'string' ? content : undefined}
+      data-disabled={isDisabled ? 'true' : undefined}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/ErrorBoundary', async () => {
@@ -80,15 +93,43 @@ vi.mock('@renderer/utils/style', () => ({
 }))
 
 vi.mock('../../../shell/RightPaneHost', () => ({
+  // Mirrors the host's phase reporting: it enters the full-width phase with the click and only
+  // leaves it once the box has settled, which is what "settle pane" stands in for.
   PersistentRightPaneHost: ({
+    cacheKey,
     children,
     maximized,
-    open
-  }: PropsWithChildren<{ maximized?: boolean; open: boolean }>) => (
-    <div data-testid="right-pane-host" data-maximized={String(Boolean(maximized))} data-open={String(open)}>
-      {children}
-    </div>
-  )
+    maxWidth,
+    minWidth,
+    open,
+    onFullWidthPhaseChange
+  }: PropsWithChildren<{
+    cacheKey?: string
+    maximized?: boolean
+    maxWidth?: number
+    minWidth?: number
+    open: boolean
+    onFullWidthPhaseChange?: (active: boolean) => void
+  }>) => {
+    useLayoutEffect(() => {
+      if (maximized) onFullWidthPhaseChange?.(true)
+    }, [maximized, onFullWidthPhaseChange])
+
+    return (
+      <div
+        data-testid="right-pane-host"
+        data-cache-key={cacheKey}
+        data-maximized={String(Boolean(maximized))}
+        data-max-width={maxWidth}
+        data-min-width={minWidth}
+        data-open={String(open)}>
+        <button type="button" onClick={() => onFullWidthPhaseChange?.(false)}>
+          settle pane
+        </button>
+        {children}
+      </div>
+    )
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -131,6 +172,7 @@ const capabilities = [
   },
   {
     component: StatefulPanel,
+    widthPreset: 'navigation-list',
     resolve: (scope) => ({
       id: 'second',
       instanceKey: 'second',
@@ -150,11 +192,13 @@ function ControllerProbe() {
   const state = useRightPanelState()
   const actions = useRightPanelActions()
   const presentationMaximized = useRightPanelPresentationMaximized()
+  const composerElevated = useRightPanelComposerElevated()
   return (
     <>
       <output data-testid="active-panel">{state.activePanelId ?? ''}</output>
       <output data-testid="presentation-open">{String(state.presentationOpen)}</output>
       <output data-testid="presentation-maximized">{String(presentationMaximized)}</output>
+      <output data-testid="composer-elevated">{String(composerElevated)}</output>
       <button type="button" onClick={() => actions.tryOpen('first')}>
         open first
       </button>
@@ -323,6 +367,31 @@ describe('RightPanel', () => {
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'true')
   })
 
+  it('keeps the composer lifted from the maximize click until the pane stops covering the centre', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+
+    // The restore drops the maximized presentation at the click, but the pane goes on covering the
+    // centre: dropping the composer here sinks it behind the pane for the rest of the animation.
+    expect(screen.getByTestId('presentation-maximized')).toHaveTextContent('false')
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'settle pane' }))
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('false')
+  })
+
   it('offers maximize only for capable panels and keeps the minimize control while maximized', () => {
     render(
       <Harness defaultOpen>
@@ -358,6 +427,30 @@ describe('RightPanel', () => {
     expect(screen.getByText('first:0')).toBeInTheDocument()
   })
 
+  it('drops the close tooltip once the panel closes, so it cannot park at the viewport origin', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    const findCloseTooltip = () =>
+      screen
+        .getAllByTestId('tooltip-trigger')
+        .find((node) => node.getAttribute('data-content') === 'common.close_sidebar')
+    expect(findCloseTooltip()).not.toHaveAttribute('data-disabled')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
+
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'false')
+    // Re-query after the close rather than reusing the pre-close node: the
+    // tooltip wrapper may remount on state change, which would make an
+    // assertion against the stale reference flaky even when behavior is right.
+    expect(findCloseTooltip()).toHaveAttribute('data-disabled', 'true')
+  })
+
   it('keeps shell controls available when a content-composed panel fails to render', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const scope = { ...readyScope, firstHeaderMode: 'content' as const }
@@ -391,6 +484,26 @@ describe('RightPanel', () => {
     consoleError.mockRestore()
   })
 
+  it('sizes the pane from the presented panel, so a list and an artifact never share a width', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    const host = screen.getByTestId('right-pane-host')
+    expect(host).toHaveAttribute('data-cache-key', INSPECTOR_POLICY.cacheKey)
+    expect(host).toHaveAttribute('data-max-width', String(INSPECTOR_POLICY.maxWidth))
+
+    fireEvent.click(screen.getByRole('button', { name: 'open second' }))
+
+    expect(host).toHaveAttribute('data-cache-key', LIST_POLICY.cacheKey)
+    expect(host).toHaveAttribute('data-max-width', String(LIST_POLICY.maxWidth))
+    expect(host).toHaveAttribute('data-min-width', String(LIST_POLICY.minWidth))
+  })
+
   it('rejects duplicate panel ids', () => {
     const duplicateCapabilities = [capabilities[0], capabilities[0]]
     vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -402,5 +515,13 @@ describe('RightPanel', () => {
         </RightPanelProvider>
       )
     ).toThrow('Duplicate right-panel id: first')
+  })
+})
+
+describe('createResourcePaneCapability', () => {
+  it('sizes by the navigation-list preset, so the list never inherits the inspector envelope', () => {
+    const capability = createResourcePaneCapability<{ resourcePane: ResourcePaneConfig | null }>()
+
+    expect(capability.widthPreset).toBe('navigation-list')
   })
 })

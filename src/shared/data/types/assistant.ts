@@ -5,12 +5,13 @@
  * They store inference parameters, tool references, and context source toggles.
  */
 
-import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
+
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import { ContextSettingsOverrideSchema } from './contextSettings'
 import { GroupIdSchema } from './group'
-import { UniqueModelIdSchema } from './model'
+import { ReasoningSummarySchema, ServiceTierSelectionSchema, UniqueModelIdSchema } from './model'
 
 // ============================================================================
 // Sub-Schemas
@@ -60,6 +61,10 @@ export const AssistantSettingsSchema = z.object({
   streamOutput: z.boolean(),
   /** Canonical reasoning selection; endpoint profiles own provider-specific wire values. */
   reasoning_effort: ReasoningEffortOptionSchema,
+  /** Summary verbosity, where the endpoint carries one. Absent = the endpoint's own default. */
+  reasoning_summary: ReasoningSummarySchema.optional(),
+  /** Provider request service tier. Endpoint registry owns native wire values. */
+  service_tier: ServiceTierSelectionSchema.optional(),
   // -- Tool use --
   mcpMode: McpModeSchema,
   maxToolCalls: z.number().int().positive(),

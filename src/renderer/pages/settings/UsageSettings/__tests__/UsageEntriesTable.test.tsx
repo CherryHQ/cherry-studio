@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
 import { render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, TableHTMLAttributes, TdHTMLAttributes } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({
@@ -175,5 +175,27 @@ describe('UsageEntriesTable', () => {
     }
 
     expect(screen.queryByText(/Unattributed source|未归因来源/)).not.toBeInTheDocument()
+  })
+
+  it('keeps existing rows mounted while a new sort is loading', () => {
+    render(
+      <UsageEntriesTable
+        entries={[entry]}
+        entryTotal={1}
+        isLoading
+        isRefreshing
+        hasNextPage={false}
+        sortBy="createdAt"
+        sortOrder="desc"
+        onSort={vi.fn()}
+        onLoadNext={vi.fn()}
+        getProviderInfo={() => ({ id: 'minimax', name: 'MiniMax' })}
+        dateFormatter={formatter('Jul 28, 2026')}
+        timeFormatter={formatter('16:23')}
+      />
+    )
+
+    expect(screen.getByText('MiniMax M3')).toBeInTheDocument()
+    expect(screen.getByRole('table').parentElement).toHaveAttribute('aria-busy', 'true')
   })
 })

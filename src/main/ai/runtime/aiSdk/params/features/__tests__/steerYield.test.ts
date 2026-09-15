@@ -10,7 +10,7 @@ vi.mock('../../../../agentSession/topic', () => ({
 
 import { steerYieldFeature } from '../steerYield'
 
-const scope = (chatId?: string) => ({ request: { chatId } }) as any
+const scope = (topicId?: string) => ({ request: { conversation: { id: topicId ?? 'no-topic', topicId } } }) as any
 
 describe('steerYieldFeature', () => {
   it('applies to chat topics, not agent sessions or topicless requests', () => {

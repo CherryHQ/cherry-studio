@@ -1,3 +1,7 @@
+import type { ReactNode } from 'react'
+import { createContext, use, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { useProviderMutations } from '@renderer/hooks/useProvider'
 import { useModelCheckCredentials } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useModelCheckCredentials'
@@ -9,9 +13,6 @@ import type {
 import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useHealthCheck } from './useHealthCheck'
 
@@ -44,13 +45,7 @@ interface ModelListHealthRunContextValue {
   toggleApiKey: (keyId: string, enabled: boolean) => Promise<void>
 }
 
-interface ModelListHealthResultsContextValue {
-  modelStatusMap: Map<string, ModelWithStatus>
-  modelStatuses: ModelWithStatus[]
-}
-
 const ModelListHealthRunContext = createContext<ModelListHealthRunContextValue | null>(null)
-const ModelListHealthResultsContext = createContext<ModelListHealthResultsContextValue | null>(null)
 
 export function ModelListHealthProvider({ providerId, children }: { providerId: string; children: ReactNode }) {
   const { t } = useTranslation()
@@ -150,29 +145,11 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       toggleApiKey
     ]
   )
-  const resultsValue = useMemo(
-    () => ({
-      modelStatusMap: new Map(all.modelStatuses.map((status) => [status.model.id, status])),
-      modelStatuses: all.modelStatuses
-    }),
-    [all.modelStatuses]
-  )
-
-  return (
-    <ModelListHealthRunContext value={runValue}>
-      <ModelListHealthResultsContext value={resultsValue}>{children}</ModelListHealthResultsContext>
-    </ModelListHealthRunContext>
-  )
+  return <ModelListHealthRunContext value={runValue}>{children}</ModelListHealthRunContext>
 }
 
 export function useModelListHealthRun() {
   const context = use(ModelListHealthRunContext)
   if (!context) throw new Error('useModelListHealthRun must be used within ModelListHealthProvider')
-  return context
-}
-
-export function useModelListHealthResults() {
-  const context = use(ModelListHealthResultsContext)
-  if (!context) throw new Error('useModelListHealthResults must be used within ModelListHealthProvider')
   return context
 }

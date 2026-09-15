@@ -103,6 +103,22 @@ describe('MiniAppIcon', () => {
     expect(container.querySelector('img')).toHaveAttribute('src', 'file:///files/tab.webp')
   })
 
+  it('renders an uploaded sidebar logo as a transparent circular icon', () => {
+    const { container } = render(
+      <MiniAppIcon
+        app={{ ...baseApp, logoSrc: 'file:///files/installed.webp', background: '#ffffff' }}
+        appearance="sidebar"
+        size={24}
+      />
+    )
+
+    const image = container.querySelector('img') as HTMLImageElement
+    expect(container.firstElementChild).not.toHaveClass('bg-white/90')
+    expect(image).toHaveClass('rounded-full', 'object-cover')
+    expect(image).toHaveStyle({ width: '24px', height: '24px' })
+    expect(image.style.backgroundColor).toBe('')
+  })
+
   it('returns null when there is neither a logo nor a logoSrc', () => {
     const { container } = render(<MiniAppIcon app={baseApp} />)
 

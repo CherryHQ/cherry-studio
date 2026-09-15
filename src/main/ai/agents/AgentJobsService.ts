@@ -4,6 +4,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
   agentTaskService,
+  HEARTBEAT_PROMPT_SENTINEL,
   normalizeTaskSessionReuseRevision,
   readTaskSessionReuse,
   writeTaskSessionReuse
@@ -71,10 +72,23 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
 export class AgentJobsService extends BaseService {
   protected async onInit(): Promise<void> {
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
+
+    // Deleting an agent used to leave its schedules behind: nothing listened
+    // to onAgentDeleted, so every interval kept firing for an agent that no
+    // longer exists, each run failing with 'Agent not found'. The event fires
+    // post-commit, after the agent row is already gone.
+    this.registerDisposable(
+      agentService.onAgentDeleted(({ agentId }) => {
+        void this.deleteSchedulesForAgent(agentId).catch((error) => {
+          logger.warn('Failed to delete schedules for removed agent', { agentId, error })
+        })
+      })
+    )
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
     this.assertAgentExists(agentId)
+    this.assertPromptNotReserved(form.prompt)
     const channelIds = form.channelIds ?? []
     this.assertChannelsBelongToAgent(agentId, channelIds)
 
@@ -115,6 +129,7 @@ export class AgentJobsService extends BaseService {
   updateTask(agentId: string, taskId: string, patch: AgentTaskPatch): ScheduledTaskEntity | null {
     const existing = agentTaskService.getTask(agentId, taskId)
     if (!existing) return null
+    this.assertPromptNotReserved(patch.prompt)
     if (patch.channelIds !== undefined) {
       this.assertChannelsBelongToAgent(agentId, patch.channelIds)
     }
@@ -216,6 +231,32 @@ export class AgentJobsService extends BaseService {
     return deleted
   }
 
+  /**
+   * Delete every `agent.task` schedule owned by `agentId` — the schedule-side
+   * half of agent deletion. Historical jobs keep their rows with `scheduleId`
+   * set NULL (`ON DELETE SET NULL`, same as `deleteTask`).
+   *
+   * @returns How many schedule rows were removed.
+   */
+  async deleteSchedulesForAgent(agentId: string): Promise<number> {
+    const schedules = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((s) => {
+      const template = readAgentTaskJobInputTemplate(s.jobInputTemplate)
+      return template?.agentId === agentId
+    })
+
+    let deleted = 0
+    for (const schedule of schedules) {
+      if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
+        deleted += 1
+      }
+    }
+    if (deleted > 0) {
+      logger.info('Deleted task schedules for removed agent', { agentId, deleted })
+      agentTaskService.notifyReadModelChange(schedules.map((s) => s.id))
+    }
+    return deleted
+  }
+
   /** Run a scheduled agent task now (`ai.agent.task.run`). @returns whether the trigger fired (`false` = not found / not owned). */
   async runTask(agentId: string, taskId: string): Promise<boolean> {
     const existing = agentTaskService.getTask(agentId, taskId)
@@ -267,6 +308,19 @@ export class AgentJobsService extends BaseService {
   private assertAgentExists(agentId: string): void {
     if (!agentService.getAgent(agentId)) {
       throw new Error(`Agent not found: ${agentId}`)
+    }
+  }
+
+  /**
+   * The heartbeat sentinel is what identifies a heartbeat run, so a user task
+   * must never carry it: `AgentTaskService` would hide the task and
+   * `runAgentTask` would run `heartbeat.md` under the heartbeat toggle instead
+   * of the task's own prompt. Guarded here rather than in `agentTaskFormSchema`
+   * because MCP's `cherryAutonomyTools` calls this service directly.
+   */
+  private assertPromptNotReserved(prompt: string | undefined): void {
+    if (prompt === HEARTBEAT_PROMPT_SENTINEL) {
+      throw new Error(`Prompt is reserved for the agent heartbeat: ${HEARTBEAT_PROMPT_SENTINEL}`)
     }
   }
 

@@ -1,4 +1,9 @@
 import '@data/services/AgentSessionMessageService'
+import path from 'path'
+
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
@@ -13,10 +18,6 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { pinService } from '@data/services/PinService'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import path from 'path'
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -545,6 +546,30 @@ describe('AgentSessionService', () => {
         created: false,
         deletedDuplicateSessionIds: []
       })
+    })
+
+    it('updates lastActivityAt when reusing an empty placeholder', async () => {
+      const userWorkspace = await createWorkspace('reuse-activity')
+      const oldActivityAt = Date.now() - 86_400_000 // yesterday
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'reuse-activity-session',
+        agentId: 'agent-session-test',
+        name: '',
+        workspaceId: userWorkspace.id,
+        orderKey: 'a0',
+        lastActivityAt: oldActivityAt,
+        updatedAt: oldActivityAt
+      })
+
+      const result = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+        agentId: 'agent-session-test',
+        workspace: { type: 'user', workspaceId: userWorkspace.id }
+      })
+
+      expect(result.created).toBe(false)
+      expect(result.session.id).toBe('reuse-activity-session')
+      expect(result.session.lastActivityAt).not.toBe(oldActivityAt)
+      expect(new Date(result.session.lastActivityAt).getTime()).toBeGreaterThanOrEqual(Date.now() - 1000)
     })
 
     it('publishes pin membership after deleting a pinned system placeholder duplicate', async () => {

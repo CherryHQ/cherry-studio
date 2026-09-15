@@ -12,7 +12,7 @@ vi.mock('../../blocks/MessagePartsContext', () => ({
   useMessagePartsScopeId: () => mocks.messageId
 }))
 
-vi.mock('../../utils/messageUiStateCache', () => ({
+vi.mock('@renderer/services/messageUiStateCache', () => ({
   getCachedMessageUiState: (messageId: string) => ({ disclosures: mocks.states.get(messageId) }),
   subscribeCachedMessageUiState: (messageId: string, listener: () => void) => {
     const listeners = mocks.listeners.get(messageId) ?? new Set()

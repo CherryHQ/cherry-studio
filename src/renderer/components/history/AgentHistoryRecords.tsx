@@ -1,3 +1,6 @@
+import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
 import EmojiIcon from '@renderer/components/EmojiIcon'
@@ -8,12 +11,11 @@ import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'
@@ -51,11 +53,12 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   } = useAgentSessionsSource()
   const { agents } = useAgents()
   const { updateSession } = useUpdateSession()
+  const { items: optimisticSessions, rename: renameSessionOptimistically } = useOptimisticResourceName(sessions)
 
   const isSessionPinned = useCallback((sessionId: string) => pinIdBySessionId.has(sessionId), [pinIdBySessionId])
   const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
-    [isSessionPinned, sessions]
+    () => optimisticSessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
+    [isSessionPinned, optimisticSessions]
   )
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
@@ -130,19 +133,18 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
 
   const handleRenameSession = useCallback(
     async (id: string, name: string) => {
-      const session = sessions.find((candidate) => candidate.id === id)
+      const session = sessionItems.find((candidate) => candidate.id === id)
       const trimmedName = name.trim()
       if (!session || !trimmedName || trimmedName === session.name) return
 
-      const updatedSession = await updateSession(
-        { id, name: trimmedName, isNameManuallyEdited: true },
-        { showSuccessToast: false }
+      const renamed = await renameSessionOptimistically(session, trimmedName, async () =>
+        Boolean(await updateSession({ id, name: trimmedName, isNameManuallyEdited: true }, { showSuccessToast: false }))
       )
-      if (updatedSession) {
+      if (renamed) {
         toast.success(t('common.saved'))
       }
     },
-    [sessions, t, updateSession]
+    [renameSessionOptimistically, sessionItems, t, updateSession]
   )
 
   const handleToggleSessionPin = useCallback((sessionId: string) => togglePin(sessionId), [togglePin])

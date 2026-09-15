@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { useTranslation } from 'react-i18next'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 interface LocalModelDownloadProgressProps {
   percent: number

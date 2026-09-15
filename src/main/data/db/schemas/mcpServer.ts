@@ -1,6 +1,7 @@
-import type { McpConfigSample } from '@shared/data/types/mcpServer'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
+import type { McpConfigSample } from '@shared/data/types/mcpServer'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 
@@ -57,7 +58,7 @@ export const mcpServerTable = sqliteTable(
     ),
     check(
       'mcp_server_install_source_check',
-      sql`${t.installSource} IS NULL OR ${t.installSource} IN ('builtin', 'manual', 'protocol', 'unknown')`
+      sql`${t.installSource} IS NULL OR ${t.installSource} IN ('builtin', 'manual', 'ai_assisted', 'protocol', 'unknown')`
     )
   ]
 )

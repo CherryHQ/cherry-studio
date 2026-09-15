@@ -1,3 +1,6 @@
+import type { TFunction } from 'i18next'
+import { Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
+
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
@@ -7,8 +10,6 @@ import {
   RESOURCE_ICON_TYPE_OPTIONS
 } from '@renderer/components/chat/resourceList/base'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
-import type { TFunction } from 'i18next'
-import { Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
 
 export interface AgentGroupActionContext {
   agentId: string
@@ -19,8 +20,10 @@ export interface AgentGroupActionContext {
   onDeleteAgent: (agentId: string) => void | Promise<void>
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
+  onToggleSidebar: (agentId: string) => void
   pinDisabled?: boolean
   pinned: boolean
+  sidebarPinned: boolean
   t: TFunction
 }
 
@@ -39,6 +42,11 @@ agentGroupActionRegistry.registerCommand({
   id: 'agent-group.toggle-pin',
   availability: ({ pinDisabled }) => ({ enabled: !pinDisabled }),
   run: ({ agentId, onTogglePin }) => onTogglePin(agentId)
+})
+
+agentGroupActionRegistry.registerCommand({
+  id: 'agent-group.toggle-sidebar',
+  run: ({ agentId, onToggleSidebar }) => onToggleSidebar(agentId)
 })
 
 for (const type of RESOURCE_ICON_TYPE_OPTIONS) {
@@ -71,6 +79,17 @@ agentGroupActionRegistry.registerAction(
     label: ({ pinned, t }) => (pinned ? t('agent.unpin.title') : t('agent.pin.title')),
     icon: ({ pinned }) => (pinned ? <PinOff size={14} /> : <Pin size={14} />),
     order: 20
+  })
+)
+
+agentGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
+    id: 'agent-group.toggle-sidebar',
+    commandId: 'agent-group.toggle-sidebar',
+    label: ({ sidebarPinned, t }) =>
+      sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
+    icon: ({ sidebarPinned }) => (sidebarPinned ? <PinOff size={14} /> : <Pin size={14} />),
+    order: 22
   })
 )
 

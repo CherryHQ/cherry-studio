@@ -1,3 +1,6 @@
+import { useCallback } from 'react'
+import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
+
 /**
  * Optimistic-cache helpers for the `/topics/:topicId/messages` infinite key.
  *
@@ -20,12 +23,9 @@ import { useMutation } from '@data/hooks/useDataApi'
 import type {
   BranchMessage,
   BranchMessagesResponse,
-  CherryMessagePart,
   CherryUIMessage,
   Message as SharedMessage
 } from '@shared/data/types/message'
-import { useCallback } from 'react'
-import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 /** Drop messages matching `removedIds` from items and sibling groups. */
 function branchWithoutIds(items: BranchMessage[], removedIds: Set<string>): BranchMessage[] {
@@ -46,7 +46,7 @@ function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMess
       parentId: metadata.parentId ?? null,
       role: message.role,
       data: {
-        parts: (message.parts ?? []) as CherryMessagePart[]
+        parts: message.parts ?? []
       },
       searchableText: '',
       status:
@@ -181,13 +181,6 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     [mutate, topicId]
   )
 
-  /** Replace the branch cache with a single empty page. */
-  const clearBranchCache = useCallback(async () => {
-    await mutate([{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null, rootId: null }], {
-      revalidate: false
-    })
-  }, [mutate])
-
   // `useInvalidateCache`'s `invalidatePathPatterns` walks both scalar and
   // `$inf$`-prefixed cache keys (see `findMatchingInfiniteKeys`), so a
   // path-based refresh option covers the infinite cache entry too.
@@ -209,23 +202,17 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   const { trigger: setActiveNodeTrigger } = useMutation('PUT', '/topics/:id/active-node', {
     refresh: branchCachePaths
   })
-  const { trigger: clearTopicMessagesTrigger } = useMutation('DELETE', '/topics/:topicId/messages', {
-    refresh: [messagesCachePath]
-  })
-
   return {
     branchWithoutIds,
     seedOptimisticBranch,
     seedReservedMessages,
     patchMessageInBranch,
     rollbackBranch,
-    clearBranchCache,
     deleteMessageTrigger,
     deleteMessageGroupTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
     createMessageTrigger,
-    setActiveNodeTrigger,
-    clearTopicMessagesTrigger
+    setActiveNodeTrigger
   }
 }
