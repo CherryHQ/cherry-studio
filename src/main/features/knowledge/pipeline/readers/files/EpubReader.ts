@@ -1,6 +1,7 @@
-import { loggerService } from '@logger'
 import { Document, FileReader, type Metadata } from '@vectorstores/core'
 import EPub from 'epub'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('KnowledgeEpubReader')
 

@@ -1,10 +1,11 @@
-import babeldocIcon from '@renderer/assets/images/dependencies/babeldoc.png'
-import { BABELDOC_MINIMUM_VERSION } from '@shared/data/presets/binaryTools'
-import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
 import { gt as semverGt } from 'semver'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import babeldocIcon from '@renderer/assets/images/dependencies/babeldoc.png'
+import { BABELDOC_MINIMUM_VERSION } from '@shared/data/presets/binaryTools'
+import type { BinaryToolSnapshot } from '@shared/types/binary'
 
 import EnvironmentDependencies from '../EnvironmentDependencies'
 

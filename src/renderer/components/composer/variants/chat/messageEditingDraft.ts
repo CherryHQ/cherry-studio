@@ -44,7 +44,7 @@ function findEditableFileToken(
 }
 
 function readFileTokenPayload(payload: unknown): ComposerMessageTokenPayload | undefined {
-  return typeof payload === 'object' && payload !== null ? (payload as ComposerMessageTokenPayload) : undefined
+  return typeof payload === 'object' && payload !== null ? payload : undefined
 }
 
 function getFileExtension(value: string | undefined, mediaType: string | undefined) {

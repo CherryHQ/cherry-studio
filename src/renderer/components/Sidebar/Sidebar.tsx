@@ -1,11 +1,11 @@
 import './Sidebar.css'
+import { Search } from 'lucide-react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import { MenuItem } from '@cherrystudio/ui'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import { Search } from 'lucide-react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
 import { DefaultLogo } from './primitives'

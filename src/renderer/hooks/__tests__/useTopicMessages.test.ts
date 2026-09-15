@@ -1,8 +1,9 @@
-import type { Message } from '@shared/data/types/message'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Message } from '@shared/data/types/message'
 
 import { useTopicMessages } from '../useTopicMessages'
 
@@ -190,6 +191,43 @@ describe('useTopicMessages', () => {
     expect(mutate).toHaveBeenCalledWith()
   })
 
+  it('keeps tied single-model siblings in ID order when the active reply changes', () => {
+    const replies = ['reply-a', 'reply-b', 'reply-c'].map((id) =>
+      createAssistantMessage(id, 'provider::model', '2026-01-01T00:00:01.000Z')
+    )
+    let active = replies[1]
+    mockUseInfiniteQuery.mockImplementation(
+      () =>
+        ({
+          pages: [
+            {
+              items: [{ message: active, siblingsGroup: replies.filter((reply) => reply.id !== active.id).reverse() }],
+              activeNodeId: active.id
+            }
+          ],
+          isLoading: false,
+          isRefreshing: false,
+          hasNext: false,
+          loadNext: vi.fn(),
+          refresh: vi.fn(),
+          reset: vi.fn(),
+          mutate: vi.fn()
+        }) as never
+    )
+    const { result, rerender } = renderHook(() => useTopicMessages('topic-1'))
+
+    for (const reply of [replies[1], replies[2], replies[0]]) {
+      active = reply
+      rerender()
+      expect(result.current.uiMessages.map((message) => message.id)).toEqual([active.id])
+      expect(result.current.siblingsMap[active.id].map((message) => message.id)).toEqual([
+        'reply-a',
+        'reply-b',
+        'reply-c'
+      ])
+    }
+  })
+
   it('uses one group classification for multi-model display and single-model navigation', () => {
     const firstModelReply = createAssistantMessage('reply-a-1', 'provider-a::model-a', '2026-01-01T00:00:01.000Z')
     const otherModelReply = createAssistantMessage('reply-b-1', 'provider-b::model-b', '2026-01-01T00:00:02.000Z')
@@ -227,5 +265,35 @@ describe('useTopicMessages', () => {
     ])
     expect(Object.keys(result.current.siblingsMap).sort()).toEqual(['reply-c-1', 'reply-c-2'])
     expect(result.current.siblingsMap['reply-c-1'].map((message) => message.id)).toEqual(['reply-c-1', 'reply-c-2'])
+  })
+
+  it('keeps a retried select-all alive despite a retained query error', () => {
+    // A previous page fetch failed and SWR still holds its error.
+    const retained = new Error('page fetch failed')
+    // One shared spy: the mock factory runs on every render.
+    const mutate = vi.fn().mockResolvedValue(undefined)
+    mockUseInfiniteQuery.mockImplementation(
+      () =>
+        ({
+          pages: [{ items: [], nextCursor: 'cursor', activeNodeId: null }],
+          isLoading: false,
+          isRefreshing: false,
+          error: retained,
+          hasNext: true,
+          loadNext: vi.fn(),
+          refresh: vi.fn().mockResolvedValue(undefined),
+          reset: vi.fn(),
+          mutate
+        }) as never
+    )
+
+    const { result } = renderHook(() => useTopicMessages('topic-1'))
+
+    act(() => result.current.selectAllPagination.start())
+
+    // The pre-existing error must not instantly abandon the retry, and the
+    // retained error is revalidated away so pagination can proceed.
+    expect(result.current.selectAllPagination.isLoading).toBe(true)
+    expect(mutate).toHaveBeenCalled()
   })
 })

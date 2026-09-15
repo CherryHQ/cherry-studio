@@ -2,11 +2,12 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { application } from '@application'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { assertTrustedSender, handleGuarded } from '../guardedIpc'
 

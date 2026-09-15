@@ -1,5 +1,6 @@
-import type { KnowledgeChunkStrategy } from '@shared/data/types/knowledge'
 import { estimateTokenCount } from 'tokenx'
+
+import type { KnowledgeChunkStrategy } from '@shared/data/types/knowledge'
 
 /**
  * A chunk of source text together with its code-unit offsets into that source.

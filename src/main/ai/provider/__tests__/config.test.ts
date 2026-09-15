@@ -1,3 +1,7 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { net } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -14,9 +18,6 @@ import {
 } from '@shared/data/presets/localEmbedding'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { AuthConfig } from '@shared/data/types/provider'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { net } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -226,7 +227,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       },
       settings: {
         extraHeaders: { 'User-Agent': 'CustomAgent/1.0', 'X-Custom': 'on' }
-      } as never
+      }
     })
     const model = makeModel({
       id: 'copilot::gpt-4o',
@@ -252,7 +253,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     })
 
-    it('uses the conversation id for providers derived from the OpenCode preset', async () => {
+    it('declares the conversation header for providers derived from the OpenCode preset', async () => {
       const provider = makeProvider({
         id: 'custom-opencode',
         presetProviderId: 'opencode',
@@ -265,10 +266,12 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         }
       })
 
-      const config = await providerToAiSdkConfig(provider, model, { sessionId: 'topic-123' })
-      const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
+      const config = await providerToAiSdkConfig(provider, model)
 
-      expect(headers).toMatchObject({ 'x-opencode-session': 'topic-123' })
+      expect(config.conversationHeader).toBe('x-opencode-session')
+      expect((config.providerSettings as { headers?: Record<string, string> }).headers ?? {}).not.toHaveProperty(
+        'x-opencode-session'
+      )
     })
 
     it('keeps an explicitly configured session header', async () => {
@@ -285,11 +288,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         settings: { extraHeaders: { 'X-OpenCode-Session': 'configured-session' } }
       })
 
-      const config = await providerToAiSdkConfig(provider, model, { sessionId: 'topic-123' })
+      const config = await providerToAiSdkConfig(provider, model)
       const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
 
       expect(headers).toMatchObject({ 'X-OpenCode-Session': 'configured-session' })
-      expect(headers).not.toHaveProperty('x-opencode-session')
+      expect(config.conversationHeader).toBeUndefined()
     })
   })
 
@@ -1104,6 +1107,26 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('generic / openai-compatible fallback', () => {
+    it('adds X-App-URL to TokenDance chat request headers', async () => {
+      const provider = makeProvider({
+        id: 'tokendance',
+        presetProviderId: 'tokendance',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://tokendance.space/gateway/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'tokendance', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(settings.headers).toMatchObject({ 'X-App-URL': 'app://cherryai.com.cn' })
+    })
+
     it('adds X-Source only to Radeon Cloud chat request headers', async () => {
       const radeonProvider = makeProvider({
         id: 'radeon-cloud',

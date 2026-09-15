@@ -1,11 +1,12 @@
-import { loggerService } from '@logger'
-import { isWin } from '@main/core/platform'
-import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath } from '@main/utils/binaryResolver'
 import { spawn } from 'child_process'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
+
+import { loggerService } from '@logger'
+import { isWin } from '@main/core/platform'
+import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryPath } from '@main/utils/binaryResolver'
 
 export const logger = loggerService.withContext('Mcp:FileSystemServer')
 

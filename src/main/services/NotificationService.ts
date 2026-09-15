@@ -1,3 +1,5 @@
+import { Notification as ElectronNotification } from 'electron'
+
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicService } from '@data/services/TopicService'
@@ -15,7 +17,6 @@ import {
   type ConversationNotification,
   type Notification
 } from '@shared/types/notification'
-import { Notification as ElectronNotification } from 'electron'
 
 const logger = loggerService.withContext('NotificationService')
 

@@ -222,14 +222,11 @@ describe('ChannelDetail', () => {
       }
     ]
 
-    // ChannelDetail now reads logs/statuses via ipcApi.request and subscribes via useIpcOn
-    // (ipcApi.on). Stub the IpcApi bridge: log/status queries resolve empty, events no-op.
+    // Logs and QR events still use IpcApi; connection status comes from Shared Cache.
     window.api = {
       ipcApi: {
         request: vi.fn((route: string) =>
-          route === 'channel.get_logs' || route === 'channel.get_statuses'
-            ? Promise.resolve([])
-            : Promise.resolve(undefined)
+          route === 'channel.get_logs' ? Promise.resolve([]) : Promise.resolve(undefined)
         ),
         on: vi.fn(() => () => {})
       }

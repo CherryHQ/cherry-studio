@@ -1,5 +1,6 @@
-import type { MessageExportView } from '@renderer/types/messageExport'
 import { describe, expect, it } from 'vitest'
+
+import type { MessageExportView } from '@renderer/types/messageExport'
 
 import { getMainTextContent, getNamingTextContent, getToolCitationExport } from '../find'
 

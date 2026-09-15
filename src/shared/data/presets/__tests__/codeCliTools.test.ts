@@ -1,14 +1,15 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import matter from 'gray-matter'
+import { describe, expect, it } from 'vitest'
+
 import {
   CODE_CLI_TOOL_PRESET_BY_EXECUTABLE,
   CODE_CLI_TOOL_PRESET_MAP,
   CODE_CLI_TOOL_PRESETS
 } from '@shared/data/presets/codeCliTools'
 import { CodeCli } from '@shared/types/codeCli'
-import matter from 'gray-matter'
-import { describe, expect, it } from 'vitest'
 
 const EXPECTED_ACQUISITION_FACTS = [
   ['claude-code', 'claude', '@anthropic-ai/claude-code', 'registry', 'claude'],

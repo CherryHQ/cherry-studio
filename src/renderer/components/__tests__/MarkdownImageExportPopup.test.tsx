@@ -51,11 +51,12 @@ vi.mock('@renderer/i18n/resolver', () => ({
 // This suite exercises the real popup store + host, so opt out of the global mock.
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
-import MarkdownImageExportPopup from '@renderer/components/MarkdownImageExportPopup'
-import { PopupHost } from '@renderer/components/PopupHost'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import MarkdownImageExportPopup from '@renderer/components/MarkdownImageExportPopup'
+import { PopupHost } from '@renderer/components/PopupHost'
 
 afterEach(cleanup)
 
