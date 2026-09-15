@@ -23,7 +23,7 @@ vi.mock('@cherrystudio/ui', () => ({
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
-vi.mock('../WebviewAnnotationControls', () => ({
+vi.mock('@renderer/components/WebviewAnnotationControls', () => ({
   WebviewAnnotationControls: ({
     target,
     webviewRef,

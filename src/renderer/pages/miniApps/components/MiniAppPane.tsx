@@ -6,6 +6,7 @@ import BeatLoader from 'react-spinners/BeatLoader'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
+import WebviewSearch from '@renderer/components/WebviewSearch'
 import {
   getWebviewElement,
   getWebviewLoaded,
@@ -16,7 +17,6 @@ import {
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MinimalToolbar, { type SplitMode } from './MinimalToolbar'
-import WebviewSearch from './WebviewSearch'
 
 const MINI_APP_LOADING_COLOR = 'var(--muted-foreground)'
 
@@ -144,7 +144,7 @@ const MiniAppPane: FC<Props> = ({
       <WebviewSearch
         webviewRef={webviewRef}
         isWebviewReady={isWebviewReady}
-        appId={app.appId}
+        targetId={app.appId}
         hostShortcutEnabled={hostShortcutEnabled}
       />
       {!isReady && (

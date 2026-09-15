@@ -91,11 +91,11 @@ vi.mock('@renderer/pages/miniApps/components/SplitPanePicker', () => ({
   default: () => <div data-testid="split-picker" />
 }))
 
-vi.mock('@renderer/pages/miniApps/components/WebviewSearch', () => ({
+vi.mock('@renderer/components/WebviewSearch', () => ({
   // Surfaces which pane owns the host Find shortcut: the listener behind this
   // is a global window handler, so only one mounted instance may answer it.
-  default: ({ appId, hostShortcutEnabled }: { appId: string; hostShortcutEnabled?: boolean }) => (
-    <div data-testid="webview-search" data-app-id={appId} data-host-shortcut={String(hostShortcutEnabled ?? true)} />
+  default: ({ targetId, hostShortcutEnabled }: { targetId: string; hostShortcutEnabled?: boolean }) => (
+    <div data-testid="webview-search" data-app-id={targetId} data-host-shortcut={String(hostShortcutEnabled ?? true)} />
   )
 }))
 
