@@ -333,7 +333,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     () => () => {
       imageRequestTokenRef.current += 1
     },
-    []
+    [entryId]
   )
   const [metadataById, setMetadataById] = useState<FileMetadataById>({})
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
@@ -552,13 +552,14 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
 
   const handleOpen = useCallback(
     (file: FileItem) => {
+      const imageRequestToken = ++imageRequestTokenRef.current
       if (file.type !== 'image' && onEntryIdChange) {
         onEntryIdChange(file.id)
         return
       }
 
       const requestRef = file.type === 'image' ? imageRequestTokenRef : openRequestTokenRef
-      const requestToken = ++requestRef.current
+      const requestToken = file.type === 'image' ? imageRequestToken : ++openRequestTokenRef.current
       void requestBatchedFileRecords('file.batch_get_physical_paths', [file.id])
         .then((physicalPaths) => {
           if (requestRef.current !== requestToken) return

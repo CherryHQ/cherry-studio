@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
@@ -27,13 +28,7 @@ const imagePreviewMocks = vi.hoisted(() => ({
   show: vi.fn().mockResolvedValue(undefined)
 }))
 
-const dataApiMocks = vi.hoisted(() => ({
-  get: vi.fn()
-}))
-
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: { get: dataApiMocks.get }
-}))
+const dataApiMocks = vi.mocked(dataApiService)
 
 vi.mock('@renderer/components/FilePreview', () => ({
   FilePreview: ({ header, ...props }: { filePath: string; header?: ReactNode; refreshKey?: number }) => {
@@ -824,6 +819,51 @@ describe('FilesPage file operations', () => {
     await act(async () => {
       resolveEntry(entry)
     })
+    expect(await screen.findByRole('region', { name: 'report.md' })).toBeInTheDocument()
+  })
+
+  it.each([
+    { navigation: 'list', outcome: 'success' },
+    { navigation: 'list', outcome: 'failure' },
+    { navigation: 'route', outcome: 'success' }
+  ])('ignores a late image $outcome after document navigation via $navigation', async ({ navigation, outcome }) => {
+    const user = userEvent.setup()
+    const onEntryIdChange = vi.fn()
+    const paths = { [entry.id]: '/tmp/report.md', [imageEntry.id]: '/tmp/photo.png' }
+    ipcMocks.request.mockImplementation((route: string) =>
+      Promise.resolve(route === 'file.batch_get_physical_paths' ? paths : {})
+    )
+    dataApiMocks.get.mockResolvedValue(entry)
+    mockFiles([imageEntry, entry])
+    const view = render(<FilesPage onEntryIdChange={onEntryIdChange} />)
+
+    let resolveImage!: (paths: Record<string, string>) => void
+    let rejectImage!: (error: Error) => void
+    const pendingImage = new Promise<Record<string, string>>((resolve, reject) => {
+      resolveImage = resolve
+      rejectImage = reject
+    })
+    ipcMocks.request.mockImplementation((route: string, input?: { ids?: string[] }) => {
+      if (route !== 'file.batch_get_physical_paths') return Promise.resolve({})
+      return input?.ids?.includes(imageEntry.id) ? pendingImage : Promise.resolve(paths)
+    })
+
+    await user.click(screen.getByText('photo.png'))
+    if (navigation === 'list') {
+      await user.click(screen.getByText('report.md'))
+      expect(onEntryIdChange).toHaveBeenCalledWith(entry.id)
+    } else {
+      view.rerender(<FilesPage entryId={entry.id} onEntryIdChange={onEntryIdChange} />)
+    }
+
+    await act(async () => {
+      if (outcome === 'success') resolveImage(paths)
+      else rejectImage(new Error('Image path lookup failed'))
+    })
+    expect(imagePreviewMocks.show).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+
+    view.rerender(<FilesPage entryId={entry.id} onEntryIdChange={onEntryIdChange} />)
     expect(await screen.findByRole('region', { name: 'report.md' })).toBeInTheDocument()
   })
 
