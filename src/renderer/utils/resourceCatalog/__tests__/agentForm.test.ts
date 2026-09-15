@@ -197,7 +197,9 @@ describe('diffAgentUpdate', () => {
     expect(result?.dto).toMatchObject({
       model: 'anthropic::claude-sonnet-4-6',
       planModel: 'anthropic::claude-haiku-4-6',
-      smallModel: undefined
+      // Clearing a tier emits null: the PATCH must reach the column as SQL
+      // NULL, not be dropped as an omitted field.
+      smallModel: null
     })
   })
 
