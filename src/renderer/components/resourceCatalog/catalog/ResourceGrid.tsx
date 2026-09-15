@@ -241,8 +241,9 @@ export const ResourceGrid: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const isSettings = variant === 'settings'
-  const { updateGroup, deleteGroup } = useGroupMutations('assistant', {
-    refreshOnDelete: ['/assistants', '/assistants/*']
+  const isAgentLibrary = activeResourceType === 'agent'
+  const { updateGroup, deleteGroup } = useGroupMutations(isAgentLibrary ? 'agent' : 'assistant', {
+    refreshOnDelete: isAgentLibrary ? ['/agents', '/agents/*'] : ['/assistants', '/assistants/*']
   })
   const scrollRef = useRef<HTMLDivElement>(null)
   const responsiveColumnCount = useGridColumnCount(scrollRef)
@@ -258,7 +259,7 @@ export const ResourceGrid: FC<Props> = ({
   const [renaming, setRenaming] = useState(false)
   const [deletingGroup, setDeletingGroup] = useState<GroupItem | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const showGroupToolbar = activeResourceType === 'assistant'
+  const showGroupToolbar = activeResourceType === 'assistant' || isAgentLibrary
   const unusedGroups = useMemo(() => {
     const usedIds = new Set(groups.map((group) => group.id))
     return allGroups
@@ -281,7 +282,7 @@ export const ResourceGrid: FC<Props> = ({
       try {
         await onAddGroup(name)
       } catch (error) {
-        logger.error('Failed to create assistant group', error instanceof Error ? error : new Error(String(error)), {
+        logger.error('Failed to create group', error instanceof Error ? error : new Error(String(error)), {
           name
         })
         throw error
@@ -312,7 +313,7 @@ export const ResourceGrid: FC<Props> = ({
     } catch (error) {
       const message = error instanceof Error ? error.message : t('library.group_sync_failed')
       toast.error(message)
-      logger.error('Failed to rename assistant group', error instanceof Error ? error : new Error(String(error)), {
+      logger.error('Failed to rename group', error instanceof Error ? error : new Error(String(error)), {
         id: group.id,
         name: group.name,
         nextName
@@ -334,7 +335,7 @@ export const ResourceGrid: FC<Props> = ({
     } catch (error) {
       const message = error instanceof Error ? error.message : t('library.group_sync_failed')
       toast.error(message)
-      logger.error('Failed to delete assistant group', error instanceof Error ? error : new Error(String(error)), {
+      logger.error('Failed to delete group', error instanceof Error ? error : new Error(String(error)), {
         id: group.id,
         name: group.name
       })

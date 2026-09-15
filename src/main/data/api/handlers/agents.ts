@@ -53,9 +53,15 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListAgentsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const { ids, inTrash, search, page, limit } = parsed.data
+<<<<<<< HEAD
+      const { ids, inTrash, search, page, limit, groupId } = parsed.data
       const offset = (page - 1) * limit
-      const { agents, total } = agentService.listAgents({ ids, limit, offset, search, inTrash })
+      const { agents, total } = agentService.listAgents({ ids, limit, offset, search, inTrash, groupId })
+=======
+      const { search, page, limit, groupId } = parsed.data
+      const offset = (page - 1) * limit
+      const { agents, total } = agentService.listAgents({ limit, offset, search, groupId })
+>>>>>>> 1c3ccaac8f (feat(agents): add group organization to agents)
       return { items: agents, total, page }
     }
   },

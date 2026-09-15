@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
-import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useAgentMutationsById, useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
@@ -36,15 +36,16 @@ function useResourceCardMenuItems({
   allGroups
 }: Omit<ResourceCardMenuProps, 'triggerClassName'>): readonly CommandContextMenuExtraItem[] {
   const { t } = useTranslation()
-  const resourceGroupId = resource.type === 'assistant' ? (resource.groupId ?? null) : null
+  const canAssignGroup = resource.type === 'assistant' || resource.type === 'agent'
+  const resourceGroupId = canAssignGroup ? (resource.groupId ?? null) : null
   const [localGroupId, setLocalGroupId] = useState<string | null>(() =>
-    resource.type === 'assistant' ? (resource.groupId ?? null) : null
+    canAssignGroup ? (resource.groupId ?? null) : null
   )
   const [bindingPending, setBindingPending] = useState(false)
   const bindingPendingRef = useRef(false)
 
   const { updateAssistant } = useAssistantMutationsById(resource.id)
-  const canAssignGroup = resource.type === 'assistant'
+  const { updateAgent } = useAgentMutationsById(resource.id)
   const canDuplicate = canDuplicateResource(resource)
   const canExport = resource.type === 'assistant'
   const hasActionsBeforeDelete = canAssignGroup || canDuplicate || canExport
@@ -63,6 +64,8 @@ function useResourceCardMenuItems({
       try {
         if (resource.type === 'assistant') {
           await updateAssistant({ groupId: nextGroupId })
+        } else if (resource.type === 'agent') {
+          await updateAgent({ groupId: nextGroupId })
         }
       } catch (e) {
         // Roll back optimistic state on failure.
@@ -78,7 +81,7 @@ function useResourceCardMenuItems({
         setBindingPending(false)
       }
     },
-    [canAssignGroup, updateAssistant, resource.id, resource.type, t]
+    [canAssignGroup, updateAssistant, updateAgent, resource.id, resource.type, t]
   )
 
   const selectGroup = useCallback(

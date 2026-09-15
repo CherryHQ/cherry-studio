@@ -308,10 +308,14 @@ describe('useResourceLibrary', () => {
     expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: true, search: undefined, groupId }])
   })
 
-  it('ignores activeGroupId for non-assistant resources', () => {
+  it('filters agent resources by activeGroupId', () => {
     renderResourceLibrary({ resourceType: 'agent', activeGroupId: '11111111-1111-4111-8111-111111111111' })
 
-    expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: true, search: undefined })
+    expect(mocks.useAgentList).toHaveBeenCalledWith({
+      enabled: true,
+      search: undefined,
+      groupId: '11111111-1111-4111-8111-111111111111'
+    })
     expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: false }])
     expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: false, search: undefined, groupId: undefined }])
   })

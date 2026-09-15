@@ -46,7 +46,7 @@ interface ResourceItemBase<TType extends ResourceType, TRaw> {
 
 export type ResourceItem =
   | (ResourceItemBase<'assistant', Assistant> & { groupId?: string; groupName?: string })
-  | (ResourceItemBase<'agent', AgentDetail> & { groupId?: never; groupName?: never })
+  | (ResourceItemBase<'agent', AgentDetail> & { groupId?: string; groupName?: string })
   | (ResourceItemBase<'skill', InstalledSkill & Partial<Pick<SkillCatalogEntry, 'scope'>>> & {
       groupId?: never
       groupName?: never
