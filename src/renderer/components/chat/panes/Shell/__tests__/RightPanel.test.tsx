@@ -26,7 +26,14 @@ const INSPECTOR_POLICY = getRightPaneWidthPolicy('inspector')
 const commandMock = vi.hoisted(() => ({ handler: undefined as (() => void) | undefined }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  Tooltip: ({ children, content, isDisabled }: PropsWithChildren<{ content?: unknown; isDisabled?: boolean }>) => (
+    <div
+      data-testid="tooltip-trigger"
+      data-content={typeof content === 'string' ? content : undefined}
+      data-disabled={isDisabled ? 'true' : undefined}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/ErrorBoundary', async () => {
@@ -418,6 +425,30 @@ describe('RightPanel', () => {
 
     expect(screen.queryByTestId('shell-tab-list')).toBeNull()
     expect(screen.getByText('first:0')).toBeInTheDocument()
+  })
+
+  it('drops the close tooltip once the panel closes, so it cannot park at the viewport origin', () => {
+    render(
+      <Harness defaultOpen>
+        <RightPanelViewport>
+          <RightPanel />
+        </RightPanelViewport>
+      </Harness>
+    )
+
+    const findCloseTooltip = () =>
+      screen
+        .getAllByTestId('tooltip-trigger')
+        .find((node) => node.getAttribute('data-content') === 'common.close_sidebar')
+    expect(findCloseTooltip()).not.toHaveAttribute('data-disabled')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
+
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'false')
+    // Re-query after the close rather than reusing the pre-close node: the
+    // tooltip wrapper may remount on state change, which would make an
+    // assertion against the stale reference flaky even when behavior is right.
+    expect(findCloseTooltip()).toHaveAttribute('data-disabled', 'true')
   })
 
   it('keeps shell controls available when a content-composed panel fails to render', () => {

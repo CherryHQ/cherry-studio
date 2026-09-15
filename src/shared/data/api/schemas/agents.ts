@@ -6,11 +6,12 @@
  * a response payload and an entity). DTOs are derived via .pick().
  */
 
+import * as z from 'zod'
+
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
-import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
@@ -101,7 +102,7 @@ export function sanitizeAgentConfiguration(raw: unknown): {
   }
   const reparsed = AgentConfigurationSchema.safeParse(filtered)
   return {
-    data: reparsed.success ? reparsed.data : ({} as AgentConfiguration),
+    data: reparsed.success ? reparsed.data : {},
     invalidKeys
   }
 }
@@ -220,6 +221,10 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
  * removes that configuration key; omission preserves it.
  */
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
+  // Nullable overrides of the picked columns: `null` clears the tier so the
+  // runtime falls back to the main model (unset is the default state).
+  planModel: UniqueModelIdSchema.nullable().optional(),
+  smallModel: UniqueModelIdSchema.nullable().optional(),
   configuration: AgentConfigurationSchema.partial().optional(),
   /**
    * Per-skill enablement changes for this agent. Omitted means "leave skills

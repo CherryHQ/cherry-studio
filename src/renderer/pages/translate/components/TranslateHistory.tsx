@@ -1,14 +1,3 @@
-import { ConfirmDialog, EmptyState, PageSidePanel } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { useLanguages, useTranslateHistories, useTranslateHistory } from '@renderer/hooks/translate'
-import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
-import { cn } from '@renderer/utils/style'
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { FileEntryId } from '@shared/data/types/file'
-import type { TranslateHistory, TranslateLanguage } from '@shared/data/types/translate'
-import { createFileEntryHandle } from '@shared/utils/file'
 import {
   ArrowRight,
   ChevronRight,
@@ -24,6 +13,18 @@ import {
 import type { FC, UIEvent } from 'react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ConfirmDialog, EmptyState, PageSidePanel } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { useLanguages, useTranslateHistories, useTranslateHistory } from '@renderer/hooks/translate'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { TranslateHistory, TranslateLanguage } from '@shared/data/types/translate'
+import { createFileEntryHandle } from '@shared/utils/file'
 
 import {
   isPdfTranslation,

@@ -3,8 +3,9 @@ import type * as NodeOs from 'node:os'
 import type * as NodePath from 'node:path'
 import path from 'node:path'
 
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import type * as PathStorage from '../../../pathStorage'
 

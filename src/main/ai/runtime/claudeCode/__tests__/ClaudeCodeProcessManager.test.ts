@@ -2,6 +2,9 @@ import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 
 import type { SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   BaseService,
   DependsOn,
@@ -11,8 +14,6 @@ import {
   ServiceContainer,
   ServicePhase
 } from '@main/core/lifecycle'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ClaudeCodeProcessManager,

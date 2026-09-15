@@ -1,3 +1,23 @@
+import { useVirtualizer } from '@tanstack/react-virtual'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FolderSearch,
+  Import,
+  LayoutGrid,
+  Library,
+  Pencil,
+  Plus,
+  Rows2,
+  Search,
+  Tag,
+  Trash2
+} from 'lucide-react'
+import type { FC, ReactNode, RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ConfirmDialog,
@@ -30,25 +50,6 @@ import type { GroupItem, ResourceItem, ResourceType } from '@renderer/types/reso
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import type { Group } from '@shared/data/types/group'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  FolderSearch,
-  Import,
-  LayoutGrid,
-  Library,
-  Pencil,
-  Plus,
-  Rows2,
-  Search,
-  Tag,
-  Trash2
-} from 'lucide-react'
-import type { FC, ReactNode, RefObject } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ResourceCatalogSearchInput } from '../ResourceCatalogSearchInput'
 import { ResourceCard } from './ResourceCards'

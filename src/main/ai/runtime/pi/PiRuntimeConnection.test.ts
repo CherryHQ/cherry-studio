@@ -2,10 +2,11 @@ import type * as NodeFs from 'node:fs'
 import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
-import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
-import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 
@@ -747,8 +748,8 @@ describe('PiRuntimeConnection', () => {
     expect(providerSpan.end).toHaveBeenCalledOnce()
 
     const cb = mocks.subscribeCb!
-    cb({ type: 'tool_execution_start', toolCallId: 'tool-a', toolName: 'read', args: {} } as AgentSessionEvent)
-    cb({ type: 'tool_execution_start', toolCallId: 'tool-b', toolName: 'bash', args: {} } as AgentSessionEvent)
+    cb({ type: 'tool_execution_start', toolCallId: 'tool-a', toolName: 'read', args: {} })
+    cb({ type: 'tool_execution_start', toolCallId: 'tool-b', toolName: 'bash', args: {} })
     cb({ type: 'tool_execution_end', toolCallId: 'tool-b', toolName: 'bash', result: {}, isError: true })
     cb({ type: 'tool_execution_end', toolCallId: 'tool-a', toolName: 'read', result: {}, isError: false })
 
@@ -782,7 +783,7 @@ describe('PiRuntimeConnection', () => {
       toolCallId: 'tool-open',
       toolName: 'bash',
       args: {}
-    } as AgentSessionEvent)
+    })
 
     await connection.close()
 
@@ -940,10 +941,107 @@ describe('PiRuntimeConnection', () => {
             noCacheTokens: 10,
             cacheReadTokens: 3,
             cacheWriteTokens: 2
-          }
+          },
+          // The default mock stream has no push(), so no first-token sample exists.
+          metrics: { timeCompletionMs: expect.any(Number) }
         }
       }
     ])
+  })
+
+  it('captures first-token and completion timing from provider stream events', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    mocks.providerResult = {
+      role: 'assistant',
+      responseId: 'response-timing',
+      model: 'm',
+      stopReason: 'stop',
+      timestamp: 123,
+      usage: { input: 10, output: 4, cacheRead: 0, cacheWrite: 0, totalTokens: 14 }
+    }
+    let emitted = false
+    mocks.providerStreamSimple.mockImplementationOnce(() => {
+      let resolveResult!: (value: unknown) => void
+      const resultPromise = new Promise((resolve) => {
+        resolveResult = resolve
+      })
+      const stream = {
+        push: (event: { type?: string; [key: string]: unknown }) => {
+          if (event.type === 'done') resolveResult(mocks.providerResult)
+        },
+        result: () => resultPromise
+      }
+      // Emit in a macrotask so the capture layer's push() wrapper is already installed.
+      setTimeout(() => {
+        emitted = true
+        const partial = mocks.providerResult
+        stream.push({ type: 'start', partial })
+        stream.push({ type: 'text_start', contentIndex: 0, partial })
+        stream.push({ type: 'text_delta', contentIndex: 0, delta: 'hi', partial })
+        stream.push({ type: 'done', reason: 'stop', message: mocks.providerResult })
+      }, 15)
+      return stream
+    })
+    const providerConfig = mocks.registerProvider.mock.calls[0][1]
+    providerConfig.streamSimple({}, {})
+    // The mocked stream self-emits asynchronously; wait for it so the usage event
+    // (queued from the capture callback) lands before the terminal turn-complete.
+    await vi.waitFor(() => expect(emitted).toBe(true))
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const usageEvents = events.filter((event) => event.type === 'usage')
+    expect(usageEvents).toHaveLength(1)
+    const invocation = usageEvents[0].invocation
+    expect(invocation.metrics?.timeFirstTokenMs).toEqual(expect.any(Number))
+    expect(invocation.metrics?.timeCompletionMs).toEqual(expect.any(Number))
+    expect(invocation.metrics?.timeCompletionMs ?? 0).toBeGreaterThanOrEqual(invocation.metrics?.timeFirstTokenMs ?? 0)
+  })
+
+  it('treats toolcall events as first semantic output for tool-only responses', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    mocks.providerResult = {
+      role: 'assistant',
+      responseId: 'response-toolcall-timing',
+      model: 'm',
+      stopReason: 'toolUse',
+      timestamp: 123,
+      usage: { input: 10, output: 4, cacheRead: 0, cacheWrite: 0, totalTokens: 14 }
+    }
+    let emitted = false
+    mocks.providerStreamSimple.mockImplementationOnce(() => {
+      let resolveResult!: (value: unknown) => void
+      const resultPromise = new Promise((resolve) => {
+        resolveResult = resolve
+      })
+      const stream = {
+        push: (event: { type?: string; [key: string]: unknown }) => {
+          if (event.type === 'done') resolveResult(mocks.providerResult)
+        },
+        result: () => resultPromise
+      }
+      // Pure tool-use stream: no text_* or thinking_* events ever arrive.
+      setTimeout(() => {
+        emitted = true
+        const partial = mocks.providerResult
+        stream.push({ type: 'start', partial })
+        stream.push({ type: 'toolcall_start', contentIndex: 0, partial })
+        stream.push({ type: 'toolcall_delta', contentIndex: 0, delta: '{}', partial })
+        stream.push({ type: 'done', reason: 'toolUse', message: mocks.providerResult })
+      }, 15)
+      return stream
+    })
+    const providerConfig = mocks.registerProvider.mock.calls[0][1]
+    providerConfig.streamSimple({}, {})
+    await vi.waitFor(() => expect(emitted).toBe(true))
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const usageEvents = events.filter((event) => event.type === 'usage')
+    expect(usageEvents).toHaveLength(1)
+    const toolInvocation = usageEvents[0].invocation
+    expect(toolInvocation.metrics?.timeFirstTokenMs).toEqual(expect.any(Number))
+    expect(toolInvocation.metrics?.timeCompletionMs).toEqual(expect.any(Number))
   })
 
   it('does not emit invocation usage for failed assistant responses', async () => {

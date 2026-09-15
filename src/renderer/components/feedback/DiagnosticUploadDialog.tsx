@@ -1,3 +1,7 @@
+import type { FormEvent } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Alert,
   Button,
@@ -25,9 +29,6 @@ import {
   diagnosticDescriptionByteLength
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
-import type { FormEvent } from 'react'
-import { useEffect, useId, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('DiagnosticUploadDialog')
 const RANGE_OPTIONS = [

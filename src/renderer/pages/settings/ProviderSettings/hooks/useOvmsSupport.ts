@@ -1,5 +1,6 @@
-import { ipcApi } from '@renderer/ipc'
 import useSWRImmutable from 'swr/immutable'
+
+import { ipcApi } from '@renderer/ipc'
 
 async function loadOvmsSupport(): Promise<boolean> {
   try {

@@ -1,6 +1,7 @@
+import { createFileRoute } from '@tanstack/react-router'
+
 import ShortcutSettings from '@renderer/pages/settings/ShortcutSettings'
 import { type CommandId, findKeybindingRule } from '@shared/utils/command'
-import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/settings/shortcut')({
   component: ShortcutSettings,

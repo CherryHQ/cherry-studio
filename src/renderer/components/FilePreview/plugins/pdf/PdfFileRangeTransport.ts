@@ -1,7 +1,8 @@
+import { PDFDataRangeTransport } from 'pdfjs-dist'
+
 import { ipcApi } from '@renderer/ipc'
 import type { FileHandle } from '@shared/data/types/file'
 import type { FileVersion } from '@shared/types/file'
-import { PDFDataRangeTransport } from 'pdfjs-dist'
 
 export const PDF_RANGE_CHUNK_SIZE_BYTES = 1024 * 1024
 const PDF_MAX_ASSEMBLED_RANGE_BYTES = 16 * PDF_RANGE_CHUNK_SIZE_BYTES

@@ -1,3 +1,8 @@
+import { ToolCase, Wrench } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   FormControl,
@@ -47,10 +52,6 @@ import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
-import { ToolCase, Wrench } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
 import { EmojiAvatarPicker } from '../components/DialogFormFields'
@@ -634,6 +635,7 @@ function AgentBasicFields({
             name="planModelId"
             includeAgentOnlyModels
             label={t('library.config.agent.field.plan_model.label')}
+            emptyLabel={t('library.config.agent.field.plan_model.empty')}
             allowClear
             filter={modelFilter}
             isModelDisabled={isModelDisabled}
@@ -650,6 +652,7 @@ function AgentBasicFields({
             name="smallModelId"
             includeAgentOnlyModels
             label={t('library.config.agent.field.small_model.label')}
+            emptyLabel={t('library.config.agent.field.small_model.empty')}
             allowClear
             filter={modelFilter}
             isModelDisabled={isModelDisabled}

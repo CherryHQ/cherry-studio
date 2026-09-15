@@ -1,4 +1,4 @@
-import type { Data, InlineMath, Link, Math, Paragraph, PhrasingContent, Root, RootContent, Text } from 'mdast'
+import type { InlineMath, Link, Math, Paragraph, PhrasingContent, Root, RootContent, Text } from 'mdast'
 import type { CompileContext, Extension as FromMarkdownExtension } from 'mdast-util-from-markdown'
 import type { Construct, Extension as MicromarkExtension, State, Token, Tokenizer } from 'micromark-util-types'
 import type { Plugin } from 'unified'
@@ -16,6 +16,10 @@ declare module 'micromark-util-types' {
 }
 
 declare module 'mdast' {
+  interface Data {
+    latexMathKind?: LatexMathKind
+  }
+
   interface Math {
     type: 'math'
     value: string
@@ -42,10 +46,6 @@ declare module 'mdast' {
 }
 
 type LatexMathKind = 'bracket' | 'environment' | 'paren'
-
-interface LatexMathData extends Data {
-  latexMathKind?: LatexMathKind
-}
 
 const BACKSLASH = 92
 const DOLLAR = 36
@@ -305,6 +305,112 @@ const latexDirectMath: Construct = {
   } satisfies Tokenizer
 }
 
+const latexMultilineDollarMath: Construct = {
+  name: 'latexMultilineDollarMath',
+  concrete: true,
+  tokenize: function tokenizeLatexMultilineDollarMath(effects, ok, nok) {
+    let indentation = 0
+    let fenceSize = 0
+    let closingSize = 0
+    let contentSeenOnLine = false
+
+    return start
+
+    function start(code: number | null): State | undefined {
+      effects.enter('latexDirectMath')
+      return linePrefix(code)
+    }
+
+    function linePrefix(code: number | null): State | undefined {
+      if (code === SPACE && indentation < 3) {
+        indentation += 1
+        effects.consume(code)
+        return linePrefix
+      }
+      return openingFence(code)
+    }
+
+    function openingFence(code: number | null): State | undefined {
+      if (code === DOLLAR) {
+        fenceSize += 1
+        effects.consume(code)
+        return openingFence
+      }
+      if (fenceSize < 2 || code === null || code <= -3) return nok(code)
+      effects.enter('latexDirectMathData')
+      return firstLine(code)
+    }
+
+    function firstLine(code: number | null): State | undefined {
+      if (code === null) return nok(code)
+      if (code <= -3) {
+        effects.exit('latexDirectMathData')
+        return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
+      }
+      if (code === DOLLAR) {
+        closingSize = 0
+        return firstLineClosingFence(code)
+      }
+      effects.consume(code)
+      return firstLine
+    }
+
+    function firstLineClosingFence(code: number | null): State | undefined {
+      if (code === DOLLAR) {
+        closingSize += 1
+        effects.consume(code)
+        return firstLineClosingFence
+      }
+      return closingSize === fenceSize ? nok(code) : firstLine(code)
+    }
+
+    function contentStart(code: number | null): State | undefined {
+      if (code === null) return nok(code)
+      if (code <= -3) return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
+      contentSeenOnLine = false
+      effects.enter('latexDirectMathData')
+      return content(code)
+    }
+
+    function content(code: number | null): State | undefined {
+      if (code === null) return nok(code)
+      if (code <= -3) {
+        effects.exit('latexDirectMathData')
+        return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
+      }
+      if (code === DOLLAR) {
+        closingSize = 0
+        return closingFence(code)
+      }
+      if (code !== SPACE && code !== 9) contentSeenOnLine = true
+      effects.consume(code)
+      return content
+    }
+
+    function closingFence(code: number | null): State | undefined {
+      if (code === DOLLAR) {
+        closingSize += 1
+        effects.consume(code)
+        return closingFence
+      }
+      if (closingSize !== fenceSize) return content(code)
+      if (!contentSeenOnLine) return nok(code)
+      return closingTail(code)
+    }
+
+    function closingTail(code: number | null): State | undefined {
+      if (code === SPACE || code === 9) {
+        effects.consume(code)
+        return closingTail
+      }
+      if (code !== null && code > -3) return content(code)
+      effects.exit('latexDirectMathData')
+      effects.exit('latexDirectMath')
+      return ok(code)
+    }
+  } satisfies Tokenizer
+}
+
 const latexEnvironmentMath: Construct = {
   name: 'latexEnvironmentMath',
   previous(code) {
@@ -407,8 +513,8 @@ const latexEnvironmentMath: Construct = {
 
 const latexMathSyntax: MicromarkExtension = {
   flowInitial: {
-    [DOLLAR]: latexDirectMath,
-    [SPACE]: latexDirectMath
+    [DOLLAR]: [latexDirectMath, latexMultilineDollarMath],
+    [SPACE]: [latexDirectMath, latexMultilineDollarMath]
   },
   text: {
     [BACKSLASH]: [latexDelimitedMath, latexEnvironmentMath]
@@ -453,7 +559,7 @@ function createInlineMath(token: Token, context: CompileContext): void {
       hProperties: { className: ['language-math', 'math-inline'] },
       hChildren: [],
       latexMathKind: kind
-    } as LatexMathData
+    }
   }
   context.enter(node, token)
   context.buffer()
@@ -498,7 +604,7 @@ const latexMathFromMarkdown: FromMarkdownExtension = {
 }
 
 function getLatexMathKind(node: InlineMath): LatexMathKind | undefined {
-  return (node.data as LatexMathData | undefined)?.latexMathKind
+  return node.data?.latexMathKind
 }
 
 function toPlainText(node: InlineMath): Text {
@@ -587,7 +693,7 @@ function splitDisplayMath(paragraph: Paragraph): RootContent[] {
 
   for (const child of paragraph.children) {
     if (child.type !== 'inlineMath' || !isDisplayLatexMath(child)) {
-      if (child.type === 'inlineMath') delete (child.data as LatexMathData | undefined)?.latexMathKind
+      if (child.type === 'inlineMath') delete child.data?.latexMathKind
       phrasing.push(child)
       continue
     }

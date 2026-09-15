@@ -1,9 +1,10 @@
 import type { Api as PiApi, Model as PiModel } from '@earendil-works/pi-ai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const serviceMocks = vi.hoisted(() => ({
   getByProviderId: vi.fn(),
@@ -77,7 +78,7 @@ function makeModel(overrides: Partial<Model>): Model {
     isEnabled: true,
     isHidden: false,
     ...overrides
-  } as Model
+  }
 }
 
 describe('buildPiProviderInjection', () => {
@@ -345,7 +346,7 @@ describe('buildPiProviderInjection', () => {
     })
 
     it('lets a configured header replace the default without emitting both casings', () => {
-      const provider = openRouter({ extraHeaders: { 'X-Session-Id': 'operator-pinned' } } as Provider['settings'])
+      const provider = openRouter({ extraHeaders: { 'X-Session-Id': 'operator-pinned' } })
 
       const injection = buildPiProviderInjection(provider, model, REAL_KEY, undefined, 'session-1')
 
@@ -609,6 +610,83 @@ describe('buildPiProviderInjection', () => {
   })
 })
 
+describe('OpenCode Pi session headers', () => {
+  beforeEach(() => {
+    serviceMocks.resolveApiKey.mockReturnValue({ value: REAL_KEY })
+  })
+  afterEach(() => {
+    serviceMocks.resolveApiKey.mockReset()
+  })
+
+  const provider = makeProvider({
+    id: 'opencode',
+    defaultChatEndpoint: 'openai-chat-completions',
+    endpointConfigs: {
+      'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'https://opencode.ai/zen/v1' },
+      'openai-responses': { adapterFamily: 'openai', baseUrl: 'https://opencode.ai/zen/v1' }
+    }
+  })
+
+  it.each(['openai-chat-completions', 'openai-responses'] as const)(
+    'keeps the session header stable and isolates sessions for %s',
+    async (endpoint) => {
+      const selectedProvider = { ...provider, defaultChatEndpoint: endpoint }
+      const model = makeModel({ providerId: provider.id, endpointTypes: [endpoint] })
+      const first = await resolvePiProviderInjectionForSession('session-1', selectedProvider, model)
+      const repeated = await resolvePiProviderInjectionForSession('session-1', selectedProvider, model)
+      const second = await resolvePiProviderInjectionForSession('session-2', selectedProvider, model)
+
+      expect(first.api).toBe(endpoint === 'openai-responses' ? 'openai-responses' : 'openai-completions')
+      expect(first.providerConfig.headers).toEqual({ 'x-opencode-session': 'session-1' })
+      expect(repeated.providerConfig.headers).toEqual(first.providerConfig.headers)
+      expect(second.providerConfig.headers).toEqual({ 'x-opencode-session': 'session-2' })
+    }
+  )
+
+  it('recognizes providers created from the OpenCode preset', async () => {
+    const customProvider = { ...provider, id: 'my-console', presetProviderId: 'opencode' }
+    const injection = await resolvePiProviderInjectionForSession('session-1', customProvider, makeModel({}))
+
+    expect(injection.providerConfig.headers).toEqual({ 'x-opencode-session': 'session-1' })
+  })
+
+  it('preserves an explicit session header regardless of its casing', async () => {
+    const configured = {
+      ...provider,
+      settings: { extraHeaders: { 'X-OpenCode-Session': 'chosen-session', 'x-tenant': 'tenant-1' } }
+    }
+    const injection = await resolvePiProviderInjectionForSession('session-1', configured, makeModel({}))
+
+    expect(injection.providerConfig.headers).toEqual({
+      'X-OpenCode-Session': 'chosen-session',
+      'x-tenant': 'tenant-1'
+    })
+  })
+
+  it('keeps session and custom header values literal for Pi', async () => {
+    const { AuthStorage, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
+    const configured = { ...provider, settings: { extraHeaders: { 'x-tenant': 'a$b' } } }
+    const injection = await resolvePiProviderInjectionForSession('!session$1', configured, makeModel({}))
+    const authStorage = AuthStorage.inMemory()
+    authStorage.setRuntimeApiKey(provider.id, injection.apiKey)
+    const registry = ModelRegistry.inMemory(authStorage)
+    registry.registerProvider(provider.id, injection.providerConfig)
+    const auth = await registry.getApiKeyAndHeaders(registry.find(provider.id, injection.modelId)!)
+
+    expect(auth).toMatchObject({
+      ok: true,
+      headers: { 'x-opencode-session': '!session$1', 'x-tenant': 'a$b' }
+    })
+  })
+
+  it('does not add an OpenCode session header to unrelated providers', async () => {
+    const otherProvider = { ...provider, id: 'other', settings: { extraHeaders: { 'x-tenant': 'tenant-1' } } }
+    const injection = await resolvePiProviderInjectionForSession('session-1', otherProvider, makeModel({}))
+
+    expect(injection.providerConfig.headers).toEqual({ 'x-tenant': 'tenant-1' })
+  })
+})
+
 describe('Cherry Cloud Pi injection', () => {
   const provider = makeProvider({
     id: CHERRY_CLOUD_PROVIDER_ID,
@@ -864,7 +942,7 @@ describe('pi thinking level ladder', () => {
           controls: [{ kind: 'effort', values: ['low', 'high', 'max'] }, { kind: 'toggle' }],
           selectableEfforts: ['low', 'high', 'max', 'none']
         }
-      } as Partial<Model>)
+      })
     )
 
     expect(getSupportedThinkingLevels(piModel)).toEqual(['off', 'low', 'high', 'max'])
@@ -881,7 +959,7 @@ describe('pi thinking level ladder', () => {
           controls: [{ kind: 'effort', values: ['low', 'high', 'max'] }],
           selectableEfforts: ['low', 'high', 'max']
         }
-      } as Partial<Model>)
+      })
     )
 
     expect(getSupportedThinkingLevels(piModel)).not.toContain('off')
@@ -900,7 +978,7 @@ describe('pi thinking level ladder', () => {
           controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'] }],
           selectableEfforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
         }
-      } as Partial<Model>),
+      }),
       makeProvider({
         id: 'openai-codex',
         defaultChatEndpoint: 'openai-responses',
@@ -943,7 +1021,7 @@ describe('pi thinking level ladder', () => {
       makeModel({
         capabilities: ['reasoning'],
         reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
-      } as Partial<Model>)
+      })
     )
 
     expect(piModel).not.toHaveProperty('thinkingLevelMap')

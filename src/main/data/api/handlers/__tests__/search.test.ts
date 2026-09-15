@@ -35,7 +35,7 @@ describe('searchHandlers', () => {
         query: {
           q: '  agent  '
         }
-      } as never)
+      })
 
       expect(entitySearchMock).toHaveBeenCalledWith({
         q: 'agent'
@@ -82,7 +82,7 @@ describe('searchHandlers', () => {
           query: {
             q: '   '
           }
-        } as never)
+        })
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(entitySearchMock).not.toHaveBeenCalled()
@@ -98,7 +98,7 @@ describe('searchHandlers', () => {
         query: {
           q: '  needle  '
         }
-      } as never)
+      })
 
       expect(contentSearchMock).toHaveBeenCalledWith({
         q: 'needle'
@@ -146,7 +146,7 @@ describe('searchHandlers', () => {
             q: 'needle',
             createdAtFrom: 'today'
           }
-        } as never)
+        })
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       await expect(
@@ -164,7 +164,7 @@ describe('searchHandlers', () => {
             q: 'needle',
             cursors: { 'topic-message': '' }
           }
-        } as never)
+        })
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(contentSearchMock).not.toHaveBeenCalled()

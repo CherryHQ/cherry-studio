@@ -1,12 +1,14 @@
+import { isEmpty } from 'es-toolkit/compat'
+import { CirclePause, History, Languages, LoaderCircle, SlidersHorizontal } from 'lucide-react'
+import type { ClipboardEvent, DragEvent, FC } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-// Direct `Selector/model` path: the `Selector` barrel re-exports `ModelSelector`
-// via a nested `export *`, which tsgo fails to resolve on main's program (it
-// resolves fine on feat's full program and via this path). Revert to the barrel
-// once main converges with feat. The `Selector` dir is byte-identical to feat.
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
@@ -49,11 +51,6 @@ import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
-import { isEmpty } from 'es-toolkit/compat'
-import { CirclePause, History, Languages, LoaderCircle, SlidersHorizontal } from 'lucide-react'
-import type { ClipboardEvent, DragEvent, FC } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import TranslateHistoryList from './components/TranslateHistory'
 import TranslateInputPane from './components/TranslateInputPane'
