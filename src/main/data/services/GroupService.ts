@@ -232,6 +232,8 @@ export class GroupService {
         scopeColumn: groupTable.entityType
       })
     )
+
+    notifyDataApiDataChange([{ endpoint: '/groups', kind: 'order', dimension: 'orderKey', entityIds: [id] }])
   }
 
   /**
@@ -239,12 +241,17 @@ export class GroupService {
    * span multiple entityTypes with a VALIDATION_ERROR.
    */
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
+    if (moves.length === 0) return
     this.db.transaction((tx) =>
       applyScopedMoves(tx, groupTable, moves, {
         pkColumn: groupTable.id,
         scopeColumn: groupTable.entityType
       })
     )
+
+    notifyDataApiDataChange([
+      { endpoint: '/groups', kind: 'order', dimension: 'orderKey', entityIds: moves.map((move) => move.id) }
+    ])
   }
 }
 
