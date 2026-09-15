@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => ({
   updateAppStatus: vi.fn().mockResolvedValue(undefined),
   hideMiniApp: vi.fn().mockResolvedValue(undefined),
   removeCustomMiniApp: vi.fn().mockResolvedValue(undefined),
-  toggleMiniApp: vi.fn(),
+  setMiniAppPinned: vi.fn(),
   openTab: vi.fn(),
   request: vi.fn().mockResolvedValue(null),
   toastError: vi.fn(),
@@ -68,7 +68,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 }))
 
 vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
-  useSidebarShortcuts: () => ({ shortcuts: [], toggle: mocks.toggleMiniApp })
+  useSidebarShortcuts: () => ({ shortcuts: [], setPinned: mocks.setMiniAppPinned })
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({

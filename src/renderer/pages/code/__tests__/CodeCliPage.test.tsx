@@ -1,3 +1,4 @@
+import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -5,6 +6,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import { addSidebarShortcut, normalizeSidebarShortcutItems } from '@renderer/utils/sidebar'
 import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
@@ -42,9 +44,7 @@ const {
   mockProviderConfigs,
   providersLoadingState,
   unsupportedProviderIds,
-  gatewayState,
-  sidebarPinnedTools,
-  toggleSidebarShortcutMock
+  gatewayState
 } = vi.hoisted(() => ({
   clearCliConfigMock: vi.fn(),
   readCliConfigFilesMock: vi.fn(),
@@ -74,8 +74,6 @@ const {
   mockProviderConfigs: {} as Record<string, CliProviderConfig>,
   providersLoadingState: { value: false },
   unsupportedProviderIds: new Set<string>(),
-  sidebarPinnedTools: new Set<string>(),
-  toggleSidebarShortcutMock: vi.fn(),
   gatewayState: {
     bundle: null as {
       provider: Provider
@@ -229,13 +227,6 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({ providers: mockProviders, isLoading: providersLoadingState.value })
-}))
-
-vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
-  useSidebarShortcuts: () => ({
-    isPinned: (target: { locator: { resourceId: string } }) => sidebarPinnedTools.has(target.locator.resourceId),
-    toggle: toggleSidebarShortcutMock
-  })
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -566,7 +557,7 @@ describe('CodeCliPage', () => {
     mockProviders.splice(0, mockProviders.length, provider)
     providersLoadingState.value = false
     unsupportedProviderIds.clear()
-    sidebarPinnedTools.clear()
+    mockPreferenceState.set('ui.sidebar.favorites', normalizeSidebarShortcutItems([]))
     gatewayState.bundle = null
     gatewayState.defaultModelId = undefined
     gatewayState.modelsById.clear()
@@ -600,17 +591,22 @@ describe('CodeCliPage', () => {
     expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
   })
 
-  it('pins an installed CLI with its localized fallback label', () => {
+  it('pins an installed CLI with its localized fallback label', async () => {
+    const user = userEvent.setup()
     render(<CodeCliPage />)
 
-    fireEvent.click(screen.getByTestId(`popup-code-cli.toggle-sidebar.${CodeCli.CLAUDE_CODE}`))
+    await user.click(screen.getByTestId(`popup-code-cli.toggle-sidebar.${CodeCli.CLAUDE_CODE}`))
 
-    expect(toggleSidebarShortcutMock).toHaveBeenCalledWith(
-      {
-        kind: 'resource',
-        locator: { providerId: 'core.code-cli', resourceId: CodeCli.CLAUDE_CODE }
-      },
-      'Claude Code'
+    await waitFor(() =>
+      expect(mockPreferenceState.get('ui.sidebar.favorites')).toContainEqual(
+        expect.objectContaining({
+          target: {
+            kind: 'resource',
+            locator: { providerId: 'core.code-cli', resourceId: CodeCli.CLAUDE_CODE }
+          },
+          fallbackLabel: 'Claude Code'
+        })
+      )
     )
   })
 
@@ -632,7 +628,13 @@ describe('CodeCliPage', () => {
   })
 
   it('keeps an uninstalled pinned Gemini CLI reachable from its sidebar deep link', () => {
-    sidebarPinnedTools.add(CodeCli.GEMINI_CLI)
+    mockPreferenceState.set(
+      'ui.sidebar.favorites',
+      addSidebarShortcut(normalizeSidebarShortcutItems([]), {
+        kind: 'resource',
+        locator: { providerId: 'core.code-cli', resourceId: CodeCli.GEMINI_CLI }
+      })
+    )
     mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
     versionStatusesMock.mockReturnValue(baseVersionStatuses())
 
