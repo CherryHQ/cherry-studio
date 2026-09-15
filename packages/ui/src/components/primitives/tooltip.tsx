@@ -110,17 +110,28 @@ function hasActiveAriaReference(tooltipId: string): boolean {
 function setupTooltipOrphanSweeper(): void {
   const pending = new WeakMap<Element, number>()
   const observedRoots = new WeakSet<Document | ShadowRoot>()
-  const maybeSweep = (node: Element) => {
-    // 任何状态变化都取消旧 timer：reopen 后再 close 时，旧 timer 不得截断新一轮退出窗口
+  const cancelPending = (node: Element) => {
     const previous = pending.get(node)
     if (previous != null) window.clearTimeout(previous)
+    pending.delete(node)
+  }
+  const maybeSweep = (node: Element) => {
+    // 任何状态变化都取消旧 timer：reopen 后再 close 时，旧 timer 不得截断新一轮退出窗口
+    cancelPending(node)
     const state = node.getAttribute('data-state')
     if (state === 'closed') {
       pending.set(
         node,
         window.setTimeout(() => {
           pending.delete(node)
-          if (node.isConnected && node.getAttribute('data-state') === 'closed') node.remove()
+          // 复查标记：排队期间调用方可能已开启 forceMount（内容回到用户持有，不得清扫）
+          if (
+            node.isConnected &&
+            node.hasAttribute('data-tooltip-sweepable') &&
+            node.getAttribute('data-state') === 'closed'
+          ) {
+            node.remove()
+          }
         }, TOOLTIP_SWEEP_DELAY_MS)
       )
     } else if (state) {
@@ -129,7 +140,7 @@ function setupTooltipOrphanSweeper(): void {
       pending.set(
         node,
         window.setTimeout(() => {
-          if (!node.isConnected) {
+          if (!node.isConnected || !node.hasAttribute('data-tooltip-sweepable')) {
             pending.delete(node)
             return
           }
@@ -147,16 +158,19 @@ function setupTooltipOrphanSweeper(): void {
           maybeSweep(node)
         }, STALE_OPEN_SWEEP_MS)
       )
-    } else {
-      pending.delete(node)
     }
   }
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       if (mutation.type === 'attributes') {
         const target = mutation.target as Element
-        if (target.getAttribute('data-slot') === 'tooltip-content' && target.hasAttribute('data-tooltip-sweepable')) {
-          maybeSweep(target)
+        if (target.getAttribute('data-slot') === 'tooltip-content') {
+          // 标记被移除 = 内容回到调用方持有（如 forceMount 打开）：撤销排队中的清扫
+          if (target.hasAttribute('data-tooltip-sweepable')) {
+            maybeSweep(target)
+          } else {
+            cancelPending(target)
+          }
         }
         continue
       }
@@ -208,7 +222,12 @@ function setupTooltipOrphanSweeper(): void {
   function ensureObserved(root: Document | ShadowRoot): void {
     if (observedRoots.has(root)) return
     observedRoots.add(root)
-    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-state'] })
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-state', 'data-tooltip-sweepable']
+    })
   }
   ensureObserved(document)
 }

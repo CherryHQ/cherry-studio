@@ -603,6 +603,92 @@ describe('Tooltip', () => {
       }
     })
 
+    it('does not sweep when the marker is removed while a close sweep is queued', async () => {
+      vi.useFakeTimers()
+      try {
+        const ghost = document.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
+        ghost.setAttribute('data-state', 'closed')
+        document.body.appendChild(ghost)
+        await act(async () => {}) // close sweep 已排队
+
+        ghost.removeAttribute('data-tooltip-sweepable') // 内容回到调用方持有（如 forceMount 打开）
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(500)
+        })
+        expect(document.body.contains(ghost)).toBe(true)
+        ghost.remove()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not sweep when the marker is removed while a stale-open check is queued', async () => {
+      vi.useFakeTimers()
+      try {
+        const ghost = document.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
+        ghost.setAttribute('data-state', 'instant-open') // 无 trigger 引用，本会被 stale-open 清扫
+        document.body.appendChild(ghost)
+        await act(async () => {})
+
+        ghost.removeAttribute('data-tooltip-sweepable')
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS + 200)
+        })
+        expect(document.body.contains(ghost)).toBe(true)
+        ghost.remove()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps forceMount content alive when enabled during its own close sweep', async () => {
+      vi.useFakeTimers()
+      try {
+        const view = render(
+          <TooltipRoot open={true}>
+            <TooltipTrigger asChild>
+              <button type="button">Trigger</button>
+            </TooltipTrigger>
+            <TooltipContent>fm-race</TooltipContent>
+          </TooltipRoot>
+        )
+        const content = getTooltipContentElement('fm-race')
+        expect(content).toHaveAttribute('data-tooltip-sweepable')
+
+        view.rerender(
+          <TooltipRoot open={false}>
+            <TooltipTrigger asChild>
+              <button type="button">Trigger</button>
+            </TooltipTrigger>
+            <TooltipContent>fm-race</TooltipContent>
+          </TooltipRoot>
+        )
+        await act(async () => {}) // close 提交后清扫 timer 登记
+
+        view.rerender(
+          <TooltipRoot open={false}>
+            <TooltipTrigger asChild>
+              <button type="button">Trigger</button>
+            </TooltipTrigger>
+            <TooltipContent forceMount>fm-race</TooltipContent>
+          </TooltipRoot>
+        )
+        act(() => {
+          vi.advanceTimersByTime(500)
+        })
+        expect(document.querySelector('[data-slot="tooltip-content"]')).toBe(content)
+        content.remove()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('renders forceMount content through the TooltipRoot gate even when closed', () => {
       vi.useFakeTimers()
       try {
