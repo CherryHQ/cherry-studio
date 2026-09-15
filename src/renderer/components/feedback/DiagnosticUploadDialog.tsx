@@ -1,3 +1,4 @@
+import { ExternalLink, History } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +30,9 @@ import {
   diagnosticDescriptionByteLength
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
+
+import DiagnosticHistoryDialog from './DiagnosticHistoryDialog'
+import { DIAGNOSTIC_STATUS_TRANSLATION_KEYS } from './diagnosticStatusLabels'
 
 const logger = loggerService.withContext('DiagnosticUploadDialog')
 const RANGE_OPTIONS = [
@@ -75,6 +79,7 @@ export function DiagnosticUploadDialog({
   const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle')
   const [result, setResult] = useState<UploadResult | null>(null)
   const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
+  const [diagnosticHistoryOpen, setDiagnosticHistoryOpen] = useState(false)
   const primaryActionRef = useRef<HTMLButtonElement>(null)
   const retainedBundleIdRef = useRef<string | null>(null)
   const mountedRef = useRef(true)
@@ -269,8 +274,16 @@ export function DiagnosticUploadDialog({
           onEscapeKeyDown={(event) => {
             if (isBusy) event.preventDefault()
           }}>
-          <DialogHeader className="px-6 pt-6 pr-12 pb-4">
+          <DialogHeader className="flex flex-row items-center justify-between px-6 pt-6 pr-16 pb-4">
             <DialogTitle>{t('settings.about.diagnostics.upload.dialog.title')}</DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              title={t('settings.about.feedback.history.title')}
+              aria-label={t('settings.about.feedback.history.title')}
+              onClick={() => setDiagnosticHistoryOpen(true)}>
+              <History className="size-4" />
+            </Button>
           </DialogHeader>
 
           <Scrollbar className="min-h-0 px-6 py-2">
@@ -434,6 +447,7 @@ export function DiagnosticUploadDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DiagnosticHistoryDialog open={diagnosticHistoryOpen} onOpenChange={setDiagnosticHistoryOpen} />
     </>
   )
 }
@@ -449,6 +463,14 @@ function UploadResultContent({
 }) {
   const { t } = useTranslation()
   if (result.status === 'uploaded') {
+    const openReport = async () => {
+      try {
+        await ipcApi.request('system.shell.open_website', result.reportUrl)
+      } catch {
+        logger.warn('Failed to open diagnostic status page')
+        toast.error(t('settings.about.diagnostics.report.open_failed'))
+      }
+    }
     return (
       <Alert type="success" showIcon role="status" aria-live="polite" aria-atomic="true">
         <div className="space-y-2">
@@ -458,6 +480,24 @@ function UploadResultContent({
             <code className="break-all">{result.reportId}</code>
             <CopyButton textToCopy={result.reportId} aria-label={t('settings.about.diagnostics.report.copy_id')} />
           </div>
+          <div className="flex min-w-0 items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{t('settings.about.diagnostics.report.status_url')}</span>
+            <code className="min-w-0 break-all">{result.reportUrl}</code>
+            <CopyButton textToCopy={result.reportUrl} aria-label={t('settings.about.diagnostics.report.copy_url')} />
+            <Button variant="link" size="sm" onClick={() => void openReport()}>
+              <ExternalLink className="size-4" />
+              {t('settings.about.feedback.history.open')}
+            </Button>
+          </div>
+          <p className="text-sm">
+            {t('settings.about.diagnostics.report.processing_status')}:{' '}
+            {t(DIAGNOSTIC_STATUS_TRANSLATION_KEYS[result.processingStatus ?? 'unavailable'])}
+          </p>
+          {!result.historySaved ? (
+            <p className="text-warning-subtle-foreground text-sm">
+              {t('settings.about.diagnostics.report.history_save_failed')}
+            </p>
+          ) : null}
         </div>
       </Alert>
     )

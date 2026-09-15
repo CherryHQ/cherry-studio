@@ -4,6 +4,7 @@ const serviceMocks = vi.hoisted(() => ({
   discardUpload: vi.fn(),
   exportBundle: vi.fn(),
   inspect: vi.fn(),
+  refreshReport: vi.fn(),
   retryUpload: vi.fn(),
   saveUploadBundle: vi.fn(),
   uploadBundle: vi.fn()
@@ -73,6 +74,14 @@ describe('diagnosticsHandlers', () => {
       diagnosticsHandlers['diagnostics.bundle.retry_upload'](input, { senderId: 'main-window' })
     ).resolves.toEqual({ status: 'busy' })
     expect(serviceMocks.retryUpload).toHaveBeenCalledWith(input)
+  })
+
+  it('returns the processing state fetched for a report', async () => {
+    serviceMocks.refreshReport.mockResolvedValue({ processingStatus: 'resolved' })
+    await expect(
+      diagnosticsHandlers['diagnostics.report.refresh']({ reportId: 'report-id' }, { senderId: 'main-window' })
+    ).resolves.toEqual({ processingStatus: 'resolved' })
+    expect(serviceMocks.refreshReport).toHaveBeenCalledWith('report-id')
   })
 
   it('passes the trusted caller window id when saving a retained upload', async () => {

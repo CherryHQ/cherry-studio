@@ -21,6 +21,7 @@ import { agentSessionHandlers } from './agentSessions'
 import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { aiUsageRecordHandlers } from './aiUsageRecords'
 import { assistantHandlers } from './assistants'
+import { diagnosticReportHandlers } from './diagnosticReports'
 import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
 import { jobHandlers } from './jobs'
@@ -74,5 +75,6 @@ export const apiHandlers: ApiImplementation = {
   ...agentWorkspaceHandlers,
   ...jobHandlers,
   ...searchHandlers,
-  ...aiUsageRecordHandlers
+  ...aiUsageRecordHandlers,
+  ...diagnosticReportHandlers
 }

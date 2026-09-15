@@ -1,4 +1,4 @@
-import { Bot, ChevronRight, FileArchive, Github } from 'lucide-react'
+import { Bot, ChevronRight, FileArchive, Github, History } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -23,6 +23,7 @@ import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 
 const DiagnosticUploadDialog = lazy(() => import('./DiagnosticUploadDialog'))
+const DiagnosticHistoryDialog = lazy(() => import('./DiagnosticHistoryDialog'))
 
 export const FEEDBACK_GITHUB_URL = 'https://github.com/CherryHQ/cherry-studio/issues/new/choose'
 
@@ -78,6 +79,7 @@ function FeedbackOption({ description, icon, recommended = false, title, onSelec
 export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
   const { t } = useTranslation()
   const [diagnosticUploadOpen, setDiagnosticUploadOpen] = useState(false)
+  const [diagnosticHistoryOpen, setDiagnosticHistoryOpen] = useState(false)
 
   const selectOption = (action: () => void | Promise<void>) => {
     onOpenChange(false)
@@ -125,6 +127,12 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
               onSelect={() => selectOption(() => setDiagnosticUploadOpen(true))}
             />
             <FeedbackOption
+              icon={<History className="size-5" />}
+              title={t('settings.about.feedback.history.title')}
+              description={t('settings.about.feedback.history.description')}
+              onSelect={() => selectOption(() => setDiagnosticHistoryOpen(true))}
+            />
+            <FeedbackOption
               icon={<Bot className="size-5" />}
               title={t('settings.about.feedback.agent.title')}
               description={t('settings.about.feedback.agent.description')}
@@ -143,6 +151,11 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
       {diagnosticUploadOpen ? (
         <Suspense fallback={null}>
           <DiagnosticUploadDialog open onOpenChange={setDiagnosticUploadOpen} />
+        </Suspense>
+      ) : null}
+      {diagnosticHistoryOpen ? (
+        <Suspense fallback={null}>
+          <DiagnosticHistoryDialog open onOpenChange={setDiagnosticHistoryOpen} />
         </Suspense>
       ) : null}
     </>
