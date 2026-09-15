@@ -311,7 +311,7 @@ describe('useChatWithHistory', () => {
       await result.current.stop()
     })
 
-    expect(streamAbortMock).toHaveBeenCalledWith({ topicId: 'topic-abort' })
+    expect(streamAbortMock).toHaveBeenCalledWith({ topicId: 'topic-abort', origin: 'user-stop' })
     expect(stop).toHaveBeenCalledTimes(1)
   })
 

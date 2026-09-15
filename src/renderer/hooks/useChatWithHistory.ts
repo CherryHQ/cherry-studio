@@ -68,7 +68,7 @@ export function useChatWithHistory(
   })
 
   const stop = useCallback(async () => {
-    const mainAbort = enabled ? ipcApi.request('ai.stream.abort', { topicId }) : Promise.resolve()
+    const mainAbort = enabled ? ipcApi.request('ai.stream.abort', { topicId, origin: 'user-stop' }) : Promise.resolve()
     const [mainAbortResult, sdkStopResult] = await Promise.allSettled([mainAbort, sdkStop()])
     if (mainAbortResult.status === 'rejected') throw mainAbortResult.reason
     if (sdkStopResult.status === 'rejected') throw sdkStopResult.reason

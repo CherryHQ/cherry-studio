@@ -113,6 +113,26 @@ describe('ai.stream.open IPC schema', () => {
   })
 })
 
+describe('ai.stream.abort IPC schema', () => {
+  const abortStream = aiRequestSchemas['ai.stream.abort'].input
+
+  it('carries the caller-named abort origin through to main', () => {
+    expect(abortStream.parse({ topicId: 'agent-session:session-1', origin: 'transport-abort-signal' })).toMatchObject({
+      origin: 'transport-abort-signal'
+    })
+  })
+
+  it('rejects an origin outside the known set, so no caller can invent its own reason', () => {
+    for (const origin of ['user-requested', 'whatever', 42]) {
+      expect(abortStream.safeParse({ topicId: 'topic-1', origin }).success).toBe(false)
+    }
+  })
+
+  it('still accepts an abort from a caller that names no origin', () => {
+    expect(abortStream.parse({ topicId: 'topic-1' })).toEqual({ topicId: 'topic-1' })
+  })
+})
+
 describe('ai.agent.create IPC schema', () => {
   const createAgent = aiRequestSchemas['ai.agent.create'].input
   const base = {

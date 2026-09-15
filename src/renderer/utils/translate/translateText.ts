@@ -50,7 +50,7 @@ export const translateText = async (
 
   if (signal) {
     abortListener = () => {
-      void ipcApi.request('ai.stream.abort', { topicId: streamId }).catch(() => {
+      void ipcApi.request('ai.stream.abort', { topicId: streamId, origin: 'translate-cancel' }).catch(() => {
         // Already aborted / stream gone — main drives the final reject via the stream error event.
       })
     }

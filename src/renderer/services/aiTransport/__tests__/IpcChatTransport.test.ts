@@ -254,7 +254,7 @@ describe('IpcChatTransport', () => {
       chunks.push(value)
     }
 
-    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId })
+    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId, origin: 'transport-abort-signal' })
     expect(chunks).toHaveLength(1)
   })
 
@@ -270,7 +270,7 @@ describe('IpcChatTransport', () => {
 
     const { done } = await reader.read()
     expect(done).toBe(true)
-    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId })
+    expect(mock.mockApi.streamAbort).toHaveBeenCalledWith({ topicId, origin: 'transport-abort-signal' })
   })
 
   it('cleans up IPC listeners after done', async () => {
