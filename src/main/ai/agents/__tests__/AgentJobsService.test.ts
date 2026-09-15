@@ -820,6 +820,39 @@ describe('AgentJobsService', () => {
       expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
     })
 
+    it('also removes the workspace of a heartbeat row the v1 migration renamed (exact sentinel, non-reserved name)', async () => {
+      // #19568 renames all but the first v1 `heartbeat` to `task_<v1Id>`, and
+      // sync repairs such a row in place under its migrated name — the reserved
+      // name shapes alone would strand its workspace on agent deletion.
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-v1renamed',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-v1renamed',
+          type: 'user',
+          orderKey: 'ws-hb-v1renamed'
+        })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: 'task_v1-7',
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-v1renamed' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+    })
+
     it('keeps the workspace of an ordinary task whose padded-sentinel prompt sits outside the reserved names', async () => {
       // createTask blocks new padded-sentinel prompts; a row from before that
       // guard (or a manual write) must not have its user workspace swept.

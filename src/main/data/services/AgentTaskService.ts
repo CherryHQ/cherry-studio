@@ -195,7 +195,12 @@ export class AgentTaskService {
   getTaskById(taskId: string): ScheduledTaskEntity | null {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
-    if (!normalizeAgentTaskTemplate(snapshot.jobInputTemplate)) return null
+    const template = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
+    if (!template) return null
+    // Mirror the list side's heartbeat filter: the heartbeat row is derived state
+    // owned by the heartbeat sync — a known schedule id must not hand it to
+    // ordinary task commands.
+    if (template.prompt === HEARTBEAT_PROMPT_SENTINEL) return null
     return this.toScheduledTaskEntity(snapshot, agentSessionService.getByTaskScheduleId(snapshot.id)?.id ?? null)
   }
 

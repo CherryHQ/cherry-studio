@@ -347,12 +347,18 @@ export class AgentJobsService extends BaseService {
     const heartbeatWorkspaceIds = new Set<string>()
     for (const schedule of schedules) {
       const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
-      // Trim tolerance mirrors the repair fallback, but only under the reserved
-      // name shapes — a padded-sentinel user task must keep its workspace.
+      // An exact sentinel needs no name check — createTask/updateTask reject it
+      // outright, so an exact-sentinel row under a migration name (`task_<v1Id>`)
+      // is still a heartbeat. Trim tolerance mirrors the repair fallback, but only
+      // under the reserved name shapes — a padded-sentinel user task keeps its
+      // workspace.
+      const exactSentinel = template?.prompt === HEARTBEAT_PROMPT_SENTINEL
+      const reservedNameShape =
+        schedule.name === `heartbeat_${agentId}` || schedule.name?.startsWith(`heartbeat_${agentId}__`)
       if (
-        template?.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL &&
+        template &&
         template.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
-        (schedule.name === `heartbeat_${agentId}` || schedule.name?.startsWith(`heartbeat_${agentId}__`))
+        (exactSentinel || (template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL && reservedNameShape))
       ) {
         heartbeatWorkspaceIds.add(template.workspace.workspaceId)
       }
