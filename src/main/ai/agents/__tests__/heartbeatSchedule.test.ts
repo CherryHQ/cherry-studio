@@ -189,6 +189,21 @@ describe('heartbeatSchedule', () => {
     expect(seeded).toContain('<!--')
   })
 
+  it('keeps the committed schedule when arming its timer fails', async () => {
+    seedAgent(AGENT_ID)
+    const spy = vi.spyOn(jobManager, 'syncJobScheduleTimerById').mockImplementation(() => {
+      throw new Error('timer registration failed')
+    })
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    // The row is the source of truth once committed; a failed arm is logged
+    // and recovered by the next sync or restart, not thrown as sync failure.
+    expect(outcome).toBe('created')
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
+    spy.mockRestore()
+  })
+
   it('never touches an existing heartbeat.md', async () => {
     seedAgent(AGENT_ID)
     await writeFile(path.join(agentsRoot, AGENT_ID, 'heartbeat.md'), '- real checklist\n')

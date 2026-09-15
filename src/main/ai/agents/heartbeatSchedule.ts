@@ -216,6 +216,19 @@ export function pauseHeartbeatSchedule(agentId: string, scheduleId: string, warn
   }
 }
 
+/**
+ * Best-effort arm for a just-committed schedule row — a failed timer
+ * registration must not fail the sync whose row already committed; the next
+ * sync or restart re-arms it.
+ */
+function armCommittedScheduleTimer(scheduleId: string): void {
+  try {
+    application.get('JobManager').syncJobScheduleTimerById(scheduleId)
+  } catch (error) {
+    logger.warn('Failed to arm the timer for a committed heartbeat schedule', { scheduleId, error })
+  }
+}
+
 async function runSync(
   agentId: string,
   rows: JobScheduleSnapshot[] = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
@@ -360,7 +373,7 @@ async function runSync(
       // Re-arming an enabled interval resets its phase — skip the timer sync
       // when only the template changed (the armed callback re-reads the row),
       // and never re-arm a breaker-paused row: the toggle off/on is the reset.
-      if ((reenable || triggerChanged) && !breakerPaused) jobManager.syncJobScheduleTimerById(row.id)
+      if ((reenable || triggerChanged) && !breakerPaused) armCommittedScheduleTimer(row.id)
       touchedScheduleIds.push(row.id)
       if (breakerPaused) {
         logger.info('Heartbeat schedule left paused by the circuit breaker; drift repaired', {
@@ -407,7 +420,7 @@ async function runSync(
             catchUpPolicy: { kind: 'skip-missed' }
           })
         )
-        jobManager.syncJobScheduleTimerById(id)
+        armCommittedScheduleTimer(id)
         touchedScheduleIds.push(id)
         logger.info('Heartbeat schedule created', { agentId, scheduleId: id, intervalMinutes })
         return finalize('created')
@@ -445,7 +458,7 @@ async function runSync(
             catchUpPolicy: { kind: 'skip-missed' }
           })
         )
-        jobManager.syncJobScheduleTimerById(id)
+        armCommittedScheduleTimer(id)
         touchedScheduleIds.push(id)
         logger.info('Heartbeat schedule created', { agentId, scheduleId: id, intervalMinutes })
         return finalize('created')
