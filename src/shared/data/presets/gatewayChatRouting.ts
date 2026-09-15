@@ -106,7 +106,10 @@ const GATEWAY_MODEL_ROUTERS: Partial<Record<string, (modelId: string) => Gateway
 }
 
 /** Resolve a gateway's per-model wire route from data available in both main and renderer. */
-export function resolveGatewayChatRoute(provider: Provider, model: Model): GatewayModelRoute | undefined {
+export function resolveGatewayChatRoute(
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'endpointConfigs'>,
+  model: Model
+): GatewayModelRoute | undefined {
   const router =
     GATEWAY_MODEL_ROUTERS[provider.id] ??
     (provider.presetProviderId ? GATEWAY_MODEL_ROUTERS[provider.presetProviderId] : undefined)

@@ -12,10 +12,10 @@
  * back to the local API Gateway when the model is gateway-routable.
  */
 
-import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { resolveCanonicalEndpoint } from '@shared/utils/endpoint'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
@@ -26,6 +26,13 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
  * Bedrock/Vertex routes cannot be expressed by this composition contract.
  */
 export type DshApi = 'anthropic-messages' | 'google-generative-ai' | 'openai-completions' | 'openai-responses'
+
+export const DSH_ENDPOINT_TYPES = [
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+] as const
 
 /**
  * Map a Cherry endpoint (`endpointType` + resolved `adapterFamily`) to the dsh
@@ -64,11 +71,12 @@ export function mapEndpointToDshApi(
   }
 }
 
-/** The effective chat endpoint the dsh runtime uses, preserving the model's declared preference order. */
+/** The effective chat endpoint the dsh runtime uses within the protocols it can drive. */
 export function resolveDshEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  return (
-    model.endpointTypes?.[0] ?? resolveGatewayChatRoute(provider, model)?.endpointType ?? provider.defaultChatEndpoint
-  )
+  // DSH supports several protocol families, so none of them is a hard runtime
+  // preference. Let the shared selector preserve its canonical priority:
+  // provider default first, then the model's declared fallback order.
+  return resolveCanonicalEndpoint(provider, model, undefined, DSH_ENDPOINT_TYPES).endpointType
 }
 
 /** Resolve the dsh `api` protocol for a Cherry provider+model, or `undefined` if unsupported. */

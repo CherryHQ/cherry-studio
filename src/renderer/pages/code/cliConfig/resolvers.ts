@@ -1,6 +1,7 @@
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { resolveCanonicalEndpoint, resolveEndpointBaseUrl } from '@shared/utils/endpoint'
 import { resolveGeminiBaseUrl } from '@shared/utils/gemini'
 
 import {
@@ -42,6 +43,9 @@ export function resolveClaudeBaseUrl(provider: Provider): string {
 }
 
 export function resolveCodexBaseUrl(provider: Provider): string {
+  // Codex only speaks the Responses wire protocol. Keep Chat-only providers
+  // ineligible here; the shared-host compatibility fallback is for the
+  // multi-protocol CLI adapters below.
   return formatApiHost(provider.endpointConfigs?.[CODEX_RESPONSES_ENDPOINT]?.baseUrl)
 }
 
@@ -75,20 +79,30 @@ function resolveSupportedEndpointType(
   provider: Provider,
   modelEndpointTypes: EndpointType[] | undefined,
   supportedEndpoints: readonly EndpointType[],
-  fallbackEndpoint: EndpointType
+  fallbackEndpoint: EndpointType,
+  model?: Model
 ): EndpointType {
-  const hasEndpoint = (type: EndpointType) => Boolean(provider.endpointConfigs?.[type]?.baseUrl)
-  const isSupported = (type: EndpointType | undefined): type is EndpointType =>
-    Boolean(type && supportedEndpoints.includes(type))
+  const effectiveModelEndpointTypes = modelEndpointTypes ?? model?.endpointTypes
+  const selectionModel =
+    model ??
+    ({
+      id: 'cli-config-model',
+      providerId: provider.id,
+      name: 'CLI config model',
+      endpointTypes: effectiveModelEndpointTypes
+    } as unknown as Model)
+  const canonicalSelection = resolveCanonicalEndpoint(provider, selectionModel, undefined, supportedEndpoints)
 
-  return (
-    modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
-    (isSupported(provider.defaultChatEndpoint) && hasEndpoint(provider.defaultChatEndpoint)
-      ? provider.defaultChatEndpoint
-      : undefined) ??
-    supportedEndpoints.find(hasEndpoint) ??
-    fallbackEndpoint
-  )
+  if (canonicalSelection.endpointType) return canonicalSelection.endpointType
+
+  // Keep CLI materialization behavior for a declared but currently unconfigured
+  // endpoint: the adapter can then emit a config that clearly reports the missing
+  // host instead of silently switching protocols. Selection and precedence remain
+  // owned by the shared resolver above.
+  const declaredSupportedEndpoint = effectiveModelEndpointTypes?.find((type) => supportedEndpoints.includes(type))
+  if (declaredSupportedEndpoint) return declaredSupportedEndpoint
+
+  return fallbackEndpoint
 }
 
 /** Reverse lookup of `toOpenCodeNpmInfo`, used when re-deriving info from an already-written opencode.json draft. */
@@ -101,20 +115,29 @@ export function openCodeNpmInfoFromNpmPackage(npm: string): OpenCodeNpmInfo {
   }
 }
 
-export function resolveOpenCodeNpmInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): OpenCodeNpmInfo {
+export function resolveOpenCodeNpmInfo(
+  provider: Provider,
+  modelEndpointTypes?: EndpointType[],
+  model?: Model
+): OpenCodeNpmInfo {
   return toOpenCodeNpmInfo(
-    resolveSupportedEndpointType(provider, modelEndpointTypes, OPEN_CODE_ENDPOINTS, 'openai-chat-completions')
+    resolveSupportedEndpointType(provider, modelEndpointTypes, OPEN_CODE_ENDPOINTS, 'openai-chat-completions', model)
   )
 }
 
-export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): PiProviderInfo {
+export function resolvePiProviderInfo(
+  provider: Provider,
+  modelEndpointTypes?: EndpointType[],
+  model?: Model
+): PiProviderInfo {
   const endpointType = resolveSupportedEndpointType(
     provider,
     modelEndpointTypes,
     PI_ENDPOINTS,
-    'openai-chat-completions'
+    'openai-chat-completions',
+    model
   )
-  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const rawBaseUrl = resolveEndpointBaseUrl(provider, endpointType)
   const apiByEndpoint: Partial<Record<EndpointType, PiApi>> = {
     'anthropic-messages': 'anthropic-messages',
     'google-generate-content': 'google-generative-ai',
@@ -131,14 +154,19 @@ export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: E
   return { api: apiByEndpoint[endpointType]!, baseUrl, endpointType }
 }
 
-export function resolveHermesProviderInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): HermesProviderInfo {
+export function resolveHermesProviderInfo(
+  provider: Provider,
+  modelEndpointTypes?: EndpointType[],
+  model?: Model
+): HermesProviderInfo {
   const endpointType = resolveSupportedEndpointType(
     provider,
     modelEndpointTypes,
     HERMES_ENDPOINTS,
-    'openai-chat-completions'
+    'openai-chat-completions',
+    model
   )
-  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const rawBaseUrl = resolveEndpointBaseUrl(provider, endpointType)
   const apiMode: HermesApiMode =
     endpointType === 'anthropic-messages'
       ? 'anthropic_messages'

@@ -81,7 +81,7 @@ export function isModelTagVisible(
 export function modelMatchesDisplayTag(
   model: ModelDisplayTagSource,
   tag: ModelDisplayTag,
-  provider?: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>
+  provider?: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'serverTools'>
 ) {
   if (tag === 'free') {
     return isFreeModel(model)
@@ -98,7 +98,7 @@ export function modelMatchesDisplayTag(
 export function getModelDisplayTags(
   model: ModelDisplayTagSource,
   options?: ModelTagVisibilityOptions,
-  provider?: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>
+  provider?: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs' | 'serverTools'>
 ) {
   return MODEL_DISPLAY_TAGS.filter(
     (tag) => isModelTagVisible(tag, options) && modelMatchesDisplayTag(model, tag, provider)
