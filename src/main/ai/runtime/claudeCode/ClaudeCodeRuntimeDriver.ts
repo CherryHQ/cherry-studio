@@ -14,6 +14,7 @@ import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 type BetaUsage = SDKResultMessage['usage']
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
@@ -65,12 +66,15 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { withClaudeFileWriteProtection } from './claudeFileWrites'
+import { captureClaudeForkCheckpoint, forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
   isClaudeCodeProcessFailure
 } from './processExitDiagnostics'
+import { resolveClaudeConfigDirectory } from './queryOptions'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -348,6 +352,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
+  private lastMainAssistantUuid?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private assistantFileToolsEnabled = false
@@ -374,6 +379,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
+    if (this.input.requireExistingHistory && !this.resumeToken)
+      throw new Error('history_missing: a replacement conversation requires its native history')
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
     // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
@@ -401,6 +408,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
     const options: Options = {
       ...request.options,
+      ...(!this.resumeToken && this.input.nativeSessionId ? { sessionId: this.input.nativeSessionId } : {}),
       ...(traceEnv
         ? {
             env: {
@@ -415,16 +423,19 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
     // which is exactly what tracing needs (env is fixed at spawn). No trace branch required here.
-    const consumedWarmQuery = await application.get('ClaudeCodeWarmQueryManager').consume({
-      key: request.key,
-      options,
-      initializeTimeoutMs: request.initializeTimeoutMs,
-      connectionRebuildSignature: request.connectionConfig?.rebuildSignature,
-      credentialsFingerprint: request.credentialsFingerprint,
-      usageCapture: request.usageCapture,
-      knowledgeBaseIds: request.knowledgeBaseIds,
-      notificationContext: request.notificationContext
-    })
+    const consumedWarmQuery =
+      this.input.nativeSessionId || this.input.requireExistingHistory
+        ? undefined
+        : await application.get('ClaudeCodeWarmQueryManager').consume({
+            key: request.key,
+            options,
+            initializeTimeoutMs: request.initializeTimeoutMs,
+            connectionRebuildSignature: request.connectionConfig?.rebuildSignature,
+            credentialsFingerprint: request.credentialsFingerprint,
+            usageCapture: request.usageCapture,
+            knowledgeBaseIds: request.knowledgeBaseIds,
+            notificationContext: request.notificationContext
+          })
 
     // A matching warm process may have selected a different rotated key when
     // it was started. Its receipt, not the freshly materialized request's,
@@ -439,7 +450,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.createQuery = createClaudeQuery
     this.query = consumedWarmQuery
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
-      : createClaudeQuery({ prompt: this.sdkInputQueue, options })
+      : createClaudeQuery({ prompt: this.sdkInputQueue, options: withClaudeFileWriteProtection(options) })
     this.adapterModelId = request.sdkModelId
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
@@ -482,7 +493,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
   }
 
+  async getForkContextEnvironment() {
+    const { default: manifest } = await import('../../../../../package.json')
+    return {
+      sdkVersion: manifest.dependencies['@anthropic-ai/claude-agent-sdk'],
+      systemPrompt: { prompt: this.spawnOptions?.systemPrompt, signature: this.connectionConfig?.rebuildSignature },
+      tools: { allowed: this.spawnOptions?.allowedTools, metadata: this.mcpToolMetadata },
+      opaqueEnvelope: true
+    }
+  }
+
   async send(input: AgentRuntimeUserInput): Promise<void> {
+    this.lastMainAssistantUuid = undefined
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
@@ -672,6 +694,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private async closeQuery(): Promise<void> {
     const query = this.query
+    const exited = this.processDiagnostics?.exited
+    const failures: unknown[] = []
     this.settlePendingInvocations()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
@@ -683,12 +707,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       query.close()
     } catch (error) {
       logger.warn('Claude Code query close failed', { sessionId: this.input.sessionId, error })
+      failures.push(error)
     }
     try {
       await query.return(undefined)
     } catch (error) {
       logger.warn('Claude Code query cleanup failed', { sessionId: this.input.sessionId, error })
+      failures.push(error)
     }
+    await exited
+    if (!exited && failures.length) throw new AggregateError(failures, 'Claude Code connection did not close cleanly')
   }
 
   private async runQueryLoop(): Promise<void> {
@@ -721,7 +749,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
         if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
-        if (message.type === 'assistant') this.captureAssistantInvocation(message, messageAssociation)
+        if (message.type === 'assistant') {
+          this.captureAssistantInvocation(message, messageAssociation)
+          if (message.parent_tool_use_id == null) this.lastMainAssistantUuid = message.uuid
+        }
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
         try {
@@ -749,7 +780,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
           // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
           this.emitPendingSteersAsUndelivered()
-          this.eventQueue.push({ type: 'turn-complete' })
+          const forkState = await captureClaudeForkCheckpoint(
+            result.sessionId,
+            this.lastMainAssistantUuid,
+            resolveClaudeConfigDirectory(this.spawnOptions?.env),
+            this.spawnOptions?.cwd ?? '',
+            this.abortController.signal
+          )
+          this.lastMainAssistantUuid = undefined
+          this.eventQueue.push({ type: 'turn-complete', forkState })
         }
       }
     } catch (error) {
@@ -804,6 +843,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     ) {
       return false
     }
+    if (
+      this.input.requireExistingHistory ||
+      this.input.nativeSessionId ||
+      agentSessionService.isFork(this.input.sessionId)
+    )
+      return false
     const reason = getResumeRecoveryReason(error)
     if (!reason) return false
     // Error results advance `resumeToken` before throwing. The pending input's session id proves the
@@ -836,7 +881,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
     this.query = createClaudeQuery({
       prompt: this.sdkInputQueue,
-      options: { ...this.spawnOptions, resume: undefined }
+      options: withClaudeFileWriteProtection({ ...this.spawnOptions, resume: undefined })
     })
     return true
   }
@@ -1397,6 +1442,7 @@ function toClaudeImageMediaType(value: string | undefined) {
 }
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly fork = forkClaudeSession
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
 

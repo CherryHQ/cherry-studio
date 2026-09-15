@@ -31,6 +31,8 @@ interface AgentChatMainProps {
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage: (messageId: string) => Promise<void>
+  startEditing: (messageId: string) => Promise<void>
+  editBusy: boolean
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
 }
 
@@ -51,6 +53,8 @@ export default function AgentChatMain({
   onOpenCitationsPanel,
   openDiagnosticReport,
   deleteMessage,
+  startEditing,
+  editBusy,
   respondToolApproval
 }: AgentChatMainProps) {
   if (placement !== 'docked' || !sessionMessagesEnabled) {
@@ -75,6 +79,8 @@ export default function AgentChatMain({
           onOpenCitationsPanel={onOpenCitationsPanel}
           openDiagnosticReport={openDiagnosticReport}
           deleteMessage={agentId ? deleteMessage : undefined}
+          startEditing={agentId ? startEditing : undefined}
+          editBusy={editBusy}
           respondToolApproval={agentId ? respondToolApproval : undefined}
         />
       </div>

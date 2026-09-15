@@ -9,6 +9,7 @@ export interface ClaudeCodeProcessDiagnostics {
   exitCode?: number
   exitSignal?: NodeJS.Signals
   spawnFailed?: true
+  exited?: Promise<void>
 }
 
 export function createClaudeCodeProcessDiagnostics(reference: string = randomUUID()): ClaudeCodeProcessDiagnostics {

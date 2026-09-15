@@ -5,6 +5,7 @@ import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import type { ComposerOverride } from '@renderer/components/composer/ComposerContext'
 
 import AgentChat from '../AgentChat'
 
@@ -150,7 +151,7 @@ vi.mock('@renderer/components/composer/ComposerCore', () => ({
 }))
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
-  useToolApprovalComposerOverrides: () => ({})
+  useToolApprovalComposerOverrides: (): ComposerOverride[] => []
 }))
 
 vi.mock('@renderer/components/composer/ComposerDockTransitionFrame', () => ({

@@ -6,12 +6,23 @@ import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
+import type { RuntimeForkInput } from '../forkCheckpoint'
 import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
 import { buildDshCherryToolName, DSH_AUTO_APPROVED_BRIDGED_TOOLS } from './DshCherryToolBridge'
+import { forkDshSession } from './dshFork'
 import { DshRuntimeConnection } from './DshRuntimeConnection'
 import { assertDshProviderUsable } from './modelInjection'
 
 export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
+  private readonly forkSources = new Map<string, DshRuntimeConnection>()
+
+  async fork(input: RuntimeForkInput) {
+    const events =
+      input.checkpoint.runtime === 'dsh'
+        ? await this.forkSources.get(input.sourceSessionId)?.snapshotForFork(input.checkpoint.boundary)
+        : undefined
+    return forkDshSession(input, events)
+  }
   readonly type = 'dsh'
   readonly capabilities = ['agent-session'] as const
 
@@ -61,6 +72,16 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
-    return new DshRuntimeConnection(input).start()
+    const connection = new DshRuntimeConnection(input, () => {
+      if (this.forkSources.get(input.sessionId) === connection) this.forkSources.delete(input.sessionId)
+    })
+    this.forkSources.set(input.sessionId, connection)
+    try {
+      await connection.start()
+      return connection
+    } catch (error) {
+      if (this.forkSources.get(input.sessionId) === connection) this.forkSources.delete(input.sessionId)
+      throw error
+    }
   }
 }

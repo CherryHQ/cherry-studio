@@ -24,6 +24,8 @@ import {
   type UpdateAgentWorkspaceDto
 } from '@shared/data/api/schemas/agentWorkspaces'
 
+import { hasActiveAgentSessionForkCleanupTx } from './agentSessionForkJournal'
+
 type AgentWorkspaceLookupOptions = { includeSystem?: boolean }
 export type FindOrCreateAgentWorkspaceResult = { workspace: AgentWorkspaceEntity; created: boolean }
 const AGENT_WORKSPACE_REFERENCE_PREVIEW_LIMIT = 21
@@ -188,6 +190,7 @@ export class AgentWorkspaceService {
       throw DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
     }
 
+    this.assertRegistrationAllowedTx(tx, workspacePath)
     const id = uuidv4()
     const name = options.name?.trim() || defaultWorkspaceName(workspacePath)
     const row = insertWithOrderKey(
@@ -207,6 +210,7 @@ export class AgentWorkspaceService {
         input.createdAt
       )
     )
+    this.assertRegistrationAllowedTx(tx, workspacePath)
     const row = withSqliteErrors(
       () =>
         insertWithOrderKey(
@@ -278,6 +282,11 @@ export class AgentWorkspaceService {
       this.assertUserAnchorExistsTx(tx, move.anchor)
     }
     applyMoves(tx, agentWorkspaceTable, moves, { pkColumn: agentWorkspaceTable.id })
+  }
+
+  private assertRegistrationAllowedTx(tx: DbOrTx, workspacePath: string): void {
+    if (hasActiveAgentSessionForkCleanupTx(tx))
+      throw DataApiErrorFactory.resourceLocked('Workspace', workspacePath, 'fork cleanup; retry')
   }
 
   private assertUserWorkspaceExistsTx(tx: DbOrTx, id: string): void {

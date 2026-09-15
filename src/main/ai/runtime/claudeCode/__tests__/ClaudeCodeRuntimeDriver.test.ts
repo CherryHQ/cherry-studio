@@ -1,11 +1,170 @@
+import { createHash } from 'node:crypto'
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
+import { fileURLToPath } from 'node:url'
+import { Worker } from 'node:worker_threads'
+
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
+import type { RuntimeForkResult } from '../../forkCheckpoint'
+import { captureClaudeForkCheckpoint } from '../claudeFork'
 import type * as SettingsBuilderModule from '../settingsBuilder'
 import type * as StreamAdapterModule from '../streamAdapter'
+
+describe('Claude fork checkpoint persistence', () => {
+  it('maps UUIDs once in isolated SDK workers through a child and grandchild', async () => {
+    const userUuid = '20249b48-e174-4610-84c2-af6224228290'
+    let entries = [
+      { type: 'user', uuid: userUuid, parentUuid: null, sessionId, message: { role: 'user', content: 'PAST_ONLY' } },
+      {
+        type: 'assistant',
+        uuid: messageUuid,
+        parentUuid: userUuid,
+        sessionId,
+        message: { role: 'assistant', content: [{ type: 'text', text: 'PAST_ONLY' }] }
+      }
+    ]
+    let currentId = sessionId
+    let currentUuid = messageUuid
+    const parentEnv = process.env.CLAUDE_CONFIG_DIR
+    for (const name of ['child', 'grandchild']) {
+      const checkpoint = {
+        runtime: 'claude-code',
+        runtimeSessionId: currentId,
+        messageUuid: currentUuid,
+        configDir: directory,
+        sourceCwd: directory,
+        prefixBytes: 1,
+        prefixHash: '0'.repeat(64)
+      }
+      const worker = new Worker(new URL('../../forkWorker.ts', import.meta.url), {
+        workerData: {
+          runtime: 'claude-code',
+          entries,
+          checkpoint,
+          checkpoints: [checkpoint],
+          artifactDirectory: path.join(directory, name),
+          targetCwd: directory
+        },
+        env: { ...process.env }
+      })
+      let result: RuntimeForkResult
+      try {
+        result = await new Promise<RuntimeForkResult>((resolve, reject) => {
+          worker.once('message', (message) =>
+            message.error ? reject(new Error(message.error)) : resolve(message.result)
+          )
+          worker.once('error', reject)
+          worker.once('exit', (code) => reject(new Error('worker exited: ' + code)))
+        })
+      } finally {
+        await worker.terminate()
+      }
+      const output = (await readFile(result.publish[0].source, 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+      const mapped = output.find((entry) => entry.forkedFrom?.messageUuid === currentUuid)
+      expect(mapped).toBeDefined()
+      expect(mapped.uuid).not.toBe(currentUuid)
+      expect(result.checkpoints[0]).toMatchObject({ messageUuid: mapped.uuid, configDir: directory })
+      expect(JSON.stringify(output)).toContain('PAST_ONLY')
+      expect(process.env.CLAUDE_CONFIG_DIR).toBe(parentEnv)
+      entries = output
+      currentId = result.resumeToken
+      currentUuid = mapped.uuid
+      await rm(result.publish[0].source)
+    }
+  })
+  const sessionId = '374c8467-e787-4c67-b890-a3d91b50dba6'
+  const messageUuid = '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03'
+  let directory: string
+  let file: string
+  const entry = JSON.stringify({
+    type: 'assistant',
+    uuid: messageUuid,
+    isSidechain: false,
+    message: { content: '检查点' }
+  })
+  beforeEach(async () => {
+    directory = await mkdtemp(path.join(tmpdir(), 'cherry-claude-checkpoint-test-'))
+    file = path.join(directory, 'projects', 'project', sessionId + '.jsonl')
+  })
+  afterEach(async () => {
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it.each(['\n', '\r\n'])('waits for the exact assistant entry and excludes later history (%j)', async (newline) => {
+    await mkdir(path.dirname(file), { recursive: true })
+    const prefix = JSON.stringify({ type: 'system', compactMetadata: { trigger: 'auto' } }) + newline
+    await writeFile(file, prefix + entry.slice(0, 15))
+    const pending = captureClaudeForkCheckpoint(sessionId, messageUuid, directory, directory)
+    await delay(100)
+    await appendFile(
+      file,
+      entry.slice(15) + newline + JSON.stringify({ type: 'user', uuid: 'future-message' }) + newline
+    )
+    const state = await pending
+    expect(state).toMatchObject({ status: 'available', checkpoint: { messageUuid, runtimeSessionId: sessionId } })
+    if (state.status !== 'available' || state.checkpoint.runtime !== 'claude-code')
+      throw new Error('missing checkpoint')
+    expect(state.checkpoint.prefixBytes).toBe(Buffer.byteLength(prefix + entry + newline))
+    expect(state.checkpoint.prefixHash).toBe(
+      createHash('sha256')
+        .update(prefix + entry + newline)
+        .digest('hex')
+    )
+  })
+
+  it('waits for the SDK to create the project directory and transcript', async () => {
+    const pending = captureClaudeForkCheckpoint(sessionId, messageUuid, directory, directory)
+    await delay(100)
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, entry + '\n')
+    await expect(pending).resolves.toMatchObject({ status: 'available', checkpoint: { messageUuid } })
+  })
+
+  it('does not replace a missing target UUID with the latest assistant', async () => {
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, entry + '\n')
+    await expect(captureClaudeForkCheckpoint(sessionId, 'missing-uuid', directory, directory)).resolves.toMatchObject({
+      status: 'unavailable',
+      reason: 'checkpoint_failed'
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Claude fork checkpoint capture failed',
+      expect.objectContaining({ reason: 'transcript_flush_timeout' })
+    )
+  })
+
+  it('stops waiting when the connection is cancelled', async () => {
+    const controller = new AbortController()
+    const pending = captureClaudeForkCheckpoint(sessionId, messageUuid, directory, directory, controller.signal)
+    controller.abort()
+    await expect(pending).resolves.toMatchObject({ status: 'unavailable', reason: 'checkpoint_failed' })
+  })
+
+  it('rejects malformed committed history without losing the successful answer', async () => {
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, 'invalid-json\n' + entry + '\n')
+    await expect(captureClaudeForkCheckpoint(sessionId, messageUuid, directory, directory)).resolves.toMatchObject({
+      status: 'unavailable',
+      reason: 'checkpoint_failed'
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Claude fork checkpoint capture failed',
+      expect.objectContaining({ reason: 'history_corrupt' })
+    )
+  })
+})
+
+const externalFileUrl = (name: string) => `file:///${process.platform === 'win32' ? 'C:/' : ''}tmp/${name}`
 
 const mocks = vi.hoisted(() => ({
   buildRequest: vi.fn(),
@@ -28,7 +187,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@application', () => ({
-  application: { get: mocks.applicationGet }
+  application: { get: mocks.applicationGet, getPath: vi.fn(() => '/mock-claude-config') }
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -45,6 +204,10 @@ vi.mock('../agentSessionWarmup', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { isFork: vi.fn(() => false) }
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -335,6 +498,61 @@ function userMessage() {
 }
 
 describe('ClaudeCodeRuntimeDriver', () => {
+  it('uses an isolated native id when rebuilding the original application conversation', async () => {
+    const queue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const nativeSessionId = 'fcd92c99-044b-4381-9c73-ecf5cfdedc23'
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      nativeSessionId
+    })
+    try {
+      expect(mocks.createClaudeQuery.mock.calls[0][0].options.sessionId).toBe(nativeSessionId)
+      expect(mocks.createClaudeQuery.mock.calls[0][0].options.resume).toBeUndefined()
+    } finally {
+      queue.close()
+      await connection.close()
+    }
+  })
+
+  it('does not retry a missing replacement history as an empty Claude conversation', async () => {
+    const queue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      resumeToken: 'missing-replacement',
+      requireExistingHistory: true
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+    try {
+      await connection.send({ message: userMessage() })
+      queue.push({
+        type: 'result',
+        subtype: 'error_during_execution',
+        session_id: 'missing-replacement',
+        usage: {},
+        errors: ['No conversation found with session ID: missing-replacement']
+      })
+      const seen: any[] = []
+      while (true) {
+        const event = await events.next()
+        if (event.done) break
+        seen.push(event.value)
+        if (event.value.type === 'error') break
+      }
+      expect(seen.some((event) => event.type === 'error')).toBe(true)
+      expect(seen.some((event) => event.chunk?.type === 'data-conversation-reset')).toBe(false)
+      expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    } finally {
+      queue.close()
+      await connection.close()
+    }
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.adapterInstances.length = 0
@@ -524,7 +742,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         category: 'auth',
         exitCode: 1
       })
-      return {}
+      return { once: vi.fn() }
     })
 
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -770,7 +988,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           parts: [
             { type: 'text', text: 'describe this' },
             { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' },
-            { type: 'file', url: 'file:///tmp/spec.pdf', mediaType: 'application/pdf', filename: 'spec.pdf' }
+            { type: 'file', url: externalFileUrl('spec.pdf'), mediaType: 'application/pdf', filename: 'spec.pdf' }
           ]
         }
       }
@@ -784,7 +1002,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": /tmp/spec.pdf'
+              text: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": ${fileURLToPath(externalFileUrl('spec.pdf'))}`
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -1368,7 +1586,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         data: {
           parts: [
             { type: 'text', text: 'describe this' },
-            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+            { type: 'file', url: externalFileUrl('pixel.png'), mediaType: 'image/png', filename: 'pixel.png' }
           ]
         }
       }
@@ -1378,8 +1596,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content:
-            'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": /tmp/pixel.png'
+          content: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": ${fileURLToPath(externalFileUrl('pixel.png'))}`
         }
       },
       done: false
@@ -1539,6 +1756,61 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(secondBoundary).toBeDefined()
     expect(secondBoundary).not.toBe(boundary)
     void connection.close()
+  })
+
+  it('emits a checkpoint after the main assistant transcript is flushed in the configured directory', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'cherry-claude-driver-checkpoint-'))
+    const sessionId = '374c8467-e787-4c67-b890-a3d91b50dba6'
+    const messageUuid = '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03'
+    const queryQueue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const request = await mocks.buildRequest()
+    mocks.buildRequest.mockResolvedValue({
+      ...request,
+      options: { ...request.options, cwd: directory, env: { CLAUDE_CONFIG_DIR: directory } }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    try {
+      await connection.send({ message: userMessage() })
+      queryQueue.push({
+        type: 'assistant',
+        uuid: messageUuid,
+        parent_tool_use_id: null,
+        message: { id: 'main-response', content: [{ type: 'text', text: 'answer' }] }
+      })
+      queryQueue.push({
+        type: 'assistant',
+        uuid: 'sidechain-uuid',
+        parent_tool_use_id: 'subagent',
+        message: { id: 'subagent-response', content: [{ type: 'text', text: 'subagent' }] }
+      })
+      queryQueue.push({ type: 'result', subtype: 'success', session_id: sessionId })
+      const completion = (async () => {
+        for await (const event of connection.events) if (event.type === 'turn-complete') return event
+        throw new Error('missing turn completion')
+      })()
+      await delay(100)
+      const project = path.join(directory, 'projects', 'project')
+      await mkdir(project, { recursive: true })
+      await writeFile(
+        path.join(project, sessionId + '.jsonl'),
+        JSON.stringify({ type: 'assistant', uuid: messageUuid }) + '\n'
+      )
+      await expect(completion).resolves.toMatchObject({
+        type: 'turn-complete',
+        forkState: {
+          status: 'available',
+          checkpoint: { runtimeSessionId: sessionId, messageUuid, configDir: directory }
+        }
+      })
+    } finally {
+      await connection.close()
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   it('emits resume token, chunks, and turn-complete events', async () => {
@@ -3030,8 +3302,13 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(retrySpawn.options).toMatchObject({
       model: 'sonnet',
       resume: undefined,
-      spawnClaudeCodeProcess: mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
+      spawnClaudeCodeProcess: expect.any(Function),
+      hooks: { PreToolUse: expect.any(Array), PostToolBatch: expect.any(Array) }
     })
+    // Each replacement process needs a fresh lease owner; it must not reuse the old wrapper.
+    expect(retrySpawn.options.spawnClaudeCodeProcess).not.toBe(
+      mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
+    )
     const replayed = await retrySpawn.prompt[Symbol.asyncIterator]().next()
     expect(replayed.value).toMatchObject({ type: 'user', session_id: '' })
 
@@ -3094,8 +3371,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(retrySpawn.options).toMatchObject({
       model: 'sonnet',
       resume: undefined,
-      spawnClaudeCodeProcess: mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
+      spawnClaudeCodeProcess: expect.any(Function),
+      hooks: { PreToolUse: expect.any(Array), PostToolBatch: expect.any(Array) }
     })
+    expect(retrySpawn.options.spawnClaudeCodeProcess).not.toBe(
+      mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess
+    )
     await expect(retrySpawn.prompt[Symbol.asyncIterator]().next()).resolves.toMatchObject({
       value: { type: 'user', session_id: '' },
       done: false
@@ -3115,7 +3396,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(seen).toContainEqual(
       expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
     )
-    expect(seen).toContainEqual({ type: 'turn-complete' })
+    expect(seen).toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
     void connection.close()
   })
 
@@ -3302,7 +3583,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         error: expect.objectContaining({ message: 'API Error: The operation timed out.' })
       })
     )
-    expect(seen).not.toContainEqual({ type: 'turn-complete' })
+    expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
     expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
     void connection.close()
   })
@@ -3344,7 +3625,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       })
     )
     expect(seen).not.toContainEqual(expect.objectContaining({ type: 'chunk' }))
-    expect(seen).not.toContainEqual({ type: 'turn-complete' })
+    expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
     await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
     void connection.close()
   })

@@ -5,6 +5,8 @@ import type { MessageListProviderValue, MessageListRuntime } from '@renderer/com
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const exportActionsMock = vi.hoisted(() => ({
   saveTextFile: vi.fn(),
@@ -57,6 +59,11 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
 }))
 const openRouteMock = vi.hoisted(() => vi.fn())
 const ipcApiRequest = vi.hoisted(() => vi.fn())
+const confirmFork = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/services/popup', async (importOriginal) => {
+  const actual = await importOriginal<{ popup: object }>()
+  return { ...actual, popup: { ...actual.popup, confirm: confirmFork } }
+})
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
   on: vi.fn(() => vi.fn()),
@@ -181,6 +188,7 @@ const {
 describe('useAgentMessageListProviderValue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    confirmFork.mockReset()
     clearPendingAgentSessionImageActionsForTest()
     window.api.file.openPath = vi.fn()
     ipcApiRequest.mockReset()
@@ -193,6 +201,90 @@ describe('useAgentMessageListProviderValue', () => {
       mime: 'application/octet-stream'
     })
   })
+
+  it.each([false, true])('offers edit-resend only on the last user message, busy=%s', async (editBusy) => {
+    let value: MessageListProviderValue | undefined
+    const startEditing = vi.fn()
+    const messages = ['user', 'assistant', 'user', 'assistant'].map((role, index) => ({
+      id: `message-${index}`,
+      role,
+      parts: [{ type: 'text', text: `content-${index}` }]
+    })) as CherryUIMessage[]
+    function Probe() {
+      value = useAgentMessageListProviderValue({
+        topic: { id: 'agent-session:source', assistantId: 'agent', name: 'Source', messages: [] } as unknown as Topic,
+        messages,
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor',
+        startEditing,
+        editBusy
+      })
+      return null
+    }
+    render(<Probe />)
+    expect(value!.actions.getMessageEditAvailability!('message-0').visible).toBe(false)
+    expect(value!.actions.getMessageEditAvailability!('message-3').visible).toBe(false)
+    expect(value!.actions.getMessageEditAvailability!('message-2')).toEqual({
+      visible: true,
+      disabledReason: editBusy ? 'agent.edit_resend.error.busy' : undefined
+    })
+    if (!editBusy) {
+      value!.actions.startEditing!(value!.state.messages[2], messages[2].parts)
+      expect(startEditing).toHaveBeenCalledWith('message-2')
+    }
+  })
+
+  it.each(['native', 'rebuild', 'workspace-error'] as const)(
+    'forks without confirmation and only rebuilds when the checkpoint is unavailable: %s',
+    async (scenario) => {
+      let value: MessageListProviderValue | undefined
+      const Probe = () => {
+        value = useAgentMessageListProviderValue({
+          topic: {
+            id: 'agent-session:source',
+            assistantId: 'agent-1',
+            name: 'Source',
+            messages: []
+          } as unknown as Topic,
+          messages: [],
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'anchor'
+        })
+        return null
+      }
+      ipcApiRequest.mockReset()
+      if (scenario === 'native') ipcApiRequest.mockResolvedValueOnce({ sessionId: 'child' })
+      else
+        ipcApiRequest.mockRejectedValueOnce(
+          new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, 'fork failed', {
+            reason: scenario === 'workspace-error' ? 'workspace_changed' : 'legacy_history'
+          })
+        )
+      if (scenario === 'rebuild') ipcApiRequest.mockResolvedValueOnce({ sessionId: 'child' })
+      render(<Probe />)
+      const action = value!.actions.forkSession!('selected-message')
+      if (scenario === 'workspace-error') await expect(action).rejects.toThrow()
+      else await action
+      expect(ipcApiRequest).toHaveBeenNthCalledWith(1, 'ai.agent.session.fork', {
+        sourceSessionId: 'source',
+        messageId: 'selected-message',
+        allowHistoryRebuild: false
+      })
+      expect(confirmFork).not.toHaveBeenCalled()
+      if (scenario === 'rebuild')
+        expect(ipcApiRequest).toHaveBeenNthCalledWith(2, 'ai.agent.session.fork', {
+          sourceSessionId: 'source',
+          messageId: 'selected-message',
+          allowHistoryRebuild: true
+        })
+      else expect(ipcApiRequest).toHaveBeenCalledTimes(1)
+      if (scenario === 'native' || scenario === 'rebuild')
+        expect(openRouteMock).toHaveBeenCalledWith('/app/agents', { sessionId: 'child' })
+      else expect(openRouteMock).not.toHaveBeenCalled()
+    }
+  )
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', async () => {
     const topic = {

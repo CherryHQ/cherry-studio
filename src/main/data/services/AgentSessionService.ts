@@ -36,6 +36,7 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 
+import { agentSessionEditService } from './AgentSessionEditService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
@@ -245,9 +246,8 @@ export class AgentSessionService {
    * DB-only create primitive for caller-owned transaction composition.
    * The caller supplies the reserved id and owns the outer commit boundary.
    */
-  createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
+  createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto, createdAt = Date.now()): void {
     this.assertAgentExistsTx(tx, dto.agentId)
-    const createdAt = Date.now()
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -287,6 +287,11 @@ export class AgentSessionService {
   }
 
   /** Bump metadata modification time from a foreign service's transaction. */
+  setForkSourceTx(tx: DbOrTx, id: string, source: NonNullable<SessionRow['forkedFrom']>): void {
+    tx.update(sessionsTable).set({ forkedFrom: source }).where(eq(sessionsTable.id, id)).run()
+  }
+
+  /** Bump metadata modification time from a foreign service's transaction. */
   touchUpdatedAtTx(tx: DbOrTx, sessionId: string, timestampMs: number): void {
     tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()
   }
@@ -313,6 +318,18 @@ export class AgentSessionService {
       .limit(1)
       .all()
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
+  }
+
+  isFork(id: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ source: sessionsTable.forkedFrom })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.id, id))
+        .get()?.source
+    )
   }
 
   getById(id: string): AgentSessionEntity {
@@ -950,6 +967,12 @@ export class AgentSessionService {
   }
 
   deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): string[] {
+    for (const row of tx
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, workspaceId))
+      .all())
+      agentSessionEditService.assertMutableTx(tx, row.id)
     const deletedSessions = tx
       .delete(sessionsTable)
       .where(eq(sessionsTable.workspaceId, workspaceId))
@@ -1018,6 +1041,7 @@ export class AgentSessionService {
   }
 
   private cascadeDeleteSessionRowsTx(tx: DbOrTx, rows: JoinedSessionRow[]): AgentSessionDeletionOutcome {
+    for (const row of rows) agentSessionEditService.assertMutableTx(tx, row.session.id)
     const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(
       tx,
       rows.map((row) => row.session.id)

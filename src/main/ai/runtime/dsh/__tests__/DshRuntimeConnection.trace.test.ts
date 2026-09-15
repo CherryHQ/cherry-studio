@@ -32,7 +32,11 @@ vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan } as never)
 
 const runtimeMocks = vi.hoisted(() => ({
   snapshot: undefined as any,
+  isFork: vi.fn(),
+  needsPreparation: vi.fn(),
   bridgeRequest: vi.fn().mockResolvedValue(undefined),
+  clientClose: vi.fn().mockResolvedValue(undefined),
+  runtimeExited: vi.fn(),
   resolveInjection: vi.fn(),
   usesDshGateway: vi.fn(),
   harnessOptions: undefined as Record<string, any> | undefined,
@@ -106,6 +110,12 @@ vi.mock('../dshConnectionSignature', () => ({
   DshInvalidConnectionSnapshotError: class extends Error {},
   captureDshConnectionSnapshot: vi.fn(() => Promise.resolve(runtimeMocks.snapshot))
 }))
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { isFork: runtimeMocks.isFork }
+}))
+vi.mock('@data/services/AgentSessionForkContextService', () => ({
+  agentSessionForkContextService: { needsPreparation: runtimeMocks.needsPreparation }
+}))
 vi.mock('../modelInjection', () => ({
   resolveDshProviderInjectionFromSnapshot: runtimeMocks.resolveInjection,
   usesDshGateway: runtimeMocks.usesDshGateway
@@ -122,6 +132,7 @@ vi.mock('../DshBridgeServer', () => ({
       listen: vi.fn().mockResolvedValue(undefined),
       whenReady: vi.fn().mockResolvedValue(undefined),
       request: runtimeMocks.bridgeRequest,
+      runtimeExited: runtimeMocks.runtimeExited,
       close: vi.fn().mockResolvedValue(undefined)
     }
   })
@@ -146,7 +157,7 @@ vi.mock('../dshSdk', () => ({
         start: vi.fn(),
         initialize: vi.fn().mockResolvedValue(undefined),
         subscribe: vi.fn(() => (subscription = new FakeSubscription())),
-        close: vi.fn().mockResolvedValue(undefined)
+        close: runtimeMocks.clientClose
       }
     })
   })
@@ -189,6 +200,8 @@ const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 beforeEach(() => {
   runtimeMocks.snapshot = baseSnapshot()
+  runtimeMocks.isFork.mockReset().mockReturnValue(false)
+  runtimeMocks.needsPreparation.mockReset().mockReturnValue(false)
   runtimeMocks.harnessOptions = undefined
   runtimeMocks.getShellEnv.mockReset().mockResolvedValue({
     PATH: ['/opt/homebrew/bin', '/usr/bin'].join(path.delimiter),
@@ -196,6 +209,8 @@ beforeEach(() => {
     SECRET: 'do-not-forward'
   })
   runtimeMocks.bridgeRequest.mockReset().mockResolvedValue(undefined)
+  runtimeMocks.clientClose.mockReset().mockResolvedValue(undefined)
+  runtimeMocks.runtimeExited.mockReset()
   runtimeMocks.resolveInjection.mockReset().mockReturnValue(baseInjection())
   runtimeMocks.usesDshGateway.mockReset().mockReturnValue(false)
   vi.mocked(DshBridgeServer).mockClear()
@@ -208,6 +223,171 @@ afterEach(() => {
 })
 
 describe('DshRuntimeConnection tracing', () => {
+  it('creates rebuilt history under a fresh native id without trying to resume the old conversation', async () => {
+    const nativeSessionId = 'rebuilt-native-generation'
+    const connection = await new DshRuntimeConnection({
+      ...connectInput,
+      nativeSessionId,
+      requireExistingHistory: false
+    }).start()
+    try {
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+        'session/open',
+        expect.objectContaining({ sessionId: nativeSessionId, resume: false, requireExistingHistory: false })
+      )
+      const iterator = connection.events[Symbol.asyncIterator]()
+      await expect(iterator.next()).resolves.toMatchObject({ value: { type: 'resume-token', token: nativeSessionId } })
+      expect(vi.mocked(DshBridgeServer).mock.calls[0][0].sessionId).toBe(connectInput.sessionId)
+    } finally {
+      await connection.close()
+    }
+  })
+
+  it.each([
+    { nativeSessionId: undefined, resumeToken: undefined, expectedSessionId: 'session-1' },
+    {
+      nativeSessionId: 'rebuilt-native-generation',
+      resumeToken: undefined,
+      expectedSessionId: 'rebuilt-native-generation'
+    },
+    {
+      nativeSessionId: undefined,
+      resumeToken: 'edited-native-generation',
+      expectedSessionId: 'edited-native-generation'
+    }
+  ])(
+    'bounds fork snapshots without closing the source connection ($expectedSessionId)',
+    async ({ expectedSessionId, ...identity }) => {
+      const connection = await new DshRuntimeConnection({ ...connectInput, ...identity }).start()
+      const events = [{ type: 'turn/end', seq: 7 }]
+      try {
+        runtimeMocks.bridgeRequest.mockResolvedValueOnce({ events })
+        await expect(connection.snapshotForFork(7)).resolves.toEqual(events)
+        expect(runtimeMocks.bridgeRequest).toHaveBeenLastCalledWith(
+          'session/fork-snapshot',
+          { sessionId: expectedSessionId, boundary: 7 },
+          { timeoutMs: 60_000 }
+        )
+        runtimeMocks.bridgeRequest.mockRejectedValueOnce(new Error('snapshot timed out'))
+        await expect(connection.snapshotForFork(7)).rejects.toThrow('snapshot timed out')
+        expect(runtimeMocks.clientClose).not.toHaveBeenCalled()
+        runtimeMocks.bridgeRequest.mockResolvedValueOnce({ events })
+        await expect(connection.snapshotForFork(7)).resolves.toEqual(events)
+      } finally {
+        await connection.close()
+      }
+    }
+  )
+
+  it('resumes a new native generation inside the same application conversation', async () => {
+    const nativeId = 'edited-native-generation'
+    const connection = await new DshRuntimeConnection({ ...connectInput, resumeToken: nativeId }).start()
+    const events: AgentRuntimeEvent[] = []
+    const collect = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+    try {
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+        'session/open',
+        expect.objectContaining({
+          sessionId: nativeId,
+          resume: true,
+          requireExistingHistory: true
+        })
+      )
+      expect(vi.mocked(DshBridgeServer).mock.calls[0][0]).toMatchObject({
+        sessionId: 'session-1',
+        runtimeSessionId: nativeId
+      })
+      await connection.send({ message: { data: { parts: [{ type: 'text', text: 'edited input' }] } } } as never)
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+        'session/prompt',
+        expect.objectContaining({ sessionId: nativeId })
+      )
+      subscription.push({
+        method: 'session.event',
+        params: {
+          sessionId: nativeId,
+          event: { type: 'turn/end', seq: 7, time: 0, data: { turn: 1, reason: { kind: 'completed' } } }
+        }
+      })
+      await vi.waitFor(() =>
+        expect(events).toContainEqual({
+          type: 'turn-complete',
+          forkState: {
+            version: 1,
+            status: 'available',
+            checkpoint: { runtime: 'dsh', runtimeSessionId: nativeId, boundary: 7 }
+          }
+        })
+      )
+      expect(events).not.toContainEqual({ type: 'resume-token', token: 'session-1' })
+    } finally {
+      await connection.close()
+      await collect
+    }
+    expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+      'session/cancel',
+      { sessionId: nativeId },
+      expect.anything()
+    )
+  })
+
+  it.each([false, true])('uses durable preparation state for fork resume strictness (unsent=%s)', async (unsent) => {
+    runtimeMocks.isFork.mockReturnValue(true)
+    runtimeMocks.needsPreparation.mockReturnValue(unsent)
+    const connection = await new DshRuntimeConnection({ ...connectInput, resumeToken: 'session-1' }).start()
+    try {
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+        'session/open',
+        expect.objectContaining({ resume: true, requireExistingHistory: !unsent })
+      )
+    } finally {
+      await connection.close()
+    }
+  })
+
+  it('rejects a native fork without a token before creating a runtime', async () => {
+    runtimeMocks.isFork.mockReturnValue(true)
+    await expect(new DshRuntimeConnection(connectInput).start()).rejects.toThrow('history_missing')
+    expect(runtimeMocks.harnessOptions).toBeUndefined()
+  })
+  it('closes the SDK after a bridge-only disconnect, retaining leases until process exit', async () => {
+    const stopped = Promise.withResolvers<void>()
+    runtimeMocks.clientClose.mockReturnValue(stopped.promise)
+    await new DshRuntimeConnection(connectInput).start()
+    vi.mocked(DshBridgeServer).mock.calls[0][0].onDisconnect!()
+    await vi.waitFor(() => expect(runtimeMocks.clientClose).toHaveBeenCalled())
+    expect(runtimeMocks.runtimeExited).not.toHaveBeenCalled()
+    stopped.resolve()
+    await vi.waitFor(() => expect(runtimeMocks.runtimeExited).toHaveBeenCalledOnce())
+  })
+  it('releases file-write ownership only after SDK process shutdown is confirmed', async () => {
+    const stopped = Promise.withResolvers<void>()
+    const closing = Promise.withResolvers<void>()
+    runtimeMocks.clientClose.mockImplementation(() => {
+      closing.resolve()
+      return stopped.promise
+    })
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const pending = connection.close()
+    await closing.promise
+    try {
+      expect(runtimeMocks.runtimeExited).not.toHaveBeenCalled()
+    } finally {
+      stopped.resolve()
+      await pending
+    }
+    expect(runtimeMocks.runtimeExited).toHaveBeenCalledTimes(1)
+  })
+
+  it('retains file-write ownership when SDK process shutdown cannot be confirmed', async () => {
+    runtimeMocks.clientClose.mockRejectedValue(new Error('process is still alive'))
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    await expect(connection.close()).rejects.toThrow('process is still alive')
+    expect(runtimeMocks.runtimeExited).not.toHaveBeenCalled()
+  })
+
   it('establishes the gateway baseline after starting the gateway', async () => {
     runtimeMocks.snapshot = { ...baseSnapshot(), signature: 'gateway-stopped' }
     runtimeMocks.usesDshGateway.mockReturnValue(true)

@@ -1,0 +1,19 @@
+diff --git a/lib/index.js b/lib/index.js
+index 3568628f889dfab2733d5fd27c45bbca4ded97c1..a4b99eec9b7dddd16dcaf1c53af69ca59dbc2b74 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -441,6 +441,14 @@ async function throwGuardedCreateFailure(error, absolutePath, displayPath, inspe
+ 		throw new FsError(`cannot overwrite existing "${displayPath}" without reading it first`, "FS_NOT_OBSERVED", { cause: error });
+ 	}
+ 	if (isEEXIST(error)) throw new FsError(`cannot overwrite existing "${displayPath}" without reading it first`, "FS_NOT_OBSERVED", { cause: error });
++	// Preserve publication failures in the model-visible message; toolErrorResult drops nested causes.
++	const code = error && typeof error === "object" && "code" in error ? error.code : void 0;
++	if (["ENOTSUP", "EOPNOTSUPP", "ENOSYS", "EXDEV"].includes(code))
++		throw new FsError(`FILE_ATOMIC_CREATE_UNSUPPORTED: cannot safely create "${displayPath}" on this filesystem (${code}); no file was published. Use a filesystem supporting atomic no-replace creation. Do not bypass this safety check.`, "FS_IO_ERROR", { cause: error });
++	if (["EACCES", "EPERM", "EROFS"].includes(code))
++		throw new FsError(`FILE_PERMISSION_DENIED: safe creation of "${displayPath}" was denied (${code}); check filesystem permissions and hard-link support. No unsafe fallback was attempted.`, "FS_IO_ERROR", { cause: error });
++	if (["ENOSPC", "EDQUOT", "EIO"].includes(code))
++		throw new FsError(`FILE_DISK_ERROR: safe creation of "${displayPath}" failed (${code}); no unsafe fallback was attempted.`, "FS_IO_ERROR", { cause: error });
+ 	throw new FsError(`cannot write "${displayPath}": ${errorMessage(error)}`, "FS_IO_ERROR", { cause: error });
+ }
+ /**
