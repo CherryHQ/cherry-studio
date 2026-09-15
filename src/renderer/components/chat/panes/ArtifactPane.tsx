@@ -155,6 +155,11 @@ type ArtifactPaneViewProps = ArtifactPaneViewBaseProps &
 /**
  * Presentational artifact pane: renders file tree and selected-file overlay
  * preview from the supplied model.
+ *
+ * Escape is handled in two places and never at the document level: the overlay owns it for anything
+ * focused inside it, and the pane root covers the picker toggle, which sits in the pane header as the
+ * overlay's sibling. The picker takes precedence over closing the preview, because losing the mode is
+ * cheaper to recover from than losing the preview.
  */
 export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const {
@@ -249,9 +254,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     setSelectionReference(null)
   }, [previewKey])
 
-  // Refreshing the same file remounts the preview plugin without changing previewKey, so the effect
-  // above returns early. The held reference then describes content that is no longer on screen and
-  // carries a fileStamp from before the refresh.
+  // Refreshing the same file remounts the preview plugin without changing previewKey, so the effect above
+  // returns early and the held reference would keep a fileStamp from before the refresh.
   useEffect(() => {
     setSelectionReference(null)
   }, [contentRefreshToken])
@@ -262,9 +266,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     if (editMode === 'edit') setSelectionReference(null)
   }, [editMode])
 
-  // The picker is a mode of the preview, so it ends with the preview: the editor replaces it, and a
-  // file without a producing plugin has nothing to pick. It survives a file switch to another
-  // pickable file on purpose — the button is meant to stay on while the user gathers references.
+  // The picker is a mode of the preview, so it ends with the preview. It survives a file switch to another
+  // pickable file on purpose — the button stays on while the user gathers references.
   useEffect(() => {
     if (editMode === 'edit' || !pickerAvailable) setPickerActive(false)
   }, [editMode, pickerAvailable])
@@ -366,11 +369,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     onSelectedFileChange(null)
   }, [onPreviewClose, onSelectedFileChange])
 
-  // The overlay owns Escape for anything focused inside it: React 19 delegates events at the root
-  // container, so a document-level listener would never see a keydown whose
-  // SyntheticEvent.stopPropagation() already stopped it here. The picker takes precedence over closing
-  // the preview because losing the mode is cheaper to recover from than losing the preview. Escape from
-  // the picker toggle itself lands on the pane root instead — see handlePaneKeyDown.
+  // React 19 delegates events at the root container, so a document-level listener would never see a keydown
+  // whose SyntheticEvent.stopPropagation() this handler already called.
   const handleOverlayKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (event.key !== 'Escape') return
@@ -385,10 +385,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [handleClosePreview, pickerActive]
   )
 
-  // With headerVariant="pane" the picker toggle lives in the pane header, a sibling of the overlay, so
-  // the Escape that follows clicking it never reaches handleOverlayKeyDown. Turning the picker off is
-  // all this adds: closing the preview stays the overlay's business, and the overlay stops its own
-  // Escape, so this never double-fires.
+  // With headerVariant="pane" the picker toggle sits in the pane header, a sibling of the overlay, so its
+  // Escape never reaches handleOverlayKeyDown. The overlay stops its own Escape, so this never double-fires.
   const handlePaneKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (event.key !== 'Escape' || !pickerActive) return
@@ -705,11 +703,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       </div>
     ) : null
 
-  // The chip is not cleared on click: the composer receives the reference over a window event and can still
-  // refuse it (an insertion that would exceed the input limit), and nothing reports that back here. Clearing
-  // optimistically would drop the selection on exactly those failures, with no way to get the chip back short
-  // of re-selecting. The chip's lifetime is already owned by the effects above — file switch, edit mode, and
-  // the plugin reporting a new or cleared selection.
+  // Not cleared on click: the composer receives the reference over a window event and can still refuse it
+  // (no room in the input) without reporting back, so clearing here would drop the selection on a failure.
   const handleInsertSelectionReference = useCallback(() => {
     if (!selectionReference) return
     onInsertSelectionReference?.(selectionReference)

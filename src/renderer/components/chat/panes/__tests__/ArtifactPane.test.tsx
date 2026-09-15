@@ -841,9 +841,8 @@ describe('ArtifactPane', () => {
   })
 
   it('keeps the quote chip after handing the reference off, since the composer can still refuse it', async () => {
-    // The composer receives the reference over a window event and may reject it (an insertion that would
-    // exceed the input limit); nothing reports that back here. Clearing on click would drop the selection on
-    // exactly those failures, leaving no way to retry short of re-selecting.
+    // The composer receives the reference over a window event and may reject it (no room in the input)
+    // without reporting back, so clearing on click would drop the selection with no way to retry.
     mockWorkspaceTree('/tmp/workspace', ['notes.docx'])
     const onInsert = vi.fn()
 
