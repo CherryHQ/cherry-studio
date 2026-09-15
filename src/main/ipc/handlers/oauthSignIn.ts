@@ -27,12 +27,7 @@ export async function runOAuthSignIn(
   )
 
   if (senderId) {
-    const window = application.get('WindowManager').getWindow(senderId)
-    if (window && !window.isDestroyed()) {
-      if (window.isMinimized()) window.restore()
-      window.show()
-      window.focus()
-    }
+    application.get('MainWindowService').showMainWindow()
   }
   return result
 }

@@ -186,6 +186,7 @@ export const oauthWithAiOnly = async (setKey) => {
 export interface NewApiOAuthConfig {
   oauthServer: string
   apiHost?: string
+  requestId?: string
 }
 
 /** CherryIN authorization and HTTP callback are handled in the main process. */
@@ -194,7 +195,7 @@ export const oauthWithCherryIn = async (
   config: NewApiOAuthConfig
 ): Promise<string> => {
   const result = await ipcApi.request('cherryin.sign_in', {
-    requestId: crypto.randomUUID(),
+    requestId: config.requestId ?? crypto.randomUUID(),
     oauthServer: config.oauthServer,
     apiHost: config.apiHost
   })

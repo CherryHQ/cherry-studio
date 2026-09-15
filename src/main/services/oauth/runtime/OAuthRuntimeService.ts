@@ -162,7 +162,7 @@ export class OAuthRuntimeService extends BaseService {
       void codePromise.catch(() => undefined)
       await transport.ready
       if (signal.aborted) throw new OAuthSignInCancelledError(definition.providerId)
-      await shell.openExternal(authUrl)
+      await Promise.race([shell.openExternal(authUrl), codePromise.then(() => undefined)])
       const code = await codePromise
 
       operation.phase = 'exchange'

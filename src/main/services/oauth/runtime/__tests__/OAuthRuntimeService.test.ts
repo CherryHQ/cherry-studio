@@ -110,6 +110,7 @@ describe('OAuthRuntimeService', () => {
     h.transportMock.waitForAuthorizationCode.mockReset().mockResolvedValue('auth-code')
     h.transportMock.close.mockReset()
     h.transportMock.ready = Promise.resolve()
+    vi.mocked(shell.openExternal).mockReset().mockResolvedValue()
     service = new TestOAuthRuntimeService()
     service.initializeForTest()
   })
@@ -462,6 +463,23 @@ describe('OAuthRuntimeService', () => {
     expect(await retryOutcome).toBeInstanceOf(OAuthSignInCancelledError)
     expect(h.transportMock.tryAcquire).toHaveBeenCalledTimes(2)
     expect(h.transportMock.close).toHaveBeenCalledTimes(2)
+  })
+
+  it('cancels sign-in while the system browser launch is still pending', async () => {
+    vi.mocked(shell.openExternal).mockReturnValueOnce(new Promise<void>(() => {}))
+    h.transportMock.waitForAuthorizationCode.mockImplementation((_state: string, signal: AbortSignal) => {
+      return new Promise<string>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+
+    const outcome = service.signIn('win-1', 'codex', 'pending-browser').catch((error: unknown) => error)
+    await vi.waitFor(() => expect(shell.openExternal).toHaveBeenCalledOnce())
+
+    await service.cancelSignIn('win-1', 'codex', 'pending-browser')
+
+    expect(await outcome).toBeInstanceOf(OAuthSignInCancelledError)
+    expect(h.transportMock.close).toHaveBeenCalledOnce()
   })
 
   it('cancels while client discovery is pending and allows an immediate retry', async () => {
