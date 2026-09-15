@@ -134,7 +134,6 @@ const logger = loggerService.withContext('AgentRightPane')
 const FLOW_TAB_PREFIX = 'flow:'
 const STATUS_PANE_ID = 'status'
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
-const BLANK_BROWSER_URL = 'about:blank'
 
 /** HTML artifacts open in the browser pane instead of the file preview. */
 function toBrowsableHtmlUrl(filePath: string): string | null {
@@ -980,7 +979,7 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
 
   return (
     <WebviewBrowser
-      initialUrl={runtime.browserUrl ?? BLANK_BROWSER_URL}
+      initialUrl={runtime.browserUrl ?? undefined}
       securityProfile={runtime.browserProfile}
       agentSessionId={sessionId}
       onNavigate={runtime.openBrowserUrl}
