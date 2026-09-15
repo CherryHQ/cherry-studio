@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
@@ -56,8 +55,16 @@ vi.mock('@renderer/utils/platform', () => ({
 }))
 
 vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
-  getMiniAppsLogoRef: () => undefined,
-  useMiniAppLogo: () => undefined
+  getMiniAppsLogoRef: (logo?: string) => (logo === 'google' ? {} : undefined),
+  useMiniAppLogo: (logo?: string) => {
+    if (logo !== 'google') return undefined
+
+    return Object.assign(() => null, {
+      Avatar: ({ size, shape }: { size: number; shape: string }) => (
+        <span data-testid="preset-mini-app-avatar" data-shape={shape} style={{ width: size, height: size }} />
+      )
+    })
+  }
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -148,12 +155,9 @@ const mockCloseAnimation = () => {
     x: 0,
     y: 0,
     toJSON: () => ({})
-  } as DOMRect)
+  })
   vi.useFakeTimers()
-  vi.stubGlobal(
-    'requestAnimationFrame',
-    (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
-  )
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16))
   vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id))
 
   return () => {
@@ -218,6 +222,30 @@ describe('AppShellTabBar', () => {
     expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
   })
 
+  it('renders preset and installed mini app icons at the same circular size', () => {
+    const presetMiniAppTab = createTab('preset-mini-app', {
+      url: '/app/mini-app/google',
+      title: 'Preset Mini App',
+      icon: 'google'
+    })
+    const miniAppTab = createTab('installed-mini-app', {
+      url: '/app/mini-app/com.example.installed',
+      title: 'Installed Mini App',
+      icon: 'file:///files/installed.webp'
+    })
+
+    renderTabBar({ tabs: [presetMiniAppTab, miniAppTab], activeTabId: miniAppTab.id })
+
+    const presetIcon = screen.getByTestId('preset-mini-app-avatar')
+    const tab = screen.getByRole('button', { name: 'Installed Mini App' })
+    const image = tab.querySelector('img')
+    expect(presetIcon).toHaveAttribute('data-shape', 'circle')
+    expect(presetIcon).toHaveStyle({ width: '18px', height: '18px' })
+    expect(image).toHaveClass('rounded-full', 'object-cover')
+    expect(image).toHaveStyle({ width: '18px', height: '18px' })
+    expect(image?.style.backgroundColor).toBe('')
+  })
+
   it('shows the focused tab as a Back control with a visible detach action', async () => {
     const user = userEvent.setup()
     const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings', isPinned: true })
@@ -260,7 +288,7 @@ describe('AppShellTabBar', () => {
         x: 0,
         y: 0,
         toJSON: () => ({})
-      } as DOMRect
+      }
     })
     Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
       configurable: true,
@@ -325,7 +353,7 @@ describe('AppShellTabBar', () => {
         x: 0,
         y: 0,
         toJSON: () => ({})
-      } as DOMRect
+      }
     })
     const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
     Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
@@ -615,7 +643,7 @@ describe('AppShellTabBar', () => {
         x: 0,
         y: 0,
         toJSON: () => ({})
-      } as DOMRect)
+      })
 
       try {
         const closeTab = renderTabBar()
@@ -715,12 +743,9 @@ describe('AppShellTabBar', () => {
       x: 0,
       y: 0,
       toJSON: () => ({})
-    } as DOMRect)
+    })
     vi.useFakeTimers()
-    vi.stubGlobal(
-      'requestAnimationFrame',
-      (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
-    )
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16))
 
     try {
       const staleCloseTab = vi.fn()
@@ -965,13 +990,10 @@ describe('AppShellTabBar', () => {
         x: geometry.left,
         y: 0,
         toJSON: () => ({})
-      } as DOMRect
+      }
     })
     vi.useFakeTimers()
-    vi.stubGlobal(
-      'requestAnimationFrame',
-      (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
-    )
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16))
 
     try {
       renderTabBar({
@@ -1064,6 +1086,93 @@ describe('AppShellTabBar', () => {
       } else {
         Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
       }
+    }
+  })
+
+  it('reclamps a dragged tab with the current strip, tab, and launchpad geometry after resize', () => {
+    const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
+    const originalRequestAnimationFrame = Object.getOwnPropertyDescriptor(globalThis, 'requestAnimationFrame')
+    const originalCancelAnimationFrame = Object.getOwnPropertyDescriptor(globalThis, 'cancelAnimationFrame')
+    let stripWidth = 300
+    let tabWidth = 100
+    let tabLeft = 100
+
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const element = this as HTMLElement
+      const translateX = Number.parseFloat(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1] ?? '0')
+      const geometry =
+        element.dataset.ui === 'app.tab-bar' || element.dataset.testid === 'app-shell-tab-strip'
+          ? { left: 0, width: stripWidth, height: element.dataset.ui === 'app.tab-bar' ? 44 : 30 }
+          : element.dataset.launchpadButton !== undefined
+            ? { left: stripWidth - 56, width: 28, height: 28 }
+            : element.dataset.tabId === 'a'
+              ? { left: tabLeft + translateX, width: tabWidth, height: 30 }
+              : element.dataset.tabId === 'home'
+                ? { left: 0, width: 100, height: 30 }
+                : { left: 0, width: 0, height: 0 }
+
+      return {
+        x: geometry.left,
+        y: 0,
+        top: 0,
+        bottom: geometry.height,
+        left: geometry.left,
+        right: geometry.left + geometry.width,
+        width: geometry.width,
+        height: geometry.height,
+        toJSON: () => ({})
+      }
+    })
+
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    vi.useFakeTimers()
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      value: (callback: FrameRequestCallback) => window.setTimeout(() => callback(0), 16)
+    })
+    Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+      configurable: true,
+      value: (id: number) => window.clearTimeout(id)
+    })
+
+    try {
+      renderTabBar({ tabs: [createTab('home'), createTab('a')], activeTabId: 'a' })
+      const tab = screen.getByRole('button', { name: 'A' })
+      const pointerDown = new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 20, clientY: 20 })
+      Object.defineProperty(pointerDown, 'pointerId', { value: 1 })
+      fireEvent(tab, pointerDown)
+
+      const startDrag = new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 20 })
+      Object.defineProperty(startDrag, 'pointerId', { value: 1 })
+      fireEvent(document, startDrag)
+      expect(tab).toHaveStyle({ transform: 'translateX(34px)' })
+
+      stripWidth = 240
+      tabWidth = 160
+      tabLeft = 0
+      const moveAfterResize = new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 20 })
+      Object.defineProperty(moveAfterResize, 'pointerId', { value: 1 })
+      fireEvent(document, moveAfterResize)
+      act(() => {
+        vi.runOnlyPendingTimers()
+      })
+
+      expect(tab).toHaveStyle({ transform: 'translateX(18px)' })
+    } finally {
+      vi.useRealTimers()
+      for (const [key, descriptor] of [
+        ['requestAnimationFrame', originalRequestAnimationFrame],
+        ['cancelAnimationFrame', originalCancelAnimationFrame]
+      ] as const) {
+        if (descriptor) Object.defineProperty(globalThis, key, descriptor)
+        else Reflect.deleteProperty(globalThis, key)
+      }
+      if (originalSetPointerCapture) {
+        Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+      }
+      rectSpy.mockRestore()
     }
   })
 

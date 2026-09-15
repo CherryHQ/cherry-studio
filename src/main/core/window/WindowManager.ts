@@ -1,5 +1,8 @@
 import { join } from 'node:path'
 
+import { app, BrowserWindow, screen, shell } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
@@ -30,8 +33,6 @@ import {
 import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
 import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
-import { app, BrowserWindow, screen, shell } from 'electron'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('WindowManager')
 
@@ -1381,6 +1382,16 @@ export class WindowManager extends BaseService {
         event.preventDefault()
         logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
       }
+    })
+
+    // A script-less sandboxed subframe still follows <a href>: deny (fail-closed) unless the
+    // app's own main frame initiated it (by frameTreeNodeId — wrapper identity isn't stable).
+    window.webContents.on('will-frame-navigate', (event) => {
+      if (event.isMainFrame) return
+      const initiatorId = event.initiator?.frameTreeNodeId
+      if (initiatorId !== undefined && initiatorId === window.webContents.mainFrame.frameTreeNodeId) return
+      event.preventDefault()
+      logger.warn(`Blocked subframe navigation to: ${event.url}`)
     })
 
     // 2. Setup event listeners

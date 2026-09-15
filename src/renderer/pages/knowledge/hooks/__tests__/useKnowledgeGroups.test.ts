@@ -1,6 +1,7 @@
-import type { Group } from '@shared/data/types/group'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Group } from '@shared/data/types/group'
 
 import {
   useCreateKnowledgeGroup,

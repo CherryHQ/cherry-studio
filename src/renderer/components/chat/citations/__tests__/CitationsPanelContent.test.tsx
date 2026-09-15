@@ -1,9 +1,10 @@
-import type { Citation } from '@renderer/types/message'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { Cache } from 'swr'
 import { SWRConfig, unstable_serialize } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Citation } from '@renderer/types/message'
 
 import { CitationsPanelContent } from '../CitationsPanel'
 
@@ -13,9 +14,9 @@ const mocks = vi.hoisted(() => ({
   notifyError: vi.fn(),
   messageListActions: undefined as
     | {
-        openCitationsPanel?: ReturnType<typeof vi.fn>
-        copyText?: ReturnType<typeof vi.fn>
-        notifyError?: ReturnType<typeof vi.fn>
+        openCitationsPanel?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+        copyText?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+        notifyError?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
       }
     | undefined
 }))

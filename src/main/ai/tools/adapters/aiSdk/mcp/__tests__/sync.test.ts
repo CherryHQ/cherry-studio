@@ -145,6 +145,22 @@ describe('syncMcpToolsToRegistry', () => {
     expect(reg.getAll().filter((e) => e.name === 'mcp__s1__t').length).toBe(1)
   })
 
+  it('keeps the previous server snapshot when a tool schema cannot be compiled', async () => {
+    const reg = new ToolRegistry()
+    list.mockReturnValue({ items: [activeServer('s1')] })
+    listTools.mockReturnValueOnce([mcpTool('s1', 'a', 'a v1'), mcpTool('s1', 'b', 'b v1')])
+    await syncMcpToolsToRegistry(reg)
+
+    listTools.mockReturnValueOnce([
+      mcpTool('s1', 'a', 'a v2'),
+      { ...mcpTool('s1', 'b', 'b v2'), inputSchema: { $id: 'http://[' } }
+    ])
+    await syncMcpToolsToRegistry(reg)
+
+    expect(reg.getByName('mcp__s1__a')?.description).toBe('a v1')
+    expect(reg.getByName('mcp__s1__b')?.description).toBe('b v1')
+  })
+
   it('does not touch non-MCP entries', async () => {
     const reg = new ToolRegistry()
     reg.register({

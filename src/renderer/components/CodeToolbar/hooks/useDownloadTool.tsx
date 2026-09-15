@@ -1,10 +1,11 @@
+import { Download, FileCode } from 'lucide-react'
+import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ActionTool } from '@renderer/components/ActionTools'
 import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
 import { FilePngIcon, FileSvgIcon } from '@renderer/components/icons/FileIcons'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
-import { Download, FileCode } from 'lucide-react'
-import { useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface UseDownloadToolProps {
   showPreviewTools?: boolean

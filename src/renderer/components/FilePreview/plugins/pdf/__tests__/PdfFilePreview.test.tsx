@@ -1,11 +1,12 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
-import { createFilePathHandle } from '@shared/utils/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 
 import PdfFilePreview from '../PdfFilePreview'
 import { PdfRangeTooLargeError } from '../PdfFileRangeTransport'
@@ -14,11 +15,13 @@ const mocks = vi.hoisted(() => ({
   eventBusOff: vi.fn(),
   eventBusOn: vi.fn(),
   getDocument: vi.fn(),
+  linkServiceGoToDestination: vi.fn(),
   linkServiceSetDocument: vi.fn(),
   linkServiceSetViewer: vi.fn(),
   loadingTaskDestroy: vi.fn(),
   pdfDocument: {
     destroy: vi.fn(),
+    getOutline: vi.fn(),
     numPages: 3
   },
   pdfViewerCleanup: vi.fn(),
@@ -30,14 +33,14 @@ const mocks = vi.hoisted(() => ({
   pdfViewerSetDocument: vi.fn(),
   pdfViewerUpdateScale: vi.fn(),
   rangeTransportInstances: [] as Array<{
-    abort: ReturnType<typeof vi.fn>
+    abort: ReturnType<typeof vi.fn<(...args: any[]) => any>>
     fail: (error: unknown) => void
     handle: unknown
     length: number
   }>,
   safeOpen: vi.fn(),
   toastError: vi.fn(),
-  viewerInstances: [] as Array<{ pageColors: { background?: string; foreground: string } }>
+  viewerInstances: [] as Array<{ pageColors: { background?: string } | null }>
 }))
 
 vi.mock('pdfjs-dist', () => ({
@@ -108,6 +111,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
   }
 
   class MockPDFLinkService {
+    goToDestination = mocks.linkServiceGoToDestination
     setDocument = mocks.linkServiceSetDocument
     setViewer = mocks.linkServiceSetViewer
   }
@@ -115,7 +119,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
   class MockPDFViewer {
     cleanup = mocks.pdfViewerCleanup
     firstPagePromise = Promise.resolve()
-    pageColors: { background?: string; foreground: string }
+    pageColors: { background?: string } | null
     setDocument = mocks.pdfViewerSetDocument
     private currentPage = 1
     private scale = 1
@@ -123,7 +127,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
     constructor(
       private options: {
         eventBus: MockEventBus
-        pageColors: { background?: string; foreground: string }
+        pageColors: { background?: string } | null
       }
     ) {
       this.pageColors = options.pageColors
@@ -207,6 +211,7 @@ vi.mock('@cherrystudio/ui', () => ({
       ) : null}
     </div>
   ),
+  Input: (props: React.ComponentPropsWithoutRef<'input'>) => <input {...props} />,
   Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
   Scrollbar: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
     <div {...props}>{children}</div>
@@ -257,6 +262,8 @@ describe('PdfFilePreview', () => {
       return property === '--background' ? themeBackground : getPropertyValue.call(this, property)
     })
     mocks.loadingTaskDestroy.mockResolvedValue(undefined)
+    mocks.linkServiceGoToDestination.mockResolvedValue(undefined)
+    mocks.pdfDocument.getOutline.mockResolvedValue([])
     mocks.safeOpen.mockResolvedValue(undefined)
     mocks.getDocument.mockReturnValue({
       destroy: mocks.loadingTaskDestroy,
@@ -296,7 +303,7 @@ describe('PdfFilePreview', () => {
       expect.objectContaining({
         annotationMode: 1,
         abortSignal: expect.any(AbortSignal),
-        pageColors: { background: 'rgb(10, 11, 12)', foreground: 'CanvasText' },
+        pageColors: { background: 'rgb(10, 11, 12)' },
         supportsPinchToZoom: true
       })
     )
@@ -338,7 +345,72 @@ describe('PdfFilePreview', () => {
     })
   })
 
-  it('updates PDF page colors when the app theme changes without rebuilding the viewer', async () => {
+  it('allows text selection and direct page jumps', async () => {
+    const user = userEvent.setup()
+    renderPreview()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+
+    // `selectable` overrides the renderer's global user-select:none contract.
+    expect(screen.getByTestId('pdfjs-viewer')).toHaveClass('selectable')
+
+    const pageInput = screen.getByRole('textbox', { name: 'file_preview.pdf.page_number' })
+    await user.clear(pageInput)
+    await user.type(pageInput, '3{Enter}')
+
+    expect(mocks.pdfViewerPageNumbers).toContain(3)
+  })
+
+  it.each(['{Enter}', '{Tab}'])('normalizes an out-of-range page at the last page on %s', async (commitKey) => {
+    const user = userEvent.setup()
+    renderPreview()
+    const pageInput = screen.getByRole('textbox', { name: 'file_preview.pdf.page_number' })
+    await waitFor(() => expect(pageInput).toBeEnabled())
+
+    await user.clear(pageInput)
+    await user.type(pageInput, '3{Enter}')
+    await waitFor(() => expect(pageInput).toHaveValue('3'))
+    expect(screen.getByRole('button', { name: 'common.next' })).toBeDisabled()
+
+    await user.clear(pageInput)
+    await user.type(pageInput, `999${commitKey}`)
+
+    expect(pageInput).toHaveValue('3')
+    expect(screen.getByRole('button', { name: 'common.next' })).toBeDisabled()
+  })
+
+  it('shows the PDF outline and navigates to its destinations', async () => {
+    const user = userEvent.setup()
+    const destination = [{ num: 4, gen: 0 }, { name: 'XYZ' }, 0, 0, null]
+    mocks.pdfDocument.getOutline.mockResolvedValueOnce([
+      {
+        title: 'Introduction',
+        dest: destination,
+        url: null,
+        items: [{ title: 'Background', dest: 'background', url: null, items: [] }]
+      }
+    ])
+
+    renderPreview()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    await user.click(screen.getByRole('button', { name: 'file_preview.pdf.outline.title' }))
+
+    expect(await screen.findByRole('navigation', { name: 'file_preview.pdf.outline.title' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Background' }))
+
+    expect(mocks.linkServiceGoToDestination).toHaveBeenCalledWith('background')
+  })
+
+  it('explains when a PDF has no outline', async () => {
+    const user = userEvent.setup()
+    renderPreview()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+
+    await user.click(screen.getByRole('button', { name: 'file_preview.pdf.outline.title' }))
+
+    expect(await screen.findByText('file_preview.pdf.outline.empty')).toBeInTheDocument()
+  })
+
+  it('preserves PDF colors while updating the page background when the app theme changes', async () => {
     renderPreview()
     await waitFor(() => expect(mocks.viewerInstances).toHaveLength(1))
 
@@ -350,8 +422,7 @@ describe('PdfFilePreview', () => {
 
     await waitFor(() =>
       expect(mocks.viewerInstances[0].pageColors).toEqual({
-        background: 'rgb(30, 31, 32)',
-        foreground: 'CanvasText'
+        background: 'rgb(30, 31, 32)'
       })
     )
     expect(mocks.pdfViewerConstructor).toHaveBeenCalledTimes(1)

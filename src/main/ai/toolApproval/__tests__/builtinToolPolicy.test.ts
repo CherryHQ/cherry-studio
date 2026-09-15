@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { describe, expect, it } from 'vitest'
 
 import {
   findBuiltinToolPolicy,
@@ -46,6 +47,12 @@ describe('builtinToolPolicy', () => {
         WITHOUT_HOST_TOOLS.has(entry.serverName)
       )
     ).toBe(true)
+  })
+
+  it('auto-approves preparing a diagnostic draft because it has no side effects', () => {
+    expect(findBuiltinToolPolicy('mcp__assistant__prepare_diagnostic_report', WITH_HOST_TOOLS)).toMatchObject({
+      approval: 'auto'
+    })
   })
 
   it('does not auto-approve an undeclared future tool', () => {

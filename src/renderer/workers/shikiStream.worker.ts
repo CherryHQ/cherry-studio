@@ -1,8 +1,9 @@
 /// <reference lib="webworker" />
 
-import { loggerService } from '@logger'
 import { LRUCache } from 'lru-cache'
 import type { HighlighterCore, SpecialLanguage, ThemedToken } from 'shiki/core'
+
+import { loggerService } from '@logger'
 
 // 注意保持 ShikiStreamTokenizer 依赖简单，避免打包出问题
 import type { ShikiStreamTokenizerOptions } from '../services/ShikiStreamTokenizer'
@@ -11,7 +12,7 @@ import { ShikiStreamTokenizer } from '../services/ShikiStreamTokenizer'
 const logger = loggerService.initWindowSource('Worker').withContext('ShikiStream')
 
 // Worker 消息类型
-type WorkerMessageType = 'init' | 'highlight' | 'cleanup' | 'dispose'
+type WorkerMessageType = 'init' | 'highlight' | 'highlight-html' | 'cleanup' | 'dispose'
 
 interface WorkerRequest {
   id: number
@@ -227,7 +228,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
       case 'init':
         if (e.data.languages && e.data.themes) {
           await initHighlighter(e.data.themes, e.data.languages)
-          self.postMessage({ id, type: 'init-result', result: { success: true } } as WorkerResponse)
+          self.postMessage({ id, type: 'init-result', result: { success: true } } satisfies WorkerResponse)
         } else {
           throw new Error('Missing required init parameters')
         }
@@ -240,16 +241,32 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
 
         if (e.data.callerId && e.data.chunk && e.data.language && e.data.theme) {
           const result = await highlightCodeChunk(e.data.callerId, e.data.chunk, e.data.language, e.data.theme)
-          self.postMessage({ id, type: 'highlight-result', result } as WorkerResponse)
+          self.postMessage({ id, type: 'highlight-result', result } satisfies WorkerResponse)
         } else {
           throw new Error('Missing required highlight parameters')
         }
         break
 
+      case 'highlight-html': {
+        if (!highlighter) {
+          throw new Error('Highlighter not initialized')
+        }
+
+        const { chunk, language, theme } = e.data
+        if (typeof chunk !== 'string' || !language || !theme) {
+          throw new Error('Missing required highlight-html parameters')
+        }
+
+        const { actualLanguage, actualTheme } = await ensureLanguageAndThemeLoaded(language, theme)
+        const html = highlighter.codeToHtml(chunk, { lang: actualLanguage, theme: actualTheme })
+        self.postMessage({ id, type: 'highlight-html-result', result: html } satisfies WorkerResponse)
+        break
+      }
+
       case 'cleanup':
         if (e.data.callerId) {
           cleanupTokenizer(e.data.callerId)
-          self.postMessage({ id, type: 'cleanup-result', result: { success: true } } as WorkerResponse)
+          self.postMessage({ id, type: 'cleanup-result', result: { success: true } } satisfies WorkerResponse)
         } else {
           throw new Error('Missing callerId for cleanup')
         }
@@ -261,7 +278,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
         themeLoadPromises.clear()
         highlighter?.dispose()
         highlighter = null
-        self.postMessage({ id, type: 'dispose-result', result: { success: true } } as WorkerResponse)
+        self.postMessage({ id, type: 'dispose-result', result: { success: true } } satisfies WorkerResponse)
         break
 
       default:
@@ -273,6 +290,6 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
       id,
       type: 'error',
       error: errorMessage
-    } as WorkerResponse)
+    } satisfies WorkerResponse)
   }
 }

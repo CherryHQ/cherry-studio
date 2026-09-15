@@ -1,18 +1,22 @@
 import { createHash } from 'node:crypto'
 
 import { application } from '@application'
-import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
-import type { McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
-import { resolveDshInjectionApi } from '@main/ai/runtime/dsh/modelInjection'
+import {
+  type McpServerSnapshotMap,
+  type NotifyChannel,
+  resolveAgentNotificationContext,
+  resolveLinkedNotifyChannel
+} from '@main/ai/runtime/agentMcpServers'
+import { usesDshGateway } from '@main/ai/runtime/dsh/modelInjection'
 import { skillService } from '@main/ai/skills/SkillService'
+import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -39,7 +43,8 @@ export interface DshConnectionSnapshot {
   additionalSkillPaths: readonly string[]
   /** Entity snapshot per agent MCP id used to construct the host-side in-memory bridge. */
   mcpServerSnapshots: McpServerSnapshotMap
-  linkedChannel: Pick<AgentChannelEntity, 'id'> | null
+  linkedChannel: NotifyChannel | null
+  effectiveLanguage: string | null
   signature: string
 }
 
@@ -49,6 +54,12 @@ export class DshInvalidConnectionSnapshotError extends Error {}
  * Capture every reconcilable fact consumed while constructing a dsh connection.
  * The live permission gate (permission_mode, disabledTools) is excluded — it is
  * hot-patched over the bridge, never spawn-frozen.
+ * The effective agent language is a rebuild fact: changing it rebuilds the
+ * connection so the new language instruction is baked into the next prompt.
+ * This trades cache preservation for prompt correctness — the first turn after
+ * a language change pays full input-token cost until the new prefix is cached,
+ * but the user sees the new language on the next reconcile rather than only on
+ * the next natural connection.
  */
 export async function captureDshConnectionSnapshot(
   sessionId: string,
@@ -81,10 +92,12 @@ export async function captureDshConnectionSnapshot(
   const mcpTools = mcpServers.flatMap((server) =>
     'id' in server ? [{ serverId: server.id, tools: catalog.listTools(server.id, { includeDisabled: false }) }] : []
   )
-  const channel = agentChannelService.findBySessionId(sessionId)
-  const linkedChannel = channel?.agentId === agent.id ? channel : null
+  const linkedChannel = resolveLinkedNotifyChannel(sessionId, agent.id)
+  const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
+  const gatewayCredentials = usesDshGateway(provider, model) ? gatewayCredentialsFingerprint() : null
+  const effectiveLanguage = getEffectiveAgentLanguage(agent)
 
   const signature = createHash('sha256')
     .update(
@@ -100,12 +113,11 @@ export async function captureDshConnectionSnapshot(
           workspaceSkillPaths,
           mcpServers,
           mcpTools,
-          linkedChannelId: linkedChannel?.id ?? null,
+          linkedChannel,
+          notificationContext,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
-          // Gateway routes pin their auth identity so a key edit or enable/running flip rebuilds
-          // the warm connection (claude's credentialsFingerprint parity); null on native routes.
-          gatewayCredentials:
-            resolveDshInjectionApi(provider, model) === undefined ? gatewayCredentialsFingerprint() : null
+          effectiveLanguage,
+          gatewayCredentials
         })
       )
     )
@@ -117,12 +129,13 @@ export async function captureDshConnectionSnapshot(
     provider,
     model,
     enabledApiKeys: apiKeys,
+    effectiveLanguage,
     additionalSkillPaths: [
       ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
       ...workspaceSkillPaths
     ],
     mcpServerSnapshots,
-    linkedChannel: linkedChannel ? { id: linkedChannel.id } : null,
+    linkedChannel,
     signature
   }
 }

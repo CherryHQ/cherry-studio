@@ -1,3 +1,6 @@
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+import { useMemo } from 'react'
+
 import { Avatar, AvatarFallback, Skeleton } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import EmojiIcon from '@renderer/components/EmojiIcon'
@@ -6,10 +9,14 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import type { AiUsageRecordSourceType } from '@shared/data/types/aiUsageRecord'
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
-import { useMemo } from 'react'
 
 import { displayModelId } from './usageAnalytics'
+
+const SOURCE_TYPE_FALLBACK = {
+  assistant: 'A',
+  agent: 'G',
+  'mini-app': 'M'
+} satisfies Record<AiUsageRecordSourceType, string>
 
 export function UsageModelAvatar({
   modelId,
@@ -76,7 +83,7 @@ export function UsageSourceLabel({
   size?: number
   className?: string
 }) {
-  const fallback = sourceType === 'agent' ? 'G' : sourceType === 'assistant' ? 'A' : '?'
+  const fallback = sourceType ? SOURCE_TYPE_FALLBACK[sourceType] : '?'
 
   return (
     <span className={cn('inline-flex min-w-0 items-center gap-2', className)}>
@@ -220,7 +227,8 @@ export function UsageResponsiveShell({ children }: { children: ReactNode }) {
     <SettingsContentColumn
       theme={theme}
       className="min-w-0 overflow-x-hidden"
-      innerClassName="min-w-0 w-full max-w-none">
+      // Wider than form settings so 4-col metrics and the year heatmap fit, but still capped on ultrawide windows.
+      innerClassName="min-w-0 w-full max-w-6xl">
       <div className="@container/usage flex min-w-0 flex-col gap-6">{children}</div>
     </SettingsContentColumn>
   )

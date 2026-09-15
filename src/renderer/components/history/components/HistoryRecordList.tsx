@@ -1,9 +1,10 @@
-import { EmptyState } from '@cherrystudio/ui'
-import EditNameDialog from '@renderer/components/EditNameDialog'
-import { useCacheSelector } from '@renderer/data/hooks/useCache'
 import { MessageSquareText } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { EmptyState } from '@cherrystudio/ui'
+import EditNameDialog from '@renderer/components/EditNameDialog'
+import { useCacheSelector } from '@renderer/data/hooks/useCache'
 
 import type { HistoryRecordDescriptor, HistoryRowState } from '../historyRecordsDescriptor'
 import type { SelectAllState } from '../useHistoryRecordsController'
@@ -16,16 +17,18 @@ interface HistoryRecordListProps<T> {
   isSelected: (id: string) => boolean
   selectAllState: SelectAllState
   selectionDisabled: boolean
-  onToggleSelection: (id: string, checked: boolean) => void
+  onToggleSelection: (id: string, checked: boolean, selectRange?: boolean) => void
   onToggleSelectAll: (checked: boolean) => void
+  onTogglePin: (item: T) => Promise<void>
 }
 
 interface HistoryRecordListRowProps<T> {
   descriptor: HistoryRecordDescriptor<T>
   isSelected: (id: string) => boolean
   item: T
-  onToggleSelection: (id: string, checked: boolean) => void
+  onToggleSelection: (id: string, checked: boolean, selectRange?: boolean) => void
   openRename: (id: string, name: string) => void
+  onTogglePin: (item: T) => Promise<void>
   showFixedActionShadow: boolean
 }
 
@@ -62,6 +65,7 @@ function HistoryRecordListRowContent<T>({
   item,
   onToggleSelection,
   openRename,
+  onTogglePin,
   rowState,
   showFixedActionShadow
 }: HistoryRecordListRowContentProps<T>) {
@@ -86,15 +90,8 @@ function HistoryRecordListRowContent<T>({
       unpinLabel={descriptor.strings.unpinLabel}
       onAction={rowActions.onAction}
       onOpen={() => descriptor.onOpen(item)}
-      onSelectedChange={(checked) => onToggleSelection(id, checked)}
-      onTogglePin={async () => {
-        // Pinning a selected row makes it unselectable, so drop it from the selection after success
-        // (a no-op when unpinning, since pinned rows are never selected).
-        const result = await descriptor.onTogglePin(item)
-        if (result !== false) {
-          onToggleSelection(id, false)
-        }
-      }}
+      onSelectedChange={(checked, selectRange) => onToggleSelection(id, checked, selectRange)}
+      onTogglePin={() => onTogglePin(item)}
     />
   )
 
@@ -109,7 +106,8 @@ export function HistoryRecordList<T>({
   selectAllState,
   selectionDisabled,
   onToggleSelection,
-  onToggleSelectAll
+  onToggleSelectAll,
+  onTogglePin
 }: HistoryRecordListProps<T>) {
   const { t } = useTranslation()
   const list = useMemo(() => Array.from(items), [items])
@@ -126,7 +124,6 @@ export function HistoryRecordList<T>({
     isPinned,
     onOpen,
     onRename,
-    onTogglePin,
     renderAvatar,
     renderRowMenu,
     rowHeight,
@@ -147,7 +144,6 @@ export function HistoryRecordList<T>({
       getUpdatedAt,
       isPinned,
       onOpen,
-      onTogglePin,
       pinLabel,
       renderAvatar,
       renderRowMenu,
@@ -199,12 +195,13 @@ export function HistoryRecordList<T>({
           isSelected={isSelected}
           item={item}
           onToggleSelection={onToggleSelection}
+          onTogglePin={onTogglePin}
           openRename={openRename}
           showFixedActionShadow={showFixedActionShadow}
         />
       )
     },
-    [getId, isSelected, onToggleSelection, openRename, rowDescriptor, showFixedActionShadow]
+    [getId, isSelected, onTogglePin, onToggleSelection, openRename, rowDescriptor, showFixedActionShadow]
   )
 
   return (

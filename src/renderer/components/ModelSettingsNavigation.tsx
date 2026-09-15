@@ -1,8 +1,9 @@
-import { Button, RowFlex } from '@cherrystudio/ui'
-import type { Model } from '@shared/data/types/model'
 import { ArrowRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, RowFlex } from '@cherrystudio/ui'
+import type { Model } from '@shared/data/types/model'
 
 import ModelAvatar from './Avatar/ModelAvatar'
 

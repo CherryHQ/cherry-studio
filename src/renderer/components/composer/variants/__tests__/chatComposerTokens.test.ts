@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { describe, expect, it } from 'vitest'
 
 import {
   chatComposerTokenId,

@@ -24,7 +24,7 @@ function createRect({
     x: left,
     y: top,
     toJSON: () => ({})
-  } as DOMRect
+  }
 }
 
 function createMessageElement({

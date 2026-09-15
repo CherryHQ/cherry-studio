@@ -1,7 +1,8 @@
-import type { McpServer } from '@shared/data/types/mcpServer'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 import QuickCreateMcpServerDialog from '../QuickCreateMcpServerDialog'
 

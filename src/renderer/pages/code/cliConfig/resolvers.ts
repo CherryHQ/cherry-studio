@@ -1,12 +1,12 @@
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isApiGatewayProviderId } from '@shared/types/codeCli'
 import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { resolveGeminiBaseUrl } from '@shared/utils/gemini'
 
 import {
   CODEX_CHAT_ENDPOINT,
   CODEX_RESPONSES_ENDPOINT,
-  GEMINI_AGGREGATOR_BASE_URLS,
+  HERMES_ENDPOINTS,
   OPEN_CODE_ENDPOINTS,
   PI_ENDPOINTS
 } from './constants'
@@ -25,34 +25,16 @@ export interface PiProviderInfo {
   endpointType: EndpointType
 }
 
-export function resolveGeminiBaseUrl(provider: Provider): string {
-  // The synthetic API-gateway provider serves every dialect off one bare host
-  // (http://host:port) but deliberately declares NO google-generate-content
-  // endpoint: OPEN_CODE_ENDPOINTS lists google first, so adding one would flip
-  // OpenCode+gateway to the google dialect for every model. gemini-cli's
-  // @google/genai SDK appends /v1beta itself, so return the bare host here.
-  if (isApiGatewayProviderId(provider.id)) {
-    const configs = provider.endpointConfigs ?? {}
-    return configs['anthropic-messages']?.baseUrl ?? Object.values(configs)[0]?.baseUrl ?? ''
-  }
-  const dedicated = provider.endpointConfigs?.['google-generate-content']?.baseUrl
-  if (dedicated) return dedicated
-  const chatBaseUrl = provider.defaultChatEndpoint
-    ? provider.endpointConfigs?.[provider.defaultChatEndpoint]?.baseUrl
-    : undefined
-  // Aggregators serving Gemini under a /gemini sub-path (aihubmix): derive from
-  // the user-configured chat baseUrl — dropping a trailing /v1 — so a custom
-  // mirror host wins; the static default applies only when nothing is configured.
-  if (GEMINI_AGGREGATOR_BASE_URLS[provider.id]) {
-    if (!chatBaseUrl) return GEMINI_AGGREGATOR_BASE_URLS[provider.id]
-    return `${withoutTrailingSlash(chatBaseUrl).replace(/\/v1$/, '')}/gemini`
-  }
-  // Aggregators allow-listed for Gemini CLI (CLI_TOOL_PROVIDER_MAP) without a dedicated
-  // google-generate-content endpoint or an entry above (e.g. CherryIN, DMXAPI) proxy every
-  // protocol off the same host as their default chat endpoint — mirrors the fallback
-  // buildCherryinConfig/dmxapiProvider.ts already rely on for real chat requests.
-  return chatBaseUrl || ''
+export const HERMES_API_MODES = ['anthropic_messages', 'chat_completions', 'codex_responses'] as const
+export type HermesApiMode = (typeof HERMES_API_MODES)[number]
+
+export interface HermesProviderInfo {
+  apiMode: HermesApiMode
+  baseUrl: string
+  endpointType: EndpointType
 }
+
+export { resolveGeminiBaseUrl }
 
 export function resolveClaudeBaseUrl(provider: Provider): string {
   const baseUrl = provider.endpointConfigs?.['anthropic-messages']?.baseUrl
@@ -147,6 +129,28 @@ export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: E
         : withoutTrailingSlash(rawBaseUrl ?? '')
 
   return { api: apiByEndpoint[endpointType]!, baseUrl, endpointType }
+}
+
+export function resolveHermesProviderInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): HermesProviderInfo {
+  const endpointType = resolveSupportedEndpointType(
+    provider,
+    modelEndpointTypes,
+    HERMES_ENDPOINTS,
+    'openai-chat-completions'
+  )
+  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const apiMode: HermesApiMode =
+    endpointType === 'anthropic-messages'
+      ? 'anthropic_messages'
+      : endpointType === 'openai-responses'
+        ? 'codex_responses'
+        : 'chat_completions'
+  const baseUrl =
+    endpointType === 'anthropic-messages'
+      ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false))
+      : formatApiHost(rawBaseUrl)
+
+  return { apiMode, baseUrl, endpointType }
 }
 
 export function modelSupportsReasoningEffort(modelRecord: Model | null): boolean {

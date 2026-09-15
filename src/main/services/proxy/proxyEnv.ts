@@ -48,6 +48,17 @@ export const getProxyEnvironment = (env: NodeJS.ProcessEnv = process.env): Recor
   return proxyEnv
 }
 
+export const proxyUrlHasCredentials = (proxyUrl?: string): boolean => {
+  if (!proxyUrl) return false
+
+  try {
+    const url = new URL(proxyUrl)
+    return url.username !== '' || url.password !== ''
+  } catch {
+    return false
+  }
+}
+
 export const getProxyProtocol = (proxyRules?: string): string | null => {
   if (!proxyRules) {
     return null

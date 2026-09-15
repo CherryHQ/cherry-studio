@@ -11,6 +11,7 @@ import { memo, useCallback, useLayoutEffect, useRef } from 'react'
 
 import { ACCENT_COLOR, BORDER_WIDTH, MASK_COLOR, Z_INDEX } from '../constants'
 import type { OverlayAction, OverlayState, SelectionRect } from '../types'
+import { isPointInSelection } from '../utils/isPointInSelection'
 
 interface CaptureCanvasProps {
   image: HTMLImageElement
@@ -91,14 +92,6 @@ function renderCanvas(
   }
 
   ctx.setTransform(1, 0, 0, 1, 0, 0)
-}
-
-/** Inclusive on all four sides, so the border pixels count as "inside" for move-vs-reselect. */
-function isPointInSelection(x: number, y: number, selection: SelectionRect | null): boolean {
-  if (!selection) return false
-  return (
-    x >= selection.x && x <= selection.x + selection.width && y >= selection.y && y <= selection.y + selection.height
-  )
 }
 
 export const CaptureCanvas = memo(function CaptureCanvas({

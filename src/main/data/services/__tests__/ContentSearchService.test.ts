@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
   CONTENT_SEARCH_DEFAULT_LIMIT_PER_SOURCE,
@@ -7,7 +9,6 @@ import {
   type SessionMessageContentSearchItem,
   type TopicMessageContentSearchItem
 } from '@shared/data/api/schemas/search'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { topicSearchMock, sessionSearchMock } = vi.hoisted(() => ({
   topicSearchMock: vi.fn(),

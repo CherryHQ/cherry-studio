@@ -1,11 +1,12 @@
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Regression coverage for row-local memory-cache selection. A topic rename
  * update must not re-render rows whose derived boolean stays false.
  */
 import { cacheService } from '@data/CacheService'
 import { useCacheSelector } from '@data/hooks/useCache'
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { installCacheApiMock } from './testUtils'
 
