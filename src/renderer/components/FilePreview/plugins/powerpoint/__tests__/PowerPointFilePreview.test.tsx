@@ -12,12 +12,21 @@ interface MockViewerOptions {
 }
 
 const mocks = vi.hoisted(() => {
+  const shapeNode = (id: string, paragraphs: string[]) => ({
+    id,
+    nodeType: 'shape',
+    textBody: { paragraphs: paragraphs.map((text) => ({ runs: [{ text }] })) }
+  })
+
+  /**
+   * The deck the excerpt walks node by node: slide 1 has one shape, slide 2 has two, slide 3 none.
+   * Slides are pre-materialized, so the mocked `materializeSlideNodes` has nothing left to do.
+   */
   const createMockPresentation = () => ({
     slides: [
       {
-        // marker identifies this slide to the buildTextIndex mock below, since the plugin now
-        // narrows every call to a one-slide `{ ...presentation, slides: [slideData] }` view.
-        marker: 0,
+        nodes: [shapeNode('cover', ['Cover'])],
+        nodesMaterialized: true,
         rels: new Map([
           [
             'rEmbeddedImage',
@@ -44,39 +53,16 @@ const mocks = vi.hoisted(() => {
           ]
         ])
       },
-      { marker: 1, rels: new Map() },
-      { marker: 2, rels: new Map() }
+      {
+        nodes: [shapeNode('title', ['Roadmap']), shapeNode('body', ['Q3 goals'])],
+        nodesMaterialized: true,
+        rels: new Map()
+      },
+      { nodes: [], nodesMaterialized: true, rels: new Map() }
     ],
     layouts: new Map(),
     masters: new Map()
   })
-
-  /**
-   * What `buildTextIndex` reports for the single-slide view the plugin now passes it, keyed by the
-   * requested slide's `marker`: slide 1 (marker 0) has one shape, slide 2 (marker 1) has two plus a
-   * master shape the excerpt must ignore, slide 3 (marker 2) has no text. Entries are indexed
-   * relative to that one-slide array, so slideIndex/nodePath always read as slide 0.
-   */
-  const createMockTextIndex = (presentation: { slides: Array<{ marker: number }> }) => {
-    switch (presentation.slides[0]?.marker) {
-      case 0:
-        return [{ slideIndex: 0, nodeId: 'cover', nodePath: 'slides/0/nodes/cover', textKind: 'shape', text: 'Cover' }]
-      case 1:
-        return [
-          { slideIndex: 0, nodeId: 'title', nodePath: 'slides/0/nodes/title', textKind: 'shape', text: 'Roadmap' },
-          { slideIndex: 0, nodeId: 'body', nodePath: 'slides/0/nodes/body', textKind: 'shape', text: 'Q3 goals' },
-          {
-            slideIndex: 0,
-            nodeId: 'stamp',
-            nodePath: 'slides/0/master/nodes/stamp',
-            textKind: 'shape',
-            text: 'Confidential'
-          }
-        ]
-      default:
-        return []
-    }
-  }
 
   const state = {
     buildPresentation: vi.fn(),
@@ -86,6 +72,7 @@ const mocks = vi.hoisted(() => {
     goToSlide: vi.fn(),
     load: vi.fn(),
     loggerError: vi.fn(),
+    materializeSlideNodes: vi.fn(),
     mockFiles: { slides: new Map() },
     parseZipLazyMedia: vi.fn(),
     renderList: vi.fn(),
@@ -128,12 +115,13 @@ const mocks = vi.hoisted(() => {
     }
   }
 
-  return { ...state, createMockPresentation, createMockTextIndex, MockPptxViewer }
+  return { ...state, createMockPresentation, MockPptxViewer }
 })
 
 vi.mock('@aiden0z/pptx-renderer', () => ({
   buildPresentation: mocks.buildPresentation,
   buildTextIndex: mocks.buildTextIndex,
+  materializeSlideNodes: mocks.materializeSlideNodes,
   parseZipLazyMedia: mocks.parseZipLazyMedia,
   PptxViewer: mocks.MockPptxViewer,
   RECOMMENDED_ZIP_LIMITS: {}
@@ -176,7 +164,8 @@ beforeEach(() => {
   mocks.fsRead.mockResolvedValue(new Uint8Array([80, 75, 3, 4]))
   mocks.parseZipLazyMedia.mockResolvedValue(mocks.mockFiles)
   mocks.buildPresentation.mockImplementation(() => mocks.createMockPresentation())
-  mocks.buildTextIndex.mockImplementation((presentation) => mocks.createMockTextIndex(presentation))
+  // Only a group node would reach the text index, and this deck has none.
+  mocks.buildTextIndex.mockReturnValue([])
   Object.defineProperty(window, 'api', {
     configurable: true,
     value: { fs: { read: mocks.fsRead } }
@@ -222,8 +211,8 @@ describe('PowerPointFilePreview', () => {
       path: filePath,
       // data-slide-index is zero-based; the anchor is one-based.
       anchor: { format: 'pptx', slide: 2 },
-      // One line per paragraph, collapsed to spaces by createSelectionReference — and no 'Confidential',
-      // which the index only carries under the slide's master.
+      // One line per paragraph, collapsed to spaces by createSelectionReference; layout and master
+      // shapes cannot appear, because the walk only reads the slide's own nodes.
       excerpt: 'Roadmap Q3 goals',
       fileStamp: { size: 1024, mtimeMs: 9 }
     })
@@ -295,7 +284,7 @@ describe('PowerPointFilePreview', () => {
     fireEvent.click(picked)
     expect(picked).toHaveAttribute('data-pptx-picked', 'true')
 
-    // Slide 3 (index 2) carries no entry in the text index.
+    // Slide 3 (index 2) has no nodes, so the excerpt is empty.
     const empty = renderSlide('', '2')
     fireEvent.click(empty)
 

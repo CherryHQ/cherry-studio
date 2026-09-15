@@ -1,15 +1,20 @@
 import type * as PptxRenderer from '@aiden0z/pptx-renderer'
-import type { PresentationData } from '@aiden0z/pptx-renderer'
-import { buildTextIndex } from '@aiden0z/pptx-renderer'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { PresentationData, TextIndexEntry } from '@aiden0z/pptx-renderer'
+import { buildTextIndex, materializeSlideNodes } from '@aiden0z/pptx-renderer'
+import { loggerService } from '@logger'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { slideExcerpt, slideToPptxAnchor } from '../pptxSelectionAnchor'
 
-// Wraps the real implementation so most tests exercise it unmocked; only the throw-guard test below
-// overrides it for a single call.
+// Wraps the real implementations so most tests exercise them unmocked; only the group and
+// throw-guard tests below override one for a single call.
 vi.mock('@aiden0z/pptx-renderer', async (importOriginal) => {
   const actual = await importOriginal<typeof PptxRenderer>()
-  return { ...actual, buildTextIndex: vi.fn(actual.buildTextIndex) }
+  return {
+    ...actual,
+    buildTextIndex: vi.fn(actual.buildTextIndex),
+    materializeSlideNodes: vi.fn(actual.materializeSlideNodes)
+  }
 })
 
 function buildSlide(slideIndex: string | null, text: string): HTMLDivElement {
@@ -38,9 +43,32 @@ const tableNode = (id: string, rows: string[][]) => ({
   }))
 })
 
+/** A group keeps its children as raw XML, so the excerpt reads them through `buildTextIndex`. */
+const groupNode = (id: string) => ({
+  id,
+  nodeType: 'group',
+  position: { x: 0, y: 0 },
+  size: { w: 1, h: 1 },
+  childOffset: { x: 0, y: 0 },
+  childExtent: { w: 1, h: 1 },
+  children: []
+})
+
+const indexEntry = (nodeId: string, nodePath: string, text: string, cell?: { row: number; index: number }) =>
+  ({
+    slideIndex: 0,
+    nodeId,
+    nodePath,
+    nodeType: cell ? 'table' : 'shape',
+    textKind: cell ? 'table-cell' : 'shape',
+    text,
+    rowIndex: cell?.row,
+    cellIndex: cell?.index
+  }) as unknown as TextIndexEntry
+
 /**
- * The narrowest deck `buildTextIndex` walks: pre-materialized slides (so it skips lazy XML parsing
- * and placeholder inheritance) whose nodes carry only what the index reads.
+ * The narrowest deck the excerpt walks: pre-materialized slides (so `materializeSlideNodes` skips
+ * lazy XML parsing and placeholder inheritance) whose nodes carry only what the walk reads.
  */
 function buildPresentation(slides: Array<{ nodes: unknown[] }>): PresentationData {
   return {
@@ -61,6 +89,10 @@ function buildPresentation(slides: Array<{ nodes: unknown[] }>): PresentationDat
     diagramDrawings: new Map()
   } as unknown as PresentationData
 }
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 afterEach(() => {
   document.body.replaceChildren()
@@ -107,8 +139,10 @@ describe('slideExcerpt', () => {
 
     const excerpt = slideExcerpt(presentation, 2)
     expect(excerpt).toBe('Roadmap\nQ3 goals\nQ4 goals\nOwner | Status\nAda | Done')
-    // Picking slide 2 must not pull in slide 1's text (or pay to index it).
+    // Picking slide 2 must not pull in slide 1's text (or pay to materialize and index it).
     expect(excerpt).not.toContain('Cover')
+    expect(vi.mocked(materializeSlideNodes)).toHaveBeenCalledExactlyOnceWith(presentation, presentation.slides[1])
+    expect(vi.mocked(buildTextIndex)).not.toHaveBeenCalled()
   })
 
   it('reads only the addressed slide and returns empty for one with no text', () => {
@@ -125,20 +159,62 @@ describe('slideExcerpt', () => {
     expect(slideExcerpt(presentation, 0)).toBe('')
   })
 
-  it('pads a blank middle cell instead of collapsing the row by adjacency', () => {
-    // buildTextIndex emits no entry at all for a blank cell, so "Owner | | Status" must be rebuilt
-    // from cellIndex (0, skipped, 2), not by concatenating whatever entries happen to be adjacent.
-    const presentation = buildPresentation([{ nodes: [tableNode('grid', [['Owner', '', 'Status']])] }])
+  it("keeps a shape's empty paragraph as an empty line, and a whitespace-only one verbatim", () => {
+    const presentation = buildPresentation([{ nodes: [shapeNode('body', ['Roadmap', '', 'Q3 goals'])] }])
+    const whitespaceOnly = buildPresentation([{ nodes: [shapeNode('body', ['  '])] }])
 
-    expect(slideExcerpt(presentation, 1)).toBe('Owner |  | Status')
+    expect(slideExcerpt(presentation, 1)).toBe('Roadmap\n\nQ3 goals')
+    // The text index drops any entry that trims to empty; python-pptx reports the paragraph as it is.
+    expect(slideExcerpt(whitespaceOnly, 1)).toBe('  ')
   })
 
-  it('returns an empty excerpt instead of throwing when buildTextIndex fails on a malformed slide', () => {
+  it('keeps every table cell, including a trailing empty one and an all-empty row', () => {
+    const presentation = buildPresentation([
+      {
+        nodes: [
+          tableNode('grid', [
+            ['A', ''],
+            ['', ''],
+            ['B', 'C']
+          ])
+        ]
+      }
+    ])
+    const blankMiddleCell = buildPresentation([{ nodes: [tableNode('grid', [['Owner', '', 'Status']])] }])
+
+    expect(slideExcerpt(presentation, 1)).toBe('A | \n | \nB | C')
+    expect(slideExcerpt(blankMiddleCell, 1)).toBe('Owner |  | Status')
+  })
+
+  it('falls back to the text index for a group, filtered to that group and padded by cell index', () => {
+    const presentation = buildPresentation([
+      { nodes: [shapeNode('title', ['Roadmap']), groupNode('cluster'), shapeNode('foot', ['Footer'])] }
+    ])
+    vi.mocked(buildTextIndex).mockReturnValueOnce([
+      indexEntry('inner', 'slides/0/nodes/cluster/children/0/inner', 'Inside group'),
+      indexEntry('nested', 'slides/0/nodes/cluster/children/1/nested/rows/0/cells/0', 'Left', { row: 0, index: 0 }),
+      indexEntry('nested', 'slides/0/nodes/cluster/children/1/nested/rows/0/cells/2', 'Right', { row: 0, index: 2 }),
+      indexEntry('title', 'slides/0/nodes/title', 'Roadmap'),
+      indexEntry('stamp', 'slides/0/master/nodes/stamp', 'Confidential')
+    ])
+
+    // The group's own subtree only, in place: the shapes around it come from the model walk, and the
+    // master shape python never reads stays out.
+    expect(slideExcerpt(presentation, 1)).toBe('Roadmap\nInside group\nLeft |  | Right\nFooter')
+  })
+
+  it('returns an empty excerpt instead of throwing when the slide fails to materialize', () => {
     const presentation = buildPresentation([{ nodes: [shapeNode('cover', ['Cover'])] }])
-    vi.mocked(buildTextIndex).mockImplementationOnce(() => {
+    const warn = vi.spyOn(loggerService, 'warn').mockImplementation(() => undefined)
+    vi.mocked(materializeSlideNodes).mockImplementationOnce(() => {
       throw new Error('malformed slide XML')
     })
 
     expect(slideExcerpt(presentation, 1)).toBe('')
+    expect(warn).toHaveBeenCalledWith(
+      'Failed to read PPTX slide text for excerpt',
+      expect.objectContaining({ slide: 1, error: 'malformed slide XML' })
+    )
+    warn.mockRestore()
   })
 })
