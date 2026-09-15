@@ -44,7 +44,7 @@ describe('ClearCachePopup', () => {
         {
           groups
         }: {
-          groups: Array<'normal_cache' | 'site_data' | 'orphaned_data' | 'legacy_v1'>
+          groups: Array<'normal_cache' | 'site_data' | 'orphaned_data' | 'logs' | 'legacy_v1'>
         }
       ) => {
         const group = groups[0]
@@ -52,6 +52,7 @@ describe('ClearCachePopup', () => {
           normal_cache: 1024,
           site_data: 2048,
           orphaned_data: 512,
+          logs: 256,
           legacy_v1: 100
         }[group]
         return Promise.resolve({
@@ -70,12 +71,12 @@ describe('ClearCachePopup', () => {
     )
   })
 
-  it('shows four choices with nothing selected by default', async () => {
+  it('shows five choices with nothing selected by default', async () => {
     render(<ClearCachePopupContainer open resolve={vi.fn()} onClear={vi.fn()} />)
 
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
     const checkboxes = screen.getAllByRole('checkbox')
-    expect(checkboxes).toHaveLength(4)
+    expect(checkboxes).toHaveLength(5)
     for (const checkbox of checkboxes) {
       expect(checkbox).not.toBeChecked()
     }
@@ -83,6 +84,7 @@ describe('ClearCachePopup', () => {
     expect(screen.getByText('网站与小程序数据')).toBeInTheDocument()
     expect(screen.getByText('v1 版本遗留数据')).toBeInTheDocument()
     expect(screen.getByText('残留文件与知识库')).toBeInTheDocument()
+    expect(screen.getByText('历史日志')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '清除缓存' })).toBeDisabled()
   })
 
@@ -92,7 +94,7 @@ describe('ClearCachePopup', () => {
     render(<ClearCachePopupContainer open resolve={vi.fn()} onClear={vi.fn()} />)
 
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
-    expect(screen.getAllByRole('checkbox')).toHaveLength(3)
+    expect(screen.getAllByRole('checkbox')).toHaveLength(4)
     expect(screen.queryByText('v1 版本遗留数据')).not.toBeInTheDocument()
     expect(inspectMock).not.toHaveBeenCalledWith('app.cache_cleanup.inspect', { groups: ['legacy_v1'] })
     expect(inspectBrowserMock).not.toHaveBeenCalled()
@@ -134,7 +136,7 @@ describe('ClearCachePopup', () => {
     render(<ClearCachePopupContainer open resolve={vi.fn()} onClear={vi.fn()} />)
 
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
-    const legacyCheckbox = screen.getAllByRole('checkbox')[3]
+    const legacyCheckbox = screen.getAllByRole('checkbox')[4]
     await user.click(legacyCheckbox)
 
     await waitFor(() => expect(confirmMock).toHaveBeenCalledOnce())
@@ -162,7 +164,7 @@ describe('ClearCachePopup', () => {
         {
           groups
         }: {
-          groups: Array<'normal_cache' | 'site_data' | 'orphaned_data' | 'legacy_v1'>
+          groups: Array<'normal_cache' | 'site_data' | 'orphaned_data' | 'logs' | 'legacy_v1'>
         }
       ) => {
         const group = groups[0]
@@ -226,7 +228,7 @@ describe('ClearCachePopup', () => {
 
     finishCleanup?.(false)
 
-    await waitFor(() => expect(inspectMock).toHaveBeenCalledTimes(8))
+    await waitFor(() => expect(inspectMock).toHaveBeenCalledTimes(10))
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
     expect(resolve).not.toHaveBeenCalled()
     expect(confirmButton).toBeEnabled()

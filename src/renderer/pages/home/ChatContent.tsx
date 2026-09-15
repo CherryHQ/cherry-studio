@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import type { MessageListActions } from '@renderer/components/chat/messages/types'
+import type { MessageListActions, MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import type {
@@ -71,6 +71,7 @@ const ChatContent: FC<Props> = ({
     activeNodeId,
     loadOlder,
     hasOlder,
+    selectAllPagination,
     mutate: messagesCacheMutate
   } = useTopicMessages(topic.id)
 
@@ -95,6 +96,7 @@ const ChatContent: FC<Props> = ({
       activeNodeId={activeNodeId}
       loadOlder={loadOlder}
       hasOlder={hasOlder}
+      selectAllPagination={selectAllPagination}
       messagesCacheMutate={messagesCacheMutate}
     />
   )
@@ -117,6 +119,7 @@ interface InnerProps extends Props {
   activeNodeId: string | null
   loadOlder: () => void
   hasOlder: boolean
+  selectAllPagination: MessageListSelectAllPagination
   messagesCacheMutate: ReturnType<typeof useTopicMessages>['mutate']
 }
 
@@ -140,6 +143,7 @@ const ChatContentInner: FC<InnerProps> = ({
   activeNodeId,
   loadOlder,
   hasOlder,
+  selectAllPagination,
   messagesCacheMutate
 }) => {
   const { t } = useTranslation()
@@ -221,6 +225,7 @@ const ChatContentInner: FC<InnerProps> = ({
         isMessagesStale={isHistoryStale}
         loadOlder={loadOlder}
         hasOlder={hasOlder}
+        selectAllPagination={selectAllPagination}
         openCitationsPanel={onOpenCitationsPanel}
         onStartBranchDraft={reserveBranch}
       />

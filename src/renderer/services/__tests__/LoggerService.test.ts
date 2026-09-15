@@ -86,9 +86,21 @@ describe('LoggerService window source resolution', () => {
     expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('window source not initialized'))
   })
 
-  it('returns the logger from initWindowSource to support chaining', () => {
+  it('preserves custom error classification across structured-clone IPC', () => {
     const logger = new LoggerService()
-
-    expect(logger.initWindowSource('Worker')).toBe(logger)
+    const error = Object.assign(new Error('User cancelled'), {
+      name: 'AbortError',
+      code: 'ABORT_ERR',
+      retry: () => true
+    })
+    logger.error('Translation stopped', error)
+    const call = vi.mocked(window.electron.ipcRenderer.invoke).mock.calls.at(-1)!
+    const [serialized] = structuredClone(call[4])
+    expect(serialized).toMatchObject({
+      name: 'AbortError',
+      code: 'ABORT_ERR',
+      errorMessage: 'User cancelled',
+      stack: error.stack
+    })
   })
 })
