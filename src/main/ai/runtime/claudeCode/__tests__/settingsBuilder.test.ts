@@ -2456,6 +2456,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     // Only read-only Assistant tools are pre-approved. Mutations and diagnose use per-call approval.
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).toContain('mcp__assistant__product_info')
+    expect(settings.allowedTools).toContain('mcp__assistant__prepare_diagnostic_report')
     expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
     expect(settings.allowedTools).not.toContain('mcp__assistant__apply_setting')
     expect(settings.allowedTools).not.toContain('mcp__assistant__create_agent')
@@ -2467,6 +2468,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__product_info')
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__prepare_diagnostic_report')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__apply_setting')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__create_agent')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')

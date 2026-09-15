@@ -323,6 +323,77 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
   })
 })
 
+describe('OpenCode dsh session headers', () => {
+  const opencodeProvider = {
+    id: 'opencode',
+    name: 'OpenCode Go',
+    reportsActualCost: false,
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        adapterFamily: 'openai-compatible',
+        baseUrl: 'https://opencode.ai/zen/go/v1'
+      },
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai', baseUrl: 'https://opencode.ai/zen/go/v1' }
+    }
+  } as unknown as Provider
+
+  function makeOpenCodeModel(overrides: Partial<Model> = {}): Model {
+    return makeModel({
+      id: 'opencode::deepseek-flash',
+      providerId: 'opencode',
+      apiModelId: 'deepseek-flash',
+      ...overrides
+    })
+  }
+
+  it.each([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES] as const)(
+    'keeps the session header stable and isolates sessions for %s',
+    async (endpointType) => {
+      const provider = { ...opencodeProvider, defaultChatEndpoint: endpointType } as unknown as Provider
+      const model = makeOpenCodeModel({ endpointTypes: [endpointType] })
+
+      const first = await resolveDshProviderInjectionFromSnapshot('session-1', provider, model)
+      const repeated = await resolveDshProviderInjectionFromSnapshot('session-1', provider, model)
+      const second = await resolveDshProviderInjectionFromSnapshot('session-2', provider, model)
+
+      expect(first.headers).toEqual({ 'x-opencode-session': 'session-1' })
+      expect(repeated.headers).toEqual(first.headers)
+      expect(second.headers).toEqual({ 'x-opencode-session': 'session-2' })
+    }
+  )
+
+  it('recognizes providers created from the OpenCode preset', async () => {
+    const provider = { ...opencodeProvider, id: 'my-console', presetProviderId: 'opencode' } as unknown as Provider
+
+    const injection = await resolveDshProviderInjectionFromSnapshot('session-1', provider, makeOpenCodeModel())
+
+    expect(injection.headers).toEqual({ 'x-opencode-session': 'session-1' })
+  })
+
+  it('preserves an explicit session header regardless of its casing', async () => {
+    const provider = {
+      ...opencodeProvider,
+      settings: { extraHeaders: { 'X-OpenCode-Session': 'chosen-session', 'x-tenant': 'tenant-1' } }
+    } as unknown as Provider
+
+    const injection = await resolveDshProviderInjectionFromSnapshot('session-1', provider, makeOpenCodeModel())
+
+    expect(injection.headers).toEqual({ 'X-OpenCode-Session': 'chosen-session', 'x-tenant': 'tenant-1' })
+  })
+
+  it('does not add an OpenCode session header to unrelated providers', async () => {
+    const model = makeModel({ id: 'deepseek::deepseek-chat', providerId: 'deepseek', apiModelId: 'deepseek-chat' })
+    const configured = { ...nativeProvider, settings: { extraHeaders: { 'x-tenant': 'tenant-1' } } }
+
+    const bare = await resolveDshProviderInjectionFromSnapshot('session-1', nativeProvider, model)
+    const withCustomHeaders = await resolveDshProviderInjectionFromSnapshot('session-1', configured, model)
+
+    expect(bare.headers).not.toHaveProperty('x-opencode-session')
+    expect(withCustomHeaders.headers).toEqual({ 'x-tenant': 'tenant-1' })
+  })
+})
+
 describe('assertDshProviderUsable', () => {
   it('defers Cherry Cloud gateway consent until connection materialization', async () => {
     mocks.getByProviderId.mockResolvedValue(cloudProvider)
