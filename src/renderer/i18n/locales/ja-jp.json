@@ -1259,6 +1259,7 @@
   "error.diagnostics.action_required": "対応が必要",
   "error.diagnostics.back_to_overview": "診断概要に戻る",
   "error.diagnostics.basic_information": "基本情報",
+  "error.diagnostics.basic_information_with_location": "基本情報（{{location}}）",
   "error.diagnostics.checking_progress": "確認中：{{check}} · {{completed}}/{{total}}",
   "error.diagnostics.diagnosing": "診断中",
   "error.diagnostics.preparing_result": "結果をまとめています…",

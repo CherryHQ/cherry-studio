@@ -1259,6 +1259,7 @@
   "error.diagnostics.action_required": "Acțiune necesară",
   "error.diagnostics.back_to_overview": "Înapoi la prezentarea diagnosticului",
   "error.diagnostics.basic_information": "Informații de bază",
+  "error.diagnostics.basic_information_with_location": "Informații de bază ({{location}})",
   "error.diagnostics.checking_progress": "Se verifică: {{check}} · {{completed}}/{{total}}",
   "error.diagnostics.diagnosing": "Diagnosticare în curs",
   "error.diagnostics.preparing_result": "Se pregătesc rezultatele…",

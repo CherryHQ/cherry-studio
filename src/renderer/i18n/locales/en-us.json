@@ -1259,6 +1259,7 @@
   "error.diagnostics.action_required": "Action required",
   "error.diagnostics.back_to_overview": "Back to diagnostic overview",
   "error.diagnostics.basic_information": "Basic information",
+  "error.diagnostics.basic_information_with_location": "Basic information ({{location}})",
   "error.diagnostics.checking_progress": "Checking: {{check}} · {{completed}}/{{total}}",
   "error.diagnostics.diagnosing": "Diagnosing",
   "error.diagnostics.preparing_result": "Preparing results…",

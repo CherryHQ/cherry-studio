@@ -1259,6 +1259,7 @@
   "error.diagnostics.action_required": "İşlem gerekli",
   "error.diagnostics.back_to_overview": "Tanılama özetine dön",
   "error.diagnostics.basic_information": "Temel bilgiler",
+  "error.diagnostics.basic_information_with_location": "Temel bilgiler ({{location}})",
   "error.diagnostics.checking_progress": "Kontrol ediliyor: {{check}} · {{completed}}/{{total}}",
   "error.diagnostics.diagnosing": "Tanılama sürüyor",
   "error.diagnostics.preparing_result": "Sonuçlar hazırlanıyor…",
