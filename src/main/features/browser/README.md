@@ -76,7 +76,7 @@ run as tracked, cancellable operations of this lifecycle service. Cookie decrypt
 keys from macOS Keychain, Windows current-user DPAPI or Linux Secret Service/KWallet. Helpers are
 bounded, cancelled and awaited; keys are not persisted. Windows app-bound cookies and partitioned
 cookies remain unsupported, with per-reason counts. See the
-[import support matrix](../../../../v2-refactor-temp/docs/ai/browser-use-implementation.md#127-delivered-import-support-and-validation).
+[import support matrix](../../../../docs/references/ai/browser-use-implementation.md#127-delivered-import-support-and-validation).
 Uploads, retained-tab freezing and WebMCP remain follow-ups.
 
 Debugger initialization is shared by its waiting callers. When the last caller aborts or

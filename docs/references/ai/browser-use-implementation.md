@@ -27,7 +27,7 @@ engine are in the same PR; there is no separate documentation prerequisite PR.
 | Existing Agent browser integration — `agent-browser-integration` | PR3 | Open in [#20166](https://github.com/CherryHQ/cherry-studio/pull/20166): visible-page control, ordinary browsing, history/import, settings and skill (§12) |
 | PR7 — `webview-shared-host` | `agent-browser-integration` | Shared renderer guest host and navigation state for MiniApp and Browser (§14) |
 | Cursor feedback — `browser-use-cursor` | `webview-shared-host` | Agent pointer feedback follows the stable guest; hidden presentation skips visual waits (§12.1) |
-| C3–C5 follow-ups | PR3 | WebMCP deferred while Electron stays at 41.8.0; retained-tab freezing and WebContentsView remain independent |
+| C3–C5 follow-ups | PR3 | WebMCP deferred pending native-capability validation on Electron 44.2.0; retained-tab freezing and WebContentsView remain independent |
 | D work packages | Integrated browser PR | Import work (§10) now ships with its visible-page consumer and history; no independent PR D |
 
 PR B is published as [#20134](https://github.com/CherryHQ/cherry-studio/pull/20134) on
@@ -386,7 +386,7 @@ cross-origin exposure, declarative-form support and borrowed visible-pane integr
   W3C Standard. Its entry point is `document.modelContext`, with the contract below.
 - The [experimental CDP domain](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/)
   is a separate browser-agent transport. It has event-based discovery and completion, not `list()`.
-- `package.json` pins Electron `41.8.0` and `devtools-protocol` `0.0.1692173`. The latter includes
+- At that check, `package.json` pinned Electron `41.8.0` and `devtools-protocol` `0.0.1692173`. The latter includes
   WebMCP command/event types, while the running Electron / Chromium `146.0.7680.216` instance's
   `/json/protocol` has no WebMCP domain. Page API compatibility has not been runtime-verified.
   Remove the old assumption that Electron 43 necessarily unlocks native support.
@@ -904,7 +904,7 @@ which breaks bare `vitest run`; rebuild for Node before running D3/D4 tests.
 
 **Status: implemented on `agent-browser-integration`, pending PR publication.** This product layer
 is based on PR3 and combines this section with the supported import paths in §10.
-Keep Electron 41.8.0. No new browser shell, visible multi-tab UI, WebMCP, upload tool, freeze/thaw,
+Use Electron 44.2.0 inherited from `main`. No new browser shell, visible multi-tab UI, WebMCP, upload tool, freeze/thaw,
 full handoff protocol or `WebContentsView` migration is required to complete this scope.
 
 ### 12.1 Reuse and first vertical slice
