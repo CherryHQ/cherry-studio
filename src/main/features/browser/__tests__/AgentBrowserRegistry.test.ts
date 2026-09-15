@@ -190,7 +190,10 @@ describe('Agent browser authority and control lifetime', () => {
 
   it('releases borrowed observers when Electron destroys their guest', async () => {
     const guestSession = fixture.mock.session
+    const guestDebugger = fixture.mock.debugger
     const initialListeners = guestSession.listenerCount('will-download')
+    const initialMessageListeners = guestDebugger.listenerCount('message')
+    const initialDetachListeners = guestDebugger.listenerCount('detach')
     Object.defineProperty(fixture.mock, 'session', {
       configurable: true,
       get: () => {
@@ -208,6 +211,8 @@ describe('Agent browser authority and control lifetime', () => {
       Object.defineProperty(fixture.mock, 'session', { configurable: true, value: guestSession, writable: true })
     }
     expect(guestSession.listenerCount('will-download')).toBe(initialListeners)
+    expect(guestDebugger.listenerCount('message')).toBe(initialMessageListeners)
+    expect(guestDebugger.listenerCount('detach')).toBe(initialDetachListeners)
     expect(service.get(fixture.guest.id)).toBeUndefined()
   })
 
