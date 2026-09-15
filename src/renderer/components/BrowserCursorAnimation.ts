@@ -222,6 +222,6 @@ export class BrowserCursorAnimation {
     this.position.style.transform = `translate3d(${clamp(s.x.value, this.width)}px, ${clamp(s.y.value, this.height)}px, 0)`
     this.position.style.opacity = String(visible)
     this.sprite.style.transform = `rotate(${axis}deg) scale(1, ${stretch}) rotate(${-axis - 44 + s.heading.value + s.rotation.value}deg) scale(${0.7 + visible * 0.3})`
-    this.sprite.style.filter = `blur(${(1 - visible) * 2}px) drop-shadow(0 1px 1px color-mix(in srgb, var(--foreground) 20%, transparent)) drop-shadow(0 0 2px color-mix(in srgb, var(--primary) 30%, transparent))`
+    this.sprite.style.filter = `blur(${(1 - visible) * 2}px) drop-shadow(0 1px 1px color-mix(in srgb, var(--foreground) 20%, transparent)) drop-shadow(0 0 3px color-mix(in srgb, var(--primary) 55%, transparent)) drop-shadow(0 0 8px color-mix(in srgb, var(--primary) 24%, transparent))`
   }
 }

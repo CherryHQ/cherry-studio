@@ -2,7 +2,7 @@ import type { WebviewTag } from 'electron'
 import { useEffect, useRef } from 'react'
 
 import { loggerService } from '@logger'
-import cursorImage from '@renderer/assets/images/browser-cursor.png?inline'
+import cursorImage from '@renderer/assets/images/browser-cursor.svg?inline'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { BrowserCursorArrival, BrowserCursorState } from '@shared/types/browserCursor'
 
@@ -112,9 +112,9 @@ export function BrowserCursorOverlay({
           src={cursorImage}
           alt=""
           draggable={false}
-          width={46}
-          height={48}
-          className="-top-1 -left-[23px] absolute max-w-none origin-[23px_4px] will-change-transform"
+          width={40}
+          height={44}
+          className="absolute -top-1 -left-5 max-w-none origin-[20px_4px] will-change-transform"
         />
       </div>
     </div>
