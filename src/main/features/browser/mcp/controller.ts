@@ -479,6 +479,7 @@ export class CdpBrowserController extends BrowserPageController {
         nodeIntegration: false,
         devTools: true,
         backgroundThrottling: false,
+        enableBlinkFeatures: 'WebMCP',
         partition
       }
     })

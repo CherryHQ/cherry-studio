@@ -4,6 +4,8 @@ export const BROWSER_TOOL_NAMES = [
   'open',
   'snapshot',
   'screenshot',
+  'list_web_tools',
+  'call_web_tool',
   'find',
   'list_tabs',
   'click',

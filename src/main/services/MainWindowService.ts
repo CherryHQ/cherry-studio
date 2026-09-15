@@ -458,6 +458,7 @@ export class MainWindowService extends BaseService {
       webPreferences.webSecurity = true
       webPreferences.allowRunningInsecureContent = false
       webPreferences.safeDialogs = true
+      if (securityProfile === WebviewSecurityProfile.AgentBrowser) webPreferences.enableBlinkFeatures = 'WebMCP'
     })
 
     mainWindow.webContents.on('did-attach-webview', (_, webContents) => {

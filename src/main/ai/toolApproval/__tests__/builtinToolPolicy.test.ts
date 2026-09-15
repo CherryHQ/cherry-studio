@@ -33,7 +33,7 @@ describe('builtinToolPolicy', () => {
     const preferences = application.get('PreferenceService')
     const mountedServers = new Set(['browser'])
     await preferences.set('app.browser.agent_control.enabled', true)
-    for (const toolName of ['open', 'snapshot', 'click', 'scroll', 'execute']) {
+    for (const toolName of ['open', 'snapshot', 'click', 'scroll', 'execute', 'list_web_tools', 'call_web_tool']) {
       expect(findBuiltinToolPolicy(`mcp__browser__${toolName}`, mountedServers)?.approval).toBe('auto')
     }
     expect(findBuiltinToolPolicy('mcp__browser__future_tool', mountedServers)).toBeUndefined()

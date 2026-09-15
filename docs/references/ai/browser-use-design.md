@@ -295,24 +295,22 @@ pre-warmed pools (unlike mini apps, agent tabs should be released when done).
 
 ## WebMCP integration boundary
 
-The [WebMCP Community Group draft](https://webmachinelearning.github.io/webmcp/), checked
-2026-09-07, uses `document.modelContext`: async `registerTool`, `getTools`, `executeTool`,
-registration/execution abort signals and `toolchange`. The former `navigator.modelContext` /
-`provideContext` / `unregisterTool` sketch is not the contract for this work. The draft and
-Chromium's experimental implementation can evolve independently; implementation must record
-the actual API shape and Electron/Chromium versions it tests.
+The [WebMCP Community Group draft](https://webmachinelearning.github.io/webmcp/) uses
+`document.modelContext` and remains experimental. Electron 44.2.0 / Chromium 152.0.7977.76
+provides a native CDP adapter; browser guests enable the `WebMCP` Blink feature before navigation.
+The draft page API and Chromium's JavaScript API differ, so the first adapter uses native CDP only.
+Missing native capability is explicit; page-API fallbacks and injected polyfills remain deferred.
 
-Cherry's first adapter covers tools owned by the managed tab's main document. It prefers native
-CDP discovery/invocation and can use an already-present compatible page API via the shared
-`GuestSession`. It never replaces an existing API or silently installs a legacy shim. Before
-bundling any polyfill, evaluate maintained implementations against the selected draft; browser
-permissions, cross-origin exposure and declarative forms cannot be promised by a small JS registry.
+`GuestSession` owns the document-local `WebMcpTools` registry and invocation tracking, sharing its
+existing debugger with snapshots and input. Both managed tabs and authorized Agent-bound guests
+use the same `list_web_tools` / `call_web_tool` handlers and existing execution/permission gates.
+No new browser session or application singleton is needed. Initial scope is main-document
+imperative tools; iframe/OOPIF and declarative form handoff remain separate work.
 
-Tool handles are document-bound, pending calls participate in session shutdown, and tool metadata
-and results remain untrusted even when they arrive over native CDP. Cancellation bounds Cherry's
-wait and requests cancellation of page work; it does not undo side effects or guarantee arbitrary
-page JavaScript stops. See [implementation §5.7](./browser-use-implementation.md#57-webmcp-adapter)
-for capability selection, result handling and acceptance gates.
+Tool handles are document-bound, pending calls participate in session shutdown, and metadata and
+results are untrusted. Cancellation requests page cancellation and bounds Cherry's wait; it cannot
+undo effects or guarantee arbitrary JavaScript stops. See [implementation §5.7](./browser-use-implementation.md#57-native-webmcp-tools)
+for limits, cleanup and real-runtime acceptance.
 
 ## Invariants for reviewers
 

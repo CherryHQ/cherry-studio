@@ -27,7 +27,8 @@ engine are in the same PR; there is no separate documentation prerequisite PR.
 | Existing Agent browser integration — `agent-browser-integration` | PR3 | Open in [#20166](https://github.com/CherryHQ/cherry-studio/pull/20166): visible-page control, ordinary browsing, history/import, settings and skill (§12) |
 | PR7 — `webview-shared-host` | `agent-browser-integration` | Shared renderer guest host and navigation state for MiniApp and Browser (§14) |
 | Cursor feedback — `browser-use-cursor` | `webview-shared-host` | Agent pointer feedback follows the stable guest; hidden presentation skips visual waits (§12.1) |
-| C3–C5 follow-ups | PR3 | WebMCP deferred pending native-capability validation on Electron 44.2.0; retained-tab freezing and WebContentsView remain independent |
+| C3 — `browser-use-webmcp` | `browser-use-cursor` | Native website tools for managed and Agent-bound guests (§5.7) |
+| C4–C5 follow-ups | PR3 | Retained-tab freezing and WebContentsView remain independent |
 | D work packages | Integrated browser PR | Import work (§10) now ships with its visible-page consumer and history; no independent PR D |
 
 PR B is published as [#20134](https://github.com/CherryHQ/cherry-studio/pull/20134) on
@@ -46,7 +47,7 @@ retention has the same upstream identity dependency. P0/P1 are roadmap milestone
 | Snapshot source | `Accessibility.getFullAXTree` + `DOMSnapshot.captureSnapshot`, serialised in main | Replaces the guest-side JS walker in `tools/snapshot.ts`; works without a preload |
 | Snapshot output | Diff against the previous snapshot of the same tab by default; `full: true` opts out | Cost is in the tokens, not the CDP call |
 | Input execution | Real `Input.*` events with a JS fallback when the hit-test says the point is occluded | What every mature project converged on |
-| WebMCP integration | Capability-selected adapter: native CDP first, compatible existing page API second, otherwise unsupported (§5.7) | Protocol types do not prove runtime support; do not replace a page API or bundle an unverified polyfill |
+| WebMCP integration | Native CDP tools for managed and Agent-bound guests (§5.7) | Protocol types do not prove runtime support; do not replace a page API or bundle an unverified polyfill |
 | CDP surface | Explicit allow-list in `cdpAllowList.ts`; `GuestSession.send()` rejects anything else | Reviewable security boundary; `execute` stays the escape hatch |
 | Session ownership | Registry keyed by `webContents.id`; every session is `managed` (engine-created hidden tab) or `borrowed` (someone else's page, debugger only); owners acquire/release; retention marks per managed tab | Per-connection controllers are the leak |
 | Existing tools | `open`, `execute`, `screenshot`, `list_tabs`, `switch_tab`, `close_tab`, `reset` keep their names and input schemas; `snapshot` keeps its name but changes output | No prompt churn for the tools that already work |
@@ -65,7 +66,7 @@ src/main/features/browser/
   BrowserSessionService.ts                  lifecycle service: registry, budget, sweep timer, createMcpServer()
   session/
     GuestSession.ts                         one per webContents: debugger, refs, dialog, downloads, retention
-    WebMcpSession.ts                        planned C3: capability, tool registry, pending invocations
+    WebMcpTools.ts                          C3: native tool registry and pending invocations
     BrowserInspection.ts                   PR3: bounded console/exception and network summaries
     BrowserSessionError.ts                  typed command/session failures
     cdpAllowList.ts                         Typed CDP method whitelist and argument tuples
@@ -175,7 +176,7 @@ is the planned tool surface, with C-only tools and deferred uploads delivered se
 | `find` | `{ role?: string, name?: string, tabId?, privateMode? }` | PR3: at least one exact AX filter; up to 100 refs including offscreen elements; does not change the diff baseline |
 | `console_messages` | `{ tabId?, privateMode?, level?: 'error'\|'warning'\|'all', clear?: boolean }` | PR3: 200 recent entries per managed tab; clear removes matching levels after reading |
 | `network_requests` | `{ tabId?, privateMode?, clear?: boolean }` | PR3: 200 recent request/redirect entries per managed tab: method, URL, status, type, completion/failure; clear after reading |
-| `list_web_tools` | `{ tabId?, privateMode? }` | C3: capability (`cdp` / `page-api` / `unsupported`) and bounded descriptors with document-bound `toolId` |
+| `list_web_tools` | `{ tabId?, privateMode? }` | C3: capability (`cdp` / `unsupported`) and bounded descriptors with document-bound `toolId` |
 | `call_web_tool` | `{ toolId: string, args: Record<string, unknown>, tabId?, privateMode? }` | C3: use an ID returned by listing; reject stale IDs rather than resolve a name in a later document |
 | `mark_tab` | `{ tabId, retention: TabRetention, privateMode? }` | |
 
@@ -374,90 +375,65 @@ and the scrolled-page Electron acceptance case.
 
 After every action: wait 100 ms for `Page.frameStartedNavigation` on the main frame; if it fires, wait for `Page.loadEventFired` (max 10 s) and set `navigated: true`; otherwise wait until no `Network.requestWillBeSent` / `loadingFinished` for 300 ms (max 5 s). Then take the diff snapshot for the result. `wait_for` reuses the same loop with a predicate over `buildSnapshotTree`.
 
-### 5.7 WebMCP adapter
+### 5.7 Native WebMCP tools
 
-C3 is a separate follow-up to PR3's inspection/ref-recovery work. Nothing in this section is
-implemented by PR A/B. Initial scope is the managed tab's main document; iframe/OOPIF discovery,
-cross-origin exposure, declarative-form support and borrowed visible-pane integration are deferred.
+C3 adds `list_web_tools` and `call_web_tool` to the existing Browser MCP, including
+Agent-bound borrowed guests. The first delivery covers main-document imperative tools.
+Declarative forms are discoverable with `supported: false`; iframe/OOPIF tools, page-API
+fallbacks and injected polyfills are outside this delivery.
 
-**Compatibility baseline (checked 2026-09-07)**
+**Runtime and protocol baseline**
 
-- The [Community Group draft](https://webmachinelearning.github.io/webmcp/) is evolving, not a
-  W3C Standard. Its entry point is `document.modelContext`, with the contract below.
-- The [experimental CDP domain](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/)
-  is a separate browser-agent transport. It has event-based discovery and completion, not `list()`.
-- At that check, `package.json` pinned Electron `41.8.0` and `devtools-protocol` `0.0.1692173`. The latter includes
-  WebMCP command/event types, while the running Electron / Chromium `146.0.7680.216` instance's
-  `/json/protocol` has no WebMCP domain. Page API compatibility has not been runtime-verified.
-  Remove the old assumption that Electron 43 necessarily unlocks native support.
+Electron 44.2.0 bundles Chromium 152.0.7977.76. That Chromium revision includes the
+[experimental CDP WebMCP domain](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/),
+while the page feature remains experimental. Browser guests explicitly enable the `WebMCP`
+Blink feature before page scripts run. Annotation-only MiniApps and artifact preview profiles
+are not enabled by this change. Secure-context requirements still apply.
 
-| Draft page API | Contract the adapter must respect |
-|---|---|
-| `registerTool(tool, { signal? })` | Async registration; aborting the registration signal removes the tool |
-| `getTools(options?)` | Async descriptors; retain only tools whose `window` is the current main window |
-| `executeTool(tool, inputObject?, { signal? })` | Takes a returned descriptor, not just a name; resolves to a serialized result string |
-| `toolchange` | Invalidate previously observed descriptors and refresh before another call |
+The [Community Group draft](https://webmachinelearning.github.io/webmcp/) is not a W3C Standard.
+Its page API and Chromium's implementation can differ: the current draft accepts an input object
+for `document.modelContext.executeTool`, while Chromium 152's page API takes serialized JSON.
+This adapter invokes the native CDP command with an input object and does not call the page API.
+A missing domain or unavailable document API returns `capability: unsupported`, distinct from
+an available document with no tools. Permission, debugger and deadline errors remain errors.
 
-The old `navigator.modelContext`, `provideContext` and `unregisterTool` sketch is not this contract.
-Do not infer API compatibility from property presence alone or alias old APIs silently.
+**Ownership and execution**
 
-**Capability selection**
+`GuestSession` owns `WebMcpTools`, a document-local registry and invocation tracker, and remains
+the sole CDP owner. No extra MCP connection, application service or renderer subscription is
+created. Existing controller execution leases and session action serialization apply to both
+new tools. Runtime permission policies discover them from the shared Browser tool catalog.
+Website annotations never grant permission or bypass the existing approval policy.
 
-Probe through `GuestSession` when WebMCP is first requested. Install event listeners before trying
-`WebMCP.enable`; a missing/unsupported domain permits the page-API path. Debugger loss, navigation,
-permission failures and deadlines retain their actual errors rather than triggering a fallback.
-Re-evaluate after document replacement or debugger reattachment; never switch transports and
-retry a tool after invocation has begun, since that could repeat side effects.
+Native `toolsAdded` / `toolsRemoved` events update the registry; enabling reports existing tools.
+Opaque IDs change when a tool is replaced, removed, the document changes, contexts clear or the
+debugger detaches. A known-stale ID fails before dispatch; a native "Tool not found" race also invalidates its handle.
+It never resolves by name in a newer document.
+`invokeTool` returns an invocation ID and `toolResponded` reports completion, cancellation or error.
+Responses arriving before Electron's Promise continuation are buffered within a fixed limit.
+Commands and events reuse the pinned official `ProtocolMapping` types and explicit allow-list.
 
-For native CDP, `toolsAdded` / `toolsRemoved` maintain the main-frame registry; enabling also
-announces existing tools. `invokeTool({ frameId, toolName, input })` returns an `invocationId`;
-wait for the matching `toolResponded` and interpret `Completed` / `Canceled` / `Error` separately.
-Bound initial discovery and test event ordering on the selected runtime. Reuse
-`ProtocolMapping.Commands` and `ProtocolMapping.Events` from the pinned official dependency,
-and add only consumed commands to `cdpAllowList.ts`.
+Inputs are JSON objects validated with the MCP SDK's existing CfWorker JSON Schema provider.
+Validators are cached per registration; unsupported schemas fail without remote schema fetching
+or argument repair. Limits: 64 registrations, 2,000 description characters, 16,000 schema characters,
+64,000 total listed metadata characters, and 40,000 input/result characters. Oversized metadata is
+omitted and oversized output is truncated explicitly. Registry state is memory-only. Calls return
+structured output without an automatic screenshot or AX capture; all website data is untrusted.
 
-When CDP is unavailable, a compatible existing `document.modelContext` may be called in the
-current main-world execution context. Keep returned descriptors in that document and pass tool
-arguments as structured `Runtime.callFunctionOn` arguments, never interpolate them into JS.
-Serialize only metadata to main; never serialize a descriptor's `Window`. API shape checks plus
-a real fixture test establish compatibility; a page-provided implementation remains untrusted.
-With neither transport, `list_web_tools` reports `unsupported` with a reason, distinct from an
-available API with zero tools. `call_web_tool` returns an MCP tool error without executing JS.
+Caller abort, deadline, navigation, dialogs and disposal settle pending waits. Known invocation IDs
+receive native cancellation; a late acknowledgement is canceled when it becomes available. The
+session dispatches cancellation before detaching and tracks bounded cancellation acknowledgements;
+service shutdown awaits those cleanups. Chromium 152 dispatches `toolcancel` on the page window;
+its imperative callback receives only the input, without the draft's second-argument AbortSignal.
+Page code must cooperate to stop its work. Cancellation does not undo side effects.
+Native failure, timeout or cancellation never triggers automatic execution through another transport.
 
-Bundling a polyfill is deferred. First compare maintained implementations with the chosen draft
-and record gaps before selecting a dependency or proposing custom code. If injection is later
-approved, it must precede site registration scripts on newly managed documents, avoid overwriting
-existing APIs, and track/remove its CDP script registration during cleanup. Late attachment cannot
-recover registrations a page skipped before the API existed. A private `__cherryModelContext`
-registry alone is not standards conformance or a security boundary.
+**Acceptance**
 
-**Identity, results and ownership**
-
-`GuestSession` owns one dynamic `WebMcpSession`; `BrowserSessionService` retains lifecycle ownership
-through the guest. The child tracks subscriptions, document-local handles, deadlines and pending
-invocations, rather than becoming an application singleton. Each MCP call still belongs to its
-controller: disconnect cancels that controller's calls without disposing another owner's guest.
-
-Listing returns bounded, untrusted descriptors with opaque `toolId` values tied to the guest,
-document and observed registry revision. Navigation, context destruction, detach and observed
-registry changes invalidate them; calls reject stale IDs and require a fresh list. Recheck the
-descriptor before dispatch. Native invocation ultimately addresses a name, so this does not
-guarantee atomic registration identity if a page replaces a tool during dispatch.
-
-Accept a JSON object for input. Validate it against the advertised schema with an existing
-compatible JSON Schema validator; unsupported schemas fail explicitly, never trigger remote
-schema fetching or AI argument repair. Bound descriptor count, metadata/schema sizes and result
-text. Preserve the page API's serialized result without double encoding; normalize native output
-to MCP content and report truncation. Tool annotations are hints, never authorization or a reason
-to omit the untrusted-data notice.
-
-Abort/deadline/disconnect requests `WebMCP.cancelInvocation` or aborts the page call's controller,
-settles Cherry's pending result once, and ignores late completion. Cancellation is cooperative:
-`Runtime.evaluate.timeout` does not guarantee an async tool stops or its effects are undone.
-Disposal reuses one close Promise, cancels pending work, releases remote handles/listeners and
-disables the domain before guest detach where possible. Navigation/context loss also rejects
-pending calls. Service shutdown must await this cleanup; it must never wait indefinitely for a
-page's uncooperative Promise.
+Use `tests/fixtures/browser-use/webmcp.html` on loopback HTTP with the installed Electron binary.
+Verify discovery, invocation, errors, registration removal, caller cancellation, navigation invalidation,
+unsupported native capability, and Agent-bound guest execution with its pane hidden. Record actual
+Electron/Chromium versions and native results; mock tests alone are not runtime conformance evidence.
 
 ## 6. Annotation export migration
 
@@ -558,15 +534,15 @@ PR B validation:
 ### PR C work packages — stability, inspection and follow-ups
 
 PR3 ([#20139](https://github.com/CherryHQ/cherry-studio/pull/20139)) implements C1–C2 on `browser-use-inspection`.
-The next delivery is §12. C3 is deferred while Electron remains at 41.8.0; its eventual delivery still
-requires the runtime compatibility gate (§5.7). C4–C5 remain separately scoped work. These labels
+C3 now follows the integrated browser and stable guest host on Electron 44.2.0 (§5.7).
+C4–C5 remain separately scoped work. These labels
 identify work packages, not one required PR; C5 does not mean an assigned PR5.
 
 | # | Commit | Files | Tests |
 |---|---|---|---|
 | C1 | `feat(browser-mcp): recover re-rendered refs by role and name` | `withElement` validates before effects; `GuestSession.recoverRef` queries a unique same-document replacement; `resolveRef` remains synchronous | `refRecovery.test.ts`: replacement, ambiguity, full names, navigation/detach, cancellation, no action replay |
 | C2 | `feat(browser-mcp): add find, console_messages and network_requests` | `tools/inspect.ts`, guest-owned `BrowserInspection`, official event types | `inspection.test.ts`: bounds, filtering/clear, redirect/failure, ownership and independent settling; MCP transport tests |
-| C3 | `feat(browser-mcp): expose page tools through a capability-selected WebMCP adapter` | `session/WebMcpSession.ts`, `GuestSession` ownership, typed CDP events/allow-list, `tools/webMcp.ts` | `WebMcpSession.test.ts`, `webMcp.test.ts`, real Electron capability and invocation acceptance (§8.4 / §9); bundled polyfill deferred |
+| C3 | `feat(browser-mcp): expose page tools through a capability-selected WebMCP adapter` | `session/WebMcpTools.ts`, `GuestSession` ownership, typed CDP events/allow-list, `tools/webMcp.ts` | `WebMcpTools.test.ts`, `webMcp.test.ts`, real Electron capability and invocation acceptance (§8.4 / §9); bundled polyfill deferred |
 | C4 | `feat(browser-session): expose retention marks and freeze retained tabs` | Extend PR A's existing sweep with freeze/thaw + `mark_tab` tool; retention marks change eviction order and freeze eligibility only, no turn scoping (§4 "Turn boundary") | `BrowserSessionService.test.ts` freeze/evict cases |
 | C5 | `refactor(browser-mcp): replace BrowserView tabs with WebContentsView` | `controller.ts`, `types.ts`, `tabbarHtml.ts` | existing controller tests; manual (§9) |
 
@@ -663,8 +639,7 @@ by the registry.
 ### 8.4 Main-only contracts and WebMCP adapter
 
 - `snapshot.test.ts`: engine ref/options schemas (PR A); adapter input schemas added in PR B.
-- C3 `WebMcpSession.test.ts`: native unavailable selects a compatible page API; neither available
-  reports unsupported rather than an empty success. Permission/debugger failures do not masquerade
+- C3 `WebMcpTools.test.ts`: native unavailable reports unsupported rather than an empty success. Permission/debugger failures do not masquerade
   as capability absence; an invocation failure never retries through another transport.
 - Discovery tests: initial and later registrations appear; removals invalidate handles; child-frame
   tools are excluded; replacing a document with an identically named tool cannot execute an old ID.
@@ -677,8 +652,7 @@ by the registry.
   repeated close callers await the same cleanup, and shutdown completes even if page work ignores abort.
 - Real Electron acceptance is required for every claimed transport. Record Electron/Chromium and
   draft/protocol versions, capability outcome, event ordering and fixture results. Mock/jsdom tests
-  alone cannot establish native WebMCP support or polyfill conformance. On the current runtime,
-  verify unsupported behavior; successful invocation needs a separately verified compatible API.
+  alone cannot establish native WebMCP support or polyfill conformance. Verify both unsupported behavior and successful native invocation on the installed Electron binary.
 
 ### 8.5 Gates per commit
 

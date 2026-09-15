@@ -18,6 +18,7 @@ import {
   listTabsToolDefinition,
   switchTabToolDefinition
 } from './tabs'
+import { handleListWebTools, handleCallWebTool, webMcpToolDefinitions } from './webMcp'
 
 export const toolDefinitions = [
   openToolDefinition,
@@ -31,6 +32,7 @@ export const toolDefinitions = [
   dialogToolDefinition,
   ...interactionToolDefinitions,
   ...inspectToolDefinitions,
+  ...webMcpToolDefinitions,
   ...navigateToolDefinitions
 ]
 
@@ -57,6 +59,8 @@ export const toolHandlers: Record<
   go_forward: (c, a, s) => handleHistory(c, a, 1, s),
   wait_for: handleWaitFor,
   find: handleFind,
+  list_web_tools: handleListWebTools,
+  call_web_tool: handleCallWebTool,
   console_messages: handleConsoleMessages,
   network_requests: handleNetworkRequests
 }

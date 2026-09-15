@@ -36,6 +36,7 @@ interface SessionEntry {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager', 'ConversationNavigationService'])
 export class BrowserSessionService extends BaseService {
+  private readonly guestCleanup = new Set<Promise<void>>()
   private readonly shutdown = new AbortController()
   private dataOperation?: Promise<unknown>
   private readonly faviconTasks = new Set<Promise<void>>()
@@ -282,6 +283,9 @@ export class BrowserSessionService extends BaseService {
     this.sessions.delete(id)
     entry.session.guest.removeListener('destroyed', entry.onDestroyed)
     entry.session.dispose()
+    const cleanup = entry.session.settleWebTools()
+    this.guestCleanup.add(cleanup)
+    void cleanup.finally(() => this.guestCleanup.delete(cleanup))
     if (close && entry.ownership.ownership === 'managed' && !entry.session.guest.isDestroyed()) {
       try {
         entry.ownership.close()
@@ -299,6 +303,7 @@ export class BrowserSessionService extends BaseService {
     this.agentServers.clear()
     this.agentBrowser.dispose()
     for (const id of this.sessions.keys()) this.remove(id, true)
+    await Promise.all(this.guestCleanup)
     const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
     if (errors.length) {
       logger.warn('Browser server shutdown failed', { errors })
