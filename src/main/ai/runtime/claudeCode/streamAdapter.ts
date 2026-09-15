@@ -40,6 +40,7 @@ import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
+import { CLAUDE_SHELL_TOOL_NAMES } from '@shared/ai/claudecode/toolRegistry'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -1190,7 +1191,7 @@ export class ClaudeCodeStreamAdapter {
     }
     state.name = toolName
 
-    const normalizedResult = this.normalizeToolResult(result.content)
+    const normalizedResult = this.normalizeToolResult(result.content, toolName)
     const errorText =
       typeof result.content === 'string'
         ? result.content
@@ -1687,8 +1688,12 @@ export class ClaudeCodeStreamAdapter {
     return str
   }
 
-  private normalizeToolResult(result: unknown): NonNullable<JSONValue> {
+  private normalizeToolResult(result: unknown, toolName: string): NonNullable<JSONValue> {
+    // Shell tool output stays verbatim text — `cat x.json` output is legal JSON whose parsed
+    // object form breaks the persisted string contract shared across runtimes (#20265).
+    const isShellTool = CLAUDE_SHELL_TOOL_NAMES.has(toolName)
     if (typeof result === 'string') {
+      if (isShellTool) return result
       try {
         return JSON.parse(result)
       } catch {
@@ -1702,6 +1707,7 @@ export class ClaudeCodeStreamAdapter {
 
       if (textBlocks.length !== result.length) return JSON.parse(JSON.stringify(result))
       const combined = textBlocks.join('\n')
+      if (isShellTool) return combined
       try {
         return JSON.parse(combined)
       } catch {

@@ -412,6 +412,63 @@ describe('DshStreamAdapter', () => {
     expect(chunks.at(-1)).toMatchObject({ type: 'tool-output-available', output: content })
   })
 
+  it('keeps a shell tool result as text even when the output is legal JSON', () => {
+    const { adapter, chunks } = makeAdapter()
+    const json = JSON.stringify({ results: [{ id: 'dsh-1', url: 'https://a.com/x', title: 'A' }] })
+    adapter.handleEvent(
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('c1'), name: 'bash', arguments: '{}' })
+    )
+    adapter.handleEvent(
+      envelope('tool/result', {
+        turn: 1,
+        step: 1,
+        message: toolResultMessage('c1', [{ type: 'text', text: json }])
+      })
+    )
+
+    expect(chunks.at(-1)).toMatchObject({ type: 'tool-output-available', output: json })
+  })
+
+  it('keeps the win32 pwsh tool identity in the shell class', () => {
+    const { adapter, chunks } = makeAdapter()
+    const json = JSON.stringify({ ok: true })
+    adapter.handleEvent(
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('c1'), name: 'pwsh', arguments: '{}' })
+    )
+    adapter.handleEvent(
+      envelope('tool/result', {
+        turn: 1,
+        step: 1,
+        message: toolResultMessage('c1', [{ type: 'text', text: json }])
+      })
+    )
+
+    expect(chunks.at(-1)).toMatchObject({ type: 'tool-output-available', output: json })
+  })
+
+  it('does not emit an MCP-envelope-shaped object for shell JSON output', () => {
+    // Regression for the issue #20265 teardown: a parsed `{"content":[…],"metadata":…}` object
+    // would later be mistaken for an MCP envelope by the renderer and torn down.
+    const { adapter, chunks } = makeAdapter()
+    const json = JSON.stringify({
+      content: [{ type: 'text', text: 'command output' }],
+      metadata: { type: 'mcp', serverName: 'looks-like-mcp' }
+    })
+    adapter.handleEvent(
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('c1'), name: 'bash', arguments: '{}' })
+    )
+    adapter.handleEvent(
+      envelope('tool/result', {
+        turn: 1,
+        step: 1,
+        message: toolResultMessage('c1', [{ type: 'text', text: json }])
+      })
+    )
+
+    const output = (chunks.at(-1) as { output?: unknown }).output
+    expect(output).toBe(json)
+  })
+
   it('degrades malformed tool arguments JSON to an empty input', () => {
     const { adapter, chunks } = makeAdapter()
     adapter.handleEvent(
