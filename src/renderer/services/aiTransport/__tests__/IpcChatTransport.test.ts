@@ -1,9 +1,11 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import type { UIMessageChunk } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as LoggerModule from '@renderer/services/LoggerService'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { IpcChannel } from '@shared/IpcChannel'
 import type { SerializedError } from '@shared/types/error'
 
 import { IpcChatTransport } from '../IpcChatTransport'
@@ -240,16 +242,36 @@ describe('IpcChatTransport', () => {
   // The renderer drops `info` before it reaches main's `app.log` (LoggerService's
   // logToMain threshold is WARN), so without the forcing marker the only record of a
   // transport-driven abort is main's `Aborting stream`, which cannot name a caller.
-  it('reaches app.log with the line that names the transport as the abort caller', async () => {
-    const loggerInfo = vi.spyOn(mockRendererLoggerService, 'info').mockImplementation(() => {})
-    const abortController = new AbortController()
-    const stream = await transport.sendMessages({ ...baseOptions, abortSignal: abortController.signal })
-    const reader = stream.getReader()
+  // Asserting the marker alone would only prove the call site opted in, so the globally
+  // mocked logger is routed into the real LoggerService — the one production forwards
+  // with — and the assertion is on the channel main actually receives.
+  describe('abort attribution', () => {
+    afterEach(() => vi.restoreAllMocks())
 
-    abortController.abort()
-    await reader.read()
+    it('puts the line naming the transport as the abort caller onto main log channel', async () => {
+      const { LoggerService } = await vi.importActual<typeof LoggerModule>('@renderer/services/LoggerService')
+      const realLogger = new LoggerService()
+      realLogger.initWindowSource('mainWindow')
+      vi.spyOn(mockRendererLoggerService, 'info').mockImplementation(
+        (message: string, payload: object, forceMarker: object) => realLogger.info(message, payload, forceMarker)
+      )
+      vi.spyOn(console, 'info').mockImplementation(() => {})
+      const invoke = vi.spyOn(window.electron.ipcRenderer, 'invoke').mockResolvedValue(undefined).mockClear()
 
-    expect(loggerInfo).toHaveBeenCalledWith('Stream abort requested', { topicId }, { logToMain: true })
+      const abortController = new AbortController()
+      const stream = await transport.sendMessages({ ...baseOptions, abortSignal: abortController.signal })
+      const reader = stream.getReader()
+      abortController.abort()
+      await reader.read()
+
+      expect(invoke).toHaveBeenCalledWith(
+        IpcChannel.App_LogToMain,
+        expect.objectContaining({ process: 'renderer', window: 'mainWindow' }),
+        'info',
+        'Stream abort requested',
+        [{ topicId }]
+      )
+    })
   })
 
   it('calls streamAbort on abort signal', async () => {
