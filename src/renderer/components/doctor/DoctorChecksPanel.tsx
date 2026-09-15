@@ -37,7 +37,11 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
   })
   const otherFindingRows = viewModel.rows.filter((row) => {
     const result = row.result
-    return result && (result.status === 'warn' || result.status === 'fail') && result.attribution !== 'user-fixable'
+    return (
+      row.status === 'error' ||
+      row.status === 'skip' ||
+      (result && (result.status === 'warn' || result.status === 'fail') && result.attribution !== 'user-fixable')
+    )
   })
 
   const copyResults = async () => {
