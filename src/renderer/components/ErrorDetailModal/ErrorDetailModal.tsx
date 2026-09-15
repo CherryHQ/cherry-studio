@@ -50,6 +50,7 @@ import { ErrorDiagnosticsPanel } from './ErrorDiagnosticsPanel'
 
 interface ErrorDetailContentProps {
   error?: SerializedError
+  localizedErrorMessage?: string
   diagnosisContext?: DiagnosisContext
   diagnosticReport?: DiagnosticReportConfig
   blockId?: string
@@ -513,6 +514,7 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
 
 const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   error,
+  localizedErrorMessage,
   diagnosisContext,
   diagnosticReport,
   onOpenDiagnosticReport,
@@ -563,6 +565,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       buildDiagnosticReportDescription({
         diagnosisContext,
         error,
+        localizedErrorMessage,
         labels: {
           errorMessage: t('error.message'),
           location: t('error.diagnostic_report.location'),
@@ -571,7 +574,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
         location: diagnosticReport.location
       })
     )
-  }, [diagnosticReport, diagnosisContext, doctorCloseBlocked, error, onOpenDiagnosticReport, t])
+  }, [diagnosticReport, diagnosisContext, doctorCloseBlocked, error, localizedErrorMessage, onOpenDiagnosticReport, t])
 
   const showDetails = () => {
     setDetailsOpen(true)
@@ -608,6 +611,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
           <ErrorBasicInformation
             viewDetailsButtonRef={viewDetailsButtonRef}
             error={error}
+            localizedErrorMessage={localizedErrorMessage}
             diagnosisContext={diagnosisContext}
             diagnosticReport={diagnosticReport}
             onCopy={copyErrorDetails}

@@ -17,6 +17,7 @@ interface ErrorBasicInformationProps {
   readonly diagnosisContext?: DiagnosisContext
   readonly diagnosticReport?: DiagnosticReportConfig
   readonly error?: SerializedError
+  readonly localizedErrorMessage?: string
   readonly onCopy: () => void
   readonly onViewDetails: () => void
   readonly viewDetailsButtonRef?: Ref<HTMLButtonElement>
@@ -26,6 +27,7 @@ export function ErrorBasicInformation({
   diagnosisContext,
   diagnosticReport,
   error,
+  localizedErrorMessage,
   onCopy,
   onViewDetails,
   viewDetailsButtonRef
@@ -40,8 +42,15 @@ export function ErrorBasicInformation({
   const fields = diagnosticReportFields({
     diagnosisContext,
     error,
-    location
-  }).filter(({ id }) => id !== 'location')
+    location,
+    localizedErrorMessage
+  })
+    .filter(({ id }) => id !== 'location')
+    .map((field) =>
+      field.id === 'errorMessage' && localizedErrorMessage?.trim()
+        ? { ...field, value: localizedErrorMessage.trim() }
+        : field
+    )
   const title = location?.trim()
     ? t('error.diagnostics.basic_information_with_location', { location: location.trim() })
     : t('error.diagnostics.basic_information')

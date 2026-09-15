@@ -194,6 +194,7 @@ export interface MessageErrorDetailInput {
   error?: SerializedError
   cachedDiagnosis?: MessageErrorDiagnosisResult
   diagnosisContext?: MessageErrorDiagnosisContext
+  localizedErrorMessage?: string
 }
 
 export interface OpenAgentToolFlowInput {

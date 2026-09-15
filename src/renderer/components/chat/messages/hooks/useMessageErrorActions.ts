@@ -47,6 +47,7 @@ export function useMessageErrorActions(options: MessageErrorActionOptions = {}):
         blockId: input.partId,
         cachedDiagnosis: input.cachedDiagnosis,
         diagnosisContext: input.diagnosisContext,
+        localizedErrorMessage: input.localizedErrorMessage,
         diagnosticReport,
         onDiagnosisComplete: persistDiagnosis
       })
