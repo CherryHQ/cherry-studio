@@ -51,9 +51,9 @@ export function useResourceLibrary({
 
   const libraryGroups = useGroups(isAgent ? 'agent' : 'assistant')
 
-  // Assistant needs two reads:
-  // - Base (no params): powers assistant group chips so they don't collapse when
-  //   the user types in the search box.
+  // Assistant and agent libraries need two reads:
+  // - Base (no params): powers the group chips so they don't collapse when the
+  //   user types in the search box.
   // - Filtered: powers the visible grid. When `trimmedSearch`/`groupId` are
   //   undefined the SWR key matches the base read and the call is deduped, so
   //   there's no extra network hit until the user actually filters.
@@ -71,6 +71,7 @@ export function useResourceLibrary({
   })
   // Agent search stays server-side so matching spans the full database, not only the
   // current page. The main service resolves the builtin fallback description for this predicate.
+  const baseAgents = agentAdapter.useList({ enabled: isAgent })
   const agents = agentAdapter.useList({
     enabled: isAgent,
     search: isAgent ? trimmedSearch : undefined,
@@ -152,7 +153,7 @@ export function useResourceLibrary({
 
   const allResources = useMemo<ResourceItem[]>(() => {
     if (isAssistant) return baseAssistants.data.map(buildAssistantItem)
-    if (isAgent) return agents.data.map(buildAgentItem)
+    if (isAgent) return baseAgents.data.map(buildAgentItem)
     if (isPrompt) return prompts.data.map(buildPromptItem)
     return skills.data.map(buildSkillItem)
   }, [
@@ -160,7 +161,7 @@ export function useResourceLibrary({
     isAgent,
     isPrompt,
     baseAssistants.data,
-    agents.data,
+    baseAgents.data,
     skills.data,
     prompts.data,
     buildAssistantItem,
@@ -190,27 +191,28 @@ export function useResourceLibrary({
   const isLoading = isAssistant
     ? baseAssistants.isLoading || filteredAssistants.isLoading || libraryGroups.isLoading
     : isAgent
-      ? agents.isLoading || libraryGroups.isLoading
+      ? baseAgents.isLoading || agents.isLoading || libraryGroups.isLoading
       : isPrompt
         ? prompts.isLoading
         : skills.isLoading
   const isRefreshing = isAssistant
     ? baseAssistants.isRefreshing || filteredAssistants.isRefreshing
     : isAgent
-      ? agents.isRefreshing
+      ? baseAgents.isRefreshing || agents.isRefreshing
       : isPrompt
         ? prompts.isRefreshing
         : skills.isRefreshing
   const error = isAssistant
     ? (baseAssistants.error ?? filteredAssistants.error ?? libraryGroups.error)
     : isAgent
-      ? (agents.error ?? libraryGroups.error)
+      ? (baseAgents.error ?? agents.error ?? libraryGroups.error)
       : isPrompt
         ? prompts.error
         : skills.error
 
   const baseAssistantsRefetch = baseAssistants.refetch
   const filteredAssistantsRefetch = filteredAssistants.refetch
+  const baseAgentsRefetch = baseAgents.refetch
   const agentsRefetch = agents.refetch
   const skillsRefetch = skills.refetch
   const promptsRefetch = prompts.refetch
@@ -222,6 +224,7 @@ export function useResourceLibrary({
       filteredAssistantsRefetch()
       void groupsRefetch()
     } else if (isAgent) {
+      baseAgentsRefetch()
       agentsRefetch()
     } else if (isPrompt) {
       promptsRefetch()
@@ -234,6 +237,7 @@ export function useResourceLibrary({
     isPrompt,
     baseAssistantsRefetch,
     filteredAssistantsRefetch,
+    baseAgentsRefetch,
     agentsRefetch,
     skillsRefetch,
     promptsRefetch,
