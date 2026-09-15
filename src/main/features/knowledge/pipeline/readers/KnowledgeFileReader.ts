@@ -115,6 +115,23 @@ export const usesTextFallbackReader = (filePath: string): boolean =>
   createReaderForExtension(getFileExt(filePath).toLowerCase()) instanceof TextFallbackReader
 
 /**
+ * True when a file read through the non-fatal text fallback would decode as binary (dedicated readers
+ * own their container format, so they are exempt). Runs on the ORIGINAL source before it is copied
+ * into the base, so large binary media (e.g. an `.ts` transport stream on a directory embed) is caught
+ * before a wasted copy.
+ */
+export async function sourceFileLooksBinary(filePath: string): Promise<boolean> {
+  return usesTextFallbackReader(filePath) && (await filePrefixLooksBinary(filePath))
+}
+
+/** Throwing form of {@link sourceFileLooksBinary} for explicit-pick paths that must fail visibly. */
+export async function assertSourceFileNotBinary(filePath: string): Promise<void> {
+  if (await sourceFileLooksBinary(filePath)) {
+    throw new Error(BINARY_CONTENT_ERROR)
+  }
+}
+
+/**
  * Read a base-relative file with the extension's reader and tag every document
  * with `source`.
  */
@@ -124,13 +141,6 @@ export async function loadDocumentsFromKnowledgeBaseFile(
   source: string
 ): Promise<Document[]> {
   const filePath = getKnowledgeBaseFilePath(baseId, relativePath)
-
-  // Only the text-fallback path can turn a binary file into mojibake (dedicated readers own their
-  // container format). Sniff the raw byte prefix for a NUL — Git's binary heuristic — before
-  // decoding, so an explicitly-picked binary file fails visibly here instead of read as garbage.
-  if (usesTextFallbackReader(filePath) && (await filePrefixLooksBinary(filePath))) {
-    throw new Error(BINARY_CONTENT_ERROR)
-  }
 
   const reader = createSupportedFileReader(filePath)
   const documents = await reader.loadData(filePath)

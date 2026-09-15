@@ -256,6 +256,8 @@ export const knowledgePlainTextFileExts = [
   '.jsx',
   '.mjs',
   '.cjs',
+  // `.ts` also names MPEG transport streams; the pre-copy binary guard rejects those before they are
+  // copied in, so it is safe to admit alongside real TypeScript sources.
   '.ts',
   '.tsx',
   '.php',

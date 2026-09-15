@@ -145,7 +145,8 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 })
 
 const { loadKnowledgeItemDocuments } = await import('../KnowledgeReader')
-const { createSupportedFileReader, usesTextFallbackReader } = await import('../KnowledgeFileReader')
+const { createSupportedFileReader, usesTextFallbackReader, sourceFileLooksBinary } =
+  await import('../KnowledgeFileReader')
 
 function createFileItem(ext: string, sourcePath?: string): KnowledgeItemOf<'file'> {
   return {
@@ -246,7 +247,6 @@ describe('loadKnowledgeItemDocuments', () => {
   })
 
   it('falls back to TextFileReader for unmatched file extensions', async () => {
-    sniffBytesMock.mockReturnValueOnce(new TextEncoder().encode('plain text content'))
     readerSpies.text.mockResolvedValueOnce([{ text: 'plain text content', metadata: { reader: 'text' } }] as never)
     const item = createFileItem('.log')
     const docs = await loadKnowledgeItemDocuments(item)
@@ -259,25 +259,16 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('fails a text-fallback file whose raw bytes contain a NUL before it is read as text', async () => {
+  it('flags a text-fallback file whose raw bytes contain a NUL as binary', async () => {
+    // The guard runs pre-copy on the original source; a NUL in the prefix marks it binary.
     sniffBytesMock.mockReturnValueOnce(new Uint8Array([0x50, 0x4b, 0x03, 0x00, 0x04]))
-    const item = createFileItem('.log')
-
-    await expect(loadKnowledgeItemDocuments(item)).rejects.toThrow(/decoded as binary content/)
-    // Rejected before the reader ran, so no garbage text is ever produced.
-    expect(readerSpies.text).not.toHaveBeenCalled()
+    expect(await sourceFileLooksBinary('/tmp/sample.log')).toBe(true)
   })
 
-  it('does not run the binary guard for a dedicated reader whose format is legitimately binary', async () => {
-    // A .pdf goes to PDFReader; its bytes contain NUL, but PDFReader owns that format, so a
-    // NUL must not trip the guard. The sniff mock would report binary if it were consulted.
+  it('does not flag a dedicated reader whose format is legitimately binary', async () => {
+    // A .pdf goes to PDFReader, which owns that format, so a NUL in its bytes must not mark it binary.
     sniffBytesMock.mockReturnValue(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x00]))
-    const item = createFileItem('.pdf')
-
-    const docs = await loadKnowledgeItemDocuments(item)
-
-    expect(readerSpies.pdf).toHaveBeenCalled()
-    expect(docs).toHaveLength(1)
+    expect(await sourceFileLooksBinary('/tmp/sample.pdf')).toBe(false)
     sniffBytesMock.mockReturnValue(new Uint8Array(0))
   })
 

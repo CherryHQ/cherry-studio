@@ -5,8 +5,8 @@
  * non-fatal `TextDecoder('utf-8')`, so a binary input never throws — it produces text littered
  * with the U+FFFD replacement character. Neither that nor a NUL byte is JS whitespace, so the
  * chunk splitter still emits non-empty chunks and the empty-chunk guard (#19177) passes: the
- * item would complete with embedded garbage. This guard catches that so an explicitly-picked
- * binary file fails the index visibly instead of quietly degrading the base.
+ * item would complete with embedded garbage. This guard catches that before the file is copied
+ * into the base, so a binary file is rejected up front instead of quietly degrading it.
  */
 
 // The prefix (in bytes) sampled from a file's raw content. Matches Git's binary-detection window:

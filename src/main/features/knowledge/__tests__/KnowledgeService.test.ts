@@ -52,6 +52,7 @@ const {
   deleteKnowledgeItemFilesBestEffortMock,
   fsLstatMock,
   fsStatMock,
+  fsOpenMock,
   listMaterialUnitsMock,
   storeSearchMock,
   getMaterialByRelativePathMock,
@@ -95,6 +96,7 @@ const {
   deleteKnowledgeItemFilesBestEffortMock: vi.fn(),
   fsLstatMock: vi.fn(),
   fsStatMock: vi.fn(),
+  fsOpenMock: vi.fn(),
   listMaterialUnitsMock: vi.fn(),
   storeSearchMock: vi.fn(),
   getMaterialByRelativePathMock: vi.fn(),
@@ -143,7 +145,9 @@ vi.mock('node:fs/promises', () => ({
   default: {
     lstat: fsLstatMock,
     stat: fsStatMock
-  }
+  },
+  // The pre-copy binary guard reads the source prefix; default to NUL-free (text) bytes.
+  open: fsOpenMock
 }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
@@ -348,6 +352,15 @@ describe('KnowledgeService', () => {
       birthtime: new Date('2026-04-08T00:00:00.000Z')
     })
     fsLstatMock.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
+    // Pre-copy binary guard: default reads yield text (no NUL), so a file is admitted. Binary cases
+    // override read to place a NUL in the buffer.
+    fsOpenMock.mockResolvedValue({
+      read: async (buffer: Buffer) => {
+        buffer.fill(0x41)
+        return { bytesRead: buffer.length }
+      },
+      close: async () => {}
+    })
     // Reindex source-existence gate: default every source readable so existing reindex tests are
     // unaffected; the missing/unverifiable-source tests override these per case.
     probeKnowledgeFileMock.mockResolvedValue('readable')
@@ -1352,6 +1365,28 @@ describe('KnowledgeService', () => {
         data: { source: '/Users/me/notes.unknownext', relativePath: 'notes.unknownext', allowArbitrary: true }
       })
     )
+  })
+
+  it('rejects a binary source before copying it into the base', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    // A NUL in the sniffed prefix marks the source binary; the reader routes .log to the text fallback.
+    fsOpenMock.mockResolvedValue({
+      read: async (buffer: Buffer) => {
+        buffer.fill(0x41)
+        buffer[10] = 0x00
+        return { bytesRead: buffer.length }
+      },
+      close: async () => {}
+    })
+
+    await expect(
+      service.addItems('kb-1', [
+        { type: 'file', data: { source: '/Users/me/stream.log', path: '/Users/me/stream.log' as AbsoluteFilePath } }
+      ])
+    ).rejects.toThrow(/binary content/)
+    // The copy never runs — the point of the pre-copy guard.
+    expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
   })
 
   it('auto-renames a file whose processed-markdown name would collide', async () => {

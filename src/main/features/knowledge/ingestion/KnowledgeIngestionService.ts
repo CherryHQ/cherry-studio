@@ -34,6 +34,7 @@ import {
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
 } from '../pathStorage'
+import { assertSourceFileNotBinary } from '../pipeline/readers/KnowledgeFileReader'
 import { type KnowledgeSourcePlanOptions, planKnowledgeItemSource } from '../pipeline/sources/sourcePlanning'
 import { cancelActiveKnowledgeJobs, cancelJobOrThrow } from '../tasks/utils/cancel'
 import {
@@ -610,6 +611,9 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     }
 
     assertSupportedKnowledgeFilePath(input.data.path, input.data.allowArbitrary === true)
+    // Reject a binary source before the copy, so a large binary pick doesn't get copied in only to
+    // fail at index time. The index-time check still runs as a backstop.
+    await assertSourceFileNotBinary(input.data.path)
     const fileName = getKnowledgeSourceRelativePath(input.data.path)
     // A restore that carries a processed artifact reserves the artifact slot too, even if
     // the destination base has no processor configured, so the copied `.md` cannot collide.

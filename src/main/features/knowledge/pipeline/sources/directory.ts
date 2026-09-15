@@ -6,6 +6,7 @@ import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/dat
 import { knowledgeIndexableFileExtSet } from '@shared/utils/file'
 
 import { assertSafeKnowledgeRelativePath, copyFileIntoKnowledgeBaseAt } from '../../pathStorage'
+import { sourceFileLooksBinary } from '../readers/KnowledgeFileReader'
 
 /** A scanned filesystem entry under a directory owner — only the fields this module reads. */
 interface DirectoryEntryNode {
@@ -80,6 +81,12 @@ async function expandDirectoryNode(
 ): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
     if (!knowledgeIndexableFileExtSet.has(path.extname(node.externalPath).toLowerCase())) {
+      return null
+    }
+
+    // Skip a binary file before copying it in: a bulk embed shouldn't abort on one bad file, and an
+    // ambiguous ext (e.g. an `.ts` transport stream) shouldn't waste a copy of large media.
+    if (await sourceFileLooksBinary(node.externalPath)) {
       return null
     }
 
