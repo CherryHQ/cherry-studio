@@ -3,7 +3,10 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isPortable } from '@main/core/platform'
+import { agentService } from '@main/data/services/AgentService'
 import { getAppEdition } from '@main/utils/appEdition'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import {
   DOCTOR_CHECK_CATALOG,
   DOCTOR_REPORT_TTL_MS,
@@ -18,11 +21,17 @@ import {
   type DoctorRunResult,
   type DoctorRunTier,
   type DoctorState,
-  type DoctorTier
+  type DoctorTier,
+  type DoctorScopeKey,
+  type DoctorSubject,
+  type DoctorSubjectRef
 } from '@shared/types/doctor'
+import type { DoctorConnectivityResult, DoctorConnectivitySubject } from '@shared/types/doctorConnectivity'
+import { doctorScopeKey } from '@shared/utils/doctor'
 
 import { collectDiagnosticSystemInfo } from '../systemInfo'
 import type { DiagnosticWarning } from '../types'
+import { checkModelConnectivity } from './connectivity'
 import { type EngineCheck, runDoctorChecks } from './engine'
 import { doctorCheckRegistry } from './registry'
 import type { DoctorCheckDefinition, DoctorContext, DoctorFixOutcome, DoctorProbeOutcome } from './types'
@@ -34,6 +43,7 @@ const TIERS_FOR_RUN: Record<DoctorRunTier, readonly DoctorTier[]> = { quick: ['q
 type DoctorEngineCheck = EngineCheck<DoctorCheckId, DoctorProbeOutcome<DoctorCheckId>>
 /** Probes shared between the checks of one run (`DoctorContext.share`); the first caller's signal drives them. */
 type RunMemo = Map<string, Promise<unknown>>
+type ActiveRun = { readonly runId: string; readonly controller: AbortController }
 
 function runContext(signal: AbortSignal, memo: RunMemo): DoctorContext {
   return {
@@ -82,10 +92,55 @@ function offersFix(result: DoctorCheckResult, fixId: string, target?: string): b
 @ServicePhase(Phase.WhenReady)
 export class DoctorService extends BaseService {
   private activeRun: { readonly runId: string; readonly controller: AbortController } | null = null
+  private readonly connectivityRuns = new Map<DoctorScopeKey, ActiveRun>()
   private allReady = false
 
   protected override onAllReady(): void {
     this.allReady = true
+  }
+
+  /** The renderer names a subject; only main knows how to expand it (an agent's model, its servers). */
+  private resolveSubject(ref: DoctorSubjectRef): DoctorSubject | null {
+    if (ref.kind === 'global') return null
+    if (ref.kind === 'chat') return { providerId: ref.providerId, modelId: ref.modelId }
+    const agent = agentService.getAgent(ref.agentId)
+    if (!agent) throw DataApiErrorFactory.notFound('Agent', ref.agentId)
+    const model = agent.model ? parseUniqueModelId(agent.model) : null
+    return { agentId: ref.agentId, ...model, mcpServerIds: agent.mcps ?? [] }
+  }
+
+  async checkConnectivity(input: {
+    subject: DoctorConnectivitySubject
+    runId: string
+  }): Promise<DoctorConnectivityResult> {
+    if (!this.allReady) throw new Error('Doctor is not ready')
+    const scope = doctorScopeKey(input.subject)
+    const active = this.connectivityRuns.get(scope)
+    if (active) return { status: 'busy', runId: active.runId }
+    const subject = this.resolveSubject(input.subject)
+    if (!subject?.providerId || !subject.modelId) throw new Error('No model is configured for this subject')
+    const controller = new AbortController()
+    this.connectivityRuns.set(scope, { runId: input.runId, controller })
+    try {
+      const target = application
+        .get('AiService')
+        .prepareModelCheck(createUniqueModelId(subject.providerId, subject.modelId))
+      const report = await checkModelConnectivity(target, controller.signal)
+      controller.signal.throwIfAborted()
+      return { status: 'completed', runId: input.runId, scope, report }
+    } catch (error) {
+      if (controller.signal.aborted) return { status: 'canceled', runId: input.runId }
+      throw error
+    } finally {
+      this.connectivityRuns.delete(scope)
+    }
+  }
+
+  cancelConnectivity(scope: DoctorScopeKey, runId: string): DoctorCancelResult {
+    const active = this.connectivityRuns.get(scope)
+    if (!active || active.runId !== runId) return { status: 'not_running' }
+    active.controller.abort()
+    return { status: 'canceled' }
   }
 
   private selectChecks(ids: readonly DoctorCheckId[], tier: DoctorRunTier): DoctorCheckId[] {
@@ -163,6 +218,8 @@ export class DoctorService extends BaseService {
 
   /** A run outlives the service otherwise, publishing onto the shared cache after teardown. */
   protected onStop(): void {
+    this.allReady = false
+    for (const { controller } of this.connectivityRuns.values()) controller.abort()
     this.activeRun?.controller.abort()
   }
 
