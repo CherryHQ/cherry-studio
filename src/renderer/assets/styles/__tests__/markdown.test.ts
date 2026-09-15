@@ -25,3 +25,26 @@ describe('markdown image capture styles', () => {
     expect(overflow).toMatchObject({ value: 'visible', important: true })
   })
 })
+
+describe('markdown table styles', () => {
+  it('preserves word boundaries in intrinsically sized cells', () => {
+    let tableCellRule: Rule | undefined
+
+    postcss.parse(markdownStyles).walkRules((rule) => {
+      if (rule.selectors.includes('.markdown th') && rule.selectors.includes('.markdown td')) {
+        tableCellRule = rule
+      }
+    })
+
+    const declarations = Object.fromEntries(
+      tableCellRule?.nodes
+        .filter((node) => node.type === 'decl')
+        .map((declaration) => [declaration.prop, declaration.value]) ?? []
+    )
+
+    expect(declarations).toMatchObject({
+      'overflow-wrap': 'break-word',
+      'word-break': 'normal'
+    })
+  })
+})
