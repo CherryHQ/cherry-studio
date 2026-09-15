@@ -142,6 +142,13 @@ describe('GuestSession command lifetime', () => {
         Promise<Protocol.Page.GetFrameTreeResponse>
       >()
       expectTypeOf(session.send('Runtime.enable')).toEqualTypeOf<Promise<void>>()
+      session.onEvent((event) => {
+        if (event.method === 'Network.responseReceived') {
+          expectTypeOf(event.params).toEqualTypeOf<Protocol.Network.ResponseReceivedEvent>()
+          // @ts-expect-error Event narrowing excludes fields belonging to another event.
+          void event.params.exceptionDetails
+        }
+      })
       void session.send('Network.enable')
       void session.send('Network.enable', { maxTotalBufferSize: 1024 }, { deadline: 100 })
       void session.send('Page.captureScreenshot', { format: 'png' })

@@ -26,21 +26,43 @@ export async function withElement<T>(
   action: (objectId: string, backendNodeId: number, check: () => void) => Promise<T>,
   options: CommandOptions = {}
 ): Promise<T> {
-  const backendNodeId = session.resolveRef(ref)
+  let backendNodeId = session.resolveRef(ref)
   const check = () => {
     if (session.resolveRef(ref) !== backendNodeId) throw new BrowserSessionError('stale_ref')
     options.signal?.throwIfAborted()
   }
   let objectId: string | undefined
-  try {
-    const result = await session.send('DOM.resolveNode', { backendNodeId }, options)
-    objectId = result.object.objectId
-    if (!objectId) throw new BrowserSessionError('not_found')
-    check()
-    return await action(objectId, backendNodeId, check)
-  } finally {
+  const release = async () => {
     if (objectId)
       await session.send('Runtime.releaseObject', { objectId }, { deadline: Date.now() + 1000 }).catch(() => undefined)
+    objectId = undefined
+  }
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const result = await session.send('DOM.resolveNode', { backendNodeId }, options)
+        objectId = result.object.objectId
+      } catch (error) {
+        if (
+          !(error instanceof Error) ||
+          !/No node with given id|Could not find node with given id/i.test(error.message)
+        )
+          throw error
+      }
+      check()
+      if (
+        objectId &&
+        (await callOnElement<boolean>(session, objectId, 'function(){ return this.isConnected }', [], options))
+      )
+        break
+      await release()
+      if (attempt === 1) throw new BrowserSessionError('stale_ref')
+      backendNodeId = await session.recoverRef(ref, options)
+    }
+    check()
+    return await action(objectId!, backendNodeId, check)
+  } finally {
+    await release()
   }
 }
 
@@ -93,9 +115,15 @@ export async function resolveTarget(session: GuestSession, ref: BrowserRef, opti
       }
       if (!quad) throw new BrowserSessionError('not_found')
       const { x, y } = getQuadCenter(quad)
+      const { cssLayoutViewport } = await session.send('Page.getLayoutMetrics', undefined, options)
+      // DOM hit testing uses document coordinates; mouse input and quads use viewport coordinates.
       const hit = await session.send(
         'DOM.getNodeForLocation',
-        { x: Math.round(x), y: Math.round(y), includeUserAgentShadowDOM: true },
+        {
+          x: Math.round(x + cssLayoutViewport.pageX),
+          y: Math.round(y + cssLayoutViewport.pageY),
+          includeUserAgentShadowDOM: true
+        },
         options
       )
       let occluded = hit.backendNodeId !== backendNodeId

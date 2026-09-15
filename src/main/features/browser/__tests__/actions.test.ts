@@ -42,6 +42,7 @@ beforeEach(() => {
     if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main', loaderId: 'doc' } } }
     if (method === 'DOM.resolveNode') return { object: { objectId: params.backendNodeId === 1 ? 'target' : 'hit' } }
     if (method === 'DOM.getContentQuads') return { quads }
+    if (method === 'Page.getLayoutMetrics') return { cssLayoutViewport: { pageX: 0, pageY: 0 } }
     if (method === 'DOM.getNodeForLocation') return { backendNodeId: hit === target ? 1 : 2 }
     if (method === 'Runtime.callFunctionOn') {
       const fn = dom.window.eval(`(${params.functionDeclaration})`)
@@ -66,6 +67,25 @@ afterEach(() => {
 })
 
 describe('Browser actions', () => {
+  it('hit-tests scrolled documents in page coordinates while keeping mouse input in viewport coordinates', async () => {
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation(async (method, params: any) => {
+      if (method === 'Page.getLayoutMetrics') return { cssLayoutViewport: { pageX: 1000, pageY: 2000 } }
+      if (method === 'DOM.getNodeForLocation' && (params.x !== 1060 || params.y !== 2030))
+        throw new Error('No node found at given location')
+      return fallback(method, params)
+    })
+    expect(await click(session, 'e1', 'left', 1, {})).toEqual({ occluded: false, synthetic: false })
+    expect(
+      commands
+        .filter((command) => command.method === 'Input.dispatchMouseEvent')
+        .map((command) => [command.params.x, command.params.y])
+    ).toEqual([
+      [60, 30],
+      [60, 30],
+      [60, 30]
+    ])
+  })
   it.each([
     [20, 10, 30, 20, 20, 30, 10, 20],
     [10, 20, 20, 30, 30, 20, 20, 10]
@@ -203,7 +223,11 @@ describe('Browser actions', () => {
     vi.useFakeTimers()
     let finished = false
     const action = settleAction(session, async () => {
-      mock.debugger.emit('message', {}, 'Network.requestWillBeSent', { requestId: 'fetch', type: 'Fetch' })
+      mock.debugger.emit('message', {}, 'Network.requestWillBeSent', {
+        requestId: 'fetch',
+        type: 'Fetch',
+        request: { method: 'GET', url: 'https://example.com/data' }
+      })
     }).then(() => {
       finished = true
     })

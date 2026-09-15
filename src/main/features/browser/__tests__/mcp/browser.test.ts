@@ -10,6 +10,7 @@ import { BaseService, Signal } from '@main/core/lifecycle'
 import { BrowserSessionService } from '../../BrowserSessionService'
 import { CdpBrowserController } from '../../mcp/controller'
 import { handleExecute } from '../../mcp/tools/execute'
+import { handleConsoleMessages, handleNetworkRequests } from '../../mcp/tools/inspect'
 import { handleWaitFor } from '../../mcp/tools/navigate'
 import { handleHistory } from '../../mcp/tools/navigate'
 import { handleReset } from '../../mcp/tools/reset'
@@ -26,6 +27,7 @@ vi.mock('electron', async () => {
     const { mock } = createGuest(sequence++)
     let url = 'about:blank'
     let initialized = false
+    let networkEnabled = false
     let audioMuted = false
     Object.assign(mock, {
       setUserAgent: vi.fn(),
@@ -36,8 +38,17 @@ vi.mock('electron', async () => {
       getZoomFactor: () => 1,
       getURL: () => url,
       getTitle: () => new URL(url).hostname,
-      loadURL: vi.fn(async () => {
+      loadURL: vi.fn(async (nextUrl: string) => {
         initialized = true
+        url = nextUrl
+        if (networkEnabled) {
+          mock.debugger.emit('message', {}, 'Network.requestWillBeSent', {
+            requestId: nextUrl,
+            type: 'Document',
+            request: { method: 'GET', url: nextUrl }
+          })
+          mock.debugger.emit('message', {}, 'Network.loadingFinished', { requestId: nextUrl })
+        }
       }),
       canGoBack: () => false,
       canGoForward: () => false,
@@ -46,6 +57,7 @@ vi.mock('electron', async () => {
     })
     mock.debugger.sendCommand.mockImplementation(async (method, params: any) => {
       if (method === 'Page.enable' && !initialized) throw new Error('Fresh BrowserView has no document')
+      if (method === 'Network.enable') networkEnabled = true
       if (method === 'Page.getLayoutMetrics')
         return {
           cssContentSize: { x: 0, y: 0, width: 1000, height: 7000 },
@@ -64,6 +76,15 @@ vi.mock('electron', async () => {
         mock.debugger.emit('message', {}, 'Page.loadEventFired', {})
       }
       if (method === 'Accessibility.getFullAXTree') return { nodes: snapshotFixture.ax }
+      if (method === 'DOM.getDocument') return { root: { backendNodeId: 1 } }
+      if (method === 'Accessibility.queryAXTree')
+        return {
+          nodes: snapshotFixture.ax.filter(
+            (node) =>
+              (!params.role || node.role?.value === params.role) &&
+              (!params.accessibleName || node.name?.value === params.accessibleName)
+          )
+        }
       if (method === 'DOMSnapshot.captureSnapshot') return snapshotFixture.dom
       if (method === 'Runtime.evaluate') {
         if (params.expression === 'window.devicePixelRatio') return { result: { value: 1 } }
@@ -204,6 +225,88 @@ describe('MCP browser on shared sessions', () => {
       url: 'https://first.example/'
     })
     expect((await c.getSession()).tabId).toBe(second.tabId)
+  })
+
+  it('waits for managed inspection readiness before GUI navigation and retains the initial request', async () => {
+    const c = controller()
+    const windowsAccess = c as unknown as {
+      getOrCreateWindow: (privateMode: boolean, showWindow?: boolean) => Promise<WindowInfo>
+    }
+    const info = await windowsAccess.getOrCreateWindow(false, true)
+    info.tabBarView!.webContents.emit('did-finish-load')
+    const started = new Signal<void>()
+    const resume = new Signal<void>()
+    const navigated = new Signal<void>()
+    const url = 'https://example.com/initial-request'
+    vi.mocked(info.window.addBrowserView).mockImplementation((view) => {
+      const command = vi.mocked(view.webContents.debugger.sendCommand)
+      const fallback = command.getMockImplementation()!
+      command.mockImplementation(async (method, params) => {
+        if (method === 'Network.enable' && !started.isResolved) {
+          started.resolve()
+          await resume
+        }
+        return fallback(method, params)
+      })
+      const load = vi.mocked(view.webContents.loadURL)
+      const loadPage = load.getMockImplementation()!
+      load.mockImplementation(async (...args) => {
+        await loadPage(...args)
+        if (args[0] === url) navigated.resolve()
+      })
+    })
+    const opening = c.createTab(false, true)
+    await Promise.race([started, opening])
+    try {
+      info.tabBarView!.webContents.emit(
+        'console-message',
+        {},
+        0,
+        JSON.stringify({
+          channel: 'tabbar-action',
+          payload: { type: 'navigate', url }
+        })
+      )
+      await Promise.resolve()
+      expect(info.tabs.get(info.activeTabId!)!.view.webContents.getURL()).toBe('about:blank')
+    } finally {
+      resume.resolve()
+    }
+    const { tabId } = await opening
+    await navigated
+    const result = await handleNetworkRequests(c, { tabId })
+    expect(JSON.parse((result.content as Array<{ text: string }>)[0].text)).toMatchObject({
+      ok: true,
+      requests: [{ url, state: 'completed' }]
+    })
+  })
+
+  it.each(['console', 'network'])('starts inspection when %s is the first tool on a fresh page', async (kind) => {
+    const c = controller()
+    const { tabId, session } = await c.getSession()
+    const command = vi.mocked(session.guest.debugger.sendCommand)
+    const fallback = command.getMockImplementation()!
+    command.mockImplementation(async (method, params) => {
+      if (method === 'Runtime.enable')
+        session.guest.debugger.emit('message', {}, 'Runtime.consoleAPICalled', {
+          type: 'log',
+          args: [{ type: 'string', value: 'Fresh page output' }],
+          timestamp: 1,
+          executionContextId: 1
+        })
+      if (method === 'Network.enable')
+        session.guest.debugger.emit('message', {}, 'Network.requestWillBeSent', {
+          requestId: 'fresh',
+          type: 'Fetch',
+          request: { method: 'GET', url: 'https://example.com/data' }
+        })
+      return fallback(method, params)
+    })
+    const result = await (kind === 'console' ? handleConsoleMessages : handleNetworkRequests)(c, { tabId })
+    const data = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+    expect(data, JSON.stringify(data)).toMatchObject({ ok: true })
+    if (kind === 'console') expect(data.messages).toContainEqual(expect.objectContaining({ text: 'Fresh page output' }))
+    else expect(data.requests).toContainEqual(expect.objectContaining({ url: 'https://example.com/data' }))
   })
 
   it('mutes browser audio while the window is hidden or minimized', async () => {
@@ -552,7 +655,17 @@ describe('MCP browser on shared sessions', () => {
       expect(tools.find((tool) => tool.name === 'click')?.inputSchema.required).toEqual(['ref'])
       expect(tools.find((tool) => tool.name === 'type')?.inputSchema.required).toEqual(['ref', 'text'])
       expect(names).toEqual(
-        expect.arrayContaining(['snapshot', 'click', 'type', 'handle_dialog', 'wait_for', 'select_option'])
+        expect.arrayContaining([
+          'snapshot',
+          'click',
+          'type',
+          'handle_dialog',
+          'wait_for',
+          'select_option',
+          'find',
+          'console_messages',
+          'network_requests'
+        ])
       )
       expect(names).not.toContain('upload_file')
       const opened = await client.callTool({ name: 'open', arguments: { url: 'https://example.com' } })
@@ -584,6 +697,27 @@ describe('MCP browser on shared sessions', () => {
       const first = JSON.parse((snapshot.content as Array<{ text: string }>)[0].text)
       expect(first, JSON.stringify(first)).toMatchObject({ ok: true, tabId: data.tabId })
       expect(first.snapshot).toContain('[e1]')
+      const found = await client.callTool({
+        name: 'find',
+        arguments: { tabId: data.tabId, role: 'textbox', name: 'Name' }
+      })
+      expect(JSON.parse((found.content as Array<{ text: string }>)[0].text)).toMatchObject({
+        ok: true,
+        tabId: data.tabId,
+        matches: [expect.objectContaining({ ref: 'e1', name: 'Name' })]
+      })
+      for (const name of ['console_messages', 'network_requests']) {
+        const inspection = await client.callTool({ name, arguments: { tabId: data.tabId, clear: true } })
+        expect(JSON.parse((inspection.content as Array<{ text: string }>)[0].text)).toMatchObject({
+          ok: true,
+          tabId: data.tabId,
+          truncated: false,
+          notice: expect.stringContaining('Untrusted')
+        })
+        expect((await client.callTool({ name, arguments: { tabId: 'missing' } })).isError).toBe(true)
+      }
+      expect((await client.callTool({ name: 'find', arguments: {} })).isError).toBe(true)
+      expect((await client.callTool({ name: 'console_messages', arguments: { level: 'invalid' } })).isError).toBe(true)
       const repeated = await client.callTool({ name: 'snapshot', arguments: { tabId: data.tabId } })
       expect(JSON.parse((repeated.content as Array<{ text: string }>)[0].text).snapshot).toContain('(no change)')
       const stale = await client.callTool({ name: 'snapshot', arguments: { tabId: data.tabId, scope: 'e9999' } })
