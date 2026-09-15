@@ -166,6 +166,7 @@
   "agent.right_pane.status.tool_uses_other": "{{count}} apeluri de instrumente",
   "agent.right_pane.tabs.files": "Fișiere",
   "agent.right_pane.tabs.status": "Stare",
+  "agent.runtime_mode.label": "Mod de execuție Agent: {{mode}}",
   "agent.session.add.title": "Adaugă o sesiune",
   "agent.session.agent.delete.content": "Ștergerea sarcinilor acestui agent va șterge toate sarcinile asociate acestui agent. Agentul în sine nu va fi șters.",
   "agent.session.agent.delete.title": "Șterge sarcinile agentului",

@@ -166,6 +166,7 @@
   "agent.right_pane.status.tool_uses_other": "{{count}} araç çağrısı",
   "agent.right_pane.tabs.files": "Dosyalar",
   "agent.right_pane.tabs.status": "Durum",
+  "agent.runtime_mode.label": "Agent çalışma zamanı modu: {{mode}}",
   "agent.session.add.title": "Oturum Ekle",
   "agent.session.agent.delete.content": "Bu ajanın görevleri silindiğinde, ajanla ilişkili tüm görevler silinir. Ajanın kendisi silinmez.",
   "agent.session.agent.delete.title": "Ajan görevlerini sil",

@@ -166,6 +166,7 @@
   "agent.right_pane.status.tool_uses_other": "{{count}} вызова инструмента",
   "agent.right_pane.tabs.files": "Файлы",
   "agent.right_pane.tabs.status": "Статус",
+  "agent.runtime_mode.label": "Режим выполнения агента: {{mode}}",
   "agent.session.add.title": "Добавить сеанс",
   "agent.session.agent.delete.content": "Удаление задач этого агента приведёт к удалению всех задач, связанных с этим агентом. Сам агент не будет удалён.",
   "agent.session.agent.delete.title": "Удалить задачи агента",

@@ -166,6 +166,7 @@
   "agent.right_pane.status.tool_uses_other": "{{count}} lệnh gọi công cụ",
   "agent.right_pane.tabs.files": "Tệp",
   "agent.right_pane.tabs.status": "Trạng thái",
+  "agent.runtime_mode.label": "Chế độ runtime của Agent: {{mode}}",
   "agent.session.add.title": "Thêm một phiên",
   "agent.session.agent.delete.content": "Việc xóa tác vụ của Agent này sẽ xóa tất cả tác vụ liên quan. Bản thân Agent sẽ không bị xóa.",
   "agent.session.agent.delete.title": "Xóa tác vụ của Agent",

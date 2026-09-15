@@ -166,6 +166,7 @@
   "agent.right_pane.status.tool_uses_other": "{{count}} 回のツール呼び出し",
   "agent.right_pane.tabs.files": "ファイル",
   "agent.right_pane.tabs.status": "ステータス",
+  "agent.runtime_mode.label": "Agent ランタイムモード：{{mode}}",
   "agent.session.add.title": "セッションを追加",
   "agent.session.agent.delete.content": "このエージェントのタスクを削除すると、このエージェントに関連付けられたすべてのタスクが削除されます。エージェント自体は削除されません。",
   "agent.session.agent.delete.title": "エージェントタスクを削除",

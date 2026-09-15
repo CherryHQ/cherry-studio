@@ -166,6 +166,7 @@
   "agent.right_pane.status.tool_uses_other": "{{count}} tool calls",
   "agent.right_pane.tabs.files": "Files",
   "agent.right_pane.tabs.status": "Status",
+  "agent.runtime_mode.label": "Agent runtime mode: {{mode}}",
   "agent.session.add.title": "Add a session",
   "agent.session.agent.delete.content": "Deleting this agent's tasks will delete all tasks associated with this agent. The agent itself will not be deleted.",
   "agent.session.agent.delete.title": "Delete agent tasks",
