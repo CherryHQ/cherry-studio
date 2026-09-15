@@ -1,11 +1,23 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
-import type { DynamicToolUIPart, ReasoningUIPart } from '@shared/data/types/message'
+import type { DynamicToolUIPart, ModelSnapshot, ReasoningUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 
 import type { ConversationImporter, ImportConversation, ImportMessageNode, ImportResult } from '../types'
 
 const logger = loggerService.withContext('AnthropicImporter')
+
+/**
+ * Fallback model tagged onto assistant messages when the export carries no
+ * usable model id, purely so the Claude logo renders.
+ * Mirrors ChatgptImporter's hard-coded gpt-5 default.
+ */
+const DEFAULT_MODEL: ModelSnapshot = {
+  id: 'claude-sonnet-4-6',
+  provider: 'anthropic',
+  name: 'Claude Sonnet 4.6',
+  group: 'Claude 4.6'
+}
 
 interface AnthropicToolResultContent {
   text: string
@@ -13,7 +25,7 @@ interface AnthropicToolResultContent {
 
 interface AnthropicTextBlock {
   type: 'text'
-  text: string
+  text?: string
 }
 
 interface AnthropicThinkingBlock {
@@ -51,8 +63,8 @@ type AnthropicContentBlock =
 interface AnthropicMessage {
   uuid: string
   parent_message_uuid?: string | null
-  text: string
-  content: AnthropicContentBlock[]
+  text?: string
+  content?: AnthropicContentBlock[]
   sender: 'human' | 'assistant'
 }
 
@@ -61,27 +73,48 @@ interface AnthropicConversation {
   name: string
   summary: string
   created_at: string
+  model?: string | null
+  current_leaf_message_uuid?: string | null
   chat_messages: AnthropicMessage[]
 }
 
 /**
  * Anthropic Claude conversation importer
- * Handles importing conversations from Claude's conversations.json export format
+ * Handles importing conversations from Claude's conversations.json export format,
+ * as well as the raw claude.ai API responses that browser-extension exporters dump
+ * (a single conversation object, empty flattened `text`, and a real model id).
  */
 export class AnthropicImporter implements ConversationImporter {
   readonly name = 'Claude'
   readonly emoji = '🍒'
 
   /**
-   * Validate if the file content is a valid Anthropic Claude export
+   * Validate if the file content is a valid Anthropic Claude export.
+   * The official conversations.json holds an array of conversations, while
+   * browser-extension exporters dump a single conversation object.
    */
   validate(fileContent: string): boolean {
     try {
       const parsed = JSON.parse(fileContent)
+      const conversations = Array.isArray(parsed) ? parsed : [parsed]
       return (
-        Array.isArray(parsed) &&
-        parsed.length > 0 &&
-        parsed.every(({ uuid, created_at, chat_messages }) => uuid && created_at && Array.isArray(chat_messages))
+        conversations.length > 0 &&
+        conversations.every(
+          (conversation) =>
+            conversation &&
+            typeof conversation === 'object' &&
+            conversation.uuid &&
+            conversation.created_at &&
+            Array.isArray(conversation.chat_messages) &&
+            // Fingerprint the messages themselves so unrelated JSON that happens to
+            // carry these three field names is not claimed by this importer.
+            conversation.chat_messages.every(
+              (message: { uuid?: unknown; sender?: unknown }) =>
+                message &&
+                typeof message.uuid === 'string' &&
+                (message.sender === 'human' || message.sender === 'assistant')
+            )
+        )
       )
     } catch {
       return false
@@ -94,7 +127,8 @@ export class AnthropicImporter implements ConversationImporter {
   async parse(fileContent: string): Promise<ImportResult> {
     logger.info('Starting Anthropic Claude import...')
 
-    const conversations = JSON.parse(fileContent) as AnthropicConversation[]
+    const parsed = JSON.parse(fileContent)
+    const conversations = (Array.isArray(parsed) ? parsed : [parsed]) as AnthropicConversation[]
 
     if (conversations.length === 0) {
       throw new Error(i18n.t('import.claude.error.no_conversations'))
@@ -123,12 +157,19 @@ export class AnthropicImporter implements ConversationImporter {
   }
 
   /**
-   * Check if a message has any usable content (text, thinking, or tool calls)
+   * Check if a message has any usable content (text, thinking, or tool calls).
+   * API-style exports always leave the flattened `text` empty, so text content
+   * blocks have to count on their own.
    */
   private hasUsableContent(message: AnthropicMessage): boolean {
     return (
-      message.text.trim().length > 0 ||
-      message.content.some((block) => block.type === 'tool_use' || block.type === 'thinking')
+      (message.text ?? '').trim().length > 0 ||
+      (message.content ?? []).some(
+        (block) =>
+          block.type === 'tool_use' ||
+          block.type === 'thinking' ||
+          (block.type === 'text' && (block.text ?? '').trim().length > 0)
+      )
     )
   }
 
@@ -140,13 +181,69 @@ export class AnthropicImporter implements ConversationImporter {
   }
 
   /**
+   * Split a Claude model id into family and version, handling both naming
+   * schemes: `claude-3-5-sonnet-20241022` and `claude-sonnet-4-5-20250929`.
+   * Returns an empty result for ids that match neither.
+   */
+  private parseModelId(modelId: string): {
+    family?: string
+    version?: string
+    ordering?: 'version-first' | 'family-first'
+  } {
+    // Drop the provider prefix, any deployment suffix, and the trailing release date
+    const base = modelId
+      .toLowerCase()
+      .trim()
+      .replace(/^anthropic[/.:]/, '')
+      .split('@')[0]
+      .split(':')[0]
+      .replace(/-\d{8}$/, '')
+
+    const versionFirst = base.match(/^claude-(\d+(?:[.-]\d+)?)-(opus|sonnet|haiku)/)
+    if (versionFirst) {
+      return { version: versionFirst[1].replace('-', '.'), family: versionFirst[2], ordering: 'version-first' }
+    }
+
+    const familyFirst = base.match(/^claude-(opus|sonnet|haiku)-(\d+(?:[.-]\d+)?)/)
+    if (familyFirst) {
+      return { version: familyFirst[2].replace('-', '.'), family: familyFirst[1], ordering: 'family-first' }
+    }
+
+    return {}
+  }
+
+  /**
+   * Turn a raw claude.ai model id into a model snapshot. Unrecognised ids keep the
+   * raw string as their display name so nothing is silently lost.
+   */
+  private toModelSnapshot(modelId: string): ModelSnapshot {
+    const { family, version, ordering } = this.parseModelId(modelId)
+
+    if (!family || !version) {
+      return { id: modelId, provider: 'anthropic', name: modelId, group: 'Claude' }
+    }
+
+    const familyLabel = family.charAt(0).toUpperCase() + family.slice(1)
+    return {
+      id: modelId,
+      provider: 'anthropic',
+      name: ordering === 'version-first' ? `Claude ${version} ${familyLabel}` : `Claude ${familyLabel} ${version}`,
+      group: `Claude ${version}`
+    }
+  }
+
+  /**
    * Create a v2 import message from an Anthropic message.
    * Handles text, thinking, tool_use, and tool_result content blocks.
    */
-  private createMessage(anthropicMessage: AnthropicMessage, parentSourceId?: string): ImportMessageNode {
+  private createMessage(
+    anthropicMessage: AnthropicMessage,
+    model: ModelSnapshot,
+    parentSourceId?: string
+  ): ImportMessageNode {
     const role = anthropicMessage.sender === 'human' ? 'user' : 'assistant'
     const parts: ImportMessageNode['parts'] = []
-    const contentBlocks = anthropicMessage.content
+    const contentBlocks = anthropicMessage.content ?? []
 
     // Index tool_result blocks by their tool_use_id for O(1) lookup
     const toolResultMap = new Map<string, AnthropicToolResultBlock>()
@@ -166,7 +263,7 @@ export class AnthropicImporter implements ConversationImporter {
     for (const contentBlock of contentBlocks) {
       switch (contentBlock.type) {
         case 'text': {
-          const content = contentBlock.text.trim()
+          const content = (contentBlock.text ?? '').trim()
           if (!content) break
 
           parts.push({ type: 'text', text: content })
@@ -218,7 +315,7 @@ export class AnthropicImporter implements ConversationImporter {
       }
     }
 
-    const messageText = anthropicMessage.text.trim()
+    const messageText = (anthropicMessage.text ?? '').trim()
     if (!hasTextBlock && messageText) {
       parts.push({ type: 'text', text: messageText })
     }
@@ -228,18 +325,11 @@ export class AnthropicImporter implements ConversationImporter {
       ...(parentSourceId ? { parentSourceId } : {}),
       role,
       parts,
-      // Anthropic's conversations.json export carries no per-message model field
-      // (chat_messages only expose uuid/text/content/sender/timestamps/attachments/files),
-      // so assistant messages are tagged with a default Claude model purely so the
-      // Claude logo renders. Mirrors ChatgptImporter's hard-coded gpt-5 default.
-      ...(role === 'assistant' && {
-        model: {
-          id: 'claude-sonnet-4-6',
-          provider: 'anthropic',
-          name: 'Claude Sonnet 4.6',
-          group: 'Claude 4.6'
-        }
-      })
+      // Neither export shape carries a per-message model field (chat_messages only
+      // expose uuid/text/content/sender/timestamps/attachments/files), so every
+      // assistant message in a conversation shares the conversation-level model —
+      // the real id when the export records one, the default Claude model otherwise.
+      ...(role === 'assistant' && { model })
     }
   }
 
@@ -261,20 +351,33 @@ export class AnthropicImporter implements ConversationImporter {
 
     const messagesById = new Map(conversation.chat_messages.map((message) => [message.uuid, message]))
     const usableMessageIds = new Set(usableMessages.map((message) => message.uuid))
-    const resolveParentSourceId = (message: AnthropicMessage): string | undefined => {
-      let parentSourceId = message.parent_message_uuid ?? undefined
-      while (parentSourceId && !usableMessageIds.has(parentSourceId)) {
-        parentSourceId = messagesById.get(parentSourceId)?.parent_message_uuid ?? undefined
+    // Walk up the parent chain until an imported message is reached, so filtered-out
+    // messages (and the export's root sentinel) never leak into the imported tree.
+    // The visited set keeps cyclic parent pointers in malformed exports from hanging.
+    const resolveUsableSourceId = (sourceId: string | null | undefined): string | undefined => {
+      const visited = new Set<string>()
+      let candidate = sourceId ?? undefined
+      while (candidate && !usableMessageIds.has(candidate)) {
+        if (visited.has(candidate)) return undefined
+        visited.add(candidate)
+        candidate = messagesById.get(candidate)?.parent_message_uuid ?? undefined
       }
-      return parentSourceId
+      return candidate
     }
 
-    const messages = usableMessages.map((message) => this.createMessage(message, resolveParentSourceId(message)))
+    const modelId = typeof conversation.model === 'string' ? conversation.model.trim() : ''
+    const model = modelId ? this.toModelSnapshot(modelId) : DEFAULT_MODEL
+
+    const messages = usableMessages.map((message) =>
+      this.createMessage(message, model, resolveUsableSourceId(message.parent_message_uuid))
+    )
 
     return {
       name,
       messages,
-      activeSourceId: messages.at(-1)?.sourceId
+      // API-style exports name the active branch leaf, which is not always the last
+      // exported message; fall back to export order when it is missing or unusable.
+      activeSourceId: resolveUsableSourceId(conversation.current_leaf_message_uuid) ?? messages.at(-1)?.sourceId
     }
   }
 }
