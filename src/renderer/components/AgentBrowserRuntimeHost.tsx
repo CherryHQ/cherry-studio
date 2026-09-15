@@ -57,41 +57,48 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({ sessionId }: { sessi
   const { sourceUrl, securityProfile, anchor } = resource
   const authorization = getGuestAuthorizationKey(securityProfile, sourceUrl)
   return (
-    <WebviewSurface anchor={anchor}>
-      <WebviewHost
-        key={authorization}
-        id={`agent-browser:${sessionId}`}
-        src={sourceUrl}
-        reloadKey={resource.reloadKey}
-        partition={getWebviewPartition(securityProfile)}
-        allowPopups
-        className="inline-flex h-full w-full bg-white"
-        testId="webview-browser-guest"
-        onWebviewChange={onWebviewChange}
-        onDomReady={(webview) =>
-          runtime.update(sessionId, { ready: true, url: webview.getURL(), title: webview.getTitle() })
-        }
-        onDidStartLoading={() => runtime.update(sessionId, { loading: true, failed: false })}
-        onDidFinishLoad={() => runtime.update(sessionId, { ready: true, loading: false })}
-        onDidNavigate={(event) => {
-          if (!('isMainFrame' in event) || event.isMainFrame) runtime.update(sessionId, { url: event.url })
-        }}
-        onPageTitleUpdated={(event) => runtime.update(sessionId, { title: event.title })}
-        onDidFailLoad={(event) => {
-          if (event.isMainFrame && event.errorCode !== -3)
-            runtime.update(sessionId, { failed: true, ready: true, loading: false })
-        }}
-      />
-      {tabId && guest && (
-        <BrowserCursorOverlay
-          key={tabId}
-          sessionId={sessionId}
-          tabId={tabId}
-          guest={guest}
-          active={!!anchor && resource.ready && !resource.failed}
+    <WebviewSurface
+      anchor={anchor}
+      guest={
+        <WebviewHost
+          key={authorization}
+          id={`agent-browser:${sessionId}`}
+          src={sourceUrl}
+          reloadKey={resource.reloadKey}
+          partition={getWebviewPartition(securityProfile)}
+          allowPopups
+          className="inline-flex h-full w-full bg-white"
+          testId="webview-browser-guest"
+          onWebviewChange={onWebviewChange}
+          onDomReady={(webview) =>
+            runtime.update(sessionId, { ready: true, url: webview.getURL(), title: webview.getTitle() })
+          }
+          onDidStartLoading={() => runtime.update(sessionId, { loading: true, failed: false })}
+          onDidFinishLoad={() => runtime.update(sessionId, { ready: true, loading: false })}
+          onDidNavigate={(event) => {
+            if (!('isMainFrame' in event) || event.isMainFrame) runtime.update(sessionId, { url: event.url })
+          }}
+          onPageTitleUpdated={(event) => runtime.update(sessionId, { title: event.title })}
+          onDidFailLoad={(event) => {
+            if (event.isMainFrame && event.errorCode !== -3)
+              runtime.update(sessionId, { failed: true, ready: true, loading: false })
+          }}
         />
-      )}
-      <div ref={onOverlaysChange} className="contents" />
-    </WebviewSurface>
+      }
+      overlay={
+        <>
+          {tabId && guest && (
+            <BrowserCursorOverlay
+              key={tabId}
+              sessionId={sessionId}
+              tabId={tabId}
+              guest={guest}
+              active={!!anchor && resource.ready && !resource.failed}
+            />
+          )}
+          <div ref={onOverlaysChange} className="contents" />
+        </>
+      }
+    />
   )
 })

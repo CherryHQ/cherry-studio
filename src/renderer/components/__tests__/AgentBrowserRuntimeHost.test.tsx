@@ -118,6 +118,28 @@ describe('AgentBrowserRuntimeHost', () => {
     expect(runtime.get('session-a')).toBeUndefined()
   })
 
+  it('mounts host overlays beside the guest plane at the document root', async () => {
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+
+    const guest = view.getByTestId('webview-browser-guest')
+    const cursor = await view.findByTestId('browser-cursor-overlay')
+    const guestPlane = guest.closest('[data-webview-guest-plane]')
+    const overlayPlane = cursor.closest('[data-webview-overlay-plane]')
+
+    // Electron compositing requires body siblings, with the overlay above the z-40 pane host.
+    expect(guestPlane).not.toBeNull()
+    expect(overlayPlane).not.toBeNull()
+    expect(guestPlane?.parentElement).toBe(document.body)
+    expect(overlayPlane?.parentElement).toBe(document.body)
+    expect(guestPlane?.nextElementSibling).toBe(overlayPlane)
+    expect(guestPlane).toHaveClass('z-10')
+    expect(overlayPlane).toHaveClass('z-50')
+    expect(guestPlane).not.toContainElement(cursor)
+    expect(overlayPlane).toContainElement(runtime.get('session-a')?.overlays ?? null)
+  })
+
   it('releases the previous session guest when its only owning tab changes sessions', async () => {
     runtime.ensure('session-a', 'https://example.com/')
     const view = render(<Harness visible />)

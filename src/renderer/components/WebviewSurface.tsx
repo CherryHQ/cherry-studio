@@ -4,23 +4,28 @@ import { createPortal } from 'react-dom'
 
 interface Props {
   anchor: HTMLElement | null
-  children: ReactNode
+  guest: ReactNode
+  overlay?: ReactNode
 }
 
 /**
- * Mount beside the page's Activity boundary. The anchor supplies presentation
- * only; removing it preserves the guest, its effects and its last viewport.
- * Opacity hides presentation without suppressing the guest's compositor surface.
+ * Mount body-level guest and overlay planes beside the page's Activity boundary.
+ * The anchor supplies presentation only; removing it preserves both planes.
  */
-export function WebviewSurface({ anchor, children }: Props) {
-  const surfaceRef = useRef<HTMLDivElement>(null)
+export function WebviewSurface({ anchor, guest, overlay }: Props) {
+  const guestPlaneRef = useRef<HTMLDivElement>(null)
+  const overlayPlaneRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
-    const surface = surfaceRef.current
-    if (!surface) return
-    surface.style.opacity = '0'
-    surface.style.pointerEvents = 'none'
-    surface.inert = true
+    const guestPlane = guestPlaneRef.current
+    const overlayPlane = overlayPlaneRef.current
+    if (!guestPlane || !overlayPlane) return
+    const planes = [guestPlane, overlayPlane]
+    for (const plane of planes) {
+      plane.style.opacity = '0'
+      plane.style.pointerEvents = 'none'
+      plane.inert = true
+    }
     if (!anchor) return
 
     let frame: number | undefined
@@ -29,16 +34,19 @@ export function WebviewSurface({ anchor, children }: Props) {
       observeAncestors()
       const rect = anchor.getBoundingClientRect()
       const visible = anchor.isConnected && rect.width > 0 && rect.height > 0
-      surface.style.opacity = visible ? '1' : '0'
-      surface.style.pointerEvents = visible ? 'auto' : 'none'
-      surface.inert = !visible
+      for (const plane of planes) {
+        plane.style.opacity = visible ? '1' : '0'
+        plane.inert = !visible
+      }
+      guestPlane.style.pointerEvents = visible ? 'auto' : 'none'
       if (!visible) return
-      Object.assign(surface.style, {
+      const geometry = {
         left: `${rect.left}px`,
         top: `${rect.top}px`,
         width: `${rect.width}px`,
         height: `${rect.height}px`
-      })
+      }
+      for (const plane of planes) Object.assign(plane.style, geometry)
     }
     const schedule = () => {
       frame ??= requestAnimationFrame(update)
@@ -79,20 +87,31 @@ export function WebviewSurface({ anchor, children }: Props) {
       topology.disconnect()
       window.removeEventListener('resize', schedule)
       window.removeEventListener('scroll', schedule, true)
-      surface.style.opacity = '0'
-      surface.style.pointerEvents = 'none'
-      surface.inert = true
+      for (const plane of planes) {
+        plane.style.opacity = '0'
+        plane.style.pointerEvents = 'none'
+        plane.inert = true
+      }
     }
   }, [anchor])
 
   return createPortal(
-    <div
-      ref={surfaceRef}
-      data-webview-surface=""
-      className="fixed z-10 overflow-hidden"
-      style={{ left: 0, top: 0, width: 960, height: 720, opacity: 0, pointerEvents: 'none' }}>
-      {children}
-    </div>,
+    <>
+      <div
+        ref={guestPlaneRef}
+        data-webview-guest-plane=""
+        className="fixed z-10 overflow-hidden"
+        style={{ left: 0, top: 0, width: 960, height: 720, opacity: 0, pointerEvents: 'none' }}>
+        {guest}
+      </div>
+      <div
+        ref={overlayPlaneRef}
+        data-webview-overlay-plane=""
+        className="pointer-events-none fixed z-50 overflow-hidden"
+        style={{ left: 0, top: 0, width: 960, height: 720, opacity: 0, pointerEvents: 'none' }}>
+        {overlay}
+      </div>
+    </>,
     document.body
   )
 }
