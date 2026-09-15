@@ -203,14 +203,16 @@ export class SkillService {
     }
     if (!canonical) return false
 
+    // The catalog DTO projects per-agent `isEnabled` (always false without an agentId);
+    // the library-wide switch travels in `isGlobalEnabled`.
     const exact = agentGlobalSkillService.getByFolderName(canonical)
-    if (exact) return !exact.isEnabled
+    if (exact) return !exact.isGlobalEnabled
 
     const entries = await fs.promises.readdir(realRoot).catch(() => [] as string[])
     const onDisk = entries.find((name) => name.toLowerCase() === canonical.toLowerCase() && name !== canonical)
     if (!onDisk) return false
     const row = agentGlobalSkillService.getByFolderName(onDisk)
-    return Boolean(row && !row.isEnabled)
+    return Boolean(row && !row.isGlobalEnabled)
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {
