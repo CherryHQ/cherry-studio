@@ -224,6 +224,12 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   navigate from their own listener before the pick handler runs — pdf.js binds an internal destination
   with `link.onclick`, and the PPTX renderer's in-deck links are `role="link"` spans that stop
   propagation — so those links jump instead. External hyperlinks are intercepted and pick normally.
+- The docx excerpt is not the paragraph's `textContent`: it is walked so that docx-preview's `<br>` and
+  `<wbr>` become the `\n` and `-` python-docx's `Paragraph.text` spells, because the office-transform
+  skill checks the excerpt against that string. Two gaps remain — docx-preview drops `w:cr` and `w:ptab`
+  while python emits `\n` and `\t`, so a paragraph containing either can still fail that check; and page
+  and column breaks are never rendered inline (a page break splits the paragraph into a new section),
+  which the skill's patch-copy script refuses to rewrite anyway.
 - Producers must fill `excerpt` (plain-text snapshot) and `fileStamp` (size + mtime at capture). A reference
   travels into the conversation as message text, so the only thing that acts on it is the `office-transform`
   skill, and the staleness rule lives in that skill's prompt: it tells the model to `stat` the file, compare
