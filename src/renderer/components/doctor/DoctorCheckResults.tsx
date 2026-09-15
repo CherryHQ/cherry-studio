@@ -23,11 +23,7 @@ import {
 } from '@cherrystudio/ui'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import {
-  DOCTOR_NAVIGATION_LABEL_KEYS,
-  DOCTOR_STATUS_LABEL_KEYS,
-  resolveDoctorFixLabel
-} from '@renderer/utils/doctor'
+import { DOCTOR_NAVIGATION_LABEL_KEYS, DOCTOR_STATUS_LABEL_KEYS, resolveDoctorFixLabel } from '@renderer/utils/doctor'
 import { type DoctorAction, type DoctorCheckId, type DoctorCheckResult } from '@shared/types/doctor'
 import { doctorCheckDetailKey, doctorCheckTitleKey } from '@shared/utils/doctor'
 
