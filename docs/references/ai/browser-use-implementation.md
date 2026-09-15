@@ -944,30 +944,6 @@ background throttling and restores the previous setting after the last caller. S
 subscribe to native frames only until their CDP command settles, including timeout and cancellation.
 No screenshot scrolling, input synthesis, Electron upgrade or persistent frame capture is introduced.
 
-#### Cursor presentation style
-
-The approved cursor-style refinement is renderer-only and remains pending implementation. Replace the current
-92 × 96 raster sprite, displayed at 46 × 48 CSS pixels, with an inline SVG asset displayed at 40 × 44 CSS pixels.
-The new silhouette keeps the existing top-centre hotspot but uses rounded shoulders, continuous side curves and a
-narrower stem. Keep a white face and dark neutral outline so the pointer remains legible over arbitrary guest-page
-content; do not add a Cherry glyph or tint the face.
-
-Preserve the existing neutral drop shadow and replace the barely visible single primary shadow with two restrained
-theme-primary shadows: a tighter 3 px inner glow and a softer 8 px outer glow. `BrowserCursorAnimation` continues to
-own fade blur and dynamic filters so the glow follows the sprite throughout movement and dismissal. The SVG remains
-an image inside the host overlay, with `pointer-events: none`; the host must not inject cursor UI into the guest page.
-
-The `move`, `pressed` and `hidden` state contract is unchanged. Curved long-distance trajectories, straight
-short-distance movement, directional stretch, press compression, idle sway, fade timing and reduced-motion behavior
-remain unchanged. There is no loading or busy cursor state: main-frame navigation invalidates and hides the pointer,
-while same-document network settling does not keep it visible. The change does not touch IPC, coordinate scaling,
-arrival acknowledgement or browser action timing.
-
-Renderer tests should retain the overlay's pointer transparency and coordinate-mapping assertions, add the SVG's
-40 × 44 presentation size and hotspot geometry as observable style contracts, and keep the existing trajectory,
-press, idle, hide and reduced-motion coverage. Manual acceptance compares the pointer over light, dark and mixed
-guest content in the tracked Electron instance without changing the guest's input behavior.
-
 Stack placement: the generic surface follows the pane foundation; screenshot frame capture belongs
 to PR2, where screenshot commands enter the engine. Session ownership and ensure/presentation IPC
 belong to the Agent integration layer. Shared-host and cursor layers adapt above it. File-tree mirror
