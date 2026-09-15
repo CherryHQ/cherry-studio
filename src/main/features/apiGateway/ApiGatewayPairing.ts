@@ -48,7 +48,6 @@ export class ApiGatewayPairing {
       }
       return null
     }
-    this.code = null
 
     const token = createPairedDeviceToken()
     const pairedDevice = apiGatewayPairedDeviceService.create({
@@ -56,6 +55,7 @@ export class ApiGatewayPairing {
       platform: device.platform,
       tokenHash: hashPairedDeviceToken(token)
     })
+    this.code = null
     return { device: pairedDevice, token }
   }
 }
