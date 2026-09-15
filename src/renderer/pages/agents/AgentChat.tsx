@@ -208,6 +208,9 @@ const AgentChat = ({
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
   const activeAgent = conversationBootstrap.resources.agent
   const isSupportAgent = activeAgent?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT
+  const isAssistantAgent = activeAgent?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT
+  // Assistant now exposes prepare_diagnostic_report, so it needs the same review dialog as Support.
+  const canReviewDiagnosticReport = isSupportAgent || isAssistantAgent
   const isActiveAgentLoading = conversationBootstrap.resources.agentLoading
   const activeModel = conversationBootstrap.resources.model
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
@@ -500,7 +503,7 @@ const AgentChat = ({
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onCreateEmptySession={sessionAgentId && onCreateEmptySession ? handleCreateEmptySession : undefined}
         composerLaunchOptions={composerLaunchOptions}
-        openDiagnosticReport={isSupportAgent ? openDiagnosticReport : undefined}
+        openDiagnosticReport={canReviewDiagnosticReport ? openDiagnosticReport : undefined}
       />
     )
   }
@@ -540,7 +543,7 @@ const AgentChat = ({
   return (
     <>
       <AgentChatLayout {...layoutProps} />
-      {isSupportAgent && activeDiagnosticReportDraft ? (
+      {canReviewDiagnosticReport && activeDiagnosticReportDraft ? (
         <DiagnosticUploadDialog
           key={activeDiagnosticReportDraft.sessionId}
           initialDescription={activeDiagnosticReportDraft.description}
@@ -667,6 +670,7 @@ const AgentChatSessionCenter = ({
       isLoading={runtime.isLoading}
       hasOlder={runtime.hasOlder}
       loadOlder={runtime.loadOlder}
+      selectAllPagination={runtime.selectAllPagination}
       onOpenCitationsPanel={onOpenCitationsPanel}
       openDiagnosticReport={openDiagnosticReport}
       deleteMessage={runtime.deleteMessage}

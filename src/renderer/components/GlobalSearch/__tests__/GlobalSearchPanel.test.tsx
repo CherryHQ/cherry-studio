@@ -405,8 +405,13 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
+  useTopicById: () => ({}),
   mapApiTopicToRendererTopic: (topic: unknown) => topic
 }))
+
+vi.mock('@renderer/hooks/useAssistant', () => ({ useAssistantApiById: () => ({}) }))
+vi.mock('@renderer/hooks/agent/useSession', () => ({ useSession: () => ({}) }))
+vi.mock('@renderer/hooks/agent/useAgent', () => ({ useAgent: () => ({}) }))
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {

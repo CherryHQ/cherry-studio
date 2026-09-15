@@ -63,16 +63,18 @@ export class GuestSession implements Disposable {
   private readonly downloadItems = new Map<DownloadItem, () => void>()
   private readonly downloadUpdates = new Map<DownloadItem, { filename: string; state: string }>()
   private dismissedDialog?: BrowserDialog
+  private readonly electronSession: Electron.Session
 
   constructor(
     readonly guest: Electron.WebContents,
     ownership: SessionOwnership['ownership']
   ) {
     this.ownership = ownership
+    this.electronSession = guest.session
     guest.debugger.on('message', this.onMessage)
     guest.debugger.on('detach', this.onDetach)
     guest.once('destroyed', this.onDestroyed)
-    if (ownership === 'managed') guest.session.on('will-download', this.onDownload)
+    if (ownership === 'managed') this.electronSession.on('will-download', this.onDownload)
   }
 
   private get observing(): boolean {
@@ -83,7 +85,7 @@ export class GuestSession implements Disposable {
     if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
     if (!this.observing) {
       this.clearBrowserRefs()
-      this.guest.session.on('will-download', this.onDownload)
+      this.electronSession.on('will-download', this.onDownload)
     }
     this.observers++
     let released = false
@@ -91,13 +93,7 @@ export class GuestSession implements Disposable {
       if (released) return
       released = true
       this.observers--
-      if (!this.observing) {
-        this.guest.session.removeListener('will-download', this.onDownload)
-        for (const cleanup of this.downloadItems.values()) cleanup()
-        this.downloadItems.clear()
-        this.downloadUpdates.clear()
-        this.inspection.clear()
-      }
+      if (!this.observing) this.stopObserving()
     }
     try {
       await this.send('Network.enable', undefined, options)
@@ -106,6 +102,14 @@ export class GuestSession implements Disposable {
       dispose()
       throw error
     }
+  }
+
+  private stopObserving(): void {
+    this.electronSession.removeListener('will-download', this.onDownload)
+    for (const cleanup of this.downloadItems.values()) cleanup()
+    this.downloadItems.clear()
+    this.downloadUpdates.clear()
+    this.inspection.clear()
   }
 
   get documentId() {
@@ -594,7 +598,7 @@ export class GuestSession implements Disposable {
   }
 
   private detach() {
-    if (this.attached && this.guest.debugger.isAttached()) {
+    if (this.attached && !this.guest.isDestroyed() && this.guest.debugger.isAttached()) {
       try {
         this.guest.debugger.detach()
       } catch (error) {
@@ -610,11 +614,7 @@ export class GuestSession implements Disposable {
     this.actionMutex.cancel()
     this.snapshotMutex.cancel()
     this.clearDialog()
-    this.guest.session.removeListener('will-download', this.onDownload)
-    for (const cleanup of this.downloadItems.values()) cleanup()
-    this.downloadItems.clear()
-    this.downloadUpdates.clear()
-    this.inspection.clear()
+    this.stopObserving()
     this.events.dispose()
     this.rejectPending(new BrowserSessionError('debugger_unavailable'))
     this.detach()
