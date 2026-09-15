@@ -320,6 +320,39 @@ describe('PdfFilePreview', () => {
     expect(onSelectionReference).toHaveBeenLastCalledWith(null)
   })
 
+  it("empties the held reference before the new page's text arrives", async () => {
+    mocks.pdfDocument.getPage.mockImplementation(async (pageNumber: number) => ({
+      getTextContent: async () => ({ items: [{ str: `page ${pageNumber} text` }] })
+    }))
+    const onSelectionReference = vi.fn()
+    renderPreview(0, 1024, onSelectionReference)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const firstPage = renderPage('1')
+    const secondPage = renderPage('2')
+
+    fireEvent.click(firstPage)
+    await waitFor(() =>
+      expect(onSelectionReference).toHaveBeenLastCalledWith(
+        expect.objectContaining({ anchor: { format: 'pdf', page: 1 } })
+      )
+    )
+
+    // Nothing is awaited between the click and these assertions, so the page-text microtasks have
+    // not run: that is the window in which the host must already hold nothing.
+    fireEvent.click(secondPage)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+    expect(secondPage).toHaveAttribute('data-pdf-picked', 'true')
+    expect(firstPage).not.toHaveAttribute('data-pdf-picked')
+
+    await act(flushPdfEffects)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith(
+      expect.objectContaining({ anchor: { format: 'pdf', page: 2 }, excerpt: 'page 2 text' })
+    )
+  })
+
   it('keeps the pick and its marker across a viewer rebuild, and still clears on the next click', async () => {
     mocks.pdfDocument.getPage.mockResolvedValue({ getTextContent: async () => ({ items: [{ str: 'page text' }] }) })
     const onSelectionReference = vi.fn()
