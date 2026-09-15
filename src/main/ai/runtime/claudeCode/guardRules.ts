@@ -139,7 +139,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
         ctx.mountedServers.has('browser') && resolveBrowserToolPermission(ctx.toolName) === 'deny' ? {} : null
     },
     effect: 'deny',
-    reason: 'This browser tool is disabled in Browser settings.'
+    reason: 'Agent browser control is disabled in Browser settings.'
   },
   {
     id: 'disabled-tool',

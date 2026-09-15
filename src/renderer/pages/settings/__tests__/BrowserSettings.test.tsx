@@ -506,20 +506,20 @@ describe('Browser preferences', () => {
     expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).not.toBe(true)
   })
 
-  it('changes one tool permission while preserving the others', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.browser.tool_permissions', { execute: 'deny' })
+  it('persists browser control without individual tool permission settings', async () => {
     const user = userEvent.setup()
-    renderSettings()
-    await user.click(screen.getByRole('button', { name: 'Manage Tool permissions' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Tool permissions' })
-    within(dialog).getByRole('combobox', { name: 'Click' }).focus()
-    await user.keyboard('{Enter}')
-    await user.click(screen.getByRole('option', { name: 'Allow' }))
+    const view = renderSettings()
+    await user.click(screen.getByRole('switch', { name: en['settings.browser.control'] }))
     await waitFor(() =>
-      expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.tool_permissions']).toEqual({
-        execute: 'deny',
-        click: 'allow'
-      })
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(true)
+    )
+    view.unmount()
+    renderSettings()
+    expect(screen.getByRole('switch', { name: en['settings.browser.control'] })).toBeChecked()
+    expect(screen.queryByRole('button', { name: 'Manage Tool permissions' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('switch', { name: en['settings.browser.control'] }))
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getAllPreferenceValues()['app.browser.agent_control.enabled']).toBe(false)
     )
   })
 })

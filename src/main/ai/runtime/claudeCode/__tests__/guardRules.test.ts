@@ -599,24 +599,20 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
   })
 })
 
-describe('Browser tool permissions', () => {
-  it('lets Full Access bypass ask while keeping disabled browser tools blocked', async () => {
-    const pref = application.get('PreferenceService')
-    await pref.set('app.browser.agent_control.enabled', true)
-    const context = makeCtx({
-      toolName: 'mcp__browser__click',
-      mountedServers: new Set(['browser']),
-      permissionMode: 'bypassPermissions'
-    })
-    await pref.set('app.browser.tool_permissions', { click: 'allow' })
-    expect(await evaluate(context)).toBeUndefined()
-    await pref.set('app.browser.tool_permissions', { click: 'ask' })
-    expect(await evaluate(context)).toBeUndefined()
-    expect(await evaluate({ ...context, permissionMode: 'default' })).toMatchObject({ effect: 'ask' })
-    await pref.set('app.browser.tool_permissions', { click: 'deny' })
-    expect(await evaluate(context)).toMatchObject({ effect: 'deny' })
-    await pref.set('app.browser.tool_permissions', { click: 'allow' })
-    await pref.set('app.browser.agent_control.enabled', false)
-    expect(await evaluate(context)).toMatchObject({ effect: 'deny' })
-  })
+describe('Browser control permission', () => {
+  it.each(['default', 'bypassPermissions'] as const)(
+    'uses the persistent browser grant in %s mode',
+    async (permissionMode) => {
+      const pref = application.get('PreferenceService')
+      await pref.set('app.browser.agent_control.enabled', true)
+      const context = makeCtx({
+        toolName: 'mcp__browser__click',
+        mountedServers: new Set(['browser']),
+        permissionMode
+      })
+      expect(await evaluate(context)).toBeUndefined()
+      await pref.set('app.browser.agent_control.enabled', false)
+      expect(await evaluate(context)).toMatchObject({ effect: 'deny' })
+    }
+  )
 })

@@ -1,29 +1,27 @@
 export const BROWSER_TOOL_GROUP = 'mcp__browser'
 
-export const BROWSER_TOOLS = [
-  { name: 'open', labelKey: 'settings.browser.tools.open' },
-  { name: 'snapshot', labelKey: 'settings.browser.tools.snapshot' },
-  { name: 'screenshot', labelKey: 'settings.browser.tools.screenshot' },
-  { name: 'list_web_tools', labelKey: 'settings.browser.tools.list_web_tools' },
-  { name: 'call_web_tool', labelKey: 'settings.browser.tools.call_web_tool' },
-  { name: 'find', labelKey: 'settings.browser.tools.find' },
-  { name: 'list_tabs', labelKey: 'settings.browser.tools.list_tabs' },
-  { name: 'click', labelKey: 'settings.browser.tools.click' },
-  { name: 'hover', labelKey: 'settings.browser.tools.hover' },
-  { name: 'scroll', labelKey: 'settings.browser.tools.scroll' },
-  { name: 'type', labelKey: 'settings.browser.tools.type' },
-  { name: 'press_key', labelKey: 'settings.browser.tools.press_key' },
-  { name: 'select_option', labelKey: 'settings.browser.tools.select_option' },
-  { name: 'go_back', labelKey: 'settings.browser.tools.go_back' },
-  { name: 'go_forward', labelKey: 'settings.browser.tools.go_forward' },
-  { name: 'wait_for', labelKey: 'settings.browser.tools.wait_for' },
-  { name: 'handle_dialog', labelKey: 'settings.browser.tools.handle_dialog' },
-  { name: 'console_messages', labelKey: 'settings.browser.tools.console_messages' },
-  { name: 'network_requests', labelKey: 'settings.browser.tools.network_requests' },
-  { name: 'execute', labelKey: 'settings.browser.tools.execute' }
+export const BROWSER_TOOL_NAMES = [
+  'open',
+  'snapshot',
+  'screenshot',
+  'list_web_tools',
+  'call_web_tool',
+  'find',
+  'list_tabs',
+  'click',
+  'hover',
+  'scroll',
+  'type',
+  'press_key',
+  'select_option',
+  'go_back',
+  'go_forward',
+  'wait_for',
+  'handle_dialog',
+  'console_messages',
+  'network_requests',
+  'execute'
 ] as const
-
-export const BROWSER_TOOL_NAMES = BROWSER_TOOLS.map((tool) => tool.name)
 
 export type BrowserToolName = (typeof BROWSER_TOOL_NAMES)[number]
 
