@@ -45,7 +45,7 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
     hideMiniApp,
     removeCustomMiniApp
   } = useMiniApps()
-  const { shortcuts, toggle: toggleSidebarShortcut } = useSidebarShortcuts()
+  const { shortcuts, setPinned } = useSidebarShortcuts()
   const { openMiniAppInSplit } = useMiniAppPopup()
   const openMiniAppInSplitRef = useRef(openMiniAppInSplit)
   openMiniAppInSplitRef.current = openMiniAppInSplit
@@ -71,9 +71,13 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
     (appId: string) => {
       const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
       const fallbackLabel = app ? (app.nameKey ? t(app.nameKey) : app.name) : undefined
-      toggleSidebarShortcut(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId), fallbackLabel)
+      setPinned(
+        createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId),
+        !sidebarFavoriteIds.has(appId),
+        fallbackLabel
+      )
     },
-    [t, toggleSidebarShortcut]
+    [t, setPinned, sidebarFavoriteIds]
   )
 
   const renderMiniApp = (app: MiniAppType) => {

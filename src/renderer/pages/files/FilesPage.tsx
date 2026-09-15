@@ -325,7 +325,7 @@ interface FilesPageProps {
 function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   const { t } = useTranslation()
   const previewErrorMessage = t('files.preview.error')
-  const { isPinned: isSidebarShortcutPinned, toggle: toggleSidebarShortcut } = useSidebarShortcuts()
+  const { isPinned: isSidebarShortcutPinned, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
   const [embeddedPreview, setEmbeddedPreview] = useState<EmbeddedFilePreview | null>(null)
   const openRequestTokenRef = useRef(0)
   const imageRequestTokenRef = useRef(0)
@@ -907,9 +907,10 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   )
   const handleToggleFileSidebar = useCallback(
     (file: FileItem) => {
-      toggleSidebarShortcut(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.FILE_ENTRY, file.id), file.name)
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.FILE_ENTRY, file.id)
+      setSidebarShortcutPinned(target, !isSidebarShortcutPinned(target), file.name)
     },
-    [toggleSidebarShortcut]
+    [isSidebarShortcutPinned, setSidebarShortcutPinned]
   )
 
   const listMenuActions = useMemo<FileContextMenuActions>(

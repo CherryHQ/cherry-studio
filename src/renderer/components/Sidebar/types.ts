@@ -2,14 +2,6 @@ import type { ReactNode } from 'react'
 
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 
-/** The active-route state a resolved entry matches itself against. */
-export interface SidebarActiveState {
-  /** Active built-in app id. */
-  activeItem: string
-  /** Active mini app id (concrete mini app route). */
-  activeTabId?: string
-}
-
 export interface SidebarIconPresentation {
   slotSize: number
   glyphSize: number
@@ -24,7 +16,8 @@ export interface ResolvedSidebarEntry {
   key: string
   label: string
   renderIcon: (presentation: SidebarIconPresentation) => ReactNode
-  isActive: (active: SidebarActiveState) => boolean
+  isActive: boolean
+  statusLabel?: string
   onOpen: () => void
   disabled?: boolean
   onOpenNewTab?: () => void

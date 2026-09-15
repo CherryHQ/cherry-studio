@@ -130,8 +130,9 @@ const appProvider: SidebarShortcutProvider = {
   },
   async activate(target, gateway) {
     if (!this.validate(target)) return
-    const defaultPaintingProvider = await preferenceService.get('feature.paintings.default_provider')
     const id = target.locator.resourceId
+    const defaultPaintingProvider =
+      id === 'paintings' ? await preferenceService.get('feature.paintings.default_provider') : ''
     if (!isSidebarAppId(id)) return
     const url = getSidebarMenuPath(id, defaultPaintingProvider)
     const app = getSidebarApp(id)
@@ -139,7 +140,7 @@ const appProvider: SidebarShortcutProvider = {
     gateway.openWorkspace({
       url,
       title: i18n.t(getSidebarIconLabelKey(id)),
-      matchesCurrent: (currentUrl) => (app.conversationRoute ? tabBelongsToApp(app, currentUrl) : currentUrl === url)
+      matchesCurrent: (currentUrl) => this.isActive!(target, { url: currentUrl })
     })
   },
   subscribe: (_targets, invalidate) => languageSubscription(invalidate),
@@ -184,14 +185,14 @@ const agentProvider: SidebarShortcutProvider = {
   id: SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT,
   validate: (target) => validates(SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT, target),
   async resolveMany(targets) {
-    const [response, iconType, defaultModelId] = await Promise.all([
-      dataApiService.get('/agents', { query: { limit: 500 } }),
+    const [iconType, defaultModelId] = await Promise.all([
       preferenceService.get('agent.icon_type'),
       preferenceService.get('chat.default_model_id')
     ])
-    return mapRequested(
+    return resolvePaginatedTargets(
       targets,
-      response.items,
+      500,
+      (ids) => dataApiService.get('/agents', { query: { ids, limit: ids.length } }),
       (agent) => agent.id,
       (agent) => ({
         label: agent.name,
@@ -201,7 +202,7 @@ const agentProvider: SidebarShortcutProvider = {
       })
     )
   },
-  subscribe: collectionSubscription('/agents'),
+  subscribe: resourceIconSubscription('/agents', 'agent.icon_type'),
   async activate(target, gateway) {
     if (!this.validate(target)) return
     const sessionId = await resolveAgentEntrySessionIdForAgent(target.locator.resourceId)
@@ -222,14 +223,14 @@ const assistantProvider: SidebarShortcutProvider = {
   id: SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT,
   validate: (target) => validates(SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT, target),
   async resolveMany(targets) {
-    const [response, iconType, defaultModelId] = await Promise.all([
-      dataApiService.get('/assistants', { query: { limit: 500 } }),
+    const [iconType, defaultModelId] = await Promise.all([
       preferenceService.get('assistant.icon_type'),
       preferenceService.get('chat.default_model_id')
     ])
-    return mapRequested(
+    return resolvePaginatedTargets(
       targets,
-      response.items,
+      500,
+      (ids) => dataApiService.get('/assistants', { query: { ids, limit: ids.length } }),
       (assistant) => assistant.id,
       (assistant) => ({
         label: assistant.name,
@@ -245,7 +246,7 @@ const assistantProvider: SidebarShortcutProvider = {
       })
     )
   },
-  subscribe: collectionSubscription('/assistants'),
+  subscribe: resourceIconSubscription('/assistants', 'assistant.icon_type'),
   async activate(target, gateway) {
     if (!this.validate(target)) return
     const topicId = await resolveChatEntryTopicIdForAssistant(target.locator.resourceId)
@@ -417,3 +418,16 @@ export const CORE_SIDEBAR_SHORTCUT_PROVIDERS: readonly SidebarShortcutProvider[]
   fileEntryProvider,
   codeCliProvider
 ]
+function resourceIconSubscription(
+  endpoint: '/agents' | '/assistants',
+  iconPreference: 'agent.icon_type' | 'assistant.icon_type'
+): NonNullable<SidebarShortcutProvider['subscribe']> {
+  return (_targets, invalidate) => {
+    const cleanups = [
+      dataApiService.onDataChanged(endpoint, invalidate),
+      preferenceService.subscribeChange(iconPreference)(invalidate),
+      preferenceService.subscribeChange('chat.default_model_id')(invalidate)
+    ]
+    return () => cleanups.forEach((cleanup) => cleanup())
+  }
+}

@@ -5067,6 +5067,8 @@
   "settings.use_system_title_bar.confirm.title": "Neustart erforderlich",
   "settings.use_system_title_bar.title": "System-Titelleiste verwenden (Linux)",
   "settings.zoom.title": "Zoom",
+  "sidebar.resource_missing": "Ressource nicht gefunden",
+  "sidebar.resource_unavailable": "Ressource vorübergehend nicht verfügbar",
   "subWindow.back_to_main": "Zurück zum Hauptfenster",
   "subWindow.pin": "Immer oben halten",
   "subWindow.unpin": "Nicht mehr im Vordergrund halten",

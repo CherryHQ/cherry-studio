@@ -28,7 +28,7 @@ import {
 import UserPopup from '../UserPopup'
 import {
   useResolvedSidebarShortcuts,
-  useSidebarActivationGateway,
+  useSidebarShortcutActivation,
   useSidebarNavigationSnapshot,
   useSidebarShortcutRegistry
 } from './sidebarShortcuts'
@@ -59,7 +59,7 @@ export default function Sidebar({
   const { shortcuts, remove, reorder } = useSidebarShortcuts()
   const registry = useSidebarShortcutRegistry()
   const resolutions = useResolvedSidebarShortcuts(shortcuts, registry)
-  const gateway = useSidebarActivationGateway()
+  const activateShortcut = useSidebarShortcutActivation()
   const navigation = useSidebarNavigationSnapshot()
 
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
@@ -116,55 +116,29 @@ export default function Sidebar({
                 />
               )
             }
-        const activate = () => {
+        const activate = (inNewTab = false) => {
           if (!isResolved || !provider) return
-          const resourceGateway = {
-            ...gateway,
-            openWorkspace: (
-              destination: Parameters<typeof gateway.openWorkspace>[0],
-              options?: Parameters<typeof gateway.openWorkspace>[1]
-            ) =>
-              gateway.openWorkspace(
-                {
-                  ...destination,
-                  title: resolution.resource.label,
-                  icon: resolution.resource.tabIcon ?? destination.icon
-                },
-                options
-              )
-          }
-          void Promise.resolve(provider.activate(shortcut.target, resourceGateway)).catch(() =>
+          void activateShortcut(provider, shortcut.target, resolution.resource, inNewTab).catch(() =>
             toast.error(t('common.error'))
           )
         }
         const activateInNewTab =
-          isResolved && provider && resolution.resource.supportsNewTab
-            ? () => {
-                const resourceGateway = {
-                  ...gateway,
-                  openWorkspace: (destination: Parameters<typeof gateway.openWorkspace>[0]) =>
-                    gateway.openWorkspace(
-                      {
-                        ...destination,
-                        title: resolution.resource.label,
-                        icon: resolution.resource.tabIcon ?? destination.icon
-                      },
-                      { inNewTab: true }
-                    )
-                }
-                void Promise.resolve(provider.activate(shortcut.target, resourceGateway)).catch(() =>
-                  toast.error(t('common.error'))
-                )
-              }
-            : undefined
+          isResolved && provider && resolution.resource.supportsNewTab ? () => activate(true) : undefined
 
         return {
           key: shortcut.id,
           label,
           renderIcon,
           disabled: !isResolved || !provider,
-          isActive: () => !!provider?.isActive?.(shortcut.target, navigation),
-          onOpen: activate,
+          isActive: !!provider?.isActive?.(shortcut.target, navigation),
+          statusLabel: isResolved
+            ? undefined
+            : resolution.status === 'loading'
+              ? t('common.loading')
+              : resolution.status === 'missing'
+                ? t('sidebar.resource_missing')
+                : t('sidebar.resource_unavailable'),
+          onOpen: () => activate(),
           onOpenNewTab: activateInNewTab,
           contextMenuItems: [
             ...(activateInNewTab
@@ -187,7 +161,7 @@ export default function Sidebar({
           ]
         }
       }),
-    [gateway, navigation, registry, remove, resolutions, shortcuts, t]
+    [activateShortcut, navigation, registry, remove, resolutions, shortcuts, t]
   )
   const [entries, setOptimisticEntryOrder] = useOptimistic(resolvedEntries, applyEntryOrder)
 
@@ -217,7 +191,6 @@ export default function Sidebar({
   const sidebarProps = {
     isFullscreen,
     entries,
-    active: { activeItem: '', activeTabId: undefined },
     title: sidebarUser.name,
     logo: sidebarLogo,
     onHeaderClick: sidebarUser.onClick,

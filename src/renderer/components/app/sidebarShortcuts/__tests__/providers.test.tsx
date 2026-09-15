@@ -1,6 +1,10 @@
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
+import { mockPreferenceService } from '@test-mocks/renderer/PreferenceService'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@renderer/data/DataApiService'
+import { preferenceService } from '@renderer/data/PreferenceService'
 // @vitest-environment jsdom
 import type { SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { CodeCli } from '@shared/types/codeCli'
@@ -9,14 +13,7 @@ import { createSidebarShortcutTarget } from '../../../../utils/sidebar'
 import { CORE_SIDEBAR_SHORTCUT_PROVIDERS } from '../providers'
 import type { SidebarActivationGateway } from '../types'
 
-const mocks = vi.hoisted(() => ({ dataGet: vi.fn(), preferenceGet: vi.fn() }))
-
-vi.mock('@renderer/data/DataApiService', () => ({
-  dataApiService: { get: mocks.dataGet, onDataChanged: vi.fn() }
-}))
-vi.mock('@renderer/data/PreferenceService', () => ({
-  preferenceService: { get: mocks.preferenceGet }
-}))
+const mocks = { dataGet: vi.mocked(dataApiService.get), preferenceGet: vi.mocked(preferenceService.get) }
 vi.mock('@renderer/i18n/resolver', () => ({
   default: { t: (key: string) => key, on: vi.fn(), off: vi.fn() }
 }))
@@ -28,10 +25,11 @@ function provider(id: string) {
 
 describe('core sidebar shortcut providers', () => {
   const openWorkspace = vi.fn()
-  const openSettings = vi.fn()
-  const gateway: SidebarActivationGateway = { openWorkspace, openSettings }
+  const gateway: SidebarActivationGateway = { openWorkspace }
 
   beforeEach(() => {
+    MockDataApiUtils.resetMocks()
+    mockPreferenceService._resetMockState()
     vi.clearAllMocks()
     mocks.preferenceGet.mockResolvedValue('openai')
     mocks.dataGet.mockResolvedValue({ topic: null, session: null })
@@ -52,13 +50,12 @@ describe('core sidebar shortcut providers', () => {
       'workspace',
       '/app/files?entryId=018f47d2-e657-7b4c-a7c1-8b52cbb9d114'
     ]
-  ])('reveals %s resources through the activation gateway', async (providerId, resourceId, kind, expectedUrl) => {
+  ])('reveals %s resources through the activation gateway', async (providerId, resourceId, _kind, expectedUrl) => {
     const target = createSidebarShortcutTarget(providerId, resourceId)
 
     await provider(providerId).activate(target, gateway)
 
-    if (kind === 'workspace') expect(openWorkspace).toHaveBeenCalledWith(expect.objectContaining({ url: expectedUrl }))
-    else expect(openSettings).toHaveBeenCalledWith(expectedUrl)
+    expect(openWorkspace).toHaveBeenCalledWith(expect.objectContaining({ url: expectedUrl }))
   })
 
   it.each(CORE_SIDEBAR_SHORTCUT_PROVIDERS)('rejects unknown activations for $id', (shortcutProvider) => {

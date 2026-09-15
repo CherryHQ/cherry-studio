@@ -5067,6 +5067,8 @@
   "settings.use_system_title_bar.confirm.title": "Restart Required",
   "settings.use_system_title_bar.title": "Use System Title Bar (Linux)",
   "settings.zoom.title": "Page Zoom",
+  "sidebar.resource_missing": "Resource not found",
+  "sidebar.resource_unavailable": "Resource temporarily unavailable",
   "subWindow.back_to_main": "Back to Main Window",
   "subWindow.pin": "Keep on Top",
   "subWindow.unpin": "Cancel Keep on Top",

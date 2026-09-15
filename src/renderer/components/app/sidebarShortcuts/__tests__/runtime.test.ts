@@ -16,6 +16,7 @@ import {
   resolveSidebarShortcuts,
   useResolvedSidebarShortcuts,
   useSidebarActivationGateway,
+  useSidebarShortcutActivation,
   useSidebarNavigationSnapshot
 } from '../runtime'
 import type { ResolvedShortcut, SidebarShortcutProvider } from '../types'
@@ -50,6 +51,82 @@ function tabContext(tabs: Tab[]): TabsContextValue {
 }
 
 describe('sidebar conversation navigation', () => {
+  it('does not reset an already active app detail route', async () => {
+    const tabs = tabContext([{ id: 'files', type: 'route', url: '/app/files?entryId=file-1', title: 'File' }])
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarShortcutActivation(), { wrapper })
+    const provider = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.app')!
+    await act(async () =>
+      result.current(provider, createSidebarShortcutTarget('core.app', 'files'), {
+        label: 'Files',
+        renderIcon: () => null
+      })
+    )
+    expect(tabs.updateTab).not.toHaveBeenCalled()
+    expect(tabs.openTab).not.toHaveBeenCalled()
+  })
+
+  it('ignores a late ordinary activation after a newer shortcut was opened', async () => {
+    let resolveFirst!: (value: unknown) => void
+    MockDataApiUtils.setCustomResponse(
+      '/topics/latest',
+      'GET',
+      new Promise((resolve) => {
+        resolveFirst = resolve
+      })
+    )
+    const tabs = tabContext([{ id: 'current', type: 'route', url: '/app/files', title: 'Files' }])
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarShortcutActivation(), { wrapper })
+    const assistant = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.assistant')!
+    const knowledge = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.knowledge-base')!
+    const resource = { label: 'Resource', renderIcon: () => null }
+    const first = result.current(assistant, createSidebarShortcutTarget('core.assistant', 'a'), resource)
+    await act(async () => result.current(knowledge, createSidebarShortcutTarget('core.knowledge-base', 'b'), resource))
+    await act(async () => {
+      resolveFirst({ topic: { id: 'late-topic' } })
+      await first
+    })
+    expect(tabs.updateTab).toHaveBeenCalledTimes(1)
+    expect(tabs.updateTab).toHaveBeenLastCalledWith(
+      'current',
+      expect.objectContaining({ url: '/app/knowledge?baseId=b' })
+    )
+    MockDataApiUtils.resetMocks()
+  })
+
+  it.each(['switch', 'navigate', 'unmount'] as const)('discards a pending activation on %s', async (change) => {
+    let resolveEntry!: (value: unknown) => void
+    MockDataApiUtils.setCustomResponse(
+      '/topics/latest',
+      'GET',
+      new Promise((resolve) => {
+        resolveEntry = resolve
+      })
+    )
+    const tabs = tabContext([{ id: 'current', type: 'route', url: '/app/files', title: 'Files' }])
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: { ...tabs } }, children)
+    const { result, rerender, unmount } = renderHook(() => useSidebarShortcutActivation(), { wrapper })
+    const assistant = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.assistant')!
+    const first = result.current(assistant, createSidebarShortcutTarget('core.assistant', 'a'), {
+      label: 'Assistant',
+      renderIcon: () => null
+    })
+    if (change === 'unmount') unmount()
+    else {
+      tabs.activeTab = { ...tabs.activeTab!, ...(change === 'switch' ? { id: 'other' } : { url: '/app/code' }) }
+      rerender()
+    }
+    await act(async () => {
+      resolveEntry({ topic: { id: 'late-topic' } })
+      await first
+    })
+    expect(tabs.updateTab).not.toHaveBeenCalled()
+    expect(tabs.openTab).not.toHaveBeenCalled()
+    expect(tabs.setActiveTab).not.toHaveBeenCalled()
+    MockDataApiUtils.resetMocks()
+  })
+
   it.each([
     ['core.assistant', '/topics/latest', 'topic', '/app/chat?extra=1&topicId=conversation-1'],
     ['core.agent', '/agent-sessions/latest', 'session', '/app/agents?extra=1&sessionId=conversation-1']

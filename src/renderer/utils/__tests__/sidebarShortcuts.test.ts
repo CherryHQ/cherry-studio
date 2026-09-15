@@ -19,6 +19,11 @@ const shortcut = (providerId: string, resourceId: string, activationId?: string)
 }
 
 describe('sidebar shortcut storage transforms', () => {
+  it('preserves prototype-named future items without treating them as legacy resource types', () => {
+    const future = ['constructor', 'toString', '__proto__'].map((type) => ({ type, id: `future-${type}` }))
+    expect(normalizeSidebarShortcutItems(future)).toEqual(future)
+    expect(getVisibleSidebarShortcutItems(future)).toEqual([])
+  })
   it('migrates legacy leaves, deduplicates them, and preserves future top-level items', () => {
     const future = { type: 'group', id: 'future', children: ['x'] }
     const result = normalizeSidebarShortcutItems([

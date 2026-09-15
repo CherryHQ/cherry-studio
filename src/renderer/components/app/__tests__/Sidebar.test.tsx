@@ -9,8 +9,6 @@ import { createSidebarShortcutTarget } from '../../../utils/sidebar'
 
 const mocks = vi.hoisted(() => ({
   activate: vi.fn(),
-  gatewayOpenSettings: vi.fn(),
-  gatewayOpenWorkspace: vi.fn(),
   registryResolve: vi.fn(),
   remove: vi.fn(),
   reorder: vi.fn(),
@@ -29,10 +27,7 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: vi.
 vi.mock('../sidebarShortcuts', () => ({
   useSidebarNavigationSnapshot: () => ({ url: '/' }),
   useResolvedSidebarShortcuts: () => mocks.resolutions,
-  useSidebarActivationGateway: () => ({
-    openSettings: mocks.gatewayOpenSettings,
-    openWorkspace: mocks.gatewayOpenWorkspace
-  }),
+  useSidebarShortcutActivation: () => mocks.activate,
   useSidebarShortcutRegistry: () => ({ resolve: mocks.registryResolve })
 }))
 vi.mock('../../layout/ShellTabBarActions', () => ({ SidebarShellActions: () => null }))
@@ -143,35 +138,6 @@ describe('app Sidebar shortcuts', () => {
     fireEvent.click(within(assistantItem).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
 
     expect(mocks.remove).toHaveBeenCalledWith(assistant.target)
-  })
-
-  it('activates through the provider while the gateway owns tab title and new-tab policy', () => {
-    const knowledgeBase = shortcut('core.knowledge-base', 'base-1')
-    mocks.shortcuts = [knowledgeBase]
-    mocks.resolutions = [
-      {
-        status: 'resolved',
-        shortcut: knowledgeBase,
-        resource: { label: 'Knowledge Base One', renderIcon: () => null, supportsNewTab: true }
-      }
-    ]
-    mocks.activate.mockImplementation(
-      (_target: unknown, gateway: { openWorkspace: (destination: { url: string; title: string }) => void }) =>
-        gateway.openWorkspace({ url: '/app/resource', title: 'provider fallback' })
-    )
-
-    render(<Sidebar />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Knowledge Base One' }))
-    expect(mocks.gatewayOpenWorkspace).toHaveBeenCalledWith(
-      { url: '/app/resource', title: 'Knowledge Base One', icon: undefined },
-      undefined
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'common.open_in_new_tab' }))
-    expect(mocks.gatewayOpenWorkspace).toHaveBeenLastCalledWith(
-      { url: '/app/resource', title: 'Knowledge Base One', icon: undefined },
-      { inNewTab: true }
-    )
   })
 
   it('keeps the dropped order visible until the preference write confirms it', async () => {

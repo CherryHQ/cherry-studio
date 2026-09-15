@@ -38,7 +38,7 @@ const KnowledgePageContent = () => {
 
 interface KnowledgePageProps {
   baseId?: string
-  onBaseIdChange?: (baseId?: string) => void
+  onBaseIdChange: (baseId?: string) => void
 }
 
 const KnowledgePage = ({ baseId, onBaseIdChange }: KnowledgePageProps) => {

@@ -5067,6 +5067,8 @@
   "settings.use_system_title_bar.confirm.title": "Yeniden Başlatma Gerekli",
   "settings.use_system_title_bar.title": "Sistem Başlık Çubuğunu Kullan (Linux)",
   "settings.zoom.title": "Sayfa Yakınlaştırma",
+  "sidebar.resource_missing": "Kaynak bulunamadı",
+  "sidebar.resource_unavailable": "Kaynak geçici olarak kullanılamıyor",
   "subWindow.back_to_main": "Ana Pencereye Dön",
   "subWindow.pin": "Her Zaman Üstte Tut",
   "subWindow.unpin": "Her Zaman Üstte Tutmayı İptal Et",

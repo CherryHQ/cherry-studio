@@ -118,7 +118,7 @@ const appEntry = (item: AppItem): ResolvedSidebarEntry => ({
     const Icon = item.icon
     return <Icon size={glyphSize} strokeWidth={1.6} />
   },
-  isActive: (active) => active.activeItem === item.id,
+  isActive: item.id === 'chat',
   onOpen: () => {},
   contextMenuItems: item.contextMenuItems
 })
@@ -147,7 +147,7 @@ function dragResizeFrom(width: number, moves: number | number[]) {
     <Sidebar
       width={width}
       setWidth={setWidth}
-      active={{ activeItem: 'chat' }}
+
       entries={entries}
       onHoverChange={onHoverChange}
       onResizePreview={onResizePreview}
@@ -166,9 +166,7 @@ function dragResizeFrom(width: number, moves: number | number[]) {
 
 describe('Sidebar resize handle', () => {
   it('opts the resize handle out of window drag regions', () => {
-    const { container } = render(
-      <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />
-    )
+    const { container } = render(<Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} entries={entries} />)
 
     const resizeHandle = container.querySelector('.cursor-col-resize')
 
@@ -241,7 +239,7 @@ describe('Sidebar resize handle', () => {
 
   it('renders intermediate widths with icon layout without menu text', () => {
     const { container, queryByText } = render(
-      <Sidebar width={INTERMEDIATE_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />
+      <Sidebar width={INTERMEDIATE_WIDTH} setWidth={vi.fn()} entries={entries} />
     )
 
     expect(container.firstElementChild).toHaveStyle({ width: `${INTERMEDIATE_WIDTH}px` })
@@ -265,7 +263,7 @@ describe('Sidebar resize handle', () => {
       <Sidebar
         width={SIDEBAR_HIDDEN_THRESHOLD - 10}
         setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
+
         entries={entries}
       />
     )
@@ -293,7 +291,7 @@ describe('Sidebar resize handle', () => {
 
   it('renders the full layout at the full threshold', () => {
     const { container, getByText } = render(
-      <Sidebar width={SIDEBAR_FULL_THRESHOLD} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />
+      <Sidebar width={SIDEBAR_FULL_THRESHOLD} setWidth={vi.fn()} entries={entries} />
     )
 
     expect(container.firstElementChild).toHaveStyle({ width: `${SIDEBAR_FULL_THRESHOLD}px` })
@@ -308,7 +306,7 @@ describe('Sidebar resize handle', () => {
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
+
         entries={entries}
         title="User"
         logo={<span>avatar</span>}
@@ -335,7 +333,7 @@ describe('Sidebar resize handle', () => {
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
+
         entries={[
           appEntry({
             ...items[0],
@@ -374,7 +372,7 @@ describe('Sidebar resize handle', () => {
         <Sidebar
           width={SIDEBAR_FULL_THRESHOLD}
           setWidth={vi.fn()}
-          active={{ activeItem: 'chat' }}
+
           entries={[
             appEntry({
               ...items[0],
@@ -417,7 +415,7 @@ describe('Sidebar resize handle', () => {
         <Sidebar
           width={SIDEBAR_FULL_THRESHOLD}
           setWidth={vi.fn()}
-          active={{ activeItem: 'chat' }}
+
           entries={entries}
           actions={(_layout, handleOverlayOpenChange) => {
             onOverlayOpenChange = handleOverlayOpenChange
@@ -451,7 +449,7 @@ describe('Sidebar resize handle', () => {
       <Sidebar
         width={SIDEBAR_ICON_WIDTH}
         setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
+
         entries={[...entries, appEntry({ id: 'custom', label: 'Custom Tool', icon: Search })]}
       />
     )
@@ -468,14 +466,14 @@ describe('Sidebar resize handle', () => {
         key: 'app:chat',
         label: 'Chat',
         renderIcon: () => null,
-        isActive: (active) => active.activeItem === 'chat',
+        isActive: true,
         onOpen: onChatOpen
       },
       {
         key: 'app:agent',
         label: 'Agent',
         renderIcon: () => null,
-        isActive: (active) => active.activeItem === 'agent',
+        isActive: false,
         onOpen: onAgentOpen
       }
     ]
@@ -484,7 +482,7 @@ describe('Sidebar resize handle', () => {
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
+
         entries={sortableEntries}
         onEntriesReorder={vi.fn()}
       />
@@ -509,7 +507,7 @@ describe('Sidebar resize handle', () => {
         key: 'app:chat',
         label: 'Chat',
         renderIcon: () => null,
-        isActive: (active) => active.activeItem === 'chat',
+        isActive: true,
         onOpen: vi.fn(),
         onOpenNewTab: onChatOpenNewTab
       },
@@ -517,7 +515,7 @@ describe('Sidebar resize handle', () => {
         key: 'app:agent',
         label: 'Agent',
         renderIcon: () => null,
-        isActive: (active) => active.activeItem === 'agent',
+        isActive: false,
         onOpen: vi.fn(),
         onOpenNewTab: onAgentOpenNewTab
       }
@@ -527,7 +525,7 @@ describe('Sidebar resize handle', () => {
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
+
         entries={sortableEntries}
         onEntriesReorder={vi.fn()}
       />
@@ -557,7 +555,7 @@ describe('Sidebar resize handle', () => {
       <Sidebar
         width={SIDEBAR_ICON_WIDTH}
         setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
+
         entries={entries}
         actions={renderActions}
       />
@@ -569,7 +567,7 @@ describe('Sidebar resize handle', () => {
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
+
         entries={entries}
         actions={renderActions}
       />
@@ -587,15 +585,13 @@ describe('Sidebar resize handle', () => {
         key: 'app:chat',
         label: 'Chat',
         renderIcon: () => <span>chat-icon</span>,
-        isActive: () => false,
+        isActive: false,
         onOpen: onChatOpen,
         onOpenNewTab: onChatOpenNewTab
       }
     ]
 
-    render(
-      <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={testEntries} />
-    )
+    render(<Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} entries={testEntries} />)
 
     const button = screen.getByRole('button', { name: 'Chat' })
     const mouseDown = new MouseEvent('mousedown', { button: 1, bubbles: true, cancelable: true })
@@ -615,7 +611,7 @@ describe('Sidebar resize handle', () => {
         key: 'app:chat',
         label: 'Chat',
         renderIcon: () => <span>chat-icon</span>,
-        isActive: () => false,
+        isActive: false,
         onOpen: onChatOpen,
         onOpenNewTab: onChatOpenNewTab
       }
@@ -625,7 +621,7 @@ describe('Sidebar resize handle', () => {
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
+
         entries={testEntries}
       />
     )
@@ -648,15 +644,13 @@ describe('Sidebar resize handle', () => {
         key: 'app:chat',
         label: 'Chat',
         renderIcon: () => <span>chat-icon</span>,
-        isActive: () => false,
+        isActive: false,
         onOpen: onChatOpen,
         onOpenNewTab: onChatOpenNewTab
       }
     ]
 
-    render(
-      <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={testEntries} />
-    )
+    render(<Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} entries={testEntries} />)
 
     const button = screen.getByRole('button', { name: 'Chat' })
     const mouseDown = new MouseEvent('mousedown', { button: 2, bubbles: true, cancelable: true })
@@ -682,13 +676,11 @@ describe('Sidebar icon presentation', () => {
         presentations.push(presentation)
         return <span>{kind}</span>
       },
-      isActive: () => false,
+      isActive: false,
       onOpen: vi.fn()
     }))
 
-    const { container } = render(
-      <Sidebar width={width} setWidth={vi.fn()} active={{ activeItem: '' }} entries={mixedEntries} />
-    )
+    const { container } = render(<Sidebar width={width} setWidth={vi.fn()} entries={mixedEntries} />)
 
     expect(presentations).toEqual([expectedPresentation, expectedPresentation])
     const slots = [...container.querySelectorAll('[data-slot="sidebar-entry-icon"]')]

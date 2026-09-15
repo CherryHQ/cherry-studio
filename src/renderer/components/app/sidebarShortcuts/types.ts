@@ -22,7 +22,6 @@ export interface SidebarActivationGateway {
     },
     options?: { inNewTab?: boolean }
   ): void
-  openSettings(path: string): void
 }
 
 export interface ResolvedShortcut {

@@ -18,6 +18,17 @@ function createClient(initial: SidebarShortcutItem[] = []) {
 }
 
 describe('SidebarShortcutService', () => {
+  it('keeps repeated stale add intents pinned and repeated remove intents unpinned', async () => {
+    const harness = createClient()
+    const service = new SidebarShortcutService(harness.client)
+    const target = createSidebarShortcutTarget('core.agent', 'agent-1')
+    await Promise.all([service.setPinned(target, true, 'Agent'), service.setPinned(target, true, 'Agent')])
+    expect(harness.current()).toEqual([
+      { type: 'shortcut', id: createSidebarShortcutId(target), target, fallbackLabel: 'Agent' }
+    ])
+    await Promise.all([service.setPinned(target, false), service.setPinned(target, false)])
+    expect(harness.current()).toEqual([])
+  })
   it('serializes concurrent semantic mutations against the latest preference value', async () => {
     const harness = createClient()
     const service = new SidebarShortcutService(harness.client)

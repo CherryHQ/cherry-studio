@@ -107,6 +107,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
         style={{ width: size, height: size, ...style }}>
         <AvatarImage
           src={effectiveLogo}
+          alt={providerName}
           className={cn(
             isCompactDisplay
               ? '-outline-offset-1 rounded-[3px] object-contain outline outline-1 outline-black/10 dark:outline-white/10'

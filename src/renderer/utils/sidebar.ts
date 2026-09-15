@@ -219,7 +219,7 @@ function normalizeKnownSidebarShortcut(value: StoredSidebarItem): SidebarShortcu
     }
   }
 
-  if (typeof value.type !== 'string' || !(value.type in LEGACY_PROVIDER_BY_TYPE)) return undefined
+  if (typeof value.type !== 'string' || !Object.hasOwn(LEGACY_PROVIDER_BY_TYPE, value.type)) return undefined
   if (typeof value.id !== 'string' || value.id.length === 0) return undefined
   if (value.type === 'app' && !isSidebarAppId(value.id)) return undefined
 
@@ -239,7 +239,7 @@ function isForwardCompatibleSidebarItem(value: StoredSidebarItem): boolean {
   return (
     typeof value.type === 'string' &&
     value.type !== 'shortcut' &&
-    !(value.type in LEGACY_PROVIDER_BY_TYPE) &&
+    !Object.hasOwn(LEGACY_PROVIDER_BY_TYPE, value.type) &&
     typeof value.id === 'string' &&
     value.id.length > 0
   )

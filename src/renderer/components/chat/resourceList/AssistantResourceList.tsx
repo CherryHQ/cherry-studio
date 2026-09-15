@@ -134,7 +134,7 @@ export function AssistantResourceList({
   const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
   const {
     shortcuts: sidebarShortcuts,
-    toggle: toggleSidebarShortcut,
+    setPinned: setSidebarShortcutPinned,
     remove: removeSidebarShortcut
   } = useSidebarShortcuts()
   const sidebarAssistantFavoriteIdSet = useMemo(
@@ -530,7 +530,7 @@ export function AssistantResourceList({
       if (action.id === ASSISTANT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID) {
         const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT, item.id)
         if (sidebarAssistantFavoriteIdSet.has(item.id)) removeSidebarShortcut(target)
-        else toggleSidebarShortcut(target, item.name)
+        else setSidebarShortcutPinned(target, true, item.name)
         return
       }
       if (action.id === ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID) {
@@ -559,7 +559,7 @@ export function AssistantResourceList({
       setAssistantIconType,
       setAssistantSortType,
       sidebarAssistantFavoriteIdSet,
-      toggleSidebarShortcut
+      setSidebarShortcutPinned
     ]
   )
 

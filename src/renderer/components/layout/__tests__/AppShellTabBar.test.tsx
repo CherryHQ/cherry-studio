@@ -217,13 +217,12 @@ describe('AppShellTabBar', () => {
     return closeTab
   }
 
-  it('uses the pinned tab size as the emoji optical size', () => {
+  it('names an icon-only pinned tab after its title, not its emoji', () => {
     const emojiTab = createTab('emoji', { icon: 'emoji:🎉', isPinned: true, title: 'Emoji' })
 
     renderTabBar({ tabs: [emojiTab], activeTabId: emojiTab.id })
 
-    expect(screen.getByTestId('emoji-tab-icon')).toBeInTheDocument()
-    expect(mocks.emojiIconProps).toEqual([{ emoji: '🎉', size: 14, className: undefined }])
+    expect(screen.getByRole('button', { name: 'Emoji' })).toHaveAttribute('title', 'Emoji')
   })
 
   it('opens launchpad from the plus button', async () => {

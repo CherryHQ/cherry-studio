@@ -12,7 +12,6 @@ export { UserAvatar } from './primitives'
 export { Sidebar, type SidebarProps } from './Sidebar'
 export type {
   ResolvedSidebarEntry,
-  SidebarActiveState,
   SidebarIconPresentation,
   SidebarLayout,
   SidebarUser,

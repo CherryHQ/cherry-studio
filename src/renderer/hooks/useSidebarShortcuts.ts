@@ -40,11 +40,6 @@ export function useSidebarShortcuts() {
       runMutation(sidebarShortcutService.setPinned(target, pinned, fallbackLabel)),
     [runMutation]
   )
-  const toggle = useCallback(
-    (target: SidebarShortcutTarget, fallbackLabel?: string) =>
-      runMutation(sidebarShortcutService.toggle(target, fallbackLabel)),
-    [runMutation]
-  )
   const remove = useCallback(
     (target: SidebarShortcutTarget) => runMutation(sidebarShortcutService.remove(target)),
     [runMutation]
@@ -58,5 +53,5 @@ export function useSidebarShortcuts() {
     [runMutation]
   )
 
-  return { shortcuts, isPinned, setPinned, toggle, remove, reorder }
+  return { shortcuts, isPinned, setPinned, remove, reorder }
 }

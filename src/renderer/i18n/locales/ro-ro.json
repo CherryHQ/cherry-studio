@@ -5067,6 +5067,8 @@
   "settings.use_system_title_bar.confirm.title": "Repornire necesară",
   "settings.use_system_title_bar.title": "Folosește bara de titlu a sistemului (Linux)",
   "settings.zoom.title": "Zoom pagină",
+  "sidebar.resource_missing": "Resursa nu a fost găsită",
+  "sidebar.resource_unavailable": "Resursa este temporar indisponibilă",
   "subWindow.back_to_main": "Înapoi la fereastra principală",
   "subWindow.pin": "Păstrează deasupra",
   "subWindow.unpin": "Anulează Menține deasupra",

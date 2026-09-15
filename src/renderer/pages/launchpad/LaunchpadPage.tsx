@@ -71,7 +71,7 @@ export default function LaunchpadPage() {
     removeCustomMiniApp,
     reorderMiniAppsByStatus
   } = useMiniApps()
-  const { shortcuts, isPinned, setPinned, toggle: toggleSidebarShortcut } = useSidebarShortcuts()
+  const { shortcuts, isPinned, setPinned } = useSidebarShortcuts()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
@@ -95,9 +95,13 @@ export default function LaunchpadPage() {
     (appId: string) => {
       const app = pinned.find((item) => item.appId === appId)
       const fallbackLabel = app ? (app.nameKey ? t(app.nameKey) : app.name) : undefined
-      toggleSidebarShortcut(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId), fallbackLabel)
+      setPinned(
+        createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, appId),
+        !miniAppFavoriteIdSet.has(appId),
+        fallbackLabel
+      )
     },
-    [pinned, t, toggleSidebarShortcut]
+    [pinned, t, setPinned, miniAppFavoriteIdSet]
   )
   const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
     draggedItemIdRef.current = String(event.active.id)

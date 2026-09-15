@@ -7,7 +7,7 @@ import { ActiveIndicator } from './primitives'
 import type { SidebarClickGuard } from './SidebarSortableList'
 import { SidebarSortableList } from './SidebarSortableList'
 import { SidebarTooltip } from './Tooltip'
-import type { ResolvedSidebarEntry, SidebarActiveState, SidebarIconPresentation, SidebarVisibleLayout } from './types'
+import type { ResolvedSidebarEntry, SidebarIconPresentation, SidebarVisibleLayout } from './types'
 
 const FULL_ICON_PRESENTATION = { slotSize: 18, glyphSize: 16 } as const
 const ICON_ICON_PRESENTATION = { slotSize: 24, glyphSize: 18 } as const
@@ -15,7 +15,6 @@ const ICON_ICON_PRESENTATION = { slotSize: 24, glyphSize: 18 } as const
 export interface SidebarListProps {
   layout: SidebarVisibleLayout
   entries: ResolvedSidebarEntry[]
-  active: SidebarActiveState
   onReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onContextMenuOpenChange?: (open: boolean) => void
 }
@@ -74,6 +73,7 @@ function SidebarEntryIcon({
   return (
     <span
       data-slot="sidebar-entry-icon"
+      aria-hidden="true"
       className="flex shrink-0 items-center justify-center"
       style={{ width: presentation.slotSize, height: presentation.slotSize }}>
       {entry.renderIcon(presentation)}
@@ -81,7 +81,7 @@ function SidebarEntryIcon({
   )
 }
 
-function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListProps) {
+function IconList({ entries, onReorder, onContextMenuOpenChange }: ListProps) {
   return (
     <SidebarSortableList
       items={entries}
@@ -89,14 +89,17 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
       onReorder={onReorder}
       className="flex flex-col items-center gap-0.5 px-1.5 [-webkit-app-region:no-drag]">
       {(entry, guardClick) => {
-        const isActive = !entry.disabled && entry.isActive(active)
+        const isActive = !entry.disabled && entry.isActive
 
         return (
-          <SidebarTooltip key={entry.key} content={entry.label}>
+          <SidebarTooltip
+            key={entry.key}
+            content={entry.statusLabel ? `${entry.label} — ${entry.statusLabel}` : entry.label}>
             <EntryContextMenu items={entry.contextMenuItems} onOpenChange={onContextMenuOpenChange}>
               <button
                 type="button"
                 aria-label={entry.label}
+                aria-description={entry.statusLabel}
                 aria-disabled={entry.disabled || undefined}
                 onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}
                 onMouseDown={preventMiddleClickAutoscroll}
@@ -121,7 +124,7 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
   )
 }
 
-function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListProps) {
+function FullList({ entries, onReorder, onContextMenuOpenChange }: ListProps) {
   return (
     <SidebarSortableList
       items={entries}
@@ -129,7 +132,7 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
       onReorder={onReorder}
       className="space-y-0.5 px-2 [-webkit-app-region:no-drag]">
       {(entry, guardClick: SidebarClickGuard) => {
-        const isActive = !entry.disabled && entry.isActive(active)
+        const isActive = !entry.disabled && entry.isActive
 
         return (
           <div key={entry.key} className="relative">
@@ -138,6 +141,9 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 variant="ghost"
                 icon={<SidebarEntryIcon entry={entry} presentation={FULL_ICON_PRESENTATION} />}
                 label={entry.label}
+                aria-label={entry.label}
+                aria-description={entry.statusLabel}
+                title={entry.statusLabel}
                 active={isActive}
                 aria-disabled={entry.disabled || undefined}
                 onClick={entry.disabled ? undefined : guardClick(entry.key, entry.onOpen)}

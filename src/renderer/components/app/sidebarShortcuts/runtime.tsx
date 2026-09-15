@@ -1,17 +1,27 @@
-import { createContext, type ReactNode, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  createContext,
+  type ReactNode,
+  use,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import { useQuery, useDataChange } from '@renderer/data/hooks/useDataApi'
 import { useTabs } from '@renderer/hooks/tab'
-import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { findConversationTab } from '@renderer/utils/conversationNavigation'
 import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
-import type { SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
+import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { createSidebarShortcutId } from '@shared/data/preference/preferenceTypes'
 
 import type { SidebarShortcutRegistry } from './registry'
 import type {
   SidebarActivationGateway,
+  ResolvedShortcut,
   SidebarNavigationSnapshot,
   SidebarShortcutProvider,
   SidebarShortcutResolution
@@ -299,7 +309,62 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
     },
     [activeTab, openTab, setActiveTab, tabs, updateTab]
   )
-  const openSettings = useCallback((path: string) => openRoute(path), [])
+  return useMemo(() => ({ openWorkspace }), [openWorkspace])
+}
 
-  return useMemo(() => ({ openWorkspace, openSettings }), [openSettings, openWorkspace])
+export function useSidebarShortcutActivation() {
+  const gateway = useSidebarActivationGateway()
+  const { activeTab } = useTabs()
+  const latestGateway = useRef(gateway)
+  const pending = useRef<AbortController | null>(null)
+  const requests = useRef(new Set<AbortController>())
+
+  useLayoutEffect(() => {
+    latestGateway.current = gateway
+  }, [gateway])
+  useLayoutEffect(() => () => pending.current?.abort(), [activeTab?.id, activeTab?.url])
+  useLayoutEffect(() => {
+    const activeRequests = requests.current
+    return () => {
+      activeRequests.forEach((request) => request.abort())
+      activeRequests.clear()
+    }
+  }, [])
+
+  return useCallback(
+    async (
+      provider: SidebarShortcutProvider,
+      target: SidebarShortcutTarget,
+      resource: ResolvedShortcut,
+      inNewTab = false
+    ) => {
+      const request = new AbortController()
+      if (!inNewTab) {
+        pending.current?.abort()
+        pending.current = request
+      }
+      requests.current.add(request)
+      try {
+        await provider.activate(target, {
+          openWorkspace: (destination) => {
+            if (request.signal.aborted) return
+            latestGateway.current.openWorkspace(
+              {
+                ...destination,
+                title: resource.label,
+                icon: resource.tabIcon ?? destination.icon
+              },
+              { inNewTab }
+            )
+          }
+        })
+      } catch (error) {
+        if (!request.signal.aborted) throw error
+      } finally {
+        requests.current.delete(request)
+        if (pending.current === request) pending.current = null
+      }
+    },
+    []
+  )
 }

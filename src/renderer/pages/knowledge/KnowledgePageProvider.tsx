@@ -108,7 +108,7 @@ const KnowledgePageContext = createContext<KnowledgePageContextValue | null>(nul
 
 interface KnowledgePageProviderProps extends PropsWithChildren {
   baseId?: string
-  onBaseIdChange?: (baseId?: string) => void
+  onBaseIdChange: (baseId?: string) => void
 }
 
 export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: KnowledgePageProviderProps) => {
@@ -122,7 +122,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
   const { updateGroup, isUpdating: isUpdatingGroup } = useUpdateKnowledgeGroup()
   const { deleteBase } = useDeleteKnowledgeBase()
   const { deleteGroup } = useDeleteKnowledgeGroup()
-  const [selectedBaseId, setSelectedBaseId] = useState(baseId ?? '')
+  const selectedBaseId = baseId ?? ''
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [selectedItemView, setSelectedItemView] = useState<'content' | 'chunks'>('content')
   const [filePreview, setFilePreview] = useState<KnowledgeFilePreviewTarget | null>(null)
@@ -196,8 +196,7 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
     if (bases.length === 0) {
       if (selectedBaseId) {
         resetBaseNavigation()
-        setSelectedBaseId('')
-        onBaseIdChange?.()
+        onBaseIdChange()
       }
       setSelectedItemId(null)
       return
@@ -206,13 +205,12 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
     const hasSelectedBase = bases.some((base) => base.id === selectedBaseId)
     if (!selectedBaseId || !hasSelectedBase) {
       resetBaseNavigation()
-      setSelectedBaseId(bases[0].id)
       setSelectedItemId(null)
-      onBaseIdChange?.(bases[0].id)
+      onBaseIdChange(bases[0].id)
     }
   }, [bases, basesError, isLoading, onBaseIdChange, pendingSelectedBaseId, resetBaseNavigation, selectedBaseId])
 
-  const selectBaseState = useCallback(
+  const selectBase = useCallback(
     (baseId: string) => {
       resetBaseNavigation()
 
@@ -224,23 +222,16 @@ export const KnowledgePageProvider = ({ children, baseId, onBaseIdChange }: Know
         pendingSelectedBaseListRef.current = bases
       }
 
-      setSelectedBaseId(baseId)
+      onBaseIdChange(baseId)
       setSelectedItemId(null)
     },
-    [bases, resetBaseNavigation]
-  )
-
-  const selectBase = useCallback(
-    (nextBaseId: string) => {
-      selectBaseState(nextBaseId)
-      onBaseIdChange?.(nextBaseId)
-    },
-    [onBaseIdChange, selectBaseState]
+    [bases, resetBaseNavigation, onBaseIdChange]
   )
 
   useEffect(() => {
-    if (baseId && baseId !== selectedBaseId) selectBaseState(baseId)
-  }, [baseId, selectBaseState, selectedBaseId])
+    resetBaseNavigation()
+    setSelectedItemId(null)
+  }, [selectedBaseId, resetBaseNavigation])
 
   useEffect(() => {
     const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, (baseId) => {

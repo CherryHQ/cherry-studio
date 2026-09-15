@@ -41,14 +41,6 @@ export class SidebarShortcutService {
     })
   }
 
-  toggle(target: SidebarShortcutTarget, fallbackLabel?: string): Promise<void> {
-    return this.enqueue((current) =>
-      isSidebarShortcutPinned(current, target)
-        ? removeSidebarShortcut(current, target)
-        : addSidebarShortcut(current, target, fallbackLabel)
-    )
-  }
-
   remove(target: SidebarShortcutTarget): Promise<void> {
     return this.enqueue((current) => removeSidebarShortcut(current, target))
   }

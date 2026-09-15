@@ -58,13 +58,15 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
       )
     }
     if (appearance === 'plain' || appearance === 'bare') {
-      const displayConfig = appearance === 'plain' ? getIconDisplayConfig('mini-app', app.logo) : undefined
+      const displayConfig = getIconDisplayConfig('mini-app', app.logo)
       const metrics =
         appearance === 'bare' && artworkSize !== undefined
           ? getProviderIconAssetMetrics({ kind: logoRef.kind, iconId: logoRef.meta.id })
           : undefined
       const iconSize =
-        metrics && artworkSize !== undefined ? artworkSize * metrics.canvasScale : size * (displayConfig?.scale ?? 1)
+        metrics && artworkSize !== undefined
+          ? artworkSize * (displayConfig && displayConfig.scale < 1 ? 1 : metrics.canvasScale)
+          : size * (displayConfig?.scale ?? 1)
 
       return (
         <span
@@ -82,8 +84,8 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
               width: `${iconSize}px`,
               height: `${iconSize}px`,
               flexShrink: 0,
-              borderRadius: displayConfig?.borderRadius === undefined ? undefined : `${displayConfig.borderRadius}px`,
-              overflow: displayConfig?.borderRadius === undefined ? undefined : 'hidden'
+              borderRadius: appearance === 'plain' ? displayConfig?.borderRadius : undefined,
+              overflow: appearance === 'plain' && displayConfig?.borderRadius !== undefined ? 'hidden' : undefined
             }}
           />
         </span>

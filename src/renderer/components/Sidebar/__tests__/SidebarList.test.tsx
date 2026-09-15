@@ -14,14 +14,15 @@ describe('unavailable sidebar shortcuts', () => {
     render(
       <SidebarList
         layout={layout}
-        active={{ activeItem: '' }}
+
         entries={[
           {
             key: 'unavailable',
             label: 'Unavailable resource',
             renderIcon: () => null,
-            isActive: () => false,
+            isActive: false,
             disabled: true,
+            statusLabel: 'Resource temporarily unavailable',
             onOpen,
             onOpenNewTab
           }
@@ -30,6 +31,7 @@ describe('unavailable sidebar shortcuts', () => {
     )
     const button = screen.getByRole('button', { name: 'Unavailable resource' })
     expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).toHaveAccessibleDescription('Resource temporarily unavailable')
     await user.click(button)
     expect(button).toHaveFocus()
     await user.keyboard('{Enter} ')

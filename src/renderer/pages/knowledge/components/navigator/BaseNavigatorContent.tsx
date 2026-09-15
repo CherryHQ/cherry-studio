@@ -30,7 +30,7 @@ const BaseNavigatorContent = ({
   const { t } = useTranslation()
   const {
     shortcuts: sidebarShortcuts,
-    toggle: toggleSidebarShortcut,
+    setPinned: setSidebarShortcutPinned,
     remove: removeSidebarShortcut
   } = useSidebarShortcuts()
   const sidebarPinnedBaseIds = useMemo(
@@ -48,9 +48,9 @@ const BaseNavigatorContent = ({
     (base: KnowledgeBaseListItem) => {
       const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.KNOWLEDGE_BASE, base.id)
       if (sidebarPinnedBaseIds.has(base.id)) removeSidebarShortcut(target)
-      else toggleSidebarShortcut(target, base.name)
+      else setSidebarShortcutPinned(target, true, base.name)
     },
-    [removeSidebarShortcut, sidebarPinnedBaseIds, toggleSidebarShortcut]
+    [removeSidebarShortcut, sidebarPinnedBaseIds, setSidebarShortcutPinned]
   )
 
   const sectionValues = useMemo(() => sections.map(({ groupId }) => groupId ?? UNGROUPED_SECTION_VALUE), [sections])

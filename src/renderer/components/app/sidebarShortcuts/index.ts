@@ -5,6 +5,7 @@ export {
   SidebarShortcutRegistryProvider,
   useResolvedSidebarShortcuts,
   useSidebarActivationGateway,
+  useSidebarShortcutActivation,
   useSidebarNavigationSnapshot,
   useSidebarShortcutRegistry
 } from './runtime'

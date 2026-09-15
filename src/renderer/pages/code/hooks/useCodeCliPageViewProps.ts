@@ -178,14 +178,15 @@ export function useCodeCliPageViewProps(
   })
 
   const { statuses, resolved: statusesResolved } = useCliVersionStatuses(CLI_TOOL_IDS)
-  const { isPinned: isSidebarShortcutPinned, toggle: toggleSidebarShortcut } = useSidebarShortcuts()
+  const { isPinned: isSidebarShortcutPinned, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
   const isCliSidebarPinned = useCallback(
     (tool: CodeCli) => isSidebarShortcutPinned(codeCliSidebarTarget(tool)),
     [isSidebarShortcutPinned]
   )
   const toggleCliSidebarShortcut = useCallback(
-    (tool: CliToolOption) => toggleSidebarShortcut(codeCliSidebarTarget(tool.value), toMeta(tool).label),
-    [toMeta, toggleSidebarShortcut]
+    (tool: CliToolOption) =>
+      setSidebarShortcutPinned(codeCliSidebarTarget(tool.value), !isCliSidebarPinned(tool.value), toMeta(tool).label),
+    [toMeta, setSidebarShortcutPinned, isCliSidebarPinned]
   )
   const visibleTools = useMemo(
     () =>

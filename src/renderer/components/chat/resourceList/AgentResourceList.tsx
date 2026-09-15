@@ -113,7 +113,7 @@ export function AgentResourceList({
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
   const {
     shortcuts: sidebarShortcuts,
-    toggle: toggleSidebarShortcut,
+    setPinned: setSidebarShortcutPinned,
     remove: removeSidebarShortcut
   } = useSidebarShortcuts()
   const sidebarAgentFavoriteIdSet = useMemo(
@@ -373,7 +373,7 @@ export function AgentResourceList({
       if (action.id === AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID) {
         const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT, item.id)
         if (sidebarAgentFavoriteIdSet.has(item.id)) removeSidebarShortcut(target)
-        else toggleSidebarShortcut(target, item.name)
+        else setSidebarShortcutPinned(target, true, item.name)
         return
       }
       if (action.id.startsWith(`${AGENT_ENTITY_ICON_TYPE_ACTION_ID}.`)) {
@@ -391,7 +391,7 @@ export function AgentResourceList({
       removeSidebarShortcut,
       setAssistantIconType,
       sidebarAgentFavoriteIdSet,
-      toggleSidebarShortcut
+      setSidebarShortcutPinned
     ]
   )
 
