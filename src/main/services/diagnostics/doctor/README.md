@@ -123,5 +123,4 @@ retry or model fallback. Ollama performs a real chat request here; its existing 
 settings check remains available. Dedicated non-chat models skip conversation. Configuration is
 captured for one execution; credentials continue to follow the provider's serving policy.
 
-This API returns its result directly and does not publish to `doctor.state.${scope}` or replace an
-existing Doctor report. Renderer integration and context-based AI error analysis are separate work.
+This API returns its result directly and does not publish to the existing Doctor report cache or replace its report. Renderer integration and context-based AI error analysis are separate work.

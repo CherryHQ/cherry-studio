@@ -14,7 +14,10 @@ const mocks = vi.hoisted(() => ({
   request: vi.fn(),
   translations: {
     'error.diagnostics.checking_progress': 'Checking: {{check}} · {{completed}}/{{total}}',
+    'settings.doctor.checks.error': 'This check could not be completed',
+    'settings.doctor.checks.skipped': 'Skipped because {{check}} did not complete',
     'settings.doctor.checks.provider-api-key-present.title': 'Default provider API key',
+    'settings.doctor.checks.provider-model.title': 'Provider model',
     'settings.doctor.summary.fixed': 'Fixed: {{count}}',
     'settings.doctor.summary.needs_attention': 'Needs attention: {{count}}',
     'settings.doctor.summary.problems': '{{count}} items need attention',
@@ -414,9 +417,21 @@ describe('DoctorPopup', () => {
             attribution: 'transient',
             detail: { variant: 'offline' },
             actions: []
+          },
+          {
+            id: 'provider-model',
+            status: 'error',
+            durationMs: 1,
+            message: 'Probe failed'
+          },
+          {
+            id: 'provider-api-key-present',
+            status: 'skip',
+            durationMs: 1,
+            skippedBy: 'provider-model'
           }
         ],
-        summary: { pass: 1, warn: 3, fail: 1, skip: 0, error: 0 }
+        summary: { pass: 1, warn: 3, fail: 1, skip: 1, error: 1 }
       }
     }
     render(<PopupHost />)
@@ -439,6 +454,18 @@ describe('DoctorPopup', () => {
     expect(
       within(otherFindings).getByRole('button', { name: /settings\.doctor\.checks\.network-online\.title/ })
     ).toBeVisible()
+    const errorCheck = within(otherFindings).getByRole('button', {
+      name: /Provider model.*settings\.doctor\.status\.error/
+    })
+    const skippedCheck = within(otherFindings).getByRole('button', {
+      name: /Default provider API key.*settings\.doctor\.status\.skip/
+    })
+    expect(errorCheck).toBeVisible()
+    expect(skippedCheck).toBeVisible()
+    if (errorCheck.getAttribute('aria-expanded') === 'false') await user.click(errorCheck)
+    expect(within(otherFindings).getByText('This check could not be completed')).toBeVisible()
+    await user.click(skippedCheck)
+    expect(within(otherFindings).getByText('Skipped because Provider model did not complete')).toBeVisible()
     const advancedTools = screen.getByRole('button', { name: 'settings.doctor.advanced.title' })
     expect(advancedTools).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('2.0.0')).not.toBeInTheDocument()
