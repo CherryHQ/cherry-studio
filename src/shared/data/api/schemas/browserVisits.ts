@@ -22,7 +22,6 @@ export type BrowserVisitSchemas = {
       query: Partial<ListBrowserVisitsQuery>
       response: { items: BrowserVisit[]; hasMore: boolean; nextCursor?: string }
     }
-    DELETE: { response: void }
   }
   '/browser-visits/:id': { DELETE: { params: { id: string }; response: void } }
 }

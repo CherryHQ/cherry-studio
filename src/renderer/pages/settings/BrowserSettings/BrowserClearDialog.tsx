@@ -13,7 +13,6 @@ import {
   DialogTitle,
   Label
 } from '@cherrystudio/ui'
-import { useMutation } from '@data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 
 const categories = [
@@ -27,7 +26,6 @@ export function BrowserClearDialog({ onDone }: { onDone: () => void }) {
   const [selected, setSelected] = useState({ history: false, site_data: false, cache: true })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
-  const { trigger: clearHistory } = useMutation('DELETE', '/browser-visits')
 
   const clear = async () => {
     setBusy(true)
@@ -35,8 +33,7 @@ export function BrowserClearDialog({ onDone }: { onDone: () => void }) {
     try {
       for (const { kind } of categories) {
         if (!selected[kind]) continue
-        if (kind === 'history') await clearHistory()
-        else await ipcApi.request('browser.data.clear', { kind })
+        await ipcApi.request('browser.data.clear', { kind })
         setSelected((current) => ({ ...current, [kind]: false }))
       }
       onDone()
