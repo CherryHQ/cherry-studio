@@ -10,6 +10,12 @@ export function onAbort(signal: AbortSignal | undefined, callback: (reason: unkn
   return () => signal.removeEventListener('abort', listener)
 }
 
+/** Native timeout signal, optionally combined with a parent; the first abort reason wins. */
+export function timeoutSignal(timeoutMs: number, parent?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs)
+  return parent ? AbortSignal.any([parent, timeout]) : timeout
+}
+
 /** Match the exact structural AbortError name without requiring an Error instance. */
 export function isAbortError(error: unknown): boolean {
   return !!(error && typeof error === 'object' && 'name' in error && (error as { name: string }).name === 'AbortError')

@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { setTimeout as sleep } from 'node:timers/promises'
 
-import { createAbortError, isAbortError, onAbort } from '..'
+import { describe, expect, it, vi } from 'vitest'
+
+import { createAbortError, isAbortError, onAbort, timeoutSignal } from '..'
 
 describe('onAbort', () => {
   it('leaves an absent signal inert across repeated detachment', () => {
@@ -69,6 +71,54 @@ describe('onAbort', () => {
         throw failure
       })
     ).toThrow(failure)
+  })
+})
+
+describe('timeoutSignal', () => {
+  it.each([new Error('owner stopped'), null])('preserves an already-aborted parent reason: %s', (reason) => {
+    const signal = timeoutSignal(10, AbortSignal.abort(reason))
+
+    expect(signal.aborted).toBe(true)
+    expect(signal.reason).toBe(reason)
+  })
+
+  it.each([-1, NaN, Infinity])('retains native timeout validation even with an aborted parent: %s', (timeoutMs) => {
+    expect(() => timeoutSignal(timeoutMs, AbortSignal.abort(null))).toThrow()
+  })
+
+  it('keeps the parent reason after the later deadline expires', async () => {
+    const parent = new AbortController()
+    const signal = timeoutSignal(10, parent.signal)
+    const reason = new Error('owner stopped')
+
+    parent.abort(reason)
+    expect(signal.reason).toBe(reason)
+    await sleep(25)
+
+    expect(signal.reason).toBe(reason)
+  })
+
+  it('keeps the native timeout reason after later parent cancellation', async () => {
+    const parent = new AbortController()
+    const signal = timeoutSignal(10, parent.signal)
+
+    await vi.waitFor(() => expect(signal.aborted).toBe(true))
+    const reason = signal.reason
+    expect(reason).toBeInstanceOf(DOMException)
+    expect(reason.name).toBe('TimeoutError')
+
+    parent.abort(new Error('owner stopped'))
+    expect(signal.reason).toBe(reason)
+  })
+
+  it('expires with a native TimeoutError when there is no parent', async () => {
+    const signal = timeoutSignal(10)
+    expect(signal.aborted).toBe(false)
+
+    await vi.waitFor(() => expect(signal.aborted).toBe(true))
+
+    expect(signal.reason).toBeInstanceOf(DOMException)
+    expect(signal.reason.name).toBe('TimeoutError')
   })
 })
 
