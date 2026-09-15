@@ -2,6 +2,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { agentTable } from '@data/db/schemas/agent'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { groupTable } from '@data/db/schemas/group'
 import { GroupService, groupService } from '@data/services/GroupService'
@@ -58,6 +59,15 @@ describe('GroupService', () => {
       const result = groupService.create({ entityType: 'knowledge', name: 'Knowledge Group' })
 
       expect(result).toMatchObject({ entityType: 'knowledge', name: 'Knowledge Group' })
+    })
+
+    it('broadcasts the new group to every window', () => {
+      const group = groupService.create({ entityType: 'agent', name: 'Announced' })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/groups', kind: 'membership', entityIds: [group.id] },
+        { endpoint: '/groups/:id', routeParams: { id: group.id }, entityIds: [group.id] }
+      ])
     })
   })
 
@@ -155,6 +165,23 @@ describe('GroupService', () => {
         err = e
       }
       expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+
+    it('broadcasts the rename to every window and skips no-op payloads', () => {
+      const created = groupService.create({ entityType: 'topic', name: 'Before' })
+      notifyDataApiDataChangeMock.mockClear()
+
+      groupService.update(created.id, { name: 'After' })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/groups', kind: 'projection', entityIds: [created.id] },
+        { endpoint: '/groups/:id', routeParams: { id: created.id }, entityIds: [created.id] }
+      ])
+
+      notifyDataApiDataChangeMock.mockClear()
+      groupService.update(created.id, {})
+
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
     })
   })
 
@@ -308,6 +335,7 @@ describe('GroupService', () => {
 
     it('broadcasts the removal to every window without an agent unbind entry', () => {
       const group = groupService.create({ entityType: 'topic', name: 'Broadcast' })
+      notifyDataApiDataChangeMock.mockClear()
 
       groupService.delete(group.id)
 
@@ -315,6 +343,30 @@ describe('GroupService', () => {
         { endpoint: '/groups', kind: 'membership', entityIds: [group.id] },
         { endpoint: '/groups/:id', routeParams: { id: group.id }, entityIds: [group.id] }
       ])
+    })
+
+    it('unbinds member agents at the FK level when the group row is deleted', async () => {
+      // The group_id FK carries ON DELETE SET NULL, so the unbind is the
+      // database's job — no group-side UPDATE may stand in for it.
+      const group = groupService.create({ entityType: 'agent', name: 'FK Group' })
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-fk-1',
+        type: 'claude-code',
+        name: 'Bound Agent',
+        instructions: '',
+        groupId: group.id,
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      groupService.delete(group.id)
+
+      const [agent] = await dbh.db
+        .select({ groupId: agentTable.groupId })
+        .from(agentTable)
+        .where(eq(agentTable.id, 'agent-fk-1'))
+      expect(agent.groupId).toBeNull()
     })
   })
 })

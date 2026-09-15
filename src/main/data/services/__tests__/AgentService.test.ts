@@ -1689,7 +1689,7 @@ describe('AgentService', () => {
       expect(agentService.getAgent(created.id)?.groupId).toBe(group.id)
     })
 
-    it('unbinds member agents when the group is deleted (ALTER-added FK has no SET NULL)', async () => {
+    it('unbinds member agents when the group is deleted (agent.group_id FK ON DELETE SET NULL)', async () => {
       const group = await insertGroup()
       const created = createAgentForTest({
         type: 'claude-code',
