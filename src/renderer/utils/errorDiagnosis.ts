@@ -120,6 +120,8 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     msg.includes('econnrefused') ||
     msg.includes('timeout') ||
     msg.includes('fetch failed') ||
+    msg.includes('err_name_not_resolved') ||
+    msg.includes('err_connection_reset') ||
     isProxyErrorMessage(msg) ||
     msg.includes('certificate')
   ) {
