@@ -29,6 +29,12 @@ import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolReg
 import { imageExts } from '@shared/utils/file'
 
 import { BASH_NO_PROGRESS_HARD_THRESHOLD } from './bashNoProgress'
+import {
+  EXPLORER_CAP_HARD_THRESHOLD,
+  EXPLORER_IDENTICAL_HARD_THRESHOLD,
+  EXPLORER_SAME_FILE_CAP,
+  EXPLORER_TOOLS
+} from './explorerLoop'
 import { isPathWithinAllowedRoots } from './pathContainment'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
@@ -124,6 +130,29 @@ const bashRepeatWithoutProgress = (ctx: ToolGuardContext): GuardHit | null => {
   return run !== undefined && run >= BASH_NO_PROGRESS_HARD_THRESHOLD ? { evidence: String(run) } : null
 }
 
+const explorerRepeatIdentical = (ctx: ToolGuardContext): GuardHit | null => {
+  if (!EXPLORER_TOOLS.has(ctx.toolName)) return null
+  const status = ctx.explorerLoopStatus?.(ctx.toolName, ctx.input)
+  return status && status.identicalRun >= EXPLORER_IDENTICAL_HARD_THRESHOLD
+    ? { evidence: String(status.identicalRun) }
+    : null
+}
+
+const explorerSameFileCap = (ctx: ToolGuardContext): GuardHit | null => {
+  if (ctx.toolName !== 'Read') return null
+  const status = ctx.explorerLoopStatus?.(ctx.toolName, ctx.input)
+  if (!status || !status.sameFileCapReached) return null
+  return { evidence: status.filePath ?? 'file' }
+}
+
+const explorerConsecutiveCap = (ctx: ToolGuardContext): GuardHit | null => {
+  if (!EXPLORER_TOOLS.has(ctx.toolName)) return null
+  const status = ctx.explorerLoopStatus?.(ctx.toolName, ctx.input)
+  return status && status.consecutiveReads >= EXPLORER_CAP_HARD_THRESHOLD
+    ? { evidence: String(status.consecutiveReads) }
+    : null
+}
+
 const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' | 'enforce'): GuardHit | null => {
   const policy = findBuiltinToolPolicy(ctx.toolName, ctx.mountedServers)
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
@@ -181,6 +210,30 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'deny',
     reason: (hit) =>
       `This exact Bash command already ran ${hit.evidence} times in a row with byte-identical output — repeating it yields no new information. Diagnose why the output is not changing, vary the command, or report the blocker instead of retrying.`
+  },
+  {
+    id: 'explorer-repeat-identical',
+    bypassBehavior: 'enforce',
+    match: { when: explorerRepeatIdentical },
+    effect: 'deny',
+    reason: (hit) =>
+      `This exact call already ran ${hit.evidence}/${EXPLORER_IDENTICAL_HARD_THRESHOLD} times in a row with no intervening change — repeating it yields no new information. Modify code with Edit/Write or report what you found.`
+  },
+  {
+    id: 'explorer-same-file-cap',
+    bypassBehavior: 'enforce',
+    match: { tool: 'Read', when: explorerSameFileCap },
+    effect: 'deny',
+    reason: (hit) =>
+      `Reading '${hit.evidence}' is capped after ${EXPLORER_SAME_FILE_CAP} slices until you modify that file, or until the next user turn. Modify that file with Edit/Write or report conclusions to proceed.`
+  },
+  {
+    id: 'explorer-consecutive-cap',
+    bypassBehavior: 'enforce',
+    match: { when: explorerConsecutiveCap },
+    effect: 'deny',
+    reason: (hit) =>
+      `Exploration budget reached: ${hit.evidence}/${EXPLORER_CAP_HARD_THRESHOLD} operations without code modifications. File reading is paused; modifying any file with Edit/Write resets this budget, or report conclusions to the user.`
   },
   {
     id: 'headless-config-mutation',
