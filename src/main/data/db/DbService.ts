@@ -58,7 +58,8 @@ export class DbService extends BaseService {
       })
     } catch (error) {
       logger.error('Failed to initialize database connection', error as Error)
-      throw new Error('Database initialization failed')
+      this.closeConnection()
+      throw new Error('Database initialization failed', { cause: error })
     }
   }
 
@@ -135,9 +136,24 @@ export class DbService extends BaseService {
    * Lifecycle: Initialize database with WAL mode, run migrations and seeds
    */
   protected onInit(): void {
-    this.configurePragmas()
-    this.migrateDb()
-    new SeedRunner(this.db).runAll(seeders)
+    try {
+      this.configurePragmas()
+      this.migrateDb()
+      new SeedRunner(this.db).runAll(seeders)
+    } catch (error) {
+      this.closeConnection()
+      throw error
+    }
+  }
+
+  protected override onDestroy(): void {
+    this.closeConnection()
+  }
+
+  private closeConnection(): void {
+    if (!this.sqlite?.open) return
+    this.sqlite.close()
+    logger.info('Database connection closed')
   }
 
   /**
@@ -164,7 +180,8 @@ export class DbService extends BaseService {
       this.pragmasConfigured = true
       logger.info('Database PRAGMAs configured (WAL, synchronous, foreign_keys, busy_timeout)')
     } catch (error) {
-      logger.warn('Failed to configure database PRAGMAs', error as Error)
+      logger.error('Failed to configure database PRAGMAs', error as Error)
+      throw error
     }
   }
 

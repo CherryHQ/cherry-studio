@@ -38,55 +38,28 @@ export class MigrationDbService {
     ensureDatabaseIntegrity(paths.databaseFile)
 
     const sqlite = new Database(paths.databaseFile)
-    const db = drizzle({ client: sqlite, casing: 'snake_case' })
-
     try {
-      // WAL mode persisted in DB file; synchronous=NORMAL is WAL's safe pairing.
+      const db = drizzle({ client: sqlite, casing: 'snake_case' })
       sqlite.pragma('journal_mode = WAL')
       sqlite.pragma('synchronous = NORMAL')
       logger.info('WAL mode configured')
-    } catch (error) {
-      logger.warn('Failed to configure WAL mode', error as Error)
-    }
 
-    // Validate migrations folder exists before attempting schema migration
-    if (!fs.existsSync(paths.migrationsFolder)) {
-      sqlite.close()
-      throw new Error(
-        `Migrations folder not found: ${paths.migrationsFolder}. ` +
-          'This usually means the application was not packaged correctly.'
-      )
-    }
-    logger.info('Migrations folder verified', { path: paths.migrationsFolder })
-
-    // Schema migrations + custom SQL (triggers, FTS, etc. — all idempotent). Shared with
-    // DbService so table-recreate migrations get the same out-of-transaction FK handling;
-    // it restores this connection's setting (ON by default) when it returns.
-    try {
+      if (!fs.existsSync(paths.migrationsFolder)) {
+        throw new Error(`Migrations folder not found: ${paths.migrationsFolder}`)
+      }
       applyMigrations(db, paths.migrationsFolder)
+      // Migrators validate foreign keys after importing interdependent records.
+      sqlite.pragma('foreign_keys = OFF')
+      logger.info('Migration database ready')
+      return new MigrationDbService(db, sqlite)
     } catch (error) {
-      // Close the SQLite connection to avoid dangling handles, then re-throw with context.
       try {
         sqlite.close()
-      } catch {
-        // Best-effort — the original error is more important.
+      } catch (closeError) {
+        logger.warn('Failed to close migration database', closeError as Error)
       }
-      throw new Error('Database schema migration failed', { cause: error })
+      throw new Error('Migration database initialization failed', { cause: error })
     }
-
-    // Keep foreign keys OFF for the ENTIRE migration. better-sqlite3's single persistent
-    // connection makes this one PRAGMA hold for every statement until close() — no replay
-    // needed (applyMigrations restores FK = ON on its own connection, so this must run AFTER it).
-    //
-    // This lets bulk inserts carry not-yet-resolved references; integrity is then verified
-    // after all migrators complete (MigrationEngine.verifyForeignKeys), with each migrator
-    // also self-checking its own tables via BaseMigrator.assertOwnedForeignKeys. FK
-    // enforcement is restored implicitly: this migration connection is disposed via close()
-    // when migration ends, and normal runtime uses DbService's own connection (foreign_keys = ON).
-    sqlite.pragma('foreign_keys = OFF')
-
-    logger.info('Migration database ready')
-    return new MigrationDbService(db, sqlite)
   }
 
   getDb(): DbType {

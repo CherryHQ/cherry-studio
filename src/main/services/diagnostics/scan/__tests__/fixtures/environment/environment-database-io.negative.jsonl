@@ -1,0 +1,1 @@
+{"timestamp": "2026-09-14 10:58:02", "level": "error", "message": "Migration database initialization failed", "cause": {"cause": {"code": "SQLITE_CORRUPT"}}}

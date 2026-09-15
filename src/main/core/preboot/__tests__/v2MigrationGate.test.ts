@@ -41,6 +41,9 @@ const resolveMigrationPathsMock = vi.fn()
 const showErrorBoxMock = vi.fn()
 const showMessageBoxMock = vi.fn()
 const appQuitMock = vi.fn()
+const forceExitMock = vi.fn()
+const recoveryMock = vi.fn()
+vi.mock('@main/services/startupRecovery', () => ({ showStartupRecovery: recoveryMock }))
 const appRelaunchMock = vi.fn()
 const whenReadyMock = vi.fn().mockResolvedValue(undefined)
 const relaunchMock = vi.fn()
@@ -124,12 +127,12 @@ function stubElectron() {
 }
 
 function stubApplication() {
-  vi.doMock('@application', () => ({
-    application: {
-      quit: appQuitMock,
-      relaunch: appRelaunchMock
-    }
-  }))
+  vi.doMock('@application', async () => {
+    const { mockApplicationFactory } = await import('@test-mocks/main/application')
+    const module = mockApplicationFactory()
+    Object.assign(module.application, { quit: appQuitMock, relaunch: appRelaunchMock, forceExit: forceExitMock })
+    return module
+  })
 }
 
 function stubPlatform(isDev: boolean) {
@@ -161,6 +164,8 @@ beforeEach(() => {
   showErrorBoxMock.mockReset()
   showMessageBoxMock.mockReset()
   appQuitMock.mockReset()
+  forceExitMock.mockReset()
+  recoveryMock.mockReset().mockResolvedValue('exit')
   appRelaunchMock.mockReset()
   whenReadyMock.mockReset().mockResolvedValue(undefined)
   relaunchMock.mockReset()
@@ -333,47 +338,37 @@ describe('runV2MigrationGate', () => {
   })
 
   describe('handled path — migration check fails', () => {
-    it("returns 'handled', shows an error dialog, and quits when the engine fails to initialize", async () => {
-      initializeMock.mockImplementation(() => {
-        throw new Error('DB unavailable')
+    it.each(['retry', 'exit'])('closes the connection before recovery and honors %s', async (action) => {
+      const error = new Error('probe failed', { cause: { code: 'SQLITE_IOERR_TRUNCATE' } })
+      needsMigrationMock.mockRejectedValue(error)
+      recoveryMock.mockImplementation(async () => {
+        expect(closeMock).toHaveBeenCalledOnce()
+        return action
       })
       stubMigrationV2()
       stubElectron()
       stubApplication()
       stubPlatform(false)
-
       const { runV2MigrationGate } = await loadModule()
-      const result = await runV2MigrationGate()
-
-      expect(result).toBe('handled')
-      expect(whenReadyMock).toHaveBeenCalledTimes(1)
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
-      const [title, message] = showErrorBoxMock.mock.calls[0]
-      expect(title).toContain('Migration Failed')
-      expect(title).not.toContain('(Dev)')
-      expect(message).toContain('DB unavailable')
-      // Regression: the old fallback mislabeled every failure as a DB "connectivity issue".
-      expect(message).not.toContain('connectivity')
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
-      // Migration path was never taken, so handlers stay un-touched.
-      expect(registerMigrationIpcHandlersMock).not.toHaveBeenCalled()
-      expect(unregisterMigrationIpcHandlersMock).not.toHaveBeenCalled()
-      // close() must NOT fire — the try block errored before the normal path.
-      expect(closeMock).not.toHaveBeenCalled()
+      expect(await runV2MigrationGate()).toBe('handled')
+      expect(recoveryMock).toHaveBeenCalledWith(error)
+      expect(appRelaunchMock).toHaveBeenCalledTimes(action === 'retry' ? 1 : 0)
+      expect(forceExitMock).toHaveBeenCalledTimes(action === 'exit' ? 1 : 0)
+      expect(migrationWindowCreateMock).not.toHaveBeenCalled()
     })
 
-    it("returns 'handled' when needsMigration() itself throws", async () => {
-      needsMigrationMock.mockRejectedValue(new Error('needsMigration failed'))
+    it('exits even if the recovery dialog cannot be displayed', async () => {
+      initializeMock.mockImplementation(() => {
+        throw new Error('database unavailable')
+      })
+      recoveryMock.mockRejectedValue(new Error('dialog unavailable'))
       stubMigrationV2()
       stubElectron()
       stubApplication()
-
+      stubPlatform(false)
       const { runV2MigrationGate } = await loadModule()
-      const result = await runV2MigrationGate()
-
-      expect(result).toBe('handled')
-      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(await runV2MigrationGate()).toBe('handled')
+      expect(forceExitMock).toHaveBeenCalledWith(1)
     })
   })
 
@@ -395,7 +390,7 @@ describe('runV2MigrationGate', () => {
       const [title, message] = showErrorBoxMock.mock.calls[0]
       expect(title).toContain('Database Schema Out of Sync')
       expect(message).toContain('/mock/userData/Data/cherrystudio.sqlite')
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(forceExitMock).toHaveBeenCalledWith(1)
     })
 
     it('falls back to the neutral production dialog when the schema is out of sync but not in dev', async () => {
@@ -411,12 +406,9 @@ describe('runV2MigrationGate', () => {
       const result = await runV2MigrationGate()
 
       expect(result).toBe('handled')
-      const [title, message] = showErrorBoxMock.mock.calls[0]
-      expect(title).toContain('Migration Failed')
-      // Production must NOT get the dev variant nor any "delete the DB" instruction.
-      expect(title).not.toContain('(Dev)')
-      expect(message).not.toContain('rm -f')
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(recoveryMock).toHaveBeenCalledWith(expect.any(Error))
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
+      expect(forceExitMock).toHaveBeenCalledWith(1)
     })
 
     it('shows the dev migration-failed dialog (both causes + DB path) for non-schema errors in dev', async () => {
@@ -439,7 +431,7 @@ describe('runV2MigrationGate', () => {
       // and explicitly does NOT assert "just delete the DB".
       expect(message).toContain('/mock/userData/Data/cherrystudio.sqlite')
       expect(message).toContain('Do NOT just delete the DB')
-      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(forceExitMock).toHaveBeenCalledWith(1)
     })
   })
 
