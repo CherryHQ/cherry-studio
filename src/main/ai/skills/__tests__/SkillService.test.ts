@@ -2915,7 +2915,7 @@ describe('SkillService', () => {
       await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'instructions')
       const getSpy = vi
         .spyOn(agentGlobalSkillService, 'getByFolderName')
-        .mockReturnValue({ folderName: 'off', isEnabled: false } as unknown as ReturnType<
+        .mockReturnValue({ folderName: 'off', isGlobalEnabled: false, isEnabled: false } as unknown as ReturnType<
           typeof agentGlobalSkillService.getByFolderName
         >)
 
@@ -2936,11 +2936,13 @@ describe('SkillService', () => {
         await fs.promises.mkdir(dir, { recursive: true })
         await fs.promises.writeFile(path.join(dir, 'SKILL.md'), 'instructions')
       }
+      // Real DTO shape: without an agentId, isEnabled is always false and the library-wide
+      // switch rides in isGlobalEnabled — the read must honor the latter, not the former.
       const getSpy = vi
         .spyOn(agentGlobalSkillService, 'getByFolderName')
         .mockImplementation((folderName: string) =>
           folderName === 'on'
-            ? ({ folderName: 'on', isEnabled: true } as unknown as ReturnType<
+            ? ({ folderName: 'on', isGlobalEnabled: true, isEnabled: false } as unknown as ReturnType<
                 typeof agentGlobalSkillService.getByFolderName
               >)
             : null
@@ -2970,7 +2972,7 @@ describe('SkillService', () => {
         .spyOn(agentGlobalSkillService, 'getByFolderName')
         .mockImplementation((folderName: string) =>
           folderName === 'pdf-tools'
-            ? ({ folderName: 'pdf-tools', isEnabled: false } as unknown as ReturnType<
+            ? ({ folderName: 'pdf-tools', isGlobalEnabled: false, isEnabled: false } as unknown as ReturnType<
                 typeof agentGlobalSkillService.getByFolderName
               >)
             : null
@@ -2998,7 +3000,7 @@ describe('SkillService', () => {
           .spyOn(agentGlobalSkillService, 'getByFolderName')
           .mockImplementation((folderName: string) =>
             folderName === 'pdf-tools'
-              ? ({ folderName: 'pdf-tools', isEnabled: false } as unknown as ReturnType<
+              ? ({ folderName: 'pdf-tools', isGlobalEnabled: false, isEnabled: false } as unknown as ReturnType<
                   typeof agentGlobalSkillService.getByFolderName
                 >)
               : null
