@@ -40,18 +40,20 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
 
   mainWindow: async ({ app, profile }, use, testInfo) => {
     const page = await app.useProfile(profile)
-    if (app.caseId !== 'S-01') await prepareScenario(page)
-    await use(page)
+    try {
+      if (app.caseId !== 'S-01') await prepareScenario(page)
+      await use(page)
+    } finally {
+      const currentPage = await app.mainWindow().catch(() => page)
+      if (testInfo.status !== testInfo.expectedStatus) {
+        const screenshot = await captureMaskedScreenshot(currentPage, getSensitiveConfigValues(app.config)).catch(
+          () => undefined
+        )
+        if (screenshot) await testInfo.attach('Failure screenshot', { body: screenshot, contentType: 'image/png' })
+      }
 
-    const currentPage = await app.mainWindow().catch(() => page)
-    if (testInfo.status !== testInfo.expectedStatus) {
-      const screenshot = await captureMaskedScreenshot(currentPage, getSensitiveConfigValues(app.config)).catch(
-        () => undefined
-      )
-      if (screenshot) await testInfo.attach('Failure screenshot', { body: screenshot, contentType: 'image/png' })
+      await app.cleanupTransientUi(currentPage)
     }
-
-    await app.cleanupTransientUi(currentPage)
   }
 })
 

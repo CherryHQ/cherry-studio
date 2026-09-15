@@ -14,6 +14,7 @@ import {
 } from '../../../scripts/cherry-regression-test/lifecycle'
 import { getRunPaths, type RunPaths } from '../../../scripts/cherry-regression-test/paths'
 import type { TestProfile } from '../../../scripts/cherry-regression-test/types'
+import { dismissTransientDialogs } from './navigation'
 
 const MAIN_WINDOW_PATH = '/windows/main/index.html'
 
@@ -103,7 +104,7 @@ export class RegressionApp {
   }
 
   async cleanupTransientUi(mainWindow: Page): Promise<void> {
-    await mainWindow.keyboard.press('Escape').catch(() => undefined)
+    await dismissTransientDialogs(mainWindow)
     const browser = await this.connect()
     const transientPages = browser
       .contexts()

@@ -14,21 +14,16 @@ async function openCodeTool(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name, exact: true }).first().click()
 }
 
-async function configureTool(page: Page, model: string, provider?: string): Promise<void> {
+async function configureTool(page: Page, model: string, provider: string): Promise<void> {
   const codeView = page.locator('[data-ui="code.view"]:visible').first()
-  let configure = codeView.getByRole('button', { name: 'Configure', exact: true }).first()
-  let providerCard: Locator | undefined
-  if (provider) {
-    const providerName = codeView.getByText(provider, { exact: true }).first()
-    providerCard = providerName.locator(
-      'xpath=ancestor::div[contains(@class, "group") and .//button[normalize-space()="Configure"]][1]'
-    )
-    await providerCard.scrollIntoViewIfNeeded()
-    await providerCard.hover()
-    configure = providerCard.getByRole('button', { name: 'Configure', exact: true })
-    await expect(configure).toBeVisible()
-  }
-  if (!(await configure.isVisible().catch(() => false))) return
+  const providerName = codeView.getByText(provider, { exact: true }).first()
+  const providerCard: Locator = providerName.locator(
+    'xpath=ancestor::div[contains(@class, "group") and .//button[normalize-space()="Configure"]][1]'
+  )
+  await providerCard.scrollIntoViewIfNeeded()
+  await providerCard.hover()
+  const configure = providerCard.getByRole('button', { name: 'Configure', exact: true })
+  await expect(configure).toBeVisible()
   await configure.click()
   const dialog = page.getByRole('dialog').last()
   await expect(dialog).toBeVisible()
@@ -38,7 +33,8 @@ async function configureTool(page: Page, model: string, provider?: string): Prom
   if (await search.isVisible().catch(() => false)) await search.fill(model)
   await page.getByRole('option').filter({ hasText: model }).first().click()
   await dialog.getByRole('button', { name: 'Save', exact: true }).click()
-  const enable = (providerCard ?? codeView).getByRole('button', { name: 'Enable', exact: true }).first()
+  await expect(dialog).toBeHidden()
+  const enable = providerCard.getByRole('button', { name: 'Enable', exact: true }).first()
   if (await enable.isVisible().catch(() => false)) await enable.click()
 }
 
@@ -62,7 +58,7 @@ test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {
   await closeSettings(page)
   const baseline = new Set(listOwnedProcessIds(app.record))
   await openCodeTool(page, 'Claude Code')
-  await configureTool(page, app.config.customProvider.chatModel, CUSTOM_CHAT_PROVIDER)
+  await configureTool(page, app.config.customProvider.chatModel, 'Unified Gateway')
   await launchWithWorkspace(app, page)
   await expect
     .poll(() => observeOwnedProcess(app.record, 'claude', true, baseline).passed, { timeout: 60_000 })
@@ -74,7 +70,7 @@ test(...caseDefinition('CODE-02'), async ({ app, mainWindow: page }) => {
   await closeSettings(page)
   const baseline = new Set(listOwnedProcessIds(app.record))
   await openCodeTool(page, 'OpenAI Codex')
-  await configureTool(page, app.config.customProvider.chatModel)
+  await configureTool(page, app.config.customProvider.chatModel, 'Unified Gateway')
   await launchWithWorkspace(app, page)
   await expect
     .poll(() => observeOwnedProcess(app.record, 'codex', true, baseline).passed, { timeout: 60_000 })
