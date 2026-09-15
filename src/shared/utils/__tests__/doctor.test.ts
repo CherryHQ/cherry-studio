@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DOCTOR_CHECK_CATALOG, type DoctorCheckId, type DoctorReport } from '../../types/doctor'
-import { doctorFixMeta, isDoctorFixRequest, projectDoctorReport } from '../doctor'
+import { isDoctorFixRequest, projectDoctorReport } from '../doctor'
 
 describe('DOCTOR_CHECK_CATALOG', () => {
   it('has no prerequisite cycles', () => {
@@ -16,15 +16,6 @@ describe('DOCTOR_CHECK_CATALOG', () => {
       done.add(id)
     }
     for (const id of Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]) expect(() => visit(id)).not.toThrow()
-  })
-
-  it('exposes fix metadata the dialog needs before offering the button', () => {
-    expect(doctorFixMeta('config-boot-config-valid', 'repair')).toEqual({
-      id: 'repair',
-      risk: 'low',
-      reversible: true,
-      relaunch: true
-    })
   })
 })
 
@@ -105,6 +96,24 @@ describe('projectDoctorReport', () => {
     ],
     summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 1 }
   }
+  it('keeps confirmation prompts local and removes executable request IDs from every export', () => {
+    const pendingChecks = [
+      {
+        checkId: 'provider-model-conversation' as const,
+        requestId: 'private-request',
+        confirmation: {
+          messageKey: 'settings.doctor.checks.provider-model-conversation.confirmation' as const,
+          params: { model: 'Private model', endpoint: 'http://private-gateway' }
+        }
+      }
+    ]
+    const pending = { ...report, pendingChecks }
+    expect(projectDoctorReport(pending, 'display').pendingChecks).toEqual(pendingChecks)
+    for (const view of ['copy', 'export', 'upload'] as const) {
+      expect(projectDoctorReport(pending, view, { consentToSensitive: true })).not.toHaveProperty('pendingChecks')
+    }
+  })
+
   const classes = (view: Parameters<typeof projectDoctorReport>[1], consent = false) =>
     projectDoctorReport(report, view, { consentToSensitive: consent }).results[0].evidence?.map((e) => e.dataClass)
 

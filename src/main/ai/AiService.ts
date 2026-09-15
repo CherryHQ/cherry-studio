@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 
 import {
   type EmbeddingModelUsage,
@@ -38,6 +39,7 @@ import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
@@ -1270,6 +1272,15 @@ export class AiService extends BaseService {
     const chatPrimary = primaryEndpoint != null && endpointImpliedCapability(primaryEndpoint) === undefined
     return {
       uniqueModelId: model.id,
+      modelName: model.name,
+      isCurrent: () => {
+        try {
+          return isDeepStrictEqual(this.getProviderAndModel({ uniqueModelId }), resolvedModel)
+        } catch (error) {
+          if (isDataApiNotFoundError(error)) return false
+          throw error
+        }
+      },
       modelId: resolveWireModelId(model, endpoint.endpointType),
       baseUrl: routeToEndpoint(endpoint.baseUrl).baseURL,
       supportsModelListing: provider.modelListSource !== 'registry',

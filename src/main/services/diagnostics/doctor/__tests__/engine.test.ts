@@ -18,6 +18,55 @@ const hang = (signal: AbortSignal) =>
   new Promise<Outcome>((_, reject) => signal.addEventListener('abort', () => reject(new Error('probe noise'))))
 
 describe('runDoctorChecks', () => {
+  it('defers dependency chains and resumes without repeating completed or previously confirmed work', async () => {
+    const effects: string[] = []
+    const operation = (id: string) => async (): Promise<Outcome> => {
+      effects.push(id)
+      return { status: 'pass' }
+    }
+    const checks = [
+      check('automatic', operation('automatic')),
+      check('paid', operation('paid')),
+      check('dependent', operation('dependent'), { requires: ['paid'] }),
+      check('another-paid', operation('another-paid'), { requires: ['dependent'] })
+    ]
+    const first = await runDoctorChecks({
+      checks,
+      admit: async (id) => ({ status: id.endsWith('paid') ? 'defer' : 'run' })
+    })
+    expect(effects).toEqual(['automatic'])
+    expect(first.map((entry) => entry.id)).toEqual(['automatic'])
+    const second = await runDoctorChecks({
+      checks,
+      initialResults: first,
+      admit: async (id) => ({ status: id === 'another-paid' ? 'defer' : 'run' })
+    })
+    expect(effects).toEqual(['automatic', 'paid', 'dependent'])
+    const third = await runDoctorChecks({ checks, initialResults: second })
+    expect(effects).toEqual(['automatic', 'paid', 'dependent', 'another-paid'])
+    expect(third).toHaveLength(4)
+  })
+
+  it('does not execute when cancellation arrives during admission', async () => {
+    const controller = new AbortController()
+    let charged = false
+    const results = await runDoctorChecks({
+      signal: controller.signal,
+      checks: [
+        check('paid', async () => {
+          charged = true
+          return { status: 'pass' }
+        })
+      ],
+      admit: async () => {
+        controller.abort()
+        return { status: 'run' }
+      }
+    })
+    expect(charged).toBe(false)
+    expect(results).toMatchObject([{ id: 'paid', status: 'error', message: CANCELED_MESSAGE }])
+  })
+
   it('records a timed-out check as error (not the probe noise) without blocking the others', async () => {
     const results = await runDoctorChecks({ checks: [check('a', hang, { timeoutMs: 20 }), check('b', pass)] })
     expect(results).toMatchObject([

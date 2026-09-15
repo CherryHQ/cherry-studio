@@ -90,6 +90,7 @@ type DoctorProjectedCheckResult = {
       readonly detail: DoctorDetail
     }
   | { readonly status: 'skip'; readonly skippedBy: DoctorCheckId }
+  | { readonly status: 'skip'; readonly detail: DoctorDetail }
   | { readonly status: 'error' }
 )
 
@@ -116,7 +117,9 @@ function projectSharedResult(
     case 'fail':
       return { ...shared, status: result.status, attribution: result.attribution, detail: result.detail }
     case 'skip':
-      return { ...shared, status: 'skip', skippedBy: result.skippedBy }
+      return 'skippedBy' in result
+        ? { ...shared, status: 'skip', skippedBy: result.skippedBy }
+        : { ...shared, status: 'skip', detail: result.detail }
     case 'error':
       return { ...shared, status: 'error' }
   }
@@ -153,7 +156,8 @@ export function projectDoctorReport(
     if (!result.evidence) return result
     return { ...result, evidence: result.evidence.filter((item) => allowed.has(item.dataClass)) }
   })
-  return { ...report, basics, results }
+  const { pendingChecks, ...rest } = report
+  return { ...rest, basics, results, ...(view === 'display' && pendingChecks ? { pendingChecks } : {}) }
 }
 
 export type DoctorPanel = 'checks' | 'export' | 'report'
