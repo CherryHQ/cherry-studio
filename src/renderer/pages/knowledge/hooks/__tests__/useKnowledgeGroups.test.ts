@@ -15,7 +15,9 @@ const mockUseMutation = vi.fn()
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args),
-  useMutation: (...args: unknown[]) => mockUseMutation(...args)
+  useMutation: (...args: unknown[]) => mockUseMutation(...args),
+  // useKnowledgeGroups delegates to the shared useGroups, which subscribes.
+  useDataChange: vi.fn()
 }))
 
 const createGroup = (overrides: Partial<Group> = {}): Group => ({
