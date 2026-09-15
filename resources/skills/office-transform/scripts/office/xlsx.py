@@ -49,9 +49,8 @@ WORKBOOK_PART = "xl/workbook.xml"
 MAX_COLUMN_INDEX = 16_384
 MAX_ROW_NUMBER = 1_048_576
 
-# The read and write paths word the out-of-grid refusal differently: only the write path ends with
-# this clause, because only it produces a file. Kept as a parameter rather than unified so neither
-# message changes by a byte.
+# Only the write path appends this clause to the out-of-grid refusal, since only it produces a file.
+# Kept as a parameter rather than unified so neither path's message changes by a byte.
 GRID_HINT = "; Excel cannot place it"
 
 

@@ -46,9 +46,8 @@ never leaves a partial package behind (see atomic_output).
 import argparse
 import sys
 
-# SkillInstaller verifies built-in skills by directory hash; a __pycache__ dir would
-# make that hash mismatch and the skill would be unlinked, so never write bytecode.
-# The sibling imports below are what would create one, so this has to come first.
+# SkillInstaller verifies built-in skills by directory hash; a __pycache__ dir would mismatch it and get the skill unlinked.
+# The sibling imports below would create one, so this must run before them.
 sys.dont_write_bytecode = True
 
 import zipfile
