@@ -2,8 +2,10 @@ import { join } from 'node:path'
 
 import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { chooseNativeFile } from '../../../scripts/cherry-regression-test/systemAutomation'
+import type { Message } from '../../../src/shared/data/types/message'
 import { startNewAgentTask } from './agents'
 import { customAssistantName, ensureCustomAssistant } from './assistants'
+import { sendChatMarker } from './chat'
 import { expect, test } from './fixture'
 import { ensureCustomChatProvider, selectVisibleModel } from './models'
 import { dismissOnboarding, selectSidebarApp } from './navigation'
@@ -63,14 +65,50 @@ test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }) => {
   if ((await server.getAttribute('aria-checked')) !== 'true') await server.click()
   await page.getByRole('button', { name: 'Close', exact: true }).click()
 
-  await page
-    .locator('[data-ui="chat.composer"] [contenteditable="true"]')
-    .first()
-    .fill('You must call get-sum with a=31415 and b=27182, then reply with exactly 58597.')
-  await page.getByRole('button', { name: 'Send', exact: true }).click()
-  await expect(page.locator('body')).toContainText('31415', { timeout: 2 * 60_000 })
-  await expect(page.locator('body')).toContainText('27182')
-  await expect(page.locator('[data-ui="chat.message"]:visible').last()).toContainText('58597')
+  const messageId = await sendChatMarker(
+    page,
+    'Call the everything MCP server get-sum tool with a=31415 and b=27182, then report its result.',
+    '58597',
+    false
+  )
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async (id) => {
+          const response = await window.api.dataApi.request({
+            id: `regression-mcp-result-${Date.now()}`,
+            method: 'GET',
+            path: `/messages/${id}`
+          })
+          const message = response.data as Message | undefined
+          if (message?.role !== 'assistant' || message.status !== 'success') return false
+          return (
+            message.data.parts?.some((part) => {
+              if (!(part.type === 'dynamic-tool' || part.type.startsWith('tool-'))) return false
+              if (!('state' in part) || part.state !== 'output-available') return false
+              const input = part.input as { a?: number; b?: number } | undefined
+              const output = part.output as
+                | {
+                    isError?: boolean
+                    metadata?: { type?: string; name?: string; serverName?: string }
+                    content?: { type: string; text?: string }[]
+                  }
+                | undefined
+              return (
+                input?.a === 31415 &&
+                input.b === 27182 &&
+                output?.isError !== true &&
+                output?.metadata?.type === 'mcp' &&
+                output.metadata.name === 'get-sum' &&
+                output.metadata.serverName === 'everything' &&
+                output.content?.some((item) => item.type === 'text' && /\b58597\b/.test(item.text ?? ''))
+              )
+            }) ?? false
+          )
+        }, messageId),
+      { timeout: 30_000, message: 'This response must contain a successful everything/get-sum execution' }
+    )
+    .toBe(true)
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)

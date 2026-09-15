@@ -2,7 +2,9 @@ import type { Page } from '@playwright/test'
 import { test as base } from '@playwright/test'
 
 import { getCase, missingCapabilities } from '../../../scripts/cherry-regression-test/cases'
+import { getSensitiveConfigValues } from '../../../scripts/cherry-regression-test/config'
 import { getRunPaths } from '../../../scripts/cherry-regression-test/paths'
+import { captureMaskedScreenshot } from '../../../scripts/cherry-regression-test/screenshotEvidence'
 import { readRun } from '../../../scripts/cherry-regression-test/state'
 import type { TestProfile } from '../../../scripts/cherry-regression-test/types'
 import { RegressionApp } from './RegressionApp'
@@ -43,18 +45,10 @@ export const test = base.extend<RegressionFixtures & RegressionOptions>({
 
     const currentPage = await app.mainWindow().catch(() => page)
     if (testInfo.status !== testInfo.expectedStatus) {
-      await currentPage
-        .locator('input[type="password"]')
-        .evaluateAll((inputs) => {
-          for (const input of inputs) (input as HTMLInputElement).value = ''
-        })
-        .catch(() => undefined)
-      const screenshotPath = testInfo.outputPath('failure.png')
-      const captured = await currentPage.screenshot({ path: screenshotPath, fullPage: true }).then(
-        () => true,
-        () => false
+      const screenshot = await captureMaskedScreenshot(currentPage, getSensitiveConfigValues(app.config)).catch(
+        () => undefined
       )
-      if (captured) await testInfo.attach('Failure screenshot', { path: screenshotPath, contentType: 'image/png' })
+      if (screenshot) await testInfo.attach('Failure screenshot', { body: screenshot, contentType: 'image/png' })
     }
 
     await app.cleanupTransientUi(currentPage)

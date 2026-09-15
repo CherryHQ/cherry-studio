@@ -10,7 +10,7 @@ export async function selectChatModel(page: Page, model: string): Promise<void> 
   await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toBeVisible()
 }
 
-export async function sendChatMarker(page: Page, prompt: string, marker: string, exact = true): Promise<void> {
+export async function sendChatMarker(page: Page, prompt: string, marker: string, exact = true): Promise<string> {
   const messages = page.locator('[data-ui~="chat.message"][data-message-id]:visible')
   const previousIds = await messages.evaluateAll((elements) =>
     elements.map((element) => element.getAttribute('data-message-id'))
@@ -29,6 +29,7 @@ export async function sendChatMarker(page: Page, prompt: string, marker: string,
     .last()
   await expect(answer).toBeVisible({ timeout: 2 * 60_000 })
   const id = await response.getAttribute('data-message-id')
+  if (!id) throw new Error('Assistant response has no message ID')
   await expect
     .poll(
       () =>
@@ -43,4 +44,5 @@ export async function sendChatMarker(page: Page, prompt: string, marker: string,
       { timeout: 2 * 60_000 }
     )
     .toBe('success')
+  return id
 }
