@@ -8,8 +8,9 @@
  * `orderKey` space; `disabled` rows use a separate key space.
  */
 
-import { LocalizedNameSchema } from '@shared/types/miniAppManifest'
 import * as z from 'zod'
+
+import { LocalizedNameSchema } from '@shared/types/miniAppManifest'
 
 export type MiniAppId = string & { readonly __brand: unique symbol }
 

@@ -7,4 +7,4 @@ The chain was consolidated into a single initial migration and shipped with `v2.
 - Table schemas are defined in `src\main\data\db\schemas`
 - `migrations/sqlite-drizzle` contains auto-generated migration data. Please **DO NOT** modify it.
 - If table structure changes, we should run migrations.
-- To generate migrations, use the command `yarn run db:migrations:generate`
+- To generate migrations, use the command `pnpm db:migrations:generate`

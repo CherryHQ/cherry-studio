@@ -7,7 +7,7 @@ const CACHE_KEY = 'region.egressCountry'
 // single geolocation transport under test.
 const { netFetchMock, proxyState } = vi.hoisted(() => ({
   netFetchMock: vi.fn(),
-  proxyState: { appliedProxyKey: 'direct||' as string | null }
+  proxyState: { appliedProxyKey: 'direct||' }
 }))
 
 vi.mock('@logger', () => ({

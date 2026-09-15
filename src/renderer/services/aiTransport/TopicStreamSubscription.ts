@@ -1,10 +1,11 @@
+import type { UIMessageChunk } from 'ai'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { capAttachReplayChunks, MAX_ATTACH_REPLAY_CHUNKS, type StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
 
 const logger = loggerService.withContext('TopicStreamSubscription')
 

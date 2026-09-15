@@ -58,8 +58,8 @@ export function findMatchingSharedCacheSchemaKey(key: string): keyof SharedCache
 
   const schemaKeys = Object.keys(DefaultSharedCache) as Array<keyof SharedCacheSchema>
   for (const schemaKey of schemaKeys) {
-    if (isTemplateKey(schemaKey as string)) {
-      const regex = templateToRegex(schemaKey as string)
+    if (isTemplateKey(schemaKey)) {
+      const regex = templateToRegex(schemaKey)
       if (regex.test(key)) {
         return schemaKey
       }

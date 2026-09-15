@@ -6,9 +6,15 @@ const { exportToWordMock, getVaultsMock, getFilesMock } = vi.hoisted(() => ({
   getFilesMock: vi.fn()
 }))
 
-vi.mock('@main/services/ExportService', () => ({ ExportService: vi.fn(() => ({ exportToWord: exportToWordMock })) }))
+vi.mock('@main/services/ExportService', () => ({
+  ExportService: vi.fn(function ExportServiceMock() {
+    return { exportToWord: exportToWordMock }
+  })
+}))
 vi.mock('@main/services/ObsidianVaultService', () => ({
-  default: vi.fn(() => ({ getVaults: getVaultsMock, getFilesByVaultName: getFilesMock }))
+  default: vi.fn(function ObsidianVaultServiceMock() {
+    return { getVaults: getVaultsMock, getFilesByVaultName: getFilesMock }
+  })
 }))
 
 import { exportHandlers } from '../export'

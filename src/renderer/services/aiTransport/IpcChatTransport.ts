@@ -1,3 +1,5 @@
+import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import {
@@ -9,7 +11,6 @@ import {
 } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
 import { streamDispatchService } from './StreamDispatchService'
 

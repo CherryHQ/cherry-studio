@@ -1,11 +1,12 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
+import { describe, expect, it, vi } from 'vitest'
+
 import {
   PI_TOOL_CALL_TOOL_NAME,
   PI_TOOL_DESCRIBE_TOOL_NAME,
   PI_TOOL_EXEC_TOOL_NAME,
   PI_TOOL_SEARCH_TOOL_NAME
 } from '@shared/ai/piBuiltinTools'
-import { describe, expect, it, vi } from 'vitest'
 
 import type { PiToolAuthorizer } from './approvalExtension'
 import { createPiCodeModeTools } from './piCodeMode'
@@ -19,7 +20,7 @@ function tool(overrides: Partial<ToolDefinition> & Pick<ToolDefinition, 'name'>)
       type: 'object',
       properties: { query: { type: 'string' } },
       required: ['query']
-    } as ToolDefinition['parameters'],
+    },
     execute: vi.fn<ToolDefinition['execute']>(async () => ({
       content: [{ type: 'text' as const, text: 'ok' }],
       details: { ok: true }

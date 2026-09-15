@@ -3,6 +3,11 @@
  * Coordinates migrators, manages progress, and handles failures
  */
 
+import fs from 'fs/promises'
+
+import { eq, sql } from 'drizzle-orm'
+import Store from 'electron-store'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
@@ -44,6 +49,7 @@ import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import type { DbType } from '@data/db/types'
+import { registerMigrationOriginReader } from '@data/migration/v1MigrationOrigin'
 import { loggerService } from '@logger'
 import { bootConfigService } from '@main/data/bootConfig'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
@@ -56,18 +62,14 @@ import type {
   MigratorStatus,
   ValidateResult
 } from '@shared/data/migration/v2/types'
-import { eq, sql } from 'drizzle-orm'
-import Store from 'electron-store'
-import fs from 'fs/promises'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
 import type { MigrationPaths } from './MigrationPaths'
+import { MIGRATION_V2_STATUS, readMigrationV2Status } from './migrationStatus'
 
 const logger = loggerService.withContext('MigrationEngine')
-
-const MIGRATION_V2_STATUS = 'migration_v2_status'
 
 /**
  * All tables migration writes into — the single source of truth for what
@@ -126,6 +128,7 @@ export class MigrationEngine {
   private migrationDb: MigrationDbService | null = null
   private _paths: MigrationPaths | null = null
   private legacyDataConfirmed = false
+  private migratedFromV1 = false
 
   get paths(): MigrationPaths {
     if (!this._paths) {
@@ -155,6 +158,11 @@ export class MigrationEngine {
   close(): void {
     this.migrationDb?.close()
     this.migrationDb = null
+  }
+
+  /** Whether this profile completed a v1-to-v2 migration, restored during preboot. */
+  isMigratedFromV1(): boolean {
+    return this.migratedFromV1
   }
 
   private getDb(): DbType {
@@ -194,10 +202,10 @@ export class MigrationEngine {
    */
   async needsMigration(): Promise<boolean> {
     const db = this.getDb()
-    const status = db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
+    const statusValue = readMigrationV2Status(db)
 
-    if (status?.value) {
-      const statusValue = status.value as MigrationStatusValue
+    if (statusValue) {
+      this.migratedFromV1 = statusValue.status === 'completed' && statusValue.migratedFromV1 === true
       return statusValue.status !== 'completed'
     }
 
@@ -235,10 +243,9 @@ export class MigrationEngine {
    */
   getLastError(): string | null {
     const db = this.getDb()
-    const status = db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
+    const statusValue = readMigrationV2Status(db)
 
-    if (status?.value) {
-      const statusValue = status.value as MigrationStatusValue
+    if (statusValue) {
       if (statusValue.status === 'failed') {
         return statusValue.error || 'Unknown error'
       }
@@ -403,7 +410,10 @@ export class MigrationEngine {
 
     // Check if tables have data (safety check)
     for (const { table, name } of MIGRATION_TARGET_TABLES) {
-      const result = db.select({ count: sql<number>`count(*)` }).from(table).get()
+      const result = db
+        .select({ count: sql<number>`count(*)` })
+        .from(table)
+        .get()
       const count = result?.count ?? 0
       if (count > 0) {
         logger.warn(`Table '${name}' is not empty (${count} rows), clearing for fresh migration`)
@@ -579,6 +589,7 @@ export class MigrationEngine {
         error: null
       })
     })
+    this.migratedFromV1 = false
   }
 
   /**
@@ -592,6 +603,7 @@ export class MigrationEngine {
       version: '2.0.0',
       error: null
     })
+    this.migratedFromV1 = migratedFromV1
   }
 
   /**
@@ -605,6 +617,7 @@ export class MigrationEngine {
       version: '2.0.0',
       error: error
     })
+    this.migratedFromV1 = false
   }
 
   private upsertMigrationStatus(executor: DbType | DbTransaction, statusValue: MigrationStatusValue): void {
@@ -627,3 +640,5 @@ export class MigrationEngine {
 
 // Export singleton instance
 export const migrationEngine = new MigrationEngine()
+
+registerMigrationOriginReader(() => migrationEngine.isMigratedFromV1())

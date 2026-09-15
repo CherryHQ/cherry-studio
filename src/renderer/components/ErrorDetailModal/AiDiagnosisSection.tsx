@@ -1,9 +1,10 @@
-import { loggerService } from '@logger'
-import type { SerializedError } from '@renderer/types/error'
-import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { CheckCircle, Loader2 } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { loggerService } from '@logger'
+import type { SerializedError } from '@renderer/types/error'
+import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 
 const logger = loggerService.withContext('AIDiagnosisSection')
 const AI_DIAGNOSIS_RESULT_COLOR = 'var(--muted-foreground)'

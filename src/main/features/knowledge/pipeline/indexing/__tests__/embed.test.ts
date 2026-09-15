@@ -1,5 +1,6 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 const mocks = vi.hoisted(() => ({
   aiEmbedManyMock: vi.fn()

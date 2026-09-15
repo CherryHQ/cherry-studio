@@ -1,3 +1,6 @@
+import { Search, X } from 'lucide-react'
+import type * as React from 'react'
+
 import type { InputProps } from '@cherrystudio/ui/components/primitives/input'
 import {
   InputGroup,
@@ -6,8 +9,6 @@ import {
   InputGroupInput
 } from '@cherrystudio/ui/components/primitives/input-group'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { Search, X } from 'lucide-react'
-import type * as React from 'react'
 
 type SearchInputClearProps =
   | {

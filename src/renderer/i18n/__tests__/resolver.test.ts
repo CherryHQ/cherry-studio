@@ -1,5 +1,6 @@
-import i18n, { initI18n } from '@renderer/i18n/resolver'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+import i18n, { initI18n } from '@renderer/i18n/resolver'
 
 // The global renderer setup already calls initI18n(); these tests assert the
 // lazy-load contract (on-demand pack loading, fallback, idempotency) explicitly.

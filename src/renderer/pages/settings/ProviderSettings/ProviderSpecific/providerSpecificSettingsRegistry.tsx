@@ -1,9 +1,10 @@
+import { lazy, type ReactNode } from 'react'
+
 import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { isGrokCliProviderId } from '@shared/data/presets/grokCli'
 import type { Provider } from '@shared/data/types/provider'
 import { isAwsBedrockProvider, isProviderSupportAuth, isVertexProvider, matchesPreset } from '@shared/utils/provider'
-import { lazy, type ReactNode } from 'react'
 
 import type { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 

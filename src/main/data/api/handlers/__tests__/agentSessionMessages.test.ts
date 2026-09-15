@@ -116,7 +116,7 @@ describe('agentSessionMessageHandlers', () => {
       await expect(
         agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
           params: { sessionId: 'session-1' }
-        } as never)
+        })
       ).resolves.toBe(response)
     })
   })
@@ -132,14 +132,14 @@ describe('agentSessionMessageHandlers', () => {
       await expect(
         agentSessionMessageHandlers['/agent-sessions/:sessionId/messages/:messageId'].GET({
           params: { sessionId: 'session-1', messageId: 'message-1' }
-        } as never)
+        })
       ).resolves.toBe(existing)
 
       await expect(
         agentSessionMessageHandlers['/agent-sessions/:sessionId/messages/:messageId'].PATCH({
           params: { sessionId: 'session-1', messageId: 'message-1' },
           body: { data }
-        } as never)
+        })
       ).resolves.toBe(updated)
 
       expect(updateSessionMessageMock).toHaveBeenCalledWith('session-1', 'message-1', { data })

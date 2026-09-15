@@ -1,6 +1,7 @@
+import { createContext, use, useEffect } from 'react'
+
 import type { CodeMirrorTheme } from '@cherrystudio/ui'
 import type { HighlightChunkResult, ShikiPreProperties } from '@renderer/services/ShikiStreamService'
-import { createContext, use, useEffect } from 'react'
 
 interface CodeStyleContextType {
   highlightCodeChunk: (trunk: string, language: string, callerId: string) => Promise<HighlightChunkResult>

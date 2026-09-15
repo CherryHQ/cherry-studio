@@ -1,11 +1,12 @@
-import { application } from '@application'
 import * as Lark from '@larksuiteoapi/node-sdk'
+import { fileTypeFromBuffer } from 'file-type'
+
+import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import type { FeishuDomain } from '@shared/data/types/channel'
 import { clampSurrogateBoundary } from '@shared/utils/text'
-import { fileTypeFromBuffer } from 'file-type'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'

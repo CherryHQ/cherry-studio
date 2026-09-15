@@ -123,7 +123,7 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, false)
   initDataSeen.length = 0
   definition = echoDefinition({
-    createInitData: () => ({ appPath: '/app' }) as unknown as InferenceInitData
+    createInitData: () => ({ appPath: '/app' })
   }) as UtilityProcessDefinition<EchoContract, InferenceInitData>
 })
 

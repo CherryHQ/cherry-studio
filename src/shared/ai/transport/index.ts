@@ -1,10 +1,6 @@
 export { applyApprovalDecisions } from './applyApprovalDecisions'
 export { capAttachReplayChunks, MAX_ATTACH_REPLAY_CHUNKS } from './capAttachReplay'
-export {
-  type DeferredToolOutput,
-  type DeferredToolResultRef,
-  isDeferredToolOutput
-} from './deferredToolResult'
+export { type DeferredToolOutput, type DeferredToolResultRef, isDeferredToolOutput } from './deferredToolResult'
 export {
   blobRefsOf,
   envelopeDisplayExcerpt,
