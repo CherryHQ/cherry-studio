@@ -16,7 +16,12 @@ import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
-import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
+import {
+  getComposerShortcutLabel,
+  matchesComposerShortcut,
+  resolveNewlineShortcut,
+  resolveSendShortcut
+} from '@renderer/utils/input'
 
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { getComposerEditorMinHeight } from './composerSizing'
@@ -246,6 +251,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         disabled={props.sendDisabled}
         sendMessage={() => void props.onSendDraft(getFallbackDraft())}
         onDisabledClick={showBlockedSendReason}
+        shortcutLabel={getComposerShortcutLabel(sendMessageShortcut)}
       />
     )
   const inputbarElement = (

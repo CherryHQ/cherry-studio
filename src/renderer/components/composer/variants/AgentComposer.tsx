@@ -1397,16 +1397,16 @@ const AgentComposerInner = ({
 
   const resolvedNewlineShortcut = resolveNewlineShortcut(newlineShortcut, sendMessageShortcut)
   const resolvedSteerShortcut = resolveSteerShortcut(steerShortcut, sendMessageShortcut, resolvedNewlineShortcut)
+  // The `resolve*` helpers hand back a fresh array each render, so the memo keys on the labels.
+  const sendKeyLabel = getComposerShortcutLabel(sendMessageShortcut)
+  const steerKeyLabel = getComposerShortcutLabel(resolvedSteerShortcut)
 
   const placeholderText = useMemo(
     () =>
       isStreaming
-        ? t('agent.input.placeholder_streaming', {
-            sendKey: getComposerShortcutLabel(sendMessageShortcut),
-            steerKey: getComposerShortcutLabel(resolvedSteerShortcut)
-          })
-        : t('agent.input.placeholder', { key: getComposerShortcutLabel(sendMessageShortcut) }),
-    [isStreaming, resolvedSteerShortcut, sendMessageShortcut, t]
+        ? t('agent.input.placeholder_streaming', { sendKey: sendKeyLabel, steerKey: steerKeyLabel })
+        : t('agent.input.placeholder'),
+    [isStreaming, sendKeyLabel, steerKeyLabel, t]
   )
 
   const buildQueuedPayload = useCallback(
@@ -1863,9 +1863,7 @@ const MissingAgentHomeComposerInner = ({
   const handleBlockedSend = useCallback(() => {
     toast.error(selectAgentMessage)
   }, [selectAgentMessage])
-  const placeholderText = t('agent.input.placeholder', {
-    key: getComposerShortcutLabel(sendMessageShortcut)
-  })
+  const placeholderText = t('agent.input.placeholder')
   const controlSlots = renderAgentToolbarControls({
     agent: undefined,
     selectAgentLabel: selectAgentMessage,
