@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs'
 
 import dayjs from 'dayjs'
-import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, type Display, nativeImage, screen } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -573,19 +573,22 @@ export class ScreenshotOverlayService extends BaseService {
   }
 
   /** Copy the overlay's result to the clipboard and end the session. */
-  public commit(result: ScreenshotResultData): void {
+  public async commit(result: ScreenshotResultData): Promise<void> {
+    const generation = this.sessionGeneration
     try {
-      const image = nativeImage.createFromBuffer(Buffer.from(result.pngBytes))
+      const bytes = Buffer.from(result.pngBytes)
       // createFromBuffer never throws — undecodable input yields an EMPTY image, and
       // writing that wipes the clipboard while the log still claims success.
-      if (image.isEmpty()) throw new Error('the result bytes could not be decoded')
-      clipboard.writeImage(image)
+      if (nativeImage.createFromBuffer(bytes).isEmpty()) throw new Error('the result bytes could not be decoded')
+      await clipboard.write([new ClipboardItem({ 'image/png': new Blob([bytes]) })])
       logger.info('Screenshot copied to the clipboard')
     } catch (error) {
       logger.error('Failed to copy the screenshot to the clipboard', error as Error)
     }
 
-    // Outside the try: the overlays come down whether or not the clipboard took it.
+    // Outside the try: the overlays come down whether or not the clipboard took it, but
+    // only for this session — the clipboard write yields, so a newer one may own them now.
+    if (generation !== this.sessionGeneration) return
     this.dismiss()
   }
 
