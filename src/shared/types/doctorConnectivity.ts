@@ -1,7 +1,13 @@
 import type { UniqueModelId } from '../data/types/model'
-import type { DoctorExecutionSnapshot, DoctorScopeKey, DoctorSubjectRef } from './doctor'
+import type { DoctorCheckId, DoctorExecutionSnapshot, DoctorScopeKey, DoctorSubjectRef } from './doctor'
 
 export type DoctorConnectivitySubject = Exclude<DoctorSubjectRef, { kind: 'global' }>
+
+export const DOCTOR_CONNECTIVITY_CHECK_IDS = [
+  'network-model-endpoint',
+  'provider-model-list',
+  'provider-model-conversation'
+] as const satisfies readonly DoctorCheckId[]
 
 export interface ModelConnectivityReport extends DoctorExecutionSnapshot {
   readonly uniqueModelId: UniqueModelId

@@ -83,7 +83,7 @@ const skippedResult: DoctorCheckResult = {
   id: 'provider-api-key-present',
   status: 'skip',
   durationMs: 1,
-  skippedBy: 'provider-default-model'
+  skippedBy: 'provider-model'
 }
 
 const mocks = vi.hoisted(() => ({
@@ -125,6 +125,7 @@ const translations: Record<string, string> = {
   'message.tools.units.item_one': '{{count}} item',
   'message.tools.units.item_other': '{{count}} items',
   'settings.doctor.actions.cancel_run': 'Cancel checks',
+  'settings.doctor.actions.confirm_check': 'Send test message',
   'settings.doctor.actions.run_network': 'Full check',
   'settings.doctor.actions.run_basic': 'Quick basic checks',
   'settings.doctor.actions.rerun': 'Run checks again',
@@ -212,7 +213,7 @@ function renderErrorDetailContent(props: ErrorDetailContentProps) {
   return render(
     <Dialog open>
       <DialogContent>
-        <ErrorDetailContent {...props} />
+        <ErrorDetailContent subject={{ kind: 'global' }} {...props} />
       </DialogContent>
     </Dialog>
   )
@@ -241,6 +242,7 @@ function completedDoctorState(
     status: 'completed',
     report: {
       schemaVersion: 1,
+      scope: 'global',
       runId: 'completed-quick',
       tier: 'quick',
       startedAt: new Date(now - 1_000).toISOString(),
@@ -265,6 +267,15 @@ function completedDoctorState(
 }
 
 describe('ErrorDetailContent diagnostics', () => {
+  it('keeps an unknown diagnostic target separate from an existing global report', () => {
+    mocks.doctorState = completedDoctorState([lowDiskResult])
+    renderErrorDetailContent({ subject: undefined, error: providerError })
+    expect(screen.queryByRole('region', { name: 'Diagnostic result' })).not.toBeInTheDocument()
+    expect(screen.getByText('error.diagnostics.context_unavailable')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'View Details' })).toBeEnabled()
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.cacheReady = true
@@ -299,7 +310,7 @@ describe('ErrorDetailContent diagnostics', () => {
     const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
 
     renderErrorDetailContent({
-      diagnosisContext: { errorSource: 'chat', providerName: 'OpenAI', modelId: 'gpt-5' },
+      diagnosisContext: { errorSource: 'chat', providerId: 'OpenAI', modelId: 'gpt-5' },
       diagnosticReport: { location: 'Home conversation' },
       localizedErrorMessage: 'API Key is invalid, please check and reconfigure',
       error: providerError
@@ -309,7 +320,7 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(basicInformation).toBeInTheDocument()
     expect(basicInformation).toHaveAttribute('data-variant', 'sectioned')
     expect(screen.getByText('OpenAI:gpt-5')).toBeInTheDocument()
-    expect(screen.getByText('API Key is invalid, please check and reconfigure')).toBeInTheDocument()
+    expect(screen.getByText('API Key is invalid, please check and reconfigure (failed)')).toBeInTheDocument()
     expect(screen.queryByText('Home conversation')).not.toBeInTheDocument()
     expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
     expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
@@ -329,7 +340,7 @@ describe('ErrorDetailContent diagnostics', () => {
     const view = render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({ error: providerError })
+      showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError })
     })
 
     const outerDialog = screen.getByText('Basic information').closest('[role="dialog"]')
@@ -376,7 +387,11 @@ describe('ErrorDetailContent diagnostics', () => {
     render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({ diagnosticReport: { location: 'Agent conversation' }, error: providerError })
+      showErrorDetailPopup({
+        subject: { kind: 'global' },
+        diagnosticReport: { location: 'Agent conversation' },
+        error: providerError
+      })
     })
 
     await screen.findByRole('region', { name: 'Action required' })
@@ -413,7 +428,7 @@ describe('ErrorDetailContent diagnostics', () => {
     render(<PopupHost />)
 
     act(() => {
-      showErrorDetailPopup({ error: providerError })
+      showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError })
     })
 
     await user.click(screen.getByRole('button', { name: 'View Details' }))
@@ -429,7 +444,7 @@ describe('ErrorDetailContent diagnostics', () => {
     mocks.cacheReady = false
     mocks.doctorState = completedDoctorState([passingVersionResult])
 
-    renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
+    renderErrorDetailContent({ error: providerError })
 
     const result = screen.getByRole('region', { name: 'Diagnostic result' })
     const summary = within(result).getByText('needs attention: 0 items').closest('p')
@@ -477,7 +492,10 @@ describe('ErrorDetailContent diagnostics', () => {
     await waitFor(() =>
       expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(2)
     )
-    expect(mocks.request).toHaveBeenLastCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+    expect(mocks.request).toHaveBeenLastCalledWith('diagnostics.doctor.run', {
+      subject: { kind: 'global' },
+      tier: 'quick'
+    })
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
   })
 
@@ -493,7 +511,7 @@ describe('ErrorDetailContent diagnostics', () => {
       skippedResult
     ])
 
-    renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
+    renderErrorDetailContent({ error: providerError })
 
     const result = screen.getByRole('region', { name: 'Diagnostic result' })
     const diagnostics = screen.getByRole('region', { name: 'Action required' })
@@ -553,7 +571,7 @@ describe('ErrorDetailContent diagnostics', () => {
   it('offers a basic rerun directly from an expired-result warning', async () => {
     const user = userEvent.setup()
     mocks.doctorState = completedDoctorState([], new Date(Date.now() - 1).toISOString())
-    renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
+    renderErrorDetailContent({ error: providerError })
 
     await screen.findByText('This diagnostic result is out of date.')
     const staleAlert = screen
@@ -565,7 +583,7 @@ describe('ErrorDetailContent diagnostics', () => {
 
     await user.click(rerun)
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { subject: { kind: 'global' }, tier: 'quick' })
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
   })
 
@@ -579,7 +597,7 @@ describe('ErrorDetailContent diagnostics', () => {
 
     await user.click(retry)
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { subject: { kind: 'global' }, tier: 'quick' })
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
   })
 
@@ -599,12 +617,17 @@ describe('ErrorDetailContent diagnostics', () => {
   it('starts Doctor automatically exactly once without starting AI diagnosis', async () => {
     const view = renderErrorDetailContent({ error: providerError })
 
-    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' }))
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', {
+        subject: { kind: 'global' },
+        tier: 'quick'
+      })
+    )
 
     view.rerender(
       <Dialog open>
         <DialogContent>
-          <ErrorDetailContent error={providerError} />
+          <ErrorDetailContent subject={{ kind: 'global' }} error={providerError} />
         </DialogContent>
       </Dialog>
     )
@@ -623,7 +646,7 @@ describe('ErrorDetailContent diagnostics', () => {
     rerender(
       <Dialog open>
         <DialogContent>
-          <ErrorDetailContent error={providerError} />
+          <ErrorDetailContent subject={{ kind: 'global' }} error={providerError} />
         </DialogContent>
       </Dialog>
     )
@@ -631,7 +654,7 @@ describe('ErrorDetailContent diagnostics', () => {
     await waitFor(() => expect(networkCheck).toBeEnabled())
     await user.click(networkCheck)
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'live' })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { subject: { kind: 'global' }, tier: 'live' })
   })
 
   it('opens System Doctor for the full check after error details close', async () => {
@@ -639,10 +662,13 @@ describe('ErrorDetailContent diagnostics', () => {
     mocks.doctorState = completedDoctorState([passingVersionResult])
     render(<PopupHost />)
 
-    act(() => showErrorDetailPopup({ error: providerError }))
+    act(() => showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError }))
     await user.click(screen.getByRole('button', { name: 'Full check' }))
 
-    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'live' })
+    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', {
+      subject: { kind: 'global' },
+      tier: 'live'
+    })
     expect(mocks.showDoctor).not.toHaveBeenCalled()
     expect(popupService.getSnapshot()[0]?.open).toBe(false)
 
@@ -659,7 +685,10 @@ describe('ErrorDetailContent diagnostics', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cancel checks' }))
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: `running-${tier}` })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', {
+      scope: 'global',
+      runId: `running-${tier}`
+    })
   })
 
   it('shows only problem reporting in the footer and excludes diagnostic results from its prefill', async () => {
@@ -701,6 +730,7 @@ describe('ErrorDetailContent diagnostics', () => {
 
     act(() => {
       showErrorDetailPopup({
+        subject: { kind: 'global' },
         diagnosticReport: { location: 'Home conversation' },
         error: providerError
       })

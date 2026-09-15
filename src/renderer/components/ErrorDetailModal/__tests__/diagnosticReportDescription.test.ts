@@ -28,7 +28,7 @@ describe('buildDiagnosticReportDescription', () => {
 
     expect(
       diagnosticReportFields({
-        diagnosisContext: { modelId: ' gpt-5 ', providerName: ' OpenAI ' },
+        diagnosisContext: { modelId: ' gpt-5 ', providerId: ' OpenAI ' },
         error,
         location: ' Home conversation '
       })
@@ -60,12 +60,12 @@ describe('buildDiagnosticReportDescription', () => {
       })
     ).toEqual([
       { id: 'location', value: 'Home conversation' },
-      { id: 'errorMessage', value: 'API Key 无效，请检查并重新配置 (AuthError: Unauthorized)' }
+      { id: 'errorMessage', value: 'API Key 无效，请检查并重新配置 (Unauthorized)' }
     ])
 
     expect(
       diagnosticReportFields({
-        diagnosisContext: { providerName: 'OpenAI' },
+        diagnosisContext: { providerId: 'OpenAI' },
         error: { name: 'ProviderError', message: null, stack: null },
         location: 'Home conversation'
       })
@@ -97,7 +97,7 @@ describe('buildDiagnosticReportDescription', () => {
     } as SerializedError
 
     const description = buildDiagnosticReportDescription({
-      diagnosisContext: { modelId: 'gpt-5', providerName: 'OpenAI' },
+      diagnosisContext: { modelId: 'gpt-5', providerId: 'OpenAI' },
       error,
       labels,
       location: 'Home conversation'

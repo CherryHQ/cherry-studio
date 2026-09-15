@@ -113,6 +113,27 @@ export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck }: ErrorD
               }}
             />
           </p>
+          {doctorController.viewModel.pendingChecks.length > 0 ? (
+            <div className="space-y-3 border-t border-border px-4 py-3">
+              {doctorController.viewModel.pendingChecks.map((pending) => (
+                <div key={pending.requestId} className="flex flex-col gap-2">
+                  <p className="text-xs leading-5 text-foreground">
+                    {t(pending.confirmation.messageKey, pending.confirmation.params)}
+                  </p>
+                  <div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      loading={interaction.kind === 'confirm-check'}
+                      disabled={doctorController.isInteracting}
+                      onClick={() => void doctorController.confirmCheck(pending)}>
+                      {t('settings.doctor.actions.confirm_check')}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {hasDoctorNotices ? (
             <div className="space-y-3 px-4 pb-4">
               <DoctorCheckNotices controller={doctorController} />

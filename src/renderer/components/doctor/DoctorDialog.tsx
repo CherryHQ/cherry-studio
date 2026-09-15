@@ -61,6 +61,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
     [finishHandoff]
   )
   const controller = useDoctorController({
+    subject: { kind: 'global' },
     initialDescription,
     initialPanel,
     initialRunTier,

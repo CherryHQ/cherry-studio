@@ -22,9 +22,11 @@ vi.mock('@main/data/services/ProviderService', () => ({
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: services.getByKey } }))
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => services.edition }))
 
-const { cherryAccount, defaultModel, defaultProviderApiKey } = await import('../provider')
+const { cherryAccount, providerApiKey, providerModel } = await import('../provider')
 const signal = new AbortController().signal
 const ctx = { signal, share: <T>(_key: string, factory: (signal: AbortSignal) => Promise<T>) => factory(signal) }
+/** A global run: the parameterised checks fall back to the chat default. */
+const global = { ...ctx, subject: null }
 
 function provider(overrides: Record<string, unknown> = {}) {
   return {
@@ -55,12 +57,12 @@ describe('provider-default-model', () => {
       method.mockImplementation(() => {
         throw new Error('SQLITE_IOERR')
       })
-      await expect(defaultModel.run(ctx)).rejects.toThrow('SQLITE_IOERR')
+      await expect(providerModel.run(global)).rejects.toThrow('SQLITE_IOERR')
     }
   )
   it('fails when no default model is configured', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
-    await expect(defaultModel.run(ctx)).resolves.toMatchObject({
+    await expect(providerModel.run(global)).resolves.toMatchObject({
       status: 'fail',
       detail: { variant: 'not_configured' },
       actions: [{ kind: 'navigate', target: '/settings/provider' }]
@@ -69,7 +71,10 @@ describe('provider-default-model', () => {
 
   it('rejects malformed ids before looking up provider data', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'not-a-unique-model-id')
-    await expect(defaultModel.run(ctx)).resolves.toMatchObject({ status: 'fail', detail: { variant: 'invalid_id' } })
+    await expect(providerModel.run(global)).resolves.toMatchObject({
+      status: 'fail',
+      detail: { variant: 'invalid_id' }
+    })
     expect(services.getByProviderId).not.toHaveBeenCalled()
   })
 
@@ -77,7 +82,7 @@ describe('provider-default-model', () => {
     services.getByProviderId.mockImplementation(() => {
       throw DataApiErrorFactory.notFound('Provider', 'openai')
     })
-    await expect(defaultModel.run(ctx)).resolves.toMatchObject({
+    await expect(providerModel.run(global)).resolves.toMatchObject({
       status: 'fail',
       detail: { variant: 'provider_unavailable' }
     })
@@ -85,7 +90,7 @@ describe('provider-default-model', () => {
 
   it('fails before model lookup when the provider is disabled', async () => {
     services.getByProviderId.mockReturnValue(provider({ isEnabled: false }))
-    await expect(defaultModel.run(ctx)).resolves.toMatchObject({
+    await expect(providerModel.run(global)).resolves.toMatchObject({
       status: 'fail',
       detail: { variant: 'provider_disabled' }
     })
@@ -96,14 +101,14 @@ describe('provider-default-model', () => {
     services.getByKey.mockImplementation(() => {
       throw DataApiErrorFactory.notFound('Model', 'gpt-4o')
     })
-    await expect(defaultModel.run(ctx)).resolves.toMatchObject({
+    await expect(providerModel.run(global)).resolves.toMatchObject({
       status: 'fail',
       detail: { variant: 'model_unavailable' }
     })
   })
 
   it('passes when the enabled provider and model both exist', async () => {
-    await expect(defaultModel.run(ctx)).resolves.toEqual({ status: 'pass' })
+    await expect(providerModel.run(global)).resolves.toEqual({ status: 'pass' })
   })
 })
 
@@ -112,16 +117,16 @@ describe('provider-api-key-present', () => {
     services.getByProviderId.mockImplementation(() => {
       throw new Error('SQLITE_IOERR')
     })
-    await expect(defaultProviderApiKey.run(ctx)).rejects.toThrow('SQLITE_IOERR')
+    await expect(providerApiKey.run(global)).rejects.toThrow('SQLITE_IOERR')
   })
   it('passes for login-based providers', async () => {
     services.getByProviderId.mockReturnValue(provider({ authMethods: ['oauth'], apiKeys: [] }))
-    await expect(defaultProviderApiKey.run(ctx)).resolves.toEqual({ status: 'pass' })
+    await expect(providerApiKey.run(global)).resolves.toEqual({ status: 'pass' })
   })
 
   it('passes for providers whose authentication is optional', async () => {
     services.getByProviderId.mockReturnValue(provider({ authOptional: true, apiKeys: [] }))
-    await expect(defaultProviderApiKey.run(ctx)).resolves.toEqual({ status: 'pass' })
+    await expect(providerApiKey.run(global)).resolves.toEqual({ status: 'pass' })
   })
 
   it('passes when at least one API key is enabled', async () => {
@@ -133,14 +138,14 @@ describe('provider-api-key-present', () => {
         ]
       })
     )
-    await expect(defaultProviderApiKey.run(ctx)).resolves.toEqual({ status: 'pass' })
+    await expect(providerApiKey.run(global)).resolves.toEqual({ status: 'pass' })
   })
 
   it('fails without exposing key material when all configured keys are disabled', async () => {
     services.getByProviderId.mockReturnValue(
       provider({ apiKeys: [{ id: 'disabled', key: 'sk-sensitive-value', isEnabled: false }] })
     )
-    const result = await defaultProviderApiKey.run(ctx)
+    const result = await providerApiKey.run(global)
     expect(result).toMatchObject({
       status: 'fail',
       attribution: 'user-fixable',
@@ -148,6 +153,28 @@ describe('provider-api-key-present', () => {
       actions: [{ kind: 'navigate', target: '/settings/provider' }]
     })
     expect(JSON.stringify(result)).not.toContain('sk-sensitive-value')
+  })
+})
+
+describe('provider checks given a subject', () => {
+  it('judges the subject model instead of the chat default', async () => {
+    // A missing default must not matter once the run names a model.
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
+    services.getByProviderId.mockReturnValue(provider({ id: 'anthropic' }))
+
+    const subject = { providerId: 'anthropic', modelId: 'claude-sonnet' }
+    await expect(providerModel.run({ ...ctx, subject })).resolves.toEqual({ status: 'pass' })
+    expect(services.getByProviderId).toHaveBeenCalledWith('anthropic')
+    expect(services.getByKey).toHaveBeenCalledWith('anthropic', 'claude-sonnet')
+  })
+
+  it('reports a missing key on the subject provider even when the default provider has one', async () => {
+    services.getByProviderId.mockImplementation((id: string) => provider(id === 'anthropic' ? { id, apiKeys: [] } : {}))
+
+    await expect(providerApiKey.run({ ...ctx, subject: { providerId: 'anthropic' } })).resolves.toMatchObject({
+      status: 'fail',
+      detail: { variant: 'missing' }
+    })
   })
 })
 

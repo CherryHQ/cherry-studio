@@ -5,6 +5,7 @@ import {
   type DoctorCheckId,
   type DoctorCheckResult,
   type DoctorCheckStatus,
+  type DoctorPendingCheck,
   type DoctorReport,
   type DoctorRunTier,
   type DoctorState
@@ -47,6 +48,7 @@ interface DoctorViewModel {
   }
   readonly canCancel: boolean
   readonly isStale: boolean
+  readonly pendingChecks: readonly DoctorPendingCheck[]
 }
 
 export function canCancelDoctorRun(state: DoctorState): state is Extract<DoctorState, { status: 'running' }> {
@@ -73,38 +75,52 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
 
   if (state.status === 'completed') {
     const resultById = new Map(state.report.results.map((result) => [result.id, result]))
+    const pendingIds = new Set((state.report.pendingChecks ?? []).map((pending) => pending.checkId))
     return DOCTOR_CHECK_IDS.flatMap((id) => {
       const result = resultById.get(id)
-      return result
-        ? [
-            {
-              id,
-              domain: DOCTOR_CHECK_CATALOG[id].domain,
-              status: result.status,
-              result,
-              actions: resultActions(result),
-              actionsDisabled: isStale
-            }
-          ]
-        : []
+      if (result) {
+        return [
+          {
+            id,
+            domain: DOCTOR_CHECK_CATALOG[id].domain,
+            status: result.status,
+            result,
+            actions: resultActions(result),
+            actionsDisabled: isStale
+          }
+        ]
+      }
+      if (!pendingIds.has(id)) return []
+      return [
+        {
+          id,
+          domain: DOCTOR_CHECK_CATALOG[id].domain,
+          status: 'pending',
+          actions: [],
+          actionsDisabled: true
+        }
+      ]
     })
   }
 
   const resultById = new Map(state.results.map((result) => [result.id, result]))
-  return DOCTOR_CHECK_IDS.filter(
-    (id) =>
+  const active = new Set(state.activeCheckIds)
+  return DOCTOR_CHECK_IDS.flatMap((id) => {
+    const result = resultById.get(id)
+    const inDefault =
       !('includeByDefault' in DOCTOR_CHECK_CATALOG[id]) &&
       (state.tier === 'live' || DOCTOR_CHECK_CATALOG[id].tier === 'quick')
-  ).map((id) => {
-    const result = resultById.get(id)
-    return {
-      id,
-      domain: DOCTOR_CHECK_CATALOG[id].domain,
-      status: result?.status ?? 'pending',
-      result,
-      actions: result ? resultActions(result) : [],
-      actionsDisabled: true
-    }
+    if (!inDefault && !result && !active.has(id)) return []
+    return [
+      {
+        id,
+        domain: DOCTOR_CHECK_CATALOG[id].domain,
+        status: result?.status ?? 'pending',
+        result,
+        actions: result ? resultActions(result) : [],
+        actionsDisabled: true
+      }
+    ]
   })
 }
 
@@ -166,6 +182,7 @@ export function buildDoctorViewModel(state: DoctorState, now = Date.now()): Doct
     problemCount: rows.filter((row) => row.status === 'warn' || row.status === 'fail').length,
     summary,
     canCancel: canCancelDoctorRun(state),
-    isStale
+    isStale,
+    pendingChecks: report?.pendingChecks ?? []
   }
 }
