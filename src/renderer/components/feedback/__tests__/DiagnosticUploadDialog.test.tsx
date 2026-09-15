@@ -44,6 +44,8 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.status.pending': 'Pending',
     'settings.about.diagnostics.status.unavailable': 'Unavailable',
     'settings.about.feedback.history.open': 'Open status page',
+    'settings.about.feedback.history.title': 'Diagnostic history',
+    'settings.about.feedback.history.empty': 'No diagnostic reports submitted from this device yet.',
     'settings.about.diagnostics.report.saved_locally': 'Saved locally',
     'settings.about.diagnostics.range_title': 'Time range',
     'settings.about.diagnostics.ranges.24h': 'Last 24 hours',
@@ -66,6 +68,15 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (...args: unknown[]) => mocks.request(...args) }
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useQuery: () => ({
+    data: { items: [], page: 1, total: 0 },
+    error: null,
+    isLoading: false,
+    refetch: vi.fn()
+  })
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -164,6 +175,16 @@ describe('DiagnosticUploadDialog', () => {
     expect(description).not.toHaveAttribute('aria-describedby')
     expect(screen.queryByText('A problem description is required')).not.toBeInTheDocument()
     await waitFor(() => expect(screen.queryByText('Inspecting diagnostic data…')).not.toBeInTheDocument())
+  })
+
+  it('opens diagnostic history from the upload dialog header', async () => {
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Diagnostic history' }))
+
+    expect(screen.getByRole('dialog', { name: 'Diagnostic history' })).toBeInTheDocument()
+    expect(screen.getByText('No diagnostic reports submitted from this device yet.')).toBeInTheDocument()
   })
 
   it('initializes an editable draft once without replacing user edits on parent rerender', async () => {

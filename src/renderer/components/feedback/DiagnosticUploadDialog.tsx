@@ -1,4 +1,4 @@
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, History } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,6 +31,7 @@ import {
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
 
+import DiagnosticHistoryDialog from './DiagnosticHistoryDialog'
 import { DIAGNOSTIC_STATUS_TRANSLATION_KEYS } from './diagnosticStatusLabels'
 
 const logger = loggerService.withContext('DiagnosticUploadDialog')
@@ -78,6 +79,7 @@ export function DiagnosticUploadDialog({
   const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle')
   const [result, setResult] = useState<UploadResult | null>(null)
   const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
+  const [diagnosticHistoryOpen, setDiagnosticHistoryOpen] = useState(false)
   const primaryActionRef = useRef<HTMLButtonElement>(null)
   const retainedBundleIdRef = useRef<string | null>(null)
   const mountedRef = useRef(true)
@@ -272,8 +274,16 @@ export function DiagnosticUploadDialog({
           onEscapeKeyDown={(event) => {
             if (isBusy) event.preventDefault()
           }}>
-          <DialogHeader className="px-6 pt-6 pr-12 pb-4">
+          <DialogHeader className="flex flex-row items-center justify-between px-6 pt-6 pr-16 pb-4">
             <DialogTitle>{t('settings.about.diagnostics.upload.dialog.title')}</DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              title={t('settings.about.feedback.history.title')}
+              aria-label={t('settings.about.feedback.history.title')}
+              onClick={() => setDiagnosticHistoryOpen(true)}>
+              <History className="size-4" />
+            </Button>
           </DialogHeader>
 
           <Scrollbar className="min-h-0 px-6 py-2">
@@ -437,6 +447,7 @@ export function DiagnosticUploadDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <DiagnosticHistoryDialog open={diagnosticHistoryOpen} onOpenChange={setDiagnosticHistoryOpen} />
     </>
   )
 }
