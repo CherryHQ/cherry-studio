@@ -364,9 +364,24 @@ describe('createHomePathRedactor', () => {
     'POST https://api.openai.com/v1/chat/completions failed with 429',
     'Error at app:///out/main/index.js:12:34',
     '/Users/someone-else/Documents/a.pdf',
-    'relative/segment.txt'
+    'relative/segment.txt',
+    '/Users/kovsu2/file.txt',
+    '/Users/kovsu-old/file.txt',
+    '/Users/kovsu.bak/file.txt'
   ])('leaves everything outside the home directory alone: %s', (text) => {
     expect(posix(text)).toBe(text)
+  })
+
+  it('leaves a longer username that starts with the Windows home directory alone', () => {
+    expect(windows('C:\\Users\\John Smithers\\a.txt')).toBe('C:\\Users\\John Smithers\\a.txt')
+  })
+
+  it.each([
+    '/System/Volumes/Data/Users/kovsu/Documents/a.pdf',
+    'prefix/Users/kovsu/a.txt',
+    'https://example.com/Users/kovsu/api'
+  ])('still removes the username when the home directory is embedded after another prefix: %s', (text) => {
+    expect(posix(text)).not.toContain('kovsu')
   })
 
   it.each(['', '/'])('does not rewrite every separator when the home directory is %j', (home) => {

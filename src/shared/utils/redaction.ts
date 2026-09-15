@@ -170,6 +170,9 @@ export function redactLiteral(text: string, secret: string | undefined): string 
  * Sentry's server-side `@userpath` rule and Storybook's `cleanPaths`.
  * Matches either separator (also doubled, as in JSON-escaped Windows paths),
  * an optional `file://` prefix and URL-encoded segments, case-insensitively.
+ * The match must end at a segment boundary (`/Users/kovsu2` is left alone) but
+ * may start mid-string on purpose: an embedded home such as
+ * `/System/Volumes/Data/Users/kovsu` still carries the username.
  */
 export function createHomePathRedactor(home: string): (text: string) => string {
   const segments = home.split(/[\\/]/).filter(Boolean)
@@ -181,6 +184,6 @@ export function createHomePathRedactor(home: string): (text: string) => string {
     })
     .join('[\\\\/]+')
   const leadingSeparator = /^[\\/]/.test(home) ? '[\\\\/]+' : ''
-  const pattern = new RegExp(`(?:file:///?)?${leadingSeparator}${segmentPattern}`, 'gi')
+  const pattern = new RegExp(`(?:file:///?)?${leadingSeparator}${segmentPattern}(?![\\p{L}\\p{N}_.-])`, 'giu')
   return (text) => text.replace(pattern, '~')
 }
