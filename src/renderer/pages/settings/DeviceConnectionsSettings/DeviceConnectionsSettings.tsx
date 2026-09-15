@@ -179,12 +179,19 @@ const DeviceConnectionsSettings: FC = () => {
             {t('deviceConnections.gateway.openSettings')}
           </Button>
         ) : lanEnabled ? (
-          <Button
-            variant="outline"
-            loading={apiGatewayLoading || isUpdatingLan}
-            onClick={() => void setLanAccess(false)}>
-            {t('deviceConnections.lan.disable')}
-          </Button>
+          <div className="flex items-center gap-2">
+            {!lanRunning && (
+              <Button loading={apiGatewayLoading || isUpdatingLan} onClick={() => void setLanAccess(true)}>
+                {t('common.retry')}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              loading={apiGatewayLoading || isUpdatingLan}
+              onClick={() => void setLanAccess(false)}>
+              {t('deviceConnections.lan.disable')}
+            </Button>
+          </div>
         ) : (
           <Button loading={apiGatewayLoading || isUpdatingLan} onClick={() => void setLanAccess(true)}>
             {t('deviceConnections.lan.enable')}
@@ -210,7 +217,11 @@ const DeviceConnectionsSettings: FC = () => {
             </div>
 
             {!connectionReady ? (
-              <div className="text-foreground-tertiary text-xs">{t('deviceConnections.pairing.requiresRunning')}</div>
+              <div className="text-foreground-tertiary text-xs">
+                {t(
+                  gatewayAvailable ? 'deviceConnections.pairing.requiresRunning' : 'deviceConnections.gateway.required'
+                )}
+              </div>
             ) : pairingOffer && qrPayload ? (
               <div className="flex flex-col items-start gap-2">
                 <div className="rounded-lg border border-border bg-white p-3">

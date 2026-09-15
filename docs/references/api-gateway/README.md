@@ -365,6 +365,9 @@ controls, port input, server URL, the (copy/regenerate) API key, an
 The separate `DeviceConnectionsSettings` page owns LAN exposure, mobile pairing,
 and access revocation. It only sends LAN enable/disable commands. When the local
 gateway is disabled or not running, it offers a link to API Gateway settings.
+The pairing section uses the same gateway-required guidance. If LAN intent is
+enabled but its listener is down, the page offers Retry alongside Disable LAN
+access so recovery does not require toggling the preference off first.
 Its pairing section includes the plain-HTTP credential warning. It asks Main
 for one atomic pairing offer, renders the QR, and uses DataApi to list or revoke
 paired devices. Readiness requires both enabled LAN intent and the live LAN

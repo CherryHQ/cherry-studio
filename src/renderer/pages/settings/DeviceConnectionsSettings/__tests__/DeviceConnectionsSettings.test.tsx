@@ -92,7 +92,8 @@ describe('DeviceConnectionsSettings', () => {
     render(<DeviceConnectionsSettings />)
 
     expect(screen.getByRole('note')).toHaveTextContent(enUS['deviceConnections.toggle.risk'])
-    expect(screen.getByText(enUS['deviceConnections.gateway.required'])).toBeInTheDocument()
+    expect(screen.getAllByText(enUS['deviceConnections.gateway.required'])[0]).toBeVisible()
+    expect(screen.queryByText(enUS['deviceConnections.pairing.requiresRunning'])).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Open API Gateway settings' }))
 
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/api-gateway' })
@@ -227,19 +228,18 @@ describe('DeviceConnectionsSettings', () => {
     expect(screen.getByText('My phone')).toBeInTheDocument()
   })
 
-  it('reports a failed LAN change and allows retry', async () => {
-    useApiGatewayMock.mockReturnValue({
-      ...useApiGatewayMock(),
-      apiGatewayConfig: { ...useApiGatewayMock().apiGatewayConfig, host: '127.0.0.1' }
-    })
+  it('retries an unavailable LAN listener and keeps recovery available after failure', async () => {
+    MockUseCacheUtils.setSharedCacheValue('feature.api_gateway.lan_running', false)
     requestMock.mockRejectedValueOnce(new Error('disk full'))
     const user = userEvent.setup()
     render(<DeviceConnectionsSettings />)
 
-    await user.click(screen.getByRole('button', { name: 'Enable LAN access' }))
+    expect(screen.getByRole('button', { name: 'Disable LAN access' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
 
+    expect(requestMock.mock.calls).toEqual([['api_gateway.lan.set_enabled', { enabled: true }]])
     expect(toast.error).toHaveBeenCalledWith('Failed to change LAN access: disk full')
-    expect(screen.getByRole('button', { name: 'Enable LAN access' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
   })
 
   it('removes an expired QR and lets the user request a fresh one', async () => {

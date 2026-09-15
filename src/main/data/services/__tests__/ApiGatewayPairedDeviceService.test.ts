@@ -47,6 +47,16 @@ describe('ApiGatewayPairedDeviceService', () => {
     expect(dbh.db.select().from(apiGatewayPairedDeviceTable).get()?.tokenHash).toBe('a'.repeat(64))
   })
 
+  it('reports duplicate token hashes as a conflict without replacing the paired device', () => {
+    const tokenHash = 'e'.repeat(64)
+    const device = apiGatewayPairedDeviceService.create({ name: 'Pixel', platform: 'android', tokenHash })
+
+    expect(() => apiGatewayPairedDeviceService.create({ name: 'iPhone', platform: 'ios', tokenHash })).toThrowError(
+      expect.objectContaining({ code: ErrorCode.CONFLICT, status: 409 })
+    )
+    expect(apiGatewayPairedDeviceService.list()).toEqual([device])
+  })
+
   it('revokes the verifier used by paired-device authentication', () => {
     const tokenHash = 'b'.repeat(64)
     const device = apiGatewayPairedDeviceService.create({ name: 'iPhone', platform: 'ios', tokenHash })

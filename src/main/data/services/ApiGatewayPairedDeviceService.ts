@@ -3,6 +3,7 @@ import { desc, eq } from 'drizzle-orm'
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type ApiGatewayPairedDeviceRow, apiGatewayPairedDeviceTable } from '@data/db/schemas/apiGatewayPairedDevice'
+import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import {
@@ -43,11 +44,15 @@ export class ApiGatewayPairedDeviceService {
     const metadata = ApiGatewayPairedDeviceMetadataSchema.safeParse({ name: input.name, platform: input.platform })
     if (!metadata.success) throw toDataApiError(metadata.error, 'create paired device')
 
-    const [row] = this.db
-      .insert(apiGatewayPairedDeviceTable)
-      .values({ ...metadata.data, tokenHash: input.tokenHash })
-      .returning()
-      .all()
+    const [row] = withSqliteErrors(
+      () =>
+        this.db
+          .insert(apiGatewayPairedDeviceTable)
+          .values({ ...metadata.data, tokenHash: input.tokenHash })
+          .returning()
+          .all(),
+      defaultHandlersFor('ApiGatewayPairedDevice', metadata.data.name)
+    )
     const device = rowToApiGatewayPairedDevice(row)
     notifyDataApiDataChange([{ endpoint: '/api-gateway/paired-devices', kind: 'membership', entityIds: [device.id] }])
     logger.info('Created API Gateway paired device', { id: device.id, platform: device.platform })
