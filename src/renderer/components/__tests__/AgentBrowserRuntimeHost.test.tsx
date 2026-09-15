@@ -118,7 +118,7 @@ describe('AgentBrowserRuntimeHost', () => {
     expect(runtime.get('session-a')).toBeUndefined()
   })
 
-  it('mounts host overlays beside the guest plane at the document root', async () => {
+  it('mounts the guest above the pane and host overlays above the guest at the document root', async () => {
     runtime.ensure('session-a', 'https://example.com/')
     const view = render(<Harness visible />)
     await waitFor(() => expect(bridge.binding).toBe(42))
@@ -128,13 +128,13 @@ describe('AgentBrowserRuntimeHost', () => {
     const guestPlane = guest.parentElement
     const overlayPlane = cursor.parentElement
 
-    // Electron compositing requires body siblings, with the overlay above the z-40 pane host.
+    // Electron compositing requires body siblings ordered above the z-40 pane host.
     expect(guestPlane).not.toBeNull()
     expect(overlayPlane).not.toBeNull()
     expect(guestPlane?.parentElement).toBe(document.body)
     expect(overlayPlane?.parentElement).toBe(document.body)
     expect(guestPlane?.nextElementSibling).toBe(overlayPlane)
-    expect(guestPlane).toHaveClass('z-10')
+    expect(guestPlane).toHaveClass('z-[45]')
     expect(overlayPlane).toHaveClass('z-50')
     expect(guestPlane).not.toContainElement(cursor)
     expect(overlayPlane).toContainElement(runtime.get('session-a')?.overlays ?? null)

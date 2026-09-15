@@ -97,9 +97,10 @@ export function WebviewSurface({ anchor, guest, overlay }: Props) {
 
   return createPortal(
     <>
+      {/* Keep the guest above the z-40 pane while overlays remain above it at z-50. */}
       <div
         ref={guestPlaneRef}
-        className="fixed z-10 overflow-hidden"
+        className="fixed z-[45] overflow-hidden"
         style={{ left: 0, top: 0, width: 960, height: 720, opacity: 0, pointerEvents: 'none' }}>
         {guest}
       </div>
