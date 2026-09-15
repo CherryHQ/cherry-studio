@@ -1,3 +1,7 @@
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -349,7 +353,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
       if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
-      if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
+      if (name === 'ClaudeCodeSessionStateService')
+        return { disposeToolPolicySnapshot: vi.fn(), setAgentHookHandler: vi.fn() }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
@@ -747,6 +752,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
   })
 
   it('sends supported image attachments as native Claude SDK image blocks', async () => {
+    const pdfPath = join(tmpdir(), 'spec.pdf')
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -770,7 +776,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           parts: [
             { type: 'text', text: 'describe this' },
             { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' },
-            { type: 'file', url: 'file:///tmp/spec.pdf', mediaType: 'application/pdf', filename: 'spec.pdf' }
+            { type: 'file', url: pathToFileURL(pdfPath).href, mediaType: 'application/pdf', filename: 'spec.pdf' }
           ]
         }
       }
@@ -784,7 +790,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": /tmp/spec.pdf'
+              text: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": ${pdfPath}`
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -1350,6 +1356,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
   })
 
   it('falls back external image attachments to tool-readable paths when the model lacks vision support', async () => {
+    const imagePath = join(tmpdir(), 'pixel.png')
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -1368,7 +1375,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         data: {
           parts: [
             { type: 'text', text: 'describe this' },
-            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+            { type: 'file', url: pathToFileURL(imagePath).href, mediaType: 'image/png', filename: 'pixel.png' }
           ]
         }
       }
@@ -1378,8 +1385,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content:
-            'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": /tmp/pixel.png'
+          content: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": ${imagePath}`
         }
       },
       done: false

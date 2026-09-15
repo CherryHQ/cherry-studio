@@ -26,7 +26,7 @@ import { loggerService } from '@logger'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
-import type { AgentRuntimeEvent } from '../types'
+import type { AgentRuntimeEvent, AgentRuntimeHookHandler } from '../types'
 import { loadDshSdkProtocol } from './dshSdk'
 import { DSH_TRANSPORT } from './dshStreamAdapter'
 
@@ -46,6 +46,7 @@ export interface DshBridgeServerOptions {
   getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
   /** Dispatch one registered dsh native tool into Cherry's in-process MCP bridge. */
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<BridgeToolCallResult>
+  onHook?: AgentRuntimeHookHandler
   /** Evaluate one native tool call against Main-owned non-bypassable safety policy. */
   onGuardCheck: (
     toolName: string,
@@ -73,6 +74,7 @@ export class DshBridgeServer {
   private transport?: JsonRpcLineTransport
   private readonly unauthenticatedSockets = new Set<net.Socket>()
   private readonly activeToolCalls = new Map<string, AbortController>()
+  private readonly activeHookCalls = new Map<string, AbortController>()
   private ready = false
   private readonly readyWaiters: Array<{ resolve: () => void; reject: (error: Error) => void }> = []
   private closed = false
@@ -197,7 +199,7 @@ export class DshBridgeServer {
     let authenticated = false
     socket.setTimeout(this.readyTimeoutMs, () => socket.destroy())
     socket.on('error', (error) => logger.warn('dsh bridge socket error', { error }))
-    socket.on('close', () => {
+    const disconnect = () => {
       this.unauthenticatedSockets.delete(socket)
       transport.close()
       if (this.connection === socket) {
@@ -205,7 +207,9 @@ export class DshBridgeServer {
         this.transport = undefined
         this.abortToolCalls()
       }
-    })
+    }
+    socket.on('end', disconnect)
+    socket.on('close', disconnect)
     transport.onRequest(async (method, params) => {
       if (!authenticated) {
         if (method !== 'ready' || !this.authenticate(socket, transport, params)) {
@@ -223,6 +227,11 @@ export class DshBridgeServer {
       if (method === 'tool/cancel') {
         const cancel = params as BridgeNotificationMap['tool/cancel']
         if (cancel.sessionId === this.options.sessionId) this.activeToolCalls.get(cancel.callId)?.abort()
+        return
+      }
+      if (method === 'hook/cancel') {
+        const cancel = params as BridgeNotificationMap['hook/cancel']
+        if (cancel.sessionId === this.options.sessionId) this.activeHookCalls.get(cancel.callId)?.abort()
         return
       }
       if (method === 'subagent/lifecycle') {
@@ -251,6 +260,8 @@ export class DshBridgeServer {
 
   private handleRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
     switch (method) {
+      case 'hook/run':
+        return this.handleHook(params as BridgePluginRequestMap['hook/run']['params'])
       case 'tool/call':
         return this.handleToolCall(params as BridgePluginRequestMap['tool/call']['params'])
       case 'guard/check':
@@ -275,6 +286,35 @@ export class DshBridgeServer {
       return await this.options.onToolCall(call.name, call.args, controller.signal)
     } finally {
       if (this.activeToolCalls.get(call.callId) === controller) this.activeToolCalls.delete(call.callId)
+    }
+  }
+
+  private async handleHook(
+    call: BridgePluginRequestMap['hook/run']['params']
+  ): Promise<BridgePluginRequestMap['hook/run']['result']> {
+    if (call.sessionId !== this.options.sessionId) throw new Error('dsh bridge Hook used the wrong session')
+    if (
+      typeof call.callId !== 'string' ||
+      !call.callId ||
+      this.activeHookCalls.has(call.callId) ||
+      typeof call.toolName !== 'string' ||
+      !call.toolName ||
+      typeof call.toolCallId !== 'string' ||
+      !['preToolUse', 'postToolUse', 'postToolUseFailure'].includes(call.event)
+    )
+      throw new Error('dsh bridge Hook request is invalid or already active')
+    const controller = new AbortController()
+    this.activeHookCalls.set(call.callId, controller)
+    try {
+      const { event, toolName, toolCallId, toolInput, toolOutput, error } = call
+      return (
+        (await this.options.onHook?.(
+          { event, toolName, toolCallId, toolInput, toolOutput, error },
+          controller.signal
+        )) ?? {}
+      )
+    } finally {
+      if (this.activeHookCalls.get(call.callId) === controller) this.activeHookCalls.delete(call.callId)
     }
   }
 
@@ -410,6 +450,8 @@ export class DshBridgeServer {
   private abortToolCalls(): void {
     for (const controller of this.activeToolCalls.values()) controller.abort()
     this.activeToolCalls.clear()
+    for (const controller of this.activeHookCalls.values()) controller.abort()
+    this.activeHookCalls.clear()
   }
 }
 

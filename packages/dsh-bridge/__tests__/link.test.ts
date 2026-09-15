@@ -49,6 +49,29 @@ async function listenSilentHost() {
 }
 
 describe('connectBridgeLink', () => {
+  it('relays Hook cancellation and fails closed after a half-close', async () => {
+    const host = await listenSilentHost()
+    const link = connectBridgeLink({ socketPath: host.socketPath, onRequest: async () => ({}) })
+    const request = {
+      sessionId: 'session-1',
+      event: 'preToolUse' as const,
+      toolName: 'write',
+      toolCallId: 'tool-1',
+      toolInput: {}
+    }
+    const controller = new AbortController()
+    const pending = link.callHook(request, controller.signal)
+    await expect.poll(() => host.requests[0]?.method).toBe('hook/run')
+    controller.abort()
+    await expect(pending).rejects.toThrow()
+    await expect
+      .poll(() => host.notifications[0])
+      .toEqual({ method: 'hook/cancel', params: { sessionId: 'session-1', callId: host.requests[0].params.callId } })
+    sockets[0].end()
+    await expect.poll(() => link.connected).toBe(false)
+    await expect(link.callHook(request)).rejects.toThrow('not connected')
+  })
+
   it('notifies tool/cancel with the bridge call id when the tool AbortSignal fires', async () => {
     const host = await listenSilentHost()
     const link = connectBridgeLink({ socketPath: host.socketPath, onRequest: async () => ({}) })

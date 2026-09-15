@@ -25,6 +25,7 @@ import type { ReactNode } from 'react'
 import { createElement } from 'react'
 
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
+import { HookIcon } from '@renderer/components/icons/HookIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 
 export interface SettingsMenuEntry {
@@ -68,6 +69,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/prompts',
     titleKey: 'settings.prompts.title',
     icon: createElement(Zap),
+    groupKey: 'settings.menuGroups.capabilities'
+  },
+  {
+    route: '/settings/hooks',
+    titleKey: 'settings.hooks.title',
+    icon: createElement(HookIcon),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {
