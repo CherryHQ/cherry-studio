@@ -24,12 +24,14 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.acknowledgement':
       'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.',
     'settings.about.diagnostics.report.copy_id': 'Copy feedback ID',
+    'settings.about.diagnostics.report.copy_url': 'Copy status URL',
     'settings.about.diagnostics.report.description_label': 'Problem description',
     'settings.about.diagnostics.report.description_required': 'A problem description is required',
     'settings.about.diagnostics.report.description_too_long': 'The problem description is too long',
     'settings.about.diagnostics.report.failure_reasons.service_unavailable':
       'The diagnostic report service is temporarily unavailable. Try again later or use manual feedback.',
     'settings.about.diagnostics.report.feedback_id': 'Feedback ID',
+    'settings.about.diagnostics.report.history_save_failed': 'Could not save this report to local history',
     'settings.about.diagnostics.report.open_location': 'Open location',
     'settings.about.diagnostics.report.open_manual_form': 'Manual feedback',
     'settings.about.diagnostics.report.retry': 'Retry',
@@ -37,6 +39,11 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.report.saving': 'Saving diagnostic report…',
     'settings.about.diagnostics.report.submitting': 'Submitting diagnostic report…',
     'settings.about.diagnostics.report.success_title': 'Diagnostic report submitted',
+    'settings.about.diagnostics.report.status_url': 'Status URL',
+    'settings.about.diagnostics.report.processing_status': 'Processing status',
+    'settings.about.diagnostics.status.pending': 'Pending',
+    'settings.about.diagnostics.status.unavailable': 'Unavailable',
+    'settings.about.feedback.history.open': 'Open status page',
     'settings.about.diagnostics.report.saved_locally': 'Saved locally',
     'settings.about.diagnostics.range_title': 'Time range',
     'settings.about.diagnostics.ranges.24h': 'Last 24 hours',
@@ -95,6 +102,9 @@ const fallbackPath = AbsoluteFilePathSchema.parse('/tmp/cherry-studio-diagnostic
 
 const uploadedResult: Extract<OutputFor<'diagnostics.bundle.upload'>, { status: 'uploaded' }> = {
   reportId,
+  reportUrl: `https://api.cherry-ai.com/diagnostics/${reportId}`,
+  processingStatus: 'pending',
+  historySaved: true,
   status: 'uploaded'
 }
 
@@ -422,7 +432,7 @@ describe('DiagnosticUploadDialog', () => {
     expect(screen.getByRole('status')).toBe(inspectionStatus)
   })
 
-  it('locks every dismissal path while submitting and shows only the API feedback ID on success', async () => {
+  it('locks dismissal during submission and returns the confirmed URL and processing status', async () => {
     let resolveUpload: (result: typeof uploadedResult) => void = () => undefined
     mocks.request.mockImplementation((route: string) => {
       if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
@@ -454,10 +464,34 @@ describe('DiagnosticUploadDialog', () => {
     expect(await screen.findByText('Diagnostic report submitted')).toBeInTheDocument()
     expect(screen.getByText('Feedback ID')).toBeInTheDocument()
     expect(screen.getByText(reportId)).toBeInTheDocument()
+    expect(screen.getByText(uploadedResult.reportUrl)).toBeInTheDocument()
+    expect(screen.getByText('Processing status: Pending')).toBeInTheDocument()
     expect(screen.queryByText(bundleId)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Copy feedback ID' }))
     expect(clipboardWrite).toHaveBeenCalledWith(reportId)
+    await user.click(screen.getByRole('button', { name: 'Copy status URL' }))
+    expect(clipboardWrite).toHaveBeenCalledWith(uploadedResult.reportUrl)
+    await user.click(screen.getByRole('button', { name: 'Open status page' }))
+    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', uploadedResult.reportUrl)
     expect(mocks.toastSuccess).toHaveBeenCalledWith('message.copy.success')
+  })
+
+  it('keeps a confirmed upload successful when saving local history fails', async () => {
+    mocks.request.mockImplementation(async (route: string) => {
+      if (route === 'diagnostics.bundle.inspect') return inspectResult
+      if (route === 'diagnostics.bundle.upload')
+        return { ...uploadedResult, processingStatus: null, historySaved: false }
+      return undefined
+    })
+    const user = userEvent.setup()
+    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
+    await completeReview(user)
+    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+
+    expect(await screen.findByText('Diagnostic report submitted')).toBeInTheDocument()
+    expect(screen.getByText('Processing status: Unavailable')).toBeInTheDocument()
+    expect(screen.getByText('Could not save this report to local history')).toBeInTheDocument()
+    expect(screen.getByText(uploadedResult.reportUrl)).toBeInTheDocument()
   })
 
   it('offers explicit recovery actions for a rejected submission without opening the manual form automatically', async () => {

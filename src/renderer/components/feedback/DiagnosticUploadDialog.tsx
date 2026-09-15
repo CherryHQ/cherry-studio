@@ -1,3 +1,4 @@
+import { ExternalLink } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +30,8 @@ import {
   diagnosticDescriptionByteLength
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
+
+import { DIAGNOSTIC_STATUS_TRANSLATION_KEYS } from './diagnosticStatusLabels'
 
 const logger = loggerService.withContext('DiagnosticUploadDialog')
 const RANGE_OPTIONS = [
@@ -449,6 +452,14 @@ function UploadResultContent({
 }) {
   const { t } = useTranslation()
   if (result.status === 'uploaded') {
+    const openReport = async () => {
+      try {
+        await ipcApi.request('system.shell.open_website', result.reportUrl)
+      } catch {
+        logger.warn('Failed to open diagnostic status page')
+        toast.error(t('settings.about.diagnostics.report.open_failed'))
+      }
+    }
     return (
       <Alert type="success" showIcon role="status" aria-live="polite" aria-atomic="true">
         <div className="space-y-2">
@@ -458,6 +469,24 @@ function UploadResultContent({
             <code className="break-all">{result.reportId}</code>
             <CopyButton textToCopy={result.reportId} aria-label={t('settings.about.diagnostics.report.copy_id')} />
           </div>
+          <div className="flex min-w-0 items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{t('settings.about.diagnostics.report.status_url')}</span>
+            <code className="min-w-0 break-all">{result.reportUrl}</code>
+            <CopyButton textToCopy={result.reportUrl} aria-label={t('settings.about.diagnostics.report.copy_url')} />
+            <Button variant="link" size="sm" onClick={() => void openReport()}>
+              <ExternalLink className="size-4" />
+              {t('settings.about.feedback.history.open')}
+            </Button>
+          </div>
+          <p className="text-sm">
+            {t('settings.about.diagnostics.report.processing_status')}:{' '}
+            {t(DIAGNOSTIC_STATUS_TRANSLATION_KEYS[result.processingStatus ?? 'unavailable'])}
+          </p>
+          {!result.historySaved ? (
+            <p className="text-warning-subtle-foreground text-sm">
+              {t('settings.about.diagnostics.report.history_save_failed')}
+            </p>
+          ) : null}
         </div>
       </Alert>
     )
