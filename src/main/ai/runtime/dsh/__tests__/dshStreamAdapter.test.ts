@@ -1,13 +1,13 @@
 import type {
   AssistantMessage,
-  CallId,
   ContentBlock,
   ImageBlock,
   MessageId,
   StreamChunk,
+  ToolCallId,
   ToolResultMessage
 } from '@deepseek-ai/dsh-llm'
-import type { SessionEvent, SessionEventMap, SessionEventType } from '@deepseek-ai/dsh-session'
+import { type SessionEvent, type SessionEventMap, type SessionEventType, SessionSeq } from '@deepseek-ai/dsh-session'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
@@ -18,7 +18,7 @@ type DshCompactionId = SessionEventMap['compaction/start']['compactionId']
 type DshCommandId = NonNullable<SessionEventMap['compaction/start']['sourceCommandId']>
 type DshRetryId = SessionEventMap['llm/retry']['retryId']
 
-const callId = (id: string) => id as CallId
+const callId = (id: string) => id as ToolCallId
 
 const assistantMessage = (model = 'm-1'): AssistantMessage => ({
   id: 'msg-1' as MessageId,
@@ -624,7 +624,7 @@ describe('DshStreamAdapter', () => {
 
   it('ignores unknown and lifecycle-only events', () => {
     const { adapter, chunks, onTurnEnd } = makeAdapter()
-    adapter.handleEvent(envelope('todo/write', { todos: [] }))
+    adapter.handleEvent(rawEvent('todo/write', { todos: [] }))
     adapter.handleEvent(rawEvent('approval/asked', { toolName: 'bash' }))
     adapter.handleEvent(rawEvent('request/header', { header: {} }))
     adapter.handleEvent(rawEvent('compaction/prune', { shadowedTokenCount: 512 }))
@@ -641,8 +641,8 @@ describe('DshStreamAdapter', () => {
       envelope('compaction/summary', {
         compactionId: 'comp-1' as DshCompactionId,
         summary: [{ type: 'text', text: '<compacted-summary>…</compacted-summary>' }],
-        shadowedRange: { start: 2, end: 10 },
-        shadowedSeqs: [2, 6, 10],
+        shadowedRange: { start: SessionSeq(2), end: SessionSeq(10) },
+        shadowedSeqs: [SessionSeq(2), SessionSeq(6), SessionSeq(10)],
         shadowedTokenCount: 42_000,
         provider: 'deepseek',
         model: 'deepseek-chat',

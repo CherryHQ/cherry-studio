@@ -21,6 +21,7 @@ import {
   type MessageListMeta,
   type MessageListProviderValue,
   type MessageListRuntime,
+  type MessageListSelectAllPagination,
   type MessageListState,
   type MessageRuntime,
   type MessageStreamingLayers
@@ -75,6 +76,7 @@ interface HomeMessageListParams {
   isMessagesStale?: boolean
   loadOlder?: () => void
   hasOlder?: boolean
+  selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
@@ -93,6 +95,7 @@ export function useHomeMessageListProviderValue({
   isMessagesStale = false,
   loadOlder,
   hasOlder = false,
+  selectAllPagination,
   openCitationsPanel,
   imageActionConsumer,
   onBindRuntime,
@@ -248,7 +251,8 @@ export function useHomeMessageListProviderValue({
     streamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     diagnosticReport,
-    persistDiagnosis
+    persistDiagnosis,
+    selectAllPagination
   })
 
   useEffect(() => {
