@@ -80,18 +80,19 @@ export class AgentBrowserRegistry implements Disposable {
     )
     const hideCursor = () => cursor.hide()
     const invalidateCursor = () => cursor.hide(new BrowserSessionError('stale_ref'))
+    const electronDebugger = guest.debugger
     const onNavigation = (_event: unknown, _url: string, isInPlace: boolean, isMainFrame: boolean) => {
       if (isMainFrame && !isInPlace) invalidateCursor()
     }
     window.on('blur', hideCursor)
     guest.on('did-start-navigation', onNavigation)
-    guest.debugger.on('detach', invalidateCursor)
+    electronDebugger.on('detach', invalidateCursor)
     abort.signal.addEventListener(
       'abort',
       () => {
         cursor.dispose()
         guest.removeListener('did-start-navigation', onNavigation)
-        guest.debugger.removeListener('detach', invalidateCursor)
+        electronDebugger.removeListener('detach', invalidateCursor)
         window.removeListener('blur', hideCursor)
       },
       { once: true }
