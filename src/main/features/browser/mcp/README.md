@@ -55,6 +55,8 @@ parallel work; operations on a single tab run serially.
 | `execute` | `code`, `timeout?` | JavaScript escape hatch; existing value output preserved; prefer dedicated input tools |
 | `screenshot` | `ref?`, `fullPage?`, `cursor?`, `format?`, `quality?` | Viewport/target image, or bounded full-page image tiles |
 | `snapshot` | `full?`, `scope?`, `maxChars?` | Diff by default; `scope` is a ref, replacing the old CSS selector; cap 256–40,000 characters |
+| `list_web_tools` | — | Native main-document WebMCP descriptors with document-bound IDs; capability absence is explicit |
+| `call_web_tool` | `toolId`, `args` | Invoke a listed imperative website tool; validates its schema and returns bounded untrusted output |
 | `find` | `role?`, `name?` (at least one) | Exact accessible role/name match in the main document, including offscreen elements; returns up to 100 refs without changing the diff baseline |
 | `console_messages` | `level?: error / warning / all`, `clear?` | Recent console output and uncaught exceptions; clear removes all entries matching the selected level after reading |
 | `network_requests` | `clear?` | Recent method, URL, status and completion/failure state, including redirect hops; clear removes all recorded requests after reading |
@@ -108,7 +110,7 @@ tab closes its host window and tab bar. Borrowed pages are never reclaimed.
 
 The MCP runtime currently has no trusted agent session/workdir or turn identity.
 Owners are connection-scoped; retention is not per turn. Uploads are deferred
-until that upstream context exists. WebMCP, retained-tab
+until that upstream context exists. Retained-tab
 freezing, WebContentsView migration and visible-pane control are later layers.
 
 A targeted `reset` requires both `tabId` and `privateMode`; incomplete or unknown
@@ -133,3 +135,20 @@ Navigation or a change in page dimensions invalidates continuation. `ref` and `f
 Images are live observations, not an atomic snapshot of a changing page. Capture does not trigger
 scroll-based lazy loading; use an explicit scroll action if the target content has not loaded.
 Do not use image pixels as input coordinates. Prefer snapshot refs for subsequent actions.
+
+## Website tools
+
+Browser guests enable native WebMCP before loading the page. Use `list_web_tools` to discover
+a site's tools and `call_web_tool` with a returned ID. Existing Browser permissions apply,
+including the Agent runtime's full-access approval behavior. Tools run in the existing page
+and use its login state; no separate MCP URL or credential import is required.
+
+An available API with no tools differs from `capability: unsupported`. Main-document imperative
+tools are callable. Native declarative forms are listed with `supported: false`; iframe tools
+and polyfills are not supported. Invalidated IDs return `stale_web_tool`: list again instead of
+reusing an old ID. Timeout and cancellation do not undo effects; observe before retrying.
+
+Discovery keeps at most 64 registrations and returns at most 64,000 metadata characters.
+Descriptions cap at 2,000 characters; schemas at 16,000. Arguments and returned output cap at
+40,000 characters. Unsupported schemas fail without fetching external references. No screenshot
+or snapshot is appended automatically. Metadata, annotations and output remain untrusted data.

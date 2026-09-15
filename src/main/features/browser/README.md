@@ -77,7 +77,11 @@ keys from macOS Keychain, Windows current-user DPAPI or Linux Secret Service/KWa
 bounded, cancelled and awaited; keys are not persisted. Windows app-bound cookies and partitioned
 cookies remain unsupported, with per-reason counts. See the
 [import support matrix](../../../../docs/references/ai/browser-use-implementation.md#127-delivered-import-support-and-validation).
-Uploads, retained-tab freezing and WebMCP remain follow-ups.
+`list_web_tools` / `call_web_tool` use native CDP WebMCP in managed and Agent-bound guests.
+`GuestSession` owns the memory-only `WebMcpTools` registry; document changes invalidate tool IDs.
+Invocation results and metadata are untrusted, input schemas use the MCP SDK validator, and
+cancellation/cleanup are bounded. Main-document imperative tools are supported; declarative forms
+are listed as unsupported. Uploads and retained-tab freezing remain follow-ups.
 
 Debugger initialization is shared by its waiting callers. When the last caller aborts or
 times out, initialization stops and detaches; cancellation by one caller leaves other

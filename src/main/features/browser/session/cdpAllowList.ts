@@ -3,6 +3,9 @@ import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping'
 import type { CommandOptions } from '../browserUse'
 
 const allowedMethods = [
+  'WebMCP.enable',
+  'WebMCP.invokeTool',
+  'WebMCP.cancelInvocation',
   'Page.enable',
   'Page.navigate',
   'Page.getNavigationHistory',
@@ -49,6 +52,9 @@ export type CdpCommandArgs<M extends CdpMethod> =
 export const cdpAllowList: ReadonlySet<string> = new Set(allowedMethods)
 
 const eventMethods = [
+  'WebMCP.toolsAdded',
+  'WebMCP.toolsRemoved',
+  'WebMCP.toolResponded',
   'Page.frameNavigated',
   'Page.frameStartedLoading',
   'Page.frameStoppedLoading',

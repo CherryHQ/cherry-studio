@@ -4,6 +4,8 @@ export const BROWSER_TOOLS = [
   { name: 'open', labelKey: 'settings.browser.tools.open' },
   { name: 'snapshot', labelKey: 'settings.browser.tools.snapshot' },
   { name: 'screenshot', labelKey: 'settings.browser.tools.screenshot' },
+  { name: 'list_web_tools', labelKey: 'settings.browser.tools.list_web_tools' },
+  { name: 'call_web_tool', labelKey: 'settings.browser.tools.call_web_tool' },
   { name: 'find', labelKey: 'settings.browser.tools.find' },
   { name: 'list_tabs', labelKey: 'settings.browser.tools.list_tabs' },
   { name: 'click', labelKey: 'settings.browser.tools.click' },
