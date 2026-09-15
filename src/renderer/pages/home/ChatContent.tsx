@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
@@ -148,6 +148,12 @@ const ChatContentInner: FC<InnerProps> = ({
 }) => {
   const { t } = useTranslation()
   const { reserveBranch } = useTopicBranchActions(topic.id)
+  const handleStartBranchDraft = useCallback(
+    async (messageId: string) => {
+      await reserveBranch(messageId)
+    },
+    [reserveBranch]
+  )
   const assistant = assistantContext?.assistant
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
   const runtime = useChatRuntimeState({
@@ -227,7 +233,7 @@ const ChatContentInner: FC<InnerProps> = ({
         hasOlder={hasOlder}
         selectAllPagination={selectAllPagination}
         openCitationsPanel={onOpenCitationsPanel}
-        onStartBranchDraft={reserveBranch}
+        onStartBranchDraft={handleStartBranchDraft}
       />
     </div>
   )
