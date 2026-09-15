@@ -95,6 +95,15 @@ describe('web search provider schemas', () => {
     )
   })
 
+  it('models Duckduckgo as a hostless keyless keyword search provider', () => {
+    const duckduckgo = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'duckduckgo')
+
+    expect(duckduckgo).toBeDefined()
+    expect(duckduckgo!.capabilities).toEqual([
+      { feature: 'searchKeywords', requiresApiHost: false, requiresApiKey: false }
+    ])
+  })
+
   it('accepts valid provider overrides', () => {
     const result = WebSearchProviderOverridesSchema.safeParse({
       tavily: {

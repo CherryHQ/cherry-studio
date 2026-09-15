@@ -49,3 +49,39 @@ export async function fetchWebSearchContent(url: string, httpOptions: RequestIni
     throw error
   }
 }
+
+/** Fetch content for validated search-result URLs, keeping successes and surfacing aborts/total failure. */
+export async function fetchSearchResultContents(
+  urls: string[],
+  options: { query: string; providerLabel: string; signal?: AbortSignal }
+): Promise<WebSearchResult[]> {
+  const { query, providerLabel, signal } = options
+
+  const settledResults = await Promise.allSettled(urls.map((url) => fetchWebSearchContent(url, { signal })))
+
+  const rejectedResults = settledResults.filter((item): item is PromiseRejectedResult => item.status === 'rejected')
+
+  const abortResult = rejectedResults.find((item) => isAbortError(item.reason))
+
+  if (abortResult && signal?.aborted) {
+    throw abortResult.reason
+  }
+
+  if (rejectedResults.length > 0) {
+    logger.warn(`Some ${providerLabel} content fetches failed`, {
+      query,
+      failedCount: rejectedResults.length,
+      totalCount: urls.length
+    })
+  }
+
+  const fulfilledResults = settledResults.filter(
+    (item): item is PromiseFulfilledResult<WebSearchResult> => item.status === 'fulfilled'
+  )
+
+  if (fulfilledResults.length === 0 && rejectedResults.length > 0) {
+    throw rejectedResults[0].reason
+  }
+
+  return fulfilledResults.map((item) => item.value).filter((item) => item.content.trim().length > 0)
+}
