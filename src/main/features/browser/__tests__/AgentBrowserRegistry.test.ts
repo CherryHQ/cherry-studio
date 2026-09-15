@@ -190,29 +190,22 @@ describe('Agent browser authority and control lifetime', () => {
 
   it('releases borrowed observers when Electron destroys their guest', async () => {
     const guestSession = fixture.mock.session
-    const guestDebugger = fixture.mock.debugger
     const initialListeners = guestSession.listenerCount('will-download')
-    const initialMessageListeners = guestDebugger.listenerCount('message')
-    const initialDetachListeners = guestDebugger.listenerCount('detach')
-    Object.defineProperty(fixture.mock, 'session', {
-      configurable: true,
-      get: () => {
-        if (fixture.mock.isDestroyed()) throw new TypeError('Object has been destroyed')
-        return guestSession
-      }
-    })
+    const debuggerEvents = fixture.mock.debugger
     const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
     await controller.getSession(false, tabId)
+    const cursor = service.agentBrowser.getCursor(sessionId, tabId, windowId)!
+    cursor.setPresented(true)
+    const pending = cursor.move({ x: 20, y: 20 }, 'document-1', {})
+    const canceled = expect(pending).rejects.toMatchObject({ code: 'not_found' })
     expect(guestSession.listenerCount('will-download')).toBe(initialListeners + 1)
 
-    try {
-      expect(() => fixture.mock.close()).not.toThrow()
-    } finally {
-      Object.defineProperty(fixture.mock, 'session', { configurable: true, value: guestSession, writable: true })
-    }
+    expect(() => fixture.mock.close()).not.toThrow()
+    await canceled
+    expect(debuggerEvents.listenerCount('message')).toBe(0)
+    expect(debuggerEvents.listenerCount('detach')).toBe(0)
+    expect(service.agentBrowser.get({ agentId, sessionId })).toBeUndefined()
     expect(guestSession.listenerCount('will-download')).toBe(initialListeners)
-    expect(guestDebugger.listenerCount('message')).toBe(initialMessageListeners)
-    expect(guestDebugger.listenerCount('detach')).toBe(initialDetachListeners)
     expect(service.get(fixture.guest.id)).toBeUndefined()
   })
 
