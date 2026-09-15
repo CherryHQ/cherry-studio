@@ -650,6 +650,9 @@ describe('heartbeatSchedule', () => {
   })
 
   it('pauses a previously-armed row while the agent data path is untrusted, and re-arms after recovery', async () => {
+    // An earlier test in this suite leaves a symlink at this path; clear it
+    // so seedAgent provisions a real directory regardless of platform.
+    rmSync(path.join(agentsRoot, AGENT_ID), { recursive: true, force: true })
     seedAgent(AGENT_ID)
     await syncHeartbeatSchedule(AGENT_ID)
     expect(heartbeatRows(AGENT_ID)[0]?.enabled).toBe(true)
@@ -665,7 +668,7 @@ describe('heartbeatSchedule', () => {
       expect(outcome).toBe('skipped-untrusted-path')
       expect(heartbeatRows(AGENT_ID)[0]?.enabled).toBe(false)
     } finally {
-      rmSync(path.join(agentsRoot, AGENT_ID), { force: true })
+      rmSync(path.join(agentsRoot, AGENT_ID), { recursive: true, force: true })
     }
     mkdirSync(path.join(agentsRoot, AGENT_ID), { recursive: true })
 
