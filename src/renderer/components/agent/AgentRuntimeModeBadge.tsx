@@ -1,7 +1,9 @@
-import { cn } from '@renderer/utils/style'
 import type { LucideIcon } from 'lucide-react'
 import { CircleHelp, Code2, Sparkles, SquareTerminal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Badge } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 type AgentRuntimeModeBadgeProps = {
   type?: string | null
@@ -38,18 +40,19 @@ export function AgentRuntimeModeBadge({ type, className, size = 'default' }: Age
   const Icon = descriptor.Icon
 
   return (
-    <span
+    <Badge
       aria-label={label}
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-full border border-background bg-muted text-foreground-tertiary shadow-sm',
+        'inline-flex shrink-0 items-center justify-center rounded-full border border-background bg-muted p-0 text-foreground-tertiary shadow-sm',
         size === 'compact' ? 'size-3.5' : 'size-4',
         className
       )}
       data-agent-runtime-mode={type && RUNTIME_MODE_DESCRIPTORS[type] ? type : 'unknown'}
       role="img"
-      title={label}>
+      title={label}
+      variant="outline">
       <Icon aria-hidden="true" size={iconSize} strokeWidth={2.25} />
-    </span>
+    </Badge>
   )
 }
 
