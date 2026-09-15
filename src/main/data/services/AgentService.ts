@@ -695,6 +695,7 @@ export class AgentService {
       this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), newKnowledgeBaseIds)
     }
 
+    let groupMembershipChanged = false
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -758,6 +759,7 @@ export class AgentService {
           }
           if (updates.groupId !== undefined) {
             validateAgentGroupTx(tx, updates.groupId)
+            groupMembershipChanged = (updates.groupId ?? null) !== (current.groupId ?? null)
           }
           this.updateAgentTx(tx, id, updateData)
           // Replace MCP associations if provided
@@ -786,6 +788,10 @@ export class AgentService {
     )
 
     const updated = this.getAgent(id)
+    if (groupMembershipChanged) {
+      // Moves the agent between group-filtered /agents buckets in every window.
+      notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
+    }
     if (updated) {
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
     }

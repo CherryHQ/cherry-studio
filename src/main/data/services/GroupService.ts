@@ -19,6 +19,7 @@
 import { and, asc, eq } from 'drizzle-orm'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
 import { groupTable } from '@data/db/schemas/group'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -27,6 +28,7 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateGroupDto, UpdateGroupDto } from '@shared/data/api/schemas/groups'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Group } from '@shared/data/types/group'
 
@@ -177,9 +179,18 @@ export class GroupService {
    * Delete a group. Agent membership is unbound explicitly: agent.group_id was
    * added by ALTER TABLE, where SQLite only permits NO ACTION foreign keys, so
    * agent rows lack the DB-level SET NULL that assistant/knowledge rely on.
+   * The unbind bypasses any agent command, so membership is broadcast here.
    */
   delete(id: string): void {
+    let unboundAgentIds: string[] = []
     this.db.transaction((tx) => {
+      unboundAgentIds = tx
+        .select({ id: agentTable.id })
+        .from(agentTable)
+        .where(eq(agentTable.groupId, id))
+        .all()
+        .map((row) => row.id)
+
       tx.update(agentTable).set({ groupId: null }).where(eq(agentTable.groupId, id)).run()
 
       const [row] = tx.delete(groupTable).where(eq(groupTable.id, id)).returning({ id: groupTable.id }).all()
@@ -188,6 +199,14 @@ export class GroupService {
         throw DataApiErrorFactory.notFound('Group', id)
       }
     })
+
+    const unbindEffects: DataApiDataChangeEffect[] =
+      unboundAgentIds.length > 0 ? [{ endpoint: '/agents', kind: 'membership', entityIds: unboundAgentIds }] : []
+    notifyDataApiDataChange([
+      { endpoint: '/groups', kind: 'membership', entityIds: [id] },
+      { endpoint: '/groups/:id', routeParams: { id }, entityIds: [id] },
+      ...unbindEffects
+    ])
 
     logger.info('Deleted group', { id })
   }

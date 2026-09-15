@@ -1640,6 +1640,40 @@ describe('AgentService', () => {
       expect(row.groupId).toBeNull()
     })
 
+    it('broadcasts agent membership when an update moves the agent between groups', async () => {
+      const first = await insertGroup()
+      const second = await insertGroup()
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Mover',
+        model: TEST_MODEL_ID,
+        groupId: first.id
+      })
+      notifyDataApiDataChangeMock.mockClear()
+
+      agentService.updateAgent(created.id, { groupId: second.id })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [created.id] }
+      ])
+    })
+
+    it('skips the membership broadcast when the group assignment does not change', async () => {
+      const group = await insertGroup()
+      const created = createAgentForTest({
+        type: 'claude-code',
+        name: 'Stays',
+        model: TEST_MODEL_ID,
+        groupId: group.id
+      })
+      notifyDataApiDataChangeMock.mockClear()
+
+      agentService.updateAgent(created.id, { name: 'Renamed Only' })
+      agentService.updateAgent(created.id, { groupId: group.id })
+
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
     it('rejects an unknown groupId on update and leaves the assignment unchanged', async () => {
       const group = await insertGroup()
       const created = createAgentForTest({
@@ -1663,10 +1697,16 @@ describe('AgentService', () => {
         model: TEST_MODEL_ID,
         groupId: group.id
       })
+      notifyDataApiDataChangeMock.mockClear()
 
       groupService.delete(group.id)
 
       expect(agentService.getAgent(created.id)?.groupId).toBeNull()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/groups', kind: 'membership', entityIds: [group.id] },
+        { endpoint: '/groups/:id', routeParams: { id: group.id }, entityIds: [group.id] },
+        { endpoint: '/agents', kind: 'membership', entityIds: [created.id] }
+      ])
     })
   })
 
