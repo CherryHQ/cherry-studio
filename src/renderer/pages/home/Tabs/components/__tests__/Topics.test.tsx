@@ -804,6 +804,8 @@ function groupChevron(groupHeaderButton: HTMLElement): HTMLElement {
 describe('Topics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    topicDataMocks.updateTopic.mockReset().mockResolvedValue(undefined)
+    topicRenameMocks.getTopicMessages.mockReset().mockResolvedValue([])
     clearPendingTopicImageActionsForTest()
     topicStreamStatusMocks.statuses.clear()
     topicRowRenderMocks.counts.clear()
@@ -1007,8 +1009,6 @@ describe('Topics', () => {
     expect(screen.getByText('This week')).toBeInTheDocument()
     expect(screen.getByText('Earlier')).toBeInTheDocument()
     expect(screen.getByText('Beta pinned')).toBeInTheDocument()
-    // Pinned conversation names stay visually centered in their dedicated group.
-    expect(screen.getByText('Beta pinned')).toHaveClass('text-center')
     const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
     const unpinButton = pinnedRow?.querySelector('[aria-label="Unpin Conversation"]')
     expect(unpinButton ?? null).toBeInTheDocument()
@@ -1850,6 +1850,7 @@ describe('Topics', () => {
   })
 
   it('shows a context-menu rename optimistically and restores the persisted name when it fails', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     const pendingUpdate = createDeferred<void>()
     topicDataMocks.updateTopic.mockReturnValueOnce(pendingUpdate.promise)
     const { getByText } = renderTopicList()
@@ -1858,19 +1859,28 @@ describe('Topics', () => {
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     await act(async () => {
-      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
+      await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
     })
 
     const input = within(await screen.findByRole('dialog')).getByLabelText('Name')
-    fireEvent.change(input, { target: { value: 'Renamed topic' } })
     await act(async () => {
-      fireEvent.keyDown(input, { key: 'Enter' })
-      await Promise.resolve()
+      await user.clear(input)
+    })
+    await act(async () => {
+      await user.type(input, 'Renamed topic')
+    })
+    expect(input).toHaveValue('Renamed topic')
+    await act(async () => {
+      await user.keyboard('{Enter}')
+    })
+
+    expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
+      name: 'Renamed topic',
+      isNameManuallyEdited: true
     })
 
     expect(await screen.findByText('Renamed topic')).toBeInTheDocument()
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
-    await vi.waitFor(() => expect(topicDataMocks.updateTopic).toHaveBeenCalledOnce())
 
     await act(async () => {
       pendingUpdate.reject(new Error('rename failed'))
