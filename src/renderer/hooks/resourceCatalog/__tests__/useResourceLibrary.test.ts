@@ -129,7 +129,8 @@ describe('useResourceLibrary', () => {
 
     expect(result.current.allResources).toMatchObject([{ id: 'assistant-1', type: 'assistant', model: 'GPT-4o' }])
     expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: true }])
-    expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: false, search: undefined })
+    expect(mocks.useAgentList.mock.calls[0]).toEqual([{ enabled: false }])
+    expect(mocks.useAgentList.mock.calls[1]).toEqual([{ enabled: false, search: undefined, groupId: undefined }])
     expect(mocks.useSkillList).toHaveBeenCalledWith({ enabled: false, search: undefined })
     expect(mocks.usePromptList).toHaveBeenCalledWith({ enabled: false, search: undefined })
   })
