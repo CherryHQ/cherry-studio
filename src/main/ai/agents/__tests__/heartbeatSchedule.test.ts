@@ -204,6 +204,27 @@ describe('heartbeatSchedule', () => {
     spy.mockRestore()
   })
 
+  it('reaps agent.task rows whose producer agent is gone (failed deletion sweep)', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    expect(row).toBeDefined()
+    // Simulate the residue of a deletion sweep whose unregister failed: the
+    // agent is gone but the schedule row (and its workspace) outlive it.
+    const workspaceId = (row.jobInputTemplate as { workspace: { workspaceId: string } }).workspace.workspaceId
+    expect(dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspaceId)).all()).toHaveLength(
+      1
+    )
+    dbh.db.delete(agentTable).where(eq(agentTable.id, AGENT_ID)).run()
+
+    await repairHeartbeatSchedules()
+
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+    expect(dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspaceId)).all()).toHaveLength(
+      0
+    )
+  })
+
   it('never touches an existing heartbeat.md', async () => {
     seedAgent(AGENT_ID)
     await writeFile(path.join(agentsRoot, AGENT_ID, 'heartbeat.md'), '- real checklist\n')

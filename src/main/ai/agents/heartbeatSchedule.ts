@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import {
+  agentTaskService,
   HEARTBEAT_PROMPT_SENTINEL,
   isCircuitBreakerPaused,
   writeCircuitBreakerPaused
@@ -521,5 +522,56 @@ async function runRepairPass(): Promise<void> {
       paused: counts.get('paused') ?? 0,
       failed: counts.get('failed') ?? 0
     })
+  }
+  await reapOrphanedScheduleRows(rows)
+}
+
+function readTemplateAgentId(row: JobScheduleSnapshot): string | null {
+  const template = row.jobInputTemplate as { agentId?: unknown } | null
+  return typeof template?.agentId === 'string' && template.agentId.length > 0 ? template.agentId : null
+}
+
+function dropOrphanWorkspace(scheduleId: string, workspaceId: string): void {
+  try {
+    const removed = application
+      .get('DbService')
+      .withWriteTx((tx) => agentWorkspaceService.deleteIfUnreferencedTx(tx, workspaceId))
+    if (!removed) {
+      logger.info('Kept an orphaned schedule workspace still referenced after reaping', { scheduleId, workspaceId })
+    }
+  } catch (error) {
+    logger.warn('Failed to drop an orphaned schedule workspace', { scheduleId, workspaceId, error })
+  }
+}
+
+/**
+ * Startup reaper for agent.task rows whose producer agent is gone — a deletion
+ * sweep can fail transiently mid-unregister and leave the row (and its user
+ * workspace) behind. Per-row isolation, mirroring the sweep.
+ */
+async function reapOrphanedScheduleRows(rows: JobScheduleSnapshot[]): Promise<void> {
+  const liveAgents = new Set(agentService.listAgents().agents.map((agent) => agent.id))
+  const orphans = rows.filter((row) => {
+    const producer = readTemplateAgentId(row)
+    return producer !== null && !liveAgents.has(producer)
+  })
+  const reaped: string[] = []
+  for (const row of orphans) {
+    try {
+      if (!(await application.get('JobManager').unregisterJobScheduleById(row.id))) continue
+    } catch (error) {
+      logger.warn('Failed to reap an orphaned agent task schedule', { scheduleId: row.id, error })
+      continue
+    }
+    reaped.push(row.id)
+    const template = row.jobInputTemplate as { workspace?: { type?: unknown; workspaceId?: unknown } | null } | null
+    const workspace = template?.workspace
+    if (workspace?.type === AGENT_WORKSPACE_TYPE.USER && typeof workspace.workspaceId === 'string') {
+      dropOrphanWorkspace(row.id, workspace.workspaceId)
+    }
+  }
+  if (reaped.length > 0) {
+    logger.info('Reaped orphaned agent task schedules at startup', { scheduleIds: reaped })
+    agentTaskService.notifyReadModelChange(reaped)
   }
 }
