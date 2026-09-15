@@ -1,6 +1,8 @@
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import type { StreamChunkPayload } from '@shared/ai/transport'
+
 import { buildCompactReplay, evictOldestReplayEntry, mergeDeltaPayload, splitDeltaPayload } from '../buildCompactReplay'
 
 describe('buildCompactReplay', () => {
@@ -273,7 +275,7 @@ describe('buildCompactReplay', () => {
 
   describe('evictOldestReplayEntry', () => {
     it('spares a still-open tool-input-start and evicts the next oldest entry', () => {
-      const buffer = [
+      const buffer: StreamChunkPayload[] = [
         {
           topicId: 't',
           chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
@@ -294,7 +296,7 @@ describe('buildCompactReplay', () => {
     })
 
     it('evicts a tool-input-start whose tool already completed', () => {
-      const buffer = [
+      const buffer: StreamChunkPayload[] = [
         {
           topicId: 't',
           chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
@@ -308,7 +310,7 @@ describe('buildCompactReplay', () => {
     })
 
     it('keeps pinned openers when every entry is pinned and reports no eviction', () => {
-      const buffer = [
+      const buffer: StreamChunkPayload[] = [
         {
           topicId: 't',
           chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk

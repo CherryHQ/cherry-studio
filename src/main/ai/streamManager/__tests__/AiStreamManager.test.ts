@@ -2080,17 +2080,17 @@ describe('AiStreamManager', () => {
         type: 'tool-input-start',
         toolCallId: 'tc1',
         toolName: 'search'
-      } as UIMessageChunk)
+      })
       ringMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-input-start',
         toolCallId: 'tc2',
         toolName: 'search'
-      } as UIMessageChunk)
+      })
       ringMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-input-delta',
         toolCallId: 'tc1',
         inputTextDelta: '{"q":1}'
-      } as UIMessageChunk)
+      })
 
       const snap = ringMgr.inspect('a')!
       expect(snap.executions[0].bufferedChunkCount).toBe(2)
@@ -2119,17 +2119,17 @@ describe('AiStreamManager', () => {
         type: 'tool-input-start',
         toolCallId: 'tc1',
         toolName: 'search'
-      } as UIMessageChunk)
+      })
       ringMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-input-start',
         toolCallId: 'tc2',
         toolName: 'search'
-      } as UIMessageChunk)
+      })
       ringMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-input-start',
         toolCallId: 'tc3',
         toolName: 'search'
-      } as UIMessageChunk)
+      })
 
       const snap = ringMgr.inspect('a')!
       expect(snap.executions[0].bufferedChunkCount).toBe(2)
@@ -2152,19 +2152,19 @@ describe('AiStreamManager', () => {
         type: 'tool-input-start',
         toolCallId: 'tc1',
         toolName: 'search'
-      } as UIMessageChunk)
+      })
       ringMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-input-error',
         toolCallId: 'tc1',
         toolName: 'search',
         input: {},
         errorText: 'invalid input'
-      } as UIMessageChunk)
+      })
       expect(ringMgr.inspect('a')!.executions[0].openToolInputCount).toBe(0)
 
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hi' } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hi' })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' })
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
       const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
