@@ -245,8 +245,16 @@ const MiniAppTabsPool: React.FC = () => {
     // holds the key may clear it.
     setFocusedAppId((current) => (focused ? appid : current === appid ? null : current))
   }, [])
+  const focusedAppVisible =
+    focusedAppId !== null &&
+    shouldShow &&
+    (focusedAppId === currentMiniAppId || focusedAppId === paneSplitId) &&
+    apps.some((app) => app.appId === focusedAppId)
+  useEffect(() => {
+    if (!focusedAppVisible) setFocusedAppId((current) => (current === focusedAppId ? null : current))
+  }, [focusedAppId, focusedAppVisible])
   // Lets no-modifier commands opt out of guest keys via `when: '!webview.focused'`.
-  useCommandContextKey('webview.focused', focusedAppId !== null)
+  useCommandContextKey('webview.focused', focusedAppVisible)
 
   /** Toggle display: only the active pane(s) are visible, the rest are hidden */
   useEffect(() => {

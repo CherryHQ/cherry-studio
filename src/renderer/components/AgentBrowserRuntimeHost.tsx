@@ -10,6 +10,7 @@ import { useIpcOn } from '@renderer/ipc'
 import { agentBrowserRuntimeService as runtime } from '@renderer/services/AgentBrowserRuntimeService'
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import { getWebviewPartition } from '@shared/utils/webviewSecurity'
 
 import { WebviewHost } from './WebviewHost'
 import { WebviewSurface } from './WebviewSurface'
@@ -61,7 +62,7 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({ sessionId }: { sessi
         id={`agent-browser:${sessionId}`}
         src={sourceUrl}
         reloadKey={resource.reloadKey}
-        securityProfile={securityProfile}
+        partition={getWebviewPartition(securityProfile)}
         allowPopups
         className="inline-flex h-full w-full bg-white"
         testId="webview-browser-guest"

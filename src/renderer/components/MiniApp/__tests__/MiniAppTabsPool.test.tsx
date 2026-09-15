@@ -238,9 +238,49 @@ describe('MiniAppTabsPool', () => {
     expect(focusedKey()).toBe(false)
   })
 
+  it('releases hidden guest focus and does not restore it when the pane is shown again', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [
+      { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+      { id: 'chat-tab', url: '/app/chat' }
+    ]
+    mocks.activeTabId = 'alpha-tab'
+    const view = render(<MiniAppTabsPool />)
+    act(() => {
+      mocks.focusHandlers.get('alpha')!('alpha', true)
+    })
+    expect(focusedKey()).toBe(true)
+
+    mocks.activeTabId = 'chat-tab'
+    view.rerender(<MiniAppTabsPool />)
+    expect(focusedKey()).toBe(false)
+    mocks.activeTabId = 'alpha-tab'
+    view.rerender(<MiniAppTabsPool />)
+    expect(focusedKey()).toBe(false)
+  })
+
+  it('releases removed guest focus without relying on a native blur event', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [{ id: 'alpha-tab', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 'alpha-tab'
+    const view = render(<MiniAppTabsPool />)
+    act(() => {
+      mocks.focusHandlers.get('alpha')!('alpha', true)
+    })
+    expect(focusedKey()).toBe(true)
+
+    mocks.openedKeepAliveMiniApps = []
+    view.rerender(<MiniAppTabsPool />)
+    expect(focusedKey()).toBe(false)
+  })
+
   it('ignores a stale blur from a pane that no longer holds focus', () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
     mocks.currentMiniAppId = 'alpha'
+    mocks.splitOpen = true
+    mocks.splitMiniAppId = 'bravo'
     mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
     mocks.activeTabId = 't1'
 
