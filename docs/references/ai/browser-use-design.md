@@ -16,6 +16,10 @@ midscene, agent-browser, mcp-chrome, Chromium `chrome/browser/actor`, ChatGPT.ap
 Implementation detail (files, APIs, commit split, test plan) for P0/P1 and the existing Agent browser integration is in
 [`browser-use-implementation.md`](./browser-use-implementation.md).
 
+Current runtime baseline: Electron 44.2.0 / Chromium 152.0.7977.76, inherited from `main`.
+The Electron 41 observations below are historical test evidence; the upgrade alone does not
+implement the deferred WebMCP, freezing or WebContentsView work.
+
 ## Delivery status
 
 PR1 (PR A), [#20128](https://github.com/CherryHQ/cherry-studio/pull/20128), implements the
