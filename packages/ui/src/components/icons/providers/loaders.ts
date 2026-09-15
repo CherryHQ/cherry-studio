@@ -163,7 +163,7 @@ export const PROVIDER_ICON_LOADERS = {
   xiaoyi: () => import('./xiaoyi').then(({ XiaoyiIcon }) => XiaoyiIcon),
   xinghuo: () => import('./xinghuo').then(({ XinghuoIcon }) => XinghuoIcon),
   xirang: () => import('./xirang').then(({ XirangIcon }) => XirangIcon),
-  'y-api': () => import('./y-api').then(({ YApiIcon }) => YApiIcon),
+  'y-api': () => import('./y-api/y-api').then(({ YApiIcon }) => YApiIcon),
   you: () => import('./you').then(({ YouIcon }) => YouIcon),
   yuanbao: () => import('./yuanbao').then(({ YuanbaoIcon }) => YuanbaoIcon),
   'z-ai': () => import('./z-ai').then(({ ZAiIcon }) => ZAiIcon),
