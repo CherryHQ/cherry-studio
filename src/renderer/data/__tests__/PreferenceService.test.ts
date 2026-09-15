@@ -26,7 +26,7 @@ const subscribe = vi.fn(async () => {})
 const get = vi.fn(async (): Promise<unknown> => true)
 const getMultipleRaw = vi.fn(async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, `${key}-value`])))
 const set = vi.fn(async () => {})
-const setMultiple = vi.fn(async () => {})
+const setMultiple = vi.fn<(updates: Record<string, unknown>) => Promise<void>>().mockResolvedValue(undefined)
 
 beforeEach(() => {
   onChanged.mockClear()
@@ -139,7 +139,7 @@ describe('renderer PreferenceService keyed subscription batching', () => {
 })
 
 describe('renderer PreferenceService write consistency', () => {
-  it('drops a deep-equal cross-window echo but delivers a real external change', async () => {
+  it('drops a deep-equal cross-window update but delivers a changed value', async () => {
     get.mockResolvedValueOnce(['en-US'])
     const service = await createService()
     await service.get('app.spell_check.languages')
@@ -192,7 +192,7 @@ describe('renderer PreferenceService write consistency', () => {
     const second = service.set('app.developer_mode.enabled', true)
 
     expect(set).toHaveBeenCalledExactlyOnceWith('app.developer_mode.enabled', false)
-    expect(service.getCachedValue('app.developer_mode.enabled')).toBe(false)
+    expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
 
     resolveFirst()
     await Promise.all([first, second])
@@ -200,5 +200,536 @@ describe('renderer PreferenceService write consistency', () => {
     expect(set).toHaveBeenNthCalledWith(2, 'app.developer_mode.enabled', true)
     expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
     expect(service.getPendingOptimisticUpdates()).toEqual([])
+  })
+
+  it('keeps a queued optimistic write ahead of a delayed read', async () => {
+    const key = 'app.developer_mode.enabled'
+    let resolvePrior!: () => void
+    let resolveOptimistic!: () => void
+    let resolveRead!: (value: boolean) => void
+    set
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolvePrior = resolve
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveOptimistic = resolve
+          })
+      )
+    get.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRead = resolve
+        })
+    )
+    const service = await createService()
+
+    const prior = service.set(key, true, { optimistic: false })
+    const delayedRead = service.get(key)
+    const optimistic = service.set(key, false)
+
+    expect(service.getCachedValue(key)).toBe(false)
+    resolvePrior()
+    await vi.waitFor(() => expect(set).toHaveBeenCalledTimes(2))
+
+    resolveRead(true)
+    await delayedRead
+    expect(service.getCachedValue(key)).toBe(false)
+
+    resolveOptimistic()
+    await Promise.all([prior, optimistic])
+    expect(service.getCachedValue(key)).toBe(false)
+    expect(service.getPendingOptimisticUpdates()).toEqual([])
+  })
+
+  it('keeps an authoritative cross-window update visible during an optimistic write', async () => {
+    const key = 'feature.translate.page.source_language'
+    get.mockResolvedValueOnce('en-us').mockResolvedValueOnce('ja-jp')
+    const service = await createService()
+    await service.get(key)
+
+    let resolveWrite!: () => void
+    set.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveWrite = resolve
+        })
+    )
+    const listener = vi.fn()
+    service.subscribeChange(key)(listener)
+
+    const update = service.set(key, 'zh-cn')
+    listener.mockClear()
+    emitChanged?.(key, 'ja-jp')
+
+    expect(service.getCachedValue(key)).toBe('ja-jp')
+    expect(listener).toHaveBeenCalledOnce()
+
+    resolveWrite()
+    await update
+    expect(service.getCachedValue(key)).toBe('ja-jp')
+  })
+
+  it('retains a same-value external update as the rollback baseline', async () => {
+    const key = 'feature.translate.page.source_language'
+    get.mockResolvedValueOnce('en-us')
+    const service = await createService()
+    await service.get(key)
+
+    const failure = new Error('local write failed')
+    let rejectWrite!: (error: Error) => void
+    set.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectWrite = reject
+        })
+    )
+
+    const update = service.set(key, 'zh-cn')
+    emitChanged?.(key, 'zh-cn')
+    rejectWrite(failure)
+
+    await expect(update).rejects.toBe(failure)
+    expect(service.getCachedValue(key)).toBe('zh-cn')
+  })
+
+  it('rolls a queued failure back to the first confirmed write after a concurrent window update', async () => {
+    const key = 'feature.translate.page.source_language'
+    get.mockResolvedValueOnce('en-us').mockResolvedValueOnce('zh-cn')
+    const service = await createService()
+    await service.get(key)
+
+    let resolveFirst!: () => void
+    const failure = new Error('queued write failed')
+    set
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockRejectedValueOnce(failure)
+
+    const first = service.set(key, 'zh-cn')
+    const second = service.set(key, 'fr-fr')
+    const secondResult = expect(second).rejects.toBe(failure)
+    emitChanged?.(key, 'ja-jp')
+    resolveFirst()
+
+    await first
+    await secondResult
+    expect(service.getCachedValue(key)).toBe('zh-cn')
+  })
+
+  it('rolls a newer failed write back to an earlier confirmed value when reconciliation becomes stale', async () => {
+    const key = 'feature.translate.page.source_language'
+    get.mockResolvedValueOnce('en-us')
+    let resolveReconciliation!: (value: string) => void
+    get.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveReconciliation = resolve
+        })
+    )
+    const service = await createService()
+    await service.get(key)
+
+    let resolveFirst!: () => void
+    const failure = new Error('newer write failed')
+    set
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockRejectedValueOnce(failure)
+
+    const first = service.set(key, 'zh-cn')
+    emitChanged?.(key, 'ja-jp')
+    resolveFirst()
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2))
+
+    const second = service.set(key, 'fr-fr')
+    const secondResult = expect(second).rejects.toBe(failure)
+    resolveReconciliation('zh-cn')
+    await first
+    await secondResult
+
+    expect(service.getCachedValue(key)).toBe('zh-cn')
+  })
+
+  it('uses the latest persisted value after a delayed cross-window notification during reconciliation', async () => {
+    const key = 'feature.translate.page.source_language'
+    get.mockResolvedValueOnce('en-us')
+    let resolveReconciliation!: (value: string) => void
+    get
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveReconciliation = resolve
+          })
+      )
+      .mockResolvedValueOnce('zh-cn')
+    const service = await createService()
+    await service.get(key)
+
+    let resolveFirst!: () => void
+    const failure = new Error('newer write failed')
+    set
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockRejectedValueOnce(failure)
+
+    const first = service.set(key, 'zh-cn')
+    emitChanged?.(key, 'ja-jp')
+    resolveFirst()
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2))
+
+    const second = service.set(key, 'fr-fr')
+    const secondResult = expect(second).rejects.toBe(failure)
+    emitChanged?.(key, 'ja-jp')
+    resolveReconciliation('zh-cn')
+
+    await first
+    await secondResult
+    expect(service.getCachedValue(key)).toBe('zh-cn')
+  })
+
+  it('subscribes when a delayed get becomes stale before it resolves', async () => {
+    const key = 'app.developer_mode.enabled'
+    let resolveRead!: (value: boolean) => void
+    get.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRead = resolve
+        })
+    )
+    const service = await createService()
+
+    const pendingRead = service.get(key)
+    set.mockResolvedValueOnce(undefined)
+    const update = service.set(key, false)
+    resolveRead(true)
+
+    await expect(pendingRead).resolves.toBe(false)
+    await update
+    expect(subscribe).toHaveBeenCalledWith([key])
+  })
+
+  it('keeps a queued optimistic write ahead of a delayed multiple read', async () => {
+    const key = 'app.developer_mode.enabled'
+    let resolvePrior!: () => void
+    let resolveRead!: (value: Record<string, boolean>) => void
+    set.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolvePrior = resolve
+        })
+    )
+    getMultipleRaw.mockImplementationOnce(
+      () =>
+        new Promise<Record<string, string>>((resolve) => {
+          resolveRead = (value) => resolve(value as unknown as Record<string, string>)
+        })
+    )
+    const service = await createService()
+
+    const prior = service.set(key, true, { optimistic: false })
+    const delayedRead = service.getMultipleRaw([key])
+    const optimistic = service.set(key, false)
+
+    expect(service.getCachedValue(key)).toBe(false)
+
+    resolveRead({ [key]: true })
+    await expect(delayedRead).resolves.toEqual({ [key]: false })
+    expect(service.getCachedValue(key)).toBe(false)
+
+    resolvePrior()
+    await Promise.all([prior, optimistic])
+    expect(service.getCachedValue(key)).toBe(false)
+    expect(service.getPendingOptimisticUpdates()).toEqual([])
+  })
+
+  it('serializes a reverse language exchange started after the page remounts', async () => {
+    const sourceKey = 'feature.translate.page.source_language'
+    const targetKey = 'feature.translate.page.target_language'
+    const persisted = { [sourceKey]: 'en-us', [targetKey]: 'zh-cn' }
+    getMultipleRaw.mockResolvedValueOnce(persisted)
+    let resolveFirst!: () => void
+    setMultiple
+      .mockImplementationOnce(
+        (updates) =>
+          new Promise<void>((resolve) => {
+            resolveFirst = () => {
+              Object.assign(persisted, updates)
+              resolve()
+            }
+          })
+      )
+      .mockImplementationOnce(async (updates) => {
+        Object.assign(persisted, updates)
+      })
+    const service = await createService()
+    await service.getMultipleRaw([sourceKey, targetKey])
+
+    const firstExchange = service.setMultiple({ [sourceKey]: 'zh-cn', [targetKey]: 'en-us' })
+    const reverseExchange = service.setMultiple({ [sourceKey]: 'en-us', [targetKey]: 'zh-cn' })
+
+    expect(service.getCachedValue(sourceKey)).toBe('en-us')
+    expect(service.getCachedValue(targetKey)).toBe('zh-cn')
+
+    resolveFirst()
+    await Promise.all([firstExchange, reverseExchange])
+
+    expect(persisted).toEqual({ [sourceKey]: 'en-us', [targetKey]: 'zh-cn' })
+    expect(service.getCachedValue(sourceKey)).toBe('en-us')
+    expect(service.getCachedValue(targetKey)).toBe('zh-cn')
+  })
+
+  it('rolls a failed selector update back to the last persisted value', async () => {
+    const sourceKey = 'feature.translate.page.source_language'
+    const persisted = { [sourceKey]: 'en-us' }
+    getMultipleRaw.mockResolvedValueOnce(persisted)
+    let resolveFirst!: () => void
+    const secondError = new Error('second write failed')
+    setMultiple
+      .mockImplementationOnce(
+        (updates) =>
+          new Promise<void>((resolve) => {
+            resolveFirst = () => {
+              Object.assign(persisted, updates)
+              resolve()
+            }
+          })
+      )
+      .mockRejectedValueOnce(secondError)
+    const service = await createService()
+    await service.getMultipleRaw([sourceKey])
+
+    const firstUpdate = service.setMultiple({ [sourceKey]: 'zh-cn' })
+    const secondUpdate = service.setMultiple({ [sourceKey]: 'ja-jp' })
+    const secondResult = expect(secondUpdate).rejects.toBe(secondError)
+
+    resolveFirst()
+    await firstUpdate
+    await secondResult
+
+    expect(persisted[sourceKey]).toBe('zh-cn')
+    expect(service.getCachedValue(sourceKey)).toBe('zh-cn')
+  })
+
+  it('keeps the later optimistic batch visible when an earlier overlapping batch fails', async () => {
+    const sourceKey = 'feature.translate.page.source_language'
+    const targetKey = 'feature.translate.page.target_language'
+    const persisted = { [sourceKey]: 'en-us', [targetKey]: 'zh-cn' }
+    getMultipleRaw.mockResolvedValueOnce(persisted)
+    let rejectFirst!: () => void
+    const firstError = new Error('first write failed')
+    setMultiple
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectFirst = () => reject(firstError)
+          })
+      )
+      .mockImplementationOnce(async (updates) => {
+        Object.assign(persisted, updates)
+      })
+    const service = await createService()
+    await service.getMultipleRaw([sourceKey, targetKey])
+
+    const first = service.setMultiple({ [sourceKey]: 'zh-cn' })
+    const second = service.setMultiple({ [sourceKey]: 'ja-jp', [targetKey]: 'en-us' })
+    const firstResult = expect(first).rejects.toBe(firstError)
+
+    expect(service.getCachedValue(sourceKey)).toBe('ja-jp')
+    expect(service.getCachedValue(targetKey)).toBe('en-us')
+
+    rejectFirst()
+    await firstResult
+    await second
+
+    expect(persisted).toEqual({ [sourceKey]: 'ja-jp', [targetKey]: 'en-us' })
+    expect(service.getCachedValue(sourceKey)).toBe('ja-jp')
+    expect(service.getCachedValue(targetKey)).toBe('en-us')
+  })
+
+  it('rolls an overlapping optimistic batch back to the latest persisted values', async () => {
+    const sourceKey = 'feature.translate.page.source_language'
+    const targetKey = 'feature.translate.page.target_language'
+    const persisted = { [sourceKey]: 'en-us', [targetKey]: 'zh-cn' }
+    getMultipleRaw.mockResolvedValueOnce(persisted)
+    let resolveFirst!: () => void
+    const secondError = new Error('second write failed')
+    setMultiple
+      .mockImplementationOnce(
+        (updates) =>
+          new Promise<void>((resolve) => {
+            resolveFirst = () => {
+              Object.assign(persisted, updates)
+              resolve()
+            }
+          })
+      )
+      .mockRejectedValueOnce(secondError)
+    const service = await createService()
+    await service.getMultipleRaw([sourceKey, targetKey])
+
+    const first = service.setMultiple({ [sourceKey]: 'zh-cn' })
+    const second = service.setMultiple({ [sourceKey]: 'ja-jp', [targetKey]: 'en-us' })
+    const secondResult = expect(second).rejects.toBe(secondError)
+
+    expect(service.getCachedValue(sourceKey)).toBe('ja-jp')
+    expect(service.getCachedValue(targetKey)).toBe('en-us')
+
+    resolveFirst()
+    expect(service.getCachedValue(sourceKey)).toBe('ja-jp')
+    await first
+    await secondResult
+
+    expect(persisted).toEqual({ [sourceKey]: 'zh-cn', [targetKey]: 'zh-cn' })
+    expect(service.getCachedValue(sourceKey)).toBe('zh-cn')
+    expect(service.getCachedValue(targetKey)).toBe('zh-cn')
+  })
+
+  it('keeps an optimistic batch ahead of a prior pending pessimistic write', async () => {
+    const sourceKey = 'feature.translate.page.source_language'
+    const persisted = { [sourceKey]: 'en-us' }
+    getMultipleRaw.mockResolvedValueOnce(persisted)
+    let resolveFirst!: () => void
+    let rejectSecond!: () => void
+    const secondError = new Error('batch failed')
+    set.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveFirst = () => {
+            persisted[sourceKey] = 'zh-cn'
+            resolve()
+          }
+        })
+    )
+    setMultiple.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSecond = () => reject(secondError)
+        })
+    )
+    const service = await createService()
+    await service.getMultipleRaw([sourceKey])
+
+    const first = service.set(sourceKey, 'zh-cn', { optimistic: false })
+    const second = service.setMultiple({ [sourceKey]: 'ja-jp' })
+    const secondResult = expect(second).rejects.toBe(secondError)
+
+    expect(service.getCachedValue(sourceKey)).toBe('ja-jp')
+    resolveFirst()
+    await first
+    expect(service.getCachedValue(sourceKey)).toBe('ja-jp')
+    rejectSecond()
+    await secondResult
+
+    expect(persisted[sourceKey]).toBe('zh-cn')
+    expect(service.getCachedValue(sourceKey)).toBe('zh-cn')
+  })
+
+  it('keeps a later optimistic batch cached after a queued single-key write', async () => {
+    const sourceKey = 'feature.translate.page.source_language'
+    const targetKey = 'feature.translate.page.target_language'
+    const persisted = { [sourceKey]: 'en-us', [targetKey]: 'zh-cn' }
+    getMultipleRaw.mockResolvedValueOnce(persisted)
+    let resolveFirst!: () => void
+    set.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveFirst = () => {
+            persisted[sourceKey] = 'zh-cn'
+            resolve()
+          }
+        })
+    )
+    set.mockImplementationOnce(async () => {
+      persisted[sourceKey] = 'ja-jp'
+    })
+    setMultiple.mockImplementationOnce(async (updates) => {
+      Object.assign(persisted, updates)
+    })
+    const service = await createService()
+    await service.getMultipleRaw([sourceKey, targetKey])
+
+    const prior = service.set(sourceKey, 'zh-cn', { optimistic: false })
+    const queuedSingle = service.set(sourceKey, 'ja-jp')
+    const laterBatch = service.setMultiple({ [sourceKey]: 'fr-fr', [targetKey]: 'de-de' })
+
+    expect(service.getCachedValue(sourceKey)).toBe('fr-fr')
+    resolveFirst()
+    await Promise.all([prior, queuedSingle, laterBatch])
+
+    expect(persisted).toEqual({ [sourceKey]: 'fr-fr', [targetKey]: 'de-de' })
+    expect(service.getCachedValue(sourceKey)).toBe('fr-fr')
+  })
+
+  it('keeps the persisted baseline when a cached read precedes optimistic batch failure', async () => {
+    const sourceKey = 'feature.translate.page.source_language'
+    getMultipleRaw.mockResolvedValueOnce({ [sourceKey]: 'en-us' })
+    const service = await createService()
+    await service.getMultipleRaw([sourceKey])
+
+    const error = new Error('batch failed')
+    let rejectUpdate!: (error: Error) => void
+    setMultiple.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectUpdate = reject
+        })
+    )
+    const update = service.setMultiple({ [sourceKey]: 'zh-cn' })
+    const updateResult = expect(update).rejects.toBe(error)
+
+    await expect(service.getMultipleRaw([sourceKey])).resolves.toEqual({ [sourceKey]: 'zh-cn' })
+    rejectUpdate(error)
+    await updateResult
+
+    expect(service.getCachedValue(sourceKey)).toBe('en-us')
+  })
+
+  it('does not roll back to a stale full-cache read after an optimistic write fails', async () => {
+    const key = 'app.developer_mode.enabled'
+    get.mockResolvedValueOnce(true)
+    let resolveHydration!: (value: Record<string, boolean>) => void
+    getAll.mockImplementationOnce(
+      () =>
+        new Promise<Record<string, boolean>>((resolve) => {
+          resolveHydration = resolve
+        })
+    )
+    const service = await createService()
+    await service.get(key)
+
+    const error = new Error('write failed')
+    let rejectWrite!: (error: Error) => void
+    set.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectWrite = reject
+        })
+    )
+    const hydration = service.preloadAll()
+    const update = service.set(key, false)
+
+    resolveHydration({ [key]: false })
+    await hydration
+    rejectWrite(error)
+    await expect(update).rejects.toBe(error)
+
+    expect(service.getCachedValue(key)).toBe(true)
   })
 })

@@ -264,7 +264,7 @@ export class PreferenceService extends BaseService {
       IpcChannel.Preference_Set,
       async (event, key: UnifiedPreferenceKeyType, value: UnifiedPreferenceType[UnifiedPreferenceKeyType]) => {
         this.assertTrustedSender(event, IpcChannel.Preference_Set)
-        await this.set(key, value)
+        await this.set(key, value, BrowserWindow.fromWebContents(event.sender)?.id)
       }
     )
 
@@ -275,7 +275,7 @@ export class PreferenceService extends BaseService {
 
     this.ipcHandle(IpcChannel.Preference_SetMultiple, async (event, updates: Partial<UnifiedPreferenceType>) => {
       this.assertTrustedSender(event, IpcChannel.Preference_SetMultiple)
-      await this.setMultiple(updates)
+      await this.setMultiple(updates, BrowserWindow.fromWebContents(event.sender)?.id)
     })
 
     this.ipcHandle(IpcChannel.Preference_GetAll, (event) => {
@@ -361,7 +361,11 @@ export class PreferenceService extends BaseService {
    * @param value The new value to set
    * @returns Promise that resolves when update completes
    */
-  public async set<K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]): Promise<void> {
+  public async set<K extends UnifiedPreferenceKeyType>(
+    key: K,
+    value: UnifiedPreferenceType[K],
+    senderWindowId?: number
+  ): Promise<void> {
     const route = this.resolveKey(key)
 
     if (route.store === 'bootConfig') {
@@ -371,7 +375,7 @@ export class PreferenceService extends BaseService {
       }
       // TS cannot correlate UnifiedPreferenceType[K] with BootConfigSchema via prefix stripping
       bootConfigService.set(route.key, value as any)
-      await this.notifyChange(key, value, oldValue)
+      await this.notifyChange(key, value, oldValue, senderWindowId)
       return
     }
 
@@ -402,7 +406,7 @@ export class PreferenceService extends BaseService {
       ;(this.cache as Record<string, unknown>)[cacheKey] = value
 
       // Unified notification to both main and renderer processes
-      await this.notifyChange(key, value, oldValue)
+      await this.notifyChange(key, value, oldValue, senderWindowId)
     } catch (error) {
       logger.error(`Failed to set preference ${key}:`, error as Error)
       throw error
@@ -462,7 +466,7 @@ export class PreferenceService extends BaseService {
    * @param updates Object containing preference key-value pairs to update
    * @returns Promise that resolves when all updates complete
    */
-  public async setMultiple(updates: Partial<UnifiedPreferenceType>): Promise<void> {
+  public async setMultiple(updates: Partial<UnifiedPreferenceType>, senderWindowId?: number): Promise<void> {
     try {
       // Resolve every key first: this routes each key to its backing store and
       // rejects inaccessible keys before any write, so a mixed batch with an
@@ -537,7 +541,9 @@ export class PreferenceService extends BaseService {
 
       // Unified notification for all changes (BootConfig + Preference)
       if (allChanges.length > 0) {
-        await Promise.all(allChanges.map(([key, value, oldValue]) => this.notifyChange(key, value, oldValue)))
+        await Promise.all(
+          allChanges.map(([key, value, oldValue]) => this.notifyChange(key, value, oldValue, senderWindowId))
+        )
       }
 
       if (Object.keys(actualUpdates).length === 0 && bootConfigKeyCount === 0) {
@@ -768,7 +774,7 @@ export class PreferenceService extends BaseService {
    * @param value The new value
    * @param oldValue The previous value
    */
-  private async notifyChange(key: string, value: any, oldValue?: any): Promise<void> {
+  private async notifyChange(key: string, value: any, oldValue?: any, senderWindowId?: number): Promise<void> {
     // 1. Notify main process listeners
     this.notifier.notify(key, value, oldValue)
 
@@ -785,12 +791,8 @@ export class PreferenceService extends BaseService {
       return
     }
 
-    // Sender is intentionally NOT excluded from this broadcast. The sender's own
-    // echo acts as a final-state assertion that keeps its cache consistent under
-    // multi-window write races (without it, an interleaved write from another
-    // window can leave the sender's cache permanently out of sync with the DB).
-    // The receiver filters the no-op via deep equality in its onChanged listener.
     for (const windowId of affectedWindows) {
+      if (windowId === senderWindowId) continue
       try {
         const window = BrowserWindow.fromId(windowId)
         if (window && !window.isDestroyed()) {

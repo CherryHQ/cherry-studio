@@ -80,11 +80,13 @@ vi.mock('../db/schemas/preference', () => ({
 
 // Override electron BrowserWindow with a test-controllable fromWebContents
 const fromWebContents = vi.fn()
+const fromId = vi.fn()
 vi.mock('electron', async () => {
   const actual = await vi.importActual<any>('electron')
   const fakeBrowserWindow: any = vi.fn()
   fakeBrowserWindow.getAllWindows = vi.fn(() => [] as any[])
   fakeBrowserWindow.fromWebContents = fromWebContents
+  fakeBrowserWindow.fromId = fromId
   return {
     ...actual,
     BrowserWindow: fakeBrowserWindow
@@ -122,6 +124,31 @@ describe('Preference_Subscribe IPC handler', () => {
     await handler(trustedEvent, ['app.language', 'ui.theme_mode'])
 
     expect(service.getSubscriptions().get(42)).toEqual(new Set(['app.language', 'ui.theme_mode']))
+  })
+
+  it('broadcasts direct changes to all subscribers but excludes an IPC writer from its own echo', async () => {
+    const sender = { id: 42, isDestroyed: () => false, webContents: { send: vi.fn() } }
+    const other = { id: 43, isDestroyed: () => false, webContents: { send: vi.fn() } }
+    fromId.mockImplementation((id: number) => (id === sender.id ? sender : other))
+    service.subscribeForWindow(sender.id, ['app.language'])
+    service.subscribeForWindow(other.id, ['app.language'])
+
+    await service.notifyChange('app.language', 'en-us', 'ja-jp', sender.id)
+    expect(sender.webContents.send).not.toHaveBeenCalled()
+    expect(other.webContents.send).toHaveBeenCalledWith(
+      IpcChannel.Preference_Changed,
+      'app.language',
+      'en-us',
+      'default'
+    )
+
+    await service.notifyChange('app.language', 'ja-jp', 'en-us')
+    expect(sender.webContents.send).toHaveBeenCalledWith(
+      IpcChannel.Preference_Changed,
+      'app.language',
+      'ja-jp',
+      'default'
+    )
   })
 
   it('rejects untrusted senders on every preference channel before any work', async () => {

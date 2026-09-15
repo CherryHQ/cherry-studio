@@ -165,8 +165,12 @@ describe('TranslateHistory', () => {
   })
 
   const renderHistory = (
-    onItemClick: (item: TranslateHistoryItem, files?: TranslationFilesModule.TranslationFiles) => void = vi.fn()
-  ) => render(<TranslateHistory isOpen onHistoryItemClick={onItemClick} onClose={vi.fn()} />)
+    onItemClick: (item: TranslateHistoryItem, files?: TranslationFilesModule.TranslationFiles) => void = vi.fn(),
+    isRestorePending = false
+  ) =>
+    render(
+      <TranslateHistory isOpen isRestorePending={isRestorePending} onHistoryItemClick={onItemClick} onClose={vi.fn()} />
+    )
 
   beforeEach(() => {
     translateHistoryMock.useTranslateHistory.mockReset()
@@ -224,6 +228,18 @@ describe('TranslateHistory', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.history.reuse' }))
     expect(onHistoryItemClick).toHaveBeenCalledWith(expect.objectContaining({ id: '1', sourceText: 'hello' }))
+  })
+
+  it('keeps the detail open while another history restore is pending', () => {
+    const { rerender } = renderHistory(onHistoryItemClick)
+    fireEvent.click(screen.getByText('hello'))
+    rerender(<TranslateHistory isOpen isRestorePending onHistoryItemClick={onHistoryItemClick} onClose={vi.fn()} />)
+
+    const reuse = screen.getByRole('button', { name: 'translate.history.reuse' })
+    expect(reuse).toBeDisabled()
+    fireEvent.click(reuse)
+    expect(onHistoryItemClick).not.toHaveBeenCalled()
+    expect(screen.getByText('translate.history.back')).toBeInTheDocument()
   })
 
   describe('PDF entries', () => {
