@@ -18,6 +18,18 @@ import { WebviewSurface } from './WebviewSurface'
 
 const logger = loggerService.withContext('AgentBrowserRuntimeHost')
 
+function clearMessageSelection(): void {
+  const messages = document.getElementById('messages')
+  const selection = window.getSelection()
+  if (!messages || !selection || selection.isCollapsed) return
+
+  for (let index = 0; index < selection.rangeCount; index += 1) {
+    if (!selection.getRangeAt(index).intersectsNode(messages)) continue
+    selection.removeAllRanges()
+    return
+  }
+}
+
 /** Window composition mounts this outside page Activity; the runtime owns its instances. */
 export function AgentBrowserRuntimeHost() {
   const { tabs } = useTabs()
@@ -94,6 +106,7 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({ sessionId }: { sessi
               tabId={tabId}
               guest={guest}
               active={!!anchor && resource.ready && !resource.failed}
+              onPressed={clearMessageSelection}
             />
           )}
           <div ref={onOverlaysChange} className="contents" />

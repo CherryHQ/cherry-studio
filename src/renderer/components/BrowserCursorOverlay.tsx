@@ -14,12 +14,14 @@ export function BrowserCursorOverlay({
   sessionId,
   tabId,
   guest,
-  active
+  active,
+  onPressed
 }: {
   sessionId: string
   tabId: string
   guest: WebviewTag
   active: boolean
+  onPressed?: () => void
 }) {
   const position = useRef<HTMLDivElement>(null)
   const sprite = useRef<HTMLImageElement>(null)
@@ -53,6 +55,7 @@ export function BrowserCursorOverlay({
       acknowledge()
       return
     }
+    if (state.kind === 'pressed') onPressed?.()
     animation.current.move(
       state.x * state.scale,
       state.y * state.scale,
