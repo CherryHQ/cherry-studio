@@ -94,6 +94,15 @@ export interface BridgeCommandResult {
   text?: string
 }
 
+/**
+ * `opened` = the session is live under the requested cwd. `cwd-mismatch` = a
+ * persisted log exists but belongs to another workspace: fail-closed, history
+ * untouched, both cwds carried so the host can offer an explicit recovery.
+ */
+export type BridgeSessionOpenResult =
+  | { status: 'opened' }
+  | { status: 'cwd-mismatch'; persistedCwd: string; requestedCwd: string }
+
 /** Host→plugin request methods with their param and result shapes. */
 export interface BridgeHostRequestMap {
   'session/open': {
@@ -107,7 +116,7 @@ export interface BridgeHostRequestMap {
       policy: BridgePolicy
       tools: BridgeToolDescriptor[]
     }
-    result: Record<string, never>
+    result: BridgeSessionOpenResult
   }
   'session/prompt': {
     params: { sessionId: string; contentBlocks: BridgeTextBlock[] }
