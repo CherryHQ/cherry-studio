@@ -17,6 +17,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 import type { CherryInBalance } from '@shared/ipc/schemas/cherryin'
 import { hasApiKeys } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 const logger = loggerService.withContext('CherryInOauth')
 
@@ -53,12 +54,12 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   const refreshHasToken = useCallback(async () => {
     try {
-      setRemoteHasOAuthToken(await ipcApi.request('oauth.has_token', { providerId }))
+      setRemoteHasOAuthToken(await ipcApi.request('oauth.has_token', { providerId: SystemProviderIds.cherryin }))
     } catch (error) {
       logger.warn('Failed to check CherryIN OAuth token status:', error as Error)
       setRemoteHasOAuthToken(false)
     }
-  }, [providerId])
+  }, [])
 
   useEffect(() => {
     void refreshHasToken()
@@ -152,14 +153,14 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
     setIsCancellingLogin(true)
     try {
-      await ipcApi.request('oauth.cancel_sign_in', { providerId, requestId })
+      await ipcApi.request('oauth.cancel_sign_in', { providerId: SystemProviderIds.cherryin, requestId })
     } catch (error) {
       logger.error('Failed to cancel CherryIN OAuth login:', error as Error)
       toast.error(t('settings.provider.oauth.error'))
     } finally {
       setIsCancellingLogin(false)
     }
-  }, [providerId, t])
+  }, [t])
 
   const handleLogout = useCallback(async () => {
     const confirmed = await popup.confirm({

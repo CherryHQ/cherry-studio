@@ -91,6 +91,19 @@ describe('OAuth login with a real callback server and token store', () => {
     })
   })
 
+  it('rejects a second CherryIN login to a different server without interrupting the first', async () => {
+    const login = service.signIn('window-a', 'cherryin', 'owner', { apiHost: 'https://open.cherryin.ai' })
+    void login.catch(() => {})
+    await vi.waitFor(() => expect(shell.openExternal).toHaveBeenCalledOnce())
+
+    await expect(
+      service.signIn('window-a', 'cherryin', 'other', { apiHost: 'https://open.cherryin.dev' })
+    ).rejects.toThrow(/another server/)
+
+    await authorize()
+    await expect(login).resolves.toEqual({ accountId: null, apiKeys: 'private-key' })
+  })
+
   it('rejects callers without a managed window before starting or observing a login', async () => {
     await expect(service.signIn(null, 'cherryin', 'unknown')).rejects.toThrow(/managed window/)
     await expect(service.joinActiveSignIn(null, 'cherryin', 'unknown')).rejects.toThrow(/managed window/)

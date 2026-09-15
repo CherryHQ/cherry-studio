@@ -1,9 +1,5 @@
 import type { PkceOAuthClient } from './PkceOAuthClient'
 
-export interface OAuthSignInResult extends OAuthAccount {
-  apiKeys?: string
-}
-
 export interface OAuthAccount {
   /** Provider account id associated with the OAuth session, when available. */
   accountId: string | null
@@ -68,17 +64,14 @@ export interface LoopbackCallbackConfig {
 }
 
 export interface OAuthRuntimeProviderContext {
-  oauthServer?: string
-  apiHost?: string
   forceRefresh?: boolean
   signal?: AbortSignal
 }
 
-export interface OAuthTokenExchangeSideEffectResult {
-  apiKeys?: string
-}
-
-export interface OAuthRuntimeProviderDefinition {
+export interface OAuthRuntimeProviderDefinition<
+  TContext extends OAuthRuntimeProviderContext = OAuthRuntimeProviderContext,
+  TSideEffect extends object = object
+> {
   providerId: string
   clientId: string
   /**
@@ -89,8 +82,9 @@ export interface OAuthRuntimeProviderDefinition {
    */
   clearDisablesProvider?: boolean
   transport: LoopbackCallbackConfig
-  createClient(context?: OAuthRuntimeProviderContext): PkceOAuthClient | Promise<PkceOAuthClient>
+  createClient(context?: TContext): PkceOAuthClient | Promise<PkceOAuthClient>
   extractAccountId?(accessToken: string): string | null
+  matchesSignInContext?(current: TContext, requested: TContext): boolean
   /**
    * Post-exchange side effect, run *after* the tokens are persisted so a failure
    * here never discards a valid token (CherryIN fetches the user's API keys).
@@ -98,6 +92,6 @@ export interface OAuthRuntimeProviderDefinition {
    */
   afterPersistTokens?(
     tokenData: { access_token: string; refresh_token?: string; expires_in?: number },
-    context: OAuthRuntimeProviderContext
-  ): Promise<OAuthTokenExchangeSideEffectResult | void>
+    context: TContext
+  ): Promise<TSideEffect | void>
 }

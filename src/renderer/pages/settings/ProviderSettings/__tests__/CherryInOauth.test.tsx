@@ -151,7 +151,7 @@ describe('CherryInOauth', () => {
     expect(tagline.compareDocumentPosition(loginButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('shows login progress and cancels the pending OAuth request', async () => {
+  it('cancels a preset-derived CherryIN login through its registered OAuth provider', async () => {
     let rejectSignIn: (error: unknown) => void = () => {}
     oauthWithCherryInMock.mockImplementationOnce(
       () =>
@@ -160,14 +160,14 @@ describe('CherryInOauth', () => {
         })
     )
     useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN', apiKeys: [], isEnabled: true },
+      provider: { id: 'custom-cherryin', presetProviderId: 'cherryin', name: 'CherryIN', apiKeys: [], isEnabled: true },
       updateProvider: vi.fn(),
       addApiKey: vi.fn(),
       deleteApiKey: vi.fn()
     })
-    ipcApiRequestMock.mockImplementation((route: string) => {
+    ipcApiRequestMock.mockImplementation((route: string, input?: { providerId?: string }) => {
       if (route === 'oauth.has_token') return Promise.resolve(false)
-      if (route === 'oauth.cancel_sign_in') {
+      if (route === 'oauth.cancel_sign_in' && input?.providerId === 'cherryin') {
         rejectSignIn(new IpcError(oauthErrorCodes.SIGN_IN_CANCELLED))
         return Promise.resolve(undefined)
       }
@@ -175,7 +175,7 @@ describe('CherryInOauth', () => {
     })
     const user = userEvent.setup()
 
-    render(<CherryInOauth providerId="cherryin" />)
+    render(<CherryInOauth providerId="custom-cherryin" />)
 
     const loginButton = screen.getByRole('button', { name: /CherryIN|授权/i })
     await user.click(loginButton)
@@ -193,6 +193,7 @@ describe('CherryInOauth', () => {
     await user.click(cancelButton)
 
     await waitFor(() => expect(loginButton).toBeEnabled())
+    expect(ipcApiRequestMock).toHaveBeenCalledWith('oauth.has_token', { providerId: 'cherryin' })
     expect(ipcApiRequestMock).toHaveBeenCalledWith('oauth.cancel_sign_in', {
       providerId: 'cherryin',
       requestId

@@ -63,8 +63,7 @@ vi.mock('../providerDefinitions', () => ({
       clearDisablesProvider: true,
       transport: { hosts: ['127.0.0.1'], port: 0, path: '/cb', redirectUri: 'http://127.0.0.1/cb' },
       createClient: (context?: { signal?: AbortSignal }) => h.createClientMock(context),
-      extractAccountId: () => null,
-      afterPersistTokens: (tokenData: unknown, context: unknown) => h.afterPersistMock(tokenData, context)
+      extractAccountId: () => null
     },
     cherryin: {
       providerId: 'cherryin',
@@ -133,11 +132,11 @@ describe('OAuthRuntimeService', () => {
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'private-token', refresh_token: 'private-refresh' })
     h.afterPersistMock.mockImplementation(async (_tokens, context) => {
       expect(context.apiHost).toBe('https://open.cherryin.dev')
-      expect(h.providerStore.get('codex')?.authConfig).toMatchObject({ accessToken: 'private-token' })
+      expect(h.providerStore.get('cherryin')?.authConfig).toMatchObject({ accessToken: 'private-token' })
       return { apiKeys: 'provisioned-key' }
     })
     await expect(
-      service.signIn('win-1', 'codex', 'http-login', { apiHost: 'https://open.cherryin.dev' })
+      service.signIn('win-1', 'cherryin', 'http-login', { apiHost: 'https://open.cherryin.dev' })
     ).resolves.toEqual({
       accountId: null,
       apiKeys: 'provisioned-key'
