@@ -319,4 +319,22 @@ describe('useResourceLibrary', () => {
     expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: false }])
     expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: false, search: undefined, groupId: undefined }])
   })
+
+  it('keeps agent group chips and counts on an unfiltered base read while searching', () => {
+    const groupId = '11111111-1111-4111-8111-111111111111'
+    mocks.useAgentList.mockImplementation((query?: ResourceListQuery) => {
+      if (query?.search || query?.groupId) return listResult([])
+      return listResult([
+        { ...agentListItem, id: 'agent-1', groupId },
+        { ...agentListItem, id: 'agent-2', groupId: null }
+      ])
+    })
+
+    const { result } = renderResourceLibrary({ resourceType: 'agent', search: 'needle' })
+
+    expect(mocks.useAgentList.mock.calls[0]).toEqual([{ enabled: true }])
+    expect(mocks.useAgentList.mock.calls[1]).toEqual([{ enabled: true, search: 'needle', groupId: undefined }])
+    expect(result.current.allResources.map((resource) => resource.id)).toEqual(['agent-1', 'agent-2'])
+    expect(result.current.resources).toEqual([])
+  })
 })
