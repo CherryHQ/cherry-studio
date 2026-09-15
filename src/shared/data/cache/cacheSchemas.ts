@@ -9,7 +9,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 
-import type { TopicStatusSnapshotEntry } from '../../ai/transport'
+import type { TopicCompletionSeenEvent, TopicStatusSnapshotEntry, TopicStatusSnapshotIndex } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -299,6 +299,10 @@ export type SharedCacheSchema = {
   'agent.session.turn_origin.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionTurnOrigin
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
+  // Main-owned persistent-conversation statuses used by Sidebar task indicators.
+  'topic.stream.status_index': TopicStatusSnapshotIndex
+  // Renderer acknowledgement event; Main removes the matching completed index entry.
+  'topic.stream.completion_seen': TopicCompletionSeenEvent | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
   'feature.deepseek_harness.status': ManagedToolStatusState
   'feature.hermes_dashboard.status': ManagedToolStatusState
@@ -359,6 +363,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.turn_origin.${sessionId}.${messageId}': null,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
+  'topic.stream.status_index': {},
+  'topic.stream.completion_seen': null,
   'feature.openclaw.gateway_status': 'stopped',
   'feature.deepseek_harness.status': { status: 'stopped' },
   'feature.hermes_dashboard.status': { status: 'stopped' },

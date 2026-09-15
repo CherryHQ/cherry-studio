@@ -50,7 +50,7 @@ const MiniAppsPage: FC = () => {
     removeCustomMiniApp
   } = useMiniApps()
   const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
-  const { openTab } = useTabs()
+  const { closeWorkspace, navigationLayout, openTab } = useTabs()
   const openTabRef = useRef(openTab)
   openTabRef.current = openTab
   const miniAppsRef = useRef(miniApps)
@@ -58,6 +58,14 @@ const MiniAppsPage: FC = () => {
   const pinnedIds = useMemo(() => new Set(pinned.map((app) => app.appId)), [pinned])
   const openedIds = useMemo(() => new Set(openedKeepAliveMiniApps.map((app) => app.appId)), [openedKeepAliveMiniApps])
   const sidebarFavoriteIds = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
+  const handleToggleSidebarFavorite = useCallback(
+    (appId: string) => {
+      const wasFavorite = sidebarFavoriteIds.has(appId)
+      toggleMiniApp(appId)
+      if (wasFavorite && navigationLayout === 'sidebar') closeWorkspace(`mini-app:${appId}`)
+    },
+    [closeWorkspace, navigationLayout, sidebarFavoriteIds, toggleMiniApp]
+  )
   const openMiniApp = useCallback((appId: string, displayName: string, icon?: string) => {
     openTabRef.current(`/app/mini-app/${appId}`, {
       title: displayName,
@@ -204,7 +212,7 @@ const MiniAppsPage: FC = () => {
                         onUpdateStatus={updateAppStatus}
                         onHide={hideMiniApp}
                         onRemoveCustom={removeCustomMiniApp}
-                        onToggleSidebarFavorite={toggleMiniApp}
+                        onToggleSidebarFavorite={handleToggleSidebarFavorite}
                         isPinned={pinnedIds.has(app.appId)}
                         isSidebarFavorite={sidebarFavoriteIds.has(app.appId)}
                         isOpened={openedIds.has(app.appId)}

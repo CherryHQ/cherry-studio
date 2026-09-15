@@ -7,6 +7,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import MiniApp from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useTabs } from '@renderer/hooks/tab'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
@@ -45,6 +46,7 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
     removeCustomMiniApp
   } = useMiniApps()
   const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
+  const { closeWorkspace, navigationLayout } = useTabs()
   const { openMiniAppInSplit } = useMiniAppPopup()
   const openMiniAppInSplitRef = useRef(openMiniAppInSplit)
   openMiniAppInSplitRef.current = openMiniAppInSplit
@@ -56,6 +58,14 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
   }, [])
   const openedIds = useMemo(() => new Set(openedKeepAliveMiniApps.map((app) => app.appId)), [openedKeepAliveMiniApps])
   const sidebarFavoriteIds = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
+  const handleToggleSidebarFavorite = useCallback(
+    (appId: string) => {
+      const wasFavorite = sidebarFavoriteIds.has(appId)
+      toggleMiniApp(appId)
+      if (wasFavorite && navigationLayout === 'sidebar') closeWorkspace(`mini-app:${appId}`)
+    },
+    [closeWorkspace, navigationLayout, sidebarFavoriteIds, toggleMiniApp]
+  )
 
   const renderMiniApp = (app: MiniAppType) => {
     const isOccupied = app.appId === occupiedAppId
@@ -75,7 +85,7 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
           onUpdateStatus={updateAppStatus}
           onHide={hideMiniApp}
           onRemoveCustom={removeCustomMiniApp}
-          onToggleSidebarFavorite={toggleMiniApp}
+          onToggleSidebarFavorite={handleToggleSidebarFavorite}
           isPinned={app.status === 'pinned'}
           isSidebarFavorite={sidebarFavoriteIds.has(app.appId)}
           isOpened={openedIds.has(app.appId)}
