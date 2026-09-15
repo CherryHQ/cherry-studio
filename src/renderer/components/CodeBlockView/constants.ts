@@ -5,7 +5,7 @@ import type { BasicPreviewHandles, BasicPreviewProps } from '@renderer/component
 /**
  * 特殊视图语言列表
  */
-export const SPECIAL_VIEWS = ['mermaid', 'plantuml', 'svg', 'dot', 'graphviz', 'echarts']
+export const SPECIAL_VIEWS = ['mermaid', 'plantuml', 'svg', 'dot', 'graphviz', 'echarts', 'latex']
 
 type SpecialViewProps = BasicPreviewProps & { ref?: RefObject<BasicPreviewHandles | null> }
 
@@ -13,6 +13,7 @@ type SpecialViewProps = BasicPreviewProps & { ref?: RefObject<BasicPreviewHandle
  * 特殊视图组件映射表
  */
 export const SPECIAL_VIEW_COMPONENTS = {
+  latex: lazy<ComponentType<SpecialViewProps>>(() => import('@renderer/components/Preview/LatexPreview')),
   mermaid: lazy<ComponentType<SpecialViewProps>>(() =>
     import('@renderer/components/Preview/MermaidPreview').then((module) => ({ default: module.default }))
   ),

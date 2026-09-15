@@ -247,8 +247,8 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   }, [codeExecutionTimeoutMinutes])
 
   const showPreviewTools = useMemo(() => {
-    return hasSpecialView && (viewMode === 'special' || viewMode === 'split')
-  }, [hasSpecialView, viewMode])
+    return hasSpecialView && language !== 'latex' && (viewMode === 'special' || viewMode === 'split')
+  }, [hasSpecialView, language, viewMode])
 
   const handleToggleExpanded = useCallback(() => setExpandOverride((current) => !current), [])
   const handleToggleWrapped = useCallback(() => setWrapOverride((current) => !current), [])
