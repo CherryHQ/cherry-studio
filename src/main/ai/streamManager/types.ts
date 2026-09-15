@@ -174,7 +174,7 @@ export interface ActiveStream {
   /** Snapshotted at admission so temporary/internal streams never emit a conversation completion. */
   isPersistentConversation: boolean
   /** Set after its backing conversation is deleted so later stream events cannot recreate task status. */
-  taskStatusBroadcastSuppressed?: boolean
+  isTaskStatusBroadcastSuppressed?: boolean
 
   /** Grace-period expiry (ms epoch); written by `lifecycle.cleanup` if it defers eviction. */
   expiresAt?: number

@@ -22,7 +22,7 @@ export function createChatStreamLifecycle(
   onConversationCompleted: (event: ConversationCompletedEvent) => void
 ): StreamLifecycle {
   const broadcast = (stream: ActiveStream, status: TopicStreamStatus) => {
-    if (stream.taskStatusBroadcastSuppressed) return undefined
+    if (stream.isTaskStatusBroadcastSuppressed) return undefined
 
     const completedAt = status === 'done' ? Date.now() : undefined
     try {

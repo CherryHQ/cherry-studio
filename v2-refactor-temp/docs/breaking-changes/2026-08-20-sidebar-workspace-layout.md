@@ -2,7 +2,7 @@
 title: Three navigation layouts are available without changing the default
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#19104"
 date: 2026-08-20
 ---
 

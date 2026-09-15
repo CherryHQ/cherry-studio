@@ -33,6 +33,7 @@ const LabSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.lab.navigation_layout.title')}</SettingRowTitle>
           <SegmentedControl<NavigationLayout>
+            aria-label={t('settings.lab.navigation_layout.title')}
             value={navigationLayout}
             onValueChange={(layout) => void setNavigationLayout(layout)}
             options={navigationLayoutOptions}

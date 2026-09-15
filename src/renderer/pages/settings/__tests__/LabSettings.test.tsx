@@ -5,6 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import LabSettings from '../LabSettings'
 
+vi.mock('@cherrystudio/ui', async () => {
+  const { SegmentedControl } = await import('@cherrystudio/ui/components/primitives/segmented-control')
+  return { SegmentedControl }
+})
+
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingDivider: () => <hr />,
   SettingGroup: ({ children }: { children: ReactNode }) => <section>{children}</section>,
@@ -31,12 +36,15 @@ describe('LabSettings', () => {
     MockUsePreferenceUtils.setPreferenceValue('ui.navigation.layout', 'both')
     render(<LabSettings />)
 
-    expect(screen.getByTestId('segmented-control')).toHaveAttribute('data-value', 'both')
-    expect(screen.getByRole('button', { name: 'settings.lab.navigation_layout.both' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.lab.navigation_layout.sidebar' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.lab.navigation_layout.tabs' })).toBeInTheDocument()
+    expect(screen.getByRole('radiogroup', { name: 'settings.lab.navigation_layout.title' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'settings.lab.navigation_layout.both' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
+    expect(screen.getByRole('radio', { name: 'settings.lab.navigation_layout.sidebar' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'settings.lab.navigation_layout.tabs' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.lab.navigation_layout.sidebar' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'settings.lab.navigation_layout.sidebar' }))
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('ui.navigation.layout')).toBe('sidebar')

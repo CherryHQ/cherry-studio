@@ -71,7 +71,7 @@ function SettingsLayout() {
 
 本项目提供布局感知的 Shell 导航，以及 workspace 内部导航：
 
-主窗口支持纯 Sidebar、纯多标签，以及兼容旧行为的 Sidebar + 多标签三种布局。组合布局继续使用改动前的普通标签导航行为。从纯 Sidebar 切换到任一包含顶部标签栏的布局时，顶部只展示当前 workspace；其他 Sidebar workspace 继续保留在统一 keep-alive 池中，被选中或切回纯 Sidebar 时恢复。
+主窗口支持纯 Sidebar、纯多标签，以及兼容旧行为的 Sidebar + 多标签三种布局。组合布局继续使用改动前的普通标签导航行为。从纯 Sidebar 切换到纯多标签时，顶部只展示当前 workspace，其他 Sidebar workspace 继续保留在统一 keep-alive 池中。切换到组合布局时，只保留当前 workspace（专注页活跃时还会保留其来源 workspace），并将保留页面显示为普通标签；其他 Sidebar workspace 会从 keep-alive 池释放。
 
 ### 1. Shell 导航 - `openRoute`
 
@@ -93,7 +93,8 @@ function MyComponent() {
   // 兼容组合布局仍将它们作为普通标签处理
   openRoute('/settings/general')
 
-  // Webview 仍使用普通 Tab
+  // 精简布局中的 Webview 复用专注页槽位
+  // 组合布局仍将它们作为普通 Tab
   openRoute('https://example.com', {
     type: 'webview',
     title: 'Example Site'

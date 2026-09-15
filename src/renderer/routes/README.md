@@ -93,7 +93,8 @@ function MyComponent() {
   // The legacy combined layout keeps them as ordinary tabs.
   openRoute('/settings/general')
 
-  // Webviews remain ordinary tabs.
+  // Streamlined layouts reuse the focused slot for webviews.
+  // The combined layout keeps them as ordinary tabs.
   openRoute('https://example.com', {
     type: 'webview',
     title: 'Example Site'

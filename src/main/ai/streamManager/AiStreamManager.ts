@@ -651,7 +651,7 @@ export class AiStreamManager extends BaseService {
       const stream = this.activeStreams.get(topicId)
       if (stream) {
         stream.isPersistentConversation = false
-        stream.taskStatusBroadcastSuppressed = true
+        stream.isTaskStatusBroadcastSuppressed = true
       }
     }
 
