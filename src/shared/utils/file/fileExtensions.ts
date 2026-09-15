@@ -10,6 +10,7 @@ export const knowledgeSupportedFileExts = [
   '.markdown',
   '.md',
   '.mdx',
+  '.json',
   '.pdf',
   '.html',
   '.htm',
@@ -282,7 +283,6 @@ export const knowledgePlainTextFileExts = [
   '.gql',
   '.proto',
   // Build / infra
-  '.dockerfile',
   '.tf',
   '.hcl'
 ] as const

@@ -76,9 +76,20 @@ describe('knowledge file-extension source-of-truth invariants', () => {
   })
 
   it('keeps dotfile-style names off the curated set so the renderer/main classifiers cannot disagree', () => {
-    // `.eslintrc`/`.env`/`.bashrc` split-vs-extname differently between renderer and main; admitting
-    // them by name is what lost whole batches to rollback, so none may be curated members.
-    for (const name of ['.env', '.eslintrc', '.bashrc', '.npmrc', '.gitattributes', '.editorconfig', '.prettierrc']) {
+    // `.eslintrc`/`.env`/`.bashrc`/`.dockerfile` split-vs-extname differently between renderer and
+    // main (a bare-dotfile basename has no `path.extname`); admitting them by name is what lost
+    // whole batches to rollback, so none may be curated members.
+    const names = [
+      '.env',
+      '.eslintrc',
+      '.bashrc',
+      '.npmrc',
+      '.gitattributes',
+      '.editorconfig',
+      '.prettierrc',
+      '.dockerfile'
+    ]
+    for (const name of names) {
       expect(knowledgeIndexableFileExtSet.has(name)).toBe(false)
     }
   })
