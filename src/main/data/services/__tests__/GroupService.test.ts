@@ -1,6 +1,6 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { assistantTable } from '@data/db/schemas/assistant'
 import { groupTable } from '@data/db/schemas/group'
@@ -8,10 +8,17 @@ import { GroupService, groupService } from '@data/services/GroupService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
 const GROUP_ID_MISSING = '11111111-1111-4111-8111-111111111111'
 
 describe('GroupService', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    notifyDataApiDataChangeMock.mockClear()
+  })
 
   it('should export a module-level singleton of GroupService', () => {
     expect(groupService).toBeInstanceOf(GroupService)
@@ -297,6 +304,17 @@ describe('GroupService', () => {
         err = e
       }
       expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+
+    it('broadcasts the removal to every window without an agent unbind entry', () => {
+      const group = groupService.create({ entityType: 'topic', name: 'Broadcast' })
+
+      groupService.delete(group.id)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/groups', kind: 'membership', entityIds: [group.id] },
+        { endpoint: '/groups/:id', routeParams: { id: group.id }, entityIds: [group.id] }
+      ])
     })
   })
 })
