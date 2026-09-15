@@ -4,14 +4,22 @@ import { useTranslation } from 'react-i18next'
 import { EmptyState, Skeleton } from '@cherrystudio/ui'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
-import type { AiUsageRecordGroupIdentity, AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecords'
+import type {
+  AiUsageRecordGroupIdentity,
+  AiUsageRecordStatsBucket,
+  AiUsageRecordStatsMetrics,
+  AiUsageRecordTimelineBucket
+} from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
 
 import {
   type BoundedTimeRange,
   buildChartSeries,
+  buildTotalChartSeries,
   CHART_TYPE_LABEL_KEYS,
+  getMetricValue,
   getTimelinePoints,
+  METRIC_LABEL_KEYS,
   toPeriodKey,
   type UsageChartType,
   type UsageMetricKey,
@@ -25,6 +33,10 @@ interface UsageDistributionChartProps {
   range: BoundedTimeRange
   timelineBuckets: AiUsageRecordTimelineBucket[]
   exploreTimelineRows: AiUsageRecordTimelineBucket[]
+  exploreBuckets: AiUsageRecordStatsBucket[]
+  exploreOther: AiUsageRecordStatsMetrics
+  exploreTotals: AiUsageRecordStatsMetrics
+  exploreStatsLoading: boolean
   rollup: UsageRollupKey
   chartMetric: UsageMetricKey
   chartType: UsageChartType
@@ -52,6 +64,10 @@ export function UsageDistributionChart({
   range,
   timelineBuckets,
   exploreTimelineRows,
+  exploreBuckets,
+  exploreOther,
+  exploreTotals,
+  exploreStatsLoading,
   rollup,
   chartMetric,
   chartType,
@@ -65,6 +81,7 @@ export function UsageDistributionChart({
   const { t, i18n } = useTranslation()
   const firstDayOfWeek = useMemo(() => getLocaleFirstDayOfWeek(i18n.resolvedLanguage), [i18n.resolvedLanguage])
   const periodKeys = useMemo(() => {
+    if (rollup === 'total') return ['total']
     const keys: string[] = []
 
     for (const point of getTimelinePoints(timelineBuckets, range, () => 0)) {
@@ -76,14 +93,26 @@ export function UsageDistributionChart({
   }, [firstDayOfWeek, range, rollup, timelineBuckets])
   const chartSeries = useMemo(
     () =>
-      buildChartSeries(exploreTimelineRows, periodKeys, {
-        rollup,
-        metric: chartMetric,
-        currency: costCurrency,
-        topCount,
-        firstDayOfWeek
-      }),
-    [chartMetric, costCurrency, exploreTimelineRows, firstDayOfWeek, periodKeys, rollup, topCount]
+      rollup === 'total'
+        ? buildTotalChartSeries({ buckets: exploreBuckets, other: exploreOther }, chartMetric)
+        : buildChartSeries(exploreTimelineRows, periodKeys, {
+            rollup,
+            metric: chartMetric,
+            currency: costCurrency,
+            topCount,
+            firstDayOfWeek
+          }),
+    [
+      chartMetric,
+      costCurrency,
+      exploreBuckets,
+      exploreOther,
+      exploreTimelineRows,
+      firstDayOfWeek,
+      periodKeys,
+      rollup,
+      topCount
+    ]
   )
   const formatChartValue = useCallback(
     (value: number) => (chartMetric === 'cost' ? formatCost(value, costCurrency) : formatCompactNumber(value)),
@@ -109,7 +138,9 @@ export function UsageDistributionChart({
   }
   const isEmpty = periodKeys.length === 0 || chartSeries.every((series) => series.total <= 0)
 
-  if (!exploreTimelineLoading && isEmpty) {
+  const isLoading = rollup === 'total' ? exploreStatsLoading : exploreTimelineLoading
+
+  if (rollup !== 'total' && !isLoading && isEmpty) {
     return (
       <EmptyState
         compact
@@ -123,6 +154,65 @@ export function UsageDistributionChart({
   const names = makeUniqueNames(
     chartSeries.map((item) => (item.identity ? getBucketLabel(item.identity) : t('common.other')))
   )
+
+  if (rollup === 'total') {
+    return (
+      <div className="min-w-0 p-3">
+        {isLoading ? (
+          <Skeleton className="h-80 rounded-md" />
+        ) : (
+          <>
+            <div className="mb-3 text-center">
+              <p className="text-muted-foreground text-sm">
+                {t('settings.usage.rollup.total')} · {t(METRIC_LABEL_KEYS[chartMetric])}
+              </p>
+              <output
+                aria-label={`${t('settings.usage.rollup.total')} · ${t(METRIC_LABEL_KEYS[chartMetric])}`}
+                className="block font-medium text-2xl tabular-nums">
+                {formatChartValue(getMetricValue(exploreTotals, chartMetric))}
+              </output>
+              <p className="text-foreground-tertiary text-xs">
+                {dateFormatter.format(range.from)} – {dateFormatter.format(range.to)}
+              </p>
+            </div>
+            <Suspense fallback={<Skeleton className="h-80 rounded-md" />}>
+              {isEmpty ? (
+                <EmptyState
+                  compact
+                  preset="no-result"
+                  title={t('settings.usage.explore.noBreakdown')}
+                  description={t('settings.usage.explore.noBreakdownDescription')}
+                />
+              ) : chartType === 'pie' ? (
+                <Chart
+                  type="pie"
+                  ariaLabel={t(CHART_TYPE_LABEL_KEYS.pie)}
+                  className="h-80"
+                  data={chartSeries.map((item, index) => ({ name: names[index], value: item.total }))}
+                  option={{ tooltip, legend: {} }}
+                />
+              ) : (
+                <Chart
+                  type="bar"
+                  ariaLabel={t(CHART_TYPE_LABEL_KEYS.bar)}
+                  className="h-80"
+                  categories={names}
+                  series={[{ name: t(METRIC_LABEL_KEYS[chartMetric]), values: chartSeries.map((item) => item.total) }]}
+                  option={{
+                    tooltip,
+                    yAxis: {
+                      minInterval: chartMetric === 'cost' ? undefined : 1,
+                      axisLabel: { formatter: (value: number) => formatChartValue(value) }
+                    }
+                  }}
+                />
+              )}
+            </Suspense>
+          </>
+        )}
+      </div>
+    )
+  }
 
   if (chartType === 'pie') {
     const frames = periodKeys.map((periodKey, periodIndex) => ({
