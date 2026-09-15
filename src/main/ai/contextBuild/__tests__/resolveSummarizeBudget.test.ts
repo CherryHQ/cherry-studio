@@ -1,5 +1,6 @@
-import { COMPACTION_MIN_INPUT_BUDGET } from '@main/ai/constants'
 import { describe, expect, it } from 'vitest'
+
+import { COMPACTION_MIN_INPUT_BUDGET } from '@main/ai/constants'
 
 import { resolveSummarizeBudget } from '../resolveSummarizeBudget'
 
