@@ -8,15 +8,8 @@ import { SettingGroup, SettingRow, SettingsContentColumn } from '@renderer/compo
 
 import { BrowserClearDialog } from './BrowserSettings/BrowserClearDialog'
 import { BrowserHistoryDialog } from './BrowserSettings/BrowserHistoryDialog'
-import { BrowserToolPermissionsDialog } from './BrowserSettings/BrowserToolPermissionsDialog'
 
 const sections = [
-  {
-    kind: 'permissions',
-    title: 'settings.browser.permissions',
-    help: 'settings.browser.permissionsHelp',
-    action: 'settings.browser.manage'
-  },
   {
     kind: 'import',
     title: 'settings.browser.import',
@@ -38,7 +31,7 @@ export function BrowserSettings() {
   const [enabled, setEnabled] = usePreference('app.browser.agent_control.enabled')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
-  const [dialog, setDialog] = useState<'import' | 'history' | 'clear' | 'permissions' | null>(null)
+  const [dialog, setDialog] = useState<'import' | 'history' | 'clear' | null>(null)
 
   return (
     <SettingsContentColumn>
@@ -119,9 +112,7 @@ export function BrowserSettings() {
               </DialogTrigger>
             </SettingRow>
             {dialog === kind &&
-              (kind === 'permissions' ? (
-                <BrowserToolPermissionsDialog />
-              ) : kind === 'import' ? (
+              (kind === 'import' ? (
                 <BrowserImportDialog onDone={() => setDialog(null)} />
               ) : kind === 'history' ? (
                 <BrowserHistoryDialog onOpenPage={() => setDialog(null)} />

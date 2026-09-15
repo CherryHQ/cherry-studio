@@ -64,8 +64,8 @@ See [Browser MCP server](./mcp/README.md) for tools, outputs and ownership limit
 controllers borrow those guests and share actions with the standalone controller. Browser settings
 controls Agent access; bindings and manual browsing survive control-off. The Agent built-in tool catalog
 exposes a browser group opt-out. Old browser MCP bindings are excluded from the Agent server set;
-Browser settings owns per-tool ask/allow/deny permissions. Runtime approval gates enforce these
-permissions, and dispatch rechecks denial before executing queued actions. Ordinary pages use
+The persistent Browser control switch grants all known browser tools without per-action approval.
+Runtime gates and queued dispatch recheck the switch, so turning it off revokes Agent access. Ordinary pages use
 `persist:agent-browser` and permit public/LAN/loopback HTTP(S); preview/artifact profiles stay separate.
 The session service owns ordinary guests' popup handlers across all host windows. HTTP(S) popup
 links navigate an Agent-bound guest in place or open a standalone browser tab. Agent attachment and

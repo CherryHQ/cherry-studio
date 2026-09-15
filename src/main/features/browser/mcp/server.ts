@@ -2,7 +2,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { Mutex } from 'async-mutex'
 
-import { application } from '@application'
 import { loggerService } from '@logger'
 import { BROWSER_TOOL_NAMES } from '@shared/ai/browserTools'
 
@@ -68,13 +67,6 @@ export class BrowserServer {
           const signal = this.controller.signal ? AbortSignal.any([extra.signal, this.controller.signal]) : extra.signal
           const invoke = async () => {
             signal.throwIfAborted()
-            if (
-              controller &&
-              application.get('PreferenceService').get('app.browser.tool_permissions')[
-                name as (typeof BROWSER_TOOL_NAMES)[number]
-              ] === 'deny'
-            )
-              throw new BrowserSessionError('not_allowed')
             this.controller.assertAvailable?.()
             try {
               return await toolHandlers[name](this.controller, args, signal)

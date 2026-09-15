@@ -1644,14 +1644,6 @@ describe('deriveConnectionConfig', () => {
     )
     const enabled = await deriveSignature()
     expect(enabled.rebuildSignature).not.toBe(base.rebuildSignature)
-    mocks.preferenceGet.mockImplementation((key) =>
-      key === 'app.browser.agent_control.enabled'
-        ? true
-        : key === 'app.browser.tool_permissions'
-          ? { click: 'allow' }
-          : originalGet?.(key)
-    )
-    expect((await deriveSignature()).rebuildSignature).not.toBe(enabled.rebuildSignature)
   })
 
   it('changes the rebuild signature for each rebuild-group input', async () => {

@@ -27,9 +27,10 @@ The UI owns these guests. Control uses borrowed leases with explicit inspection 
 releasing control preserves the guest and concurrent annotation leases. Native dialogs are not
 auto-dismissed, and hidden-page focus emulation is not applied. Fresh observation clears browser
 refs without invalidating a running annotation capture. The setting defaults off and runtime
-connection signatures reflect changes. Browser settings controls per-tool ask/allow/deny permissions;
-unspecified tools ask for approval. Full Access skips approval, while disabled tools remain blocked. Disabling the browser group in an
-Agent blocks its controller without closing the page.
+connection signatures reflect changes. Enabling Browser control grants all known browser tools
+without per-action approval until the user turns it off. Runtime gates and queued dispatch enforce
+revocation even in Full Access. Disabling the browser group in an Agent blocks its controller without
+closing the page.
 
 ## Observe, act, verify
 
