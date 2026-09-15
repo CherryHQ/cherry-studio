@@ -71,7 +71,7 @@ export async function buildAgentRuntimePrompt({
   if (builtinRole) await provisionBuiltinAgent(agentDataPath, builtinRole)
 
   const resolvedInstructions = instructions?.trim()
-    ? await replacePromptVariables(instructions, agent.modelName ?? undefined)
+    ? await replacePromptVariables(instructions, agent.modelName ?? undefined, agent.name ?? undefined)
     : ''
   const hasAgentInstructions = Boolean(resolvedInstructions.trim())
   const parts = await promptBuilder.buildPromptParts(

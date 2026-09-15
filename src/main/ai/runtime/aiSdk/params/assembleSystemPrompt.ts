@@ -35,7 +35,7 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
 
   // `anthropic-cache` checks the original assistant prompt for volatile time variables before caching.
   if (assistant?.prompt) {
-    const resolved = await replacePromptVariables(assistant.prompt, model.name)
+    const resolved = await replacePromptVariables(assistant.prompt, model.name, assistant.name)
     if (resolved) sections.push(resolved)
   }
 
