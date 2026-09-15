@@ -197,6 +197,28 @@ describe('GroupService', () => {
       expect(ids).toEqual([c.id, a.id, b.id])
     })
 
+    it('broadcasts order effects after moves', () => {
+      const a = groupService.create({ entityType: 'topic', name: 'A' })
+      const b = groupService.create({ entityType: 'topic', name: 'B' })
+      notifyDataApiDataChangeMock.mockClear()
+
+      groupService.reorder(a.id, { after: b.id })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/groups', kind: 'order', dimension: 'orderKey', entityIds: [a.id] }
+      ])
+
+      notifyDataApiDataChangeMock.mockClear()
+      groupService.reorderBatch([
+        { id: b.id, anchor: { position: 'first' } },
+        { id: a.id, anchor: { position: 'first' } }
+      ])
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/groups', kind: 'order', dimension: 'orderKey', entityIds: [b.id, a.id] }
+      ])
+    })
+
     it('should move a group to before an anchor', async () => {
       const a = groupService.create({ entityType: 'topic', name: 'A' })
       const b = groupService.create({ entityType: 'topic', name: 'B' })

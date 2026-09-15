@@ -12,12 +12,14 @@ const mocks = vi.hoisted(() => ({
   updateGroup: vi.fn(),
   refetch: vi.fn(),
   useMutation: vi.fn(),
-  useQuery: vi.fn()
+  useQuery: vi.fn(),
+  useDataChange: vi.fn()
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useMutation: mocks.useMutation,
-  useQuery: mocks.useQuery
+  useQuery: mocks.useQuery,
+  useDataChange: mocks.useDataChange
 }))
 
 function group(id: string, name: string): Group {
@@ -34,6 +36,7 @@ function group(id: string, name: string): Group {
 describe('group hooks', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.useDataChange.mockReturnValue(() => {})
     mocks.useQuery.mockReturnValue({
       data: [],
       isLoading: false,
@@ -67,6 +70,18 @@ describe('group hooks', () => {
 
     expect(mocks.useQuery).toHaveBeenCalledWith('/groups', { query: { entityType: 'assistant' } })
     expect(result.current.groups).toEqual([cached])
+  })
+
+  it('refetches when a group data-change broadcast arrives', () => {
+    renderHook(() => useGroups('assistant'))
+
+    expect(mocks.useDataChange).toHaveBeenCalledWith('/groups', expect.any(Function))
+    const listener = mocks.useDataChange.mock.calls.find(([endpoint]) => endpoint === '/groups')?.[1]
+    act(() => {
+      listener?.()
+    })
+
+    expect(mocks.refetch).toHaveBeenCalled()
   })
 
   it('can defer the group list query for a hidden surface', () => {
