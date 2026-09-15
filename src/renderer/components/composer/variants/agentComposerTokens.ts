@@ -31,3 +31,15 @@ export function agentSkillToComposerToken(skill: LocalSkill): ComposerDraftToken
     payload: skill
   }
 }
+
+/**
+ * Resolve a serialized skill token back to the installed skill it references, by stable token id.
+ * Never match by display label: `name` is not unique, so a same-name skill earlier in the catalog
+ * would win over the exact id and attach a skill the user did not select.
+ */
+export function findSkillByTokenId<T extends Pick<LocalSkill, 'filename'>>(
+  token: Pick<ComposerDraftToken, 'id'>,
+  availableSkills: readonly T[]
+): T | undefined {
+  return availableSkills.find((candidate) => agentComposerTokenId.skill(candidate) === token.id)
+}

@@ -93,6 +93,8 @@ export interface BuildAgentParamsInput {
     messages?: UIMessage[]
     /** Raw-path surviving context from the chat provider (see AiStreamRequest.retainedContext). */
     retainedContext?: RetainedContext
+    /** Skills attached to the user turn (see AiStreamRequest.skillFolderNames). */
+    skillFolderNames?: string[]
   }
   signal: AbortSignal | undefined
   provider: Provider
@@ -293,7 +295,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     tools,
     deferredEntries,
     hasCitableTools,
-    webSearchEnabled: finalWebToolRoutes.webSearch !== 'none'
+    webSearchEnabled: finalWebToolRoutes.webSearch !== 'none',
+    skillFolderNames: request.skillFolderNames
   })
   const options = buildAgentOptions(
     scope,

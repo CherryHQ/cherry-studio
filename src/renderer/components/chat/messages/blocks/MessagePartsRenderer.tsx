@@ -736,6 +736,10 @@ function renderPart(
       // User-turn capability scope is consumed by Main and never rendered inline.
       return null
 
+    case 'data-skill-scope':
+      // Attached-skill scope is consumed by Main and never rendered inline.
+      return null
+
     case 'data-clear':
       // Context boundaries render at the message-frame level as a divider.
       return null

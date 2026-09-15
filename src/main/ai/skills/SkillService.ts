@@ -35,7 +35,7 @@ import { buildSystemSkillSources } from './systemSkillSources'
 
 const logger = loggerService.withContext('SkillService')
 
-const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
+export const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
 
@@ -51,6 +51,12 @@ const BUILTIN_VERSION_FILE = '.version'
  * Skill library metadata lives in `agent_global_skill`. Per-agent enablement
  * state lives in the `agent_skill` join table.
  */
+/** Three-state SKILL.md read result: found / missing (no file) / error (exists but unreadable). */
+export type SkillMdReadState =
+  | { status: 'found'; content: string }
+  | { status: 'missing' }
+  | { status: 'error'; reason?: 'too-large' | 'disabled' }
+
 export class SkillService {
   private readonly installer: SkillInstaller
   // Serializes every library mutation — install / uninstall / builtin sync / reconcile — so a
@@ -97,6 +103,116 @@ export class SkillService {
     const agentIds = agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
 
     logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
+  }
+
+  /**
+   * Read a skill's SKILL.md from the mirror root by folder name. Folder name (=
+   * `LocalSkill.filename`) is the storage identity the renderer attaches; unlike
+   * `readFile(skillId, …)` it needs no catalog row, so a chat turn whose skill was
+   * uninstalled mid-flight still gets the same found/missing/error verdict (#19773).
+   * A catalog row that is globally disabled fails here: the mirror outlives the
+   * switch, so the read itself must enforce it (local workdir skills have no row).
+   * Containment, not name rewriting: reconcile adopts agent-authored directories under
+   * their original (never install-sanitized) names, so a rename-style guard would turn
+   * legitimate attachments into guaranteed turn failures.
+   */
+  async readSkillMdByFolderName(folderName: string): Promise<SkillMdReadState> {
+    const root = path.resolve(this.getMirrorRoot())
+    const target = path.resolve(this.getMirrorPath(folderName))
+    if (target !== root && !target.startsWith(root + path.sep)) return { status: 'missing' }
+
+    // Containment is judged on the resolved path and the read opens that same file: only
+    // mirror-root or storage-root links pass (POSIX mirrors symlink into storage).
+    let realRoot: string
+    let realStorageRoot: string
+    try {
+      ;[realRoot, realStorageRoot] = await Promise.all([
+        fs.promises.realpath(root),
+        fs.promises.realpath(path.resolve(application.getPath('feature.agents.skills')))
+      ])
+    } catch (error) {
+      // Neither root existing yet means no mirror was ever created for this skill.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { status: 'missing' }
+      return { status: 'error' }
+    }
+    // The disabled switch is resolved through the canonical mirror child name: a
+    // non-canonical attachment ('./pdf-tools', wrong case) addresses the same directory.
+    if (await this.isGloballyDisabledMirror(target, realRoot, realStorageRoot)) {
+      return { status: 'error', reason: 'disabled' }
+    }
+    const isAllowed = (realFile: string) =>
+      realFile.startsWith(realRoot + path.sep) || realFile.startsWith(realStorageRoot + path.sep)
+
+    for (const variant of ['SKILL.md', 'skill.md']) {
+      let realFile: string
+      try {
+        realFile = await fs.promises.realpath(path.join(target, variant))
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+        return { status: 'error' }
+      }
+      if (!isAllowed(realFile)) return { status: 'missing' }
+
+      let handle: fs.promises.FileHandle
+      try {
+        handle = await fs.promises.open(realFile, 'r')
+      } catch {
+        return { status: 'error' }
+      }
+      try {
+        // One handle for stat and read (limit shared with file previews): a file swapped or
+        // grown past the check can still only yield size+1 bytes, never an unbounded read.
+        const { size } = await handle.stat()
+        if (size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return { status: 'error', reason: 'too-large' }
+        const buffer = Buffer.alloc(size + 1)
+        let read = 0
+        while (read < buffer.length) {
+          const { bytesRead } = await handle.read(buffer, read, buffer.length - read, read)
+          if (bytesRead === 0) break
+          read += bytesRead
+        }
+        if (read > size) return { status: 'error', reason: 'too-large' }
+        return { status: 'found', content: buffer.subarray(0, read).toString('utf-8') }
+      } catch {
+        return { status: 'error' }
+      } finally {
+        await handle.close()
+      }
+    }
+    return { status: 'missing' }
+  }
+
+  /**
+   * Whether the mirror directory addressed by `target` maps to a globally disabled catalog
+   * row. The catalog lookup goes through the canonical child name under either root — a
+   * non-canonical attachment name ('./pdf-tools', mismatched case) addresses the same
+   * directory and must not skip the switch. `realpath` does not case-fold, so a lookup miss
+   * falls back to the on-disk directory name before granting the pass.
+   */
+  private async isGloballyDisabledMirror(target: string, realRoot: string, realStorageRoot: string): Promise<boolean> {
+    const realTarget = await fs.promises.realpath(target).catch(() => null)
+    if (!realTarget) return false
+
+    let canonical: string | null = null
+    for (const root of [realRoot, realStorageRoot]) {
+      const rel = path.relative(root, realTarget)
+      if (rel && !rel.startsWith('..') && !path.isAbsolute(rel) && !rel.includes(path.sep)) {
+        canonical = rel
+        break
+      }
+    }
+    if (!canonical) return false
+
+    // The catalog DTO projects per-agent `isEnabled` (always false without an agentId);
+    // the library-wide switch travels in `isGlobalEnabled`.
+    const exact = agentGlobalSkillService.getByFolderName(canonical)
+    if (exact) return !exact.isGlobalEnabled
+
+    const entries = await fs.promises.readdir(realRoot).catch(() => [] as string[])
+    const onDisk = entries.find((name) => name.toLowerCase() === canonical.toLowerCase() && name !== canonical)
+    if (!onDisk) return false
+    const row = agentGlobalSkillService.getByFolderName(onDisk)
+    return Boolean(row && !row.isGlobalEnabled)
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {
@@ -1024,9 +1140,7 @@ export class SkillService {
    * for deletion: `found` (content), `missing` (no SKILL.md at all — ENOENT for both casings), or
    * `error` (a descriptor exists but reading it threw — EACCES / EIO / atomic-replace window).
    */
-  private async readSkillMdState(
-    dir: string
-  ): Promise<{ status: 'found'; content: string } | { status: 'missing' } | { status: 'error' }> {
+  private async readSkillMdState(dir: string): Promise<SkillMdReadState> {
     let sawError = false
     for (const variant of ['SKILL.md', 'skill.md']) {
       try {
