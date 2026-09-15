@@ -610,6 +610,47 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
   })
 
+  it('adds a stable opaque OpenRouter session header to direct Claude SDK requests', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'my-router',
+      presetProviderId: 'openrouter',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://openrouter.ai/api' }
+      }
+    })
+
+    const first = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const repeated = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-2',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+    const second = await buildClaudeCodeQueryRequestForAgentSession('session-2')
+
+    const firstHeader = first?.settings.env?.ANTHROPIC_CUSTOM_HEADERS
+    const repeatedHeader = repeated?.settings.env?.ANTHROPIC_CUSTOM_HEADERS
+    const secondHeader = second?.settings.env?.ANTHROPIC_CUSTOM_HEADERS
+    expect(firstHeader).toMatch(/^x-session-id: cherry-agent:[0-9a-f]{32}$/)
+    expect(firstHeader).not.toContain('session-1')
+    expect(repeatedHeader).toBe(firstHeader)
+    expect(secondHeader).not.toBe(firstHeader)
+  })
+
+  it('recognizes the OpenRouter adapter and preserves a case-insensitive explicit session header', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'custom-router',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'openrouter', baseUrl: 'https://openrouter.ai/api' }
+      },
+      settings: { extraHeaders: { 'X-Session-Id': 'chosen-session', 'x-tenant': 'tenant-1' } }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe('X-Session-Id: chosen-session\nx-tenant: tenant-1')
+  })
+
   it('uses the provider Anthropic endpoint directly when all selected models belong to that provider', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 

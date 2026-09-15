@@ -8,19 +8,17 @@
  * derives an opaque key from the validated Agent session id — same session,
  * same key — without letting the raw session id leave the process.
  */
-import { createHash } from 'node:crypto'
-
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 
 import { resolveEffectiveEndpoint, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
+import { deriveAgentSessionRoutingKey, usesOpenRouterSessionRouting } from '@main/ai/utils/agentSessionRouting'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 /**
- * Merge a session-derived `promptCacheKey` into the providerOptions namespace
- * the resolved adapter reads (the same resolution chain reasoning options use).
- * No-op for non-Responses endpoints; never overrides an existing key and keeps
- * the namespace's other options intact.
+ * Merge a session-derived routing key into the providerOptions namespace the
+ * resolved adapter reads. OpenAI Responses consumes `promptCacheKey`, while
+ * OpenRouter Chat forwards `session_id` verbatim to its request body.
  */
 export function applyAgentPromptCacheKey(
   provider: Provider,
@@ -29,15 +27,21 @@ export function applyAgentPromptCacheKey(
   agentSessionId: string
 ): ProviderOptions {
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
-  if (resolvedEndpoint.endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES) return providerOptions
+  const optionName =
+    resolvedEndpoint.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
+      ? 'promptCacheKey'
+      : resolvedEndpoint.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+          usesOpenRouterSessionRouting(provider, resolvedEndpoint.endpointType)
+        ? 'session_id'
+        : undefined
+  if (!optionName) return providerOptions
 
   const providerOptionsKey = resolveEndpointProviderOptionsKey(provider, resolvedEndpoint)
   const namespace = providerOptions[providerOptionsKey]
-  if (namespace?.promptCacheKey !== undefined) return providerOptions
+  if (namespace?.[optionName] !== undefined) return providerOptions
 
-  const digest = createHash('sha256').update(agentSessionId).digest('hex')
   return {
     ...providerOptions,
-    [providerOptionsKey]: { ...namespace, promptCacheKey: `cherry-agent:${digest.slice(0, 32)}` }
+    [providerOptionsKey]: { ...namespace, [optionName]: deriveAgentSessionRoutingKey(agentSessionId) }
   }
 }

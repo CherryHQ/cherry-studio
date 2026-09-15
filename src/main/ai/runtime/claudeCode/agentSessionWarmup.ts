@@ -19,6 +19,7 @@ import {
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
+import { deriveAgentSessionRoutingKey, usesOpenRouterSessionRouting } from '@main/ai/utils/agentSessionRouting'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
@@ -807,11 +808,18 @@ async function resolveClaudeCodeRuntimeRoute(
       const resolvedApiKey = providerService.resolveApiKey(primaryProvider.id)
       const runtimeApiKey =
         resolvedApiKey.value || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
+      const sessionRoutingHeaders = usesOpenRouterSessionRouting(
+        primaryProvider,
+        resolveEffectiveEndpoint(primaryProvider, primaryModel, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType
+      )
+        ? { 'x-session-id': deriveAgentSessionRoutingKey(sessionId) }
+        : undefined
       return {
         ...facts,
         apiKey: runtimeApiKey,
         customHeaders: mergeAnthropicCustomHeaders(
           getProviderAppHeaders(primaryProvider),
+          sessionRoutingHeaders,
           getExtraHeaders(primaryProvider)
         ),
         usageCapture: {
