@@ -10,6 +10,29 @@ import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 
 const DEFAULT_GATEWAY_HOST = '127.0.0.1'
 const DEFAULT_GATEWAY_PORT = 23333
+const API_KEY_SYNC_TIMEOUT_MS = 5_000
+
+async function readFreshApiKey(): Promise<string | null> {
+  const key = await preferenceService.get('feature.api_gateway.api_key')
+  if (key) return key
+
+  return new Promise((resolve) => {
+    let unsubscribe = () => {}
+    const timeout = window.setTimeout(() => {
+      unsubscribe()
+      resolve(null)
+    }, API_KEY_SYNC_TIMEOUT_MS)
+    const readCachedKey = () => {
+      const cachedKey = preferenceService.getCachedValue('feature.api_gateway.api_key')
+      if (!cachedKey) return
+      window.clearTimeout(timeout)
+      unsubscribe()
+      resolve(cachedKey)
+    }
+    unsubscribe = preferenceService.subscribeChange('feature.api_gateway.api_key')(readCachedKey)
+    readCachedKey()
+  })
+}
 
 /**
  * The synthetic "Cherry Gateway" entry for the code-CLI provider list, plus the
@@ -56,7 +79,7 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
   }, [apiGatewayRunning, startApiGateway])
 
   const getApiKey = useCallback(async (): Promise<string> => {
-    const key = await preferenceService.get('feature.api_gateway.api_key')
+    const key = await readFreshApiKey()
     if (!key) {
       throw new Error('API gateway did not provide a key')
     }

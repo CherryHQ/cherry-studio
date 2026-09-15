@@ -483,14 +483,16 @@ function download(url, dest) {
     // -C - resumes a partial file, so an interrupted transfer over a slow link
     // does not restart from zero. `dest` is always version-scoped, so a resume
     // can only ever continue the same asset.
-    execFileSync('curl', ['-fSL', '-C', '-', '--retry', '3', '-o', dest, url], { stdio: 'inherit' })
+    execFileSync('curl', ['-fSL', '-C', '-', '--retry', '3', '--retry-all-errors', '-o', dest, url], {
+      stdio: 'inherit'
+    })
   } catch (error) {
     // 33 = the server refused the resume, which a plain download fixes. Anything
     // else (a dropped connection above all) must propagate with the partial
     // intact. Bad resumed bytes are caught by verifyHash, which deletes them.
     if (error.status !== 33) throw error
     fs.rmSync(dest, { force: true })
-    execFileSync('curl', ['-fSL', '--retry', '3', '-o', dest, url], { stdio: 'inherit' })
+    execFileSync('curl', ['-fSL', '--retry', '3', '--retry-all-errors', '-o', dest, url], { stdio: 'inherit' })
   }
 }
 
