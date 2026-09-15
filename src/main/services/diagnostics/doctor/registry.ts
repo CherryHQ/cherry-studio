@@ -1,4 +1,5 @@
 import { bootConfigValid, hardwareAcceleration } from './checks/config'
+import { modelEndpoint, modelList, modelConversation } from './checks/connectivity'
 import {
   installArchitectureMatch,
   installNativeModules,
@@ -26,6 +27,9 @@ import type { DoctorCheckRegistry } from './types'
 
 /** One entry per catalog id; the type makes a missing or extra entry a compile error. */
 export const doctorCheckRegistry: DoctorCheckRegistry = {
+  'network-model-endpoint': modelEndpoint,
+  'provider-model-list': modelList,
+  'provider-model-conversation': modelConversation,
   'install-architecture-match': installArchitectureMatch,
   'install-version-channel': installVersionChannel,
   'install-update-available': installUpdateAvailable,

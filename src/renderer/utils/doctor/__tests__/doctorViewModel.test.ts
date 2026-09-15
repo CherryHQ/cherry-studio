@@ -65,7 +65,9 @@ describe('buildDoctorViewModel', () => {
     const viewModel = buildDoctorViewModel(state, NOW)
 
     expect(viewModel.runId).toBe('run-1')
-    expect(viewModel.rows.map((row) => row.id)).toEqual(DOCTOR_CHECK_IDS)
+    expect(viewModel.rows.map((row) => row.id)).not.toEqual(expect.arrayContaining(['provider-model-conversation']))
+    expect(viewModel.rows.find((row) => row.id === 'provider-model-list')).toBeUndefined()
+    expect(viewModel.rows.find((row) => row.id === 'network-model-endpoint')).toBeUndefined()
     expect(viewModel.rows.find((row) => row.id === 'install-version-channel')).toMatchObject({ status: 'pass' })
     expect(viewModel.rows.find((row) => row.id === 'install-update-available')).toMatchObject({ status: 'pending' })
     expect(viewModel.activeCheckIds).toEqual(['permission-accessibility', 'network-online'])

@@ -1,14 +1,18 @@
 import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 
 import { application } from '@application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isPortable } from '@main/core/platform'
 import { agentService } from '@main/data/services/AgentService'
 import { getAppEdition } from '@main/utils/appEdition'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiErrorFactory, isDataApiNotFoundError } from '@shared/data/api/errors'
 import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import {
   DOCTOR_CHECK_CATALOG,
+  type DoctorConfirmResult,
+  type DoctorExecutionSnapshot,
+  type DoctorPendingCheck,
   DOCTOR_REPORT_TTL_MS,
   type DoctorBasics,
   type DoctorCancelResult,
@@ -32,16 +36,12 @@ import { doctorScopeKey } from '@shared/utils/doctor'
 
 import { collectDiagnosticSystemInfo } from '../systemInfo'
 import type { DiagnosticWarning } from '../types'
-import { checkModelConnectivity } from './connectivity'
-import { type EngineCheck, runDoctorChecks } from './engine'
+import { DoctorExecution } from './execution'
 import { doctorCheckRegistry } from './registry'
-import type { DoctorContext, DoctorEngineDefinition, DoctorFixOutcome, DoctorProbeOutcome } from './types'
+import type { DoctorContext, DoctorFixOutcome } from './types'
 
-const DEFAULT_TIMEOUT_MS: Record<DoctorTier, number> = { quick: 1000, live: 15000, deep: 60000 }
-const LANE_LIMITS = { live: 3 }
 const TIERS_FOR_RUN: Record<DoctorRunTier, readonly DoctorTier[]> = { quick: ['quick'], live: ['quick', 'live'] }
 
-type DoctorEngineCheck = EngineCheck<DoctorCheckId, DoctorProbeOutcome<DoctorCheckId>>
 /** Probes shared between the checks of one run (`DoctorContext.share`); the first caller's signal drives them. */
 type RunMemo = Map<string, Promise<unknown>>
 type ActiveRun = { readonly runId: string; readonly controller: AbortController }
@@ -58,19 +58,6 @@ function runContext(signal: AbortSignal, memo: RunMemo, subject: DoctorSubject |
       }
       return shared as ReturnType<typeof factory>
     }
-  }
-}
-
-function toEngineCheck(id: DoctorCheckId, memo: RunMemo, subject: DoctorSubject | null): DoctorEngineCheck {
-  const meta = DOCTOR_CHECK_CATALOG[id]
-  // The registry is keyed by Id so this lookup is exhaustive; widen the `subject` narrowing once for the engine.
-  const definition = doctorCheckRegistry[id] as unknown as DoctorEngineDefinition
-  return {
-    id,
-    requires: meta.requires,
-    timeoutMs: definition.timeoutMs ?? DEFAULT_TIMEOUT_MS[meta.tier],
-    lane: meta.tier,
-    run: (signal) => definition.run(runContext(signal, memo, subject))
   }
 }
 
@@ -106,7 +93,14 @@ export class DoctorService extends BaseService {
   /** The facts each scope last ran with, so a fix can re-probe the same subject. */
   private readonly subjects = new Map<
     DoctorScopeKey,
-    { runId: string; ref: DoctorSubjectRef; facts: DoctorSubject | null; expiresAt: number }
+    {
+      runId: string
+      ref: DoctorSubjectRef
+      facts: DoctorSubject | null
+      expiresAt: number
+      execution: DoctorExecution
+      onResults?: (snapshot: DoctorExecutionSnapshot) => void
+    }
   >()
   private allReady = false
 
@@ -124,26 +118,61 @@ export class DoctorService extends BaseService {
     return { agentId: ref.agentId, ...model, mcpServerIds: agent.mcps ?? [] }
   }
 
+  private createExecution(scope: DoctorScopeKey, runId: string, ref: DoctorSubjectRef, ids: readonly DoctorCheckId[]) {
+    for (const [key, record] of this.subjects) {
+      if (record.expiresAt <= Date.now() && !this.activeRuns.has(key) && !this.connectivityRuns.has(key)) {
+        this.subjects.delete(key)
+        application.get('CacheService').deleteShared(`doctor.state.${key}`)
+      }
+    }
+    const facts = this.resolveSubject(ref)
+    const execution = new DoctorExecution(ids, facts, () => {
+      const current = this.subjects.get(scope)
+      if (current?.execution !== execution || current.expiresAt <= Date.now()) return false
+      try {
+        return isDeepStrictEqual(this.resolveSubject(ref), facts)
+      } catch (error) {
+        if (isDataApiNotFoundError(error)) return false
+        throw error
+      }
+    })
+    const record = { runId, ref, facts, execution, expiresAt: Date.now() + DOCTOR_REPORT_TTL_MS }
+    this.subjects.set(scope, record)
+    return this.subjects.get(scope)!
+  }
+
   async checkConnectivity(input: {
     subject: DoctorConnectivitySubject
     runId: string
   }): Promise<DoctorConnectivityResult> {
     if (!this.allReady) throw new Error('Doctor is not ready')
     const scope = doctorScopeKey(input.subject)
-    const active = this.connectivityRuns.get(scope)
+    const active = this.connectivityRuns.get(scope) ?? this.activeRuns.get(scope)
     if (active) return { status: 'busy', runId: active.runId }
     const subject = this.resolveSubject(input.subject)
     if (!subject?.providerId || !subject.modelId) throw new Error('No model is configured for this subject')
+    const record = this.createExecution(scope, input.runId, input.subject, [
+      'network-model-endpoint',
+      'provider-model-list',
+      'provider-model-conversation'
+    ])
     const controller = new AbortController()
     this.connectivityRuns.set(scope, { runId: input.runId, controller })
     try {
-      const target = application
-        .get('AiService')
-        .prepareModelCheck(createUniqueModelId(subject.providerId, subject.modelId))
-      const report = await checkModelConnectivity(target, controller.signal)
+      const snapshot = await record.execution.execute(controller.signal)
       controller.signal.throwIfAborted()
-      return { status: 'completed', runId: input.runId, scope, report }
+      return {
+        status: 'completed',
+        runId: input.runId,
+        scope,
+        report: {
+          uniqueModelId: createUniqueModelId(subject.providerId, subject.modelId),
+          expiresAt: new Date(record.expiresAt).toISOString(),
+          ...snapshot
+        }
+      }
     } catch (error) {
+      this.subjects.delete(scope)
       if (controller.signal.aborted) return { status: 'canceled', runId: input.runId }
       throw error
     } finally {
@@ -151,11 +180,36 @@ export class DoctorService extends BaseService {
     }
   }
 
+  async confirmCheck(input: { scope: DoctorScopeKey; runId: string; requestId: string }): Promise<DoctorConfirmResult> {
+    if (!this.allReady) throw new Error('Doctor is not ready')
+    const { scope, runId, requestId } = input
+    const record = this.subjects.get(scope)
+    if (!record || record.runId !== runId || record.expiresAt <= Date.now()) return { status: 'stale' }
+    if (this.connectivityRuns.has(scope) || this.activeRuns.has(scope)) return { status: 'busy' }
+    const approval = record.execution.claim(requestId)
+    if (!approval) return { status: 'stale' }
+    const controller = new AbortController()
+    this.connectivityRuns.set(scope, { runId, controller })
+    try {
+      const snapshot = await record.execution.execute(controller.signal, undefined, approval)
+      if (controller.signal.aborted) return { status: 'canceled' }
+      record.onResults?.(snapshot)
+      return { status: 'completed', scope, runId, ...snapshot }
+    } finally {
+      this.connectivityRuns.delete(scope)
+    }
+  }
+
   cancelConnectivity(scope: DoctorScopeKey, runId: string): DoctorCancelResult {
     const active = this.connectivityRuns.get(scope)
-    if (!active || active.runId !== runId) return { status: 'not_running' }
-    active.controller.abort()
-    return { status: 'canceled' }
+    const record = this.subjects.get(scope)
+    if (record?.runId === runId) {
+      record.onResults?.({ ...record.execution.snapshot(), pendingChecks: [] })
+      this.subjects.delete(scope)
+      if (active?.runId === runId) active.controller.abort()
+      return { status: 'canceled' }
+    }
+    return { status: 'not_running' }
   }
 
   private selectChecks(
@@ -191,21 +245,19 @@ export class DoctorService extends BaseService {
     checkIds?: readonly DoctorCheckId[]
   }): Promise<DoctorRunResult> {
     if (!this.allReady) throw new Error('Doctor is not ready')
-    for (const [key, record] of this.subjects) {
-      if (record.expiresAt <= Date.now() && !this.activeRuns.has(key)) {
-        this.subjects.delete(key)
-        application.get('CacheService').deleteShared(`doctor.state.${key}`)
-      }
-    }
     const scope = doctorScopeKey(input.subject)
-    const active = this.activeRuns.get(scope)
+    const active = this.activeRuns.get(scope) ?? this.connectivityRuns.get(scope)
     if (active) return { status: 'busy', runId: active.runId }
     const subject = this.resolveSubject(input.subject)
     const ids = this.selectChecks(
       input.checkIds ??
         (Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]).filter((id) => {
           const meta = DOCTOR_CHECK_CATALOG[id]
-          return TIERS_FOR_RUN[input.tier].includes(meta.tier) && applies(meta.scope, subject)
+          return (
+            !('includeByDefault' in meta) &&
+            TIERS_FOR_RUN[input.tier].includes(meta.tier) &&
+            applies(meta.scope, subject)
+          )
         }),
       input.tier,
       subject
@@ -213,12 +265,7 @@ export class DoctorService extends BaseService {
     const runId = randomUUID()
     const controller = new AbortController()
     this.activeRuns.set(scope, { runId, controller })
-    this.subjects.set(scope, {
-      runId,
-      ref: input.subject,
-      facts: subject,
-      expiresAt: Date.now() + DOCTOR_REPORT_TTL_MS
-    })
+    const record = this.createExecution(scope, runId, input.subject, ids)
     const startedAt = new Date()
     try {
       const running: DoctorState = {
@@ -230,15 +277,17 @@ export class DoctorService extends BaseService {
         activeCheckIds: []
       }
       this.publish(scope, running)
-      const results = await this.execute(ids, subject, controller.signal, (results, activeCheckIds) =>
+      const { results, pendingChecks } = await record.execution.execute(controller.signal, (results, activeCheckIds) =>
         this.publish(scope, { ...running, results, activeCheckIds })
       )
       if (controller.signal.aborted) {
+        this.subjects.delete(scope)
         this.publish(scope, { status: 'canceled', runId })
         return { status: 'canceled', runId }
       }
       const basics = await this.collectBasics()
       if (controller.signal.aborted) {
+        this.subjects.delete(scope)
         this.publish(scope, { status: 'canceled', runId })
         return { status: 'canceled', runId }
       }
@@ -253,13 +302,16 @@ export class DoctorService extends BaseService {
         expiresAt: new Date(finishedAt.getTime() + DOCTOR_REPORT_TTL_MS).toISOString(),
         basics,
         results,
+        ...(pendingChecks.length ? { pendingChecks } : {}),
         summary: summarize(results)
       }
-      this.subjects.get(scope)!.expiresAt = Date.parse(report.expiresAt)
+      record.expiresAt = Date.parse(report.expiresAt)
+      record.onResults = (snapshot) => this.patchReport(scope, runId, snapshot.results, snapshot.pendingChecks)
       this.publish(scope, { status: 'completed', report })
       return { status: 'completed', report }
     } catch (error) {
       // `running` was already published; without a terminal state every window spins forever.
+      this.subjects.delete(scope)
       this.publish(scope, { status: 'idle' })
       throw error
     } finally {
@@ -277,8 +329,9 @@ export class DoctorService extends BaseService {
 
   cancel(scope: DoctorScopeKey, runId: string): DoctorCancelResult {
     const active = this.activeRuns.get(scope)
-    if (!active || active.runId !== runId) return { status: 'not_running' }
+    if (!active || active.runId !== runId) return this.cancelConnectivity(scope, runId)
     active.controller.abort()
+    this.subjects.delete(scope)
     return { status: 'canceled' }
   }
 
@@ -290,7 +343,8 @@ export class DoctorService extends BaseService {
   async fix(request: DoctorFixRequest): Promise<DoctorFixResult> {
     if (!this.allReady) throw new Error('Doctor is not ready')
     const { scope } = request
-    if (this.activeRuns.has(scope)) return { status: 'stale', reason: 'run_superseded' }
+    if (this.activeRuns.has(scope) || this.connectivityRuns.has(scope))
+      return { status: 'stale', reason: 'run_superseded' }
     const stale = this.validateFix(request)
     if (stale) return stale
     const controller = new AbortController()
@@ -355,14 +409,24 @@ export class DoctorService extends BaseService {
     return undefined
   }
 
-  private patchReport(scope: DoctorScopeKey, runId: string, results: readonly DoctorCheckResult[]): void {
+  private patchReport(
+    scope: DoctorScopeKey,
+    runId: string,
+    results: readonly DoctorCheckResult[],
+    pendingChecks?: readonly DoctorPendingCheck[]
+  ): void {
     const state = this.currentState(scope)
     if (state.status !== 'completed' || state.report.runId !== runId) return
-    const updated = new Map(results.map((result) => [result.id, result]))
-    const merged = state.report.results.map((result) => updated.get(result.id) ?? result)
+    const merged = [...new Map([...state.report.results, ...results].map((result) => [result.id, result])).values()]
+    this.subjects.get(scope)?.execution.updateResults(merged)
     this.publish(scope, {
       status: 'completed',
-      report: { ...state.report, results: merged, summary: summarize(merged) }
+      report: {
+        ...state.report,
+        results: merged,
+        ...(pendingChecks ? { pendingChecks } : {}),
+        summary: summarize(merged)
+      }
     })
   }
 
@@ -377,30 +441,11 @@ export class DoctorService extends BaseService {
   private async execute(
     ids: readonly DoctorCheckId[],
     subject: DoctorSubject | null,
-    signal?: AbortSignal,
-    onProgress?: (results: readonly DoctorCheckResult[], activeCheckIds: readonly DoctorCheckId[]) => void
-  ): Promise<DoctorCheckResult[]> {
-    const settled: DoctorCheckResult[] = []
-    const activeCheckIds = new Set<DoctorCheckId>()
-    const memo: RunMemo = new Map([
-      ['provider:default-model-id', Promise.resolve(application.get('PreferenceService').get('chat.default_model_id'))]
-    ])
-    const results = (await runDoctorChecks({
-      checks: ids.map((id) => toEngineCheck(id, memo, subject)),
-      signal,
-      laneLimits: LANE_LIMITS,
-      onStart: (checkId) => {
-        activeCheckIds.add(checkId)
-        onProgress?.([...settled], [...activeCheckIds])
-      },
-      onResult: (result) => {
-        const doctorResult = result as DoctorCheckResult
-        activeCheckIds.delete(doctorResult.id)
-        settled.push(doctorResult)
-        onProgress?.([...settled], [...activeCheckIds])
-      }
-    })) as DoctorCheckResult[]
-    return results
+    signal: AbortSignal
+  ): Promise<readonly DoctorCheckResult[]> {
+    const snapshot = await new DoctorExecution(ids, subject, () => false).execute(signal)
+    if (snapshot.pendingChecks.length) throw new Error('Check requires explicit confirmation')
+    return snapshot.results
   }
 
   private async collectBasics(): Promise<DoctorBasics> {
