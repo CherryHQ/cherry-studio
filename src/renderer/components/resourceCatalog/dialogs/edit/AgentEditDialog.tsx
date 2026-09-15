@@ -20,12 +20,15 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentRuntimeSummary } from '@renderer/components/AgentRuntimeOption'
+import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
+import { GroupSelector } from '@renderer/components/resourceCatalog/dialogs/components/GroupSelector'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
@@ -92,6 +95,7 @@ type AgentEditFormValues = {
   knowledgeBaseIds: string[]
   skillIds: string[]
   disabledTools: string[]
+  groupId: string | null
   permissionMode: string
   envVarsText: string
   heartbeatEnabled: boolean
@@ -147,6 +151,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     knowledgeBaseIds: [...form.knowledgeBaseIds],
     skillIds: [...form.skillIds],
     disabledTools: [...form.disabledTools],
+    groupId: form.groupId,
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
     heartbeatEnabled: form.heartbeatEnabled,
@@ -177,6 +182,7 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     knowledgeBaseIds: [...values.knowledgeBaseIds],
     skillIds: [...values.skillIds],
     disabledTools: [...values.disabledTools],
+    groupId: values.groupId,
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
     heartbeatEnabled: values.heartbeatEnabled,
@@ -206,6 +212,7 @@ function advanceAgentFormBaseline(
   if (hasOwn(payload, 'knowledgeBaseIds')) next.knowledgeBaseIds = [...submitted.knowledgeBaseIds]
   if (hasOwn(payload, 'skillUpdates')) next.skillIds = [...submitted.skillIds]
   if (hasOwn(payload, 'disabledTools')) next.disabledTools = [...submitted.disabledTools]
+  if (hasOwn(payload, 'groupId')) next.groupId = submitted.groupId
 
   const configuration = payload.configuration
   if (configuration) {
@@ -227,6 +234,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('knowledgeBaseIds', next.knowledgeBaseIds, { shouldDirty: true })
   form.setValue('skillIds', next.skillIds, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
+  form.setValue('groupId', next.groupId, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
@@ -269,6 +277,7 @@ function AgentEditDialogContent({
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
   const [formBaseline, setFormBaseline] = useState<AgentFormState>(() => buildInitialAgentFormState(resource))
+  const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const formBaselineRef = useRef(formBaseline)
   const failedSaveKeyRef = useRef<string | null>(null)
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
@@ -290,6 +299,8 @@ function AgentEditDialogContent({
     [form]
   )
   const { updateAgent } = useAgentMutationsById(resource.id)
+  const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('agent')
+  const { createGroup } = useGroupMutations('agent')
   const { bases: knowledgeBases, isLoading: knowledgeBasesLoading } = useKnowledgeBases()
   const availableKnowledgeBaseIds = useMemo(() => new Set(knowledgeBases.map((base) => base.id)), [knowledgeBases])
   const {
@@ -345,12 +356,17 @@ function AgentEditDialogContent({
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current
     wasOpenRef.current = open
+    if (!open) {
+      setCreateGroupDialogOpen(false)
+      return
+    }
     if (!justOpened) return
 
     form.reset(defaultValues)
     form.clearErrors()
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
+    setCreateGroupDialogOpen(false)
     setModelLabels(modelLabelsForAgent(resource))
     replaceFormBaseline(buildInitialAgentFormState(resource))
     setBaselineSkillAgentId(null)
@@ -502,6 +518,23 @@ function AgentEditDialogContent({
   // Route the settings-navigate close through handleOpenChange so it flushes too.
   const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
 
+  const handleCreateGroup = async (name: string) => {
+    try {
+      const group = await createGroup(name)
+      form.setValue('groupId', group.id, { shouldDirty: true, shouldTouch: true })
+    } catch (error) {
+      logger.error(
+        'Failed to create agent group from edit dialog',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          agentId: resource.id,
+          name
+        }
+      )
+      throw error
+    }
+  }
+
   return (
     <EditDialogShell
       activeTab={activeTab}
@@ -529,6 +562,10 @@ function AgentEditDialogContent({
             onSettingsNavigate={closeBeforeAction}
             caps={caps}
             agentType={resource.type}
+            groups={groups}
+            groupsLoading={isGroupsLoading}
+            groupsError={groupsError}
+            onCreateGroup={() => setCreateGroupDialogOpen(true)}
           />
         </TabsContent>
         <TabsContent
@@ -562,6 +599,11 @@ function AgentEditDialogContent({
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
           <AgentAdvancedFields form={form} />
         </TabsContent>
+        <CreateGroupDialog
+          open={createGroupDialogOpen}
+          onCreate={handleCreateGroup}
+          onOpenChange={setCreateGroupDialogOpen}
+        />
       </>
     </EditDialogShell>
   )
@@ -579,7 +621,11 @@ function AgentBasicFields({
   setEmojiPickerOpen,
   onSettingsNavigate,
   caps,
-  agentType
+  agentType,
+  groups,
+  groupsLoading,
+  groupsError,
+  onCreateGroup
 }: {
   form: UseFormReturn<AgentEditFormValues>
   modelFilter?: ModelSelectorFilter
@@ -593,6 +639,10 @@ function AgentBasicFields({
   onSettingsNavigate?: (navigate: () => void) => void
   caps: AgentRuntimeCapabilities
   agentType: AgentType
+  groups: ReturnType<typeof useGroups>['groups']
+  groupsLoading: ReturnType<typeof useGroups>['isLoading']
+  groupsError: ReturnType<typeof useGroups>['error']
+  onCreateGroup: () => void
 }) {
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
@@ -627,6 +677,26 @@ function AgentBasicFields({
         onSettingsNavigate={onSettingsNavigate}
         layout="row"
         triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+      />
+      <FormField
+        control={form.control}
+        name="groupId"
+        render={({ field }) => (
+          <FormItem className={editDialogFormRowClassName}>
+            <FormLabel className={editDialogFormRowLabelClassName}>{t('library.config.basic.group')}</FormLabel>
+            <GroupSelector
+              value={field.value}
+              onChange={field.onChange}
+              groups={groups}
+              isLoading={groupsLoading}
+              error={groupsError}
+              portalContainer={portalContainer}
+              onCreateGroup={onCreateGroup}
+              triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 shadow-none hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring/40"
+            />
+            <FormMessage className="col-start-2" />
+          </FormItem>
+        )}
       />
       {caps.modelTiers ? (
         <>

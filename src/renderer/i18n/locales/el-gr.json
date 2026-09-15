@@ -103,6 +103,8 @@
   "agent.delete.error.failed": "Αποτυχία διαγραφής του πράκτορα",
   "agent.delete.title": "Διαγραφή Agent",
   "agent.edit.title": "Επεξεργαστής Agent",
+  "agent.groups.group_by": "Εμφάνιση σε ομάδες",
+  "agent.groups.ungroup": "Κατάργηση ομαδοποίησης",
   "agent.home.welcome_title": "Τι θα συζητήσουμε σήμερα;",
   "agent.icon.type": "Εικονίδιο Πράκτορα",
   "agent.input.placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή",

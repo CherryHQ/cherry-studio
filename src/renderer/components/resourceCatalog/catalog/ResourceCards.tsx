@@ -35,7 +35,7 @@ interface ResourceCardProps {
 }
 
 function hasOverflowActions(resource: ResourceItem) {
-  return resource.type === 'assistant'
+  return resource.type === 'assistant' || resource.type === 'agent'
 }
 
 function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {
@@ -76,7 +76,7 @@ export function ResourceCard({
   const showTypeIcon = r.type === 'skill'
   const TypeIcon = cfg.icon
   const showOverflowMenu = hasOverflowActions(r)
-  const visibleGroup = r.type === 'assistant' ? r.groupName : undefined
+  const visibleGroup = r.type === 'assistant' || r.type === 'agent' ? r.groupName : undefined
   const skillVersion = r.type === 'skill' ? r.raw.version?.trim() : undefined
 
   return (

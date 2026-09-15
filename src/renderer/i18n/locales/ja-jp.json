@@ -103,6 +103,8 @@
   "agent.delete.error.failed": "エージェントの削除に失敗しました",
   "agent.delete.title": "エージェントを削除",
   "agent.edit.title": "編集エージェント",
+  "agent.groups.group_by": "グループで表示",
+  "agent.groups.ungroup": "グループ解除",
   "agent.home.welcome_title": "今日は何について話しましょうか？",
   "agent.icon.type": "エージェントアイコン",
   "agent.input.placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",

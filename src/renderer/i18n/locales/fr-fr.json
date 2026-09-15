@@ -103,6 +103,8 @@
   "agent.delete.error.failed": "Échec de la suppression de l'agent",
   "agent.delete.title": "Supprimer l'Agent",
   "agent.edit.title": "Éditer Agent",
+  "agent.groups.group_by": "Afficher par groupes",
+  "agent.groups.ungroup": "Ne plus grouper",
   "agent.home.welcome_title": "De quoi allons-nous parler aujourd'hui ?",
   "agent.icon.type": "Icône de l'agent",
   "agent.input.placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande",

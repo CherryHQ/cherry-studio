@@ -103,6 +103,8 @@
   "agent.delete.error.failed": "Không thể xóa Agent",
   "agent.delete.title": "Xóa Agent",
   "agent.edit.title": "Chỉnh sửa Agent",
+  "agent.groups.group_by": "Hiển thị theo nhóm",
+  "agent.groups.ungroup": "Bỏ nhóm",
   "agent.home.welcome_title": "Hôm nay chúng ta sẽ nói về điều gì?",
   "agent.icon.type": "Biểu tượng Agent",
   "agent.input.placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh",

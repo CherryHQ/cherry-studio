@@ -103,6 +103,8 @@
   "agent.delete.error.failed": "删除智能体失败",
   "agent.delete.title": "删除智能体",
   "agent.edit.title": "编辑智能体",
+  "agent.groups.group_by": "分组显示",
+  "agent.groups.ungroup": "取消分组",
   "agent.home.welcome_title": "今天想做点什么？",
   "agent.icon.type": "智能体图标",
   "agent.input.placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令，输入 @ 引用文件或会话",

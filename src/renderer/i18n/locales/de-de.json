@@ -103,6 +103,8 @@
   "agent.delete.error.failed": "Agent löschen fehlgeschlagen",
   "agent.delete.title": "Agent löschen",
   "agent.edit.title": "Agent bearbeiten",
+  "agent.groups.group_by": "Gruppiert anzeigen",
+  "agent.groups.ungroup": "Gruppierung beenden",
   "agent.home.welcome_title": "Wovon sollen wir heute sprechen?",
   "agent.icon.type": "Agent-Symbol",
   "agent.input.placeholder": "Geben Sie eine Nachricht ein. Senden Sie sie mit {{key}}. Geben Sie / ein, um Pfade oder Befehle zu suchen, oder @ für Dateien und Sitzungen.",

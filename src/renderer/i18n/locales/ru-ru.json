@@ -103,6 +103,8 @@
   "agent.delete.error.failed": "Не удалось удалить агента",
   "agent.delete.title": "Удалить агента",
   "agent.edit.title": "Редактировать агент",
+  "agent.groups.group_by": "Показывать по группам",
+  "agent.groups.ungroup": "Отменить группировку",
   "agent.home.welcome_title": "О чём мы поговорим сегодня?",
   "agent.icon.type": "Иконка агента",
   "agent.input.placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду",
