@@ -155,6 +155,8 @@ type OcrJob = {
 type TranslationOperation = {
   revision: number
   detectionRevision: number
+  settledOutput?: string
+  restoredSettledOutput?: boolean
 }
 
 /**
@@ -292,6 +294,8 @@ const TranslatePage: FC = () => {
         pendingTranslationResponseRef.current = text
         return
       }
+      const settledOutput = translationOperationRef.current?.settledOutput
+      if (translationOperationRef.current?.restoredSettledOutput && text !== settledOutput) return
       setTranslateOutput(text)
     },
     [isTranslationOperationCurrent, setTranslateOutput]
@@ -475,6 +479,8 @@ const TranslatePage: FC = () => {
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
       if (!translated) return
+      const operation = translationOperationRef.current
+      if (isTranslationOperationCurrent() && operation) operation.settledOutput = translated
       const historyRestoreBarrier = historyRestoreBarrierRef.current
       if (historyRestoreBarrier && (await historyRestoreBarrier)) return
       if (!isTranslationOperationCurrent()) return
@@ -886,8 +892,13 @@ const TranslatePage: FC = () => {
         setPendingHistoryRestore((current) => (current === restoreToken ? null : current))
         const pendingTranslationResponse = pendingTranslationResponseRef.current
         pendingTranslationResponseRef.current = null
-        if (!contentRestored && pendingTranslationResponse !== null)
-          handleTranslationResponse(pendingTranslationResponse)
+        if (!contentRestored) {
+          const operation = isTranslationOperationCurrent() ? translationOperationRef.current : null
+          if (operation?.settledOutput !== undefined) {
+            operation.restoredSettledOutput = true
+            setTranslateOutput(operation.settledOutput)
+          } else if (pendingTranslationResponse !== null) handleTranslationResponse(pendingTranslationResponse)
+        }
         releaseHistoryRestore(contentRestored)
         if (historyRestoreBarrierRef.current === historyRestoreBarrier) historyRestoreBarrierRef.current = null
       }
@@ -896,6 +907,7 @@ const TranslatePage: FC = () => {
       markContentChanged,
       clearPdfMode,
       handleTranslationResponse,
+      isTranslationOperationCurrent,
       safePersist,
       setTranslateLanguages,
       setTranslateInput,

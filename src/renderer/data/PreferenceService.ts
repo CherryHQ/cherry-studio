@@ -598,25 +598,22 @@ export class PreferenceService {
     if (!optimisticState) return
 
     let persistedValue = value
-    const externalRevision = optimisticState.externalRevision
-    const readRevision = this.getPreferenceRevision(key)
-    if (externalRevision !== null) {
-      try {
-        persistedValue = await window.api.preference.get(key)
-      } catch (error) {
-        logger.warn(`Failed to reconcile preference ${key} after a concurrent update`, error as Error)
-        persistedValue = optimisticState.originalValue
+    if (optimisticState.externalRevision !== null) {
+      while (this.optimisticValues.has(key)) {
+        const readExternalRevision = this.optimisticValues.get(key)?.externalRevision
+        try {
+          persistedValue = await window.api.preference.get(key)
+        } catch (error) {
+          logger.warn(`Failed to reconcile preference ${key} after a concurrent update`, error as Error)
+          persistedValue = this.optimisticValues.get(key)?.originalValue ?? optimisticState.originalValue
+          break
+        }
+        if (this.optimisticValues.get(key)?.externalRevision === readExternalRevision) break
       }
     }
 
     const current = this.optimisticValues.get(key)
-    if (
-      !current ||
-      (externalRevision !== null &&
-        this.getPreferenceRevision(key) !== readRevision &&
-        (current.requestId === requestId || current.externalRevision !== externalRevision))
-    )
-      return
+    if (!current) return
     if (current.requestId === requestId) {
       const oldValue = this.cache[key]
       this.cache[key] = persistedValue

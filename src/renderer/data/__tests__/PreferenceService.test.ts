@@ -363,6 +363,47 @@ describe('renderer PreferenceService write consistency', () => {
     expect(service.getCachedValue(key)).toBe('zh-cn')
   })
 
+  it('uses the latest persisted value after a delayed cross-window notification during reconciliation', async () => {
+    const key = 'feature.translate.page.source_language'
+    get.mockResolvedValueOnce('en-us')
+    let resolveReconciliation!: (value: string) => void
+    get
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveReconciliation = resolve
+          })
+      )
+      .mockResolvedValueOnce('zh-cn')
+    const service = await createService()
+    await service.get(key)
+
+    let resolveFirst!: () => void
+    const failure = new Error('newer write failed')
+    set
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockRejectedValueOnce(failure)
+
+    const first = service.set(key, 'zh-cn')
+    emitChanged?.(key, 'ja-jp')
+    resolveFirst()
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2))
+
+    const second = service.set(key, 'fr-fr')
+    const secondResult = expect(second).rejects.toBe(failure)
+    emitChanged?.(key, 'ja-jp')
+    resolveReconciliation('zh-cn')
+
+    await first
+    await secondResult
+    expect(service.getCachedValue(key)).toBe('zh-cn')
+  })
+
   it('subscribes when a delayed get becomes stale before it resolves', async () => {
     const key = 'app.developer_mode.enabled'
     let resolveRead!: (value: boolean) => void

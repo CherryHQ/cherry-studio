@@ -2729,6 +2729,58 @@ describe('TranslatePage', () => {
     )
   })
 
+  it('keeps the complete result when history restore fails before smooth-stream tail frames play', async () => {
+    smoothStreamMock.deferUpdates = true
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    MockUseCacheUtils.setCacheValue('translate.input', 'current input')
+    translateCoreMock.translateText.mockImplementationOnce(
+      async (_text: string, _targetLanguage: string, onResponse?: (text: string, isComplete: boolean) => void) => {
+        onResponse?.('partial', false)
+        onResponse?.('partial translation', false)
+        onResponse?.('complete translation', true)
+        return 'complete translation'
+      }
+    )
+    let rejectPersist!: () => void
+    const persistLanguages = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPersist = () => reject(new Error('save failed'))
+        })
+    )
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const { rerender } = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+        await waitFor(() => expect(toast.success).toHaveBeenCalledWith('translate.complete'))
+
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+        await act(async () => smoothStreamMock.pendingUpdates.shift()?.())
+        expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+
+        await act(async () => rejectPersist())
+        rerender(<TranslatePage />)
+        expect(screen.getByTestId('translate-output-content')).toHaveTextContent('complete translation')
+
+        await act(async () => smoothStreamMock.pendingUpdates.shift()?.())
+        rerender(<TranslatePage />)
+        expect(screen.getByTestId('translate-output-content')).toHaveTextContent('complete translation')
+      }
+    )
+  })
+
   it('ignores a buffered translation update after the user edits the input', async () => {
     const user = userEvent.setup()
     smoothStreamMock.deferUpdates = true
