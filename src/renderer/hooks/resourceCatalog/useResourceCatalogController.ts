@@ -92,6 +92,14 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
   const { createGroup } = useGroupMutations(groupEntityType)
   const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group] as const)), [groups])
 
+  // A group deleted in another window must not leave the filter pointed at a
+  // ghost; converge once the refreshed group list says it is gone.
+  useEffect(() => {
+    if (activeGroupId && !groups.some((group) => group.id === activeGroupId)) {
+      setActiveGroupId(null)
+    }
+  }, [activeGroupId, groups])
+
   const scopedGroups = useMemo(() => {
     if (!isGroupedLibrary) return []
     return buildGroups(allResources, groups, groupEntityType)

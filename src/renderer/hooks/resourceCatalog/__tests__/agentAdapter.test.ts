@@ -11,7 +11,8 @@ const ipcRequestMock = vi.hoisted(() => vi.fn())
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => invalidateMock,
   useMutation: useMutationMock,
-  useQuery: vi.fn()
+  useQuery: vi.fn(),
+  useDataChange: vi.fn()
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))

@@ -866,7 +866,8 @@ describe('ResourceGrid card actions', () => {
 
   it('shows a direct delete action when delete is the only card action', async () => {
     const user = userEvent.setup()
-    const resource = createAgentResource()
+    // Prompts have no overflow menu — agent cards gained one for group actions.
+    const resource = createPromptResource()
     const onDelete = vi.fn()
 
     render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
