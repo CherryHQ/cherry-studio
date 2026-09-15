@@ -411,6 +411,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: write
     steps:
       - name: Checkout workflow controller
         uses: actions/checkout@v6
@@ -437,38 +438,77 @@ jobs:
           done
 
       - name: Download platform reports
+        id: download-reports
         continue-on-error: true
         uses: actions/download-artifact@v8
         with:
           path: downloaded-reports
-          pattern: test-evidence-*
+          pattern: test-*
           merge-multiple: false
+
+      - name: Collect platform evidence
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          mkdir -p platform-reports
+          for platform in macos windows; do
+            source="downloaded-reports/test-evidence-$platform"
+            if [[ ! -d "$source" && "$TEST_RESULT" == "success" ]]; then
+              source="downloaded-reports/test-report/evidence/$platform"
+            fi
+            if [[ -d "$source" ]]; then
+              cp -a "$source" "platform-reports/$platform"
+            fi
+          done
 
       - name: Generate aggregate report
         run: >-
           pnpm exec tsx scripts/cherry-regression-test/cli.ts aggregate
-          --input downloaded-reports
+          --input platform-reports
           --output combined-report
           --mode "${{ needs.resolve.outputs.mode }}"
 
       - name: Merge detailed Playwright reports
         env:
           CHERRY_TEST_RUN_DIR: ${{ github.workspace }}/combined-report
-          PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ github.workspace }}/combined-report/playwright
+          PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ github.workspace }}/merged-html
           PLAYWRIGHT_HTML_OPEN: never
         run: |
           mkdir -p merged-blobs
-          find downloaded-reports -path '*/blob-*/*.zip' -exec cp {} merged-blobs/ \;
+          find platform-reports -path '*/blob-*/*.zip' -exec cp {} merged-blobs/ \;
           pnpm exec playwright merge-reports --config cherry-regression.playwright.config.ts --reporter html merged-blobs
 
+      - name: Assemble complete report
+        id: assemble-report
+        run: |
+          test -f platform-reports/macos/report/results.json
+          test -f platform-reports/windows/report/results.json
+          cp -a merged-html/. combined-report/
+          cp -a platform-reports combined-report/evidence
+          mv combined-report/combined-report.md combined-report/summary.md
+          test -f combined-report/index.html
+
       - name: Upload aggregate report
-        if: always()
+        id: upload-report
+        if: always() && steps.download-reports.outcome == 'success' && steps.assemble-report.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: test-report
           overwrite: true
           path: combined-report
           retention-days: 30
+
+      - name: Remove temporary platform artifacts
+        if: success() && steps.download-reports.outcome == 'success' && steps.upload-report.outputs.artifact-id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.name == "test-evidence-macos" or .name == "test-evidence-windows") | .id' \
+            > temporary-artifact-ids.txt
+          while read -r artifact_id; do
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id"
+          done < temporary-artifact-ids.txt
 
       - name: Validate aggregate result
         if: always()

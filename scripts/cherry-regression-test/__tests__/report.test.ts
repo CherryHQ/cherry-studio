@@ -91,7 +91,9 @@ describe('regression report gate', () => {
     expect(markdown).not.toContain('Note saved successfully')
     expect(markdown).not.toContain('Full results')
     expect(markdown).toContain('Save failed \\| File is read-only')
-    expect(markdown).toContain('playwright/index.html')
+    expect(markdown).toContain('`index.html`')
+    expect(markdown).toContain('`evidence/macos`')
+    expect(markdown).toContain('`evidence/windows`')
     expect(markdown).not.toContain('| M-01 |')
     expect(renderAggregateMarkdown(aggregateRuns([macos]))).toContain(
       '| N-01 | Create and save a note | ✅ Passed | ⛔ Missing report |'

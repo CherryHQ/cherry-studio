@@ -39,16 +39,22 @@ Capability probes are preflight checks, not evidence that a product interaction 
 ## Combined report
 
 The aggregate job publishes `test-report`. Download and extract
-it, then open `playwright/index.html` to browse every platform and phase in one HTML
+it, then open `index.html` to browse every platform and phase in one HTML
 report, including failures and attachments. The same artifact contains
-`combined-report.md`. Only the aggregate job writes GitHub's summary: platform
+`summary.md`. Only the aggregate job writes GitHub's summary: platform
 counts, actionable case/phase issues, and a cross-platform case table. Full
-platform reports remain in `test-evidence-macos` and `test-evidence-windows` without
-duplication in the summary. Rerunning a job replaces its same-named artifact.
+platform reports, logs, fixtures, and generated files are bundled under
+`evidence/macos` and `evidence/windows` without duplication in the summary.
+After the complete bundle is uploaded, the aggregate job deletes only this run's
+temporary `test-evidence-macos` and `test-evidence-windows` artifacts. If download,
+assembly, or upload fails, temporary artifacts are retained for diagnosis.
+When the platform jobs succeeded, an aggregate-only rerun can recover missing
+temporary artifacts from the previous bundle. Failed platform jobs never fall
+back to old evidence. Rerunning a job replaces its same-named artifact.
 
 Each phase retains a blob report with a platform/phase-specific filename. The aggregate
 job uses Playwright's built-in `merge-reports` with an explicit test root for cross-OS
-paths. Platform artifacts remain available for raw logs and generated files. The JSON
+paths. Bundled platform evidence retains raw logs and generated files. The JSON
 aggregate verdict remains authoritative, including missing or interrupted phases.
 
 ## Verification

@@ -304,7 +304,7 @@ export function renderAggregateMarkdown(report: AggregateReport): string {
     '',
     '## Detailed report',
     '',
-    'Download and extract the `test-report` artifact, then open `playwright/index.html` to view tests, errors, screenshots, and attachments across all platforms and phases.',
+    'Download and extract the `test-report` artifact, then open `index.html` to view all platforms and phases. See `summary.md` for the summary and `evidence/macos` or `evidence/windows` for platform reports, logs, and generated files.',
     ''
   ].join('\n')
 }
