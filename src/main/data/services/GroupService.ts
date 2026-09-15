@@ -148,6 +148,10 @@ export class GroupService {
     )
 
     const mapped = rowToGroup(row as GroupRow)
+    notifyDataApiDataChange([
+      { endpoint: '/groups', kind: 'membership', entityIds: [mapped.id] },
+      { endpoint: '/groups/:id', routeParams: { id: mapped.id }, entityIds: [mapped.id] }
+    ])
     logger.info('Created group', { id: mapped.id, entityType: mapped.entityType })
     return mapped
   }
@@ -172,15 +176,17 @@ export class GroupService {
       throw DataApiErrorFactory.notFound('Group', id)
     }
 
+    notifyDataApiDataChange([
+      { endpoint: '/groups', kind: 'projection', entityIds: [id] },
+      { endpoint: '/groups/:id', routeParams: { id }, entityIds: [id] }
+    ])
     logger.info('Updated group', { id, changes: Object.keys(dto) })
     return rowToGroup(row)
   }
 
   /**
-   * Delete a group. Agent membership is unbound explicitly: agent.group_id was
-   * added by ALTER TABLE, where SQLite only permits NO ACTION foreign keys, so
-   * agent rows lack the DB-level SET NULL that assistant/knowledge rely on.
-   * The unbind bypasses any agent command, so membership is broadcast here.
+   * Delete a group. Members unbind through the agent.group_id FK (ON DELETE
+   * SET NULL); their ids are read first so the unbind can be broadcast.
    */
   delete(id: string): void {
     let unboundAgentIds: string[] = []
@@ -197,9 +203,11 @@ export class GroupService {
         .all()
         .map((row) => row.id)
 
-      tx.update(agentTable).set({ groupId: null }).where(eq(agentTable.groupId, id)).run()
+      const [row] = tx.delete(groupTable).where(eq(groupTable.id, id)).returning({ id: groupTable.id }).all()
 
-      tx.delete(groupTable).where(eq(groupTable.id, id)).run()
+      if (!row) {
+        throw DataApiErrorFactory.notFound('Group', id)
+      }
     })
 
     const unbindEffects: DataApiDataChangeEffect[] =
