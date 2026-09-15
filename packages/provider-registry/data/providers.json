@@ -706,6 +706,70 @@
       "name": "AMD GPU Cloud"
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Hubris - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.hubris.pw"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.hubris.pw/v1",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
+                "operations": [
+                  {
+                    "target": "reasoning.effort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "effort": {
+                "operations": [
+                  {
+                    "target": "reasoning.effort",
+                    "value": {
+                      "source": "effort"
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "reasoning.effort",
+                    "value": {
+                      "source": "literal",
+                      "value": "none"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "hubris",
+      "metadata": {
+        "website": {
+          "apiKey": "https://hubris.pw/keys",
+          "docs": "https://hubris.pw/docs",
+          "models": "https://hubris.pw/models",
+          "official": "https://hubris.pw"
+        }
+      },
+      "name": "Hubris"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "TokenDance - AI model provider",
@@ -2529,5 +2593,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e47c80cffa19d83b"
+  "version": "360e13b28a8dd663"
 }

@@ -71,6 +71,7 @@ import { GpustackIcon } from './gpustack'
 import { GrokIcon } from './grok'
 import { GroqIcon } from './groq'
 import { HigressIcon } from './higress'
+import { HubrisIcon } from './hubris'
 import { HuggingfaceIcon } from './huggingface'
 import { HyperbolicIcon } from './hyperbolic'
 import { IdeogramIcon } from './ideogram'
@@ -234,6 +235,7 @@ export const PROVIDER_ICON_CATALOG = {
   grok: GrokIcon,
   groq: GroqIcon,
   higress: HigressIcon,
+  hubris: HubrisIcon,
   huggingface: HuggingfaceIcon,
   hyperbolic: HyperbolicIcon,
   ideogram: IdeogramIcon,
