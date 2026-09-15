@@ -1184,6 +1184,7 @@
   "common.you": "用户",
   "deviceConnections.description": "连接同一局域网内的 Cherry Studio 移动端，并管理设备访问权限。",
   "deviceConnections.devices.empty": "尚未配对任何设备。",
+  "deviceConnections.devices.loadError": "加载已配对设备失败。",
   "deviceConnections.devices.revoke": "撤销访问",
   "deviceConnections.devices.revoked": "已撤销该设备的访问权限",
   "deviceConnections.devices.title": "已配对设备",

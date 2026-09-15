@@ -1184,6 +1184,7 @@
   "common.you": "You",
   "deviceConnections.description": "Connect Cherry Studio mobile clients on the same local network and manage their access.",
   "deviceConnections.devices.empty": "No devices have been paired yet.",
+  "deviceConnections.devices.loadError": "Failed to load paired devices.",
   "deviceConnections.devices.revoke": "Revoke access",
   "deviceConnections.devices.revoked": "Device access revoked",
   "deviceConnections.devices.title": "Paired devices",

@@ -1184,6 +1184,7 @@
   "common.you": "Siz",
   "deviceConnections.description": "Aynı yerel ağdaki Cherry Studio mobil istemcilerini bağlayın ve erişimlerini yönetin.",
   "deviceConnections.devices.empty": "Henüz eşleştirilmiş cihaz yok.",
+  "deviceConnections.devices.loadError": "Eşleştirilmiş cihazlar yüklenemedi.",
   "deviceConnections.devices.revoke": "Erişimi iptal et",
   "deviceConnections.devices.revoked": "Cihaz erişimi iptal edildi",
   "deviceConnections.devices.title": "Eşleştirilmiş cihazlar",

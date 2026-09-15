@@ -1184,6 +1184,7 @@
   "common.you": "Вы",
   "deviceConnections.description": "Подключайте мобильные клиенты Cherry Studio в одной локальной сети и управляйте их доступом.",
   "deviceConnections.devices.empty": "Сопряжённых устройств пока нет.",
+  "deviceConnections.devices.loadError": "Не удалось загрузить сопряжённые устройства.",
   "deviceConnections.devices.revoke": "Отозвать доступ",
   "deviceConnections.devices.revoked": "Доступ устройства отозван",
   "deviceConnections.devices.title": "Сопряжённые устройства",

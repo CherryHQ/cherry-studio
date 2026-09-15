@@ -1184,6 +1184,7 @@
   "common.you": "Sie",
   "deviceConnections.description": "Cherry Studio-Mobilgeräte im selben lokalen Netzwerk verbinden und deren Zugriff verwalten.",
   "deviceConnections.devices.empty": "Noch keine Geräte gekoppelt.",
+  "deviceConnections.devices.loadError": "Gekoppelte Geräte konnten nicht geladen werden.",
   "deviceConnections.devices.revoke": "Zugriff widerrufen",
   "deviceConnections.devices.revoked": "Gerätezugriff widerrufen",
   "deviceConnections.devices.title": "Gekoppelte Geräte",

@@ -1184,6 +1184,7 @@
   "common.you": "Εσείς",
   "deviceConnections.description": "Συνδέστε εφαρμογές Cherry Studio για κινητά στο ίδιο τοπικό δίκτυο και διαχειριστείτε την πρόσβασή τους.",
   "deviceConnections.devices.empty": "Δεν έχουν συζευχθεί ακόμη συσκευές.",
+  "deviceConnections.devices.loadError": "Αποτυχία φόρτωσης των συζευγμένων συσκευών.",
   "deviceConnections.devices.revoke": "Ανάκληση πρόσβασης",
   "deviceConnections.devices.revoked": "Η πρόσβαση της συσκευής ανακλήθηκε",
   "deviceConnections.devices.title": "Συζευγμένες συσκευές",

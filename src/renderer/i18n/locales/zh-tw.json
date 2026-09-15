@@ -1184,6 +1184,7 @@
   "common.you": "您",
   "deviceConnections.description": "連接同一區域網路內的 Cherry Studio 行動裝置版，並管理裝置存取權限。",
   "deviceConnections.devices.empty": "尚未配對任何裝置。",
+  "deviceConnections.devices.loadError": "無法載入已配對裝置。",
   "deviceConnections.devices.revoke": "撤銷存取",
   "deviceConnections.devices.revoked": "已撤銷該裝置的存取權限",
   "deviceConnections.devices.title": "已配對裝置",

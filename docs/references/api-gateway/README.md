@@ -368,6 +368,51 @@ as `DELETE /api-gateway/paired-devices/:id`.
 The owning data service validates device metadata before insertion; the HTTP
 pairing body reuses the same entity-derived metadata schema.
 
+### Mobile pairing protocol
+
+The QR code contains JSON, not a URL:
+
+```json
+{"v":1,"t":"cherry-studio-pair","name":"Desktop","port":23333,"ips":["192.168.1.8"],"code":"0123456789abcdef0123456789abcdef"}
+```
+
+`v` is the QR format version; `t` identifies a Cherry Studio pairing payload.
+`name` is the desktop hostname. `ips` contains its non-loopback IPv4 addresses;
+the mobile client must choose an address reachable on its network and use
+`http://<ip>:<port>` as the gateway origin. The code is valid for five minutes,
+is consumed by the first successful pairing, and is invalidated after ten wrong
+attempts or an explicit gateway stop. Displaying it again before expiry reuses
+the same live code. Stopping, completing pairing, or leaving the page invalidates
+pending QR requests in the renderer so a late response cannot restore an old QR.
+
+Send the code with the mobile device's metadata, without an authorization header:
+
+```http
+POST /pair
+Content-Type: application/json
+
+{"code":"0123456789abcdef0123456789abcdef","device":{"name":"My phone","platform":"android"}}
+```
+
+The device name and platform are trimmed, non-empty strings, limited to 64 and
+32 characters respectively; `platform` is not an enum. A successful response is
+`200` with `{ "token": "cs-dt-…", "name": "Desktop", "version": "2.0.0" }`.
+Here `version` is the desktop app version, not the QR format version. Malformed
+metadata receives `400`, an invalid/expired code receives `403`, and a body over
+4 KiB receives `413`. The token is returned only once and remains valid until
+the desktop user revokes that device; stopping the service does not delete it.
+
+Use `Authorization: Bearer <token>` for `GET /v1/export/providers`. Its response
+is `{ "version": 1, "providers": [...] }`, containing enabled providers with
+enabled API keys and models, authentication configuration, and portable request
+settings. The exact field projection lives in
+[`providerExport.ts`](../../../src/main/features/apiGateway/routes/providerExport.ts).
+Missing credentials receive `401`; unknown or revoked tokens receive `403`.
+After revocation, the device must pair again. Both mobile routes are hidden from
+OpenAPI, and all remote requests receive `403` while LAN access is disabled.
+Transfers use plain HTTP and include provider secrets; the successful export
+response carries `Cache-Control: no-store`.
+
 ## Authentication
 
 `authorizeApiRequest(xApiKey, bearerToken)` (`middleware/auth.ts`), run from the

@@ -16,3 +16,4 @@ export const apiGatewayPairedDeviceTable = sqliteTable(
 )
 
 export type ApiGatewayPairedDeviceRow = typeof apiGatewayPairedDeviceTable.$inferSelect
+export type InsertApiGatewayPairedDeviceRow = typeof apiGatewayPairedDeviceTable.$inferInsert

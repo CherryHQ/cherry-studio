@@ -1184,6 +1184,7 @@
   "common.you": "Bạn",
   "deviceConnections.description": "Kết nối các ứng dụng Cherry Studio di động trong cùng mạng cục bộ và quản lý quyền truy cập của chúng.",
   "deviceConnections.devices.empty": "Chưa có thiết bị nào được ghép nối.",
+  "deviceConnections.devices.loadError": "Không thể tải các thiết bị đã ghép nối.",
   "deviceConnections.devices.revoke": "Thu hồi quyền truy cập",
   "deviceConnections.devices.revoked": "Đã thu hồi quyền truy cập của thiết bị",
   "deviceConnections.devices.title": "Thiết bị đã ghép nối",

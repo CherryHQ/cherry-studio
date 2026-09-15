@@ -1184,6 +1184,7 @@
   "common.you": "Tu",
   "deviceConnections.description": "Conectați clienții mobili Cherry Studio din aceeași rețea locală și gestionați accesul acestora.",
   "deviceConnections.devices.empty": "Nu a fost asociat încă niciun dispozitiv.",
+  "deviceConnections.devices.loadError": "Dispozitivele asociate nu au putut fi încărcate.",
   "deviceConnections.devices.revoke": "Revocă accesul",
   "deviceConnections.devices.revoked": "Accesul dispozitivului a fost revocat",
   "deviceConnections.devices.title": "Dispozitive asociate",

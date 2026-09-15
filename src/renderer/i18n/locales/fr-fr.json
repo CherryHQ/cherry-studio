@@ -1184,6 +1184,7 @@
   "common.you": "Vous",
   "deviceConnections.description": "Connectez les clients mobiles Cherry Studio sur le même réseau local et gérez leur accès.",
   "deviceConnections.devices.empty": "Aucun appareil n’a encore été appairé.",
+  "deviceConnections.devices.loadError": "Impossible de charger les appareils associés.",
   "deviceConnections.devices.revoke": "Révoquer l'accès",
   "deviceConnections.devices.revoked": "Accès de l'appareil révoqué",
   "deviceConnections.devices.title": "Appareils appairés",

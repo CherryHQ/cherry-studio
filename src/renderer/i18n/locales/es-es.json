@@ -1184,6 +1184,7 @@
   "common.you": "Usuario",
   "deviceConnections.description": "Conecta clientes móviles de Cherry Studio en la misma red local y gestiona su acceso.",
   "deviceConnections.devices.empty": "Todavía no se ha emparejado ningún dispositivo.",
+  "deviceConnections.devices.loadError": "No se pudieron cargar los dispositivos vinculados.",
   "deviceConnections.devices.revoke": "Revocar acceso",
   "deviceConnections.devices.revoked": "Acceso del dispositivo revocado",
   "deviceConnections.devices.title": "Dispositivos emparejados",

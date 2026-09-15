@@ -2,10 +2,10 @@ import { MonitorSmartphone, QrCode, Trash2, TriangleAlert } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type React from 'react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, IndicatorLight, Tooltip } from '@cherrystudio/ui'
+import { Alert, Button, IndicatorLight, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import {
   SettingGroup,
@@ -33,7 +33,13 @@ const DeviceConnectionsSettings: FC = () => {
     stopApiGateway,
     setApiGatewayConfig
   } = useApiGateway()
-  const { data: devices = [], refetch: refetchDevices } = useQuery('/api-gateway/paired-devices')
+  const {
+    data: devices = [],
+    isLoading: isLoadingDevices,
+    isRefreshing: isRefreshingDevices,
+    error: devicesError,
+    refetch: refetchDevices
+  } = useQuery('/api-gateway/paired-devices')
   const { trigger: deleteDevice, isLoading: isRevoking } = useMutation('DELETE', '/api-gateway/paired-devices/:id', {
     refresh: ['/api-gateway/paired-devices']
   })
@@ -44,13 +50,23 @@ const DeviceConnectionsSettings: FC = () => {
   const [isCreatingOffer, setIsCreatingOffer] = useState(false)
   const [isStartingConnection, setIsStartingConnection] = useState(false)
   const [revokingId, setRevokingId] = useState<string>()
+  const pairingRequestId = useRef(0)
+
+  const clearPairingOffer = useCallback(() => {
+    pairingRequestId.current += 1
+    setPairingOffer(undefined)
+    setIsCreatingOffer(false)
+  }, [])
 
   useDataChange('/api-gateway/paired-devices', () => void refetchDevices())
-  useIpcOn('api_gateway.pairing_completed', () => setPairingOffer(undefined))
+  useIpcOn('api_gateway.pairing_completed', clearPairingOffer)
 
   useEffect(() => {
-    if (!connectionReady) setPairingOffer(undefined)
-  }, [connectionReady])
+    clearPairingOffer()
+    return () => {
+      pairingRequestId.current += 1
+    }
+  }, [connectionReady, clearPairingOffer])
 
   useEffect(() => {
     if (!pairingOffer) return
@@ -59,15 +75,18 @@ const DeviceConnectionsSettings: FC = () => {
   }, [pairingOffer])
 
   const showPairingQr = async () => {
-    if (isCreatingOffer) return
+    if (!connectionReady || isCreatingOffer) return
+    const requestId = ++pairingRequestId.current
     setIsCreatingOffer(true)
     try {
       const result = await ipcApi.request('api_gateway.create_pairing_offer')
-      setPairingOffer(result)
+      if (requestId === pairingRequestId.current && result.expiresAt > Date.now()) setPairingOffer(result)
     } catch (error) {
-      toast.error(t('deviceConnections.pairing.error') + ((error as Error).message || error))
+      if (requestId === pairingRequestId.current) {
+        toast.error(t('deviceConnections.pairing.error') + ((error as Error).message || error))
+      }
     } finally {
-      setIsCreatingOffer(false)
+      if (requestId === pairingRequestId.current) setIsCreatingOffer(false)
     }
   }
 
@@ -208,7 +227,26 @@ const DeviceConnectionsSettings: FC = () => {
         <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
           <SectionFields>
             <SettingRowTitle>{t('deviceConnections.devices.title')}</SettingRowTitle>
-            {devices.length > 0 ? (
+            {devicesError ? (
+              <Alert
+                type="error"
+                showIcon
+                message={t('deviceConnections.devices.loadError')}
+                action={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    loading={isRefreshingDevices}
+                    onClick={() => void refetchDevices().catch(() => {})}>
+                    {t('common.retry')}
+                  </Button>
+                }
+              />
+            ) : isLoadingDevices ? (
+              <div role="status" className="text-foreground-tertiary text-xs">
+                {t('common.loading')}
+              </div>
+            ) : devices.length > 0 ? (
               <div className="flex flex-col gap-2">
                 {devices.map((device) => (
                   <div

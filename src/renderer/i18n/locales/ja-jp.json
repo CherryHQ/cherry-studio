@@ -1184,6 +1184,7 @@
   "common.you": "あなた",
   "deviceConnections.description": "同じローカルネットワーク上の Cherry Studio モバイルクライアントを接続し、アクセスを管理します。",
   "deviceConnections.devices.empty": "ペアリング済みのデバイスはまだありません。",
+  "deviceConnections.devices.loadError": "ペアリング済みデバイスを読み込めませんでした。",
   "deviceConnections.devices.revoke": "アクセスを取り消す",
   "deviceConnections.devices.revoked": "デバイスのアクセスを取り消しました",
   "deviceConnections.devices.title": "ペアリング済みデバイス",
