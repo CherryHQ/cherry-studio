@@ -33,6 +33,7 @@ the authenticated shared profile.
 The workflow reads these repository variables and secrets:
 
 - `CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL`
+- `CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL`
 - `CHERRY_TEST_CUSTOM_PROVIDER_API_KEY`
 - `CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL`
 - `CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL`
@@ -42,6 +43,10 @@ The workflow reads these repository variables and secrets:
 - `CHERRY_TEST_CHERRYIN_IMAGE_MODEL`
 - `CHERRY_TEST_CHERRYIN_ACCOUNT`
 - `CHERRY_TEST_CHERRYIN_PASSWORD`
+
+The custom chat provider requires both URLs: `CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL`
+fills OpenAI, and `CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL` fills Anthropic.
+Both endpoints share `CHERRY_TEST_CUSTOM_PROVIDER_API_KEY`.
 
 Chat and embedding providers are independent. Never print literal credentials,
 write them to fixtures, attach them to Playwright artifacts, or pass them to an

@@ -47,7 +47,7 @@ export async function skipNewProviderModelSetup(page: Page): Promise<void> {
 }
 
 export async function ensureCustomChatProvider(app: RegressionApp, page: Page): Promise<string> {
-  const { baseUrl, apiKey, chatModel } = app.config.customProvider
+  const { baseUrl, anthropicBaseUrl, apiKey, chatModel } = app.config.customProvider
   await openSettingsSection(page, 'Model Provider')
   const providerItem = page
     .locator('[data-testid^="provider-list-item-"]')
@@ -61,7 +61,8 @@ export async function ensureCustomChatProvider(app: RegressionApp, page: Page): 
     const apiKeyInput = page.getByRole('textbox', { name: 'API Key', exact: true })
     await expect(apiKeyInput).toHaveAttribute('type', 'password')
     await apiKeyInput.fill(apiKey)
-    await page.getByRole('textbox', { name: 'Anthropic', exact: true }).fill(baseUrl)
+    await page.getByRole('textbox', { name: 'OpenAI', exact: true }).fill(baseUrl)
+    await page.getByRole('textbox', { name: 'Anthropic', exact: true }).fill(anthropicBaseUrl)
     await page.getByRole('button', { name: 'Add', exact: true }).click()
     await skipNewProviderModelSetup(page)
   }

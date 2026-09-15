@@ -1,8 +1,9 @@
-import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from '../config'
+import { getSensitiveConfigValues, loadTestConfig } from '../config'
 
 describe('regression test configuration', () => {
   const validEnv = {
     CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: 'https://gateway.example.test/v1',
+    CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ' https://anthropic.example.test ',
     CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: 'provider-secret',
     CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: 'Qwen/Qwen3.6-27B',
     CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: 'https://embedding.example.test/v1',
@@ -14,26 +15,21 @@ describe('regression test configuration', () => {
     CHERRY_TEST_CHERRYIN_PASSWORD: 'account-secret'
   }
 
-  it('uses provider-scoped names without ambiguous legacy variables', () => {
-    expect(REQUIRED_CONFIG).toEqual([
-      'CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL',
-      'CHERRY_TEST_CUSTOM_PROVIDER_API_KEY',
-      'CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL',
-      'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL',
-      'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY',
-      'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL',
-      'CHERRY_TEST_CHERRYIN_CHAT_MODEL',
-      'CHERRY_TEST_CHERRYIN_IMAGE_MODEL',
-      'CHERRY_TEST_CHERRYIN_ACCOUNT',
-      'CHERRY_TEST_CHERRYIN_PASSWORD'
-    ])
-    expect(REQUIRED_CONFIG.some((name) => /^CHERRY_TEST_(PROVIDER|EMBEDDING|GEMINI|IMAGE2)_/.test(name))).toBe(false)
+  it('requires a separate Anthropic URL instead of reusing the OpenAI URL', () => {
+    expect(() => loadTestConfig({ ...validEnv, CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: undefined })).toThrow(
+      'Missing regression test configuration: CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL'
+    )
   })
 
   it('loads provider-scoped values for Playwright', () => {
     const config = loadTestConfig(validEnv)
 
-    expect(config.customProvider.chatModel).toBe('Qwen/Qwen3.6-27B')
+    expect(config.customProvider).toEqual({
+      baseUrl: 'https://gateway.example.test/v1',
+      anthropicBaseUrl: 'https://anthropic.example.test',
+      apiKey: 'provider-secret',
+      chatModel: 'Qwen/Qwen3.6-27B'
+    })
     expect(config.customEmbeddingProvider).toEqual({
       apiKey: 'embedding-secret',
       baseUrl: 'https://embedding.example.test/v1',
@@ -63,12 +59,16 @@ describe('regression test configuration', () => {
     )
   })
 
-  it('validates both provider base URLs before application launch', () => {
+  it.each([
+    'CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL',
+    'CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL',
+    'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL'
+  ])('validates %s before application launch', (name) => {
     expect(() =>
       loadTestConfig({
         ...validEnv,
-        CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL: 'not-a-url'
+        [name]: 'not-a-url'
       })
-    ).toThrow('CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL must be an absolute URL')
+    ).toThrow(`${name} must be an absolute URL`)
   })
 })

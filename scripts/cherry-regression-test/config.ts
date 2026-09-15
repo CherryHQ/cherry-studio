@@ -1,5 +1,6 @@
 export const REQUIRED_CONFIG = [
   'CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL',
+  'CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL',
   'CHERRY_TEST_CUSTOM_PROVIDER_API_KEY',
   'CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL',
   'CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_BASE_URL',
@@ -16,6 +17,7 @@ export type RequiredConfigName = (typeof REQUIRED_CONFIG)[number]
 export interface RegressionTestConfig {
   customProvider: {
     baseUrl: string
+    anthropicBaseUrl: string
     apiKey: string
     chatModel: string
   }
@@ -54,6 +56,7 @@ export function loadTestConfig(environment: Environment = process.env): Regressi
   return {
     customProvider: {
       baseUrl: absoluteUrl('CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL'),
+      anthropicBaseUrl: absoluteUrl('CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL'),
       apiKey: value('CHERRY_TEST_CUSTOM_PROVIDER_API_KEY'),
       chatModel: value('CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL')
     },

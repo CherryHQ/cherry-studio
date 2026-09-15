@@ -42,6 +42,14 @@ The run's task selection controls which cases execute. To run only Notes, initia
 ## Configuration and evidence
 
 The repository variables/secrets are listed in `scripts/cherry-regression-test/config.ts`; the image model variable is `CHERRY_TEST_CHERRYIN_IMAGE_MODEL`.
+
+Custom chat provider creation fills two required endpoint URLs:
+
+- OpenAI: `CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL` (for example, `https://api.siliconflow.cn/v1`).
+- Anthropic: `CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL` (for example, `https://api.siliconflow.cn`).
+
+Both endpoints use `CHERRY_TEST_CUSTOM_PROVIDER_API_KEY`. The embedding provider remains separately configured.
+
 Never attach credentials or enable credential-bearing Playwright traces. HTML reports and failure screenshots are produced by Playwright and the fixture; sanitized Electron logs are copied during finalization.
 
 Use the [frontend testing guidelines](../../../docs/references/testing/frontend-testing.md). Keep local changes separate from hosted runtime validation; successful enumeration and unit tests do not prove desktop permissions or external model availability.
