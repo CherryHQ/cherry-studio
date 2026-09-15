@@ -193,10 +193,14 @@ describe('Agent browser authority and control lifetime', () => {
     const initialListeners = guestSession.listenerCount('will-download')
     const debuggerEvents = fixture.mock.debugger
     const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
-    await controller.getSession(false, tabId)
+    const { pointer } = await controller.getSession(false, tabId)
+    service.agentBrowser.getCursor(sessionId, tabId, windowId)!.setPresented(true)
+    const pending = pointer.move({ x: 20, y: 20 }, {})
+    const canceled = expect(pending).rejects.toMatchObject({ code: 'not_found' })
     expect(guestSession.listenerCount('will-download')).toBe(initialListeners + 1)
 
     expect(() => fixture.mock.close()).not.toThrow()
+    await canceled
     expect(debuggerEvents.listenerCount('message')).toBe(0)
     expect(debuggerEvents.listenerCount('detach')).toBe(0)
     expect(service.agentBrowser.get({ agentId, sessionId })).toBeUndefined()

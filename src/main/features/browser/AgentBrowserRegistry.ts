@@ -85,13 +85,14 @@ export class AgentBrowserRegistry implements Disposable {
     }
     window.on('blur', hideCursor)
     guest.on('did-start-navigation', onNavigation)
-    guest.debugger.on('detach', invalidateCursor)
+    const debuggerEvents = guest.debugger
+    debuggerEvents.on('detach', invalidateCursor)
     abort.signal.addEventListener(
       'abort',
       () => {
         cursor.dispose()
         guest.removeListener('did-start-navigation', onNavigation)
-        guest.debugger.removeListener('detach', invalidateCursor)
+        debuggerEvents.removeListener('detach', invalidateCursor)
         window.removeListener('blur', hideCursor)
       },
       { once: true }
