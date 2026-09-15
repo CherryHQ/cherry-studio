@@ -11,6 +11,7 @@ describe('AgentEntitySchema', () => {
     instructions: 'You are helpful.',
     model: 'openai::gpt-4',
     orderKey: 'a0',
+    groupId: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     modelName: null
