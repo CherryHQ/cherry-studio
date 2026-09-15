@@ -2,6 +2,7 @@ import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { aiStreamAbortOrigins } from '@shared/ai/transport'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -171,15 +172,6 @@ const mentionedModelIdsSchema = z
   })
   .optional()
 
-/**
- * Who asked Main to abort a topic. The handler stamps it into the stream's abort
- * reason, so `Aborting stream` names the caller instead of always reading `user-requested`.
- */
-export const AI_STREAM_ABORT_ORIGINS = ['user-stop', 'transport-abort-signal', 'translate-cancel'] as const
-
-/** Abort reason for a caller that named no origin. Deliberately not `user-stop`. */
-export const AI_STREAM_ABORT_ORIGIN_UNSPECIFIED = 'origin-unspecified'
-
 export const aiRequestSchemas = {
   // ── One-shot model calls, grouped by output modality (AiService) ──
   'ai.text.generate': defineRoute({
@@ -285,7 +277,7 @@ export const aiRequestSchemas = {
   'ai.stream.abort': defineRoute({
     input: z.strictObject({
       topicId: z.string().min(1),
-      origin: z.enum(AI_STREAM_ABORT_ORIGINS).optional()
+      origin: z.enum(aiStreamAbortOrigins).optional()
     }),
     output: z.void()
   }),

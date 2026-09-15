@@ -59,7 +59,7 @@ function renderActions(
   cache = makeCache(),
   activeNodeId = uiMessages.at(-1)?.id ?? null,
   startNewContextBlocked = false,
-  stop: () => Promise<void> = vi.fn(async () => {})
+  stop: Parameters<typeof useChatWriteActions>[0]['stop'] = vi.fn(async () => {})
 ) {
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn<Parameters<typeof useChatWriteActions>[0]['regenerate']>(async () => {})
@@ -92,6 +92,15 @@ function renderActions(
 
 describe('useChatWriteActions — pause', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('claims a user stop only from the Pause action, not from the stream hook', () => {
+    const stop = vi.fn<Parameters<typeof useChatWriteActions>[0]['stop']>(async () => {})
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], makeCache(), 'u1', false, stop)
+
+    actions.pause()
+
+    expect(stop).toHaveBeenCalledWith('user-stop')
+  })
 
   it('logs a failed stream stop instead of exposing a rejected pause callback', async () => {
     const stopError = new Error('abort failed')
