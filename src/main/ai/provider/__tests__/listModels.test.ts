@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 
+import lmStudioModels from '../../__tests__/fixtures/lmstudio-models.json'
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 
@@ -219,6 +220,14 @@ describe('listModels — TokenDance protocol routing', () => {
 })
 
 describe('listModels — LM Studio', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(async () => {
+    const actual = await vi.importActual<typeof AiSdkProviderUtils>('@ai-sdk/provider-utils')
+    fetchMock.mockReset()
+    aiSdkGetFromApiMock.mockImplementation((options) => actual.getFromApi({ ...options, fetch: fetchMock }))
+  })
+
   function makeLmStudioProvider(baseUrl = 'http://lmstudio.test:1234') {
     return makeProvider({
       id: 'lmstudio',
@@ -229,83 +238,71 @@ describe('listModels — LM Studio', () => {
     })
   }
 
-  it('lists from /api/v0/models so the pull does not depend on the JIT-loading toggle', async () => {
-    // /v1/models only includes downloaded models while JIT loading is enabled; with it off a pull
-    // returns just the loaded ones and looks like models silently went missing.
-    aiSdkGetFromApiMock.mockResolvedValueOnce({
-      value: { data: [{ id: 'meta-llama-3.1-8b-instruct', type: 'llm', publisher: 'lmstudio-community' }] }
-    })
+  it('imports unloaded chat and embedding models from the native v1 response', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json(lmStudioModels))
 
-    const models = await listModels(makeLmStudioProvider())
+    const models = await listModels(makeLmStudioProvider(), undefined, { throwOnError: true })
 
-    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
-      url: 'http://lmstudio.test:1234/api/v0/models'
-    })
-    expect(models).toHaveLength(1)
-    expect(models[0]).toMatchObject({ apiModelId: 'meta-llama-3.1-8b-instruct', ownedBy: 'lmstudio-community' })
-  })
-
-  it('marks embedding models so they are not offered as chat models', async () => {
-    aiSdkGetFromApiMock.mockResolvedValueOnce({
-      value: {
-        data: [
-          { id: 'text-embedding-nomic-embed-text-v1.5', type: 'embeddings', max_context_length: 2048 },
-          { id: 'qwen2-vl-7b-instruct', type: 'vlm', max_context_length: 32768 }
-        ]
-      }
-    })
-
-    const models = await listModels(makeLmStudioProvider())
-
+    expect(models).toHaveLength(2)
     expect(models[0]).toMatchObject({
+      apiModelId: 'qwen2.5-0.5b-instruct',
+      name: 'Qwen2.5 0.5B Instruct',
+      ownedBy: 'lmstudio-community',
+      contextWindow: 32768
+    })
+    expect(models[1]).toMatchObject({
+      apiModelId: 'text-embedding-nomic-embed-text-v1.5',
+      name: 'Nomic Embed Text v1.5',
+      contextWindow: 2048,
       endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
       capabilities: [MODEL_CAPABILITY.EMBEDDING]
     })
-    expect(models[1]).toMatchObject({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
-    expect(models[1].endpointTypes).toBeUndefined()
+    expect(fetchMock.mock.calls[0][0]).toBe('http://lmstudio.test:1234/api/v1/models')
   })
 
-  it('reads max_context_length so the model is not left without a context window', async () => {
-    aiSdkGetFromApiMock.mockResolvedValueOnce({
-      value: { data: [{ id: 'meta-llama-3.1-8b-instruct', type: 'llm', max_context_length: 131072 }] }
-    })
+  it('keeps native vision capability and tolerates absent optional metadata', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        models: [
+          { key: 'qwen2-vl-7b-instruct', type: 'llm', capabilities: { vision: true } },
+          {
+            key: 'custom-model',
+            display_name: null,
+            type: null,
+            publisher: null,
+            max_context_length: null,
+            capabilities: null
+          }
+        ]
+      })
+    )
 
-    const models = await listModels(makeLmStudioProvider())
+    const models = await listModels(makeLmStudioProvider(), undefined, { throwOnError: true })
 
-    expect(models[0].contextWindow).toBe(131072)
-  })
-
-  it('falls back to /v1/models when /api/v0 is missing', async () => {
-    // LM Studio below 0.3.6 has no /api/v0.
-    aiSdkGetFromApiMock.mockRejectedValueOnce(new Error('404 Not Found'))
-    aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { data: [{ id: 'granite-3.0-2b-instruct' }] } })
-
-    const models = await listModels(makeLmStudioProvider())
-
-    expect(aiSdkGetFromApiMock.mock.calls[1][0]).toMatchObject({
-      url: 'http://lmstudio.test:1234/v1/models'
-    })
-    expect(models[0]).toMatchObject({ apiModelId: 'granite-3.0-2b-instruct' })
+    expect(models).toHaveLength(2)
+    expect(models[0]).toMatchObject({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
+    expect(models[0].endpointTypes).toBeUndefined()
+    expect(models[1]).toMatchObject({ apiModelId: 'custom-model', name: 'custom-model', capabilities: [] })
   })
 
   it.each([
-    ['a host pinned to /api/v0', 'http://lmstudio.test:1234/api/v0'],
-    ['a host pinned to /v1', 'http://lmstudio.test:1234/v1/'],
-    ['a trailing-sharp host sentinel', 'http://lmstudio.test:1234#']
-  ])('reduces %s to the server root for both URLs', async (_label, baseUrl) => {
-    // The fallback has to land on /v1/models: reusing a base URL already pinned to /api/v0 would
-    // retry the path that just failed, and a trailing `#` would turn the rest into a fragment.
-    aiSdkGetFromApiMock.mockRejectedValueOnce(new Error('404 Not Found'))
-    aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { data: [{ id: 'granite-3.0-2b-instruct' }] } })
+    'http://lmstudio.test:1234',
+    'http://lmstudio.test:1234/api/v0',
+    'http://lmstudio.test:1234/api/v1/',
+    'http://lmstudio.test:1234/v1/',
+    'http://lmstudio.test:1234#'
+  ])('imports from the legacy endpoint when native v1 is unavailable at %s', async (baseUrl) => {
+    fetchMock.mockResolvedValueOnce(Response.json({ error: { message: 'Not Found' } }, { status: 404 }))
+    fetchMock.mockResolvedValueOnce(Response.json({ data: [{ id: 'granite-3.0-2b-instruct' }] }))
 
-    await listModels(makeLmStudioProvider(baseUrl))
+    const models = await listModels(makeLmStudioProvider(baseUrl), undefined, { throwOnError: true })
 
-    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
-      url: 'http://lmstudio.test:1234/api/v0/models'
-    })
-    expect(aiSdkGetFromApiMock.mock.calls[1][0]).toMatchObject({
-      url: 'http://lmstudio.test:1234/v1/models'
-    })
+    expect(models).toHaveLength(1)
+    expect(models[0]).toMatchObject({ apiModelId: 'granite-3.0-2b-instruct' })
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'http://lmstudio.test:1234/api/v1/models',
+      'http://lmstudio.test:1234/v1/models'
+    ])
   })
 })
 

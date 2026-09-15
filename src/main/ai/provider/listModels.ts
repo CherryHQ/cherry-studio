@@ -812,44 +812,38 @@ const openAICompatibleFetcher: ModelFetcher = {
   fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
 }
 
-/**
- * LM Studio's `/v1/models` only lists downloaded models while JIT loading is on; with it off a pull
- * silently returns just the loaded ones. `/api/v0/models` always lists everything and carries the
- * model type and context window, which that endpoint has no room for.
- */
+// Native v1 lists downloaded models even when JIT loading is disabled.
 const lmStudioFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.lmstudio),
   fetch: async (provider, signal) => {
-    // Reduce whatever the user configured — a trailing `#` sentinel, a pinned `/v1` or `/api/v0`
-    // — to the server root, so the fallback cannot be sent back to the path that just failed.
-    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false).replace(/\/api\/v0$/, ''))
+    // Both native and OpenAI-compatible endpoints must resolve from the server root.
+    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false).replace(/\/api\/v[01]$/, ''))
     let response: z.infer<typeof LMStudioModelsResponseSchema>
     try {
       response = await getFromApi({
-        url: `${root}/api/v0/models`,
+        url: `${root}/api/v1/models`,
         headers: defaultHeaders(provider),
         responseSchema: LMStudioModelsResponseSchema,
         abortSignal: signal
       })
     } catch (error) {
-      // LM Studio below 0.3.6 has no /api/v0 — fall back to the endpoint every version serves.
+      // LM Studio below 0.4.0 has no native v1 — fall back to the endpoint every version serves.
       // A genuine failure (auth, server down) surfaces from the fallback call instead.
-      logger.warn('LM Studio /api/v0/models failed; falling back to /v1/models', {
+      logger.warn('LM Studio /api/v1/models failed; falling back to /v1/models', {
         providerId: provider.id,
         errorType: getErrorType(error)
       })
       return listOpenAICompatibleModels(provider, formatApiHost(root), signal)
     }
 
-    return dedup(response.data, (m) => m.id).map((m) => {
-      const type = m.type?.toLowerCase()
-      // `embeddings` on /api/v0, `embedding` on the 0.4 v1 API.
-      const endpointTypes = type?.startsWith('embedding') ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : undefined
+    return dedup(response.models, (m) => m.key).map((m) => {
+      const endpointTypes = m.type === 'embedding' ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : undefined
       const capability =
         endpointImpliedCapability(endpointTypes?.[0]) ??
-        (type === 'vlm' ? MODEL_CAPABILITY.IMAGE_RECOGNITION : undefined)
+        (m.capabilities?.vision ? MODEL_CAPABILITY.IMAGE_RECOGNITION : undefined)
 
-      return toModel(m.id, provider, {
+      return toModel(m.key, provider, {
+        name: m.display_name || m.key,
         ownedBy: m.publisher,
         ...(endpointTypes ? { endpointTypes } : {}),
         ...(capability ? { capabilities: [capability] } : {}),
