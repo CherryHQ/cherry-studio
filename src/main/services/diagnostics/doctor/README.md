@@ -78,3 +78,31 @@ Only MCP restart requires a target; other fixes reject one. Passing checks never
 Runs and fixes are mutually exclusive and refused before all services have initialized. Selected checks
 include their transitive prerequisites. Fixes revalidate identity, expiry and the offered action after
 re-probing; only the original report is updated. Expired reports require another run.
+
+## Contextual model connectivity (backend API)
+
+`diagnostics.doctor.connectivity` accepts a Chat or Agent `subject` and a caller-generated UUID `runId`.
+It returns three independent results: Base URL reachability, remote model listing, and a minimal
+conversation. Global subjects are rejected. `diagnostics.doctor.cancel_connectivity` requires both
+the scope key and run ID, so a stale caller cannot cancel a newer run. A second call in the same
+scope returns `busy`; different scopes run independently. Service shutdown cancels pending work.
+
+Ownership follows `DoctorService → AiService / NetworkService`. Doctor's `connectivity.ts` owns
+sequencing, per-probe deadlines and result classification. `AiService.prepareModelCheck` captures
+the selected model/provider configuration and exposes the resolved Base URL, normalized wire model
+ID, remote listing capability, and cancellable list/conversation operations. The AI layer has no
+dependency on Doctor result types, scope, cache, or run IDs. NetworkService owns network probes.
+
+The Base URL probe uses the selected model's endpoint configuration; an HTTP 404 there still proves
+reachability. Model listing uses the provider's remote API, without merging the registry catalog.
+Registry-only providers skip this step. HTTP 404/405/501 means the configured listing endpoint is
+unavailable and is reported as skipped; authentication failures remain failures. An unlisted model
+is a warning, since successful conversation is stronger evidence than catalog membership. Every
+step runs even when a previous step fails, with a 15-second deadline per step.
+
+Conversation reuses `AiService.checkModel` in chat-only mode, without history or tools and without
+retry or model fallback. Ollama performs a real chat request here; its existing metadata-only
+settings check remains available. Dedicated non-chat models skip conversation. Configuration is
+captured for one execution; credentials continue to follow the provider's serving policy.
+
+This API returns its result directly and does not publish to the existing Doctor report cache or replace its report. Renderer integration and context-based AI error analysis are separate work.

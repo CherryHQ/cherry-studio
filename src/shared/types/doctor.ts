@@ -49,6 +49,30 @@ export interface DoctorFixMeta {
   readonly relaunch: boolean
 }
 
+/**
+ * Facts a contextual run carries. A context is the *shape* of this bag, not a named kind:
+ * a check declares which facts it reads (`scope`), and runs whenever the bag has them.
+ */
+export interface DoctorSubject {
+  readonly providerId?: string
+  readonly modelId?: string
+  readonly agentId?: string
+  readonly mcpServerIds?: readonly string[]
+}
+export type DoctorSubjectKey = keyof DoctorSubject
+
+/**
+ * What a caller names; main resolves it into a `DoctorSubject`. `kind` exists for the IPC
+ * union and the UI label only — check selection never reads it.
+ */
+export type DoctorSubjectRef =
+  | { readonly kind: 'global' }
+  | { readonly kind: 'chat'; readonly providerId: string; readonly modelId: string }
+  | { readonly kind: 'agent'; readonly agentId: string }
+
+/** Identity of a run's context; suffixes the shared cache key so contexts never share state. */
+export type DoctorScopeKey = 'global' | `chat:${string}` | `agent:${string}`
+
 export const DOCTOR_CHECK_IDS = [
   'install-architecture-match',
   'install-version-channel',
