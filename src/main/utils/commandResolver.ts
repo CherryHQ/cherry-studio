@@ -359,11 +359,14 @@ export async function findMiseExecutable(
  * It does NOT refresh the shell env cache. Callers that need a fresh environment should call
  * refreshShellEnv() explicitly before calling this function.
  *
+ * Pass `shellEnv` when the caller already selected a caller-specific environment (e.g. the
+ * mise-aware login env for an MCP spawn); otherwise the shared cached shell env is used.
+ *
  * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows,
  * then mise, and finally (for `git` only) the bundled MinGit as the last resort.
  */
-export async function findExecutableInEnv(name: string): Promise<string | null> {
-  const env = await getShellEnv()
+export async function findExecutableInEnv(name: string, shellEnv?: Record<string, string>): Promise<string | null> {
+  const env = shellEnv ?? (await getShellEnv())
 
   // The bundled MinGit dir sits on the PATH tail (see shellEnv), so ordinary
   // PATH lookup can surface it before the system/mise fallbacks run. Treat such

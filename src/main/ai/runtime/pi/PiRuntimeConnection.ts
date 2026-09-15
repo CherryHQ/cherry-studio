@@ -29,12 +29,21 @@ import { customFetch } from '@main/ai/utils/customFetch'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment, proxyUrlHasCredentials } from '@main/services/proxy/proxyEnv'
 import {
+  getBinaryExecutionEnv,
   getBinarySearchDirs,
   getBinaryShimsDir,
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
-import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
+import {
+  applyUserMiseContract,
+  getMiseEnvEntries,
+  getPathFromEnvironment,
+  getRawShellEnv,
+  getShellEnv,
+  hasUserMiseEnv,
+  resolveCherryPathTailDirs
+} from '@main/utils/shellEnv'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -120,7 +129,7 @@ function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string>
   const binarySearchDirs = getBinarySearchDirs()
   const managedShimsDir = getBinaryShimsDir()
   const standaloneBinaryDirs = binarySearchDirs.filter((directory) => directory !== managedShimsDir)
-  const callerOwnsMiseEnvironment = Object.keys(definedEnv).some((key) => key.toUpperCase().startsWith('MISE_'))
+  const callerOwnsMiseEnvironment = hasUserMiseEnv(definedEnv)
 
   if (callerOwnsMiseEnvironment) {
     // A generic shell may already be activated against the user's mise installation. Do not
@@ -131,6 +140,26 @@ function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string>
   }
 
   return mergeBinaryExecutionEnv(definedEnv, standaloneBinaryDirs)
+}
+
+/**
+ * Combine snapshot and live MISE vars with live values winning. On Windows env
+ * keys are case-insensitive, so same-name keys in different casings collapse to
+ * the live spelling instead of coexisting as duplicates.
+ */
+export function mergeMiseEnvEntries(...sources: Array<Record<string, string>>): Record<string, string> {
+  const merged: Record<string, string> = {}
+  const isWindows = process.platform === 'win32'
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(source)) {
+      if (isWindows) {
+        const existing = Object.keys(merged).find((k) => k.toLowerCase() === key.toLowerCase())
+        if (existing) delete merged[existing]
+      }
+      merged[key] = value
+    }
+  }
+  return merged
 }
 
 interface PendingSteer {
@@ -271,8 +300,20 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // no separate "do you trust this project?" prompt. What actually loads from it is
       // still governed by the explicit `no*` flags below.
       const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: true })
-      const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
+      // One snapshot for the shell prefix and the bash hook below so both agree
+      // on whether the user owns mise.
+      const connectionRawShellEnv = await getRawShellEnv()
+      // A user-owned mise installation must not see Cherry's shims in the shell
+      // prefix: a Cherry shim would run under the user's MISE contract (#19738).
+      const loginPathSource = hasUserMiseEnv(connectionRawShellEnv)
+        ? mergePathSuffixes(connectionRawShellEnv, resolveCherryPathTailDirs(true))
+        : await getShellEnv()
+      const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(loginPathSource))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
+      // The custom bash tool below spawns directly instead of through the prefixed
+      // shell, so it needs the same login PATH layered into its spawn env.
+      // POSIX-only, mirroring the prefix condition above.
+      const loginPathForBash = process.platform === 'win32' ? undefined : getPathFromEnvironment(loginPathSource)
 
       // The agent's ENABLED Cherry-managed skills, resolved to absolute on-disk dirs
       // from the same store the claude driver reads. These are injected explicitly
@@ -365,13 +406,39 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         (toolName) => this.disabledTools.has(toolName),
         authorizeTool
       )
+      // Restore the user's raw mise env over Cherry's isolated values. A system
+      // mise shim (e.g. pnpx) reads MISE_DATA_DIR to locate its target (#19738).
+      const rawShellEnvForBash = connectionRawShellEnv
+      const rawMiseEnvForBash = Object.fromEntries(getMiseEnvEntries(rawShellEnvForBash))
+      const hasUserMiseForBash = hasUserMiseEnv(rawShellEnvForBash)
+      const cherryMiseEnvForBash = getBinaryExecutionEnv()
       // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
       // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
       const managedBashTool = pi.createBashToolDefinition(workspacePath, {
-        spawnHook: (context) => ({
-          ...context,
-          env: mergePiBashExecutionEnv(context.env)
-        })
+        spawnHook: (context) => {
+          // This tool spawns directly, bypassing the `export PATH=...` prefix, so
+          // layer the same login PATH here — otherwise its commands resolve
+          // against pi's launch PATH only.
+          const definedContextEnv = Object.fromEntries(
+            Object.entries(context.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+          )
+          const loginLayeredEnv =
+            loginPathForBash === undefined
+              ? definedContextEnv
+              : mergePathSuffixes(definedContextEnv, loginPathForBash.split(':'))
+          const merged = mergePiBashExecutionEnv(loginLayeredEnv)
+          // The snapshot can predate the spawn: honor the live spawn env's mise
+          // markers too, with live MISE values winning over the snapshot.
+          const contextMiseEnvForBash = Object.fromEntries(getMiseEnvEntries(context.env))
+          const userMiseEnvForBash = mergeMiseEnvEntries(rawMiseEnvForBash, contextMiseEnvForBash)
+          if (hasUserMiseForBash || hasUserMiseEnv(context.env)) {
+            // A PATH-only mise install leaves userMiseEnvForBash empty, and the
+            // merge above may have prepended Cherry's shims — the restore drops
+            // Cherry-only MISE keys and the shims dir together.
+            applyUserMiseContract(merged, userMiseEnvForBash, cherryMiseEnvForBash)
+          }
+          return { ...context, env: merged }
+        }
       }) as ToolDefinition
       const finalSnapshot = await capturePiConnectionSnapshot(
         this.input.sessionId,

@@ -4,6 +4,8 @@ import { SessionSeq } from '@deepseek-ai/dsh-session'
 import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ShellEnvModule from '@main/utils/shellEnv'
+
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeTraceContext } from '../../types'
 
 interface FakeSpan {
@@ -151,10 +153,10 @@ vi.mock('../dshSdk', () => ({
     })
   })
 }))
-vi.mock('@main/utils/shellEnv', () => ({
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof ShellEnvModule>()),
   getShellEnv: runtimeMocks.getShellEnv,
-  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
-    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+  getRawShellEnv: runtimeMocks.getShellEnv
 }))
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')
@@ -229,38 +231,64 @@ describe('DshRuntimeConnection tracing', () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
 
-    expect(env.PATH?.split(path.delimiter)).toEqual([
-      path.normalize('/mock/feature.binary.data/shims'),
-      '/opt/homebrew/bin',
-      '/usr/bin'
-    ])
+    const pathValue = env.PATH as string
+    const normalizedPath = pathValue.replace(/\\/g, '/')
+    expect(normalizedPath).toContain('/opt/homebrew/bin')
+    expect(normalizedPath).toContain('/usr/bin')
+    expect(normalizedPath).toContain('/mock/feature.binary.data/shims')
+    expect(normalizedPath.indexOf('/opt/homebrew/bin')).toBeLessThan(
+      normalizedPath.indexOf('/mock/feature.binary.data')
+    )
+    expect(normalizedPath.indexOf('/usr/bin')).toBeLessThan(normalizedPath.indexOf('/mock/feature.binary.data'))
     expect(env).toMatchObject({
-      HOME: '/Users/tester',
-      MISE_DATA_DIR: '/mock/feature.binary.data',
-      MISE_CONFIG_DIR: path.normalize('/mock/feature.binary.data/config'),
-      MISE_CACHE_DIR: path.normalize('/mock/feature.binary.data/cache'),
-      MISE_STATE_DIR: path.normalize('/mock/feature.binary.data/state'),
-      MISE_SHIMS_DIR: path.normalize('/mock/feature.binary.data/shims')
+      HOME: '/Users/tester'
     })
+    expect(env.MISE_DATA_DIR?.replace(/\\/g, '/')).toBe('/mock/feature.binary.data')
+    expect(env.MISE_CONFIG_DIR?.replace(/\\/g, '/')).toBe('/mock/feature.binary.data/config')
+    expect(env.MISE_CACHE_DIR?.replace(/\\/g, '/')).toBe('/mock/feature.binary.data/cache')
+    expect(env.MISE_STATE_DIR?.replace(/\\/g, '/')).toBe('/mock/feature.binary.data/state')
+    expect(env.MISE_SHIMS_DIR?.replace(/\\/g, '/')).toBe('/mock/feature.binary.data/shims')
     expect(env).not.toHaveProperty('CHERRY_TEST_SECRET')
     expect(env).not.toHaveProperty('SECRET')
     await connection.close()
   })
 
-  it('normalizes a mixed-case login-shell Path key for the isolated child', async () => {
-    runtimeMocks.getShellEnv.mockResolvedValueOnce({
-      Path: 'C:\\Users\\tester\\bin;C:\\Windows',
-      HOME: 'C:\\Users\\tester'
-    })
+  it.skipIf(process.platform !== 'win32')(
+    'normalizes a mixed-case login-shell Path key for the isolated child',
+    async () => {
+      runtimeMocks.getShellEnv.mockResolvedValueOnce({
+        Path: 'C:\\Users\\tester\\bin;C:\\Windows',
+        HOME: 'C:\\Users\\tester'
+      })
 
-    const connection = await new DshRuntimeConnection(connectInput).start()
-    const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
+      const connection = await new DshRuntimeConnection(connectInput).start()
+      const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
 
-    expect(env.PATH).toContain('C:\\Users\\tester\\bin;C:\\Windows')
-    expect(env.HOME).toBe('C:\\Users\\tester')
-    expect(env).not.toHaveProperty('Path')
-    await connection.close()
-  })
+      expect(env.PATH).toContain('C:\\Users\\tester\\bin;C:\\Windows')
+      expect(env.HOME).toBe('C:\\Users\\tester')
+      expect(env).not.toHaveProperty('Path')
+      await connection.close()
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'prefers the exact PATH key over a lowercase path variable on POSIX',
+    async () => {
+      runtimeMocks.getShellEnv.mockResolvedValueOnce({
+        path: '/unrelated-lowercase',
+        PATH: ['/opt/homebrew/bin', '/usr/bin'].join(path.delimiter),
+        HOME: '/Users/tester'
+      })
+
+      const connection = await new DshRuntimeConnection(connectInput).start()
+      const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
+
+      const pathValue = (env.PATH as string).replace(/\\/g, '/')
+      expect(pathValue).toContain('/opt/homebrew/bin')
+      expect(pathValue).not.toContain('/unrelated-lowercase')
+      await connection.close()
+    }
+  )
 
   it('feeds runtime session events to the trace recorder', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()

@@ -8,21 +8,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { LoggerService } from '@logger'
 import type { McpClientSdk, McpTransport } from '@main/ai/mcp/mcpClientSdk'
+import type * as ShellEnvModule from '@main/utils/shellEnv'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({})
 })
-vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
+vi.mock('electron', () => ({
+  app: { isPackaged: false, getAppPath: vi.fn(() => ''), getPath: vi.fn(() => '/mock') },
+  net: { fetch: vi.fn() }
+}))
 vi.mock('@main/ai/mcp/servers/factory', () => ({
   createInMemoryMcpServer: vi.fn(),
   getBuiltinHttpHeaders: () => ({}),
   getBuiltinRegistryEnv: () => ({}),
   hasInMemoryImplementation: () => false
 }))
-vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: async () => ({ PATH: process.env.PATH ?? '' })
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof ShellEnvModule>()),
+  getShellEnv: async () => ({ PATH: process.env.PATH ?? '' }),
+  getRawShellEnv: async () => ({ PATH: process.env.PATH ?? '' })
 }))
 
 const { createTransport } = await import('../mcpTransport')

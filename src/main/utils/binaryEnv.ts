@@ -140,8 +140,13 @@ function mergePathEntries(
   // Windows env keys are case-insensitive, so the input can carry several PATH
   // casings (`Path`, `PATH`). Gather segments from every one of them and collapse
   // the output to a single key — otherwise a stale casing left untouched can
-  // shadow the merged value when the child process spawns.
-  const pathLikeKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+  // shadow the merged value when the child process spawns. POSIX keys are
+  // case-sensitive, so only the exact `PATH` feeds the merge: a lowercase
+  // `path` entry is an unrelated variable and must neither leak into the
+  // child PATH nor be clobbered by it.
+  const pathLikeKeys = isWin
+    ? Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+    : Object.keys(env).filter((key) => key === 'PATH')
   const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
   const normalize = (value: string) => {
     const normalized = path.normalize(value)
@@ -161,7 +166,6 @@ function mergePathEntries(
   const merged = { ...env }
   for (const key of pathLikeKeys) delete merged[key]
   merged[pathKey] = pathValue
-  if (!isWin) merged.PATH = pathValue
   return merged
 }
 
