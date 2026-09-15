@@ -196,6 +196,8 @@ export default function PdfFilePreview({
   // Picking, not text selection: the anchor is page-level, and the excerpt comes from the document
   // proxy rather than the DOM — pdf.js text-layer order is not reading order and a page's text
   // layer may not be rendered yet. The token guards against a slow fetch reporting a stale pick.
+  // A new pick empties the host while that page's text is in flight, so the chip can never quote
+  // the page the marker just left.
   // The pick lives in React state and the DOM marker is derived from it, because pdf.js rebuilds
   // the page elements it renders and a DOM-only truth would be wiped along with them, turning the
   // next click on that page into a duplicate pick instead of the clear it means. preventDefault
@@ -218,6 +220,7 @@ export default function PdfFilePreview({
       }
 
       setPickedPage(resolved.page)
+      onSelectionReference(null)
       void documentProxy
         .getPage(resolved.page)
         .then(async (page) => {
