@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
+  areDifferentModelIdentities,
   deriveModelGroupName,
+  findNewestDifferentModelReference,
   getRawModelId,
   isAudioModel,
   isEmbeddingModel,
@@ -17,6 +19,8 @@ import {
   isTextToSpeechModel,
   isVideoModel,
   isVisionModel,
+  resolveUniqueModelId,
+  resolveUniqueModelIds,
   supportsDynamicallyLoadedTools
 } from '@shared/utils/model'
 
@@ -32,6 +36,97 @@ const createModel = (capabilities: Model['capabilities'] = []): Model => ({
 })
 
 describe('shared model capability helpers', () => {
+  describe('resolveUniqueModelId', () => {
+    it('treats an ambiguous separator-containing snapshot ID as raw', () => {
+      expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'provider-a::model-a' })).toBe(
+        'provider-a::provider-a::model-a'
+      )
+    })
+
+    it('keeps the snapshot provider for a separator-containing raw model ID', () => {
+      expect(resolveUniqueModelId(null, { provider: 'provider-b', id: 'provider-a::model-a' })).toBe(
+        'provider-b::provider-a::model-a'
+      )
+    })
+
+    it('returns undefined for a legacy snapshot that cannot form a routable model ID', () => {
+      expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'model?legacy-route' })).toBeUndefined()
+    })
+
+    it('trims provider and model IDs from legacy snapshots', () => {
+      expect(resolveUniqueModelId(null, { provider: ' provider-a ', id: ' model-a ' })).toBe('provider-a::model-a')
+    })
+
+    it('keeps separator-containing raw snapshots distinct from other provider models', () => {
+      expect(
+        areDifferentModelIdentities(
+          { modelId: null, modelSnapshot: { provider: 'provider-a', id: 'provider-b::model-a' } },
+          { modelId: null, modelSnapshot: { provider: 'provider-b', id: 'model-a' } }
+        )
+      ).toBe(true)
+    })
+
+    it('does not forward malformed separator-containing snapshots', () => {
+      expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'provider-b::model?invalid' })).toBeUndefined()
+    })
+
+    it('does not infer snapshot provenance from a related authoritative ID', () => {
+      const references = [
+        {
+          modelId: 'provider-a::model-a',
+          modelSnapshot: { provider: 'provider-a', id: 'model-a' }
+        },
+        {
+          modelId: null,
+          modelSnapshot: { provider: 'provider-a', id: 'provider-a::model-a' }
+        }
+      ] as const
+
+      expect(resolveUniqueModelIds(references)).toEqual(['provider-a::model-a', 'provider-a::provider-a::model-a'])
+      expect(areDifferentModelIdentities(references[0], references[1])).toBe(true)
+    })
+
+    it('preserves authoritative IDs for raw model IDs containing the separator', () => {
+      expect(
+        resolveUniqueModelIds([
+          {
+            modelId: 'provider-a::provider-a::model-a',
+            modelSnapshot: { provider: 'provider-a', id: 'provider-a::model-a' }
+          },
+          {
+            modelId: 'provider-a::model-a',
+            modelSnapshot: { provider: 'provider-a', id: 'model-a' }
+          }
+        ])
+      ).toEqual(['provider-a::provider-a::model-a', 'provider-a::model-a'])
+    })
+
+    it('does not classify unresolvable snapshots as different models', () => {
+      expect(
+        areDifferentModelIdentities(
+          { modelId: null, modelSnapshot: { provider: 'provider-a', id: 'model?legacy-route' } },
+          { modelId: null, modelSnapshot: { provider: 'provider-b', id: 'model#legacy-route' } }
+        )
+      ).toBe(false)
+    })
+
+    it('selects the newest different-model reference with an ID tie-breaker', () => {
+      const reference = {
+        id: 'selected',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        modelId: 'provider-a::model-a',
+        modelSnapshot: { provider: 'provider-a', id: 'model-a' }
+      }
+      const candidates = [
+        { ...reference, id: 'same-model-newest', createdAt: '2026-01-01T00:00:03.000Z' },
+        { ...reference, id: 'different-b', createdAt: '2026-01-01T00:00:02.000Z', modelId: 'provider-b::model-b' },
+        { ...reference, id: 'different-c', createdAt: '2026-01-01T00:00:02.000Z', modelId: 'provider-c::model-c' }
+      ]
+
+      expect(findNewestDifferentModelReference(reference, candidates)).toEqual(candidates[2])
+    })
+  })
+
   it.each([
     [undefined, 'gpt-4o'],
     ['', 'gpt-4o'],

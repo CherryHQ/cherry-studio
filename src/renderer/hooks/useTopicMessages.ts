@@ -20,13 +20,13 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useDataChange, useInfiniteFlatItems } from '@renderer/data/hooks/useDataApi'
 import type { MessageListSelectAllPagination } from '@renderer/types/message'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
-import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type {
   BranchMessage,
   BranchMessagesResponse,
   CherryUIMessage,
   Message as SharedMessage
 } from '@shared/data/types/message'
+import { resolveUniqueModelIds } from '@shared/utils/model'
 
 import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 
@@ -59,8 +59,11 @@ interface BranchProjection {
  */
 function bucketAssistantSiblingsByModel(members: SharedMessage[]): Map<string, SharedMessage[]> {
   const buckets = new Map<string, SharedMessage[]>()
-  for (const m of members) {
-    const key = resolveUniqueModelId(m.modelId, m.messageSnapshot?.model) ?? m.id
+  const modelIds = resolveUniqueModelIds(
+    members.map((message) => ({ modelId: message.modelId, modelSnapshot: message.messageSnapshot?.model }))
+  )
+  for (const [index, m] of members.entries()) {
+    const key = modelIds[index] ?? m.id
     const bucket = buckets.get(key)
     if (bucket) bucket.push(m)
     else buckets.set(key, [m])

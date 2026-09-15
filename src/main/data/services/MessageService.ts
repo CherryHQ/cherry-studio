@@ -48,6 +48,7 @@ import {
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
+import { findNewestDifferentModelReference } from '@shared/utils/model'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -1909,12 +1910,14 @@ export class MessageService {
    *
    * Supports two modes:
    * - cascade=true: Delete the message and all its descendants
-   * - cascade=false: Delete only this message. An active grouped reply hands context
-   *   and children to its next sibling (previous at the end); otherwise splice onto the parent.
+   * - cascade=false: Delete only this message. A grouped reply on the active path hands
+   *   children to the newest different-model sibling if itself active, or the next sibling
+   *   (previous at the end) if an active descendant survives; otherwise splice onto the parent.
    *
    * When the deleted message(s) include the topic's activeNodeId, it will be
    * automatically updated based on activeNodeStrategy:
-   * - 'parent' (default): Descend from the remaining context reply, or from the parent,
+   * - 'parent' (default): Descend from the remaining context reply, preferring the newest
+   *   different-model sibling when the grouped assistant itself is active, or from the parent,
    *   to the newest surviving leaf — null when only the virtual root is left
    * - 'clear': Sets activeNodeId to null
    *
@@ -2003,7 +2006,12 @@ export class MessageService {
           this.getPathRowsToNodeTx(tx, topic.activeNodeId, { topicId: message.topicId }).some((row) => row.id === id)
         const group = isContextReply
           ? tx
-              .select({ id: messageTable.id })
+              .select({
+                id: messageTable.id,
+                createdAt: messageTable.createdAt,
+                modelId: messageTable.modelId,
+                messageSnapshot: messageTable.messageSnapshot
+              })
               .from(messageTable)
               .where(
                 and(
@@ -2017,9 +2025,25 @@ export class MessageService {
               .orderBy(asc(messageTable.createdAt), asc(messageTable.id))
               .all()
           : []
-        // Match the displayed chronological order: next, or previous at the end.
+        // Context descendants follow the displayed neighbour. Deleting the active reply
+        // instead promotes a different-model answer so same-model regenerations stay hidden.
         const contextIndex = group.findIndex((member) => member.id === id)
-        const successor = contextIndex < 0 ? undefined : (group[contextIndex + 1] ?? group[contextIndex - 1])
+        const visualSuccessor = contextIndex < 0 ? undefined : (group[contextIndex + 1] ?? group[contextIndex - 1])
+        const differentModelSuccessor =
+          topic.activeNodeId === id
+            ? findNewestDifferentModelReference(
+                { modelId: message.modelId, modelSnapshot: message.messageSnapshot?.model },
+                group
+                  .filter((member) => member.id !== id)
+                  .map((member) => ({
+                    id: member.id,
+                    createdAt: timestampToISO(member.createdAt),
+                    modelId: member.modelId,
+                    modelSnapshot: member.messageSnapshot?.model
+                  }))
+              )
+            : undefined
+        const successor = topic.activeNodeId === id ? differentModelSuccessor : visualSuccessor
         if (successor) fallbackAnchorId = successor.id
         if (isContextReply) {
           contextChangedIds = this.getDescendantIdsTx(tx, id)

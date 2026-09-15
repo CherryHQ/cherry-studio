@@ -200,6 +200,15 @@ describe('MessageGroupMenuBar', () => {
       },
       {
         ...messages[0],
+        id: 'gpt-legacy',
+        status: 'error',
+        modelId: 'openai::openai::gpt-4o',
+        persistedModelId: null,
+        model: { id: 'openai::gpt-4o', name: 'GPT-4o', provider: 'openai' },
+        createdAt: '2026-01-01T00:00:02.500Z'
+      },
+      {
+        ...messages[0],
         id: 'claude-old',
         status: 'paused',
         modelId: 'anthropic::claude-sonnet',
@@ -226,7 +235,7 @@ describe('MessageGroupMenuBar', () => {
 
     await user.click(screen.getByRole('button', { name: 'message.group.retry_failed' }))
 
-    expect(regenerateMessage.mock.calls).toEqual([['gpt-selected-old'], ['claude-new']])
+    expect(regenerateMessage.mock.calls).toEqual([['gpt-selected-old'], ['gpt-legacy'], ['claude-new']])
     expect(notifyInfo).toHaveBeenCalledWith('message.group.retry_skipped_same_model')
     expect(mocks.t).toHaveBeenCalledWith('message.group.retry_skipped_same_model', { count: 2 })
   })
