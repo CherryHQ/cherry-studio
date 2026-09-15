@@ -367,6 +367,78 @@ describe('runAgentTask', () => {
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
 
+  it('pauses an enabled heartbeat whose schedule still points at a system workspace', async () => {
+    // Deleting the heartbeat workspace rewrites the schedule template onto a
+    // SYSTEM source without pausing the row — the timer must stop instead of
+    // tick-and-skipping until the next heartbeat sync re-arms it.
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    const rewritten = makeSchedule(
+      'heartbeat',
+      {},
+      {
+        agentId: 'a1',
+        prompt: '__heartbeat__',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      }
+    )
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(rewritten)
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
+
+    const out = await runAgentTask(
+      makeCtx({ input: { agentId: 'a1', prompt: '__heartbeat__', timeoutMinutes: 2, workspace: { type: 'system' } } })
+    )
+
+    expect(out).toEqual({ result: 'Skipped (no file)' })
+    expect(agentSessionService.create).not.toHaveBeenCalled()
+    expect(agentWorkspaceService.getById).not.toHaveBeenCalled()
+    expect(mockUpdateJobScheduleTx).toHaveBeenCalledWith(expect.anything(), 's1', { enabled: false })
+    expect(mockSyncJobScheduleTimerById).toHaveBeenCalledWith('s1')
+  })
+
+  it('does not pause a system-workspace heartbeat whose schedule was repaired onto a user workspace', async () => {
+    // The queued job carries the enqueue-time SYSTEM snapshot; the live row
+    // already points at a re-provisioned user workspace — pausing would
+    // disable a healthy schedule.
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
+
+    const out = await runAgentTask(
+      makeCtx({ input: { agentId: 'a1', prompt: '__heartbeat__', timeoutMinutes: 2, workspace: { type: 'system' } } })
+    )
+
+    expect(out).toEqual({ result: 'Skipped (no file)' })
+    expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
+    expect(mockSyncJobScheduleTimerById).not.toHaveBeenCalled()
+  })
+
+  it('does not pause a system-workspace heartbeat whose schedule became an ordinary task', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    const repurposed = makeSchedule(
+      'heartbeat',
+      {},
+      {
+        agentId: 'a1',
+        prompt: 'run my report',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      }
+    )
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(repurposed)
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
+
+    const out = await runAgentTask(
+      makeCtx({ input: { agentId: 'a1', prompt: '__heartbeat__', timeoutMinutes: 2, workspace: { type: 'system' } } })
+    )
+
+    expect(out).toEqual({ result: 'Skipped (no file)' })
+    expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
+    expect(mockSyncJobScheduleTimerById).not.toHaveBeenCalled()
+  })
+
   it('skips an enabled heartbeat when its user workspace was deleted WITHOUT creating a session', async () => {
     vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))

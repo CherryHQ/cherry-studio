@@ -177,9 +177,40 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       return { result: 'Skipped (capability)' }
     }
     switch (workspace.type) {
-      case AGENT_WORKSPACE_TYPE.SYSTEM:
+      case AGENT_WORKSPACE_TYPE.SYSTEM: {
+        // A SYSTEM source is only legitimate pre-repair (migrated rows) — but
+        // the workspace-deletion cascade also rewrites a referencing heartbeat
+        // template onto SYSTEM while leaving the row enabled, so without a
+        // pause the timer ticks-and-skips here forever. Same pathology as the
+        // deleted-workspace pause below, and the same LIVE-template guard:
+        // a row since repaired onto a user workspace must not be paused.
+        const liveTemplate = scheduleSnapshot?.jobInputTemplate as {
+          agentId?: unknown
+          prompt?: unknown
+          workspace?: { type?: unknown } | null
+        } | null
+        const stillSystemHeartbeat =
+          scheduleSnapshot?.type === 'agent.task' &&
+          liveTemplate?.agentId === agentId &&
+          liveTemplate?.prompt === HEARTBEAT_PROMPT_SENTINEL &&
+          liveTemplate?.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
+        if (scheduleId && stillSystemHeartbeat) {
+          try {
+            application.get('DbService').withWriteTx((tx) => {
+              application.get('JobManager').updateJobScheduleTx(tx, scheduleId, { enabled: false })
+            })
+            application.get('JobManager').syncJobScheduleTimerById(scheduleId)
+          } catch (pauseError) {
+            logger.warn('Failed to pause heartbeat schedule pointing at a system workspace', {
+              agentId,
+              scheduleId,
+              error: pauseError
+            })
+          }
+        }
         logger.debug('Heartbeat skipped (no file)', { agentId, scheduleId })
         return { result: 'Skipped (no file)' }
+      }
       case AGENT_WORKSPACE_TYPE.USER:
         break
       default: {
