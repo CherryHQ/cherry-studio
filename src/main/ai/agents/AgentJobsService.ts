@@ -28,6 +28,7 @@ import { agentTaskJobHandler } from './agentTaskJobHandler'
 import {
   drainHeartbeatWork,
   isReservedHeartbeatScheduleName,
+  pauseHeartbeatSchedule,
   repairHeartbeatSchedules,
   syncHeartbeatSchedule
 } from './heartbeatSchedule'
@@ -369,8 +370,8 @@ export class AgentJobsService extends BaseService {
     for (const schedule of schedules) {
       // A transient unregister failure (SQLITE_BUSY, timer teardown) must not
       // abort the sweep — the remaining schedules and the workspace cleanup
-      // below are independent of this row. The failed row converges on the
-      // next deletion pass or startup sweep instead of orphaning everything.
+      // below are independent of this row. The failed row is paused best-effort
+      // so it cannot sit armed (re-armed after every restart) for a dead agent.
       try {
         if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
           deleted += 1
@@ -378,6 +379,7 @@ export class AgentJobsService extends BaseService {
       } catch (error) {
         failed += 1
         logger.warn('Failed to unregister schedule for removed agent', { agentId, scheduleId: schedule.id, error })
+        pauseHeartbeatSchedule(agentId, schedule.id, 'Failed to pause a schedule that survived the deletion sweep')
       }
     }
     if (failed > 0) {

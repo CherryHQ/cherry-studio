@@ -737,8 +737,11 @@ describe('AgentJobsService', () => {
         spy.mockRestore()
       }
 
-      // The failed row survives for the next pass; everything else converged.
-      expect(jobScheduleService.getById(first.id)).not.toBeNull()
+      // The failed row survives but is paused, so it cannot sit armed (and be
+      // re-armed after every restart) firing for a dead agent.
+      const survived = jobScheduleService.getById(first.id)
+      expect(survived).not.toBeNull()
+      expect(survived?.enabled).toBe(false)
       expect(jobScheduleService.getById(second.id)).toBeNull()
       expect(
         dbh.db

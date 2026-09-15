@@ -473,6 +473,38 @@ describe('runAgentTask', () => {
     expect(out).toEqual({ result: 'Skipped (untrusted workspace path)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
+    // Pauses like the deleted-workspace path instead of tick-and-skipping;
+    // the next heartbeat sync re-arms the row once the path is trusted again.
+    expect(mockUpdateJobScheduleTx).toHaveBeenCalledWith(expect.anything(), 's1', { enabled: false })
+    expect(mockSyncJobScheduleTimerById).toHaveBeenCalledWith('s1')
+  })
+
+  it('does not pause on an untrusted path when the schedule was repaired onto a new workspace after this job was queued', async () => {
+    // The queued job carries the OLD workspace; the live schedule template
+    // already points at the re-provisioned one — pausing would disable a
+    // healthy schedule.
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    const repaired = makeSchedule(
+      'heartbeat',
+      {},
+      {
+        agentId: 'a1',
+        prompt: '__heartbeat__',
+        timeoutMinutes: 2,
+        workspace: { type: 'user', workspaceId: 'ws-2' },
+        reuseRevision: 0
+      }
+    )
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(repaired)
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(agentWorkspaceService.getById).mockReturnValueOnce({ id: 'ws-1', type: 'user', path: '/ws/a' } as never)
+    mockAssertAgentStoragePath.mockRejectedValueOnce(new Error('Agent storage path contains a symbolic link'))
+
+    const out = await runAgentTask(makeCtx())
+
+    expect(out).toEqual({ result: 'Skipped (untrusted workspace path)' })
+    expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
+    expect(mockSyncJobScheduleTimerById).not.toHaveBeenCalled()
   })
 
   it('skips an ad-hoc heartbeat with a deleted workspace without pausing (no schedule)', async () => {

@@ -200,6 +200,22 @@ function pauseHeartbeatRows(
   return paused
 }
 
+/**
+ * Best-effort pause for a stranded heartbeat row — the same disable + timer
+ * resync the tick's dead-source paths need, kept here so every pause site
+ * shares one shape.
+ */
+export function pauseHeartbeatSchedule(agentId: string, scheduleId: string, warnMessage: string): void {
+  try {
+    application.get('DbService').withWriteTx((tx) => {
+      application.get('JobManager').updateJobScheduleTx(tx, scheduleId, { enabled: false })
+    })
+    application.get('JobManager').syncJobScheduleTimerById(scheduleId)
+  } catch (pauseError) {
+    logger.warn(warnMessage, { agentId, scheduleId, error: pauseError })
+  }
+}
+
 async function runSync(
   agentId: string,
   rows: JobScheduleSnapshot[] = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
