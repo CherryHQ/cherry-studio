@@ -808,7 +808,8 @@ export class CherryCloudService extends BaseService {
       await this.clearSession(session)
       return response
     }
-    if (generation !== this.sessionGeneration || !this.cloudState.session) return response
+    const currentSession = this.cloudState.session
+    if (generation !== this.sessionGeneration || !currentSession) return response
 
     // Cloud strips upstream Cherry-* headers, so upstream 401 bodies cannot invalidate the login.
     const code = response.headers.get('Cherry-Error-Code')
@@ -816,15 +817,12 @@ export class CherryCloudService extends BaseService {
     const replayed = response.status === 409 && code === 'REQUEST_REPLAYED'
     if (!refreshRequired && !replayed) return response
     if (refreshRequired && session !== initialSession) return response
-    if (replayed && this.cloudState.session !== session) return response
+    if (replayed) session = currentSession
 
     try {
       init?.signal?.throwIfAborted()
       if (refreshRequired) {
-        session = await abortable(
-          this.activeSession(this.cloudState.session === session, this.cloudState.session),
-          init?.signal
-        )
+        session = await abortable(this.activeSession(currentSession === session, currentSession), init?.signal)
       }
       init?.signal?.throwIfAborted()
     } catch (error) {
