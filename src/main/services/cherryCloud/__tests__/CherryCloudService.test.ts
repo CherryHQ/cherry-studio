@@ -1854,6 +1854,67 @@ describe('CherryCloudService', () => {
     }
   )
 
+  it('re-signs a replay with the refreshed token when another request refreshes first', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
+
+    try {
+      const service = await createSignedInService()
+      const pendingOldRequest = deferred<Response>()
+      mockCloudRoute('/v1/messages', pendingOldRequest.promise, jsonResponse({ result: 'ok' }))
+      mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
+      mockCloudRoute('/v1/models', jsonResponse({ data: [] }))
+      const oldRequest = service.authenticatedFetch('/v1/messages', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': 'caller-key' },
+        body: '{}'
+      })
+      await vi.waitFor(() => expect(requestCalls('/v1/messages')).toHaveLength(1))
+
+      clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
+      await expect(service.authenticatedFetch('/v1/models')).resolves.toHaveProperty('status', 200)
+      pendingOldRequest.resolve(cloudErrorResponse(409, 'REQUEST_REPLAYED'))
+      expect(await (await oldRequest).json()).toEqual({ result: 'ok' })
+
+      const requests = requestCalls('/v1/messages')
+      expect(requests).toHaveLength(2)
+      const [first, second] = requests.map(([, init]) => new Headers(init.headers))
+      expect(first.get('Authorization')).toBe(`Bearer ${token('F')}`)
+      expect(second.get('Authorization')).toBe(`Bearer ${token('H')}`)
+      expect(first.get('Idempotency-Key')).toBe('caller-key')
+      expect(second.get('Idempotency-Key')).toBe('caller-key')
+      expect(second.get('Cherry-Request-ID')).not.toBe(first.get('Cherry-Request-ID'))
+      expect(second.get('Cherry-Signature')).not.toBe(first.get('Cherry-Signature'))
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('does not retry an old replay after sign-out and a new login', async () => {
+    const service = await createSignedInService()
+    const pendingOldRequest = deferred<Response>()
+    mockCloudRoute('/v1/messages', pendingOldRequest.promise)
+    const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST', body: '{}' })
+    await vi.waitFor(() => expect(requestCalls('/v1/messages')).toHaveLength(1))
+
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+    await service.revokeCurrentSession()
+    mockAuthorizationFlow()
+    mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+    await service.startLogin()
+    await loopbackCallback()(
+      new URL(
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${authorizationRequestBody().state}`
+      )
+    )
+    await service['syncEntitledModels']()
+    pendingOldRequest.resolve(cloudErrorResponse(409, 'REQUEST_REPLAYED'))
+
+    expect(await oldRequest).toHaveProperty('status', 409)
+    expect(requestCalls('/v1/messages')).toHaveLength(1)
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+  })
+
   it.each([
     [409, 'REQUEST_REPLAYED', 409, 'REQUEST_REPLAYED'],
     [409, 'REQUEST_REPLAYED', 401, 'AUTH_REQUIRED'],
