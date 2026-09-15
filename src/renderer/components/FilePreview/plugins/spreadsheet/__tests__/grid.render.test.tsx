@@ -537,6 +537,8 @@ const IN_A3 = { x: 10, y: 66 }
 const IN_C3 = { x: 180, y: 66 }
 /** Inside C1, one of the cells the A1:D1 title merge covers. */
 const IN_C1 = { x: 180, y: 10 }
+/** Inside the first chart's rect (x 24-384, y 240-460); the cell underneath it is A16. */
+const IN_CHART = { x: 100, y: 300 }
 
 describe('XlsxGrid — range selection', () => {
   it('drags a range through rows the virtualizer never mounted, and commits only on release', () => {
@@ -897,6 +899,42 @@ describe('XlsxGrid — picker hover', () => {
     expect(hover.className).not.toContain('z-10')
   })
 
+  it('re-resolves the highlight under a stationary pointer when the grid scrolls', () => {
+    const { container } = render(
+      <XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />
+    )
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toHaveStyle({ top: '56px', left: '110px' })
+
+    // Scrolling 20px down puts B4 under the same client point. The pointer never moves, so nothing but the
+    // scroll can refresh the highlight.
+    setScrollViewport(container, { scrollTop: 20 })
+
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toHaveStyle({
+      top: '76px',
+      left: '110px',
+      width: '64px',
+      height: '20px'
+    })
+  })
+
+  it('does not bring the highlight back on scroll once the pointer has left', () => {
+    const { container } = render(
+      <XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />
+    )
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    fireEvent.pointerLeave(scroll)
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+
+    setScrollViewport(container, { scrollTop: 20 })
+
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+  })
+
   it('clears the selection when picking is switched on, and only on that switch', () => {
     const onSelectCell = vi.fn()
     const grid = (pickerActive?: boolean) => (
@@ -1131,5 +1169,45 @@ describe('XlsxGrid — floating layer', () => {
     const barOnlySheet: SheetRenderModel = { ...salesSheet, charts: [salesSheet.charts[0]] }
     render(<XlsxGrid sheet={barOnlySheet} styles={model.styles} imageUrls={{}} zoom={1} />)
     expect(screen.getByTestId('xlsx-grid-chart').firstElementChild).toHaveClass('border-dashed')
+  })
+
+  it('leaves a press on a chart to the chart, selecting no cell and capturing no pointer', () => {
+    // ECharts binds its legend and tooltip to the chart's own events. Starting a cell drag here captures the
+    // pointer and suppresses the trailing click, so those handlers never run — picker on or off.
+    showHeaderRange()
+    const onSelectCell = vi.fn()
+    const setPointerCapture = vi.spyOn(HTMLElement.prototype, 'setPointerCapture').mockImplementation(() => {})
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const chart = screen.getAllByTestId('xlsx-grid-chart')[0]
+    const chartClick = vi.fn()
+    chart.addEventListener('click', chartClick)
+
+    fireEvent.pointerDown(chart, pointerAt(IN_CHART.x, IN_CHART.y))
+    fireEvent.pointerUp(chart, pointerAt(IN_CHART.x, IN_CHART.y))
+    fireEvent.click(chart, pointerAt(IN_CHART.x, IN_CHART.y))
+
+    expect(onSelectCell).not.toHaveBeenCalled()
+    expect(setPointerCapture).not.toHaveBeenCalled()
+    expect(chartClick).toHaveBeenCalledTimes(1)
+    setPointerCapture.mockRestore()
+  })
+
+  it('highlights no cell while picking with the pointer over a chart', () => {
+    showHeaderRange()
+    const { container } = render(
+      <XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />
+    )
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    // A highlight already on B3 must end when the pointer enters the chart, not linger underneath it.
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toBeInTheDocument()
+    fireEvent.pointerMove(screen.getAllByTestId('xlsx-grid-chart')[0], pointerAt(IN_CHART.x, IN_CHART.y))
+
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+
+    // Nor may a later scroll resurrect it from a remembered position.
+    setScrollViewport(container, { scrollTop: 20 })
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
   })
 })

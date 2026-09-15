@@ -211,6 +211,8 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   separate mode flag. Plugins without such a mapping ignore the prop entirely.
 - The xlsx grid follows the same picker model as the block producers: while the callback is present it starts
   from an empty selection, highlights the cell or merged range under the pointer, and commits on click or drag.
+  It also picks from the keyboard — arrows move the cursor, Shift+Arrow extends the range, Enter or Space
+  commits — which the block producers do not: their pickers are pointer-only.
 - The host forwards the callback verbatim. What to do with a reference (show an action, inject it into a
   conversation) is the embedding surface's concern; neither the host nor the plugin renders reference UI.
 - The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
