@@ -222,9 +222,8 @@ def write_markdown_table(rows: list[list[str]], out_path: Path) -> None:
         fail("selection produced no rows")
     width = max(len(row) for row in rows)
     normalized = [row + [""] * (width - len(row)) for row in rows]
-    # Backslashes go first. Escaping only the pipe turns a cell's own `\` into the escape for the
-    # pipe that follows it, so `a\|b` reaches the reader as an escaped backslash and a live
-    # separator — one cell silently becomes two.
+    # Backslashes go first: escaping only the pipe turns a cell's own `\` into the escape for the
+    # pipe after it, so `a\|b` reaches the reader as an escaped backslash plus a live separator.
     escaped = [
         [cell.replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ") for cell in row] for row in normalized
     ]
@@ -234,6 +233,23 @@ def write_markdown_table(rows: list[list[str]], out_path: Path) -> None:
 
 
 def extract_xlsx(src: Path, anchor: dict, out_path: Path, out_format: str) -> None:
+    """Copy the anchored A1 range out of a worksheet into a new csv/md/xlsx, values only.
+
+    The reader streams (`read_only`), which shapes two behaviours. Merge followers are not masked: a
+    read_only worksheet has no `merged_cells`, and fetching the ranges means either a second,
+    non-streaming load — giving up the streaming this reader exists for — or hand-parsing
+    `<mergeCells>`. Excel and openpyxl clear a follower when the merge is made, so followers read
+    back empty and match what the user sees; only a file that kept hidden text under a merge
+    extracts it, which SKILL.md "## Limits" says out loud. Any future mask must clamp to the rows
+    `iter_rows` actually returned, not to `max_row`: read_only stops at the last populated row, so a
+    merge below the data would index past `values`.
+
+    For xlsx output, `Worksheet.append` re-infers each cell's type from its value — a string
+    starting with "=" becomes a formula with no cached value, an error code such as `#N/A` becomes
+    an error — so those are written back as strings with `quotePrefix`, which keeps Excel treating
+    them as text after someone edits it. A cell that really held an error keeps it; `error_cells`
+    is what tells the two apart.
+    """
     try:
         from openpyxl import Workbook, load_workbook
     except ImportError:
@@ -259,9 +275,8 @@ def extract_xlsx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
     worksheet = workbook[sheet_name]
 
     values = []
-    # Derived-sheet coordinates of the cells that really hold an error value (`#N/A`). Under data_only
-    # an error and the text "#N/A" read back as the same string; only the cell's data_type still says
-    # which it was, and the xlsx output below needs to know.
+    # Under data_only an error value and the text "#N/A" read back as the same string; only
+    # data_type still tells them apart, and the xlsx output below needs to know which is which.
     error_cells = set()
     rows = worksheet.iter_rows(min_row=min_row, max_row=max_row, min_col=min_col, max_col=max_col)
     for row_offset, row in enumerate(rows):
@@ -271,13 +286,6 @@ def extract_xlsx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
             for column_offset, cell in enumerate(row)
             if cell.data_type == "e"
         )
-    # Merge followers are not masked: a read_only worksheet has no merged_cells, so a mask keyed on it
-    # never runs, and fetching the ranges means either a second, non-streaming load — giving up the
-    # streaming this reader exists for — or hand-parsing <mergeCells>. Excel and openpyxl clear a
-    # follower when the merge is made, so followers read back empty and match what the user sees;
-    # the file that kept hidden text under a merge extracts it, which SKILL.md "## Limits" says out
-    # loud. Any future mask must clamp to the rows iter_rows actually returned, not to max_row:
-    # read_only stops at the last populated row, so a merge below the data would index past `values`.
     workbook.close()
 
     if out_format == "xlsx":
@@ -286,12 +294,8 @@ def extract_xlsx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
         derived_sheet.title = sheet_name[:31]
         for row in values:
             derived_sheet.append(row)
-        # append() re-infers each cell's type from its value: a string starting with "=" becomes a
-        # formula and one of Excel's error codes (`#N/A`) becomes an error, so text the source merely
-        # displayed comes back as something the spreadsheet runs or reports — and the formula has no
-        # cached value, so re-extracting it reads nothing. Put such a cell back to a string, with
-        # quotePrefix so Excel keeps treating it as text after someone edits it. A cell that held a
-        # real error keeps it; error_cells is what tells the two apart.
+        # append() re-infers each cell's type from its value, so text the source merely displayed
+        # would come back as something the spreadsheet runs or reports rather than shows.
         for row in derived_sheet.iter_rows():
             for cell in row:
                 if cell.data_type not in ("f", "e"):
@@ -480,8 +484,7 @@ def main() -> None:
     except json.JSONDecodeError as error:
         fail(f"anchor is not valid JSON: {error}")
     # `null` and `[]` parse fine and then fail on .get() with a traceback, which reads to the caller
-    # as a broken script rather than a bad argument. An unhashable "format" — a list or a dict —
-    # does the same on the lookup below, so it takes the same route to the same message.
+    # as a broken script rather than a bad argument; an unhashable "format" does it on the lookup.
     if not isinstance(anchor, dict):
         fail(f"anchor must be a JSON object, not {type(anchor).__name__}: {anchor!r}")
     anchor_format = anchor.get("format")

@@ -469,10 +469,12 @@ def encode_xlsx_string(value: str) -> str:
 
 
 def set_cell_value(doc: minidom.Document, cell, value) -> None:
-    # CT_Cell is `f?, v?, is?, extLst?`. The value is what the edit replaces; an extension payload is
-    # untouched content like everything else in the part — kept verbatim, never descended into, the
-    # way pPr is on the docx side — so it stays, and the new value goes in ahead of it to hold the
-    # sequence. Clearing every child took it with the old value.
+    """Replace a cell's value in place, holding CT_Cell's `f?, v?, is?, extLst?` child order.
+
+    An `extLst` payload is untouched content like everything else in the part — kept verbatim and
+    never descended into, the way `pPr` is on the docx side — so the new value is inserted ahead of
+    it rather than cleared away with the old one.
+    """
     extension = first_child(cell, "extLst")
     for child in list(cell.childNodes):
         if child is not extension:
@@ -485,9 +487,8 @@ def set_cell_value(doc: minidom.Document, cell, value) -> None:
         v.appendChild(doc.createTextNode("1" if value else "0"))
         cell.insertBefore(v, extension)
     elif isinstance(value, (int, float)):
-        # json.loads accepts NaN/Infinity/-Infinity literals, and 1e999 overflows to inf on its own.
-        # repr() spells those "nan"/"inf", which are well-formed XML but not valid xsd:double, so the
-        # reparse backstop cannot catch them — the workbook simply stops opening.
+        # json.loads accepts NaN/Infinity literals and 1e999 overflows to inf on its own; repr()
+        # spells those as well-formed XML that is not valid xsd:double, so the workbook stops opening.
         if not math.isfinite(value):
             fail(
                 f"cell {cell.getAttribute('r') or '?'} was given {value!r}, which a spreadsheet cannot "
@@ -510,14 +511,18 @@ def set_cell_value(doc: minidom.Document, cell, value) -> None:
 
 
 def find_or_create_ordered(doc: minidom.Document, parent, local_name: str, sort_key, key, attr_ref: str):
-    """Find child with attribute r == attr_ref, or insert one keeping siblings ordered."""
+    """Find child with attribute r == attr_ref, or insert one keeping siblings ordered.
+
+    Past the last sibling is not the same as last in the parent: CT_Row puts `extLst` after every
+    `c`, so a cell whose column is the highest yet must still go ahead of it or Excel opens the file
+    in repair mode. `extLst` is the only element that follows in either sequence this inserts into.
+    """
     siblings = list(element_children(parent, local_name))
     for child in siblings:
         if child.getAttribute("r") == attr_ref:
             return child
-    # An r-less sibling's position is inferred from document order, so inserting a
-    # referenced element beside it could address the same cell twice. Refuse rather
-    # than risk a corrupt derived file.
+    # An r-less sibling's position is inferred from document order, so inserting a referenced
+    # element beside it could address the same cell twice — refuse rather than corrupt the copy.
     if any(not child.hasAttribute("r") for child in siblings):
         fail(f"worksheet has {local_name} elements without 'r' attributes; refusing to edit this workbook")
     created = doc.createElement(siblings[0].tagName if siblings else make_tag(parent.tagName, local_name))
@@ -527,9 +532,6 @@ def find_or_create_ordered(doc: minidom.Document, parent, local_name: str, sort_
         if sort_key(child.getAttribute("r")) > key:
             before = child
             break
-    # Past the last sibling is not the same as last in the parent: CT_Row puts `extLst` after every
-    # `c`, so appending a cell whose column is the highest yet would land behind it and Excel opens
-    # the file in repair mode. Only `extLst` follows in either sequence this creates into.
     if before is None:
         before = first_child(parent, "extLst")
     parent.insertBefore(created, before)
@@ -608,37 +610,18 @@ def patch_xlsx(archive: zipfile.ZipFile, edits: dict) -> tuple[dict[str, bytes],
 # ── docx ─────────────────────────────────────────────────────────────────────
 
 
-# Inline markers whose meaning lives outside the paragraph: bookmarks, comment anchors and fields all
-# pair a start with an end that may sit in a different paragraph. Flattening the paragraph deletes one
-# half and leaves the document with an unmatched marker, so these are refused rather than dropped.
 WORDPROCESSING_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
-# What the rewrite emits, in full:  w:p > [w:pPr] + w:r > [w:rPr] + w:t
-#
-# So the only children that survive it are the ones that shape can carry. This is an ALLOW-list, not
-# a list of dangerous elements, because the dangerous set cannot be enumerated: ECMA-376 Part 3
-# (Markup Compatibility) exists precisely so consumers meet elements they do not know, w:extLst is an
-# open extension channel by design, and Microsoft keeps adding namespaces (w14, w15, w16*, ink, 3D,
-# SVG). Three review rounds of "enumerate what is dangerous" each missed a new batch. Inverting the
-# default means an element nobody has heard of yet lands on the refusing side, and the only thing we
-# must get right is whether these thirteen are truly lossless — a closed, checkable question.
+# The rewrite emits `w:p > [w:pPr] + w:r > [w:rPr] + w:t`, so this allow-lists what that shape can
+# carry: the dangerous set cannot be enumerated, and an unknown element must fall on the refusing side.
 PARAGRAPH_ALLOWED = {
     (WORDPROCESSING_NS, "pPr"),  # kept verbatim, never descended into
     (WORDPROCESSING_NS, "r"),  # the run being replaced
     (WORDPROCESSING_NS, "proofErr"),  # spell/grammar marker, no semantics, Word regenerates it
 }
 
-# Inside the run: the text and its typographic separators. Losing tab, cr, ptab and a line-breaking
-# br is the edit's intent; a break that starts a page or column is not, and is refused below.
-#
-# softHyphen and noBreakHyphen are the honest exceptions. Neither reaches the caller intact — a soft
-# hyphen leaves no mark in the extracted text at all, and a no-break hyphen reads as a plain "-" that
-# writing back downgrades it to — so their loss is not chosen, it is accepted. What is lost is where
-# a line may break, never a character. Refusing them instead would strand the paragraph: the run-level
-# recipe cannot rebuild them either, so both routes this skill offers would be closed.
-#
-# w:sym is where that trade stops. Its glyph lives in w:font/w:char and vanishes from the extract the
-# same way, but what goes missing is a character the reader can see, not a hyphenation hint.
+# Losing tab, cr, ptab and a line-breaking br is the edit's intent. softHyphen and noBreakHyphen are
+# accepted losses — only a break opportunity, never a character; w:sym is excluded because it is one.
 RUN_ALLOWED = {
     (WORDPROCESSING_NS, name)
     for name in ("rPr", "t", "tab", "br", "cr", "ptab", "softHyphen", "noBreakHyphen", "lastRenderedPageBreak")
@@ -726,6 +709,10 @@ def describe_element(key: tuple[str, str], element) -> str:
 
 def reject_unrepresentable_content(paragraph, index: int) -> None:
     """Refuse a paragraph holding anything the rewrite's output shape cannot carry.
+
+    Bookmarks, comment anchors and fields pair a start with an end that may sit in another
+    paragraph, so flattening this one would leave the document holding an unmatched marker; they
+    are refused rather than dropped.
 
     `pPr` is deliberately not descended into: it survives the rewrite untouched, so its contents are
     never at risk — descending was what made revision marks on the paragraph mark itself (pPr/rPr/w:ins)
@@ -869,8 +856,7 @@ def main() -> None:
     except json.JSONDecodeError as error:
         fail(f"edits is not valid JSON: {error}")
     # `null` and `[]` parse fine and then fail on .get() with a traceback, which reads to the caller
-    # as a broken script rather than a bad argument. An unhashable "format" — a list or a dict —
-    # does the same on the lookup below, so it takes the same route to the same message.
+    # as a broken script rather than a bad argument; an unhashable "format" does it on the lookup.
     if not isinstance(edits, dict):
         fail(f"edits must be a JSON object, not {type(edits).__name__}: {edits!r}")
     edits_format = edits.get("format")
@@ -879,9 +865,8 @@ def main() -> None:
         fail(f"unsupported edits format: {edits_format!r} (use xlsx or docx)")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    # Build beside the target and rename only on success. A package written in place and interrupted
-    # mid-copy stays a readable file with the edit already applied — it just silently misses the parts
-    # that never got copied — and then blocks the retry with "output path already exists".
+    # A package written in place and interrupted mid-copy stays readable with the edit applied while
+    # silently missing the parts never copied, and then blocks the retry as an existing output path.
     with atomic_output(out_path) as staging:
         with zipfile.ZipFile(src) as archive:
             preflight_zip(archive)

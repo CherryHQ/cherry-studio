@@ -400,6 +400,10 @@ If verification fails, say so and show the error — do not present an unverifie
   cell shows the escaped form; that is the reader, not the file.
 - Edited XML parts may lose insignificant serialization details (attribute quoting,
   empty-element form); namespace prefixes and untouched content are preserved.
+- A patched docx paragraph keeps its characters but not every break opportunity: `w:softHyphen`
+  leaves no mark in the extract and is dropped, and `w:noBreakHyphen` comes back as a plain `-`, so
+  what both lose is only where a line may break. `w:sym` is refused instead — its glyph is a
+  character the reader can see, not a hyphenation hint.
 - xlsx extraction refuses ranges over 1,000,000 cells; both scripts refuse packages
   with more than 10,000 entries, an entry over 256 MiB uncompressed, or over 1 GiB
   total uncompressed — ask the user for a smaller selection or file instead of
