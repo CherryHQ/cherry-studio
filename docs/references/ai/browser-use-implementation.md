@@ -992,8 +992,8 @@ an explicit host operation, never direct destruction by borrowed-session disposa
 
 Mount the pane-backed MCP through `buildAgentMcpServers` and `resolveMountedMcpServers`, using the
 shared path consumed by Claude Code, Pi and Dsh. Runtime connection signatures include effective
-browser enablement so cached sessions refresh their tool surface. Preserve existing per-tool approval
-rules; adding a first-party server must not wildcard auto-approve every browser action. When this
+browser enablement so cached sessions refresh their tool surface. The persistent browser grant
+auto-approves the declared browser tools only; unknown tool names never inherit approval. When this
 capability is mounted, exclude a duplicate bridge to the legacy `@cherry/browser` preset for that
 session; do not alter the user's stored MCP configuration or unrelated clients.
 
@@ -1178,11 +1178,11 @@ Browser is an Agent built-in capability rather than a selectable third-party MCP
 group switch uses the existing `disabledTools` opt-out (`mcp__browser`). The runtime excludes legacy
 in-memory browser bindings from the Agent MCP set, including when browser control is off.
 
-Browser settings owns `app.browser.tool_permissions`: each visible-host tool can ask, allow or deny.
-The default is ask; Full Access skips approval but does not enable disabled tools. Existing runtime approval UIs present requests in other modes. Claude
-and Pi re-evaluate approval at call time. DSH’s host guard tightens approval live; relaxing to allow is
-included in its next connection snapshot. Tool dispatch also rechecks denied tools and the Agent switch
-before queued work executes. Disabling Agent control leaves manual browsing available.
+Browser settings owns one persistent grant, `app.browser.agent_control.enabled`, defaulting to off.
+Once enabled, all declared browser tools run without per-action approval in Claude, Pi and DSH.
+The grant stays enabled across sessions until the user turns it off; there is no per-tool permission
+dialog or configuration. Runtime gates and queued dispatch recheck revocation, including in Full Access.
+The Agent browser group opt-out remains independent. Disabling Agent control leaves manual browsing available.
 
 `app.browser.open_links_in_browser` defaults false. When enabled, ordinary HTTP(S) clicks in Agent
 message links open the current session's right browser pane through the message action provider;

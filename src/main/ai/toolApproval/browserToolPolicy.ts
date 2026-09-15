@@ -7,15 +7,13 @@ export function resolveBrowserToolPermission(runtimeName: string) {
   const toolName = browserToolFromRuntimeName(runtimeName)
   if (!toolName) return undefined
   const preferences = application.get('PreferenceService')
-  if (!preferences.get('app.browser.agent_control.enabled')) return 'deny'
-  const permission = preferences.get('app.browser.tool_permissions')[toolName]
-  return permission === 'allow' || permission === 'deny' ? permission : 'ask'
+  return preferences.get('app.browser.agent_control.enabled') ? 'allow' : 'deny'
 }
 
-export function browserRuntimeNamesWithPermission(permission: 'ask' | 'allow' | 'deny'): string[] {
-  return BROWSER_TOOL_NAMES.map((name) => `mcp__browser__${name}`).filter(
-    (name) => resolveBrowserToolPermission(name) === permission
-  )
+export function getAutoApprovedBrowserTools(): string[] {
+  return application.get('PreferenceService').get('app.browser.agent_control.enabled')
+    ? BROWSER_TOOL_NAMES.map((name) => `mcp__browser__${name}`)
+    : []
 }
 
 export function listBrowserToolPolicies(): BuiltinToolPolicyEntry[] {
