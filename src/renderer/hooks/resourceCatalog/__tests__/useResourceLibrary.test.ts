@@ -338,4 +338,19 @@ describe('useResourceLibrary', () => {
     expect(result.current.allResources.map((resource) => resource.id)).toEqual(['agent-1', 'agent-2'])
     expect(result.current.resources).toEqual([])
   })
+
+  it('retries the agent-group chips query when the agent library refetches', () => {
+    const agentReads = listResult([agentListItem])
+    const groups = { groups: [], isLoading: false, error: undefined, refetch: vi.fn() }
+    mocks.useAgentList.mockReturnValue(agentReads)
+    mocks.useGroups.mockReturnValue(groups)
+
+    const { result } = renderResourceLibrary({ resourceType: 'agent' })
+    result.current.refetch()
+
+    // A failed chips request must not be stranded: the retry covers both agent
+    // reads and the group query, matching the assistant branch.
+    expect(agentReads.refetch).toHaveBeenCalled()
+    expect(groups.refetch).toHaveBeenCalled()
+  })
 })

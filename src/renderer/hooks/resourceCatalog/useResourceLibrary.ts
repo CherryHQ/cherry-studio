@@ -228,6 +228,7 @@ export function useResourceLibrary({
     } else if (isAgent) {
       baseAgentsRefetch()
       agentsRefetch()
+      void groupsRefetch()
     } else if (isPrompt) {
       promptsRefetch()
     } else {
