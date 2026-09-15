@@ -29,6 +29,13 @@ function tool(overrides: Partial<ToolDefinition> & Pick<ToolDefinition, 'name'>)
   }
 }
 
+function browserTool(overrides: Partial<ToolDefinition> & Pick<ToolDefinition, 'name' | 'label'>): PiMcpToolDefinition {
+  return {
+    ...tool(overrides),
+    source: { serverName: '@cherry/browser', toolName: overrides.label }
+  }
+}
+
 function codeModeTools(
   catalog: PiMcpToolDefinition[],
   disabled = new Set<string>(),
@@ -149,6 +156,217 @@ describe('createPiCodeModeTools', () => {
     expect(result.content[0]).toMatchObject({ type: 'text', text: expect.stringContaining('found') })
   })
 
+  it('generates a typed browser facade and dispatches its methods through the shared authorization boundary', async () => {
+    const name = 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__open'
+    const execute = vi.fn<ToolDefinition['execute']>(async () => ({
+      content: [{ type: 'text' as const, text: '{"title":"Example"}' }],
+      details: { title: 'Example' }
+    }))
+    const browserOpen: PiMcpToolDefinition = {
+      ...tool({
+        name,
+        description: 'Open a browser page',
+        parameters: {
+          type: 'object',
+          properties: { url: { type: 'string' } },
+          required: ['url']
+        },
+        execute
+      }),
+      source: { serverName: '@cherry/browser', toolName: 'open' },
+      outputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] }
+    }
+    const authorize = vi.fn<PiToolAuthorizer>(async () => undefined)
+    const tools = codeModeTools([browserOpen], new Set(), authorize)
+    const search = tools.find((item) => item.name === PI_TOOL_SEARCH_TOOL_NAME)!
+    const exec = tools.find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const discovery = await search.execute('search-1', { query: 'browser' }, undefined, undefined, {} as never)
+    const result = await exec.execute(
+      'outer-1',
+      { code: "return await browser.open({ url: 'https://example.com' })" },
+      undefined,
+      undefined,
+      {} as never
+    )
+
+    expect(discovery.content[0]).toMatchObject({
+      type: 'text',
+      text: expect.stringMatching(
+        /declare const browser[\s\S]*open\(params: \{ url: string \}\): Promise<\{ title: string \}>/
+      )
+    })
+    expect(result.details).toEqual({ result: { title: 'Example' }, logs: undefined })
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: name,
+        toolCallId: 'outer-1',
+        input: { url: 'https://example.com' }
+      })
+    )
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringMatching(/^outer-1::exec::/),
+      { url: 'https://example.com' },
+      expect.any(AbortSignal),
+      undefined,
+      expect.anything()
+    )
+  })
+
+  it('omits ambiguous browser facade methods while keeping the original tools callable', async () => {
+    const first = browserTool({ name: 'mcp__browser-a__open', label: 'open' })
+    const second = browserTool({ name: 'mcp__browser-b__open', label: 'open' })
+    const screenshot = browserTool({ name: 'mcp__browser-a__screenshot', label: 'screenshot' })
+    const tools = codeModeTools([first, second, screenshot])
+    const search = tools.find((item) => item.name === PI_TOOL_SEARCH_TOOL_NAME)!
+    const call = tools.find((item) => item.name === PI_TOOL_CALL_TOOL_NAME)!
+
+    const discovery = await search.execute('search-1', { query: 'browser' }, undefined, undefined, {} as never)
+    const text = discovery.content[0].type === 'text' ? discovery.content[0].text : ''
+    expect(text).toContain('mcp__browser-a__open')
+    expect(text).toContain('mcp__browser-b__open')
+    expect(text).not.toMatch(/\bopen\(params:/)
+    expect(text).toMatch(/\bscreenshot\(params:/)
+
+    for (const name of [first.name, second.name]) {
+      const result = await call.execute('call-1', { name, params: {} }, undefined, undefined, {} as never)
+      expect(result.details).toEqual({ ok: true })
+    }
+  })
+
+  it('keeps an enabled browser alias when its colliding tool is disabled', async () => {
+    const enabled = browserTool({ name: 'mcp__browser-a__open', label: 'open' })
+    const disabled = browserTool({ name: 'mcp__browser-b__open', label: 'open' })
+    const tools = codeModeTools([enabled, disabled], new Set([disabled.name]))
+    const search = tools.find((item) => item.name === PI_TOOL_SEARCH_TOOL_NAME)!
+    const exec = tools.find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const discovery = await search.execute('search-1', { query: 'browser' }, undefined, undefined, {} as never)
+    const text = discovery.content[0].type === 'text' ? discovery.content[0].text : ''
+    expect(text).toContain(enabled.name)
+    expect(text).not.toContain(disabled.name)
+    expect(text).toMatch(/\bopen\(params:/)
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: 'return await browser.open({ query: "example" })' },
+      undefined,
+      undefined,
+      {} as never
+    )
+    expect(result.details).toEqual({
+      result: { content: [{ type: 'text', text: 'ok' }], details: { ok: true } },
+      logs: undefined
+    })
+  })
+
+  it('reveals a browser alias when a colliding tool is disabled after catalog creation', async () => {
+    const enabled = browserTool({ name: 'mcp__browser-a__open', label: 'open' })
+    const other = browserTool({ name: 'mcp__browser-b__open', label: 'open' })
+    const disabled = new Set<string>()
+    const tools = codeModeTools([enabled, other], disabled)
+    const search = tools.find((item) => item.name === PI_TOOL_SEARCH_TOOL_NAME)!
+    const exec = tools.find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const before = await search.execute('search-1', { query: 'browser' }, undefined, undefined, {} as never)
+    expect(before.content[0]).toMatchObject({ type: 'text', text: expect.not.stringMatching(/\bopen\(params:/) })
+
+    disabled.add(other.name)
+    const after = await search.execute('search-2', { query: 'browser' }, undefined, undefined, {} as never)
+    expect(after.content[0]).toMatchObject({ type: 'text', text: expect.stringMatching(/\bopen\(params:/) })
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: 'return await browser.open({ query: "example" })' },
+      undefined,
+      undefined,
+      {} as never
+    )
+    expect(result.details).toEqual({
+      result: { content: [{ type: 'text', text: 'ok' }], details: { ok: true } },
+      logs: undefined
+    })
+  })
+
+  it('forwards images returned by browser facade methods as tool_exec image content', async () => {
+    const screenshot = browserTool({
+      name: 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__screenshot',
+      label: 'screenshot',
+      execute: vi.fn(async () => ({
+        content: [{ type: 'image' as const, data: 'base64-png', mimeType: 'image/png' }],
+        details: undefined
+      }))
+    })
+    const exec = codeModeTools([screenshot]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: "await browser.screenshot({}); return 'captured'" },
+      undefined,
+      undefined,
+      {} as never
+    )
+
+    expect(result.content).toEqual([
+      { type: 'text', text: '"captured"' },
+      { type: 'image', data: 'base64-png', mimeType: 'image/png' }
+    ])
+  })
+
+  it('emits images once when code returns a raw MCP result', async () => {
+    const screenshot = browserTool({
+      name: 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__screenshot',
+      label: 'screenshot',
+      execute: vi.fn(async () => ({
+        content: [{ type: 'image' as const, data: 'base64-png', mimeType: 'image/png' }],
+        details: undefined
+      }))
+    })
+    const exec = codeModeTools([screenshot]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: 'return await browser.screenshot({})' },
+      undefined,
+      undefined,
+      {} as never
+    )
+
+    expect(result.content).toHaveLength(2)
+    expect(result.content[0]).toMatchObject({ type: 'text', text: expect.not.stringContaining('base64-png') })
+    expect(result.content[1]).toEqual({ type: 'image', data: 'base64-png', mimeType: 'image/png' })
+    expect(result.details).toMatchObject({ result: { content: [] } })
+  })
+
+  it('keeps browser facade calls behind the nested approval gate', async () => {
+    const reset = browserTool({ name: 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__reset', label: 'reset' })
+    const authorize = vi.fn<PiToolAuthorizer>(async () => ({ block: true, reason: 'User denied browser control.' }))
+    const exec = codeModeTools([reset], new Set(), authorize).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    await expect(
+      exec.execute('outer-1', { code: 'return await browser.reset({})' }, undefined, undefined, {} as never)
+    ).rejects.toThrow('User denied browser control.')
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolName: 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__reset',
+        toolCallId: 'outer-1',
+        input: {}
+      })
+    )
+    expect(reset.execute).not.toHaveBeenCalled()
+  })
+
+  it('guides browser tool_exec calls to batch actions and capture one final state', () => {
+    const exec = codeModeTools([]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    expect(exec.promptGuidelines).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/batch/i),
+        expect.stringMatching(/one final (snapshot|screenshot)/i)
+      ])
+    )
+  })
+
   it('decodes a structured MCP result for tool_exec without leaking the MCP content envelope', async () => {
     const name = 'mcp__browser__open'
     const inner = tool({
@@ -172,6 +390,30 @@ describe('createPiCodeModeTools', () => {
 
     expect(result.content[0]).toEqual({ type: 'text', text: '{\n  "title": "Example"\n}' })
     expect(result.content[0]).not.toMatchObject({ text: expect.stringContaining('content') })
+  })
+
+  it('decodes schema-bearing MCP text when structuredContent is absent', async () => {
+    const name = 'mcp__browser__open'
+    const inner = tool({
+      name,
+      execute: vi.fn(async () => ({
+        content: [{ type: 'text' as const, text: '{"title":"Example"}' }],
+        details: null
+      }))
+    })
+    const exec = codeModeTools([
+      { ...inner, outputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] } }
+    ]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: `return await tools.invoke('${name}', {})` },
+      undefined,
+      undefined,
+      {} as never
+    )
+
+    expect(result.details).toEqual({ result: { title: 'Example' }, logs: undefined })
   })
 
   it('decodes the one text result when a structured MCP response also includes an attachment', async () => {
