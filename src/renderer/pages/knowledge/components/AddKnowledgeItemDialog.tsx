@@ -8,7 +8,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
 import { resolveKnowledgeFileData, resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemConflict, KnowledgeAddItemInput, KnowledgeItemType } from '@shared/data/types/knowledge'
-import { knowledgeSupportedFileExts } from '@shared/utils/file'
+import { knowledgeIndexableFileExtSet } from '@shared/utils/file'
 
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import AddKnowledgeItemDialogFooter from './addKnowledgeItemDialog/AddKnowledgeItemDialogFooter'
@@ -34,12 +34,23 @@ interface AddKnowledgeItemDialogProps {
 // picker directly and submits the selection. Only `note` / `url` still render the dialog panel.
 const isDirectPickSource = (source: KnowledgeItemType) => source === 'file' || source === 'directory'
 
-const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
-// Electron's open-dialog `filters` want bare extensions (no leading dot); the set above keeps the
-// dots for the post-pick safety filter.
-const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ext.replace(/^\./, ''))
+// Electron's open-dialog `filters` want bare extensions (no leading dot). Two groups: the curated
+// indexable set (the default the user sees first) and an "All files" escape hatch so a deliberate
+// pick of an off-list file is still possible — that file rides in with `allowArbitrary` and is
+// content-checked at index time rather than by extension.
+const knowledgeSupportedPickerExtensions = Array.from(knowledgeIndexableFileExtSet, (ext) => ext.replace(/^\./, ''))
 
-const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
+// A bare dotfile (`.yaml`, `.env`) has no extension per main's path.extname but looks like one to
+// split('.'); treat it as off-list so it takes the opt-in path instead of failing the main gate.
+const isBareDotfile = (fileName: string) => {
+  const base = fileName.split(/[/\\]/).pop() ?? fileName
+  return base.startsWith('.') && !base.slice(1).includes('.')
+}
+
+// Whether a file's extension is on the curated allow-list. An off-list file is only reachable via
+// the "All files" filter, so treat it as the user's explicit opt-in (`allowArbitrary`).
+const isSupportedKnowledgeFile = (fileName: string) =>
+  !isBareDotfile(fileName) && knowledgeIndexableFileExtSet.has(getFileExtension(fileName))
 
 const resolveFileEntryDataFromFile = (file: File) => {
   const filePath = window.api.file.getPathForFile(file)
@@ -213,6 +224,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   // Collect file inputs from the OS picker (or page-level pending files, if any) and submit.
   // Returns null when the user cancels the picker so the caller can close the flow.
   const collectFileInputs = useCallback(async (): Promise<KnowledgeAddItemInput[] | null> => {
+    // Page-level drag-and-drop has no "All files" opt-in, so it keeps the curated boundary:
+    // off-list files are dropped with a notice rather than admitted as arbitrary.
     if (pendingAddFiles?.length) {
       const supportedFiles = pendingAddFiles.filter((file) => isSupportedKnowledgeFile(file.name))
       const skippedCount = pendingAddFiles.length - supportedFiles.length
@@ -225,19 +238,28 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     const selected = await window.api.file.select({
       properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'Knowledge', extensions: knowledgeFilePickerExtensions }]
+      filters: [
+        {
+          name: t('knowledge.data_source.add_dialog.picker.supported_files'),
+          extensions: knowledgeSupportedPickerExtensions
+        },
+        { name: t('knowledge.data_source.add_dialog.picker.all_files'), extensions: ['*'] }
+      ]
     })
 
     if (!selected) {
       return null
     }
 
-    const supportedFiles = selected.filter((file) => isSupportedKnowledgeFile(file.origin_name || file.name))
-    const skippedCount = selected.length - supportedFiles.length
-    if (skippedCount > 0) {
-      toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
-    }
-    const fileData = await Promise.all(supportedFiles.map(resolveKnowledgeFileMetadataEntryData))
+    // A file reachable only via the "All files" filter (its extension is off the curated list) is a
+    // deliberate opt-in: admit it with `allowArbitrary` so the add-time gate lets it through, and
+    // let the index-time binary guard reject it if it turns out to be binary. Nothing is silently
+    // dropped, so a mixed batch of on- and off-list files can no longer lose valid items.
+    const fileData = await Promise.all(
+      selected.map((file) =>
+        resolveKnowledgeFileMetadataEntryData(file, !isSupportedKnowledgeFile(file.origin_name || file.name))
+      )
+    )
     return fileData.map((data) => ({ type: 'file' as const, data }))
   }, [pendingAddFiles, t])
 

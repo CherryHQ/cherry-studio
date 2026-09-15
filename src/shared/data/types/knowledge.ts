@@ -308,7 +308,13 @@ export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
   ),
   indexedRelativePath: KnowledgeRelativePathSchema.optional().describe(
     'Knowledge-base-relative, POSIX-normalized path for the file actually indexed, such as a processed markdown artifact.'
-  )
+  ),
+  // Persisted so a restore can re-admit the file: without it, restore rebuilds the add input from
+  // this record and the add-time gate would reject the off-list extension it was first admitted past.
+  allowArbitrary: z
+    .boolean()
+    .optional()
+    .describe('User explicitly opted this off-list file past the curated extension allow-list.')
 })
 export type FileItemData = z.infer<typeof FileItemDataSchema>
 
@@ -683,7 +689,15 @@ const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
   // source file and indexes from it directly, skipping the file processor.
   indexedPath: AbsoluteFilePathSchema.optional().describe(
     'Absolute path to an already-processed artifact to copy in and index from, skipping the file processor.'
-  )
+  ),
+  // Set only when the user deliberately picked this file through the "All files" picker option,
+  // opting past the curated extension allow-list. It relaxes the add-time extension gate for THIS
+  // file only; the file must still pass the index-time binary-content guard, so an arbitrary
+  // extension is admitted but a binary file still fails visibly instead of embedding mojibake.
+  allowArbitrary: z
+    .boolean()
+    .optional()
+    .describe('User explicitly opted past the curated extension allow-list for this file.')
 })
 
 const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({

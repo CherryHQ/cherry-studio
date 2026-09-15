@@ -1,3 +1,5 @@
+import { open } from 'node:fs/promises'
+
 import { Document, FileReader as VectorStoreFileReader } from '@vectorstores/core'
 
 import { getFileExt } from '@main/utils/legacyFile'
@@ -6,8 +8,24 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { toMaterialRelativePath } from '../../items'
 import { getKnowledgeBaseFilePath } from '../../pathStorage'
+import { BINARY_SNIFF_BYTES, bytesLookBinary } from './binaryText'
 import { AnydocReader } from './files/AnydocReader'
 import { DraftsExportReader } from './files/DraftsExportReader'
+
+/** Read only the leading {@link BINARY_SNIFF_BYTES} of a file and test them for the binary signal. */
+async function filePrefixLooksBinary(filePath: string): Promise<boolean> {
+  const handle = await open(filePath, 'r')
+  try {
+    const buffer = Buffer.alloc(BINARY_SNIFF_BYTES)
+    const { bytesRead } = await handle.read(buffer, 0, BINARY_SNIFF_BYTES, 0)
+    return bytesLookBinary(buffer.subarray(0, bytesRead))
+  } finally {
+    await handle.close()
+  }
+}
+
+const BINARY_CONTENT_ERROR =
+  'This file decoded as binary content, not text, so it cannot be indexed. Only text-based files can be added to a knowledge base.'
 
 class LazyFileReader extends VectorStoreFileReader<Document> {
   private readerPromise: Promise<VectorStoreFileReader<Document>> | undefined
@@ -27,9 +45,15 @@ class LazyFileReader extends VectorStoreFileReader<Document> {
   }
 }
 
-export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorStoreFileReader<Document> {
-  const extension = getFileExt(filePath).toLowerCase()
+// Marker subclass for the factory's `default` (text-fallback) branch, so `usesTextFallbackReader`
+// can ask the factory instead of mirroring its extension list.
+class TextFallbackReader extends LazyFileReader {}
 
+export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorStoreFileReader<Document> {
+  return createReaderForExtension(getFileExt(filePath).toLowerCase())
+}
+
+function createReaderForExtension(extension: string): VectorStoreFileReader<Document> {
   switch (extension) {
     case '.pdf':
       return new LazyFileReader(async () =>
@@ -77,9 +101,33 @@ export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorSto
     case '.draftsexport':
       return new DraftsExportReader()
     default:
-      return new LazyFileReader(async () =>
+      // The text fallback decodes bytes non-fatally, so it is the only path where a binary file
+      // becomes mojibake instead of failing — hence the only path the binary guard runs on.
+      return new TextFallbackReader(async () =>
         import('@vectorstores/readers/text').then(({ TextFileReader }) => new TextFileReader())
       )
+  }
+}
+
+/** True when the factory routes {@link filePath} to the non-fatal text fallback, the only reader
+ * that can turn a binary file into mojibake. Derived from the factory itself — no parallel list. */
+export const usesTextFallbackReader = (filePath: string): boolean =>
+  createReaderForExtension(getFileExt(filePath).toLowerCase()) instanceof TextFallbackReader
+
+/**
+ * True when a file read through the non-fatal text fallback would decode as binary (dedicated readers
+ * own their container format, so they are exempt). Runs on the ORIGINAL source before it is copied
+ * into the base, so large binary media (e.g. an `.ts` transport stream on a directory embed) is caught
+ * before a wasted copy.
+ */
+export async function sourceFileLooksBinary(filePath: string): Promise<boolean> {
+  return usesTextFallbackReader(filePath) && (await filePrefixLooksBinary(filePath))
+}
+
+/** Throwing form of {@link sourceFileLooksBinary} for explicit-pick paths that must fail visibly. */
+export async function assertSourceFileNotBinary(filePath: string): Promise<void> {
+  if (await sourceFileLooksBinary(filePath)) {
+    throw new Error(BINARY_CONTENT_ERROR)
   }
 }
 
@@ -96,6 +144,7 @@ export async function loadDocumentsFromKnowledgeBaseFile(
 
   const reader = createSupportedFileReader(filePath)
   const documents = await reader.loadData(filePath)
+
   const sourceMetadata: KnowledgeSourceMetadata = { source }
 
   return documents.map(

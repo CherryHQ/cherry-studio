@@ -336,17 +336,35 @@ describe('AddKnowledgeItemDialog', () => {
       expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
     })
 
-    it('drops unsupported picks and warns about the skipped count', async () => {
+    it('admits an off-list pick via the All-files opt-in instead of dropping it', async () => {
       mockFileSelect.mockResolvedValueOnce([createSelectedFile('alpha.pdf'), createSelectedFile('photo.png')])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
       await waitFor(() => {
         expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
-          [{ type: 'file', data: { source: '/picked/alpha.pdf', path: '/picked/alpha.pdf' } }],
+          [
+            { type: 'file', data: { source: '/picked/alpha.pdf', path: '/picked/alpha.pdf' } },
+            { type: 'file', data: { source: '/picked/photo.png', path: '/picked/photo.png', allowArbitrary: true } }
+          ],
           'detect'
         )
       })
-      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+      expect(toast.warning).not.toHaveBeenCalled()
+    })
+
+    it('treats a bare-dotfile named like a curated extension as an opt-in, not a plain add', async () => {
+      // `.yaml` passes the renderer's split('.') classifier but path.extname('.yaml') === '' in the
+      // main guard; admitting it as a plain add would throw there and roll back the batch. It must
+      // ride in with allowArbitrary so it takes the gate-skipping path both classifiers agree on.
+      mockFileSelect.mockResolvedValueOnce([createSelectedFile('.yaml', '/picked/.yaml')])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'file', data: { source: '/picked/.yaml', path: '/picked/.yaml', allowArbitrary: true } }],
+          'detect'
+        )
+      })
     })
 
     it('submits page-level pending files without opening the picker', async () => {
