@@ -12,7 +12,8 @@ import {
   BRIDGE_SOCKET_ENV,
   BRIDGE_TOKEN_ENV,
   type BridgePermissionMode,
-  type BridgePolicy
+  type BridgePolicy,
+  type BridgeSessionOpenResult
 } from '@cherrystudio/dsh-bridge'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
@@ -413,16 +414,28 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       client.start()
       await client.initialize({ cwd: workspacePath, provider: injection.providerName, model: injection.modelId })
       await this.bridge.whenReady()
-      await this.bridge.request('session/open', {
-        sessionId: this.input.sessionId,
-        provider: injection.providerName,
-        model: injection.modelId,
-        cwd: workspacePath,
-        // The plugin degrades resume to a fresh create when no session log exists yet.
-        resume: Boolean(this.input.resumeToken),
-        policy: this.buildPolicy(),
-        tools: toolBridge.tools
-      })
+      let opened: BridgeSessionOpenResult
+      try {
+        opened = await this.bridge.request('session/open', {
+          sessionId: this.input.sessionId,
+          provider: injection.providerName,
+          model: injection.modelId,
+          cwd: workspacePath,
+          // The plugin degrades resume to a fresh create when no session log exists yet.
+          resume: Boolean(this.input.resumeToken),
+          policy: this.buildPolicy(),
+          tools: toolBridge.tools
+        })
+      } catch (error) {
+        // Pre-outcome plugin framed the same state as an untyped -32603.
+        const legacy = parseLegacyCwdMismatch(error)
+        if (!legacy) throw error
+        throw new Error(buildCwdMismatchMessage(this.input.sessionId, legacy.persistedCwd, legacy.requestedCwd))
+      }
+      // Old plugin answers `{}` on success; only the explicit outcome diverts.
+      if (opened !== undefined && opened !== null && opened.status === 'cwd-mismatch') {
+        throw new Error(buildCwdMismatchMessage(this.input.sessionId, opened.persistedCwd, opened.requestedCwd))
+      }
       if (this.permissionMode === 'plan') {
         // Activate dsh's plan surface (prompt section + exit tool); a resumed log
         // that already folds to plan makes this a no-op.
@@ -881,6 +894,31 @@ function isDshCommandLine(content: string): boolean {
 
 function finiteTokenCount(value: number | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+}
+
+/** Pre-outcome plugin message shape: both cwds are JSON-quoted, so parse back exactly. */
+const LEGACY_CWD_MISMATCH_PATTERN = /^persisted dsh session cwd (.*) does not match (.*)$/s
+
+function parseLegacyCwdMismatch(error: unknown): { persistedCwd: string; requestedCwd: string } | undefined {
+  const match = error instanceof Error ? LEGACY_CWD_MISMATCH_PATTERN.exec(error.message) : null
+  if (!match) return undefined
+  try {
+    const persistedCwd: unknown = JSON.parse(match[1])
+    const requestedCwd: unknown = JSON.parse(match[2])
+    if (typeof persistedCwd !== 'string' || typeof requestedCwd !== 'string') return undefined
+    return { persistedCwd, requestedCwd }
+  } catch {
+    return undefined
+  }
+}
+
+function buildCwdMismatchMessage(sessionId: string, persistedCwd: string, requestedCwd: string): string {
+  return (
+    `dsh session "${sessionId}" was persisted in another workspace (persisted cwd ` +
+    `${JSON.stringify(persistedCwd)} does not match requested cwd ${JSON.stringify(requestedCwd)}). ` +
+    `Start a new session for the new workspace, or switch back to the original workspace to resume ` +
+    `it — the persisted history was left untouched.`
+  )
 }
 
 /**
