@@ -127,6 +127,39 @@ async function fetchFollowingRedirects(
   }
 }
 
+function isReactNative(): boolean {
+  try {
+    return typeof navigator !== 'undefined' && (navigator as unknown as { product?: string }).product === 'ReactNative'
+  } catch {
+    return false
+  }
+}
+
+function getExpoFetch(): FetchFunction | null {
+  if (!isReactNative()) return null
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const expoFetch = (require('expo/fetch') as { fetch?: FetchFunction }).fetch
+    return expoFetch ?? null
+  } catch {
+    return null
+  }
+}
+
+export function isStreamingFetchSupported(fetchFn: FetchFunction): boolean {
+  if (!isReactNative()) return true
+  return fetchFn !== globalThis.fetch
+}
+
+export function resolveDefaultFetch(): FetchFunction {
+  const expoFetch = getExpoFetch()
+  if (expoFetch) return expoFetch
+  try {
+    if (typeof net !== 'undefined' && typeof net.fetch === 'function') return net.fetch.bind(net) as FetchFunction
+  } catch {}
+  return globalThis.fetch
+}
+
 /**
  * Base `fetch` for AI provider HTTP calls.
  *
@@ -137,12 +170,26 @@ async function fetchFollowingRedirects(
  * `net.fetch` here so it runs on Chromium's network stack and benefits from
  * session-proxy handling (PAC, SOCKS, proxy auth).
  *
+ * On React Native (Android) the default `fetch` cannot stream, so `expo/fetch`
+ * is preferred when available; the health-check path falls back to a non-streaming
+ * request when streaming is unsupported.
+ *
  * Shaped as the AI SDK {@link FetchFunction} (`typeof globalThis.fetch`) so it
  * composes as the innermost layer: higher-level wrappers (HTTP trace, provider
  * request signing) take an inner `FetchFunction` and delegate the actual network
  * call to this one.
  */
 export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: RequestInit) => {
+  const expoFetch = getExpoFetch()
+  if (expoFetch) {
+    const target = input instanceof URL ? input.href : input
+    const finalBodySlot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
+      HTTP_TRACE_FINAL_BODY_SLOT
+    ]
+    if (finalBodySlot) finalBodySlot.body = init?.body ?? null
+    return expoFetch(target as RequestInfo, init)
+  }
+
   // `net.fetch` accepts only `string | Request`; FetchFunction may hand us a URL.
   const target = input instanceof URL ? input.href : input
 
