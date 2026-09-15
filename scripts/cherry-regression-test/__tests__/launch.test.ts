@@ -100,38 +100,51 @@ it('retains launch ownership and both errors so cleanup can retry after the runn
   }
 })
 
-it('reports a process group that ignores termination instead of accepting incomplete cleanup', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'cherry-launch-timeout-'))
-  const paths = getRunPaths(directory)
-  ensureRunDirectories(paths)
-  writeFileSync(
-    paths.appRecord,
-    JSON.stringify({
-      schemaVersion: 1,
-      ownership: 'regression-driver',
-      policy: 'ephemeral',
-      mode: 'branch',
-      platform: 'macos',
-      runnerPid: 42000,
-      targetRoot: directory,
-      cdpPort: 9222,
-      logPath: join(paths.logs, 'electron.log')
+it.each([true, false])(
+  'escalates an unresponsive owned group and reports failure if needed (kill succeeds: %s)',
+  async (killSucceeds) => {
+    const directory = mkdtempSync(join(tmpdir(), 'cherry-launch-timeout-'))
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    writeFileSync(
+      paths.appRecord,
+      JSON.stringify({
+        schemaVersion: 1,
+        ownership: 'regression-driver',
+        policy: 'ephemeral',
+        mode: 'branch',
+        platform: 'macos',
+        runnerPid: 42000,
+        targetRoot: directory,
+        cdpPort: 9222,
+        logPath: join(paths.logs, 'electron.log')
+      })
+    )
+    let childAlive = true
+    execFileSync.mockImplementation((file: string, args: string[]) => {
+      if (file !== 'ps' || !childAlive) return ''
+      return args.includes('pgid=,stat=') ? '42000 S' : `42001 42000 electron ${directory}`
     })
-  )
-  execFileSync.mockReturnValue(`42001 42000 electron ${directory}`)
-  vi.spyOn(process, 'kill').mockImplementation((pid) => {
-    if (pid === 42000) throw new Error('Process not found')
-    return true
-  })
-  vi.useFakeTimers()
-  try {
-    const result = expect(stopOwnedApp(paths)).rejects.toThrow('did not exit after SIGTERM')
-    await vi.runAllTimersAsync()
-    await result
-    expect(JSON.parse(readFileSync(paths.appRecord, 'utf8')).runnerPid).toBe(42000)
-  } finally {
-    vi.useRealTimers()
-    vi.restoreAllMocks()
-    rmSync(directory, { recursive: true, force: true })
+    const kill = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+      if (pid === -42000 && signal === 'SIGKILL' && killSucceeds) childAlive = false
+      if (pid === 42000) throw new Error('Process not found')
+      return true
+    })
+    vi.useFakeTimers()
+    try {
+      const stopping = stopOwnedApp(paths)
+      const result = killSucceeds
+        ? expect(stopping).resolves.toBeUndefined()
+        : expect(stopping).rejects.toThrow('did not exit after SIGKILL')
+      await vi.runAllTimersAsync()
+      await result
+      expect(kill).toHaveBeenCalledWith(-42000, 'SIGTERM')
+      expect(kill).toHaveBeenCalledWith(-42000, 'SIGKILL')
+      expect(JSON.parse(readFileSync(paths.appRecord, 'utf8')).runnerPid).toBe(42000)
+    } finally {
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+      rmSync(directory, { recursive: true, force: true })
+    }
   }
-})
+)

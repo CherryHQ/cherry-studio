@@ -15,6 +15,7 @@ import {
   terminateExactProcess,
   terminateOwnedMacProcessGroup,
   waitForExit,
+  waitForMacProcessGroupExit,
   waitForPortRelease
 } from './process'
 import type { Platform, RunMode, TestProfile } from './types'
@@ -205,8 +206,11 @@ export async function stopOwnedApp(paths: RunPaths): Promise<void> {
 async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
   if (record.platform === 'macos') {
     terminateOwnedMacProcessGroup(record)
-    if (!(await waitForExit(-record.runnerPid))) {
-      throw new Error(`Owned application process group ${record.runnerPid} did not exit after SIGTERM`)
+    if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
+      terminateOwnedMacProcessGroup(record, 'SIGKILL')
+      if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
+        throw new Error(`Owned application process group ${record.runnerPid} did not exit after SIGKILL`)
+      }
     }
     if (!(await waitForPortRelease(record.platform, record.cdpPort))) {
       throw new Error(`CDP port ${record.cdpPort} was not released after stopping the owned application`)

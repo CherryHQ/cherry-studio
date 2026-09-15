@@ -71,7 +71,7 @@ export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'ele
   }
 }
 
-export function terminateOwnedMacProcessGroup(record: ProcessOwner): void {
+export function terminateOwnedMacProcessGroup(record: ProcessOwner, signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM'): void {
   const members = execFileSync('ps', ['-axo', 'pid=,pgid=,command='], { encoding: 'utf8', timeout: 10_000 })
     .split(/\r?\n/)
     .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/))
@@ -92,7 +92,23 @@ export function terminateOwnedMacProcessGroup(record: ProcessOwner): void {
     }
   }
   // detached macOS launches own a process group, including children without CDP listeners.
-  process.kill(-record.runnerPid, 'SIGTERM')
+  process.kill(-record.runnerPid, signal)
+}
+
+export async function waitForMacProcessGroupExit(groupId: number, timeoutMs = 8_000): Promise<boolean> {
+  const hasLiveMembers = () =>
+    execFileSync('ps', ['-axo', 'pgid=,stat='], { encoding: 'utf8', timeout: 10_000 })
+      .split(/\r?\n/)
+      .some((line) => {
+        const [group, state] = line.trim().split(/\s+/)
+        return Number(group) === groupId && Boolean(state) && !state.startsWith('Z')
+      })
+  const deadline = Date.now() + timeoutMs
+  while (hasLiveMembers()) {
+    if (Date.now() >= deadline) return false
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 250))
+  }
+  return true
 }
 
 export async function waitForExit(pid: number, timeoutMs = 8_000): Promise<boolean> {
