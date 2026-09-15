@@ -39,7 +39,7 @@ import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { assertAgentStoragePath } from '@main/ai/agents/agentDataDirectory'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
-import { pauseHeartbeatSchedule } from '@main/ai/agents/heartbeatSchedule'
+import { pauseHeartbeatSchedule, syncHeartbeatSchedule } from '@main/ai/agents/heartbeatSchedule'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
@@ -245,6 +245,11 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         // the next heartbeat sync re-provisions the workspace and re-arms the row.
         if (scheduleId && liveScheduleTargetsWorkspace(scheduleSnapshot, agentId, workspace.workspaceId)) {
           pauseHeartbeatSchedule(agentId, scheduleId, 'Failed to pause heartbeat schedule after workspace deletion')
+          // Deleting the workspace is not an opt-out: converge now instead of
+          // leaving the heartbeat paused until an unrelated sync trigger.
+          void syncHeartbeatSchedule(agentId).catch((error) => {
+            logger.warn('Post-pause heartbeat sync failed', { agentId, scheduleId, error })
+          })
         }
         logger.debug('Heartbeat skipped (workspace deleted)', {
           agentId,

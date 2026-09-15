@@ -561,6 +561,7 @@ async function reapOrphanedScheduleRows(rows: JobScheduleSnapshot[]): Promise<vo
       if (!(await application.get('JobManager').unregisterJobScheduleById(row.id))) continue
     } catch (error) {
       logger.warn('Failed to reap an orphaned agent task schedule', { scheduleId: row.id, error })
+      pauseHeartbeatSchedule(readTemplateAgentId(row) ?? '', row.id, 'Failed to pause an orphaned agent task schedule')
       continue
     }
     reaped.push(row.id)

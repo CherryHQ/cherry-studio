@@ -225,6 +225,21 @@ describe('heartbeatSchedule', () => {
     )
   })
 
+  it('pauses an orphaned row the reaper cannot unregister', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    dbh.db.delete(agentTable).where(eq(agentTable.id, AGENT_ID)).run()
+    const spy = vi.spyOn(jobManager, 'unregisterJobScheduleById').mockRejectedValue(new Error('SQLITE_BUSY'))
+
+    await repairHeartbeatSchedules()
+
+    // Left armed it would throw on every fire for a dead agent; the pause is
+    // best-effort so the reap failure still goes inert.
+    expect(jobScheduleService.getById(row.id)?.enabled).toBe(false)
+    spy.mockRestore()
+  })
+
   it('never touches an existing heartbeat.md', async () => {
     seedAgent(AGENT_ID)
     await writeFile(path.join(agentsRoot, AGENT_ID, 'heartbeat.md'), '- real checklist\n')

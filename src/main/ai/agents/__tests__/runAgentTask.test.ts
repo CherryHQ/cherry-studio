@@ -90,6 +90,12 @@ vi.mock('@data/services/JobService', () => ({
 vi.mock('@main/ai/agents/heartbeat', () => ({
   readHeartbeat: vi.fn()
 }))
+
+const { syncHeartbeatScheduleMock } = vi.hoisted(() => ({ syncHeartbeatScheduleMock: vi.fn(async () => 'noop') }))
+vi.mock('@main/ai/agents/heartbeatSchedule', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/ai/agents/heartbeatSchedule')>()),
+  syncHeartbeatSchedule: syncHeartbeatScheduleMock
+}))
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   assertAgentStoragePath: mockAssertAgentStoragePath
 }))
@@ -456,6 +462,9 @@ describe('runAgentTask', () => {
     // heartbeat sync re-provisions the workspace.
     expect(mockUpdateJobScheduleTx).toHaveBeenCalledWith(expect.anything(), 's1', { enabled: false })
     expect(mockSyncJobScheduleTimerById).toHaveBeenCalledWith('s1')
+    // The pause kicks that sync right away — deleting the workspace must not
+    // disable the heartbeat until an unrelated config save or restart.
+    expect(syncHeartbeatScheduleMock).toHaveBeenCalledWith('a1')
   })
 
   it('skips an enabled heartbeat whose workspace fails the run-time storage check', async () => {
