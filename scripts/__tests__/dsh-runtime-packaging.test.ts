@@ -4,7 +4,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
-import { parse } from 'yaml'
+import { parse, parseAllDocuments } from 'yaml'
 
 import {
   DSH_RUNTIME_ENTRY_NAMES,
@@ -28,7 +28,9 @@ describe('DSH runtime packaging', () => {
   })
 
   it('does not collect the unused SDK umbrella into the production dependency graph', () => {
-    const lock = parse(readFileSync(path.join(projectRoot, 'pnpm-lock.yaml'), 'utf8')) as {
+    // pnpm 12 writes a multi-document lockfile: package-manager deps first, the dependency graph last.
+    const documents = parseAllDocuments(readFileSync(path.join(projectRoot, 'pnpm-lock.yaml'), 'utf8'))
+    const lock = documents[documents.length - 1].toJS() as {
       packages: Record<string, unknown>
       snapshots: Record<string, { dependencies?: Record<string, string> }>
     }

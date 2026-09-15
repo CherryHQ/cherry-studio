@@ -635,6 +635,7 @@ function AgentBasicFields({
             name="planModelId"
             includeAgentOnlyModels
             label={t('library.config.agent.field.plan_model.label')}
+            emptyLabel={t('library.config.agent.field.plan_model.empty')}
             allowClear
             filter={modelFilter}
             isModelDisabled={isModelDisabled}
@@ -651,6 +652,7 @@ function AgentBasicFields({
             name="smallModelId"
             includeAgentOnlyModels
             label={t('library.config.agent.field.small_model.label')}
+            emptyLabel={t('library.config.agent.field.small_model.empty')}
             allowClear
             filter={modelFilter}
             isModelDisabled={isModelDisabled}
