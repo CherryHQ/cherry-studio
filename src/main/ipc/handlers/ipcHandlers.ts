@@ -30,6 +30,7 @@ import { ovmsHandlers } from './ovms'
 import { printHandlers } from './print'
 import { profileHandlers } from './profile'
 import { providerHandlers } from './provider'
+import { proxyHandlers } from './proxy'
 import { quickAssistantHandlers } from './quickAssistant'
 import { screenshotHandlers } from './screenshot'
 import { selectionHandlers } from './selection'
@@ -79,6 +80,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...ovmsHandlers,
   ...printHandlers,
   ...profileHandlers,
+  ...proxyHandlers,
   ...providerHandlers,
   ...quickAssistantHandlers,
   ...screenshotHandlers,
