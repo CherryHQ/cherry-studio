@@ -284,9 +284,11 @@ export function useFollowupQueue({
   markSeen,
   onDrain
 }: UseFollowupQueueParams): FollowupQueueController {
-  const initial = loadState(scopeKey)
-  const [state, setState] = useState<FollowupQueueState>(() => ({ items: initial.items, paused: initial.paused }))
-  const [failedItemId, setFailedItemId] = useState<string | null>(() => initial.failedItemId ?? null)
+  // Load once: the result only seeds the initial state (cross-instance updates
+  // arrive via the scope subscription), so re-reading on every render is waste.
+  const [boot] = useState(() => loadState(scopeKey))
+  const [state, setState] = useState<FollowupQueueState>(() => ({ items: boot.items, paused: boot.paused }))
+  const [failedItemId, setFailedItemId] = useState<string | null>(() => boot.failedItemId ?? null)
 
   // Serialize drains: only one send may be in flight per queue at a time.
   const drainingIdRef = useRef<string | null>(null)
@@ -320,7 +322,7 @@ export function useFollowupQueue({
   // Durable send-claim mirror (see FollowupQueueState.pendingDrainId): carried into
   // every persist so unrelated mutations never drop another instance's claim, and
   // dropped whenever the claimed id leaves the queue.
-  const pendingDrainIdRef = useRef<string | null>(initial.pendingDrainId ?? null)
+  const pendingDrainIdRef = useRef<string | null>(boot.pendingDrainId ?? null)
   const onDrainRef = useRef(onDrain)
   onDrainRef.current = onDrain
   const isFulfilledRef = useRef(isFulfilled)
@@ -780,8 +782,11 @@ export function useFollowupQueue({
 
   const retryFailed = useCallback(() => {
     const failed = failedItemIdRef.current
-    // A retry is already in flight — never start a second concurrent send.
-    if (!failed || drainingIdRef.current !== null) return
+    // A retry is already in flight — never start a second concurrent send. This
+    // covers another instance's retry too (remount / scope switch): its payload
+    // is already submitted, and drainHead would only no-op on the live claim,
+    // leaving the click silently ineffective — so bail out explicitly instead.
+    if (!failed || drainingIdRef.current !== null || liveSends.has(failed)) return
     drainHead(stateRef.current.items.find((item) => item.id === failed))
   }, [drainHead])
 
