@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ShortcutListItem } from '@renderer/hooks/command/useCommandShortcuts'
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import type { ShortcutRegistrationConflictPayload } from '@shared/types/shortcut'
 import { type CommandId, commandShortcutPreferenceKey } from '@shared/utils/command'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 
@@ -18,7 +19,9 @@ const shortcutsMock = vi.hoisted(() => ({
 
 const setTimeoutTimerMock = vi.hoisted(() => vi.fn((_key: string, callback: () => void) => callback()))
 const clearTimeoutTimerMock = vi.hoisted(() => vi.fn())
-const registrationConflictMock = vi.hoisted(() => vi.fn(() => vi.fn()))
+const registrationConflictMock = vi.hoisted(() =>
+  vi.fn<(callback: (payload: ShortcutRegistrationConflictPayload) => void) => () => void>(() => vi.fn())
+)
 const preferenceServiceSetMultipleMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
@@ -209,6 +212,21 @@ describe('ShortcutSettings shortcut recorder', () => {
     expect(recorder).toBeInstanceOf(HTMLButtonElement)
     expect(recorder).not.toBeInstanceOf(HTMLInputElement)
     expect(recorder).not.toBeInstanceOf(HTMLTextAreaElement)
+  })
+
+  it('shows the Wayland failure reason instead of an occupied warning and clears it on recovery', () => {
+    shortcutsMock.shortcuts = [makeShortcut({ binding: ['CommandOrControl', '0'] })]
+    renderShortcutSettings()
+    const notify = registrationConflictMock.mock.calls[0]?.[0]
+
+    act(() =>
+      notify({ key: 'shortcut.app.search', accelerator: 'CommandOrControl+0', hasConflict: true, reason: 'wayland' })
+    )
+    expect(screen.getByText('settings.shortcuts.unavailable_on_wayland')).toBeInTheDocument()
+    expect(screen.queryByText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
+
+    act(() => notify({ key: 'shortcut.app.search', hasConflict: false }))
+    expect(screen.queryByText('settings.shortcuts.unavailable_on_wayland')).not.toBeInTheDocument()
   })
 
   it('records physical key shortcuts and stops propagation while recording', async () => {

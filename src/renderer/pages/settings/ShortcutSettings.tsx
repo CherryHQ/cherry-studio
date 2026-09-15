@@ -45,7 +45,7 @@ import { isMac, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { SupportedPlatform } from '@shared/types/command'
-import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
+import type { ShortcutPreferenceKey, ShortcutRegistrationConflictReason } from '@shared/types/shortcut'
 import { type CommandId, findCommandDefinition, findKeybindingConflicts } from '@shared/utils/command'
 import {
   convertKeyToAccelerator,
@@ -102,7 +102,10 @@ const ShortcutSettings: FC = () => {
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [pendingKeys, setPendingKeys] = useState<ShortcutBinding>([])
   const [conflictLabel, setConflictLabel] = useState<string | null>(null)
-  const [systemConflictKey, setSystemConflictKey] = useState<ShortcutPreferenceKey | null>(null)
+  const [systemConflict, setSystemConflict] = useState<{
+    key: ShortcutPreferenceKey
+    reason: ShortcutRegistrationConflictReason
+  } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeGroup, setActiveGroup] = useState<ShortcutSettingsFilterGroup>('all')
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
@@ -194,25 +197,31 @@ const ShortcutSettings: FC = () => {
   }
 
   const clearSystemConflict = (key?: ShortcutPreferenceKey) => {
-    setSystemConflictKey((currentKey) => {
-      if (!key || currentKey === key) {
+    setSystemConflict((current) => {
+      if (!key || current?.key === key) {
         return null
       }
-      return currentKey
+      return current
     })
   }
 
   useEffect(() => {
-    return window.api.shortcut.onRegistrationConflict(({ key, hasConflict }) => {
-      setSystemConflictKey((currentKey) => {
+    return window.api.shortcut.onRegistrationConflict(({ key, hasConflict, reason }) => {
+      setSystemConflict((current) => {
         if (hasConflict) {
-          return key
+          return { key, reason }
         }
-        return currentKey === key ? null : currentKey
+        return current?.key === key ? null : current
       })
 
       if (hasConflict) {
-        toast.error(t('settings.shortcuts.occupied_by_other_application'))
+        toast.error(
+          t(
+            reason === 'wayland'
+              ? 'settings.shortcuts.unavailable_on_wayland'
+              : 'settings.shortcuts.occupied_by_other_application'
+          )
+        )
       }
     })
   }, [t])
@@ -414,9 +423,16 @@ const ShortcutSettings: FC = () => {
     const displayShortcut = displayKeys.length > 0 ? formatShortcutDisplay(displayKeys, isMac) : ''
     const isEditable = record.keybinding.editable !== false
     const isBindingModified = !isBindingEqual(displayKeys, record.defaultPreference.binding)
-    const hasSystemConflict = systemConflictKey === record.key
+    const hasSystemConflict = systemConflict?.key === record.key
     const conflictMessage =
-      conflictLabel ?? (hasSystemConflict ? t('settings.shortcuts.occupied_by_other_application') : null)
+      conflictLabel ??
+      (hasSystemConflict
+        ? t(
+            systemConflict?.reason === 'wayland'
+              ? 'settings.shortcuts.unavailable_on_wayland'
+              : 'settings.shortcuts.occupied_by_other_application'
+          )
+        : null)
 
     if (isEditing) {
       const pendingDisplay = pendingKeys.length > 0 ? formatShortcutDisplay(pendingKeys, isMac) : ''
@@ -445,7 +461,7 @@ const ShortcutSettings: FC = () => {
             {pendingDisplay || t('settings.shortcuts.press_shortcut')}
           </Button>
           {hasConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">
+            <span className="mt-1 max-w-56 text-right text-error text-xs">
               {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}
             </span>
           )}
@@ -487,11 +503,7 @@ const ShortcutSettings: FC = () => {
               ))}
             </RowFlex>
           </RowFlex>
-          {hasSystemConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">
-              {conflictMessage}
-            </span>
-          )}
+          {hasSystemConflict && <span className="mt-1 max-w-56 text-right text-error text-xs">{conflictMessage}</span>}
         </div>
       )
     }
@@ -507,9 +519,7 @@ const ShortcutSettings: FC = () => {
           onClick={() => isEditable && handleAddShortcut(record.key)}>
           {t('settings.shortcuts.press_shortcut')}
         </span>
-        {hasSystemConflict && (
-          <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">{conflictMessage}</span>
-        )}
+        {hasSystemConflict && <span className="mt-1 max-w-56 text-right text-error text-xs">{conflictMessage}</span>}
       </div>
     )
   }

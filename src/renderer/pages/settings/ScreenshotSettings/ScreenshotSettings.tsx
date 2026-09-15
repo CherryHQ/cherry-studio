@@ -19,6 +19,7 @@ import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
 import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
 import type { OutputFor } from '@shared/ipc/types'
+import type { ShortcutRegistrationConflictReason } from '@shared/types/shortcut'
 import { commandShortcutPreferenceKey } from '@shared/utils/command'
 import { formatShortcutDisplay } from '@shared/utils/shortcut'
 
@@ -76,10 +77,10 @@ const ScreenshotSettings: FC = () => {
    * the same limitation the shortcut list has. The case that matters is covered: turning
    * the feature on triggers the registration attempt while the user is looking at this row.
    */
-  const [shortcutConflict, setShortcutConflict] = useState(false)
+  const [shortcutConflict, setShortcutConflict] = useState<ShortcutRegistrationConflictReason | null>(null)
   useEffect(() => {
-    return window.api.shortcut.onRegistrationConflict(({ key, hasConflict }) => {
-      if (key === CAPTURE_SHORTCUT_KEY) setShortcutConflict(hasConflict)
+    return window.api.shortcut.onRegistrationConflict(({ key, hasConflict, reason }) => {
+      if (key === CAPTURE_SHORTCUT_KEY) setShortcutConflict(hasConflict ? reason : null)
     })
   }, [])
 
@@ -125,6 +126,13 @@ const ScreenshotSettings: FC = () => {
 
   const permissionView = resolvePermissionView(permissionStatus, restartRequired, promptUnavailable)
   const ocrReady = ocrModel.status === 'ready'
+  const shortcutConflictMessage = shortcutConflict
+    ? t(
+        shortcutConflict === 'wayland'
+          ? 'settings.shortcuts.unavailable_on_wayland'
+          : 'settings.shortcuts.occupied_by_other_application'
+      )
+    : null
 
   return (
     <SettingsContentColumn theme={theme}>
@@ -176,14 +184,11 @@ const ScreenshotSettings: FC = () => {
               <>
                 {/* The badge alone would read as "bound, therefore working" — the whole
                     point of this state is that the binding exists and does nothing. */}
-                {shortcutConflict && (
-                  <NormalTooltip content={t('settings.shortcuts.occupied_by_other_application')}>
+                {shortcutConflictMessage && (
+                  <NormalTooltip content={shortcutConflictMessage}>
                     {/* aria-label because lucide icons are aria-hidden and a tooltip is not
                         an accessible name — the warning would exist only for sighted users. */}
-                    <TriangleAlert
-                      aria-label={t('settings.shortcuts.occupied_by_other_application')}
-                      className="size-4 shrink-0 text-destructive"
-                    />
+                    <TriangleAlert aria-label={shortcutConflictMessage} className="size-4 shrink-0 text-destructive" />
                   </NormalTooltip>
                 )}
                 <Badge variant={captureShortcutEnabled ? 'default' : 'outline'}>{captureShortcut}</Badge>
