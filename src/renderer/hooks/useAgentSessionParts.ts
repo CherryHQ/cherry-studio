@@ -13,7 +13,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
-import { useDataChange, useInfiniteFlatItems, useMutation } from '@renderer/data/hooks/useDataApi'
+import {
+  useDataChange,
+  useInfiniteFlatItems,
+  useMutation,
+  useWriteInfiniteCache
+} from '@renderer/data/hooks/useDataApi'
 import type { MessageListSelectAllPagination } from '@renderer/types/message'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
@@ -54,6 +59,21 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
   }
 }
 
+function dropSessionMessageFromPages(
+  pages: CursorPaginationResponse<AgentSessionMessageEntity>[] | undefined,
+  messageId: string
+): CursorPaginationResponse<AgentSessionMessageEntity>[] | undefined {
+  if (!pages) return pages
+  let mutated = false
+  const nextPages = pages.map((page) => {
+    const items = page.items.filter((item) => item.id !== messageId)
+    if (items.length === page.items.length) return page
+    mutated = true
+    return { ...page, items }
+  })
+  return mutated ? nextPages : pages
+}
+
 function reservedUIMessageToAgentSessionMessage(
   sessionId: string,
   message: CherryUIMessage
@@ -81,7 +101,6 @@ function reservedUIMessageToAgentSessionMessage(
 export function useAgentSessionParts(sessionId: string, options: { enabled?: boolean; fetchOnMount?: boolean } = {}) {
   const enabled = !!sessionId && options.enabled !== false
   const fetchOnMount = options.fetchOnMount ?? enabled
-  const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
   // Load-all mode (multi-select "select all"): auto-paginate to the oldest
   // page — same pattern as `useTopics({ loadAll: true })`. `loadNext` is
   // fire-and-forget (its promise is dropped inside useDataApi), so a failed
@@ -113,8 +132,16 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     }
   )
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', {
-    refresh: [sessionMessagesCachePath]
+    refresh: ({ args }) => [`/agent-sessions/${args!.params.sessionId}/messages`]
   })
+  const writeSessionMessagesCache = useWriteInfiniteCache('/agent-sessions/:sessionId/messages', {
+    params: { sessionId },
+    query: { deferToolOutputs: true },
+    limit: PAGE_SIZE
+  })
+  const inFlightDeletePromisesRef = useRef(new Map<string, Promise<void>>())
+  const deleteQueuesRef = useRef(new Map<string, Promise<void>>())
+  const locallyRemovedIds = useMemo(() => ({ ids: new Set<string>(), sessionId }), [sessionId]).ids
   useDataChange(
     '/agent-sessions/:sessionId/messages',
     () => {
@@ -287,9 +314,32 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
 
   const deleteMessage = useCallback(
     async (messageId: string): Promise<void> => {
-      await deleteMessageTrigger({ params: { sessionId, messageId } })
+      const deleteKey = `${sessionId}:${messageId}`
+      if (locallyRemovedIds.has(messageId)) {
+        await writeSessionMessagesCache((currentPages) => dropSessionMessageFromPages(currentPages, messageId))
+        return
+      }
+      const inFlightDelete = inFlightDeletePromisesRef.current.get(deleteKey)
+      if (inFlightDelete) return inFlightDelete
+      if (!pages.some((page) => page.items.some((item) => item.id === messageId))) return
+
+      const performDelete = async () => {
+        await deleteMessageTrigger({ params: { sessionId, messageId } })
+        locallyRemovedIds.add(messageId)
+        await writeSessionMessagesCache((currentPages) => dropSessionMessageFromPages(currentPages, messageId))
+      }
+      const previousDelete = deleteQueuesRef.current.get(sessionId)
+      const deletePromise = previousDelete ? previousDelete.catch(() => undefined).then(performDelete) : performDelete()
+      deleteQueuesRef.current.set(sessionId, deletePromise)
+      inFlightDeletePromisesRef.current.set(deleteKey, deletePromise)
+      try {
+        await deletePromise
+      } finally {
+        inFlightDeletePromisesRef.current.delete(deleteKey)
+        if (deleteQueuesRef.current.get(sessionId) === deletePromise) deleteQueuesRef.current.delete(sessionId)
+      }
     },
-    [deleteMessageTrigger, sessionId]
+    [deleteMessageTrigger, locallyRemovedIds, pages, sessionId, writeSessionMessagesCache]
   )
 
   const selectAllPagination = useMemo<MessageListSelectAllPagination>(
