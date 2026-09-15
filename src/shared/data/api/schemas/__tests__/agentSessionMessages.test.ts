@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import {
   AgentSessionMessageEntitySchema,
+  type AgentSessionMessageSchemas,
   AgentSessionMessagesListQuerySchema,
   CreateAgentSessionMessageSchema,
   CreateAgentSessionMessagesSchema
@@ -63,5 +64,9 @@ describe('AgentSessionMessage schemas', () => {
       limit: 25
     })
     expect(AgentSessionMessagesListQuerySchema.safeParse({ messageId: '' }).success).toBe(false)
+  })
+
+  it('keeps collection messages read-only; bulk clear is abort-and-drain, not DataApi DELETE', () => {
+    expectTypeOf<keyof AgentSessionMessageSchemas['/agent-sessions/:sessionId/messages']>().toEqualTypeOf<'GET'>()
   })
 })
