@@ -13,6 +13,7 @@ import {
   isDescendant,
   MAIN_INSPECTOR_PORT,
   terminateExactProcess,
+  terminateOwnedMacProcessGroup,
   waitForExit,
   waitForPortRelease
 } from './process'
@@ -39,6 +40,8 @@ export interface AppRecord {
   startedAt: string
   restartCount: number
 }
+
+type LaunchRecord = Omit<AppRecord, 'electronPid' | 'targetUrl'> & Partial<Pick<AppRecord, 'electronPid' | 'targetUrl'>>
 
 function readJson<T>(filePath: string): T {
   return JSON.parse(readFileSync(filePath, 'utf8')) as T
@@ -124,6 +127,7 @@ export async function launchApp(
     restartCount?: number
   }
 ): Promise<AppRecord> {
+  if (existsSync(paths.appRecord)) await stopOwnedApp(paths)
   if (findCdpPid(options.platform)) throw new Error(`CDP port ${CDP_PORT} is already owned by another process`)
   const targetRoot = resolve(options.targetRoot)
   const spec = getLaunchSpec(paths, options.mode, options.platform, targetRoot, options.profile, options.runKey)
@@ -140,59 +144,75 @@ export async function launchApp(
   if (!child.pid) throw new Error('Application launch did not return a process ID')
   child.unref()
 
+  const launchRecord: LaunchRecord = {
+    schemaVersion: 1,
+    ownership: 'regression-driver',
+    policy: 'ephemeral',
+    mode: options.mode,
+    platform: options.platform,
+    profile: options.profile,
+    runKey: options.runKey,
+    targetRoot,
+    executablePath: spec.executablePath,
+    command: spec.command,
+    args: spec.args,
+    cwd: spec.cwd,
+    runnerPid: child.pid,
+    cdpPort: CDP_PORT,
+    logPath: spec.logPath,
+    startedAt: new Date().toISOString(),
+    restartCount: options.restartCount ?? 0
+  }
   try {
-    const { electronPid, targetUrl } = await waitForCdp(child.pid, options.platform)
-    const record: AppRecord = {
-      schemaVersion: 1,
-      ownership: 'regression-driver',
-      policy: 'ephemeral',
-      mode: options.mode,
-      platform: options.platform,
-      profile: options.profile,
-      runKey: options.runKey,
-      targetRoot,
-      executablePath: spec.executablePath,
-      command: spec.command,
-      args: spec.args,
-      cwd: spec.cwd,
-      runnerPid: child.pid,
-      electronPid,
-      cdpPort: CDP_PORT,
-      targetUrl,
-      logPath: spec.logPath,
-      startedAt: new Date().toISOString(),
-      restartCount: options.restartCount ?? 0
-    }
+    writeJson(paths.appRecord, launchRecord)
+    const record: AppRecord = { ...launchRecord, ...(await waitForCdp(child.pid, options.platform)) }
     writeJson(paths.appRecord, record)
     return record
   } catch (error) {
     try {
-      const electronPid = findCdpPid(options.platform)
-      if (electronPid && isDescendant(electronPid, child.pid, options.platform)) {
-        terminateExactProcess(electronPid, options.platform)
-        await waitForExit(electronPid)
-      }
-      terminateExactProcess(child.pid, options.platform)
-      await waitForExit(child.pid)
-    } catch {
-      // Preserve the launch error; cleanup will inspect any remaining owned process.
+      await stopOwnedRecord(launchRecord)
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        `${String(error)}; owned-process cleanup failed: ${String(cleanupError)}`
+      )
     }
     throw error
   }
 }
 
-export function readAppRecord(paths: RunPaths): AppRecord {
-  const record = readJson<AppRecord>(paths.appRecord)
+function readOwnedRecord(paths: RunPaths): LaunchRecord {
+  const record = readJson<LaunchRecord>(paths.appRecord)
   if (record.schemaVersion !== 1 || record.ownership !== 'regression-driver' || record.policy !== 'ephemeral') {
     throw new Error('Refusing to control an unowned application record')
   }
   if (!isPathInside(paths.root, record.logPath)) throw new Error('Application record points outside the run directory')
+  if (!Number.isSafeInteger(record.runnerPid) || record.runnerPid <= 0) throw new Error('Invalid owned runner PID')
   return record
+}
+
+export function readAppRecord(paths: RunPaths): AppRecord {
+  const record = readOwnedRecord(paths)
+  if (!record.electronPid || !record.targetUrl) throw new Error('Owned application has not finished launching')
+  return { ...record, electronPid: record.electronPid, targetUrl: record.targetUrl }
 }
 
 export async function stopOwnedApp(paths: RunPaths): Promise<void> {
   if (!existsSync(paths.appRecord)) return
-  const record = readAppRecord(paths)
+  await stopOwnedRecord(readOwnedRecord(paths))
+}
+
+async function stopOwnedRecord(record: LaunchRecord): Promise<void> {
+  if (record.platform === 'macos') {
+    terminateOwnedMacProcessGroup(record)
+    if (!(await waitForExit(-record.runnerPid))) {
+      throw new Error(`Owned application process group ${record.runnerPid} did not exit after SIGTERM`)
+    }
+    if (!(await waitForPortRelease(record.platform, record.cdpPort))) {
+      throw new Error(`CDP port ${record.cdpPort} was not released after stopping the owned application`)
+    }
+    return
+  }
   const currentCdpPid = findCdpPid(record.platform)
   if (
     currentCdpPid &&
@@ -214,7 +234,7 @@ export async function stopOwnedApp(paths: RunPaths): Promise<void> {
       throw new Error('Refusing cleanup because the recorded Electron process is no longer owned by its runner')
     }
   }
-  const terminationPids = record.platform === 'windows' ? [record.runnerPid, ...ownedPids] : ownedPids
+  const terminationPids = [record.runnerPid, ...ownedPids]
   for (const pid of new Set(terminationPids)) {
     if (!isAlive(pid)) continue
     try {

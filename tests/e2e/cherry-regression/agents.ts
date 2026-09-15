@@ -88,7 +88,7 @@ export async function runAgentFileTask(
   const output = join(app.paths.workspace, fileName)
   rmSync(output, { force: true })
   const promptPath = output.replaceAll('\\', '/')
-  const prompt = `Create the file at the exact absolute path ${JSON.stringify(promptPath)} with the exact text AGENT_FILE_TASK_PASS.`
+  const prompt = `Create the file at the exact absolute path ${JSON.stringify(promptPath)} containing only AGENT_FILE_TASK_PASS, with no extra text or trailing newline.`
   const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
   const messages = page.locator('[data-ui~="chat.message"]:visible')
 
@@ -107,7 +107,7 @@ export async function runAgentFileTask(
           }
           try {
             const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/fileEvidence')
-            await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
+            await validateFileEvidence(output, { exactText: 'AGENT_FILE_TASK_PASS', type: 'text' })
             created = true
           } catch {
             created = false
@@ -127,5 +127,5 @@ export async function runAgentFileTask(
   }
 
   const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/fileEvidence')
-  await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
+  await validateFileEvidence(output, { exactText: 'AGENT_FILE_TASK_PASS', type: 'text' })
 }

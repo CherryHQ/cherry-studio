@@ -10,8 +10,24 @@ import type { Platform } from './types'
 
 const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'e', 'k', 's'])
 let activeWindowsTextFixturePid: number | undefined
+let activeMacTextFixturePath: string | undefined
 
 export function closeExternalText(platform: Platform): void {
+  if (platform === 'macos' && activeMacTextFixturePath) {
+    const script = [
+      'on run argv',
+      'if application "TextEdit" is not running then return',
+      'tell application "TextEdit"',
+      'repeat with doc in (get documents)',
+      'if path of doc is item 1 of argv then close doc saving no',
+      'end repeat',
+      'end tell',
+      'end run'
+    ].join('\n')
+    execFileSync('osascript', ['-e', script, '--', activeMacTextFixturePath], { stdio: 'ignore', timeout: 10_000 })
+    activeMacTextFixturePath = undefined
+    return
+  }
   if (platform !== 'windows' || !activeWindowsTextFixturePid) return
   try {
     execFileSync('taskkill.exe', ['/PID', String(activeWindowsTextFixturePid), '/T', '/F'], {
@@ -120,6 +136,8 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
   const filePath = resolveAllowedPath(candidatePath, [paths.fixtures])
   if (!existsSync(filePath)) throw new Error(`External text fixture does not exist: ${filePath}`)
   if (platform === 'macos') {
+    closeExternalText(platform)
+    activeMacTextFixturePath = filePath
     execFileSync('open', ['-a', 'TextEdit', filePath], { stdio: 'ignore', timeout: 10_000 })
     execFileSync(
       'osascript',

@@ -41,6 +41,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
+          persist-credentials: false
           fetch-depth: 1
 
       - name: Set up pnpm
@@ -112,12 +113,14 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
+          persist-credentials: false
           fetch-depth: 1
 
       - name: Checkout application under test
         uses: actions/checkout@v6
         with:
           ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
           path: target-app
           fetch-depth: 1
 
@@ -417,6 +420,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
+          persist-credentials: false
           fetch-depth: 1
 
       - name: Set up pnpm

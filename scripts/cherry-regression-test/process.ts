@@ -51,7 +51,9 @@ export function windowsProcessExecutablePath(pid: number): string {
   }
 }
 
-export function assertOwnedProcess(record: AppRecord, pid: number, kind: 'electron' | 'runner'): void {
+type ProcessOwner = Pick<AppRecord, 'mode' | 'platform' | 'executablePath' | 'targetRoot' | 'cdpPort' | 'runnerPid'>
+
+export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'electron' | 'runner'): void {
   const command = processCommand(pid, record.platform)
   const expected =
     record.mode === 'tag'
@@ -67,6 +69,30 @@ export function assertOwnedProcess(record: AppRecord, pid: number, kind: 'electr
   if (kind === 'electron' && findCdpPid(record.platform) !== pid) {
     throw new Error(`Refusing to terminate PID ${pid}; it no longer owns CDP port ${record.cdpPort}`)
   }
+}
+
+export function terminateOwnedMacProcessGroup(record: ProcessOwner): void {
+  const members = execFileSync('ps', ['-axo', 'pid=,pgid=,command='], { encoding: 'utf8', timeout: 10_000 })
+    .split(/\r?\n/)
+    .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/))
+    .filter((match): match is RegExpMatchArray => Boolean(match && Number(match[2]) === record.runnerPid))
+  if (members.length === 0) {
+    if (isAlive(record.runnerPid)) throw new Error('Refusing cleanup: runner no longer owns its process group')
+    return
+  }
+  if (isAlive(record.runnerPid)) {
+    assertOwnedProcess(record, record.runnerPid, 'runner')
+    if (!members.some((member) => Number(member[1]) === record.runnerPid)) {
+      throw new Error('Refusing cleanup: runner no longer owns its process group')
+    }
+  } else {
+    const expected = record.mode === 'tag' ? record.executablePath : record.targetRoot
+    if (!expected || !members.some((member) => member[3].includes(expected))) {
+      throw new Error('Refusing cleanup: orphaned process group does not match the owned application')
+    }
+  }
+  // detached macOS launches own a process group, including children without CDP listeners.
+  process.kill(-record.runnerPid, 'SIGTERM')
 }
 
 export async function waitForExit(pid: number, timeoutMs = 8_000): Promise<boolean> {

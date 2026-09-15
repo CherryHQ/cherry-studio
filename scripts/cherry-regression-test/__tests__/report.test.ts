@@ -2,34 +2,36 @@ import { aggregateRuns, renderAggregateMarkdown, renderJUnit, renderMarkdown } f
 import { completeE2eCase, createRun, finalizeRun, updatePhase } from '../state'
 
 describe('regression report gate', () => {
-  it('does not report a release pass when either platform is blocked', () => {
-    const macos = finalizeRun(
-      createRun({
-        appVersion: '2.0.8',
-        commitSha: 'sha',
-        mode: 'tag',
-        platform: 'macos',
-        ref: 'v2.0.8',
-        runner: 'macos-latest',
-        task: 'all'
+  describe.each([
+    ['branch', 'development'],
+    ['tag', 'release']
+  ] as const)('%s verdicts', (mode, prefix) => {
+    it.each([
+      ['passed', 'passed', 'pass'],
+      ['passed', 'blocked', 'blocked'],
+      ['blocked', 'passed', 'blocked'],
+      ['passed', 'failed', 'failed'],
+      ['failed', 'passed', 'failed'],
+      ['blocked', 'blocked', 'blocked'],
+      ['blocked', 'failed', 'failed'],
+      ['failed', 'blocked', 'failed'],
+      ['failed', 'failed', 'failed']
+    ] as const)('macOS %s + Windows %s yields %s', (macosStatus, windowsStatus, expected) => {
+      const runs = (['macos', 'windows'] as const).map((platform, index) => {
+        const run = createRun({
+          appVersion: 'test',
+          commitSha: 'sha',
+          mode,
+          platform,
+          ref: 'test',
+          runner: platform,
+          task: 'notes'
+        })
+        const completed = completeE2eCase(run, 'N-01', index === 0 ? macosStatus : windowsStatus, 'Case finished')
+        return finalizeRun(updatePhase(completed, '02-basic-features', 'passed'))
       })
-    )
-    const windows = completeE2eCase(
-      createRun({
-        appVersion: '2.0.8',
-        commitSha: 'sha',
-        mode: 'tag',
-        platform: 'windows',
-        ref: 'v2.0.8',
-        runner: 'windows-latest',
-        task: 'all'
-      }),
-      'C-02',
-      'blocked',
-      'No interactive desktop available'
-    )
-
-    expect(aggregateRuns([macos, finalizeRun(windows)]).verdict).toBe('release_blocked')
+      expect(aggregateRuns(runs).verdict).toBe(`${prefix}_${expected}`)
+    })
   })
 
   it('renders actionable Markdown and JUnit without relying on snapshots', () => {

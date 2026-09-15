@@ -11,6 +11,7 @@ export interface FileEvidenceOptions {
   type: FileEvidenceType
   minimumBytes?: number
   expectedText?: string
+  exactText?: string
   exactSlides?: number
 }
 
@@ -28,6 +29,9 @@ export async function validateFileEvidence(filePath: string, options: FileEviden
   }
   if (options.type === 'text') {
     const text = bytes.toString('utf8')
+    if (options.exactText !== undefined && text !== options.exactText) {
+      throw new Error(`Evidence file does not match the exact text: ${filePath}`)
+    }
     if (options.expectedText && !text.includes(options.expectedText)) {
       throw new Error(`Evidence file does not contain the expected text: ${filePath}`)
     }

@@ -18,13 +18,28 @@ describe('generated artifact evidence', () => {
     rmSync(directory, { force: true, recursive: true })
   })
 
-  it('requires the exact marker in Agent output files', async () => {
-    const filePath = join(directory, 'agent-result.txt')
-    writeFileSync(filePath, 'wrong result\n')
+  it.each(['wrong result', 'prefix AGENT_FILE_TASK_PASS', 'AGENT_FILE_TASK_PASS suffix', 'AGENT_FILE_TASK_PASS\n'])(
+    'rejects non-exact Agent output: %j',
+    async (text) => {
+      const filePath = join(directory, 'agent-result.txt')
+      writeFileSync(filePath, text)
 
+      await expect(validateFileEvidence(filePath, { exactText: 'AGENT_FILE_TASK_PASS', type: 'text' })).rejects.toThrow(
+        'does not match the exact text'
+      )
+    }
+  )
+
+  it('accepts exact Agent output without changing substring evidence', async () => {
+    const filePath = join(directory, 'agent-result.txt')
+    writeFileSync(filePath, 'AGENT_FILE_TASK_PASS')
+    await expect(
+      validateFileEvidence(filePath, { exactText: 'AGENT_FILE_TASK_PASS', type: 'text' })
+    ).resolves.toMatchObject({ bytes: 20 })
+    writeFileSync(filePath, 'prefix AGENT_FILE_TASK_PASS suffix')
     await expect(
       validateFileEvidence(filePath, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
-    ).rejects.toThrow('does not contain the expected text')
+    ).resolves.toMatchObject({ expectedTextFound: true })
   })
 
   it('rejects a blank image and accepts a decodable non-blank image', async () => {
