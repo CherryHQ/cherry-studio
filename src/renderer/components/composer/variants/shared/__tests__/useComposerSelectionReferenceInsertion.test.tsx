@@ -9,7 +9,7 @@ import { act, render } from '@testing-library/react'
 import { useRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useComposerSelectionReferenceInsertion } from '../composerSelectionReference'
+import { useComposerSelectionReferenceInsertion } from '../useComposerSelectionReferenceInsertion'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
