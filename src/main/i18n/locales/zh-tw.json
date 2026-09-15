@@ -63,6 +63,7 @@
   "chat.conversation.new": "新對話",
   "common.channel_available_commands": "可用指令：",
   "common.channel_command_processing_error": "⚠️ 處理指令時發生錯誤。請稍後再試。",
+  "common.channel_delivery_failed": "⚠️ Failed to deliver reply to channel: {{error}}",
   "common.channel_message_dropped": "⚠️ 此訊息未送達。請重試或檢查頻道設定。",
   "common.channel_message_processing_error": "⚠️ 處理您的訊息時發生錯誤。請稍後再試。",
   "common.channel_new_session_created": "已建立新工作階段。",

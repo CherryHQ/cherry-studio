@@ -63,6 +63,7 @@
   "chat.conversation.new": "新しいチャット",
   "common.channel_available_commands": "利用可能なコマンド：",
   "common.channel_command_processing_error": "⚠️ コマンドの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
+  "common.channel_delivery_failed": "⚠️ Failed to deliver reply to channel: {{error}}",
   "common.channel_message_dropped": "⚠️ このメッセージは配信されませんでした。もう一度お試しいただくか、チャネル設定を確認してください。",
   "common.channel_message_processing_error": "⚠️ メッセージの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
   "common.channel_new_session_created": "新しいセッションを作成しました。",
