@@ -1,12 +1,8 @@
+import { fixedSamplingParameterSupport } from './parameterSupports'
 import { openaiCompatible } from './types'
 import { EFFORT, modeWire } from './wires'
 
 const effortWire = modeWire('reasoningEffort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'medium' })
-
-const fixedSamplingParameterSupport = {
-  temperature: { supported: false },
-  topP: { supported: false }
-} as const
 
 export default openaiCompatible({
   id: 'moonshot',
@@ -54,6 +50,8 @@ export default openaiCompatible({
     ...['kimi-k2.7-code', 'kimi-k2.7-code-highspeed'].map((modelId) => ({
       modelId,
       parameterSupport: fixedSamplingParameterSupport
-    }))
+    })),
+    // Rolling alias for the newest Kimi — same backend, same fixed sampling.
+    { modelId: 'kimi-latest', parameterSupport: fixedSamplingParameterSupport }
   ]
 })
