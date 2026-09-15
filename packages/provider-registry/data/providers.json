@@ -751,6 +751,31 @@
     },
     {
       "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Y-API - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.y-api.bestvirtualgoods.com"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.y-api.bestvirtualgoods.com"
+        }
+      },
+      "id": "y-api",
+      "metadata": {
+        "website": {
+          "apiKey": "https://y-api.bestvirtualgoods.com/app/keys",
+          "docs": "https://y-api.bestvirtualgoods.com/docs",
+          "models": "https://y-api.bestvirtualgoods.com/models",
+          "official": "https://y-api.bestvirtualgoods.com"
+        }
+      },
+      "name": "Y-API"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
       "description": "New API - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2529,5 +2554,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e47c80cffa19d83b"
+  "version": "c20aecb42ee533cf"
 }
