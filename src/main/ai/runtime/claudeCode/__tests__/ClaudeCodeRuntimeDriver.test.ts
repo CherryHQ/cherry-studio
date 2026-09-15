@@ -1,7 +1,14 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
+import type * as FileProcessorModule from '@main/ai/messages/fileProcessor'
+import type * as FileUtilsModule from '@main/utils/file'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import type * as SettingsBuilderModule from '../settingsBuilder'
@@ -21,7 +28,10 @@ const mocks = vi.hoisted(() => ({
   createClaudeQuery: vi.fn(),
   collectFileAttachments: vi.fn(),
   prepareChatMessages: vi.fn(),
+  prepareFilePart: vi.fn(),
   materializeNativeFilePart: vi.fn(),
+  readEntry: vi.fn(),
+  useRealFileProcessor: false,
   processManagerSpawn: vi.fn(),
   registerMcpSessionCatalogSync: vi.fn(),
   adapterInstances: [] as any[]
@@ -56,11 +66,17 @@ vi.mock('@main/ai/messages/attachmentRouting', () => ({
   prepareChatMessages: mocks.prepareChatMessages
 }))
 
-vi.mock('@main/ai/messages/fileProcessor', () => ({
-  materializeNativeFilePart: mocks.materializeNativeFilePart
-}))
+vi.mock('@main/ai/messages/fileProcessor', async (importActual) => {
+  const actual = await importActual<typeof FileProcessorModule>()
+  return {
+    ...actual,
+    prepareFilePart: (part: Parameters<typeof actual.prepareFilePart>[0]) =>
+      mocks.useRealFileProcessor ? actual.prepareFilePart(part) : mocks.prepareFilePart(part)
+  }
+})
 
-vi.mock('@main/utils/file', () => ({
+vi.mock('@main/utils/file', async (importActual) => ({
+  ...(await importActual<typeof FileUtilsModule>()),
   probeReadable: mocks.probeReadable
 }))
 
@@ -337,6 +353,12 @@ function userMessage() {
 describe('ClaudeCodeRuntimeDriver', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.useRealFileProcessor = false
+    mocks.readEntry.mockReset()
+    mocks.materializeNativeFilePart.mockReset()
+    mocks.prepareFilePart.mockReset()
+    mocks.prepareChatMessages.mockReset()
+    mocks.collectFileAttachments.mockReset()
     mocks.adapterInstances.length = 0
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeWarmQueryManager') {
@@ -346,7 +368,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
       if (name === 'ClaudeCodeTraceBridgeService')
         return { prepareTrace: mocks.prepareTrace, refreshTraceContext: mocks.refreshTraceContext }
-      if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
+      if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath, read: mocks.readEntry }
       if (name === 'ClaudeCodeProcessManager') return { spawn: mocks.processManagerSpawn }
       // teardownSession reaches the session-state service through the settingsBuilder facade.
       if (name === 'ClaudeCodeSessionStateService') return { disposeToolPolicySnapshot: vi.fn() }
@@ -359,6 +381,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
     mocks.collectFileAttachments.mockReturnValue([])
     mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
     mocks.materializeNativeFilePart.mockResolvedValue(null)
+    mocks.prepareFilePart.mockImplementation(async (part) => {
+      const isImageHint =
+        part.mediaType?.startsWith('image/') || /\.(?:jpe?g|png|gif|webp|bmp)$/i.test(part.filename ?? '')
+      if (!isImageHint) return { kind: 'recognized', part, mediaType: part.mediaType, bytes: Buffer.alloc(0) }
+      const materialized = await mocks.materializeNativeFilePart(part)
+      return materialized
+        ? { kind: 'recognized', part: materialized, mediaType: materialized.mediaType, bytes: Buffer.alloc(0) }
+        : { kind: 'read-failed' }
+    })
     mocks.buildRequest.mockResolvedValue({
       connectionConfig: {
         rebuildSignature: 'sig-1',
@@ -796,6 +827,145 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('admits only recognized image bytes to the final Claude SDK input', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-claude-attachments-'))
+    const fakePath = path.join(tmpDir, 'fake.png')
+    const realPath = path.join(tmpDir, 'real.bin')
+    const rescuePath = path.join(tmpDir, 'rescue.png')
+    const png = Buffer.from(
+      '89504E470D0A1A0A0000000D49484452000000010000000108060000001F15C4890000000D4944415478DA636400' +
+        '01000000050001A7DFAA680000000049454E44AE426082',
+      'hex'
+    )
+    try {
+      await Promise.all([
+        fs.writeFile(fakePath, 'not an image'),
+        fs.writeFile(realPath, png),
+        fs.writeFile(rescuePath, png)
+      ])
+      mocks.useRealFileProcessor = true
+      mocks.readEntry.mockRejectedValue(new Error('entry unavailable'))
+      const queryQueue = createAsyncQueue<any>()
+      mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
+      })
+      const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+      const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+      await connection.send({
+        message: {
+          ...userMessage(),
+          data: {
+            parts: [
+              { type: 'text', text: 'inspect these files' },
+              { type: 'file', filename: 'fake.png', mediaType: 'image/png', url: pathToFileURL(fakePath).href },
+              {
+                type: 'file',
+                filename: 'real.bin',
+                mediaType: 'application/octet-stream',
+                url: pathToFileURL(realPath).href
+              },
+              { type: 'file', filename: 'spoof.png', mediaType: 'image/png', url: 'data:image/png;base64,QUJD' },
+              {
+                type: 'file',
+                filename: 'rescue.png',
+                mediaType: 'image/png',
+                url: pathToFileURL(rescuePath).href,
+                providerMetadata: { cherry: { fileEntryId: 'stale-entry' } }
+              }
+            ]
+          }
+        }
+      })
+
+      const result = await nextInput
+      expect(result.done).toBe(false)
+      const content = result.value.message.content
+      expect(content).toEqual([
+        expect.objectContaining({
+          type: 'text',
+          text: expect.stringContaining(`"fake.png": ${fakePath}`)
+        }),
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: png.toString('base64') } },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: png.toString('base64') } }
+      ])
+      expect(content[0].text).toContain('Attached file "spoof.png":\nABC')
+      await connection.close()
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('passes SVG bytes in a data URL to Claude as readable text', async () => {
+    mocks.useRealFileProcessor = true
+    const queryQueue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const nextInput = mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect the diagram' },
+            {
+              type: 'file',
+              filename: 'diagram.png',
+              mediaType: 'image/png',
+              url: 'data:image/png,%3Csvg%20viewBox=%220%200%201%201%22%3E%3C/svg%3E'
+            }
+          ]
+        }
+      }
+    })
+
+    const result = await nextInput
+    expect(result.value.message.content).toContain('Attached file "diagram.png":\n<svg viewBox="0 0 1 1"></svg>')
+    expect(result.value.message.content).not.toContain('Unavailable attachments: diagram.png')
+    await connection.close()
+  })
+
+  it('decodes recognized UTF-16 data URL text before building Claude SDK input', async () => {
+    mocks.useRealFileProcessor = true
+    const queryQueue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const nextInput = mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
+    const bytes = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('hello 中文', 'utf16le')])
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            {
+              type: 'file',
+              filename: 'encoded.png',
+              mediaType: 'image/png',
+              url: `data:image/png;base64,${bytes.toString('base64')}`
+            }
+          ]
+        }
+      }
+    })
+
+    const result = await nextInput
+    expect(result.value.message.content).toContain('Attached file "encoded.png":\nhello 中文')
+    await connection.close()
+  })
+
   it('passes first-party archive attachments to ordinary Agents as tool-readable paths', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -1013,7 +1183,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png'
+              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n- "missing.png": /managed/entry-missing\n\nUnavailable attachments: empty.png, missing-url.png'
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -1022,9 +1192,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Claude Code attachments could not be sent', {
-      attachments: ['missing.png', 'empty.png', 'missing-url.png']
+      attachments: ['empty.png', 'missing-url.png']
     })
-    expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(3)
     void connection.close()
   })
 
@@ -1292,6 +1461,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
     mocks.getModelByKey.mockReturnValue({ capabilities: [] })
+    mocks.materializeNativeFilePart.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:image/png;base64,QUJD',
+      mediaType: 'image/png'
+    })
     mocks.collectFileAttachments.mockReturnValueOnce([
       { fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }
     ])
@@ -1340,12 +1514,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     expect(mocks.getModelByKey).toHaveBeenCalledWith('claude-code', 'sonnet')
-    expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
-      attachments: [{ fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }],
-      nativeSupport: { image: false, pdf: false, audio: false, video: false },
-      isToolCapable: false
-    })
-    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    expect(mocks.prepareChatMessages).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: 'user-1', role: 'user' })],
+      expect.objectContaining({
+        attachments: [{ fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }],
+        nativeSupport: { image: false, pdf: false, audio: false, video: false },
+        isToolCapable: false
+      })
+    )
+    expect(mocks.materializeNativeFilePart).toHaveBeenCalledOnce()
     void connection.close()
   })
 
@@ -1384,7 +1561,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       done: false
     })
-    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    expect(mocks.materializeNativeFilePart).toHaveBeenCalledOnce()
     void connection.close()
   })
 

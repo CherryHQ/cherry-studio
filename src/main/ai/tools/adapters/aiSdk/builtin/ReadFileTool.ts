@@ -20,8 +20,10 @@ import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { contentExt, contentFileType } from '@main/ai/messages/attachmentRouting'
 import { extractDocumentText, noExtractableTextNote } from '@main/ai/messages/attachmentTextExtraction'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
+import { prepareFilePart } from '@main/ai/messages/fileProcessor'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import {
   READ_FILE_PAGE_SIZE,
@@ -34,7 +36,6 @@ import {
   readFileResultSchema
 } from '@shared/ai/builtinTools'
 import { FILE_TYPE } from '@shared/types/file'
-import { getFileTypeByExt } from '@shared/utils/file'
 
 import { makeTextFieldCodec } from '../../../outputCodec'
 import { getToolCallContext } from '../context'
@@ -97,7 +98,15 @@ export async function readFile(
   try {
     const { ext } = await application.get('FileManager').getById(entryId)
     const bareExt = ext?.toLowerCase() ?? ''
-    const fileType = getFileTypeByExt(bareExt)
+    const prepared = await prepareFilePart({
+      type: 'file',
+      filename: entry.displayName,
+      url: '',
+      mediaType: 'application/octet-stream',
+      providerMetadata: { cherry: { fileEntryId: entryId } }
+    })
+    if (prepared.kind === 'read-failed') return { error: `Failed to read attached file "${input.filename}".` }
+    const fileType = contentFileType(prepared, bareExt)
 
     if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
       return textResult(`Cannot read ${fileType} file "${entry.handle}" as text.`)
@@ -110,7 +119,12 @@ export async function readFile(
     const text =
       fileType === FILE_TYPE.IMAGE
         ? await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)
-        : await extractDocumentText(entryId, { signal })
+        : await extractDocumentText(entryId, {
+            signal,
+            ...(prepared.kind === 'passthrough'
+              ? {}
+              : { preparedBytes: prepared.bytes, preparedExt: contentExt(prepared, bareExt) })
+          })
 
     if (text === null) {
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)

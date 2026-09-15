@@ -10,6 +10,8 @@
  *
  */
 
+import { createHash } from 'node:crypto'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { decodeTextBufferIfText } from '@main/utils/file'
@@ -32,8 +34,8 @@ export function noExtractableTextNote(filename: string): string {
   return `No extractable text found in "${filename}" — it may be a scanned or image-only document.`
 }
 
-async function extract(entryId: FileEntryId, ext: string): Promise<string | null> {
-  const { content } = await application.get('FileManager').read(entryId, { encoding: 'binary' })
+async function extract(entryId: FileEntryId, ext: string, preparedBytes?: Buffer): Promise<string | null> {
+  const content = preparedBytes ?? (await application.get('FileManager').read(entryId, { encoding: 'binary' })).content
 
   if (ext === 'pdf') return (await extractPdfText(content)).trim()
 
@@ -62,20 +64,21 @@ async function extract(entryId: FileEntryId, ext: string): Promise<string | null
  */
 export async function extractDocumentText(
   entryId: FileEntryId,
-  opts: { signal?: AbortSignal } = {}
+  opts: { signal?: AbortSignal; preparedBytes?: Buffer; preparedExt?: string } = {}
 ): Promise<string | null> {
   const fileManager = application.get('FileManager')
   const cache = application.get('CacheService')
 
-  const version = await fileManager.getVersion(entryId)
-  const cacheKey = `doc-extraction:${entryId}:${version.mtime}:${version.size}`
+  const version = opts.preparedBytes ? null : await fileManager.getVersion(entryId)
+  const cacheKey = opts.preparedBytes
+    ? `doc-extraction:content:${opts.preparedExt ?? ''}:${createHash('sha256').update(opts.preparedBytes).digest('hex')}`
+    : `doc-extraction:${entryId}:${version!.mtime}:${version!.size}`
   const cached = cache.get<string | null>(cacheKey)
   if (cached !== undefined) return cached
 
   if (opts.signal?.aborted) throw opts.signal.reason ?? new Error('Aborted')
-  const entry = await fileManager.getById(entryId)
-  const ext = entry.ext?.toLowerCase() ?? ''
-  const text = await extract(entryId, ext)
+  const ext = opts.preparedExt ?? (await fileManager.getById(entryId)).ext?.toLowerCase() ?? ''
+  const text = await extract(entryId, ext, opts.preparedBytes)
 
   logger.debug('Processed document text', { entryId, ext, chars: text?.length ?? 0, binary: text === null })
   cache.set(cacheKey, text, CACHE_TTL_MS)
