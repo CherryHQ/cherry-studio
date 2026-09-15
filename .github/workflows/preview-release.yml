@@ -29,9 +29,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       asset_sha: ${{ steps.source.outputs.asset_sha }}
-      branch_slug: ${{ steps.source.outputs.branch_slug }}
-      preview_tag: ${{ steps.source.outputs.preview_tag }}
-      short_sha: ${{ steps.source.outputs.short_sha }}
       source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
       - name: Resolve source branch
@@ -49,15 +46,7 @@ jobs:
           fi
 
           SOURCE_SHA="${REMOTE_REF%%[[:space:]]*}"
-          BRANCH_SLUG="$(printf '%s' "$BRANCH" | sed -E 's/[^A-Za-z0-9._-]+/-/g; s/^-+//; s/-+$//' | cut -c1-60)"
-          if [ -z "$BRANCH_SLUG" ]; then
-            BRANCH_SLUG="sha-${SOURCE_SHA:0:12}"
-          fi
-
-          echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
-          echo "preview_tag=preview-$BRANCH_SLUG-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "asset_sha=${SOURCE_SHA:0:7}" >> "$GITHUB_OUTPUT"
-          echo "short_sha=${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "Resolved $BRANCH to $SOURCE_SHA"
 
@@ -65,7 +54,6 @@ jobs:
     name: Build preview ${{ matrix.edition }} (${{ matrix.os }})
     needs: resolve
     runs-on: ${{ matrix.os }}
-    environment: release
     strategy:
       fail-fast: false
       matrix:
@@ -126,16 +114,20 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y rpm libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }}
+          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }} --publish never
         env:
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
+          SENTRY_SOURCE_MAP_UPLOAD: "true"
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
       - name: Build Mac
         if: matrix.os == 'macos-latest'
         run: |
           sudo -H pip install setuptools
-          pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }}
+          pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }} --publish never
         env:
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -143,9 +135,12 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
+          SENTRY_SOURCE_MAP_UPLOAD: "true"
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
           MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
           MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
@@ -153,68 +148,80 @@ jobs:
 
       - name: Build Windows
         if: matrix.os == 'windows-latest'
-        run: pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }}
+        run: pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }} --publish never
         env:
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
+          SENTRY_SOURCE_MAP_UPLOAD: "true"
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
       - name: Validate edition preview artifacts
         run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
 
-      - name: Upload preview artifacts
+      - name: Upload preview x64 installer
         uses: actions/upload-artifact@v7
         with:
-          name: cherry-studio-preview-${{ needs.resolve.outputs.branch_slug }}-${{ needs.resolve.outputs.short_sha }}-${{ matrix.os }}-${{ matrix.edition }}
           path: |
-            dist/*.exe
-            dist/*.zip
-            dist/*.dmg
-            dist/*.AppImage
-            dist/*.snap
-            dist/*.deb
-            dist/*.rpm
-            dist/*.tar.gz
-            dist/latest*.yml
-            dist/rc*.yml
-            dist/beta*.yml
-            dist/preview*.yml
-            dist/*.blockmap
+            dist/*-x64-setup.exe
+            dist/*-x64.dmg
+            dist/*-x64.AppImage
+          archive: false
           if-no-files-found: error
           retention-days: 3
-          compression-level: 0
 
-  draft-release:
-    name: Create draft preview release
+      - name: Upload preview arm64 installer
+        uses: actions/upload-artifact@v7
+        with:
+          path: |
+            dist/*-arm64-setup.exe
+            dist/*-arm64.dmg
+            dist/*-arm64.AppImage
+          archive: false
+          if-no-files-found: error
+          retention-days: 3
+
+  summary:
+    name: Preview downloads
     needs: [resolve, build]
+    if: always() && needs.resolve.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       actions: read
-      contents: write
     steps:
-      - name: Download preview artifacts
-        uses: actions/download-artifact@v8
+      - name: Summarize preview artifacts
+        uses: actions/github-script@v8
         with:
-          pattern: cherry-studio-preview-${{ needs.resolve.outputs.branch_slug }}-${{ needs.resolve.outputs.short_sha }}-*
-          path: preview-artifacts
-          merge-multiple: true
-
-      - name: Create or update draft release
-        uses: ncipollo/release-action@v1
-        with:
-          allowUpdates: true
-          artifactErrorsFailBuild: true
-          artifacts: "preview-artifacts/*"
-          body: |
-            Internal preview build for `${{ inputs.branch }}` at `${{ needs.resolve.outputs.source_sha }}`.
-
-            This draft is for internal testing only. It is isolated from the formal release, hotfix backport, and post-release workflows.
-          commit: ${{ needs.resolve.outputs.source_sha }}
-          draft: true
-          makeLatest: false
-          name: Preview ${{ inputs.branch }} @ ${{ needs.resolve.outputs.short_sha }}
-          prerelease: true
-          replacesArtifacts: true
-          tag: ${{ needs.resolve.outputs.preview_tag }}
-          updateOnlyUnreleased: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo,
+              run_id: context.runId,
+              per_page: 100
+            });
+            const platforms = { win: 'Windows', mac: 'macOS', linux: 'Linux' };
+            const rows = [];
+            for (const artifact of artifacts.sort((a, b) => a.name.localeCompare(b.name))) {
+              const match = /^Cherry-Studio(-CN)?-(\d+\.\d+\.\d+-preview-[0-9a-f]{7})-(win|mac|linux)-(x64|arm64)(?:-setup\.exe|\.dmg|\.AppImage)$/.exec(artifact.name);
+              if (artifact.expired || !match) continue;
+              const [, cn, version, platform, arch] = match;
+              const size = `${(artifact.size_in_bytes / 1024 / 1024).toFixed(1)} MiB`;
+              const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}/artifacts/${artifact.id}`;
+              rows.push(`| ${platforms[platform]} | ${cn ? 'CN' : 'Global'} | ${arch} | ${version} | ${size} | [Download](${url}) |`);
+            }
+            const lines = [
+              '## Preview downloads',
+              '',
+              'Installers are available for 3 days. Sign in to GitHub to download the original file without an extra ZIP archive.',
+              '',
+              'Only available uploads are listed; check the build jobs for failures.',
+              ''
+            ];
+            if (rows.length) {
+              lines.push('| Platform | Edition | Architecture | Version | Size | Download |',
+                '| --- | --- | --- | --- | --- | --- |', ...rows);
+            } else {
+              lines.push('No preview installers are available. Check the build jobs for details.');
+            }
+            await core.summary.addRaw(lines.join('\n') + '\n').write();
