@@ -9,7 +9,7 @@ export interface TraceConfig extends TelemetryConfig {
   maxAttributesPerSpan?: number
 }
 
-/** Mutated in place by {@link NodeTracer.init}; readers pick up the tracer name set at boot. */
+/** Mutated in place by {@link NodeTracer.init}; readers pick up the tracer name from the latest activation. */
 export const defaultConfig: TelemetryConfig = {
   serviceName: 'default',
   headers: {},
