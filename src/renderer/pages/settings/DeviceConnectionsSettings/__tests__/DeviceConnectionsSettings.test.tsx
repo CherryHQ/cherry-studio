@@ -3,7 +3,7 @@ import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
@@ -59,6 +59,10 @@ const device = {
 }
 
 describe('DeviceConnectionsSettings', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/api-gateway/paired-devices', [])
@@ -239,21 +243,25 @@ describe('DeviceConnectionsSettings', () => {
   })
 
   it('removes an expired QR and lets the user request a fresh one', async () => {
+    let resolveOffer!: (offer: OutputFor<'api_gateway.create_pairing_offer'>) => void
+    requestMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveOffer = resolve
+      })
+    )
+    const user = userEvent.setup()
+    render(<DeviceConnectionsSettings />)
+    await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
+
+    // Keep Testing Library's post-click timer on the real clock; only simulate QR expiry.
     vi.useFakeTimers()
-    try {
-      requestMock.mockResolvedValue(createOffer('expiring-code'))
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-      render(<DeviceConnectionsSettings />)
-      await user.click(screen.getByRole('button', { name: 'Show pairing QR code' }))
-      expect(screen.getByRole('img', { name: 'Pair a device' })).toBeInTheDocument()
+    await act(async () => resolveOffer(createOffer('expiring-code')))
+    expect(screen.getByRole('img', { name: 'Pair a device' })).toBeInTheDocument()
 
-      await act(async () => vi.advanceTimersByTime(60_000))
+    await act(async () => vi.advanceTimersByTime(60_000))
 
-      expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Show pairing QR code' })).toBeEnabled()
-    } finally {
-      vi.useRealTimers()
-    }
+    expect(screen.queryByRole('img', { name: 'Pair a device' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show pairing QR code' })).toBeEnabled()
   })
 
   it.each([true, false])('revokes the selected device and reports success=%s', async (success) => {
