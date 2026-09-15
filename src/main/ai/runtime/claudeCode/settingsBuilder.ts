@@ -447,7 +447,9 @@ export async function buildClaudeCodeSessionSettings(
     typeof declaredContextWindow === 'number' &&
     Number.isInteger(declaredContextWindow) &&
     declaredContextWindow >= MIN_AUTO_COMPACT_WINDOW
-  if (hasUsableContextWindow && env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined) {
+  // A gateway-floored primary contributes a bounded cap without a usable
+  // declared window, so pin whenever any usable budget exists.
+  if (usableResults.length > 0 && env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined) {
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(Math.min(...usableResults.map((result) => result.cap)))
   }
   // Undocumented, and the only way to declare a third-party model's window — without it every

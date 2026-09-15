@@ -1139,6 +1139,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
+    // The floored primary's bounded cap must reach the CLI even though the
+    // sub-floor declared window pins no context window.
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' })
+    expect(settings.env).not.toHaveProperty('CLAUDE_CODE_MAX_CONTEXT_TOKENS')
   })
 
   // Budgeting derives trust from the route-materialized verdict, not a fresh
@@ -1209,7 +1213,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const trusted = await buildClaudeCodeSessionSettings(session, relayProvider, {
       contextWindow: 256_000,
       maxOutputTokens: 32_000,
-      primaryModelId: 'openrouter::relay-model' as never,
+      primaryModelId: 'openrouter::relay-model',
       primaryTrusted: true
     })
 
@@ -1226,7 +1230,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const untrusted = await buildClaudeCodeSessionSettings(session, officialProvider, {
       contextWindow: 256_000,
       maxOutputTokens: 32_000,
-      primaryModelId: 'anthropic::claude-relay' as never,
+      primaryModelId: 'anthropic::claude-relay',
       primaryTrusted: false
     })
 
