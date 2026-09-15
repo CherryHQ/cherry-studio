@@ -354,8 +354,11 @@ export function useFollowupQueue({
   }, [])
 
   // Mark the head as failed and auto-pause; the user resolves it via the dock (Skip/Retry/Abort).
+  // Returns whether the failure was recorded — false when the head already left the
+  // queue (removed by another instance mid-send), in which case there is nothing to
+  // point the banner at and the caller must keep the queue moving instead.
   const failHead = useCallback(
-    (id: string) => {
+    (id: string): boolean => {
       // A peer instance may have dequeued this head while our send was in flight
       // (its outcome won the race): never pause for a ghost, or the queue stalls
       // paused with a failure banner pointing at nothing.
@@ -364,7 +367,7 @@ export function useFollowupQueue({
           failedItemIdRef.current = null
           setFailedItemId(null)
         }
-        return
+        return false
       }
       const next = { ...stateRef.current, paused: true }
       persist(next, id)
@@ -372,11 +375,26 @@ export function useFollowupQueue({
       failedItemIdRef.current = id
       setFailedItemId(id)
       setState(next)
+      return true
     },
     [persist]
   )
   const failHeadRef = useRef(failHead)
   failHeadRef.current = failHead
+
+  // Record a failed send, or — when the sent head already left the queue (removed
+  // by another instance mid-send) — continue with the next head now. The removed
+  // head consumed its completion edge, so without this the next item strands until
+  // an unrelated future completion (same keep-moving rule as removing the failed
+  // head). Only called on the epoch-match path, which implies this instance is
+  // still mounted on the drain scope (unmount / scope switch bump the epoch).
+  const drainNextAfterGhostSend = useCallback((head: FollowupQueueItem) => {
+    if (failHeadRef.current(head.id)) return
+    if (stateRef.current.paused || failedItemIdRef.current) return
+    if (stateRef.current.items.some((entry) => entry.id === head.id)) return
+    const nextHead = stateRef.current.items[0]
+    if (nextHead && !inflightRef.current.has(nextHead.id)) drainHeadRef.current(nextHead)
+  }, [])
 
   // Manual-steer claims by head id (id -> the scope each claim was taken in). Per-send
   // records (not one shared slot): a second steer after a scope switch must not
@@ -494,7 +512,7 @@ export function useFollowupQueue({
           if (sent) removeIdRef.current(head.id)
           else {
             setDraining(null)
-            failHeadRef.current(head.id)
+            drainNextAfterGhostSend(head)
           }
         },
         () => {
@@ -505,11 +523,11 @@ export function useFollowupQueue({
             return
           }
           setDraining(null)
-          failHeadRef.current(head.id)
+          drainNextAfterGhostSend(head)
         }
       )
     },
-    [persist, setDraining, settleStale]
+    [persist, setDraining, settleStale, drainNextAfterGhostSend]
   )
   drainHeadRef.current = drainHead
 
@@ -770,6 +788,11 @@ export function useFollowupQueue({
   const skipFailed = useCallback(() => {
     const failed = failedItemIdRef.current
     if (!failed || drainingIdRef.current !== null) return
+    // A retry send for this head may still be pending in another instance (remount /
+    // scope switch): its payload is already submitted, so skipping now would dequeue
+    // while the send still delivers the "skipped" payload. Wait for the settle instead —
+    // success dequeues it, failure re-arms the banner — rather than sending a skipped item.
+    if (liveSends.has(failed)) return
     dropExpiredLiveState()
     const remaining = stateRef.current.items.filter((item) => item.id !== failed)
     setFailedItemId(null)

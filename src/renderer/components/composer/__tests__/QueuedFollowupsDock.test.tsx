@@ -267,18 +267,29 @@ describe('QueuedFollowupsDock', () => {
 
     render(<QueuedFollowupsDock items={many} {...baseProps()} />)
 
-    // Only the first 3 rows render; the 4 hidden ones sit behind the toggle.
+    // Exactly the first 3 rows render; the remaining 4 sit behind the toggle.
     for (let index = 0; index < 3; index += 1) {
       expect(screen.getByText(`message ${index}`)).toBeInTheDocument()
     }
-    expect(screen.queryByText('message 4')).not.toBeInTheDocument()
-    expect(screen.getByText('chat.input.followup_queue.expand_more')).toBeInTheDocument()
+    for (let index = 3; index < 7; index += 1) {
+      expect(screen.queryByText(`message ${index}`)).not.toBeInTheDocument()
+    }
+    const expandToggle = screen.getByText('chat.input.followup_queue.expand_more').closest('button')
+    expect(expandToggle).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(screen.getByText('chat.input.followup_queue.expand_more'))
-    expect(screen.getByText('message 6')).toBeInTheDocument()
+    for (let index = 0; index < 7; index += 1) {
+      expect(screen.getByText(`message ${index}`)).toBeInTheDocument()
+    }
+    expect(screen.getByText('chat.input.followup_queue.collapse').closest('button')).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
 
     fireEvent.click(screen.getByText('chat.input.followup_queue.collapse'))
-    expect(screen.queryByText('message 6')).not.toBeInTheDocument()
+    for (let index = 3; index < 7; index += 1) {
+      expect(screen.queryByText(`message ${index}`)).not.toBeInTheDocument()
+    }
   })
 
   it('does not offer the expand toggle within the visible limit', () => {
@@ -317,5 +328,41 @@ describe('QueuedFollowupsDock', () => {
   it('shows no failure banner without a failed head', () => {
     render(<QueuedFollowupsDock items={items} {...baseProps()} />)
     expect(screen.queryByText('chat.input.followup_queue.failure_title')).not.toBeInTheDocument()
+  })
+
+  it('disables Skip/Retry while the failed head is draining and Resume while a failure is unresolved', () => {
+    const onRetryFailed = vi.fn()
+    const onSkipFailed = vi.fn()
+    const onAbortQueue = vi.fn()
+
+    render(
+      <QueuedFollowupsDock
+        items={items}
+        {...baseProps()}
+        paused
+        failedItemId="2"
+        onRetryFailed={onRetryFailed}
+        onSkipFailed={onSkipFailed}
+        onAbortQueue={onAbortQueue}
+        isFailureDraining
+      />
+    )
+
+    // The banner is announced as an alert; Skip/Retry no-op mid-drain so they stay
+    // disabled, while Abort (drop everything) remains available throughout.
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByText('chat.input.followup_queue.skip')).toBeDisabled()
+    expect(screen.getByText('chat.input.followup_queue.retry')).toBeDisabled()
+    expect(screen.getByText('chat.input.followup_queue.abort')).toBeEnabled()
+    // Resuming would clear the paused indicator without draining (the failure owns
+    // the queue), so the toggle stays disabled until the failure is resolved.
+    expect(screen.getByLabelText('chat.input.followup_queue.resume')).toBeDisabled()
+
+    fireEvent.click(screen.getByText('chat.input.followup_queue.skip'))
+    expect(onSkipFailed).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('chat.input.followup_queue.retry'))
+    expect(onRetryFailed).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('chat.input.followup_queue.abort'))
+    expect(onAbortQueue).toHaveBeenCalled()
   })
 })
