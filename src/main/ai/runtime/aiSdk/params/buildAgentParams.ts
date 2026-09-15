@@ -1,3 +1,4 @@
+import type { JSONObject } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
@@ -270,6 +271,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     aiSdkProviderId,
     reasoningProfile,
     reasoning,
+    requestedMaxOutputTokens,
     serviceTierControl,
     requestContext,
     mcpToolIds,
@@ -623,20 +625,43 @@ function buildAgentOptions(
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
-  const effectiveProviderOptions = applyFastModeToProviderOptions(
+  let effectiveProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
     overridden.providerOptions,
     request.fastMode === true
   )
+  const canonicalAnthropicOverride = callOverrides?.providerOptions?.anthropic
+  if (
+    sdkConfig.providerId === 'google-vertex-anthropic' &&
+    Object.hasOwn(canonicalAnthropicOverride ?? {}, 'thinking')
+  ) {
+    effectiveProviderOptions = {
+      ...effectiveProviderOptions,
+      [sdkConfig.providerOptionsKey]: {
+        ...effectiveProviderOptions[sdkConfig.providerOptionsKey],
+        thinking: canonicalAnthropicOverride?.thinking
+      }
+    }
+  }
   // A namespace that ended up empty carries nothing; emitting it would ship a bare
   // `providerOptions` for callers that opted into nothing.
   const hasProviderOptions = Object.values(effectiveProviderOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
-  const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
+  let effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
     reasoning.budgetTokens
   )
+  const boundedThinking = boundExplicitThinkingByTotalOutput(
+    effectiveProviderOptions,
+    sdkConfig.providerOptionsKey,
+    requestedMaxOutputTokens,
+    endpointType
+  )
+  if (boundedThinking) {
+    effectiveProviderOptions = boundedThinking.providerOptions
+    effectiveBudgetTokens = boundedThinking.budgetTokens
+  }
   const maxOutputTokens = adjustMaxOutputTokensForReasoning(requestedMaxOutputTokens, endpointType, {
     budgetTokens: effectiveBudgetTokens
   })
@@ -673,6 +698,42 @@ function buildAgentOptions(
       headers,
       getUsagePlugins: getRepairUsagePlugins
     })
+  }
+}
+
+const ANTHROPIC_MIN_THINKING_BUDGET = 1024
+
+function boundExplicitThinkingByTotalOutput(
+  providerOptions: ProviderOptions,
+  providerOptionsKey: string,
+  totalOutputTokens: number | undefined,
+  endpointType: EndpointType | undefined
+): { providerOptions: ProviderOptions; budgetTokens: number | undefined } | undefined {
+  if (endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return undefined
+  const namespace = providerOptions[providerOptionsKey]
+  const thinking = namespace?.thinking
+  if (thinking === null || typeof thinking !== 'object' || Array.isArray(thinking)) return undefined
+  const thinkingOptions = thinking
+  if (thinkingOptions.type !== 'enabled') return undefined
+  if (thinkingOptions.budgetTokens !== undefined && typeof thinkingOptions.budgetTokens !== 'number') return undefined
+
+  const requestedBudget = thinkingOptions.budgetTokens ?? ANTHROPIC_MIN_THINKING_BUDGET
+  const budgetTokens =
+    totalOutputTokens === undefined ? requestedBudget : Math.min(requestedBudget, totalOutputTokens - 1)
+  let normalizedThinking: JSONObject
+  if (budgetTokens < ANTHROPIC_MIN_THINKING_BUDGET) {
+    normalizedThinking = { ...thinkingOptions, type: 'disabled' }
+    Reflect.deleteProperty(normalizedThinking, 'budgetTokens')
+  } else {
+    normalizedThinking = { ...thinkingOptions, budgetTokens }
+  }
+
+  return {
+    providerOptions: {
+      ...providerOptions,
+      [providerOptionsKey]: { ...namespace, thinking: normalizedThinking }
+    },
+    budgetTokens: normalizedThinking.type === 'enabled' ? budgetTokens : undefined
   }
 }
 

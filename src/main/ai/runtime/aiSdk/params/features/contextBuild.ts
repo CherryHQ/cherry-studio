@@ -34,7 +34,6 @@ import {
 import { createFileManagerStorageAdapter } from '@main/ai/contextBuild/persistedOutputAdapter'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
-import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
 import type { RequestFeature } from '../feature'
@@ -105,13 +104,7 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
       threshold: resolveInFlightTruncateThreshold(
         settings.truncateThreshold,
         scope.model.contextWindow,
-        resolveRequestedMaxOutputTokens(
-          scope.request.callOverrides?.maxOutputTokens,
-          undefined,
-          scope.assistant,
-          scope.model,
-          scope.endpointType
-        )
+        scope.requestedMaxOutputTokens
       ),
       headChars: HEAD_CHARS,
       tailChars: TAIL_CHARS,

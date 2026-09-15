@@ -59,6 +59,42 @@ describe('resolveRequestedMaxOutputTokens', () => {
     )
   })
 
+  it('clamps an explicit request to the selected model limit', () => {
+    expect(
+      resolveRequestedMaxOutputTokens(
+        393_216,
+        undefined,
+        undefined,
+        makeModel({ maxOutputTokens: 300_000 }),
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+    ).toBe(300_000)
+  })
+
+  it('preserves an explicit request below the selected model limit', () => {
+    expect(
+      resolveRequestedMaxOutputTokens(
+        128_000,
+        undefined,
+        undefined,
+        makeModel({ maxOutputTokens: 300_000 }),
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+    ).toBe(128_000)
+  })
+
+  it('preserves an explicit request when the selected model has no trustworthy limit', () => {
+    expect(
+      resolveRequestedMaxOutputTokens(
+        393_216,
+        undefined,
+        undefined,
+        makeModel({ maxOutputTokens: undefined }),
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+    ).toBe(393_216)
+  })
+
   // The distinction the whole input-room calculation rests on: no max_tokens on
   // the wire means nothing is billed against the window, so nothing is reserved.
   it('does not use the model limit as an automatic cap for non-Anthropic endpoints', () => {
@@ -99,6 +135,18 @@ describe('resolveOutputReservation', () => {
       .mockReturnValueOnce({ endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES })
 
     expect(resolveOutputReservation('a1', [makeModel(), makeModel({ maxOutputTokens: 32_000 })])).toBe(32_000)
+  })
+
+  it('reserves a clamped custom maxOutputTokens value for durable compaction', () => {
+    endpoint(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    mockGetAssistantById.mockReturnValue(
+      makeAssistant({
+        enableMaxTokens: false,
+        customParameters: [{ name: 'maxOutputTokens', type: 'number', value: 393_216 }]
+      })
+    )
+
+    expect(resolveOutputReservation('a1', [makeModel({ maxOutputTokens: 300_000 })])).toBe(300_000)
   })
 
   // A deleted assistant or an unreachable provider row must not fail the turn —

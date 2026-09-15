@@ -1,4 +1,12 @@
 import type { Api as PiApi, Model as PiModel } from '@earendil-works/pi-ai'
+import {
+  AuthStorage,
+  createAgentSession,
+  DefaultResourceLoader,
+  ModelRegistry,
+  SessionManager,
+  SettingsManager
+} from '@earendil-works/pi-coding-agent'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
@@ -38,6 +46,7 @@ import {
   assertPiProviderUsable,
   buildPiGatewayInjection,
   buildPiProviderInjection,
+  materializePiProviderStream,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
   PiUnsupportedProviderError,
@@ -207,6 +216,85 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.api).toBe('openai-completions')
     expect(injection.providerConfig.baseUrl).toBe('https://api.deepseek.com/v1')
     expect(injection.modelId).toBe('deepseek-chat')
+  })
+
+  it('omits the AgentSession catalog limit while preserving an explicit OpenAI-compatible limit', async () => {
+    const provider = makeProvider({
+      id: 'deepseek',
+      name: 'DeepSeek',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'deepseek', baseUrl: 'https://gateway.example.com' }
+      }
+    })
+    const injection = buildPiProviderInjection(
+      provider,
+      makeModel({ id: 'deepseek::deepseek-v4', apiModelId: 'deepseek-v4', maxOutputTokens: 393_216 }),
+      REAL_KEY
+    )
+    const requestBodies: Record<string, unknown>[] = []
+    const fetch = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      requestBodies.push(JSON.parse(String(init?.body)))
+      return Response.json({ error: { message: 'expected test rejection' } }, { status: 400 })
+    })
+    vi.stubGlobal('fetch', fetch)
+
+    const materialized = await materializePiProviderStream(injection)
+    const authStorage = AuthStorage.inMemory()
+    authStorage.setRuntimeApiKey(injection.providerName, REAL_KEY)
+    const modelRegistry = ModelRegistry.inMemory(authStorage)
+    modelRegistry.registerProvider(injection.providerName, {
+      ...materialized.providerConfig,
+      // AgentSession may materialize the model default in options before the provider boundary.
+      streamSimple: (model, context, options) =>
+        materialized.streamSimple(model, context, { ...options, maxTokens: options?.maxTokens ?? model.maxTokens })
+    })
+    const configuredModel = modelRegistry.find(injection.providerName, injection.modelId)
+    if (!configuredModel) throw new Error('Pi model configuration is incomplete')
+
+    const cwd = process.cwd()
+    const settingsManager = SettingsManager.inMemory({
+      retry: { enabled: false },
+      compaction: { enabled: true, reserveTokens: 16_384, keepRecentTokens: 1 }
+    })
+    const resourceLoader = new DefaultResourceLoader({
+      cwd,
+      agentDir: cwd,
+      settingsManager,
+      noExtensions: true,
+      noSkills: true,
+      noPromptTemplates: true,
+      noThemes: true,
+      noContextFiles: true
+    })
+    await resourceLoader.reload()
+    const { session } = await createAgentSession({
+      cwd,
+      model: configuredModel,
+      authStorage,
+      modelRegistry,
+      settingsManager,
+      resourceLoader,
+      sessionManager: SessionManager.inMemory(cwd),
+      tools: []
+    })
+
+    try {
+      await session.prompt('hello')
+      await session.prompt('hello again')
+      await expect(session.compact()).rejects.toThrow('Summarization failed: 400')
+    } finally {
+      session.dispose()
+      modelRegistry.unregisterProvider(injection.providerName)
+      vi.unstubAllGlobals()
+    }
+
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(requestBodies[0]).not.toHaveProperty('max_tokens')
+    expect(requestBodies[0]).not.toHaveProperty('max_completion_tokens')
+    expect(requestBodies[1]).not.toHaveProperty('max_tokens')
+    expect(requestBodies[1]).not.toHaveProperty('max_completion_tokens')
+    expect(requestBodies[2].max_tokens ?? requestBodies[2].max_completion_tokens).toBe(13_107)
   })
 
   it('maps a Gemini provider', () => {
