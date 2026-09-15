@@ -1,8 +1,9 @@
-import { useAgentSessionApiRetry } from '@renderer/hooks/agent/useAgentSessionApiRetry'
-import type { AgentSessionApiRetryState } from '@shared/ai/agentSessionApiRetry'
 import { memo, type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
+
+import { useAgentSessionApiRetry } from '@renderer/hooks/agent/useAgentSessionApiRetry'
+import type { AgentSessionApiRetryState } from '@shared/ai/agentSessionApiRetry'
 
 /** Seconds left in the current backoff, ticking down locally from `startedAt + retryDelayMs`. */
 function useRetryRemainingSeconds(retry: AgentSessionApiRetryState): number {
@@ -46,7 +47,7 @@ const AgentSessionApiRetryStatus = ({ sessionId, fallback = null }: { sessionId:
     <div
       title={tooltip}
       data-testid="agent-session-api-retry"
-      className="flex min-h-7 select-none flex-row items-center gap-1.5 py-0.5 text-[13px] text-foreground-tertiary leading-5">
+      className="flex min-h-7 flex-row items-center gap-1.5 py-0.5 text-[13px] leading-5 text-foreground-tertiary select-none">
       <span>{label}</span>
       <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
     </div>

@@ -6,6 +6,9 @@
  * - Row to Provider conversion
  */
 
+import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -42,8 +45,6 @@ import type {
 import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
-import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 
 import { isRetiredProvider } from '../retiredProviders'
 
@@ -287,7 +288,7 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
   // Merge settings
   const settings: ProviderSettings = {
     ...DEFAULT_PROVIDER_SETTINGS,
-    ...(row.providerSettings as Partial<ProviderSettings> | null)
+    ...row.providerSettings
   }
 
   // An uploaded logo's file id lives in the ref table (single source of truth);

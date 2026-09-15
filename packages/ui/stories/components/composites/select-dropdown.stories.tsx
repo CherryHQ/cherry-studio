@@ -1,7 +1,8 @@
-import { Badge, SelectDropdown } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Bot } from 'lucide-react'
 import { useMemo, useState } from 'react'
+
+import { Badge, SelectDropdown } from '@cherrystudio/ui'
 
 const meta: Meta<typeof SelectDropdown> = {
   title: 'Components/Composites/select-dropdown',

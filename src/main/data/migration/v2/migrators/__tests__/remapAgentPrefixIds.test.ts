@@ -1,3 +1,7 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { sql } from 'drizzle-orm'
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -6,9 +10,6 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
-import { setupTestDatabase } from '@test-helpers/db'
-import { sql } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
 
 import { remapAgentPrefixIds } from '../remapAgentPrefixIds'
 

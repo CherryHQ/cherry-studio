@@ -1,7 +1,8 @@
-import { MenuList } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
+
+import { MenuList } from '@cherrystudio/ui'
 
 export interface ActionMenuItem {
   key: string

@@ -1,9 +1,10 @@
+import { APICallError, RetryError } from 'ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { AiStreamAdmissionError } from '@main/ai/streamManager'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import { APICallError, RetryError } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetMock,

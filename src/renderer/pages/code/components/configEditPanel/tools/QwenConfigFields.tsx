@@ -1,7 +1,8 @@
-import { QWEN_APPROVAL_MODES } from '@renderer/pages/code/cliConfig'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { QWEN_APPROVAL_MODES } from '@renderer/pages/code/cliConfig'
 
 import { TogglePill } from '../TogglePill'
 import { ConfigSelectField } from './ConfigFieldPrimitives'

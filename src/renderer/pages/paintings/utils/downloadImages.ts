@@ -1,7 +1,8 @@
+import i18next from 'i18next'
+
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
-import i18next from 'i18next'
 
 import { fileEntryToMetadata } from './fileEntryAdapter'
 

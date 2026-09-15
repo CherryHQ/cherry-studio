@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react'
+
 import { Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode } from 'react'
 
 interface FilePreviewFrameProps {
   children: ReactNode

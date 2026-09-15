@@ -29,7 +29,7 @@ function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOption
     files: undefined,
     mask: undefined,
     ...partial
-  } as ImageModelV3CallOptions
+  }
 }
 
 const config = {

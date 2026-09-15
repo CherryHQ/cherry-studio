@@ -1,9 +1,10 @@
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
-import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { render, waitFor } from '@testing-library/react'
 import type * as LucideReact from 'lucide-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { KnowledgeBaseToolRuntime } from '../KnowledgeBaseButton'
 
@@ -173,13 +174,13 @@ describe('KnowledgeBaseToolRuntime', () => {
 
     panelList[0].action?.({
       item: { ...panelList[0], isSelected: true }
-    } as never)
+    })
 
     expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0], mocks.knowledgeBases[1]])
 
     panelList[1].action?.({
       item: { ...panelList[1], isSelected: false }
-    } as never)
+    })
 
     expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0]])
   })

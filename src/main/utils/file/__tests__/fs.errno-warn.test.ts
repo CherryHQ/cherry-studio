@@ -39,9 +39,10 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const mockRename = vi.hoisted(() => vi.fn())
 const mockUnlink = vi.hoisted(() => vi.fn())
@@ -69,7 +70,7 @@ const mockLoggerWarn = mockMainLoggerService.warn
 const { atomicWriteFile, createAtomicWriteStream, isSameFile, move: fsMove } = await import('../fs')
 
 function makeErrnoErr(code: string, message = code): NodeJS.ErrnoException {
-  return Object.assign(new Error(message), { code }) as NodeJS.ErrnoException
+  return Object.assign(new Error(message), { code })
 }
 
 describe('move (EXDEV cross-device fallback)', () => {

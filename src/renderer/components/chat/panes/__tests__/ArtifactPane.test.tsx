@@ -1,3 +1,10 @@
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type React from 'react'
+import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
+import { SWRConfig } from 'swr'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
@@ -6,12 +13,6 @@ import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { createFilePathHandle, type SerializedTreeNode } from '@shared/utils/file'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import type React from 'react'
-import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
-import { SWRConfig } from 'swr'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ArtifactPane, {
   ARTIFACT_PREVIEW_MAX_SIZE_BYTES,

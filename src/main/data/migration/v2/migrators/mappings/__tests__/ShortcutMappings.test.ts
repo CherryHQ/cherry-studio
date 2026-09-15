@@ -1,5 +1,6 @@
-import { REGISTERED_KEYBINDINGS } from '@shared/utils/command'
 import { describe, expect, it, vi } from 'vitest'
+
+import { REGISTERED_KEYBINDINGS } from '@shared/utils/command'
 
 import { LEGACY_KEY_TO_TARGET_KEY, transformShortcuts } from '../ShortcutMappings'
 

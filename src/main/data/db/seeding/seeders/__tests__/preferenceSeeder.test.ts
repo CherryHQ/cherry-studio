@@ -1,9 +1,10 @@
-import { preferenceTable } from '@data/db/schemas/preference'
-import { PreferenceSeeder } from '@data/db/seeding/seeders/preferenceSeeder'
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { preferenceTable } from '@data/db/schemas/preference'
+import { PreferenceSeeder } from '@data/db/seeding/seeders/preferenceSeeder'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 describe('PreferenceSeeder', () => {
   const dbh = setupTestDatabase()
@@ -34,7 +35,7 @@ describe('PreferenceSeeder', () => {
     // Customise its value so we can check the seeder did not overwrite it.
     await dbh.db
       .update(preferenceTable)
-      .set({ value: '__customized__' as unknown as never })
+      .set({ value: '__customized__' })
       .where(and(eq(preferenceTable.scope, first.scope), eq(preferenceTable.key, first.key)))
 
     const seed = new PreferenceSeeder()

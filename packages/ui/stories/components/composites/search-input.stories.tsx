@@ -1,6 +1,7 @@
-import { SearchInput } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
+
+import { SearchInput } from '@cherrystudio/ui'
 
 const meta: Meta<typeof SearchInput> = {
   title: 'Components/Composites/search-input',

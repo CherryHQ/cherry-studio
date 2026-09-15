@@ -1,3 +1,5 @@
+import { isEqual } from 'es-toolkit/compat'
+
 import { loggerService } from '@logger'
 import type {
   PreferenceUpdateOptions,
@@ -6,7 +8,6 @@ import type {
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
-import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('PreferenceService')
 

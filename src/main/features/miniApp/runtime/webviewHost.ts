@@ -1,5 +1,6 @@
-import { application } from '@application'
 import { app, webContents } from 'electron'
+
+import { application } from '@application'
 
 import { installNavigationPolicy } from './navigation'
 import { installWebRtcPolicy } from './network'

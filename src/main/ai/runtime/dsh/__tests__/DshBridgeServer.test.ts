@@ -1,10 +1,11 @@
 import net from 'node:net'
 import os from 'node:os'
 
-import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
-import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 
 import type { AgentRuntimeEvent } from '../../types'
 import { DshBridgeServer, type DshBridgeServerOptions } from '../DshBridgeServer'

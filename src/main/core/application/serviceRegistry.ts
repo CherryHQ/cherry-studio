@@ -46,6 +46,7 @@ import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LanTransferService } from '@main/services/lanTransfer'
+import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { MediaProtocolService } from '@main/services/mediaProtocol'
@@ -61,6 +62,7 @@ import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { SelectionService } from '@main/services/selection/SelectionService'
+import { SentryLogService } from '@main/services/SentryLogService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
@@ -102,6 +104,7 @@ export const services = {
   IpcApiService,
   SubWindowService,
   PreferenceService,
+  SentryLogService,
   TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,
@@ -130,6 +133,7 @@ export const services = {
   ScreenshotOverlayService,
   ProxyService,
   StorageMonitorService,
+  LogRetentionService,
   PythonService,
   TrayService,
   WebSearchService,
