@@ -112,9 +112,9 @@ export function BrowserCursorOverlay({
           src={cursorImage}
           alt=""
           draggable={false}
-          width={36}
-          height={40}
-          className="absolute -top-1 -left-[18px] max-w-none origin-[18px_4px] will-change-transform"
+          width={32}
+          height={36}
+          className="absolute -top-1 -left-4 max-w-none origin-[16px_4px] will-change-transform"
         />
       </div>
     </div>
