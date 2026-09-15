@@ -392,12 +392,14 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
       // Complete replacement env — deliberate credential scope: the child sees
       // only managed binary locations, the routed API key, and the bridge socket.
+      const dshBin = resolveDshRuntimeBinPath()
       const client = new sdk.HarnessClient({
         runtimeExecutable,
         runtimeArgs: ['--no-env-file'],
-        dshBin: resolveDshRuntimeBinPath(),
+        dshBin,
         profile: 'cherry',
-        processCwd: workspacePath,
+        // Bun must not discover workspace preloads before DSH's permission gates exist.
+        processCwd: path.dirname(dshBin),
         env: {
           ...binaryExecutionEnv,
           ...(loginShellEnv.HOME !== undefined

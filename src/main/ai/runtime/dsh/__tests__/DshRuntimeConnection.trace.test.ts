@@ -240,7 +240,8 @@ describe('DshRuntimeConnection tracing', () => {
     const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
     expect(runtimeMocks.harnessOptions).toMatchObject({
       runtimeExecutable: '/bundled/bun',
-      runtimeArgs: ['--no-env-file']
+      runtimeArgs: ['--no-env-file'],
+      processCwd: '/dsh'
     })
     expect(env).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
 

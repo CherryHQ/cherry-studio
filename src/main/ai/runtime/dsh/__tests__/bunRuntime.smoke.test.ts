@@ -38,6 +38,8 @@ it.skipIf(process.env.CHERRY_DSH_SMOKE !== '1')(
     await writeFile(imagePath, png)
     // A workspace .env must not inject settings into the runtime.
     await writeFile(path.join(root, '.env'), 'CHERRY_DSH_SMOKE_LEAK=unexpected\n')
+    await writeFile(path.join(root, 'bunfig.toml'), 'preload = ["./preload.mjs"]\n')
+    await writeFile(path.join(root, 'preload.mjs'), 'throw new Error("Workspace Bun preload executed")\n')
     const shellTool = process.platform === 'win32' ? 'pwsh' : 'bash'
     const calls = [
       { name: 'read_image', arguments: { file_path: imagePath } },
@@ -46,9 +48,9 @@ it.skipIf(process.env.CHERRY_DSH_SMOKE !== '1')(
         arguments: {
           command:
             process.platform === 'win32'
-              ? 'if ($env:CHERRY_DSH_SMOKE_LEAK) { exit 1 }; echo cherry-bun-shell-ok'
-              : 'test -z "$CHERRY_DSH_SMOKE_LEAK" && echo cherry-bun-shell-ok',
-          description: 'Check environment isolation and print the smoke marker'
+              ? 'if ($env:CHERRY_DSH_SMOKE_LEAK -or -not (Test-Path -LiteralPath "./pixel.png")) { exit 1 }; echo cherry-bun-shell-ok'
+              : 'test -z "$CHERRY_DSH_SMOKE_LEAK" && test -f ./pixel.png && echo cherry-bun-shell-ok',
+          description: 'Check environment isolation and workspace access'
         }
       },
       { name: 'subagent', arguments: { description: 'Validate Bun child runtime', prompt: 'cherry-bun-child-probe' } }
@@ -133,12 +135,13 @@ it.skipIf(process.env.CHERRY_DSH_SMOKE !== '1')(
       const composition = path.join(root, 'composition.yml')
       await writeFile(composition, stringify(entries))
       await bridge.listen()
+      const dshBin = runtimeDir ? path.join(runtimeDir, 'bin.mjs') : resolveDshRuntimeBinPath()
       client = new HarnessClient({
         runtimeExecutable: await resolveDshBunRuntime(),
         runtimeArgs: ['--no-env-file'],
-        dshBin: runtimeDir ? path.join(runtimeDir, 'bin.mjs') : resolveDshRuntimeBinPath(),
+        dshBin,
         profile: 'cherry',
-        processCwd: root,
+        processCwd: path.dirname(dshBin),
         env: {
           PATH: process.env.PATH,
           HOME: root,
