@@ -43,13 +43,13 @@ export function useResourceLibrary({
   sort
 }: UseResourceLibraryOptions): UseResourceLibraryResult {
   const { t } = useTranslation()
-  const assistantGroups = useGroups('assistant')
-
   const trimmedSearch = search.trim() || undefined
   const isAssistant = resourceType === 'assistant'
   const isAgent = resourceType === 'agent'
   const isSkill = resourceType === 'skill'
   const isPrompt = resourceType === 'prompt'
+
+  const libraryGroups = useGroups(isAgent ? 'agent' : 'assistant')
 
   // Assistant needs two reads:
   // - Base (no params): powers assistant group chips so they don't collapse when
@@ -60,8 +60,8 @@ export function useResourceLibrary({
   const baseAssistants = assistantAdapter.useList({ enabled: isAssistant })
 
   const groupById = useMemo(
-    () => new Map(assistantGroups.groups.map((group) => [group.id, group] as const)),
-    [assistantGroups.groups]
+    () => new Map(libraryGroups.groups.map((group) => [group.id, group] as const)),
+    [libraryGroups.groups]
   )
 
   const filteredAssistants = assistantAdapter.useList({
@@ -71,7 +71,11 @@ export function useResourceLibrary({
   })
   // Agent search stays server-side so matching spans the full database, not only the
   // current page. The main service resolves the builtin fallback description for this predicate.
-  const agents = agentAdapter.useList({ enabled: isAgent, search: isAgent ? trimmedSearch : undefined })
+  const agents = agentAdapter.useList({
+    enabled: isAgent,
+    search: isAgent ? trimmedSearch : undefined,
+    groupId: isAgent ? (activeGroupId ?? undefined) : undefined
+  })
   const skills = skillAdapter.useList({ enabled: isSkill, search: isSkill ? trimmedSearch : undefined })
   const prompts = promptAdapter.useList({ enabled: isPrompt, search: isPrompt ? trimmedSearch : undefined })
 
@@ -99,6 +103,7 @@ export function useResourceLibrary({
 
   const buildAgentItem = useCallback(
     (a: AgentDetail): ResourceItem => {
+      const group = a.groupId ? groupById.get(a.groupId) : undefined
       return {
         id: a.id,
         type: 'agent',
@@ -106,12 +111,14 @@ export function useResourceLibrary({
         description: getAgentDescriptionForDisplay(a, t),
         avatar: getAgentAvatarFromConfiguration(a.configuration),
         model: a.modelName ?? undefined,
+        groupId: a.groupId ?? undefined,
+        groupName: group?.name,
         createdAt: a.createdAt,
         updatedAt: a.updatedAt,
         raw: a
       }
     },
-    [t]
+    [groupById, t]
   )
 
   const buildSkillItem = useCallback((s: InstalledSkill): ResourceItem => {
@@ -181,9 +188,9 @@ export function useResourceLibrary({
   }, [isAssistant, isAgent, isPrompt, filteredAssistantItems, agentItems, promptItems, skillItems, sort])
 
   const isLoading = isAssistant
-    ? baseAssistants.isLoading || filteredAssistants.isLoading || assistantGroups.isLoading
+    ? baseAssistants.isLoading || filteredAssistants.isLoading || libraryGroups.isLoading
     : isAgent
-      ? agents.isLoading
+      ? agents.isLoading || libraryGroups.isLoading
       : isPrompt
         ? prompts.isLoading
         : skills.isLoading
@@ -195,9 +202,9 @@ export function useResourceLibrary({
         ? prompts.isRefreshing
         : skills.isRefreshing
   const error = isAssistant
-    ? (baseAssistants.error ?? filteredAssistants.error ?? assistantGroups.error)
+    ? (baseAssistants.error ?? filteredAssistants.error ?? libraryGroups.error)
     : isAgent
-      ? agents.error
+      ? (agents.error ?? libraryGroups.error)
       : isPrompt
         ? prompts.error
         : skills.error
@@ -207,7 +214,7 @@ export function useResourceLibrary({
   const agentsRefetch = agents.refetch
   const skillsRefetch = skills.refetch
   const promptsRefetch = prompts.refetch
-  const groupsRefetch = assistantGroups.refetch
+  const groupsRefetch = libraryGroups.refetch
 
   const refetch = useCallback(() => {
     if (isAssistant) {

@@ -103,6 +103,8 @@
   "agent.delete.error.failed": "刪除 Agent 失敗",
   "agent.delete.title": "刪除 Agent",
   "agent.edit.title": "編輯 Agent",
+  "agent.groups.group_by": "分組顯示",
+  "agent.groups.ungroup": "取消分組",
   "agent.home.welcome_title": "今天要做些什麼？",
   "agent.icon.type": "Agent 圖示",
   "agent.input.placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令，輸入 @ 引用檔案或工作階段",

@@ -21,7 +21,8 @@ function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail
     enabled: query?.enabled !== false,
     query: {
       limit: query?.limit ?? AGENTS_MAX_LIMIT,
-      ...(query?.search ? { search: query.search } : {})
+      ...(query?.search ? { search: query.search } : {}),
+      ...(query?.groupId ? { groupId: query.groupId } : {})
     }
   })
 

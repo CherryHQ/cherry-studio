@@ -574,6 +574,7 @@ const AGENT: AgentDetail = {
     heartbeat_interval: 30
   },
   orderKey: 'a0',
+  groupId: null,
   modelName: 'Old Model',
   createdAt: '2024-01-01T00:00:00.000Z',
   updatedAt: '2024-01-01T00:00:00.000Z'
@@ -985,6 +986,20 @@ describe('edit dialogs', () => {
     fireEvent.click(await screen.findByRole('option', { name: 'personal' }))
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          groupId: 'group-personal'
+        })
+      })
+    )
+  })
+
+  it('submits agent group changes directly', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    openGroupSelect()
+    fireEvent.click(await screen.findByRole('option', { name: 'personal' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
           groupId: 'group-personal'
         })

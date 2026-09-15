@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
+import { groupTable } from './group'
 import { userModelTable } from './userModel'
 
 export const agentTable = sqliteTable(
@@ -23,6 +24,8 @@ export const agentTable = sqliteTable(
       .$type<Record<string, unknown>>()
       .notNull()
       .default(sql`'{}'`),
+    // Optional group membership; deleting the group unbinds members (SET NULL).
+    groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
     ...orderKeyColumns,
     ...createUpdateDeleteTimestamps
   },

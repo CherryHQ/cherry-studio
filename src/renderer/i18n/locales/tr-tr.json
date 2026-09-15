@@ -103,6 +103,8 @@
   "agent.delete.error.failed": "Ajan silinemedi",
   "agent.delete.title": "Ajanı Sil",
   "agent.edit.title": "Ajanı Düzenle",
+  "agent.groups.group_by": "Gruplar hâlinde göster",
+  "agent.groups.ungroup": "Gruplamayı durdur",
   "agent.home.welcome_title": "Bugün ne üzerinde çalışalım?",
   "agent.icon.type": "Ajan Simgesi",
   "agent.input.placeholder": "Bir mesaj yazın. Göndermek için {{key}} tuşuna basın. Yolları veya komutları aramak için /, dosyalar ve oturumlar için @ yazın.",

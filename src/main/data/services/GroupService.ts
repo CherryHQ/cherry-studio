@@ -19,6 +19,7 @@
 import { and, asc, eq } from 'drizzle-orm'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
 import { groupTable } from '@data/db/schemas/group'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx, DbType } from '@data/db/types'
@@ -173,14 +174,20 @@ export class GroupService {
   }
 
   /**
-   * Delete a group.
+   * Delete a group. Agent membership is unbound explicitly: agent.group_id was
+   * added by ALTER TABLE, where SQLite only permits NO ACTION foreign keys, so
+   * agent rows lack the DB-level SET NULL that assistant/knowledge rely on.
    */
   delete(id: string): void {
-    const [row] = this.db.delete(groupTable).where(eq(groupTable.id, id)).returning({ id: groupTable.id }).all()
+    this.db.transaction((tx) => {
+      tx.update(agentTable).set({ groupId: null }).where(eq(agentTable.groupId, id)).run()
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Group', id)
-    }
+      const [row] = tx.delete(groupTable).where(eq(groupTable.id, id)).returning({ id: groupTable.id }).all()
+
+      if (!row) {
+        throw DataApiErrorFactory.notFound('Group', id)
+      }
+    })
 
     logger.info('Deleted group', { id })
   }

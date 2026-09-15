@@ -103,6 +103,8 @@
   "agent.delete.error.failed": "Nu s-a putut șterge agentul",
   "agent.delete.title": "Șterge agentul",
   "agent.edit.title": "Editează agentul",
+  "agent.groups.group_by": "Afișează în grupuri",
+  "agent.groups.ungroup": "Oprește gruparea",
   "agent.home.welcome_title": "Despre ce să vorbim astăzi?",
   "agent.icon.type": "Pictogramă Agent",
   "agent.input.placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda",

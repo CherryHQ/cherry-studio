@@ -103,6 +103,8 @@
   "agent.delete.error.failed": "Failed to delete the agent",
   "agent.delete.title": "Delete Agent",
   "agent.edit.title": "Edit Agent",
+  "agent.groups.group_by": "Show in groups",
+  "agent.groups.ungroup": "Stop grouping",
   "agent.home.welcome_title": "What should we work on today?",
   "agent.icon.type": "Agent Icon",
   "agent.input.placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands, @ for files and sessions.",
