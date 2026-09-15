@@ -54,6 +54,8 @@ export interface DshBridgeServerOptions {
   ) => Promise<BridgePluginRequestMap['guard/check']['result']>
   /** One subagent residency-epoch edge from the plugin's lifecycle listeners. */
   onSubagentLifecycle?: (edge: BridgeNotificationMap['subagent/lifecycle']) => void
+  /** Called when an authenticated connection closes unexpectedly. */
+  onDisconnect?: () => void
   /** Deadline for an accepted socket to authenticate; also bounds `whenReady()`. */
   readyTimeoutMs?: number
 }
@@ -204,6 +206,7 @@ export class DshBridgeServer {
         this.connection = undefined
         this.transport = undefined
         this.abortToolCalls()
+        if (!this.closed) this.options.onDisconnect?.()
       }
     })
     transport.onRequest(async (method, params) => {

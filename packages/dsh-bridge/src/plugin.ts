@@ -11,7 +11,7 @@ import type {} from '@deepseek-ai/dsh-commands'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-plan-mode'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-token-meter'
@@ -19,6 +19,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import { type AskUserQuestionRequest, UserQuestionError } from '@deepseek-ai/dsh-user-questions'
 
+import { createForkCheckpoint } from './fork'
 import { type BridgeLink, connectBridgeLink } from './link'
 import { decideDelegatedToolCall, decideToolCall, detectGlobalInstall } from './policy'
 import {
@@ -60,6 +61,7 @@ export function apply(ctx: Context): void {
   delete process.env[BRIDGE_TOKEN_ENV]
 
   const policies = new Map<string, BridgePolicy>()
+  const openedSessionIds = new Set<string>()
   const registeredTools = new Map<string, RegisteredBridgeTool>()
   const sessionTools = new Map<string, Set<string>>()
   /** Live command dispatches by sessionId — aborted by a `session/cancel` request. */
@@ -104,6 +106,7 @@ export function apply(ctx: Context): void {
   })
   ctx.effect(
     () => () => {
+      openedSessionIds.clear()
       for (const sessionId of [...sessionTools.keys()]) disposeTools(sessionId)
     },
     'cherry-bridge.tools'
@@ -112,6 +115,18 @@ export function apply(ctx: Context): void {
   /** Host→plugin dispatch; a rejection becomes the JSON-RPC error response. */
   async function handleRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
     switch (method) {
+      case 'session/fork-checkpoint': {
+        const { sessionId, boundary } = params as BridgeHostParams<'session/fork-checkpoint'>
+        return createForkCheckpoint(requireAgent(sessionId).session.snapshotEvents(), boundary)
+      }
+      case 'session/fork-snapshot': {
+        const { sessionId, boundary } = params as BridgeHostParams<'session/fork-snapshot'>
+        const session = requireAgent(sessionId).session
+        if (session.eventAt(SessionSeq(boundary))?.type !== 'turn/end') {
+          throw new Error('history_changed')
+        }
+        return { events: session.snapshotEvents(SessionLogOffset(0), SessionLogOffset(boundary + 1)) }
+      }
       case 'session/open':
         return openSession(params as BridgeHostParams<'session/open'>)
       case 'session/prompt': {
@@ -179,6 +194,8 @@ export function apply(ctx: Context): void {
   }
 
   async function openSession(params: BridgeHostParams<'session/open'>): Promise<Record<string, never>> {
+    if (params.requireExistingHistory && !params.resume)
+      throw new Error('history_missing: this fork requires its existing native history.')
     policies.set(params.sessionId, params.policy)
     const agentOptions = {
       provider: params.provider,
@@ -198,6 +215,13 @@ export function apply(ctx: Context): void {
           }
         } catch (error) {
           if (!isMissingSessionError(error)) throw error
+          if (params.requireExistingHistory)
+            throw new Error(
+              'history_missing: the native fork history is unavailable; restore it or create a new fork.',
+              {
+                cause: error
+              }
+            )
           // No persisted log for this id yet — degrade to a fresh create (pi parity).
           await ctx.agents.create({
             sessionId: SessionId(params.sessionId),
@@ -212,8 +236,10 @@ export function apply(ctx: Context): void {
           agentOptions
         })
       }
+      openedSessionIds.add(params.sessionId)
       return {}
     } catch (error) {
+      openedSessionIds.delete(params.sessionId)
       policies.delete(params.sessionId)
       disposeTools(params.sessionId)
       throw error
@@ -376,10 +402,11 @@ export function apply(ctx: Context): void {
     })
   })
 
-  /** The bridge policy key: the root ancestor's session id (host policies are per root). */
+  /** Resolve execution ownership; a host-opened fork's parentSession is history lineage only. */
   function rootSessionOf(agent: Agent): string {
     let current = agent
     while (true) {
+      if (openedSessionIds.has(current.id)) return current.id
       const parentId = current.session.header.parentSession
       if (parentId === undefined) return current.id
       const parent = ctx.agents.get(parentId)
@@ -393,8 +420,8 @@ export function apply(ctx: Context): void {
     const agent = exec.agent
     // Not an agent call: delegate to dsh's own chain (which fail-closes on ask).
     if (agent === undefined) return next()
-    const delegated = agent.session.header.parentSession !== undefined
     const rootSessionId = rootSessionOf(agent)
+    const delegated = agent.id !== rootSessionId
     if (!agent.session.header.cwd) {
       return { kind: 'deny' as const, reason: 'The tool caller has no verified workspace directory.' }
     }

@@ -181,6 +181,21 @@ describe('DshBridgeServer authentication gate', () => {
 })
 
 describe('DshBridgeServer', () => {
+  it('times out an unanswered fork snapshot and still accepts a subsequent request', async () => {
+    const harness = await makeHarness()
+    const params = { sessionId: SESSION_ID, boundary: 7 }
+    const pending = harness.server.request('session/fork-snapshot', params, { timeoutMs: 100 })
+    const failed = expect(pending).rejects.toThrow('session/fork-snapshot timed out after 100ms')
+    const late = await harness.nextRequest()
+    await failed
+    late.respond({ events: [] })
+    const retry = harness.server.request('session/fork-snapshot', params, { timeoutMs: 2_000 })
+    const events = [{ type: 'turn/end', seq: 7 }]
+    ;(await harness.nextRequest()).respond({ events })
+    await expect(retry).resolves.toEqual({ events })
+    expect(harness.socket.destroyed).toBe(false)
+  })
+
   it('round-trips a context usage query and surfaces error responses', async () => {
     const harness = await makeHarness()
     const query = harness.server.requestContextUsage(SESSION_ID, { timeoutMs: 2_000 })

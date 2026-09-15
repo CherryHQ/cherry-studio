@@ -304,8 +304,13 @@ export class AgentSessionDeliveryService extends BaseService {
     retrySessionIds: string[] = []
   ): Promise<void> {
     const closed = await Promise.allSettled(
-      sessionIds.map((sessionId) => application.get('AgentSessionRuntimeService').closeSession(sessionId))
+      sessionIds.map(async (sessionId) => {
+        const runtime = application.get('AgentSessionRuntimeService')
+        await runtime.cancelSessionForks(sessionId)
+        await runtime.closeSession(sessionId)
+      })
     )
+    await application.get('AgentSessionRuntimeService').recoverSessionForks()
     for (const deliveryResult of deliveryResults) this.kick(deliveryResult.sessionId)
     retrySessionIds.forEach((sessionId) => this.kick(sessionId))
 

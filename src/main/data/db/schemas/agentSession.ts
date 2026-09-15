@@ -23,6 +23,12 @@ export const agentSessionTable = sqliteTable(
       .unique()
       .references(() => jobScheduleTable.id, { onDelete: 'set null' }),
     traceId: text(),
+    // Provenance is deliberately not an FK: deleting an ancestor must not affect its descendants.
+    forkedFrom: text({ mode: 'json' }).$type<{
+      sessionId: string
+      messageId: string
+      operationId: string
+    }>(),
     ...orderKeyColumns,
     // Dedicated conversation activity time. Name, owner, workspace and order
     // changes must not move this column.

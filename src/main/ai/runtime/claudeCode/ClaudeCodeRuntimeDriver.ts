@@ -14,6 +14,7 @@ import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 type BetaUsage = SDKResultMessage['usage']
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
@@ -65,12 +66,14 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { captureClaudeForkCheckpoint, forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
   isClaudeCodeProcessFailure
 } from './processExitDiagnostics'
+import { resolveClaudeConfigDirectory } from './queryOptions'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -348,6 +351,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
+  private lastMainAssistantUuid?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private assistantFileToolsEnabled = false
@@ -374,6 +378,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
+    if (agentSessionService.isFork(this.input.sessionId) && !this.resumeToken)
+      throw new Error('history_missing: this fork requires its existing native history.')
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
     // Prompt for the disabled gateway HERE, not where it is detected: the same route resolution
@@ -483,6 +489,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
+    this.lastMainAssistantUuid = undefined
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
@@ -721,7 +728,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
         if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
-        if (message.type === 'assistant') this.captureAssistantInvocation(message, messageAssociation)
+        if (message.type === 'assistant') {
+          this.captureAssistantInvocation(message, messageAssociation)
+          if (message.parent_tool_use_id == null) this.lastMainAssistantUuid = message.uuid
+        }
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
         try {
@@ -749,7 +759,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
           // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
           this.emitPendingSteersAsUndelivered()
-          this.eventQueue.push({ type: 'turn-complete' })
+          const forkState = await captureClaudeForkCheckpoint(
+            result.sessionId,
+            this.lastMainAssistantUuid,
+            resolveClaudeConfigDirectory(this.spawnOptions?.env),
+            this.spawnOptions?.cwd ?? '',
+            this.abortController.signal
+          )
+          this.lastMainAssistantUuid = undefined
+          this.eventQueue.push({ type: 'turn-complete', forkState })
         }
       }
     } catch (error) {
@@ -792,7 +810,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  /** Rebuilds one failed resumed query without its corrupt or missing conversation history. */
+  /** Retries one failed non-fork query without its corrupt or missing conversation history. */
   private tryRecoverWithoutResume(error: unknown): boolean {
     const createClaudeQuery = this.createQuery
     if (
@@ -804,6 +822,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     ) {
       return false
     }
+    if (agentSessionService.isFork(this.input.sessionId)) return false
     const reason = getResumeRecoveryReason(error)
     if (!reason) return false
     // Error results advance `resumeToken` before throwing. The pending input's session id proves the
@@ -1397,6 +1416,7 @@ function toClaudeImageMediaType(value: string | undefined) {
 }
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly fork = forkClaudeSession
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
 

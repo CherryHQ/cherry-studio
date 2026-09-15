@@ -3,6 +3,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import { createClaudeCodeRuntimeDriver } from './claudeCode'
 import { DshRuntimeDriver } from './dsh/DshRuntimeDriver'
+import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from './forkCheckpoint'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
 import { runtimeDriverRegistry } from './registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from './types'
@@ -23,6 +24,14 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
 
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
     return this.loadImplementation().then((driver) => driver.connect(input))
+  }
+
+  async fork(input: RuntimeForkInput): Promise<RuntimeForkResult> {
+    input.signal.throwIfAborted()
+    const driver = await this.loadImplementation()
+    input.signal.throwIfAborted()
+    if (!driver.fork) throw new AgentSessionForkError('unsupported_checkpoint')
+    return driver.fork(input)
   }
 
   onSessionIdle(sessionId: string): void {
