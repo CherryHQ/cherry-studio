@@ -32,13 +32,8 @@ import {
   AgentWorkspaceNameSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
-<<<<<<< HEAD
 import { ContentHashSchema, CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import { GroupIdSchema } from '@shared/data/types/group'
-=======
-import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
-import { GroupIdSchema } from '@shared/data/types/group'
->>>>>>> 1c3ccaac8f (feat(agents): add group organization to agents)
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   ImageGenerationModeSchema,
