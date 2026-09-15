@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { paragraphToDocxAnchor } from '../docxSelectionAnchor'
+import { normalizeSelectionText } from '../../../selectionReference'
+import { paragraphExcerpt, paragraphToDocxAnchor } from '../docxSelectionAnchor'
 
 /** Mirrors what the patched docx-preview renders for a single paragraph. */
 function buildParagraph(
@@ -14,6 +15,20 @@ function buildParagraph(
   paragraph.appendChild(document.createTextNode(text))
   document.body.appendChild(paragraph)
   return paragraph
+}
+
+/** Mirrors docx-preview's own run output: every run is a `<span>` wrapping the run's children. */
+function buildRun(...nodes: (string | Node)[]): HTMLSpanElement {
+  const run = document.createElement('span')
+  run.append(...nodes)
+  return run
+}
+
+/** Mirrors docx-preview's `renderTab`: a `<span>` whose only content is U+2003. */
+function buildTab(): HTMLSpanElement {
+  const tab = document.createElement('span')
+  tab.innerHTML = '&emsp;'
+  return tab
 }
 
 afterEach(() => {
@@ -88,11 +103,44 @@ describe('paragraphToDocxAnchor', () => {
     expect(paragraphToDocxAnchor(inner)).toBeNull()
   })
 
+  it('excerpts a line break as the newline python-docx emits rather than as nothing', () => {
+    const paragraph = buildParagraph({ part: 'body', index: '3' }, '')
+    paragraph.appendChild(buildRun('Alpha', document.createElement('br'), 'Beta'))
+
+    expect(paragraphToDocxAnchor(paragraph)?.excerpt).toBe('Alpha\nBeta')
+  })
+
   it('returns null when the element is not inside any paragraph', () => {
     const div = document.createElement('div')
     div.textContent = 'chrome'
     document.body.appendChild(div)
 
     expect(paragraphToDocxAnchor(div)).toBeNull()
+  })
+})
+
+describe('paragraphExcerpt', () => {
+  it('spells w:noBreakHyphen as the hyphen python-docx emits', () => {
+    const paragraph = document.createElement('p')
+    paragraph.appendChild(buildRun('Alpha', document.createElement('wbr'), 'Beta'))
+
+    expect(paragraphExcerpt(paragraph)).toBe('Alpha-Beta')
+  })
+
+  it('keeps the U+2003 docx-preview renders w:tab as, which normalization collapses like the python tab', () => {
+    const paragraph = document.createElement('p')
+    paragraph.append(buildRun('Alpha'), buildRun(buildTab()), buildRun('Beta'))
+
+    expect(paragraphExcerpt(paragraph)).toBe('Alpha\u2003Beta')
+    expect(normalizeSelectionText(paragraphExcerpt(paragraph))).toBe(normalizeSelectionText('Alpha\tBeta'))
+  })
+
+  it('walks nested inline elements in document order', () => {
+    const paragraph = document.createElement('p')
+    const emphasis = document.createElement('em')
+    emphasis.append('nested', document.createElement('br'), 'deeper')
+    paragraph.appendChild(buildRun('lead ', emphasis, ' tail'))
+
+    expect(paragraphExcerpt(paragraph)).toBe('lead nested\ndeeper tail')
   })
 })
