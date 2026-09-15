@@ -216,6 +216,10 @@ export async function resolveProviderAiSdkConfig(
       match: (p) => matchesPreset(p, SystemProviderIds.opencode),
       build: withSelectedApiKey(buildOpenCodeGoConfig)
     },
+    {
+      match: (p) => matchesPreset(p, SystemProviderIds.openrouter),
+      build: withSelectedApiKey(buildOpenRouterConfig)
+    },
     { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: withProviderAuth('oauth', buildCodexConfig) },
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
     {
@@ -425,6 +429,25 @@ function buildOpenCodeGoConfig(ctx: BuilderContext): ProviderConfig {
   const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
   const hasExplicitSession = Object.keys(headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
   return hasExplicitSession ? config : { ...config, conversationHeader: 'x-opencode-session' }
+}
+
+/**
+ * OpenRouter's sticky routing keys prompt-cache affinity on `x-session-id`. Without it OpenRouter
+ * identifies the conversation by hashing its opening messages, and a miss re-routes a long session
+ * onto a cold upstream mid-conversation — every turn after that bills at full input price.
+ *
+ * @see https://openrouter.ai/docs/guides/best-practices/prompt-caching#using-session_id-for-sticky-sessions
+ */
+export const OPENROUTER_CONVERSATION_HEADER = 'x-session-id'
+
+function buildOpenRouterConfig(ctx: BuilderContext): ProviderConfig {
+  const config =
+    ctx.aiSdkProviderId === 'openai-compatible' ? buildOpenAICompatibleConfig(ctx) : buildGenericProviderConfig(ctx)
+  const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
+  const hasExplicitSession = Object.keys(headers ?? {}).some(
+    (name) => name.toLowerCase() === OPENROUTER_CONVERSATION_HEADER
+  )
+  return hasExplicitSession ? config : { ...config, conversationHeader: OPENROUTER_CONVERSATION_HEADER }
 }
 
 /**

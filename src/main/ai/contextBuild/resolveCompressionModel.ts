@@ -72,15 +72,17 @@ export async function resolveCompressionModel(
       sdkConfig.providerSettings as Parameters<typeof createExecutor>[1]
     )
     const languageModel = await executor.languageModel(sdkConfig.modelId)
+    const conversationId = conversation.id
     return {
-      languageModel: sdkConfig.conversationHeader
-        ? wrapLanguageModel({
-            model: languageModel,
-            middleware: defaultSettingsMiddleware({
-              settings: { headers: { [sdkConfig.conversationHeader]: conversation.id } }
+      languageModel:
+        sdkConfig.conversationHeader && conversationId
+          ? wrapLanguageModel({
+              model: languageModel,
+              middleware: defaultSettingsMiddleware({
+                settings: { headers: { [sdkConfig.conversationHeader]: conversationId } }
+              })
             })
-          })
-        : languageModel,
+          : languageModel,
       contextWindow: resolveContextWindow(model.contextWindow)
     }
   } catch (error) {

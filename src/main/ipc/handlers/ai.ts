@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto'
-
 import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { fileEntryService } from '@data/services/FileEntryService'
@@ -157,9 +155,9 @@ function agentTaskNotFound(taskId: string): IpcError {
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── One-shot model calls — AiService owns the provider clients. ──
-  // A renderer one-shot call has no topic; it is its own conversation.
+  // A renderer one-shot call has no topic and no conversation to keep warm.
   'ai.text.generate': ({ requestId, ...request }) => {
-    const generate = { ...request, conversation: { id: `one-shot:${randomUUID()}` } }
+    const generate = { ...request, conversation: {} }
     return exposeAiError('ai.text.generate', () =>
       requestId
         ? application.get('AiService').runTextRequest(requestId, generate)

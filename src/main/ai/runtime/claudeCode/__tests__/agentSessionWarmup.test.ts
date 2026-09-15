@@ -671,6 +671,31 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
   })
 
+  it('keys the OpenRouter conversation header on the agent session for direct routes', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'custom-openrouter',
+      presetProviderId: 'openrouter',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://openrouter.ai/api' } }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe('x-session-id: session-1')
+  })
+
+  it('lets an explicitly configured session header win over the OpenRouter default', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'custom-openrouter',
+      presetProviderId: 'openrouter',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://openrouter.ai/api' } },
+      settings: { extraHeaders: { 'X-Session-Id': 'operator-pinned' } }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe('X-Session-Id: operator-pinned')
+  })
+
   it('routes an OpenCode Go OpenAI-compatible model through the gateway despite its Anthropic endpoint', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'opencode::deepseek-v4-pro' })
     mocks.getProviderByProviderId.mockReturnValue({

@@ -648,9 +648,13 @@ function buildAgentOptions(
 
   const { headers: callerHeaders, maxRetries } = request.requestOptions ?? {}
   // A provider that keys on the conversation declared the header; the caller's own headers win.
-  const headers = sdkConfig.conversationHeader
-    ? mergeHeaders({ [sdkConfig.conversationHeader]: request.conversation.id }, callerHeaders)
-    : callerHeaders
+  // No conversation id means the caller has no reusable unit of work — send nothing rather than a
+  // value that differs every turn.
+  const conversationId = request.conversation.id
+  const headers =
+    sdkConfig.conversationHeader && conversationId
+      ? mergeHeaders({ [sdkConfig.conversationHeader]: conversationId }, callerHeaders)
+      : callerHeaders
   const toolCallLimit = resolveToolCallLimit(assistant)
   const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
   const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)

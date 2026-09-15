@@ -332,8 +332,11 @@ describe('AiService', () => {
     }
   )
 
-  it('requires one stream topic while allowing a distinct conversation identity', () => {
-    expectTypeOf<AiStreamRequest['conversation']>().toExtend<{ id: string; topicId: string }>()
+  it('requires one stream topic while keeping conversation identity optional and distinct', () => {
+    expectTypeOf<AiStreamRequest['conversation']>().toExtend<{ topicId: string }>()
+    // Optional on purpose: a caller with no reusable conversation must be able to say so rather
+    // than synthesize an id that changes every turn.
+    expectTypeOf<AiStreamRequest['conversation']['id']>().toEqualTypeOf<string | undefined>()
     expectTypeOf<AiStreamRequest>().not.toHaveProperty('chatId')
   })
 

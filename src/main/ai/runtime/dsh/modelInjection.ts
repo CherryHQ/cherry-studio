@@ -28,7 +28,11 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { ApiGatewayNotRunningError, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
-import { toAgentProviderHeaders } from '../agentProviderHeaders'
+import {
+  agentConversationHeaders,
+  toAgentProviderHeaders,
+  withDefaultAgentProviderHeaders
+} from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
 
 // dsh-llm-pi-ai uses maxTokens as a per-request output cap. Keep pi's
@@ -182,7 +186,10 @@ export function buildDshProviderInjection(
   model: Model,
   apiKey: string,
   credentialReceipt?: AiUsageCredentialReceipt,
-  reasoningEffort: ReasoningEffortOption = 'default'
+  reasoningEffort: ReasoningEffortOption = 'default',
+  /** Agent session this route serves; omitted by non-session callers (probes), which have no
+   *  conversation to keep warm and therefore declare no affinity header. */
+  sessionId?: string
 ): DshProviderInjection {
   // Unsupported-provider beats missing-key: a login-based provider has no key
   // by design, and "missing API key" would misdiagnose it. dsh runs as a
@@ -197,7 +204,12 @@ export function buildDshProviderInjection(
 
   const baseUrl = formatDshBaseUrl(resolvedEndpoint.baseUrl, api)
   const modelId = getRawModelId(model)
-  const headers = toAgentProviderHeaders(getExtraHeaders(provider))
+  const headers = toAgentProviderHeaders(
+    withDefaultAgentProviderHeaders(
+      sessionId ? agentConversationHeaders(provider, sessionId) : {},
+      getExtraHeaders(provider)
+    )
+  )
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
 
   return {
@@ -326,7 +338,8 @@ export async function resolveDshProviderInjectionFromSnapshot(
     model,
     resolvedApiKey.value,
     resolvedApiKey.apiKeySelection,
-    reasoningEffort
+    reasoningEffort,
+    sessionId
   )
 }
 

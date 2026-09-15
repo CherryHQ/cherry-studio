@@ -292,13 +292,13 @@ describe('AiStreamManager', () => {
 
       expect(mockStreamText).toHaveBeenCalledWith(
         expect.objectContaining({
-          conversation: { id: 'gateway-request-1', topicId: 'gateway-request-1' },
+          conversation: { topicId: 'gateway-request-1' },
           contextOwner: 'caller'
         })
       )
     })
 
-    it('makes an anonymous prompt stream its own conversation', () => {
+    it('claims no conversation identity for an anonymous prompt stream', () => {
       mgr.streamPrompt({
         streamId: 'gateway-request-1',
         uniqueModelId: 'provider-a::model-a',
@@ -306,8 +306,10 @@ describe('AiStreamManager', () => {
         listener: new FakeListener('gateway:request-1')
       })
 
+      // `streamId` is a per-request handle. Passing it as the conversation id would tell a host
+      // keyed on that header that every turn is a brand-new conversation.
       expect(mockStreamText).toHaveBeenCalledWith(
-        expect.objectContaining({ conversation: { id: 'gateway-request-1', topicId: 'gateway-request-1' } })
+        expect.objectContaining({ conversation: { topicId: 'gateway-request-1' } })
       )
     })
 
