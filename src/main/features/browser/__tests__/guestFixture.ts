@@ -46,6 +46,14 @@ export function createGuest(id = 1) {
     getURL: vi.fn(() => 'https://example.com'),
     close: vi.fn(() => {
       destroyed = true
+      for (const property of ['session', 'debugger']) {
+        Object.defineProperty(mock, property, {
+          configurable: true,
+          get: () => {
+            throw new TypeError('Object has been destroyed')
+          }
+        })
+      }
       events.emit('destroyed')
     })
   })
