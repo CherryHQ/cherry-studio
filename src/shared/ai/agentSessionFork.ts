@@ -24,6 +24,7 @@ export const AGENT_SESSION_FORK_FAILURE_REASONS = [
   'workspace_unsupported_file',
   'source_missing',
   'source_changed',
+  'cancelled',
   'operation_failed'
 ] as const
 

@@ -34,7 +34,7 @@ import { AgentSessionForkOperations } from '@main/ai/agentSession/AgentSessionFo
 import { forkFileIdentity } from '@main/ai/agentSession/forkFiles'
 import { buildForkHistory } from '@main/ai/agentSession/forkHistory'
 import { ForkContextPreparer, prepareForkContext } from '@main/ai/agentSession/prepareForkContext'
-import { AgentSessionForkError } from '@main/ai/runtime/forkCheckpoint'
+import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/forkCheckpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 
@@ -648,6 +648,9 @@ describe('AgentSessionMessageService', () => {
       'rebuilds a %s child and grandchild without parent history or execution state',
       async (type) => {
         const directory = await mkdtemp(path.join(tmpdir(), 'cherry-fork-history-'))
+        const preferences = application.get('PreferenceService')
+        const originalLanguage = preferences.get('app.language')
+        await preferences.set('app.language', 'zh-CN')
         const originalGetPath = application.getPath.bind(application)
         vi.spyOn(application, 'getPath').mockImplementation((key, ...args) =>
           key === 'feature.agents.forks' ? directory : originalGetPath(key, ...args)
@@ -723,7 +726,10 @@ describe('AgentSessionMessageService', () => {
           expect(JSON.stringify(history)).not.toContain('excluded violet')
           expect(JSON.stringify(history)).not.toContain('must-not-inherit')
           expect(history[0]).toMatchObject({ runtimeResumeToken: null, delivery: null, stats: null })
-          expect(history[0].data.parts?.[1]).toMatchObject({ state: 'output-error' })
+          expect(history[0].data.parts?.[1]).toMatchObject({
+            state: 'output-error',
+            errorText: '此分叉会话未继承原来的执行状态。'
+          })
           const grandchildId = await operations.fork(childId, history[0].id, true)
           expect(agentSessionService.getById(grandchildId).name).toBe('Source (3)')
           agentSessionService.deleteTx(dbh.db, sourceId)
@@ -733,9 +739,22 @@ describe('AgentSessionMessageService', () => {
             text: 'included amber'
           })
 
-          if (type === 'pi') {
+          {
             const grandchildMessage = agentSessionMessageService.getForkHistory(grandchildId)![0]
-            const checkpoint = { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' }
+            const checkpoint =
+              type === 'pi'
+                ? { runtime: type, runtimeSessionId: 'native', leafId: 'leaf' }
+                : type === 'claude-code'
+                  ? {
+                      runtime: type,
+                      runtimeSessionId: 'native',
+                      messageUuid: randomUUID(),
+                      configDir: directory,
+                      sourceCwd: directory,
+                      prefixBytes: 1,
+                      prefixHash: 'a'.repeat(64)
+                    }
+                  : { runtime: type, runtimeSessionId: 'native', boundary: 7, prefixHash: 'a'.repeat(64) }
             dbh.db
               .update(agentSessionMessageTable)
               .set({
@@ -743,16 +762,24 @@ describe('AgentSessionMessageService', () => {
               })
               .where(eq(agentSessionMessageTable.id, grandchildMessage.id))
               .run()
-            const fallbackId = await operations.fork(grandchildId, grandchildMessage.id, true)
-            expect(fork).toHaveBeenCalledOnce()
+            for (const error of [
+              new AgentSessionForkError('history_missing'),
+              new Error('Fork worker timed out'),
+              new AgentSessionForkError('unrecognized SDK failure')
+            ]) {
+              fork.mockRejectedValue(error)
+              const fallbackId = await operations.fork(grandchildId, grandchildMessage.id, true)
+              const fallbackHistory = agentSessionMessageService.getForkHistory(fallbackId)!
+              expect(fallbackHistory).toHaveLength(1)
+              expect(fallbackHistory[0]).toMatchObject({ runtimeResumeToken: null, delivery: null, stats: null })
+              expect(fallbackHistory[0].data.parts?.[0]).toEqual({ type: 'text', text: 'included amber' })
+              expect(JSON.stringify(fallbackHistory)).not.toContain('excluded violet')
+            }
+            expect(fork).toHaveBeenCalledTimes(3)
             expect(agentSessionMessageService.getForkHistory(grandchildId)![0].runtimeForkState).toEqual({
               version: 1,
               status: 'available',
               checkpoint
-            })
-            expect(agentSessionMessageService.getForkHistory(fallbackId)?.[0].data.parts?.[0]).toEqual({
-              type: 'text',
-              text: 'included amber'
             })
             fork.mockResolvedValue({
               resumeToken: 'native-child',
@@ -764,13 +791,105 @@ describe('AgentSessionMessageService', () => {
             expect(agentSessionMessageService.getLastRuntimeResumeToken(nativeId)).toBe('native-child')
             fork.mockRejectedValue(new Error('disk full'))
             await expect(operations.fork(grandchildId, grandchildMessage.id)).rejects.toThrow('disk full')
+
+            const started = Promise.withResolvers<void>()
+            fork.mockImplementation(
+              ({ signal }: RuntimeForkInput) =>
+                new Promise((_resolve, reject) => {
+                  signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+                  started.resolve()
+                })
+            )
+            const countBeforeCancel = dbh.db.select().from(agentSessionTable).all().length
+            const pending = operations.fork(grandchildId, grandchildMessage.id, true)
+            const assertion = expect(pending).rejects.toMatchObject({ reason: 'cancelled' })
+            await started.promise
+            await operations.cancel(grandchildId)
+            await assertion
+            expect(agentSessionMessageService.getForkHistory(grandchildId)![0].runtimeForkState).toMatchObject({
+              status: 'available',
+              checkpoint
+            })
+            expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(countBeforeCancel)
+            const queued = operations.fork(grandchildId, grandchildMessage.id, true)
+            const queuedAssertion = expect(queued).rejects.toMatchObject({ reason: 'cancelled' })
+            await operations.cancel(grandchildId)
+            await queuedAssertion
+            expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(countBeforeCancel)
           }
         } finally {
           runtimeDriverRegistry.clearForTest()
+          await preferences.set('app.language', originalLanguage)
           await rm(directory, { recursive: true, force: true })
         }
       }
     )
+
+    it('rebuilds legacy DSH checkpoints without losing their excluded input IDs', async () => {
+      const directory = await mkdtemp(path.join(tmpdir(), 'cherry-fork-legacy-'))
+      const originalGetPath = application.getPath.bind(application)
+      vi.spyOn(application, 'getPath').mockImplementation((key, ...args) =>
+        key === 'feature.agents.forks' ? directory : originalGetPath(key, ...args)
+      )
+      const fork = vi.fn()
+      runtimeDriverRegistry.register({
+        type: 'dsh',
+        capabilities: ['agent-session'],
+        fork,
+        connect: vi.fn(),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn()
+      })
+      try {
+        await seedAgent('legacy-agent', 'Legacy Agent')
+        dbh.db.update(agentTable).set({ type: 'dsh' }).where(eq(agentTable.id, 'legacy-agent')).run()
+        const sourceId = randomUUID()
+        await seedSession({ id: sourceId, agentId: 'legacy-agent', name: 'Legacy', orderKey: 'legacy-order' })
+        const excluded = agentSessionMessageService.saveMessage({
+          sessionId: sourceId,
+          message: {
+            id: randomUUID(),
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'future input already delivered in the parent' }] }
+          }
+        })
+        const selected = agentSessionMessageService.saveMessage({
+          sessionId: sourceId,
+          message: {
+            id: randomUUID(),
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'safe completed answer' }] }
+          }
+        })
+        // Previously persisted records have no prefix fingerprint.
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({
+            runtimeForkState: {
+              version: 1,
+              status: 'available',
+              checkpoint: { runtime: 'dsh', runtimeSessionId: 'native', boundary: 7 },
+              excludedMessageIds: [excluded.id]
+            }
+          })
+          .where(eq(agentSessionMessageTable.id, selected.id))
+          .run()
+        const operations = new AgentSessionForkOperations()
+        await expect(operations.fork(sourceId, selected.id)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+        const child = await operations.fork(sourceId, selected.id, true)
+        const history = agentSessionMessageService.getForkHistory(child)!
+        expect(fork).not.toHaveBeenCalled()
+        expect(history).toHaveLength(1)
+        expect(history[0].data.parts).toEqual([{ type: 'text', text: 'safe completed answer' }])
+        const grandchild = await operations.fork(child, history[0].id, true)
+        expect(agentSessionMessageService.getForkHistory(grandchild)?.[0].data.parts).toEqual(history[0].data.parts)
+      } finally {
+        runtimeDriverRegistry.clearForTest()
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
 
     it('keeps native checkpoints private and invalidates a selected history after edits', () => {
       const saved = agentSessionMessageService.saveMessage({

@@ -14,8 +14,21 @@ export const RuntimeForkCheckpointSchema = z.discriminatedUnion('runtime', [
     prefixBytes: z.number().int().positive(),
     prefixHash: z.string().regex(/^[a-f0-9]{64}$/)
   }),
-  z.strictObject({ runtime: z.literal('dsh'), ...identity, boundary: z.number().int().nonnegative() })
+  z.strictObject({
+    runtime: z.literal('dsh'),
+    ...identity,
+    boundary: z.number().int().nonnegative(),
+    prefixHash: z.string().regex(/^[a-f0-9]{64}$/)
+  })
 ])
+
+// Exclusions remain authoritative even when a native checkpoint format is no longer supported.
+export const RuntimeForkMetadataSchema = z.object({
+  version: z.literal(1),
+  status: z.literal('available'),
+  checkpoint: z.unknown(),
+  excludedMessageIds: z.array(z.string()).optional()
+})
 
 export const RuntimeForkStateSchema = z.discriminatedUnion('status', [
   z.strictObject({

@@ -39,7 +39,7 @@ User-owned files named `.claude` are not excluded.
 | --- | --- | --- |
 | Pi | Native session ID and settled prompt leaf ID | Copy complete native log, open an independent manager, branch only that manager; retain its parent snapshot |
 | Claude | Final main-thread assistant UUID, fixed prefix byte count and SHA-256, explicit configuration directory/cwd | Private worker SessionStore, unchanged source UUIDs, one SDK forkSession call, inherited checkpoints mapped using forkedFrom |
-| DSH | Native session ID and exact turn/end seq | Live snapshotEvents or cold SDK persisted log; public seeded session creation in an isolated context without an Agent loop |
+| DSH | Native session ID, exact turn/end seq and SHA-256 of the canonical event prefix | Verify the prefix from live snapshotEvents or cold SDK persisted log; public seeded session creation in an isolated context without an Agent loop |
 
 DSH seed ownership excludes inherited Inbox items from own events; the durable
 end-seed record establishes that boundary. The fork also calls public Inbox.clear.
@@ -60,12 +60,14 @@ messages; this is history reconstruction, not native restoration.
 
 ## History reconstruction
 
-Main first attempts a native fork without permission to rebuild history. Valid
-checkpoints fork directly without a dialog. Legacy, failed, missing, corrupt or
-unsupported checkpoints automatically retry with history reconstruction, without
-a confirmation dialog. Incomplete turns and workspace errors do not offer
-reconstruction. Requests with different reconstruction permissions never share
-an in-flight result.
+The renderer makes one request with `allowHistoryRebuild: true`. Main first tries
+a valid native checkpoint, then reconstructs history within the same operation
+if the native history or SDK preparation is unavailable. There is no second IPC
+request or confirmation dialog, and a transient native failure does not persistently
+disable the source checkpoint. Incomplete turns, cancellation, source changes and
+workspace/publication errors still stop the operation. Explicit native-only callers
+do not fall back, and requests with different reconstruction permissions never
+share an in-flight result.
 The child keeps its own full UI prefix and no inherited resume token. UI messages
 are **not** the model context. Migration 0022 adds an owned context document;
 legacy children lazily create it from their own saved prefix. `buildForkHistory`
@@ -161,11 +163,17 @@ preserved segments, replacements and a non-default configuration directory.
 Verify the destination project namespace matches the target workspace.
 Exercise forks through the registered lazy driver, not only a directly constructed
 Claude driver: an available checkpoint must reach the SDK without opening an
-Agent connection, and cancellation and native errors must propagate unchanged.
+Agent connection. Native-only callers receive native errors unchanged; callers
+allowing reconstruction recover from ordinary SDK failures. Cancellation must
+propagate as `cancelled`, never be retried or reported as missing history.
 
 DSH: remove or stale the projection cache before a cold fork. Confirm the
 recorded seq is used exactly, pending Inbox input is absent, goals do not activate,
 and tool cwd/session IDs point to the child after the first real resume.
+Replace a native log with different events at the same session ID and boundary:
+both live and cold forks must reject the native prefix. Normal later appends must
+remain valid. Verify inherited checkpoints through child and grandchild forks;
+old checkpoints without a prefix hash reconstruct rather than trusting a seq alone.
 While a source SDK write is still holding its target lock, execute the child's
 native read and create-file tools in its own workspace. Both must succeed under
 the child's policy, and the source write must finish independently. Also verify
@@ -239,7 +247,8 @@ pnpm --filter @cherrystudio/dsh-bridge test
 pnpm test:main src/main/ai/runtime/dsh/__tests__/DshBridgeServer.test.ts src/main/ai/runtime/dsh/__tests__/DshRuntimeConnection.trace.test.ts
 pnpm test:main src/main/data/services/__tests__/AgentSessionMessageService.test.ts src/main/ai/agentSession/persistence/__tests__/AgentSessionMessageBackend.test.ts
 pnpm exec vitest run --project main src/main/ai/runtime/__tests__/registerDrivers.test.ts src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts
-pnpm test:renderer src/renderer/components/chat/messages/frame/__tests__/messageMenuBarActions.test.tsx
+pnpm test:main src/main/ipc/handlers/__tests__/ai.test.ts
+pnpm test:renderer src/renderer/components/chat/messages/frame/__tests__/messageMenuBarActions.test.tsx src/renderer/pages/agents/messages/__tests__/agentMessageListAdapter.test.tsx
 pnpm lint
 pnpm db:migrations:check
 pnpm docs:check

@@ -7,13 +7,14 @@ import { resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../forkCheckpoint'
 import { runForkWorker } from '../runForkWorker'
 
-export function readDshForkContext(events: unknown[], boundary: number) {
+export function readDshForkContext(events: unknown[], boundary: number, prefixHash: string) {
   return runForkWorker<{ identity: string; messages: unknown[] } | undefined>(
     {
       runtime: 'dsh-context',
       modulePath: pathToFileURL(resolveBundledDshRuntimeEntry('@cherrystudio/dsh-bridge/fork')).href,
       events,
-      boundary
+      boundary,
+      prefixHash
     },
     AbortSignal.timeout(10_000)
   )
@@ -24,6 +25,15 @@ export async function forkDshSession(input: RuntimeForkInput, snapshotEvents?: u
   if (checkpoint.runtime !== 'dsh') throw new AgentSessionForkError('unsupported_checkpoint')
   const sourceRoot = application.getPath('feature.agents.dsh.sessions')
   const targetRoot = path.join(input.artifactDirectory, 'dsh')
+  const checkpoints = input.checkpoints.map((value) => {
+    if (
+      value.runtime !== 'dsh' ||
+      value.boundary > checkpoint.boundary ||
+      value.runtimeSessionId !== checkpoint.runtimeSessionId
+    )
+      throw new AgentSessionForkError('history_changed')
+    return value
+  })
   const result = await runForkWorker<{ path: string }>(
     {
       runtime: 'dsh',
@@ -34,6 +44,8 @@ export async function forkDshSession(input: RuntimeForkInput, snapshotEvents?: u
       targetSessionId: input.targetSessionId,
       targetCwd: input.targetCwd,
       boundary: checkpoint.boundary,
+      prefixHash: checkpoint.prefixHash,
+      checkpoints: checkpoints.map(({ boundary, prefixHash }) => ({ boundary, prefixHash })),
       events: snapshotEvents
     },
     input.signal
@@ -42,15 +54,7 @@ export async function forkDshSession(input: RuntimeForkInput, snapshotEvents?: u
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Invalid DSH artifact path')
   return {
     resumeToken: input.targetSessionId,
-    checkpoints: input.checkpoints.map((value) => {
-      if (
-        value.runtime !== 'dsh' ||
-        value.boundary > checkpoint.boundary ||
-        value.runtimeSessionId !== checkpoint.runtimeSessionId
-      )
-        throw new AgentSessionForkError('history_changed')
-      return { ...value, runtimeSessionId: input.targetSessionId }
-    }),
+    checkpoints: checkpoints.map((value) => ({ ...value, runtimeSessionId: input.targetSessionId })),
     publish: [{ source: result.path, target: path.join(sourceRoot, relative) }]
   }
 }

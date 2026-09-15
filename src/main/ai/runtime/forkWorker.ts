@@ -13,6 +13,7 @@ export type ForkWorkerInput =
       modulePath: string
       events: unknown[]
       boundary: number
+      prefixHash: string
     }
   | {
       runtime: 'claude-code'
@@ -32,6 +33,8 @@ export type ForkWorkerInput =
       targetSessionId: string
       targetCwd: string
       boundary: number
+      prefixHash: string
+      checkpoints: Array<{ boundary: number; prefixHash: string }>
       events?: unknown[]
     }
 

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import { Context } from '@deepseek-ai/cordis'
 import { Inbox } from '@deepseek-ai/dsh-agent'
 import {
@@ -18,18 +20,39 @@ export interface DshForkInput {
   targetSessionId: string
   targetCwd: string
   boundary: number
+  prefixHash: string
+  checkpoints: Array<{ boundary: number; prefixHash: string }>
   events?: unknown[]
 }
 
-export function readForkContext(input: { events: SessionEvent[]; boundary: number }) {
-  const events = input.events.slice(0, input.boundary + 1)
+export function createForkCheckpoint(events: readonly SessionEvent[], boundary: number) {
+  const prefix = events.slice(0, boundary + 1)
   if (
-    events.length !== input.boundary + 1 ||
-    events.at(-1)?.type !== 'turn/end' ||
-    events.at(-1)?.seq !== input.boundary ||
-    interruptedTurnClosers(events).length
+    !Number.isSafeInteger(boundary) ||
+    boundary < 0 ||
+    prefix.length !== boundary + 1 ||
+    prefix.at(-1)?.type !== 'turn/end' ||
+    prefix.at(-1)?.seq !== boundary
   )
+    throw new Error('history_changed')
+  if (prefix.some((event, index) => event.seq !== index) || interruptedTurnClosers(prefix).length)
     throw new Error('history_corrupt')
+  // Canonical keys make live snapshots and decoded JSONL independent of object insertion order.
+  const canonical = JSON.stringify(prefix, (_key, value) =>
+    value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(
+          Object.keys(value)
+            .sort()
+            .map((key) => [key, value[key]])
+        )
+      : value
+  )
+  return { boundary, prefixHash: createHash('sha256').update(canonical).digest('hex') }
+}
+
+export function readForkContext(input: { events: SessionEvent[]; boundary: number; prefixHash: string }) {
+  const events = input.events.slice(0, input.boundary + 1)
+  if (createForkCheckpoint(events, input.boundary).prefixHash !== input.prefixHash) throw new Error('history_changed')
   const surface = foldSurface(events)
   if (!surface.replacements.length) return undefined
   return {
@@ -55,13 +78,11 @@ export async function forkSession(input: DshForkInput): Promise<{ path: string }
       : await (source.sessionPersistence as JsonlSessionPersistence).loadStored(SessionId(input.sourceSessionId))
     const events = (input.events ?? stored?.events)?.slice(0, input.boundary + 1) as SessionEvent[] | undefined
     if (!events) throw new Error('history_missing')
-    if (
-      events.length !== input.boundary + 1 ||
-      events.at(-1)?.seq !== input.boundary ||
-      events.at(-1)?.type !== 'turn/end'
-    )
-      throw new Error('history_changed')
-    if (interruptedTurnClosers(events).length) throw new Error('history_corrupt')
+    if (createForkCheckpoint(events, input.boundary).prefixHash !== input.prefixHash) throw new Error('history_changed')
+    for (const checkpoint of input.checkpoints) {
+      if (createForkCheckpoint(events, checkpoint.boundary).prefixHash !== checkpoint.prefixHash)
+        throw new Error('history_changed')
+    }
     // SessionStore validates and owns a detached copy of the full event graph.
     const child = target.sessions.create(SessionId(input.targetSessionId), {
       seed: events,
@@ -69,6 +90,8 @@ export async function forkSession(input: DshForkInput): Promise<{ path: string }
       meta: { cwd: input.targetCwd, parentSession: SessionId(input.sourceSessionId), isSeeded: true }
     })
     const inbox = new Inbox(child, { inserted() {}, discarded() {}, claimed() {} })
+    if (createForkCheckpoint(child.snapshotEvents(), input.boundary).prefixHash !== input.prefixHash)
+      throw new Error('history_corrupt')
     // 0.1.2's durable end-seed marker already excludes inherited inbox events.
     // Also clear any child-owned setup input through the public mutation API.
     inbox.clear()

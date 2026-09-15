@@ -2,7 +2,7 @@
 title: Independent Agent session forks
 category: changed
 severity: notice
-introduced_in_pr: #20340
+introduced_in_pr: 20340
 date: 2026-09-10
 ---
 
@@ -71,4 +71,6 @@ of creating an empty conversation or injecting history again.
 
 Journal v2 coordinates cleanup with workspace registration. Adopted copied
 directories are retained permanently; uncertain ownership and legacy cleanup
-records preserve files. No new SQL table or change to a released migration is required.
+records preserve files. This hardening reuses the context table added by migration
+0022 and upgrades its JSON records; it adds no further SQL migration and does not
+rewrite any released migration.

@@ -9,3 +9,6 @@ export const agentSessionForkContextTable = sqliteTable('agent_session_fork_cont
   revision: integer().notNull().default(0),
   document: text({ mode: 'json' }).$type<unknown>().notNull()
 })
+
+export type AgentSessionForkContextRow = typeof agentSessionForkContextTable.$inferSelect
+export type InsertAgentSessionForkContextRow = typeof agentSessionForkContextTable.$inferInsert

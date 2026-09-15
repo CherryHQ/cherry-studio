@@ -43,7 +43,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
-import type { RuntimeForkCheckpoint } from '../forkCheckpoint'
+import { FORK_CHECKPOINT_FAILED, type RuntimeForkCheckpoint, RuntimeForkStateSchema } from '../forkCheckpoint'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -106,13 +106,16 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     source: BridgeEventSource
   }> = []
   private readonly committedInvocationIds = new Set<string>()
+  private pendingTurnEnd?: Promise<void>
   private readonly adapter = new DshStreamAdapter({
     enqueue: (chunk) => {
       this.subagents.noteMainChunk(chunk)
       this.eventQueue.push({ type: 'chunk', chunk })
     },
     onAssistantUsage: (info) => this.recordProviderInvocation(info),
-    onTurnEnd: (reason, boundary) => this.handleTurnEnd(reason, boundary),
+    onTurnEnd: (reason, boundary) => {
+      this.pendingTurnEnd = this.handleTurnEnd(reason, boundary)
+    },
     onCompaction: (event) => this.eventQueue.push(event),
     onApiRetry: (retry) => this.eventQueue.push({ type: 'api-retry', retry }),
     onAutonomousTurnState: (event) => {
@@ -477,7 +480,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   async readForkContext(checkpoint: RuntimeForkCheckpoint) {
     if (checkpoint.runtime !== 'dsh' || checkpoint.runtimeSessionId !== this.resumeToken) return undefined
-    return readDshForkContext(await this.snapshotForFork(checkpoint.boundary), checkpoint.boundary)
+    return readDshForkContext(
+      await this.snapshotForFork(checkpoint.boundary),
+      checkpoint.boundary,
+      checkpoint.prefixHash
+    )
   }
 
   async send(input: Parameters<AgentRuntimeConnection['send']>[0]): Promise<void> {
@@ -779,6 +786,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         } else {
           this.traceRecorder?.handleEvent(event)
           this.adapter.handleEvent(event)
+          // Preserve turn order while capturing the exact completed prefix.
+          await this.pendingTurnEnd
+          this.pendingTurnEnd = undefined
         }
         this.sessionEventSeqs.set(params.sessionId, event.seq)
         for (const pending of this.pendingBridgeEvents.splice(0)) {
@@ -832,28 +842,41 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-end', id } })
   }
 
-  private handleTurnEnd(reason: TurnEndReason, boundary?: number): void {
+  private async handleTurnEnd(reason: TurnEndReason, boundary?: number): Promise<void> {
     if (this.closed) return
     this.turnActive = false
     switch (reason.kind) {
       case 'completed':
-      case 'max-tokens':
-        this.eventQueue.push({
-          type: 'turn-complete',
-          forkState:
-            boundary !== undefined
-              ? {
-                  version: 1,
-                  status: 'available',
-                  checkpoint: {
-                    runtime: 'dsh',
-                    runtimeSessionId: this.input.sessionId,
-                    boundary
-                  }
-                }
-              : { version: 1, status: 'unavailable', reason: 'checkpoint_failed' }
-        })
+      case 'max-tokens': {
+        let forkState = FORK_CHECKPOINT_FAILED
+        try {
+          if (boundary !== undefined && this.bridge) {
+            const captured = await this.bridge.request(
+              'session/fork-checkpoint',
+              {
+                sessionId: this.input.sessionId,
+                boundary
+              },
+              { timeoutMs: 10_000 }
+            )
+            if (captured.boundary !== boundary) throw new Error('history_changed')
+            forkState = RuntimeForkStateSchema.parse({
+              version: 1,
+              status: 'available',
+              checkpoint: {
+                runtime: 'dsh',
+                runtimeSessionId: this.input.sessionId,
+                boundary,
+                prefixHash: captured.prefixHash
+              }
+            })
+          }
+        } catch (error) {
+          logger.warn('DSH fork checkpoint capture failed', { sessionId: this.input.sessionId, boundary, error })
+        }
+        if (!this.closed) this.eventQueue.push({ type: 'turn-complete', forkState })
         return
+      }
       case 'aborted':
       case 'interrupted':
         // Arrives only during teardown/cancel — the host is already settling this turn.

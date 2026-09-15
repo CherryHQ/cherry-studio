@@ -9,11 +9,13 @@ import { AgentSessionForkJournalSchema } from '@data/services/agentSessionForkJo
 import { type AgentSessionForkJournal, agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
-import { canRebuildAgentSessionFork } from '@shared/ai/agentSessionFork'
+import { t } from '@main/i18n'
+import { canRebuildAgentSessionFork, isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 
 import {
   AgentSessionForkError,
   type RuntimeForkCheckpoint,
+  RuntimeForkMetadataSchema,
   type RuntimeForkResult,
   RuntimeForkStateSchema
 } from '../runtime/forkCheckpoint'
@@ -57,7 +59,7 @@ export class AgentSessionForkOperations {
     const operations = [...this.pending.values()].filter(
       (value) => !sourceSessionId || value.sourceSessionId === sourceSessionId
     )
-    for (const operation of operations) operation.controller.abort(new AgentSessionForkError('history_missing'))
+    for (const operation of operations) operation.controller.abort(new AgentSessionForkError('cancelled'))
     await Promise.allSettled(operations.map((value) => value.promise))
   }
 
@@ -93,6 +95,7 @@ export class AgentSessionForkOperations {
     signal: AbortSignal,
     allowHistoryRebuild: boolean
   ): Promise<string> {
+    signal.throwIfAborted()
     const preliminary = agentSessionForkService.read(sourceSessionId, messageId)
     const selected = preliminary.messages.at(-1)!
     const state = RuntimeForkStateSchema.safeParse(selected.runtimeForkState)
@@ -108,7 +111,7 @@ export class AgentSessionForkOperations {
       )
     const excludedIds = [
       ...new Set([
-        ...(nativeState?.excludedMessageIds ?? []),
+        ...(RuntimeForkMetadataSchema.safeParse(selected.runtimeForkState).data?.excludedMessageIds ?? []),
         ...preliminary.messages
           .filter(
             (row) =>
@@ -183,15 +186,14 @@ export class AgentSessionForkOperations {
           })
           if (result.checkpoints.length !== checkpoints.length) throw new AgentSessionForkError('history_corrupt')
         } catch (error) {
-          if (
-            !allowHistoryRebuild ||
-            signal.aborted ||
-            !(error instanceof AgentSessionForkError) ||
-            !canRebuildAgentSessionFork(error.reason)
-          )
-            throw error
+          signal.throwIfAborted()
+          const reason =
+            error instanceof AgentSessionForkError && isAgentSessionForkFailureReason(error.reason)
+              ? error.reason
+              : 'checkpoint_failed'
+          if (!allowHistoryRebuild || !canRebuildAgentSessionFork(reason)) throw error
           result = undefined
-          logger.info('Rebuilding fork from message history', { operationId, reason: error.reason })
+          logger.info('Rebuilding fork from message history', { operationId, reason })
         }
       }
       signal.throwIfAborted()
@@ -325,6 +327,7 @@ function cloneMessages(
   let checkpointIndex = 0
   return rows.map((row) => {
     const state = RuntimeForkStateSchema.safeParse(row.runtimeForkState)
+    const metadata = RuntimeForkMetadataSchema.safeParse(row.runtimeForkState)
     const forkState = !resumeToken
       ? state.success && state.data.status === 'unavailable' && state.data.reason === 'not_turn_boundary'
         ? state.data
@@ -335,7 +338,12 @@ function cloneMessages(
             checkpoint: checkpoints[checkpointIndex++],
             excludedMessageIds: state.data.excludedMessageIds?.flatMap((id) => (ids.has(id) ? [ids.get(id)!] : []))
           }
-        : row.runtimeForkState
+        : metadata.success
+          ? {
+              ...metadata.data,
+              excludedMessageIds: metadata.data.excludedMessageIds?.flatMap((id) => (ids.has(id) ? [ids.get(id)!] : []))
+            }
+          : row.runtimeForkState
     const data = structuredClone(row.data)
     // Task events are live execution registries, not conversation content.
     data.parts = data.parts
@@ -358,7 +366,7 @@ function cloneMessages(
             toolCallId: part.toolCallId,
             input: part.input,
             state: 'output-error' as const,
-            errorText: 'Execution was not inherited by this session fork.'
+            errorText: t('agent.session.fork.execution_not_inherited')
           }
           return part.type === 'dynamic-tool'
             ? { ...interrupted, type: part.type, toolName: part.toolName }

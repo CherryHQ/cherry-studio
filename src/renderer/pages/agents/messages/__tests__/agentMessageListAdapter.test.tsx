@@ -206,7 +206,7 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
-  it.each(['success', 'workspace_changed', 'checkpoint_failed'] as const)(
+  it.each(['success', 'workspace_changed', 'checkpoint_failed', 'cancelled'] as const)(
     'makes one native-first fork request without a confirmation or renderer retry: %s',
     async (scenario) => {
       let value: MessageListProviderValue | undefined
@@ -270,7 +270,8 @@ describe('useAgentMessageListProviderValue', () => {
       expect(capability.availability({ ...selectedMessage, status: 'pending' })).toMatchObject({ enabled: false })
       expect(capability.availability({ ...selectedMessage, role: 'user' })).toBe(false)
       const action = value!.actions.forkSession!.run('selected-message')
-      if (scenario !== 'success') await expect(action).rejects.toThrow()
+      if (scenario === 'cancelled') await expect(action).rejects.toThrow('message.tools.cancelled')
+      else if (scenario !== 'success') await expect(action).rejects.toThrow()
       else await action
       expect(ipcApiRequest).toHaveBeenNthCalledWith(1, 'ai.agent.session.fork', {
         sourceSessionId: 'source',

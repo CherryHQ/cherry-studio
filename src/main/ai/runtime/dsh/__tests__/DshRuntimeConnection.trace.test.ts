@@ -225,6 +225,71 @@ afterEach(() => {
 })
 
 describe('DshRuntimeConnection tracing', () => {
+  it.each(['valid', 'failed', 'mismatched-boundary'])(
+    'captures a verified checkpoint before the next turn (%s)',
+    async (outcome) => {
+      const connection = await new DshRuntimeConnection(connectInput).start()
+      const events: AgentRuntimeEvent[] = []
+      const consume = (async () => {
+        for await (const event of connection.events) events.push(event)
+      })()
+      await connection.send({ message: {} } as never)
+      const captured = Promise.withResolvers<{ boundary: number; prefixHash: string }>()
+      runtimeMocks.bridgeRequest.mockImplementation((method) =>
+        method === 'session/fork-checkpoint' ? captured.promise : Promise.resolve(undefined)
+      )
+      try {
+        subscription.push({
+          method: 'session.event',
+          params: {
+            sessionId: 'session-1',
+            event: { type: 'turn/end', seq: 7, time: 0, data: { turn: 0, reason: { kind: 'completed' } } }
+          }
+        })
+        subscription.push({
+          method: 'session.event',
+          params: {
+            sessionId: 'session-1',
+            event: { type: 'step/start', seq: 8, time: 0, data: { turn: 1, step: 1 } }
+          }
+        })
+        await vi.waitFor(() =>
+          expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
+            'session/fork-checkpoint',
+            { sessionId: 'session-1', boundary: 7 },
+            { timeoutMs: 10_000 }
+          )
+        )
+        expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
+        expect(spans).toHaveLength(0)
+        if (outcome === 'failed') captured.reject(new Error('checkpoint unavailable'))
+        else captured.resolve({ boundary: outcome === 'valid' ? 7 : 9, prefixHash: 'a'.repeat(64) })
+        await vi.waitFor(() =>
+          expect(events.find((event) => event.type === 'turn-complete')).toMatchObject({
+            forkState:
+              outcome === 'valid'
+                ? {
+                    status: 'available',
+                    checkpoint: {
+                      runtime: 'dsh',
+                      runtimeSessionId: 'session-1',
+                      boundary: 7,
+                      prefixHash: 'a'.repeat(64)
+                    }
+                  }
+                : { status: 'unavailable', reason: 'checkpoint_failed' }
+          })
+        )
+        expect(events.some((event) => event.type === 'error')).toBe(false)
+        await vi.waitFor(() => expect(spans).toHaveLength(1))
+      } finally {
+        captured.resolve({ boundary: 7, prefixHash: 'a'.repeat(64) })
+        await connection.close()
+        await consume
+      }
+    }
+  )
+
   it.each([
     ['DSH connection is closed', 'checkpoint_failed'],
     ['session/fork-snapshot timed out after 60000ms', 'checkpoint_failed'],
@@ -233,7 +298,12 @@ describe('DshRuntimeConnection tracing', () => {
   ])('classifies a live snapshot failure for history reconstruction: %s', async (message, reason) => {
     const driver = new DshRuntimeDriver()
     const connection = await driver.connect(connectInput)
-    const checkpoint = { runtime: 'dsh' as const, runtimeSessionId: 'session-1', boundary: 7 }
+    const checkpoint = {
+      runtime: 'dsh' as const,
+      runtimeSessionId: 'session-1',
+      boundary: 7,
+      prefixHash: 'a'.repeat(64)
+    }
     const controller = new AbortController()
     const input: RuntimeForkInput = {
       sourceSessionId: 'session-1',

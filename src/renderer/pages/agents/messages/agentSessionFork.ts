@@ -21,6 +21,8 @@ export function agentSessionForkAvailability(t: TFunction, message: MessageListI
 /** Static keys keep all unavailable states visible to the translation tooling. */
 export function agentSessionForkReasonLabel(t: TFunction, reason: AgentSessionForkFailureReason): string {
   switch (reason) {
+    case 'cancelled':
+      return t('message.tools.cancelled')
     case 'legacy_history':
       return t('agent_session_fork.legacy_history')
     case 'not_turn_boundary':

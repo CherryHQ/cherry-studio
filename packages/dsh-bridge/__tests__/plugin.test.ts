@@ -18,7 +18,7 @@ import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-app
 import type { AskUserQuestionAnswer, AskUserQuestionRequest } from '@deepseek-ai/dsh-user-questions'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { forkSession } from '../src/fork'
+import { createForkCheckpoint, forkSession, readForkContext } from '../src/fork'
 import { apply } from '../src/plugin'
 import { BRIDGE_SOCKET_ENV, BRIDGE_TOKEN_ENV, type BridgePermissionMode } from '../src/protocol'
 
@@ -129,6 +129,15 @@ describe('cherry bridge plugin', () => {
     apply(ctx)
     await expect.poll(() => host.requests[0]?.method).toBe('ready')
     const expected = sourceEvents.slice(0, end.seq + 1)
+    const checkpoint = createForkCheckpoint(expected, end.seq)
+    await expect(
+      host.request('session/fork-checkpoint', { sessionId: 'session-1', boundary: end.seq })
+    ).resolves.toEqual(checkpoint)
+    const reordered = expected.map(({ data, ...event }) => ({ data, ...event }))
+    expect(createForkCheckpoint(reordered, end.seq)).toEqual(checkpoint)
+    await expect(
+      host.request('session/fork-checkpoint', { sessionId: 'session-1', boundary: later.seq })
+    ).rejects.toThrow('history_changed')
     expect(interruptedTurnClosers(expected)).toEqual([])
     await expect(host.request('session/fork-snapshot', { sessionId: 'session-1', boundary: end.seq })).resolves.toEqual(
       {
@@ -170,61 +179,123 @@ describe('cherry bridge plugin', () => {
     await expect(host.request('session/open', { ...openParams, requireExistingHistory: false })).resolves.toEqual({})
     expect(create).toHaveBeenCalledOnce()
   })
-  it('cold-forks the exact persisted turn boundary through a child and grandchild without an Agent loop', async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-cold-fork-'))
-    cleanup.push(() => rm(directory, { recursive: true, force: true }))
-    const source = new Context()
-    const root = path.join(directory, 'source')
-    await source.plugin(SessionStore)
-    await source.plugin(JsonlSessionPersistence, { root })
-    const session = source.sessions.create(SessionId('source'), { meta: { cwd: directory } })
-    session.append('turn/start', { turn: 0 })
-    const end = session.append('turn/end', { turn: 0, reason: { kind: 'blocked' } })
-    session.append('turn/start', { turn: 1 })
-    await source.sessionPersistence.ensureMaterialized(session)
-    await source.sessions.flush(session)
-    await source.fiber.dispose()
-    let sourceRoot = root
-    let sourceId = 'source'
-    for (const targetSessionId of ['child', 'grandchild']) {
-      const targetRoot = path.join(directory, targetSessionId)
-      const targetCwd = path.join(directory, targetSessionId + '-cwd')
-      await expect(
-        forkSession({
+  it.each([false, true])(
+    'forks the verified prefix through a child and grandchild without an Agent loop (live=%s)',
+    async (live) => {
+      const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-cold-fork-'))
+      cleanup.push(() => rm(directory, { recursive: true, force: true }))
+      const source = new Context()
+      const root = path.join(directory, 'source')
+      await source.plugin(SessionStore)
+      await source.plugin(JsonlSessionPersistence, { root })
+      const session = source.sessions.create(SessionId('source'), { meta: { cwd: directory } })
+      session.append('turn/start', { turn: 0 })
+      const end = session.append('turn/end', { turn: 0, reason: { kind: 'blocked' } })
+      const checkpoint = createForkCheckpoint(session.snapshotEvents(), end.seq)
+      session.append('turn/start', { turn: 1 })
+      await source.sessionPersistence.ensureMaterialized(session)
+      await source.sessions.flush(session)
+      await source.fiber.dispose()
+      let sourceRoot = root
+      let sourceId = 'source'
+      let sourceEvents = session.snapshotEvents()
+      for (const targetSessionId of ['child', 'grandchild']) {
+        const targetRoot = path.join(directory, targetSessionId)
+        const targetCwd = path.join(directory, targetSessionId + '-cwd')
+        await expect(
+          forkSession({
+            sourceRoot,
+            targetRoot,
+            sourceSessionId: sourceId,
+            targetSessionId: 'bad',
+            targetCwd,
+            ...checkpoint,
+            checkpoints: [checkpoint],
+            events: live ? sourceEvents : undefined,
+            boundary: end.seq - 1
+          })
+        ).rejects.toThrow('history_changed')
+        await forkSession({
           sourceRoot,
           targetRoot,
           sourceSessionId: sourceId,
-          targetSessionId: 'bad',
+          targetSessionId,
           targetCwd,
-          boundary: end.seq - 1
+          ...checkpoint,
+          checkpoints: [checkpoint],
+          events: live ? sourceEvents : undefined
         })
-      ).rejects.toThrow('history_changed')
-      await forkSession({
+        await rm(sourceRoot, { recursive: true, force: true })
+        const reader = new Context()
+        try {
+          await reader.plugin(SessionStore)
+          await reader.plugin(JsonlSessionPersistence, { root: targetRoot })
+          const stored = await (reader.sessionPersistence as JsonlSessionPersistence).loadStored(
+            SessionId(targetSessionId)
+          )
+          expect(stored?.events).toHaveLength(end.seq + 2)
+          expect(stored?.events[end.seq]).toMatchObject({ type: 'turn/end', seq: end.seq })
+          expect(stored?.events.at(-1)).toMatchObject({ type: 'session/end-seed' })
+          expect(stored?.meta).toMatchObject({ id: targetSessionId, cwd: targetCwd, parentSession: sourceId })
+          expect(stored?.inheritedEventCount).toBe(end.seq + 1)
+          expect(createForkCheckpoint(stored!.events, end.seq)).toEqual(checkpoint)
+          sourceEvents = stored!.events
+        } finally {
+          await reader.fiber.dispose()
+        }
+        sourceRoot = targetRoot
+        sourceId = targetSessionId
+      }
+    }
+  )
+
+  it.each([false, true])('rejects replaced history with the same session ID and boundary (live=%s)', async (live) => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-replaced-'))
+    cleanup.push(() => rm(directory, { recursive: true, force: true }))
+    const source = new Context()
+    const replacement = new Context()
+    try {
+      await source.plugin(SessionStore)
+      const original = source.sessions.create(SessionId('same-id'))
+      original.append('turn/start', { turn: 0 })
+      const end = original.append('turn/end', { turn: 0, reason: { kind: 'blocked' } })
+      const checkpoint = createForkCheckpoint(original.snapshotEvents(), end.seq)
+      await replacement.plugin(SessionStore)
+      const sourceRoot = path.join(directory, 'source')
+      await replacement.plugin(JsonlSessionPersistence, { root: sourceRoot })
+      const recreated = replacement.sessions.create(SessionId('same-id'))
+      recreated.append('turn/start', { turn: 0 })
+      recreated.append('turn/end', { turn: 0, reason: { kind: 'completed' } })
+      await replacement.sessionPersistence.ensureMaterialized(recreated)
+      await replacement.sessions.flush(recreated)
+      const events = recreated.snapshotEvents()
+      const targetRoot = path.join(directory, 'child')
+      const input = {
         sourceRoot,
         targetRoot,
-        sourceSessionId: sourceId,
-        targetSessionId,
-        targetCwd,
-        boundary: end.seq
-      })
-      await rm(sourceRoot, { recursive: true, force: true })
+        sourceSessionId: 'same-id',
+        targetSessionId: 'child',
+        targetCwd: directory,
+        ...checkpoint,
+        checkpoints: [checkpoint],
+        events: live ? events : undefined
+      }
+      await expect(forkSession(input)).rejects.toThrow('history_changed')
+      expect(() => readForkContext({ events, ...checkpoint })).toThrow('history_changed')
+      const current = createForkCheckpoint(events, end.seq)
+      await expect(forkSession({ ...input, ...current })).rejects.toThrow('history_changed')
       const reader = new Context()
       try {
         await reader.plugin(SessionStore)
         await reader.plugin(JsonlSessionPersistence, { root: targetRoot })
-        const stored = await (reader.sessionPersistence as JsonlSessionPersistence).loadStored(
-          SessionId(targetSessionId)
-        )
-        expect(stored?.events).toHaveLength(end.seq + 2)
-        expect(stored?.events[end.seq]).toMatchObject({ type: 'turn/end', seq: end.seq })
-        expect(stored?.events.at(-1)).toMatchObject({ type: 'session/end-seed' })
-        expect(stored?.meta).toMatchObject({ id: targetSessionId, cwd: targetCwd, parentSession: sourceId })
-        expect(stored?.inheritedEventCount).toBe(end.seq + 1)
+        expect(
+          await (reader.sessionPersistence as JsonlSessionPersistence).loadStored(SessionId('child'))
+        ).toBeUndefined()
       } finally {
         await reader.fiber.dispose()
       }
-      sourceRoot = targetRoot
-      sourceId = targetSessionId
+    } finally {
+      await Promise.all([source.fiber.dispose(), replacement.fiber.dispose()])
     }
   })
   it.each(['write', 'edit'])(
