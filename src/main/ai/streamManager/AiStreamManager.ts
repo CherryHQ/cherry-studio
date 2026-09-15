@@ -1241,7 +1241,8 @@ export class AiStreamManager extends BaseService {
             if (replacementLoops.length === 0) return
 
             replacementLoops.forEach((loopPromise) => drainedLoops.add(loopPromise))
-            this.abort(topicId, reason)
+            // Nobody asked to stop this stream; it only appeared inside someone else's teardown.
+            this.abort(topicId, `drain-replacement:${reason}`)
             await Promise.allSettled(replacementLoops)
           }
         }
