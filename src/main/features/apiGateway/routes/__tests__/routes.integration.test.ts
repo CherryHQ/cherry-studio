@@ -864,6 +864,10 @@ describe('API gateway routes (integration)', () => {
   })
 
   describe('LAN exposure (non-loopback peer)', () => {
+    beforeEach(() => {
+      mockPreferenceGet.mockImplementation((key) => (key === 'feature.api_gateway.host' ? '0.0.0.0' : 'test-key'))
+    })
+
     // srvx surfaces the socket peer as `request.ip`; forge it to act as a LAN client.
     const fromLan = (request: Request): Request => {
       Object.defineProperty(request, 'ip', { value: '192.168.1.50', configurable: true })
@@ -903,6 +907,26 @@ describe('API gateway routes (integration)', () => {
         await getFromLan('/v1/export/providers', { authorization: 'Bearer paired-device-token' })
       )
       expect(status).toBe(200)
+    })
+
+    it('blocks pairing and provider export immediately when LAN access is revoked on a live listener', async () => {
+      mockHasPairedDeviceToken.mockImplementation(
+        (tokenHash: string) => tokenHash === hashPairedDeviceToken('paired-device-token')
+      )
+      const headers = { authorization: 'Bearer paired-device-token' }
+      expect((await getFromLan('/v1/export/providers', headers)).status).toBe(200)
+
+      mockPreferenceGet.mockImplementation((key) => (key === 'feature.api_gateway.host' ? '127.0.0.1' : 'test-key'))
+
+      expect((await getFromLan('/v1/export/providers', headers)).status).toBe(403)
+      expect(
+        (await postFromLan('/pair', { code: PAIRING_CODE, device: { name: 'Phone', platform: 'android' } })).status
+      ).toBe(403)
+      const localResponse = await post(app, '/v1/chat/completions', {
+        model: 'openai:gpt-4o',
+        messages: [{ role: 'user', content: 'Hello' }]
+      })
+      expect(localResponse.status).toBe(200)
     })
   })
 })

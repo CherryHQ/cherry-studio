@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { isLanAllowedRoute, isLoopbackAddress, screenLanRequest } from '../lanGuard'
 
@@ -42,6 +43,11 @@ describe('isLanAllowedRoute', () => {
 })
 
 describe('screenLanRequest', () => {
+  beforeEach(() => {
+    MockMainPreferenceServiceUtils.resetMocks()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.api_gateway.host', '0.0.0.0')
+  })
+
   it('lets a loopback caller reach a loopback-only route', () => {
     expect(screenLanRequest(requestFrom('POST', '127.0.0.1'), '/v1/chat/completions')).toBeUndefined()
   })

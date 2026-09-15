@@ -153,6 +153,11 @@ unrestricted, but a **non-loopback (LAN) peer may reach only `POST /pair` and
 consumers are unaffected because `gatewayClientOrigin` maps `0.0.0.0` back to
 `127.0.0.1`, so they always connect over loopback.
 
+The guard also checks the current LAN configuration on every remote request.
+Stopping the gateway restores `feature.api_gateway.host` to `127.0.0.1` when it
+was `0.0.0.0`, so new LAN requests receive `403` even if a local task temporarily
+keeps the existing listener alive.
+
 ## Request flow (generation routes)
 
 The OpenAI, Anthropic, and Gemini generation routes call
@@ -294,6 +299,13 @@ changes, IpcApi actions, and temporary run leases, converging actual state to
 server up without persisting an enabled intent. Start/stop persist user intent
 before convergence; restart rebinds only when no lease is active.
 
+An explicit stop atomically persists `enabled = false` and the return from LAN
+to loopback, then clears the active pairing code. A `deferred` stop preserves
+the listener for existing local tasks while denying new LAN requests and pairing
+offers. The final lease release stops the listener. A later ordinary gateway
+start stays on loopback; starting Device Connections explicitly enables LAN
+again. An explicit restart retains the current host configuration.
+
 ### Running state — Shared Cache, not IPC
 
 `publishRunningState()` writes `feature.api_gateway.running` (boolean) into the
@@ -341,10 +353,12 @@ controls, port input, server URL, the (copy/regenerate) API key, an
 `Authorization` header example, and a link to `…/openapi`.
 
 The separate `DeviceConnectionsSettings` page owns LAN exposure, mobile pairing,
-and access revocation. It asks Main for one atomic pairing offer, renders the QR,
-and uses DataApi to list or revoke paired devices. Its strings live under the
-`deviceConnections` i18n namespace; the page reuses the gateway lifecycle as its
-current HTTP host without exposing device management as an API-client setting.
+and access revocation. Its start button enables LAN before starting the gateway,
+and its pairing section includes the plain-HTTP credential warning. It asks Main
+for one atomic pairing offer, renders the QR, and uses DataApi to list or revoke
+paired devices. Its strings live under the `deviceConnections` i18n namespace;
+the page reuses the gateway lifecycle as its current HTTP host without exposing
+device management as an API-client setting.
 
 Paired-device records are SQLite-backed business data in
 `api_gateway_paired_device`. The raw `cs-dt-…` token is returned once by

@@ -1,3 +1,5 @@
+import { application } from '@application'
+
 /**
  * When the gateway binds the LAN (`0.0.0.0`) the same listener serves both the
  * desktop's own loopback consumers and remote mobile clients. Only the pairing
@@ -38,11 +40,15 @@ function readRemoteAddress(request: Request): string | undefined {
 }
 
 /**
- * Returns a 403 body to short-circuit a LAN request that targets a loopback-only
- * route, or `undefined` to let the request proceed.
+ * Returns a 403 body when LAN access is disabled or the route is loopback-only,
+ * or `undefined` to let the request proceed.
  */
 export function screenLanRequest(request: Request, pathname: string): { error: string } | undefined {
   if (isLoopbackAddress(readRemoteAddress(request))) return undefined
+  // A local task can keep the listener alive after stopping; LAN access must still be revoked.
+  if (application.get('PreferenceService').get('feature.api_gateway.host') !== '0.0.0.0') {
+    return { error: 'Forbidden: LAN access is disabled' }
+  }
   if (isLanAllowedRoute(request.method, pathname)) return undefined
   return { error: 'Forbidden: this endpoint is not reachable over the LAN' }
 }

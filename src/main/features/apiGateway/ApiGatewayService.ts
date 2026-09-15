@@ -153,7 +153,16 @@ export class ApiGatewayService extends BaseService implements Activatable {
    * on failure, so the caller learns the intent did not stick.
    */
   private async applyIntent(enabled: boolean): Promise<void> {
-    await application.get('PreferenceService').set('feature.api_gateway.enabled', enabled)
+    const preferenceService = application.get('PreferenceService')
+    if (!enabled && this.getCurrentConfig().host === '0.0.0.0') {
+      await preferenceService.setMultiple({
+        'feature.api_gateway.host': '127.0.0.1',
+        'feature.api_gateway.enabled': false
+      })
+    } else {
+      await preferenceService.set('feature.api_gateway.enabled', enabled)
+    }
+    if (!enabled) this.pairing.clearCode()
     // `subscribeChange` fires only on an actual change, so drive the reconciler here as well.
     await this.converge(enabled)
   }
@@ -273,7 +282,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
   createPairingOffer(): OutputFor<'api_gateway.create_pairing_offer'> {
     const endpoint = this.activeEndpoint
     if (!this.isRunning() || !endpoint) throw new Error('API Gateway is not running')
-    if (endpoint.host !== '0.0.0.0') throw new Error('LAN access is disabled')
+    if (endpoint.host !== '0.0.0.0' || this.getCurrentConfig().host !== '0.0.0.0') {
+      throw new Error('LAN access is disabled')
+    }
 
     const addresses = Object.values(networkInterfaces()).flatMap((infos) =>
       (infos ?? []).filter((info) => info.family === 'IPv4' && !info.internal).map((info) => info.address)
