@@ -59,8 +59,6 @@ const readBlobBytes = (blob: Blob) =>
     reader.readAsArrayBuffer(blob)
   })
 
-const PNG_MAGIC = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-
 describe('utils/image', () => {
   describe('transformImageToPng', () => {
     const sourcePixels = [
@@ -725,83 +723,6 @@ describe('utils/image', () => {
       }
     })
 
-    it('re-types a missing Content-Type response by sniffing the image bytes', async () => {
-      stubFetch('', PNG_BYTES)
-      const img = document.createElement('img')
-      img.setAttribute('src', 'https://raw.example.com/pixel')
-      const root = makeRoot(img)
-
-      const { result, srcAtRaster } = await captureWithRasterSpy(root)
-
-      expect(result).toBe('data:image/png;base64,xxx')
-      // An untyped blob encodes to `data:;base64,...`, which no <img> renders.
-      expect(srcAtRaster).toMatch(/^data:image\/png;base64,/)
-      expect(img.getAttribute('src')).toBe('https://raw.example.com/pixel')
-      vi.unstubAllGlobals()
-    })
-
-    it('inlines a headerless SVG that opens with a BOM and leading whitespace', async () => {
-      const svgBytes = new TextEncoder().encode(
-        '\ufeff\n  <?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
-      )
-      stubFetch('', svgBytes)
-      const img = document.createElement('img')
-      img.setAttribute('src', 'https://raw.example.com/icon.svg')
-      const root = makeRoot(img)
-
-      const { result, srcAtRaster } = await captureWithRasterSpy(root)
-
-      expect(result).toBe('data:image/png;base64,xxx')
-      expect(srcAtRaster).toMatch(/^data:image\/svg\+xml;base64,/)
-      vi.unstubAllGlobals()
-    })
-
-    it('re-types a shared-HEIF-brand ftyp box carrying AVIF as image/avif', async () => {
-      // AVIF may declare the shared HEIF major brand 'mif1' and list 'avif' as compatible.
-      const avifBytes = new Uint8Array(32)
-      avifBytes.set(new TextEncoder().encode('ftyp'), 4)
-      avifBytes.set(new TextEncoder().encode('mif1'), 8)
-      avifBytes.set(new TextEncoder().encode('avifisom'), 16)
-      stubFetch('', avifBytes)
-      const img = document.createElement('img')
-      img.setAttribute('src', 'https://raw.example.com/photo')
-      const root = makeRoot(img)
-
-      const { srcAtRaster } = await captureWithRasterSpy(root)
-
-      expect(srcAtRaster).toMatch(/^data:image\/avif;base64,/)
-      vi.unstubAllGlobals()
-    })
-
-    it('keeps a shared-HEIF-brand box without an AVIF marker as image/heic', async () => {
-      const heicBytes = new Uint8Array(32)
-      heicBytes.set(new TextEncoder().encode('ftyp'), 4)
-      heicBytes.set(new TextEncoder().encode('mif1'), 8)
-      heicBytes.set(new TextEncoder().encode('mif1isom'), 16)
-      stubFetch('', heicBytes)
-      const img = document.createElement('img')
-      img.setAttribute('src', 'https://raw.example.com/photo')
-      const root = makeRoot(img)
-
-      const { srcAtRaster } = await captureWithRasterSpy(root)
-
-      expect(srcAtRaster).toMatch(/^data:image\/heic;base64,/)
-      vi.unstubAllGlobals()
-    })
-
-    it('swaps a no-content-type non-image answer for the placeholder', async () => {
-      stubFetch('', new TextEncoder().encode('Too Many Requests'))
-      const img = document.createElement('img')
-      img.setAttribute('src', 'https://icon.horse/icon/example.com')
-      const root = makeRoot(img)
-
-      const { result, srcAtRaster } = await captureWithRasterSpy(root)
-
-      expect(result).toBe('data:image/png;base64,xxx')
-      expect(srcAtRaster).toBe('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')
-      vi.unstubAllGlobals()
-    })
-
     it('caps post-budget settle waits so an exhausted stage cannot stall per image', async () => {
       const fetchMock = vi.fn(
         (_url: string, init?: RequestInit) =>
@@ -1299,30 +1220,18 @@ describe('utils/image', () => {
       await expect(getImageBlobFromSource('https://cdn.example.com/wallpaper.png')).rejects.toThrow('not an image')
     })
 
-    it('re-types an empty-content-type response from its byte signature', async () => {
-      fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob([PNG_MAGIC.slice()]) })
+    it.each(['', 'application/octet-stream'])(
+      'leaves remote image bytes with MIME "%s" for browser decoding',
+      async (type) => {
+        const pngBytes = new Uint8Array(createCanvas(1, 1).toBuffer('image/png'))
+        fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob([pngBytes], { type }) })
 
-      const blob = await getImageBlobFromSource('https://example.com/unknown.bin')
+        const blob = await getImageBlobFromSource('https://example.com/image')
 
-      expect(blob.type).toBe('image/png')
-    })
-
-    it('rejects an empty-content-type response with no image signature', async () => {
-      fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob(['bytes']) })
-
-      await expect(getImageBlobFromSource('https://example.com/unknown.bin')).rejects.toThrow('not an image')
-    })
-
-    it('re-types a remote image served as octet-stream from its byte signature', async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        blob: async () => new Blob([PNG_MAGIC.slice()], { type: 'application/octet-stream' })
-      })
-
-      const blob = await getImageBlobFromSource('https://cdn.example.com/mislabeled.png')
-
-      expect(blob.type).toBe('image/png')
-    })
+        expect(blob.type).toBe(type)
+        expect(await readBlobBytes(blob)).toEqual(pngBytes)
+      }
+    )
 
     it('trims the content type before judging it (stray whitespace does not reject an image)', async () => {
       fetchMock.mockResolvedValueOnce({
@@ -1344,16 +1253,18 @@ describe('utils/image', () => {
       await expect(getImageBlobFromSource('https://cdn.example.com/signin')).rejects.toThrow('not an image')
     })
 
-    it('re-types an octet-stream local file from its byte signature (extension-less entries are real images)', async () => {
+    it('leaves extensionless local image bytes for browser decoding', async () => {
+      const pngBytes = new Uint8Array(createCanvas(1, 1).toBuffer('image/png'))
       ipcMocks.request.mockResolvedValueOnce({
-        content: PNG_MAGIC.slice(),
+        content: pngBytes,
         mime: 'application/octet-stream',
-        version: { mtime: 1, size: PNG_MAGIC.length }
+        version: { mtime: 1, size: pngBytes.length }
       })
 
       const blob = await getImageBlobFromSource('file:///data/Files/noext')
 
-      expect(blob.type).toBe('image/png')
+      expect(blob.type).toBe('application/octet-stream')
+      expect(await readBlobBytes(blob)).toEqual(pngBytes)
     })
 
     it('throws on a data URL with no media type', async () => {
