@@ -147,12 +147,11 @@ describe('DoctorService.run', () => {
     expect(state()).toEqual({ status: 'completed', report: outcome.report })
 
     const published = vi.mocked(application.get('CacheService').setShared).mock.calls.map(([, value]) => value)
-    expect(published.map((value) => (value as { status: string }).status)).toEqual([
-      'running',
-      'running',
-      'running',
-      'completed'
-    ])
+    expect(published[0]).toMatchObject({ status: 'running', results: [] })
+    expect(published).toContainEqual(
+      expect.objectContaining({ status: 'running', results: [expect.objectContaining({ status: 'pass' })] })
+    )
+    expect(published.at(-1)).toEqual({ status: 'completed', report: outcome.report })
   })
 
   it('counts a repeated check once', async () => {

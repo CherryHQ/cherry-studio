@@ -90,19 +90,21 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
   }
 
   const resultById = new Map(state.results.map((result) => [result.id, result]))
-  return DOCTOR_CHECK_IDS.filter((id) => state.tier === 'live' || DOCTOR_CHECK_CATALOG[id].tier === 'quick').map(
-    (id) => {
-      const result = resultById.get(id)
-      return {
-        id,
-        domain: DOCTOR_CHECK_CATALOG[id].domain,
-        status: result?.status ?? 'pending',
-        result,
-        actions: result ? resultActions(result) : [],
-        actionsDisabled: true
-      }
+  return DOCTOR_CHECK_IDS.filter(
+    (id) =>
+      !('includeByDefault' in DOCTOR_CHECK_CATALOG[id]) &&
+      (state.tier === 'live' || DOCTOR_CHECK_CATALOG[id].tier === 'quick')
+  ).map((id) => {
+    const result = resultById.get(id)
+    return {
+      id,
+      domain: DOCTOR_CHECK_CATALOG[id].domain,
+      status: result?.status ?? 'pending',
+      result,
+      actions: result ? resultActions(result) : [],
+      actionsDisabled: true
     }
-  )
+  })
 }
 
 export function defaultExpandedDoctorDomains(

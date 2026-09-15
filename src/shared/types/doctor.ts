@@ -81,6 +81,9 @@ export const DOCTOR_CHECK_IDS = [
   'provider-default-model',
   'provider-api-key-present',
   'provider-cherry-account',
+  'network-model-endpoint',
+  'provider-model-list',
+  'provider-model-conversation',
   'network-online',
   'network-dns-resolution',
   'network-tls-handshake',
@@ -103,6 +106,9 @@ type DomainOfId<Id extends string> = Id extends `${infer Domain}-${string}` ? Do
 export interface DoctorCheckMeta<Id extends DoctorCheckId> {
   readonly domain: DomainOfId<Id> & DoctorDomain
   readonly tier: DoctorTier
+  readonly execution?: 'automatic' | 'confirmation'
+  /** Checks enabled through an explicit request, not the default system sweep. */
+  readonly includeByDefault?: false
   /** Fixes this check may offer. The main registry must implement every one. */
   readonly fixes: readonly DoctorFixMeta[]
   /** Detail variants; the i18n key is `settings.doctor.checks.<id>.detail.<variant>`. */
@@ -210,6 +216,33 @@ export const DOCTOR_CHECK_CATALOG = {
     tier: 'quick',
     fixes: [],
     details: ['signed_out'],
+    requires: []
+  },
+  'network-model-endpoint': {
+    domain: 'network',
+    tier: 'live',
+    execution: 'automatic',
+    includeByDefault: false,
+    fixes: [],
+    details: ['no_base_url', 'unreachable'],
+    requires: []
+  },
+  'provider-model-list': {
+    domain: 'provider',
+    tier: 'live',
+    execution: 'automatic',
+    includeByDefault: false,
+    fixes: [],
+    details: ['unsupported', 'endpoint_unavailable', 'not_listed', 'request_failed'],
+    requires: []
+  },
+  'provider-model-conversation': {
+    domain: 'provider',
+    tier: 'live',
+    execution: 'confirmation',
+    includeByDefault: false,
+    fixes: [],
+    details: ['not_chat_model', 'request_failed'],
     requires: []
   },
   'network-online': { domain: 'network', tier: 'quick', fixes: [], details: ['offline'], requires: [] },
@@ -345,9 +378,10 @@ export interface DoctorEvidenceItem {
   readonly dataClass: DoctorDataClass
 }
 
-/** What a probe itself decides. `skip` and `error` are assigned by the engine, never by a check. */
+/** Checks may skip inapplicable operations; the engine also skips failed prerequisites. */
 export type DoctorCheckOutcome<Id extends DoctorCheckId = DoctorCheckId> =
   | { readonly status: 'pass'; readonly detail?: DoctorDetail<Id> }
+  | { readonly status: 'skip'; readonly detail: DoctorDetail<Id> }
   | {
       readonly status: 'warn' | 'fail'
       readonly attribution: DoctorAttribution
@@ -370,6 +404,30 @@ export type DoctorCheckResultFor<Id extends DoctorCheckId> = {
 )
 
 export type DoctorCheckResult = { [Id in DoctorCheckId]: DoctorCheckResultFor<Id> }[DoctorCheckId]
+
+export type DoctorConfirmationCheckId = {
+  [Id in DoctorCheckId]: DoctorCheckCatalog[Id] extends { execution: 'confirmation' } ? Id : never
+}[DoctorCheckId]
+
+export interface DoctorConfirmation<Id extends DoctorCheckId = DoctorCheckId> {
+  readonly messageKey: `settings.doctor.checks.${Id}.confirmation`
+  readonly params: Readonly<Record<string, string | number>>
+}
+
+export interface DoctorPendingCheck {
+  readonly checkId: DoctorCheckId
+  readonly requestId: string
+  readonly confirmation: DoctorConfirmation
+}
+
+export interface DoctorExecutionSnapshot {
+  readonly results: readonly DoctorCheckResult[]
+  readonly pendingChecks: readonly DoctorPendingCheck[]
+}
+
+export type DoctorConfirmResult =
+  | ({ readonly status: 'completed'; readonly scope: DoctorScopeKey; readonly runId: string } & DoctorExecutionSnapshot)
+  | { readonly status: 'stale' | 'busy' | 'canceled' }
 
 /** `quick` runs the quick tier; `live` runs quick + live so a live report is always complete. */
 export type DoctorRunTier = 'quick' | 'live'
@@ -406,6 +464,7 @@ export interface DoctorReport {
   readonly expiresAt: string
   readonly basics: DoctorBasics
   readonly results: readonly DoctorCheckResult[]
+  readonly pendingChecks?: readonly DoctorPendingCheck[]
   readonly summary: Readonly<Record<DoctorCheckStatus, number>>
 }
 

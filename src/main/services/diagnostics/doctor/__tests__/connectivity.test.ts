@@ -17,8 +17,9 @@ import type * as CustomFetchModule from '@main/ai/utils/customFetch'
 import { BaseService } from '@main/core/lifecycle'
 import { httpReach } from '@main/services/network/probes'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { DOCTOR_REPORT_TTL_MS, type DoctorCheckId, type DoctorExecutionSnapshot } from '@shared/types/doctor'
+import type { DoctorConnectivitySubject } from '@shared/types/doctorConnectivity'
 
-import { checkModelConnectivity } from '../connectivity'
 import { DoctorService } from '../DoctorService'
 
 vi.mock('@application', async () => {
@@ -58,11 +59,13 @@ describe('model connectivity against an HTTP provider', () => {
   let requests: Record<string, unknown>[]
   let holdConversation: boolean
   let conversationStatus: number
+  let doctor: ReadyDoctor
 
   beforeEach(async () => {
     BaseService.resetInstances()
     MockMainPreferenceServiceUtils.resetMocks()
     ai = new AiService()
+    doctor = new ReadyDoctor()
     holdConversation = false
     conversationStatus = 200
     vi.mocked(application.getPath).mockImplementation((namespace, filename) => {
@@ -152,20 +155,53 @@ describe('model connectivity against an HTTP provider', () => {
       .run()
   })
   afterEach(async () => {
+    vi.restoreAllMocks()
+    await doctor._doStop()
     server.closeAllConnections()
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
   })
-  const target = () => ai.prepareModelCheck('connectivity::wire-model')
-  const check = (prepared = target()) => checkModelConnectivity(prepared, new AbortController().signal)
-
-  it('reaches the Base URL, finds the wire model, and sends only a minimal conversation', async () => {
-    const report = await check()
-    expect(report).toMatchObject({
-      baseUrl: { status: 'pass', httpStatus: 404 },
-      modelList: { status: 'pass' },
-      conversation: { status: 'pass' }
+  const subject = { kind: 'chat', providerId: 'connectivity', modelId: 'wire-model' } as const
+  const result = (snapshot: DoctorExecutionSnapshot, id: DoctorCheckId) =>
+    snapshot.results.find((entry) => entry.id === id)
+  const start = async (ref: DoctorConnectivitySubject = subject, runId = 'run') => {
+    const started = await doctor.checkConnectivity({ subject: ref, runId })
+    if (started.status !== 'completed') throw new Error(`Unexpected result: ${started.status}`)
+    return started
+  }
+  const confirm = async (started: Awaited<ReturnType<typeof start>>) => {
+    const response = await doctor.confirmCheck({
+      scope: started.scope,
+      runId: started.runId,
+      requestId: started.report.pendingChecks[0].requestId
     })
-    expect(paths).toEqual(['HEAD /v1', 'GET /v1/models', 'POST /v1/chat/completions'])
+    if (response.status !== 'completed') throw new Error(`Unexpected confirmation: ${response.status}`)
+    return response
+  }
+
+  it('finishes automatic diagnostics without sending a billable conversation', async () => {
+    const started = await start()
+    expect(result(started.report, 'network-model-endpoint')).toMatchObject({
+      status: 'pass',
+      evidence: [{ key: 'httpStatus', value: 404 }]
+    })
+    expect(result(started.report, 'provider-model-list')?.status).toBe('pass')
+    expect(result(started.report, 'provider-model-conversation')).toBeUndefined()
+    expect(started.report.pendingChecks).toEqual([
+      expect.objectContaining({
+        checkId: 'provider-model-conversation',
+        confirmation: {
+          messageKey: 'settings.doctor.checks.provider-model-conversation.confirmation',
+          params: { model: 'Wire model', modelId: 'wire-model', endpoint: url }
+        }
+      })
+    ])
+    expect(requests).toEqual([])
+    expect(paths.sort()).toEqual(['GET /v1/models', 'HEAD /v1'])
+    const confirmed = await confirm(started)
+    expect(result(confirmed, 'provider-model-conversation')?.status).toBe('pass')
+    expect(confirmed.pendingChecks).toEqual([])
+    expect(paths).toHaveLength(3)
+    expect(requests).toHaveLength(1)
     expect(requests[0]).toMatchObject({
       model: 'wire-model',
       messages: [
@@ -176,7 +212,7 @@ describe('model connectivity against an HTTP provider', () => {
     expect(requests[0]).not.toHaveProperty('tools')
   })
 
-  it('probes the model-selected endpoint rather than the provider default', async () => {
+  it('uses the selected model endpoint for both the prompt and the actual request', async () => {
     const config = makeProvider({ endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: url } } })
     config.defaultChatEndpoint = ENDPOINT_TYPE.ANTHROPIC_MESSAGES
     config.endpointConfigs![ENDPOINT_TYPE.ANTHROPIC_MESSAGES] = { baseUrl: `${url}/wrong` }
@@ -184,57 +220,69 @@ describe('model connectivity against an HTTP provider', () => {
       .update(userProviderTable)
       .set({ endpointConfigs: config.endpointConfigs, defaultChatEndpoint: config.defaultChatEndpoint })
       .run()
-    const result = await check()
-    expect(result.baseUrl).toMatchObject({ status: 'pass' })
-    expect(result.modelList.status).toBe('pass')
-    expect(paths).toEqual(['HEAD /v1', 'GET /v1/models', 'POST /v1/chat/completions'])
+    const started = await start()
+    expect(started.report.pendingChecks[0].confirmation.params.endpoint).toBe(url)
+    expect(result(await confirm(started), 'provider-model-conversation')?.status).toBe('pass')
+    expect(paths).not.toContain('HEAD /v1/wrong')
+    expect(paths).toContain('POST /v1/chat/completions')
   })
 
   it.each([404, 405, 501])(
-    'skips an unavailable models endpoint (%s) while still testing conversation',
+    'skips unavailable models HTTP %s without preventing a confirmed conversation',
     async (status) => {
       listStatus = status
-      const report = await check()
-      expect(report.modelList).toMatchObject({ status: 'skip', reason: 'model_list_endpoint_unavailable' })
-      expect(report.conversation.status).toBe('pass')
+      const started = await start()
+      expect(result(started.report, 'provider-model-list')).toMatchObject({
+        status: 'skip',
+        detail: { variant: 'endpoint_unavailable' }
+      })
+      expect(result(await confirm(started), 'provider-model-conversation')?.status).toBe('pass')
     }
   )
 
-  it('does not turn a models authentication error into an empty or unsupported catalog', async () => {
-    listStatus = 401
-    const report = await check()
-    expect(report.modelList).toMatchObject({ status: 'fail', reason: 'auth', httpStatus: 401 })
-    expect(report.conversation.status).toBe('pass')
-  })
-
   it.each([
+    [401, { message: 'Unauthorized' }, 'auth'],
     [403, { message: 'Forbidden' }, 'permission'],
     [403, { message: 'Request rejected', code: 'unsupported_country' }, 'region'],
     [429, { message: 'Request rejected', code: 'insufficient_balance' }, 'quota'],
     [400, { message: 'Invalid API key' }, 'auth']
-  ] as const)('classifies models HTTP %s using provider error details', async (status, error, reason) => {
+  ] as const)('preserves the shared classification for models HTTP %s', async (status, error, category) => {
     listStatus = status
     listError = error
-    const report = await check()
-    expect(report.modelList).toMatchObject({ status: 'fail', reason, httpStatus: status })
-    expect(report.conversation.status).toBe('pass')
+    const started = await start()
+    expect(result(started.report, 'provider-model-list')).toMatchObject({
+      status: 'fail',
+      evidence: [
+        { key: 'category', value: category },
+        { key: 'httpStatus', value: status }
+      ]
+    })
+    expect(requests).toEqual([])
+    expect(result(await confirm(started), 'provider-model-conversation')?.status).toBe('pass')
   })
 
-  it('does not use registry entries as remote existence evidence or block a usable unlisted model', async () => {
+  it('does not use registry entries as remote existence evidence', async () => {
     ids = []
-    const report = await check()
-    expect(report.modelList).toMatchObject({ status: 'warn', reason: 'model_not_listed' })
-    expect(report.conversation.status).toBe('pass')
+    const started = await start()
+    expect(result(started.report, 'provider-model-list')).toMatchObject({
+      status: 'warn',
+      detail: { variant: 'not_listed' }
+    })
+    expect(result(await confirm(started), 'provider-model-conversation')?.status).toBe('pass')
   })
 
   it('skips registry-only listings without requesting models', async () => {
-    const report = await check({ ...target(), supportsModelListing: false })
-    expect(report.modelList).toMatchObject({ status: 'skip', reason: 'model_list_unsupported' })
-    expect(paths).toEqual(['HEAD /v1', 'POST /v1/chat/completions'])
-    expect(report.conversation.status).toBe('pass')
+    dbh.db.update(userProviderTable).set({ presetProviderId: 'claude-code' }).run()
+    const started = await start()
+    expect(result(started.report, 'provider-model-list')).toMatchObject({
+      status: 'skip',
+      detail: { variant: 'unsupported' }
+    })
+    expect(paths).not.toContain('GET /v1/models')
+    expect(requests).toEqual([])
   })
 
-  it('never invokes a generation probe for an image-only model', async () => {
+  it('does not ask for confirmation or generate for an image-only model', async () => {
     dbh.db
       .update(userModelTable)
       .set({
@@ -243,15 +291,18 @@ describe('model connectivity against an HTTP provider', () => {
       })
       .where(eq(userModelTable.id, 'connectivity::wire-model'))
       .run()
-    const report = await check()
+    const started = await start()
+    expect(started.report.pendingChecks).toEqual([])
+    expect(result(started.report, 'provider-model-conversation')).toMatchObject({
+      status: 'skip',
+      detail: { variant: 'not_chat_model' }
+    })
     expect(requests).toEqual([])
-    expect(report.conversation).toMatchObject({ status: 'skip', reason: 'not_chat_model' })
   })
 
-  it('does not retry or fall back when the conversation is rejected', async () => {
+  it('does not retry or fall back after one confirmed request fails', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.enabled', true)
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.max_attempts', 3)
-    MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.backoff_enabled', false)
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.fallback_model_ids', ['connectivity::backup'])
     dbh.db
       .insert(userModelTable)
@@ -267,13 +318,27 @@ describe('model connectivity against an HTTP provider', () => {
       })
       .run()
     conversationStatus = 503
-    const result = await check()
-    expect(result.conversation).toMatchObject({ status: 'fail', reason: 'server', httpStatus: 503 })
+    const started = await start()
+    const response = await confirm(started)
+    expect(result(response, 'provider-model-conversation')).toMatchObject({
+      status: 'fail',
+      evidence: [
+        { key: 'category', value: 'server' },
+        { key: 'httpStatus', value: 503 }
+      ]
+    })
     expect(requests).toHaveLength(1)
-    expect(requests[0].model).toBe('wire-model')
+    expect(
+      await doctor.confirmCheck({
+        scope: started.scope,
+        runId: started.runId,
+        requestId: started.report.pendingChecks[0].requestId
+      })
+    ).toEqual({ status: 'stale' })
+    expect(requests).toHaveLength(1)
   })
 
-  it('uses a real conversation for Ollama instead of accepting model metadata as health evidence', async () => {
+  it('uses a real confirmed Ollama conversation instead of metadata-only health evidence', async () => {
     dbh.db
       .update(userProviderTable)
       .set({
@@ -287,41 +352,77 @@ describe('model connectivity against an HTTP provider', () => {
       .update(userModelTable)
       .set({ endpointTypes: [ENDPOINT_TYPE.OLLAMA_CHAT] })
       .run()
-    const prepared = target()
-    await prepared.checkConversation(new AbortController().signal)
-    expect(paths).toEqual(['POST /api/chat'])
+    const started = await start()
+    expect(requests).toEqual([])
+    expect(result(await confirm(started), 'provider-model-conversation')?.status).toBe('pass')
+    expect(paths).toContain('POST /api/chat')
+    expect(paths).not.toContain('POST /api/show')
     expect(requests[0]).toMatchObject({ model: 'wire-model', stream: false })
   })
 
-  it('keeps the selected endpoint and model stable when settings change after preparation', async () => {
-    const prepared = target()
-    dbh.db
-      .update(userProviderTable)
-      .set({
-        endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: `${url}/wrong` }
-        }
+  it.each(['endpoint', 'model deletion'] as const)('invalidates confirmation after %s changes', async (change) => {
+    const started = await start()
+    if (change === 'endpoint')
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: `${url}/wrong` }
+          }
+        })
+        .run()
+    else dbh.db.delete(userModelTable).run()
+    expect(
+      await doctor.confirmCheck({
+        scope: started.scope,
+        runId: started.runId,
+        requestId: started.report.pendingChecks[0].requestId
       })
-      .run()
-    dbh.db.delete(userModelTable).run()
-    const report = await check(prepared)
-    expect(report.conversation.status).toBe('pass')
-    expect(report.modelList.status).toBe('pass')
-    expect(requests[0].model).toBe('wire-model')
-    expect(paths).toEqual(['HEAD /v1', 'GET /v1/models', 'POST /v1/chat/completions'])
+    ).toEqual({ status: 'stale' })
+    expect(requests).toEqual([])
   })
 
-  it('cancels an in-flight HTTP conversation promptly', async () => {
+  it('rejects expired, superseded, and wrong-scope confirmations without requests', async () => {
+    const first = await start(subject, 'first')
+    const second = await start(subject, 'second')
+    const input = { scope: second.scope, runId: second.runId, requestId: second.report.pendingChecks[0].requestId }
+    expect(
+      await doctor.confirmCheck({ ...input, runId: first.runId, requestId: first.report.pendingChecks[0].requestId })
+    ).toEqual({ status: 'stale' })
+    expect(await doctor.confirmCheck({ ...input, scope: 'agent:other' })).toEqual({ status: 'stale' })
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + DOCTOR_REPORT_TTL_MS + 1)
+    expect(await doctor.confirmCheck(input)).toEqual({ status: 'stale' })
+    expect(requests).toEqual([])
+  })
+
+  it('consumes confirmation once and cancels an in-flight request', async () => {
+    const started = await start()
+    const input = { scope: started.scope, runId: started.runId, requestId: started.report.pendingChecks[0].requestId }
     holdConversation = true
-    const controller = new AbortController()
-    const run = checkModelConnectivity(target(), controller.signal)
-    const rejection = expect(run).rejects.toThrow('stop check')
+    const pending = doctor.confirmCheck(input)
     await vi.waitFor(() => expect(requests).toHaveLength(1))
-    controller.abort(new Error('stop check'))
-    await rejection
+    expect(await doctor.confirmCheck(input)).toEqual({ status: 'busy' })
+    expect(doctor.cancelConnectivity(started.scope, 'wrong-run')).toEqual({ status: 'not_running' })
+    expect(doctor.cancelConnectivity(started.scope, started.runId)).toEqual({ status: 'canceled' })
+    expect(await pending).toEqual({ status: 'canceled' })
+    expect(await doctor.confirmCheck(input)).toEqual({ status: 'stale' })
+    expect(requests).toHaveLength(1)
   })
 
-  it('resolves Agent ownership and isolates concurrent scopes, cancellation, and existing reports', async () => {
+  it('invalidates a pending confirmation when canceled before execution', async () => {
+    const started = await start()
+    expect(doctor.cancelConnectivity(started.scope, started.runId)).toEqual({ status: 'canceled' })
+    expect(
+      await doctor.confirmCheck({
+        scope: started.scope,
+        runId: started.runId,
+        requestId: started.report.pendingChecks[0].requestId
+      })
+    ).toEqual({ status: 'stale' })
+    expect(requests).toEqual([])
+  })
+
+  it('resolves Agent ownership, detects model reassignment, and preserves another scope report', async () => {
     dbh.db
       .insert(agentTable)
       .values({
@@ -333,57 +434,77 @@ describe('model connectivity against an HTTP provider', () => {
         orderKey: 'a0'
       })
       .run()
-    const doctor = new ReadyDoctor()
-    const global = await doctor.run({
-      tier: 'quick',
-      checkIds: ['config-boot-config-valid']
-    })
+    const global = await doctor.run({ tier: 'quick', checkIds: ['config-boot-config-valid'] })
     expect(global.status).toBe('completed')
-    const cache = application.get('CacheService')
-    const before = structuredClone(cache.getShared('doctor.state'))
-    holdConversation = true
-    const subject = { kind: 'chat', providerId: 'connectivity', modelId: 'wire-model' } as const
-    const first = doctor.checkConnectivity({ subject, runId: 'chat-run' })
-    await vi.waitFor(() => expect(requests).toHaveLength(1))
-    expect(await doctor.checkConnectivity({ subject, runId: 'duplicate' })).toEqual({
-      status: 'busy',
-      runId: 'chat-run'
-    })
-    expect(doctor.cancelConnectivity('chat:connectivity/wire-model', 'wrong-run')).toEqual({ status: 'not_running' })
-    holdConversation = false
-    const agent = await doctor.checkConnectivity({ subject: { kind: 'agent', agentId: 'agent' }, runId: 'agent-run' })
-    expect(agent).toMatchObject({
-      status: 'completed',
-      scope: 'agent:agent',
-      report: {
-        uniqueModelId: 'connectivity::wire-model',
-        conversation: { status: 'pass' }
-      }
-    })
-    expect(doctor.cancelConnectivity('chat:connectivity/wire-model', 'chat-run')).toEqual({ status: 'canceled' })
-    expect(await first).toEqual({ status: 'canceled', runId: 'chat-run' })
-    expect(cache.getShared('doctor.state')).toEqual(before)
-    expect((await doctor.checkConnectivity({ subject, runId: 'retry' })).status).toBe('completed')
+    const before = structuredClone(application.get('CacheService').getShared('doctor.state'))
+    const chat = await start()
+    const agent = await start({ kind: 'agent', agentId: 'agent' }, 'agent-run')
+    dbh.db.update(agentTable).set({ model: null }).run()
+    expect(
+      await doctor.confirmCheck({
+        scope: agent.scope,
+        runId: agent.runId,
+        requestId: agent.report.pendingChecks[0].requestId
+      })
+    ).toEqual({ status: 'stale' })
+    expect(result(await confirm(chat), 'provider-model-conversation')?.status).toBe('pass')
+    expect(application.get('CacheService').getShared('doctor.state')).toEqual(before)
+    expect(requests).toHaveLength(1)
   })
 
-  it('refuses missing Agent targets instead of falling back to a default model', async () => {
+  it('applies the same confirmation policy to an explicitly selected ordinary Doctor check', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'connectivity::wire-model')
+    const started = await doctor.run({ tier: 'live', checkIds: ['provider-model-conversation'] })
+    if (started.status !== 'completed') throw new Error('Expected report')
+    expect(started.report.results).toEqual([])
+    expect(requests).toEqual([])
+    const response = await doctor.confirmCheck({
+      scope: 'global',
+      runId: started.report.runId,
+      requestId: started.report.pendingChecks![0].requestId
+    })
+    expect(response.status).toBe('completed')
+    expect(application.get('CacheService').getShared('doctor.state')).toMatchObject({
+      status: 'completed',
+      report: {
+        runId: started.report.runId,
+        pendingChecks: [],
+        results: [{ id: 'provider-model-conversation', status: 'pass' }]
+      }
+    })
+    expect(requests).toHaveLength(1)
+  })
+
+  it('invalidates a global confirmation if the default model changes', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'connectivity::wire-model')
+    const started = await doctor.run({ tier: 'live', checkIds: ['provider-model-conversation'] })
+    if (started.status !== 'completed') throw new Error('Expected report')
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
+    expect(
+      await doctor.confirmCheck({
+        scope: 'global',
+        runId: started.report.runId,
+        requestId: started.report.pendingChecks![0].requestId
+      })
+    ).toEqual({ status: 'stale' })
+    expect(requests).toEqual([])
+  })
+
+  it('refuses missing Agent targets instead of falling back to the default model', async () => {
     await expect(
-      new ReadyDoctor().checkConnectivity({ subject: { kind: 'agent', agentId: 'missing' }, runId: 'run' })
+      doctor.checkConnectivity({ subject: { kind: 'agent', agentId: 'missing' }, runId: 'run' })
     ).rejects.toThrow()
     expect(paths).toEqual([])
   })
 
-  it('aborts pending HTTP work on service shutdown and refuses new runs', async () => {
+  it('aborts confirmed HTTP work on shutdown and refuses pending decisions', async () => {
+    const started = await start()
+    const input = { scope: started.scope, runId: started.runId, requestId: started.report.pendingChecks[0].requestId }
     holdConversation = true
-    const doctor = new ReadyDoctor()
-    const input = {
-      subject: { kind: 'chat', providerId: 'connectivity', modelId: 'wire-model' } as const,
-      runId: 'run'
-    }
-    const pending = doctor.checkConnectivity(input)
+    const pending = doctor.confirmCheck(input)
     await vi.waitFor(() => expect(requests).toHaveLength(1))
     await doctor._doStop()
-    expect(await pending).toEqual({ status: 'canceled', runId: 'run' })
-    await expect(doctor.checkConnectivity(input)).rejects.toThrow('not ready')
+    expect(await pending).toEqual({ status: 'canceled' })
+    await expect(doctor.confirmCheck(input)).rejects.toThrow('not ready')
   })
 })
