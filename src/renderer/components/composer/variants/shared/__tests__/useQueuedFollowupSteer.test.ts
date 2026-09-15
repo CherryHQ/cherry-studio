@@ -5,8 +5,11 @@ import type { FollowupQueueItem } from '../../../useFollowupQueue'
 import { useSteerQueuedFollowup } from '../useQueuedFollowupSteer'
 
 const payload = (text: string) => ({ text, userMessageParts: [{ type: 'text', text }] }) as any
-const item = (id: string, text: string) =>
-  ({ id, draft: { text, tokens: [] as any[] }, payload: payload(text) }) as unknown as FollowupQueueItem
+const item = (id: string, text: string): FollowupQueueItem => ({
+  id,
+  draft: { text, tokens: [] as any[] },
+  payload: payload(text)
+})
 
 const setup = (items: FollowupQueueItem[]) => {
   const tryClaimSend = vi.fn().mockReturnValue(true)

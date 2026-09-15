@@ -554,6 +554,52 @@ describe('useFollowupQueue', () => {
     expect(result.current.items).toEqual([])
   })
 
+  it('skip is a no-op while another instance’s retry send is still pending', async () => {
+    let resolveRetry!: (sent: boolean) => void
+    const onDrain = vi
+      .fn()
+      .mockResolvedValueOnce(false) // auto-drain fails
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveRetry = resolve)))
+    const markSeen = vi.fn()
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const first = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      first.rerender({ isFulfilled: true })
+    })
+    expect(first.result.current.failedItemId).toBe('h1')
+
+    await act(async () => {
+      first.result.current.retryFailed()
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+
+    // Remount: the retry send is still pending, owned by the unmounted instance.
+    first.unmount()
+    const second = renderHook(() => useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen, onDrain }))
+    expect(second.result.current.failedItemId).toBe('h1')
+
+    // Skip must not dequeue while the retry payload is still being delivered —
+    // the skipped payload would otherwise be sent anyway.
+    act(() => {
+      second.result.current.skipFailed()
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+    expect(second.result.current.items.map((i) => i.id)).toEqual(['h1', 'h2'])
+    expect(second.result.current.failedItemId).toBe('h1')
+
+    // The retry succeeds → the head dequeues and the failure clears; nothing was skipped.
+    await act(async () => {
+      resolveRetry(true)
+    })
+    expect(second.result.current.items.map((i) => i.id)).toEqual(['h2'])
+    expect(second.result.current.failedItemId).toBeNull()
+  })
+
   it('queueing one conversation does not clobber another conversation\u2019s entry', () => {
     const first = renderHook(() =>
       useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
@@ -673,7 +719,7 @@ describe('useFollowupQueue', () => {
       .fn()
       .mockResolvedValueOnce(false) // auto-drain fails
       .mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveRetry = resolve)))
-      .mockResolvedValue(true) // next head sends on the following completion edge
+      .mockResolvedValue(true) // the next head drains immediately on the consumed edge
     // Stable like the production markSeen (useTopicStreamStatus): the drain effect
     // only re-fires on a new completion edge, not on every re-render.
     const markSeen = vi.fn()
@@ -710,23 +756,18 @@ describe('useFollowupQueue', () => {
     expect(first.result.current.items.map((i) => i.draft.text)).toEqual(['second'])
 
     // The invalidated retry fails: no ghost pause, no banner for a removed item.
-    // The next head stays queued until a fresh completion edge (no stall).
+    // The removed head consumed the completion edge, so the next head drains
+    // now instead of stalling until some future turn.
     await act(async () => {
       resolveRetry(false)
     })
-    expect(onDrain).toHaveBeenCalledTimes(2)
-    expect(first.result.current.failedItemId).toBeNull()
-    expect(first.result.current.paused).toBe(false)
-    expect(first.result.current.items.map((i) => i.draft.text)).toEqual(['second'])
-    expect(second.result.current.failedItemId).toBeNull()
-    expect(second.result.current.paused).toBe(false)
-
-    await act(async () => {
-      first.rerender({ isFulfilled: true })
-    })
     expect(onDrain).toHaveBeenCalledTimes(3)
     expect(onDrain).toHaveBeenLastCalledWith(payload('second'))
+    expect(first.result.current.failedItemId).toBeNull()
+    expect(first.result.current.paused).toBe(false)
     expect(first.result.current.items).toEqual([])
+    expect(second.result.current.failedItemId).toBeNull()
+    expect(second.result.current.paused).toBe(false)
   })
 
   it('retry sends the failed item even after it was reordered behind another item', async () => {
@@ -1562,6 +1603,45 @@ describe('useFollowupQueue', () => {
     expect(result.current.failedItemId).toBeNull()
     expect(result.current.paused).toBe(false)
     expect(result.current.items).toEqual([])
+  })
+
+  it('a rejected send for a head another instance removed continues with the next item', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+      .mockResolvedValue(true)
+    const markSeen = vi.fn()
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const first = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+    const second = renderHook(() => useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen, onDrain }))
+
+    // The first instance auto-drains the head on the completion edge.
+    await act(async () => {
+      first.rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+
+    // A second instance removes the draining head — its own refs never saw a drain
+    // start, so no epoch is invalidated on the draining instance.
+    act(() => {
+      second.result.current.removeId('h1')
+    })
+    expect(second.result.current.items.map((i) => i.id)).toEqual(['h2'])
+
+    // The original send rejects: no ghost failure is recorded, and the next head
+    // drains on the consumed edge instead of stranding until some future turn.
+    await act(async () => {
+      resolveDrain(false)
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+    expect(onDrain).toHaveBeenLastCalledWith(payload('second'))
+    expect(first.result.current.failedItemId).toBeNull()
+    expect(first.result.current.paused).toBe(false)
   })
 
   it('drops live state whose cache entry expired instead of resurrecting it', () => {

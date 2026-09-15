@@ -1959,6 +1959,7 @@ const ChatComposerInner = ({
                 onRetryFailed={retryFailedFollowup}
                 onSkipFailed={skipFailedFollowup}
                 onAbortQueue={clearFollowups}
+                isFailureDraining={failedFollowupId != null && failedFollowupId === drainingFollowupId}
                 isSteerDisabled={isQueuedFollowupSteerDisabled}
               />
             ) : undefined

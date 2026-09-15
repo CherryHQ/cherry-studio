@@ -4720,6 +4720,33 @@ describe('AgentComposer', () => {
     expect(mocks.markTopicSeen).toHaveBeenCalledTimes(1)
   })
 
+  it('queues a follow-up instead of sending directly while a queue drain is still in flight', async () => {
+    // The auto-drain send never settles, so the queue keeps a send in flight while idle.
+    // A dedicated session keeps the stranded drain + queued items out of other tests' scope.
+    mocks.sendMessage.mockImplementationOnce(() => new Promise(() => undefined))
+    const props = (isStreaming: boolean) => ({
+      agentId: 'agent-1',
+      sessionId: 'session-drain-guard',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming
+    })
+    const { rerender } = render(<AgentComposer {...props(true)} />)
+
+    fireEvent.click(screen.getByText('send'))
+    mocks.topicFulfilled = true
+    rerender(<AgentComposer {...props(false)} />)
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+
+    // Idle, but the drain is still in flight: the next send must queue behind it
+    // instead of running a second send concurrently.
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(getQueueDock()?.props.items).toHaveLength(2))
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
   it('atomically restores same-text queued tokens and the skill cache from a history preview', async () => {
     seedInputHistory(['queued agent draft'])
     mocks.availableSkills = [pdfSkill]

@@ -1580,8 +1580,9 @@ const AgentComposerInner = ({
 
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
-      // falls through to the direct send below, mirroring the dock's "insert" action.
-      if (isStreaming && !options?.steer) {
+      // falls through to the direct send below, mirroring the dock's "insert" action. A queue send
+      // still in flight also queues: sending directly now would run concurrently with it.
+      if ((isStreaming && !options?.steer) || drainingFollowupId !== null) {
         const followupResult = enqueueFollowup(draft, payload)
         if (followupResult !== 'ok') {
           toast.error(t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT }))
@@ -1604,6 +1605,7 @@ const AgentComposerInner = ({
     [
       buildQueuedPayload,
       clearCurrentDraft,
+      drainingFollowupId,
       enqueueFollowup,
       isStreaming,
       model,
@@ -1802,6 +1804,7 @@ const AgentComposerInner = ({
                   onRetryFailed={retryFailedFollowup}
                   onSkipFailed={skipFailedFollowup}
                   onAbortQueue={clearFollowups}
+                  isFailureDraining={failedFollowupId != null && failedFollowupId === drainingFollowupId}
                   isSteerDisabled={(item) => item.id === drainingFollowupId}
                 />
               ) : undefined}
