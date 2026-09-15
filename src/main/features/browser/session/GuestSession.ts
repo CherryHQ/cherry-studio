@@ -1,4 +1,11 @@
+import { setTimeout as delay } from 'node:timers/promises'
+
+import { Mutex } from 'async-mutex'
+import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping'
+import type { DownloadItem } from 'electron'
+
 import { loggerService } from '@logger'
+import { type Disposable, Emitter } from '@main/core/lifecycle'
 import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
 
 import {
@@ -18,11 +25,11 @@ import { createAccessibilityContext, describeElement } from '../snapshot/describ
 import { diffSnapshot } from '../snapshot/diffSnapshot'
 import { sanitizeSnapshotUrl, serializeSnapshot, type SnapshotRevision } from '../snapshot/serializeSnapshot'
 import { BrowserSessionError } from './BrowserSessionError'
-import { cdpAllowList } from './cdpAllowList'
+import { cdpAllowList, type CdpCommandArgs, type CdpMethod } from './cdpAllowList'
 
 const logger = loggerService.withContext('GuestSession')
 
-export class GuestSession {
+export class GuestSession implements Disposable {
   readonly ownership: SessionOwnership['ownership']
   retention: TabRetention = 'temporary'
   lastActive = Date.now()
@@ -43,8 +50,15 @@ export class GuestSession {
   private readonly pending = new Set<(error: Error) => void>()
   private dialogTimer?: ReturnType<typeof setTimeout>
   private revision?: SnapshotRevision
-  private snapshotQueue: Promise<unknown> = Promise.resolve()
+  private readonly snapshotMutex = new Mutex(new BrowserSessionError('debugger_unavailable'))
   private operations = 0
+  private captures = 0
+  private readonly actionMutex = new Mutex(new BrowserSessionError('debugger_unavailable'))
+  private readonly events = new Emitter<{ method: string; params: Record<string, any> }>()
+  readonly onEvent = this.events.event
+  private readonly downloadItems = new Map<DownloadItem, () => void>()
+  private readonly downloadUpdates = new Map<DownloadItem, { filename: string; state: string }>()
+  private dismissedDialog?: BrowserDialog
 
   constructor(
     readonly guest: Electron.WebContents,
@@ -54,6 +68,7 @@ export class GuestSession {
     guest.debugger.on('message', this.onMessage)
     guest.debugger.on('detach', this.onDetach)
     guest.once('destroyed', this.onDestroyed)
+    if (ownership === 'managed') guest.session.on('will-download', this.onDownload)
   }
 
   get documentId() {
@@ -65,7 +80,7 @@ export class GuestSession {
   }
 
   get busy() {
-    return this.operations > 0 || this.pending.size > 0
+    return this.operations > 0 || this.pending.size > 0 || this.downloadItems.size > 0
   }
 
   isAvailable(): boolean {
@@ -118,13 +133,17 @@ export class GuestSession {
       if (this.ownership === 'managed') {
         if (this.dialogTimer) clearTimeout(this.dialogTimer)
         this.dialogTimer = setTimeout(() => {
-          void this.send('Page.handleJavaScriptDialog', { accept: false }).catch((error) =>
-            logger.debug('Failed to dismiss browser dialog', error)
-          )
+          const dialog = this.pendingDialog
+          void this.send('Page.handleJavaScriptDialog', { accept: false })
+            .then(() => {
+              this.dismissedDialog = dialog
+            })
+            .catch((error) => logger.debug('Failed to dismiss browser dialog', error))
         }, 60_000)
         this.dialogTimer.unref()
       }
     } else if (method === 'Page.javascriptDialogClosed') this.clearDialog()
+    this.events.fire({ method, params })
   }
 
   private readonly onDetach = () => {
@@ -189,13 +208,19 @@ export class GuestSession {
     this.attachingAbort = new AbortController()
     const options = { signal: this.attachingAbort.signal, deadline: Date.now() + 5_000 }
     const init = async () => {
-      for (const method of ['Page.enable', 'Runtime.enable', 'DOM.enable', 'Accessibility.enable']) {
+      for (const method of [
+        'Page.enable',
+        'Runtime.enable',
+        'DOM.enable',
+        'Accessibility.enable',
+        ...(this.ownership === 'managed' ? (['Network.enable'] as const) : [])
+      ] as const) {
         options.signal.throwIfAborted()
         if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
-        await this.wait(this.guest.debugger.sendCommand(method), options)
+        await this.wait(this.dispatch(method, undefined), options)
       }
       options.signal.throwIfAborted()
-      const result = await this.wait(this.guest.debugger.sendCommand('Page.getFrameTree'), options)
+      const result = await this.wait(this.dispatch('Page.getFrameTree', undefined), options)
       if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
       if (this.epoch === epoch) {
         this.currentMainFrameId = result.frameTree.frame.id
@@ -215,7 +240,17 @@ export class GuestSession {
     }
   }
 
-  async send<T = unknown>(method: string, params?: object, options: CommandOptions = {}): Promise<T> {
+  private dispatch<M extends CdpMethod>(
+    method: M,
+    params: ProtocolMapping.Commands[NoInfer<M>]['paramsType'][0]
+  ): Promise<ProtocolMapping.Commands[M]['returnType']> {
+    return this.guest.debugger.sendCommand(method, params)
+  }
+
+  async send<M extends CdpMethod>(
+    method: M,
+    ...[params, options = {}]: CdpCommandArgs<NoInfer<M>>
+  ): Promise<ProtocolMapping.Commands[M]['returnType']> {
     if (!cdpAllowList.has(method)) throw new BrowserSessionError('not_allowed')
     options.signal?.throwIfAborted()
     if (options.deadline !== undefined && options.deadline <= Date.now()) throw new BrowserSessionError('timeout')
@@ -223,6 +258,7 @@ export class GuestSession {
       throw new BrowserSessionError('dialog_open', this.pendingDialog)
     this.lastActive = Date.now()
     this.operations++
+    let capturing = false
     try {
       await this.ensureAttached(options)
       options.signal?.throwIfAborted()
@@ -230,13 +266,76 @@ export class GuestSession {
       if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
       if (this.pendingDialog && method !== 'Page.handleJavaScriptDialog')
         throw new BrowserSessionError('dialog_open', this.pendingDialog)
-      const result = await this.wait(this.guest.debugger.sendCommand(method, params), options)
+      if (method === 'Page.captureScreenshot' && this.guest.getType() === 'webview') {
+        // Keep Chromium producing frames until the CDP copy completes, even for an occluded guest.
+        if (this.captures === 0) this.guest.beginFrameSubscription(true, () => undefined)
+        this.captures++
+        capturing = true
+      }
+      const result = await this.wait(this.dispatch(method, params), options)
       if (method === 'Page.handleJavaScriptDialog') this.clearDialog()
-      return result as T
+      return result
+    } finally {
+      if (capturing && --this.captures === 0 && !this.guest.isDestroyed()) this.guest.endFrameSubscription()
+      this.operations--
+      this.lastActive = Date.now()
+    }
+  }
+
+  async run<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    this.operations++
+    try {
+      return await this.actionMutex.runExclusive(() => {
+        if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+        return operation()
+      })
     } finally {
       this.operations--
       this.lastActive = Date.now()
     }
+  }
+
+  async pause(ms: number, options: CommandOptions = {}): Promise<void> {
+    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    if (this.pendingDialog) throw new BrowserSessionError('dialog_open', this.pendingDialog)
+    const controller = new AbortController()
+    try {
+      await this.wait(delay(ms, undefined, { signal: controller.signal }), options)
+      if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    } finally {
+      controller.abort()
+    }
+  }
+
+  takeEvents() {
+    const downloads = [...this.downloadUpdates.values()]
+    this.downloadUpdates.clear()
+    const dismissedDialog = this.dismissedDialog
+    this.dismissedDialog = undefined
+    return { ...(downloads.length ? { downloads } : {}), ...(dismissedDialog ? { dismissedDialog } : {}) }
+  }
+
+  private readonly onDownload = (_event: Electron.Event, item: DownloadItem, guest: Electron.WebContents) => {
+    if (guest !== this.guest) return
+    const record = (state: string) => {
+      this.downloadUpdates.set(item, { filename: item.getFilename(), state })
+      if (this.downloadUpdates.size > 200) this.downloadUpdates.delete(this.downloadUpdates.keys().next().value!)
+    }
+    const updated = (_event: Electron.Event, state: string) => record(state)
+    const done = (_event: Electron.Event, state: string) => {
+      record(state)
+      cleanup()
+      this.downloadItems.delete(item)
+    }
+    const cleanup = () => {
+      item.removeListener('updated', updated)
+      item.removeListener('done', done)
+    }
+    this.downloadItems.set(item, cleanup)
+    item.on('updated', updated)
+    item.once('done', done)
+    record('progressing')
   }
 
   resolveRef(ref: BrowserRef): number {
@@ -255,15 +354,19 @@ export class GuestSession {
     return ref
   }
 
-  snapshot(options: SnapshotOptions = {}): Promise<{ text: string; snapshot: BrowserSnapshot }> {
+  async snapshot(
+    options: SnapshotOptions = {},
+    commandOptions: CommandOptions = {}
+  ): Promise<{ text: string; snapshot: BrowserSnapshot }> {
+    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
     const opts = snapshotOptionsSchema.parse(options)
     const capture = async () => {
       this.operations++
       try {
-        await this.ensureAttached()
+        await this.ensureAttached(commandOptions)
         const epoch = this.epoch
         const scope = opts.scope ? this.resolveRef(opts.scope) : undefined
-        const raw = await captureSnapshot(this)
+        const raw = await captureSnapshot(this, commandOptions)
         if (epoch !== this.epoch) throw new BrowserSessionError('stale_ref')
         const tree = buildSnapshotTree(raw, this.allocateRef, scope)
         const url = this.guest.getURL()
@@ -285,9 +388,7 @@ export class GuestSession {
         this.lastActive = Date.now()
       }
     }
-    const result = this.snapshotQueue.then(capture)
-    this.snapshotQueue = result.catch(() => undefined)
-    return result
+    return this.snapshotMutex.runExclusive(capture)
   }
 
   async describeElement(
@@ -316,7 +417,7 @@ export class GuestSession {
         }
         this.guest.debugger.on('message', onContextDestroyed)
         try {
-          const world = await this.send<{ executionContextId: number }>(
+          const world = await this.send(
             'Page.createIsolatedWorld',
             {
               frameId: this.mainFrameId,
@@ -367,7 +468,14 @@ export class GuestSession {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.actionMutex.cancel()
+    this.snapshotMutex.cancel()
     this.clearDialog()
+    if (this.ownership === 'managed') this.guest.session.removeListener('will-download', this.onDownload)
+    for (const cleanup of this.downloadItems.values()) cleanup()
+    this.downloadItems.clear()
+    this.downloadUpdates.clear()
+    this.events.dispose()
     this.rejectPending(new BrowserSessionError('debugger_unavailable'))
     this.detach()
     this.invalidateDocument()

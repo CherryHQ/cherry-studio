@@ -65,23 +65,3 @@ export interface CdpAccessibilityNode {
   backendDOMNodeId?: number
   frameId?: string
 }
-
-export interface CdpRuntimeEvaluateResult {
-  result?: {
-    objectId?: string
-    subtype?: string
-  }
-  exceptionDetails?: unknown
-}
-
-export interface CdpPageGetFrameTreeResult {
-  frameTree?: {
-    frame?: {
-      id?: string
-    }
-  }
-}
-
-export interface CdpPageCreateIsolatedWorldResult {
-  executionContextId?: number
-}
