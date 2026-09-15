@@ -4,17 +4,18 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { WindowId } from '@shared/ipc/types'
+import type { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { describeOAuthError, OAuthServiceError, OAuthSignInCancelledError, OAuthTransientError } from '../errors'
 import { LoopbackCallbackTransport } from './LoopbackCallbackTransport'
 import { ProviderAuthConfigOAuthTokenStore } from './OAuthTokenStore'
 import { OAuthHttpError } from './PkceOAuthClient'
 import { oauthProviderDefinitions } from './providerDefinitions'
+import type { CherryInOAuthContext, CherryInSignInResult } from './providers/cherryin'
 import type {
   OAuthAccount,
   OAuthRuntimeProviderContext,
   OAuthRuntimeProviderDefinition,
-  OAuthSignInResult,
   OAuthTokenCredentials,
   OAuthTokenStore
 } from './types'
@@ -38,7 +39,13 @@ type ActiveSignIn = {
     requestIdsByWindow: Map<WindowId, Set<string>>
     context?: OAuthRuntimeProviderContext
   }
-  promise: Promise<OAuthSignInResult>
+  promise: Promise<OAuthAccount>
+}
+
+type OAuthFetchOptions<TContext extends OAuthRuntimeProviderContext = OAuthRuntimeProviderContext> = {
+  context?: TContext
+  notSignedInMessage?: string
+  onUnauthorized?: (response: Response) => void | Promise<void>
 }
 
 /**
@@ -147,7 +154,7 @@ export class OAuthRuntimeService extends BaseService {
     definition: OAuthRuntimeProviderDefinition,
     transport: LoopbackCallbackTransport,
     operation: ActiveSignIn['operation']
-  ): Promise<OAuthSignInResult> => {
+  ): Promise<OAuthAccount> => {
     const context = operation.context ?? {}
     const signal = AbortSignal.any([operation.controller.signal, AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)])
     try {
@@ -178,10 +185,7 @@ export class OAuthRuntimeService extends BaseService {
       const result = await definition.afterPersistTokens?.(tokenData, context)
       providerService.update(definition.providerId, { isEnabled: true })
       this.logger.info(`${definition.providerId} sign-in succeeded`)
-      return {
-        ...(await this.getAccount(definition.providerId)),
-        ...(result?.apiKeys ? { apiKeys: result.apiKeys } : {})
-      }
+      return { ...(await this.getAccount(definition.providerId)), ...result }
     } catch (error) {
       if (this.isSignInCancellable(operation.phase) && operation.controller.signal.aborted) {
         this.logger.info(`${definition.providerId} sign-in cancelled`)
@@ -194,12 +198,24 @@ export class OAuthRuntimeService extends BaseService {
     }
   }
 
-  public signIn = (
+  public signIn(
+    initiatorWindowId: WindowId | null,
+    providerId: typeof SystemProviderIds.cherryin,
+    requestId: string,
+    context?: CherryInOAuthContext
+  ): Promise<CherryInSignInResult>
+  public signIn(
+    initiatorWindowId: WindowId | null,
+    providerId: string,
+    requestId: string,
+    context?: OAuthRuntimeProviderContext
+  ): Promise<OAuthAccount>
+  public signIn(
     initiatorWindowId: WindowId | null,
     providerId: string,
     requestId: string,
     context: OAuthRuntimeProviderContext = {}
-  ): Promise<OAuthSignInResult> => {
+  ): Promise<OAuthAccount> {
     if (!initiatorWindowId) {
       return Promise.reject(new OAuthServiceError('OAuth flow initiator is not a managed window'))
     }
@@ -212,10 +228,7 @@ export class OAuthRuntimeService extends BaseService {
       if (existing.operation.initiatorWindowId !== initiatorWindowId) {
         return Promise.reject(new OAuthServiceError('A sign-in from another window is already in progress'))
       }
-      if (
-        existing.operation.context?.oauthServer !== context.oauthServer ||
-        existing.operation.context?.apiHost !== context.apiHost
-      ) {
+      if (this.getDefinition(providerId).matchesSignInContext?.(existing.operation.context ?? {}, context) === false) {
         return Promise.reject(new OAuthServiceError('A sign-in for another server is already in progress'))
       }
       existing.operation.requestIdsByWindow.get(initiatorWindowId)?.add(requestId)
@@ -314,10 +327,18 @@ export class OAuthRuntimeService extends BaseService {
     this.logger.info(`Cleared ${providerId} OAuth tokens`)
   }
 
-  public getValidAccessToken = async (
+  public getValidAccessToken(
+    providerId: typeof SystemProviderIds.cherryin,
+    context?: CherryInOAuthContext
+  ): Promise<OAuthTokenCredentials | null>
+  public getValidAccessToken(
+    providerId: string,
+    context?: OAuthRuntimeProviderContext
+  ): Promise<OAuthTokenCredentials | null>
+  public async getValidAccessToken(
     providerId: string,
     context: OAuthRuntimeProviderContext = {}
-  ): Promise<OAuthTokenCredentials | null> => {
+  ): Promise<OAuthTokenCredentials | null> {
     const definition = this.getDefinition(providerId)
     const config = await this.tokenStore.get(providerId)
     if (!config?.accessToken) return null
@@ -370,16 +391,24 @@ export class OAuthRuntimeService extends BaseService {
    * `apiHost`); `options.onUnauthorized` runs when the request is still 401 after
    * the retry, for the caller's diagnostic logging.
    */
-  public authenticatedFetch = async (
+  public authenticatedFetch(
+    providerId: typeof SystemProviderIds.cherryin,
+    buildRequest: (creds: OAuthTokenCredentials) => { input: RequestInfo | URL; init: RequestInit },
+    doFetch: (input: RequestInfo | URL, init: RequestInit) => Promise<Response>,
+    options?: OAuthFetchOptions<CherryInOAuthContext>
+  ): Promise<Response>
+  public authenticatedFetch(
     providerId: string,
     buildRequest: (creds: OAuthTokenCredentials) => { input: RequestInfo | URL; init: RequestInit },
     doFetch: (input: RequestInfo | URL, init: RequestInit) => Promise<Response>,
-    options: {
-      context?: OAuthRuntimeProviderContext
-      notSignedInMessage?: string
-      onUnauthorized?: (response: Response) => void | Promise<void>
-    } = {}
-  ): Promise<Response> => {
+    options?: OAuthFetchOptions
+  ): Promise<Response>
+  public async authenticatedFetch(
+    providerId: string,
+    buildRequest: (creds: OAuthTokenCredentials) => { input: RequestInfo | URL; init: RequestInit },
+    doFetch: (input: RequestInfo | URL, init: RequestInit) => Promise<Response>,
+    options: OAuthFetchOptions = {}
+  ): Promise<Response> {
     this.getDefinition(providerId)
     const { context, notSignedInMessage, onUnauthorized } = options
     const creds = await this.getValidAccessToken(providerId, context)
