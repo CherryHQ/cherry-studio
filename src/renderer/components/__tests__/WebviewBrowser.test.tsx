@@ -4,7 +4,9 @@ import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
 import { Activity } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { agentBrowserRuntimeService as browserRuntime } from '@renderer/services/AgentBrowserRuntimeService'
 
 import { WebviewBrowser } from '../WebviewBrowser'
 
@@ -25,6 +27,52 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('WebviewBrowser', () => {
+  afterEach(() => browserRuntime.dispose())
+
+  it.each([
+    ['https://example.com/', 'agent-browser'],
+    ['file:///workspace/index.html', 'agent-html-artifact'],
+    ['http://localhost:5173/', 'agent-dev-preview']
+  ] as const)('retains %s when a pane mounts without a navigation request', (url, profile) => {
+    browserRuntime.declare('session-a', 'tab-a')
+    browserRuntime.ensure('session-a', url, profile)
+    const browser = (
+      <WebviewBrowser
+        agentSessionId="session-a"
+        securityProfile="agent-browser"
+        isHostActive
+        target={{ id: 'agent-browser:session-a', label: 'Browser' }}
+      />
+    )
+    const view = render(browser)
+    expect(browserRuntime.get('session-a')).toMatchObject({ sourceUrl: url, securityProfile: profile })
+    view.unmount()
+    render(browser)
+    expect(browserRuntime.get('session-a')).toMatchObject({ sourceUrl: url, securityProfile: profile })
+  })
+
+  it('creates an empty browser without a URL and still honors explicit navigation requests', () => {
+    browserRuntime.declare('session-a', 'tab-a')
+    const props = {
+      agentSessionId: 'session-a',
+      securityProfile: 'agent-browser' as const,
+      isHostActive: true,
+      target: { id: 'agent-browser:session-a', label: 'Browser' }
+    }
+    const view = render(<WebviewBrowser {...props} />)
+    expect(browserRuntime.get('session-a')?.sourceUrl).toBe('about:blank')
+    view.rerender(<WebviewBrowser {...props} initialUrl="file:///workspace/index.html" />)
+    expect(browserRuntime.get('session-a')).toMatchObject({
+      sourceUrl: 'file:///workspace/index.html',
+      securityProfile: 'agent-html-artifact'
+    })
+    view.rerender(<WebviewBrowser {...props} initialUrl="about:blank" />)
+    expect(browserRuntime.get('session-a')).toMatchObject({
+      sourceUrl: 'about:blank',
+      securityProfile: 'agent-browser'
+    })
+  })
+
   it('offers annotation only when the host can add it to a conversation', () => {
     const props = {
       initialUrl: 'https://example.com',

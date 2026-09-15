@@ -25,7 +25,7 @@ import { WebviewNavigation } from './WebviewNavigation'
 import WebviewSearch from './WebviewSearch'
 
 interface Props {
-  initialUrl: string
+  initialUrl?: string
   securityProfile:
     | typeof WebviewSecurityProfile.AgentBrowser
     | typeof WebviewSecurityProfile.AgentDevPreview
@@ -59,12 +59,13 @@ export function WebviewBrowser({
 }: Props) {
   const { t } = useTranslation()
   const [navigation, setNavigation] = useState<{
-    sourceUrl: string
+    sourceUrl: string | undefined
     sourceProfile: Props['securityProfile']
     url: string
   }>()
-  const hasNavigation = navigation?.sourceUrl === sourceUrl && navigation.sourceProfile === sourceProfile
-  const initialUrl = hasNavigation ? navigation.url : sourceUrl
+  const hasNavigation = navigation && navigation.sourceUrl === sourceUrl && navigation.sourceProfile === sourceProfile
+  const requestedUrl = hasNavigation ? navigation.url : sourceUrl
+  const initialUrl = requestedUrl ?? 'about:blank'
   const securityProfile = initialUrl.startsWith('file:')
     ? WebviewSecurityProfile.AgentHtmlArtifact
     : hasNavigation
@@ -85,12 +86,12 @@ export function WebviewBrowser({
   const configuredSource = useRef<string | undefined>(undefined)
   useEffect(() => {
     if (!agentSessionId) return
-    const key = `${agentSessionId}:${securityProfile}:${initialUrl}`
+    const key = `${agentSessionId}:${securityProfile}:${requestedUrl}`
     if (configuredSource.current !== key || !browserRuntime.get(agentSessionId)) {
       configuredSource.current = key
-      browserRuntime.ensure(agentSessionId, initialUrl, securityProfile)
+      browserRuntime.ensure(agentSessionId, requestedUrl, securityProfile)
     }
-  }, [agentSessionId, initialUrl, securityProfile])
+  }, [agentSessionId, requestedUrl, securityProfile])
   useEffect(() => {
     if (agentSessionId) browserRuntime.update(agentSessionId, { reloadKey })
   }, [agentSessionId, reloadKey, resource?.sessionId])

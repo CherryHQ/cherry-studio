@@ -367,7 +367,7 @@ vi.mock('@renderer/components/chat/trace/TracePane', () => {
 
 vi.mock('@renderer/components/WebviewBrowser', () => ({
   WebviewBrowser: (props: {
-    initialUrl: string
+    initialUrl?: string
     securityProfile: string
     target: { id: string; label: string }
     isHostActive: boolean
@@ -839,7 +839,7 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
 
-    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'about:blank')
+    expect(screen.getByTestId('webview-browser')).not.toHaveAttribute('data-url')
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-security-profile', 'agent-browser')
   })
 
@@ -1531,7 +1531,7 @@ describe('AgentRightPane', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
 
-    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'about:blank')
+    expect(screen.getByTestId('webview-browser')).not.toHaveAttribute('data-url')
 
     await act(async () => result.resolve({ found: true, output: 'Build completed without a preview address' }))
 
