@@ -16,6 +16,7 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js'
 
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
+import { AsyncInitializer } from '@shared/utils/async'
 
 export type McpClientSdk = {
   Client: typeof Client
@@ -35,10 +36,8 @@ export type McpClientSdk = {
 
 export type McpTransport = StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
 
-let mcpClientSdkPromise: Promise<McpClientSdk> | undefined
-
-export function loadMcpClientSdk(): Promise<McpClientSdk> {
-  mcpClientSdkPromise ??= Promise.all([
+const mcpClientSdk = new AsyncInitializer<McpClientSdk>(() =>
+  Promise.all([
     import('@modelcontextprotocol/sdk/client/index.js'),
     import('@modelcontextprotocol/sdk/client/sse.js'),
     import('@modelcontextprotocol/sdk/client/stdio.js'),
@@ -60,7 +59,10 @@ export function loadMcpClientSdk(): Promise<McpClientSdk> {
     ResourceUpdatedNotificationSchema: types.ResourceUpdatedNotificationSchema,
     ToolListChangedNotificationSchema: types.ToolListChangedNotificationSchema
   }))
-  return mcpClientSdkPromise
+)
+
+export function loadMcpClientSdk(): Promise<McpClientSdk> {
+  return mcpClientSdk.get()
 }
 
 // Order in which to attempt the URL-based transports for a given server. We try the
