@@ -2,19 +2,16 @@ import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/
 
 export type PermissionRiskEffect = 'destructive' | 'network' | 'irreversible'
 
-// Only the executable command text is analyzed. The human-readable
-// description may mention keywords like "remove" or URLs without the
-// command itself performing those operations.
+// Analyze only the executable command text; the human-readable description
+// may mention keywords or URLs the command itself never performs.
 function getCommandText(args: unknown): string {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return ''
   const command = (args as Record<string, unknown>).command
   return typeof command === 'string' ? command : ''
 }
 
-// This classifier parallels the activity wording in ToolHeader's
-// getCommandActivity: both pattern-match shell commands, but this one assigns
-// risk severity while that one assigns display labels. Check both when newly
-// covering a tool.
+// Mirrors ToolHeader's getCommandActivity patterns; this assigns risk severity,
+// that assigns display labels. Check both when covering a new tool.
 export function getPermissionRiskEffects(toolName: string, args: unknown): PermissionRiskEffect[] {
   const effects = new Set<PermissionRiskEffect>()
   const text = getCommandText(args)
@@ -45,12 +42,9 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
     effects.add('destructive')
     effects.add('irreversible')
   }
-  // Shell output redirection truncates or modifies the target file. A word
-  // character may precede `>` (as in `hi>file`), while `=` stays excluded so
-  // `=>` and `>=` in inline scripts still don't match. The lookahead skips
-  // fd-to-fd duplication such as `2>&1` and `>&-`, but still flags `>& file`,
-  // which writes to a file.
-  if (/(^|[\s;&|\w])\d*>{1,2}(?!&[\d-])\s*\S/.test(text)) {
+  // `>` truncates the target file, excluding `=>`/`>=`, fd duplication (`2>&1`),
+  // and null-device discards (`>/dev/null`) which write no file.
+  if (/(^|[\s;&|\w])\d*>{1,2}(?!&[\d-])(?!\s*\/dev\/null\b)\s*\S/.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }
@@ -64,13 +58,12 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   if (/\bmv\s+\S+\s+\S+/.test(text)) {
     effects.add('destructive')
   }
-  // Git operations that discard work. `clean` requires `-f` because bare
-  // `clean -n` is a dry run, and `branch` requires uppercase `-D` because
-  // lowercase `-d` refuses unmerged branches.
+  // Git operations that discard work, matched within one simple command so flags
+  // past `&&`/`;` don't leak. `-f` skips `clean -n` dry runs; `-D` skips safe `-d`.
   if (
-    /\bgit\s+clean[\s\S]*-f/.test(text) ||
-    /\bgit\s+reset[\s\S]*--hard/.test(text) ||
-    /\bgit\s+branch[\s\S]*-D/.test(text)
+    /\bgit\s+clean[^;&|]*-f/.test(text) ||
+    /\bgit\s+reset[^;&|]*--hard/.test(text) ||
+    /\bgit\s+branch[^;&|]*-D/.test(text)
   ) {
     effects.add('destructive')
     effects.add('irreversible')
@@ -80,7 +73,7 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   }
   if (
     /https?:\/\//i.test(text) ||
-    /\b(?:curl|wget|scp|rsync|sftp|ssh|nc|ncat|socat|aria2c|telnet)\b/i.test(text) ||
+    /\b(?:curl|wget|scp|rsync|sftp|ssh(?!-)|nc|ncat|socat|aria2c|telnet)\b/i.test(text) ||
     /\bgit\s+(?:push|fetch|pull|clone)\b/i.test(text)
   ) {
     effects.add('network')

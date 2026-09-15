@@ -145,4 +145,30 @@ describe('getPermissionRiskEffects', () => {
       expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual([])
     }
   })
+
+  it('does not treat /dev/null redirects as file writes', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'ls foo 2>/dev/null' })).toEqual([])
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'pnpm lint > /dev/null 2>&1' })).toEqual([])
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'command -v rg >/dev/null' })).toEqual([])
+  })
+
+  it('still flags real file writes alongside /dev/null discards', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'cmd > /dev/null; echo x > real.txt' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+  })
+
+  it('does not leak git flags across command boundaries', () => {
+    expect(
+      getPermissionRiskEffects(AgentToolsType.Bash, { command: 'git clean -n && grep -f patterns.txt list' })
+    ).toEqual([])
+    expect(
+      getPermissionRiskEffects(AgentToolsType.Bash, { command: 'git branch --show-current && make -DDEBUG=1' })
+    ).toEqual([])
+  })
+
+  it('does not treat ssh key tooling as network activity', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'ssh-keygen -t ed25519' })).toEqual([])
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'ssh-add -l' })).toEqual([])
+  })
 })

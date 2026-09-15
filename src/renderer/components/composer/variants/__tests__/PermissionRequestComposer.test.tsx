@@ -272,7 +272,7 @@ describe('PermissionRequestComposer', () => {
     expect(screen.getAllByText('CustomTool')).toHaveLength(1)
   })
 
-  it('shows a plain-language risk summary with the reason before the raw command', () => {
+  it('shows the reason once in the header and warnings in the risk summary', () => {
     render(
       <PermissionRequestComposer
         request={makeRequest({
@@ -293,15 +293,16 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
+    expect(screen.getByText('Clean up the old build output')).toBeInTheDocument()
     const summary = screen.getByTestId('permission-risk-summary')
     expect(summary).toHaveTextContent('What this does')
-    expect(summary).toHaveTextContent('Clean up the old build output')
     expect(summary).toHaveTextContent('Deletes or overwrites data.')
     expect(summary).toHaveTextContent('Cannot be undone automatically.')
+    expect(summary).not.toHaveTextContent('Clean up the old build output')
     expect(screen.getByTestId('permission-preview')).toHaveTextContent('rm -rf ./dist')
   })
 
-  it('shows the risk summary without warnings for read-only commands', () => {
+  it('hides the risk summary for read-only commands and keeps the reason in the header', () => {
     render(
       <PermissionRequestComposer
         request={makeRequest({
@@ -322,9 +323,8 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    const summary = screen.getByTestId('permission-risk-summary')
-    expect(summary).toHaveTextContent('Run the focused tests')
-    expect(summary).not.toHaveTextContent('Deletes or overwrites data.')
+    expect(screen.queryByTestId('permission-risk-summary')).not.toBeInTheDocument()
+    expect(screen.getByText('Run the focused tests')).toBeInTheDocument()
   })
 
   it('approves when Enter is pressed outside editable controls', async () => {

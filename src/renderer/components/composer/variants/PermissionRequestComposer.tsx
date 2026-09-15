@@ -165,19 +165,10 @@ const RISK_EFFECT_TONE: Record<PermissionRiskEffect, string> = {
   network: 'text-warning'
 }
 
-function PermissionRiskSummary({
-  toolName,
-  args,
-  action,
-  reason
-}: {
-  toolName: string
-  args: unknown
-  action: string
-  reason: string | null
-}) {
+function PermissionRiskSummary({ toolName, args }: { toolName: string; args: unknown }) {
   const { t } = useTranslation()
   const effects = getPermissionRiskEffects(toolName, args)
+  if (effects.length === 0) return null
   const effectLabels: Record<PermissionRiskEffect, string> = {
     destructive: t('agent.toolPermission.risk.destructive'),
     irreversible: t('agent.toolPermission.risk.irreversible'),
@@ -189,20 +180,14 @@ function PermissionRiskSummary({
       data-testid="permission-risk-summary"
       className="mt-2 rounded-[12px] border border-border bg-background px-3 py-2">
       <div className="font-medium text-muted-foreground text-xs">{t('agent.toolPermission.risk.title')}</div>
-      <p className="mt-0.5 text-foreground text-sm leading-5">
-        {action}
-        {reason ? <span className="text-muted-foreground"> — {reason}</span> : null}
-      </p>
-      {effects.length > 0 ? (
-        <ul className="mt-1 space-y-0.5">
-          {effects.map((effect) => (
-            <li key={effect} className={`flex items-start gap-1.5 text-xs leading-4 ${RISK_EFFECT_TONE[effect]}`}>
-              <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
-              {effectLabels[effect]}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <ul className="mt-1 space-y-0.5">
+        {effects.map((effect) => (
+          <li key={effect} className={`flex items-start gap-1.5 text-xs leading-4 ${RISK_EFFECT_TONE[effect]}`}>
+            <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+            {effectLabels[effect]}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -285,7 +270,9 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
             </span>
             {toolTitle}
           </h2>
-          {subtitle ? <span className="min-w-0 truncate text-muted-foreground text-xs">{subtitle}</span> : null}
+          {subtitle ? (
+            <span className="min-w-0 flex-1 break-words text-muted-foreground text-xs">{subtitle}</span>
+          ) : null}
           {/* Live region stays mounted while idle so injecting the processing pill is announced */}
           <div role="status" aria-live="polite" className="ml-auto shrink-0">
             {isSubmitting ? (
@@ -297,12 +284,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           </div>
         </div>
 
-        <PermissionRiskSummary
-          toolName={request.toolResponse.tool.name}
-          args={request.toolResponse.arguments}
-          action={toolTitle}
-          reason={subtitle}
-        />
+        <PermissionRiskSummary toolName={request.toolResponse.tool.name} args={request.toolResponse.arguments} />
         <div className="mt-2 overflow-hidden rounded-[12px] bg-muted dark:bg-muted/30" data-testid="permission-preview">
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>
