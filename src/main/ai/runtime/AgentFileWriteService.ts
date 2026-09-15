@@ -88,16 +88,10 @@ export class AgentFileWriteService extends BaseService {
 
   hasWritesInside(directory: string): boolean {
     return [...this.active].some((lease) => {
+      const canonicalDir = await realpath(directory).catch(() => directory)
       const relative = path.relative(directory, lease.path)
       return !relative || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
     })
-  hasWritesInside(directory: string): boolean {
-    return [...this.active].some(async (lease) => {
-      const canonicalDir = await realpath(directory).catch(() => directory)
-      const relative = path.relative(canonicalDir, lease.path)
-      return !relative || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
-    })
-  }
 
   release(owner: object, id: string): void {
     if (this.exited.has(owner)) return
