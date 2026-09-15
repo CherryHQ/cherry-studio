@@ -763,7 +763,7 @@
       "name": "TokenDance"
     },
     {
-      "availableInEditions": ["global", "cn"],
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Y-API - AI model provider",
       "endpointConfigs": {
@@ -2713,5 +2713,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "35c2ab334beb1a6a"
+  "version": "155b81973933ed87"
 }
