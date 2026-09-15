@@ -42,6 +42,13 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.t('common.copy')).toBe('Kopyala')
   })
 
+  it('lazy-loads the Azerbaijani pack when switching language', async () => {
+    await i18n.changeLanguage('az-AZ')
+
+    expect(i18n.hasResourceBundle('az-AZ', 'translation')).toBe(true)
+    expect(i18n.t('common.save')).toBe('Yadda saxla')
+  })
+
   it('uses singular and plural diagnostic file summaries in English', async () => {
     await i18n.changeLanguage('en-US')
 

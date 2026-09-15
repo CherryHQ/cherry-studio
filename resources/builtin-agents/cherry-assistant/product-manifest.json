@@ -780,6 +780,11 @@
       "value": "tr-TR",
       "flag": "🇹🇷",
       "label": "Türkçe"
+    },
+    {
+      "value": "az-AZ",
+      "flag": "🇦🇿",
+      "label": "Azərbaycan dili"
     }
   ],
   "agents": {
