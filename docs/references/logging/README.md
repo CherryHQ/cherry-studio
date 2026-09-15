@@ -26,6 +26,11 @@ exception capture is installed before lifecycle services start. Reporting stays
 blocked until `PreferenceService` is ready and consent is valid; the same check
 runs before sending each envelope, including after preferences stop.
 
+Before an event leaves the machine, `beforeSend` redacts secret-looking text and
+rewrites the user's home directory to `~` in every string, so error messages and
+React component stacks carry no username. Stack-frame filenames are normalized
+to `app:///` by the SDK itself.
+
 `SentryLogService` owns the main logger's Sentry transport. It starts in
 `BeforeReady`, after `PreferenceService`, and removes the transport on stop or
 destroy. Restarting the service attaches a fresh transport. `AnalyticsService`

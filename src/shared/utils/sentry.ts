@@ -1,7 +1,7 @@
 import { prerelease } from 'semver'
 
 import type { AppEdition } from '../types/appEdition'
-import { isSensitiveKey, REDACTED, redactSecretText } from './redaction'
+import { createHomePathRedactor, isSensitiveKey, REDACTED, redactSecretText } from './redaction'
 
 export function getSentryBuildContext(name: string, version: string, edition: AppEdition) {
   return {
@@ -50,5 +50,18 @@ export function sanitizeSentryEvent<T>(event: T): T {
       if (isSensitiveKey(key)) return REDACTED
       return typeof value === 'string' ? redactSecretText(value, ['code']) : value
     })
+  ) as T
+}
+
+/**
+ * Rewrite the user's home directory to `~` in every string of the event (error
+ * messages, `extra` such as React component stacks). Main process only, after
+ * the SDK's NormalizePaths integration: renderer events reach it over IPC with
+ * raw `file://` frame filenames that the SDK still has to rewrite to `app:///`.
+ */
+export function redactSentryEventPaths<T>(event: T, home: string): T {
+  const redactHomePath = createHomePathRedactor(home)
+  return JSON.parse(
+    JSON.stringify(event, (_key, value) => (typeof value === 'string' ? redactHomePath(value) : value))
   ) as T
 }

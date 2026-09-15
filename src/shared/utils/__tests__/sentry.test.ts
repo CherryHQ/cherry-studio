@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from '../sentry'
+import { getSentryBuildContext, getSentryLogContext, redactSentryEventPaths, sanitizeSentryEvent } from '../sentry'
 
 describe('Sentry context', () => {
   it.each([
@@ -83,5 +83,69 @@ describe('Sentry event sanitization', () => {
     expect(sanitized.tags).toEqual(event.tags)
     expect(sanitized.exception).toEqual(event.exception)
     expect(event.extra.apiKey).toBe('real-api-key')
+  })
+})
+
+describe('Sentry event path redaction', () => {
+  it('rewrites the home directory in messages and component stacks while keeping normalized frames', () => {
+    const event = {
+      exception: {
+        values: [
+          {
+            type: 'Error',
+            value:
+              "EPERM: operation not permitted, unlink 'C:\\Users\\John Smith\\AppData\\Roaming\\CherryStudio\\Data\\app.db'",
+            stacktrace: { frames: [{ filename: 'app:///out/main/index.js', lineno: 12, colno: 34 }] }
+          }
+        ]
+      },
+      extra: {
+        componentStack:
+          '\n    at Foo (file:///C:/Users/John%20Smith/AppData/Local/Programs/Cherry%20Studio/resources/app.asar/out/renderer/assets/index-abc.js:12:34)\n    at div'
+      },
+      request: { url: 'app:///out/renderer/index.html' },
+      tags: { module: 'FileStorage', code: 'EPERM', 'event.process': 'main' }
+    }
+
+    const redacted = redactSentryEventPaths(event, 'C:\\Users\\John Smith')
+
+    const serialized = JSON.stringify(redacted)
+    for (const identity of ['John Smith', 'John%20Smith']) expect(serialized).not.toContain(identity)
+    expect(redacted.exception.values[0].value).toBe(
+      "EPERM: operation not permitted, unlink '~\\AppData\\Roaming\\CherryStudio\\Data\\app.db'"
+    )
+    expect(redacted.extra.componentStack).toBe(
+      '\n    at Foo (~/AppData/Local/Programs/Cherry%20Studio/resources/app.asar/out/renderer/assets/index-abc.js:12:34)\n    at div'
+    )
+    expect(redacted.exception.values[0].stacktrace).toEqual(event.exception.values[0].stacktrace)
+    expect(redacted.request).toEqual(event.request)
+    expect(redacted.tags).toEqual(event.tags)
+    expect(event.exception.values[0].value).toContain('John Smith')
+  })
+
+  it('sanitizeSentryEvent leaves raw renderer frame filenames for the SDK path normalizer', () => {
+    const event = {
+      exception: {
+        values: [
+          {
+            type: 'TypeError',
+            value: 'x is not a function',
+            stacktrace: {
+              frames: [
+                {
+                  filename:
+                    'file:///C:/Users/John%20Smith/AppData/Local/Programs/Cherry%20Studio/resources/app.asar/out/renderer/assets/index-abc.js'
+                }
+              ]
+            }
+          }
+        ]
+      },
+      request: {
+        url: 'file:///C:/Users/John%20Smith/AppData/Local/Programs/Cherry%20Studio/resources/app.asar/out/renderer/index.html'
+      }
+    }
+
+    expect(sanitizeSentryEvent(event)).toEqual(event)
   })
 })
