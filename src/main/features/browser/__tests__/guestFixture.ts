@@ -49,5 +49,12 @@ export function createGuest(id = 1) {
       events.emit('destroyed')
     })
   })
+  Object.defineProperty(mock, 'debugger', {
+    configurable: true,
+    get: () => {
+      if (destroyed) throw new TypeError('Object has been destroyed')
+      return debuggerSession
+    }
+  })
   return { mock, guest: mock as unknown as Electron.WebContents }
 }
