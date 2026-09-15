@@ -4962,6 +4962,7 @@
   "settings.tool.websearch.provider_description.parallel": "Web search API for AI agents, returning ranked links and token-dense excerpts.",
   "settings.tool.websearch.provider_description.querit": "Querit search and contents APIs for AI apps, retrieving web results and page content.",
   "settings.tool.websearch.provider_description.searxng": "Self-hostable free internet metasearch engine across many sources.",
+  "settings.tool.websearch.provider_description.serply": "Serply search API returning Google results as structured JSON for AI apps.",
   "settings.tool.websearch.provider_description.tavily": "Search engine optimized for LLMs.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Search for live web retrieval and current information.",
   "settings.tool.websearch.search_max_result.label": "Number of search results",

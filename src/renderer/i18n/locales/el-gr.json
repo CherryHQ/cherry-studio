@@ -4962,6 +4962,7 @@
   "settings.tool.websearch.provider_description.parallel": "API αναζήτησης ιστού για πράκτορες AI, με ταξινομημένους συνδέσμους και πυκνά αποσπάσματα.",
   "settings.tool.websearch.provider_description.querit": "Υπηρεσία αναζήτησης για εφαρμογές AI με αποτελέσματα ανάκτησης από τον ιστό.",
   "settings.tool.websearch.provider_description.searxng": "Αυτο-φιλοξενούμενη δωρεάν μηχανή μετα-αναζήτησης στο διαδίκτυο σε πολλές πηγές.",
+  "settings.tool.websearch.provider_description.serply": "API αναζήτησης Serply που επιστρέφει αποτελέσματα Google ως δομημένο JSON για εφαρμογές AI.",
   "settings.tool.websearch.provider_description.tavily": "Μηχανή αναζήτησης βελτιστοποιημένη για LLM.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Search για ζωντανή ανάκτηση ιστού και τρέχουσες πληροφορίες.",
   "settings.tool.websearch.search_max_result.label": "Αριθμός αποτελεσμάτων αναζήτησης",

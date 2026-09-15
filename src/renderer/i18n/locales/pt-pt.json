@@ -4962,6 +4962,7 @@
   "settings.tool.websearch.provider_description.parallel": "API de pesquisa web para agentes de IA, que devolve ligações ordenadas e excertos ricos em informação.",
   "settings.tool.websearch.provider_description.querit": "Serviço de pesquisa para aplicações de IA com resultados de recuperação da web.",
   "settings.tool.websearch.provider_description.searxng": "Motor de metapesquisa de internet gratuito e auto-hospedável em várias fontes.",
+  "settings.tool.websearch.provider_description.serply": "API de pesquisa Serply que devolve resultados do Google em JSON estruturado para aplicações de IA.",
   "settings.tool.websearch.provider_description.tavily": "Otimizado para LLMs de mecanismos de busca.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Search para recuperação da web em tempo real e informações atuais.",
   "settings.tool.websearch.search_max_result.label": "Número de resultados de pesquisa",
