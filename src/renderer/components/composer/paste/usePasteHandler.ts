@@ -3,7 +3,9 @@ import { useCallback } from 'react'
 
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
-import pasteHandling from './pasteHandling'
+import pasteHandling, { type PasteHandlerLifecycle } from './pasteHandling'
+
+export type PasteHandlerInvocationOptions = PasteHandlerLifecycle
 
 export interface UsePasteHandlerOptions {
   supportedExts: string[]
@@ -19,12 +21,14 @@ export interface UsePasteHandlerOptions {
  *
  * 处理文件、长文本、图片等粘贴场景，集成 pasteHandling
  *
+ * @param text - 当前文本内容
+ * @param setText - 设置文本的函数
  * @param options - 粘贴处理配置
  * @returns 粘贴事件处理函数
  *
  * @example
  * ```tsx
- * const { handlePaste } = usePasteHandler({
+ * const { handlePaste } = usePasteHandler(text, setText, {
  *   supportedExts: ['.png', '.jpg', '.pdf'],
  *   setFiles: (updater) => setFiles(updater),
  *   onResize: () => resize(),
@@ -34,20 +38,20 @@ export interface UsePasteHandlerOptions {
  * <textarea onPaste={handlePaste} />
  * ```
  */
-export function usePasteHandler(options: UsePasteHandlerOptions) {
+export function usePasteHandler(text: string, setText: (text: string) => void, options: UsePasteHandlerOptions) {
   const handlePaste = useCallback(
-    async (event: ClipboardEvent) => {
-      return await pasteHandling.handlePaste(
-        event,
-        options.supportedExts,
-        options.setFiles,
-        options.pasteLongTextAsFile,
-        options.pasteLongTextThreshold,
-        options.onResize ?? (() => {}),
-        options.t
-      )
+    async (event: ClipboardEvent, invocationOptions?: PasteHandlerInvocationOptions) => {
+      return await pasteHandling.handlePaste(event, options.supportedExts, options.setFiles, {
+        setText,
+        pasteLongTextAsFile: options.pasteLongTextAsFile,
+        pasteLongTextThreshold: options.pasteLongTextThreshold,
+        text,
+        resizeTextArea: options.onResize ?? (() => {}),
+        t: options.t,
+        ...invocationOptions
+      })
     },
-    [options]
+    [text, setText, options]
   )
 
   return { handlePaste }
