@@ -909,9 +909,11 @@ export class AiStreamManager extends BaseService {
         : [{ id: 'prompt-user', role: 'user', parts: [{ type: 'text', text: input.prompt ?? '' }] }]
 
     const request: ManagedAiStreamRequest = {
-      // A trusted Agent SDK call belongs to its agent session; anything else is its own conversation.
+      // A trusted Agent SDK call belongs to its agent session. Anything else — a one-shot, or a
+      // gateway request whose external client never told us — has no conversation, and `streamId`
+      // is a per-stream handle, not an identity worth claiming (see `ConversationRef.id`).
       conversation: {
-        id: input.usageContext ? input.usageContext.agentSessionId : input.streamId,
+        ...(input.usageContext ? { id: input.usageContext.agentSessionId } : {}),
         topicId: input.streamId
       },
       trigger: 'submit-message',

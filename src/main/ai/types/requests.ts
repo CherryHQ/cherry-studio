@@ -58,7 +58,14 @@ export interface CallOverrides {
  * party that knows its unit of work (a topic, an agent session, one probe).
  */
 export interface ConversationRef {
-  id: string
+  /**
+   * Identity REUSED across the turns of one conversation — the sole input to a provider's
+   * `conversationHeader`, which tells a host that these requests share a prefix. Absent when the
+   * caller has no such unit (a one-shot, or a stateless gateway request whose client sent no key of
+   * its own): a synthesized id would be a new "conversation" every turn, which reads to the host as
+   * "never reuse anything" and is strictly worse than saying nothing.
+   */
+  id?: string
   /** The stream manager's topic key (a chat topic, or a prompt stream's own id); absent for probes. */
   topicId?: string
 }

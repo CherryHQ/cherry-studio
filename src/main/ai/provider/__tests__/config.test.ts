@@ -296,6 +296,48 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
   })
 
+  describe('OpenRouter conversation header', () => {
+    const model = makeModel({
+      id: 'custom-openrouter::openai/gpt-5.6',
+      apiModelId: 'openai/gpt-5.6',
+      providerId: 'custom-openrouter',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    const makeOpenRouterProvider = (settings?: { extraHeaders: Record<string, string> }) =>
+      makeProvider({
+        id: 'custom-openrouter',
+        presetProviderId: 'openrouter',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://openrouter.ai/api/v1/',
+            adapterFamily: 'openai-compatible'
+          }
+        },
+        ...(settings ? { settings } : {})
+      })
+
+    it('declares the sticky-routing header for providers derived from the OpenRouter preset', async () => {
+      const config = await providerToAiSdkConfig(makeOpenRouterProvider(), model)
+
+      expect(config.conversationHeader).toBe('x-session-id')
+      expect((config.providerSettings as { headers?: Record<string, string> }).headers ?? {}).not.toHaveProperty(
+        'x-session-id'
+      )
+    })
+
+    it('keeps an explicitly configured session header', async () => {
+      const provider = makeOpenRouterProvider({ extraHeaders: { 'X-Session-Id': 'configured-session' } })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
+
+      expect(headers).toMatchObject({ 'X-Session-Id': 'configured-session' })
+      expect(config.conversationHeader).toBeUndefined()
+    })
+  })
+
   describe('Vertex routing (google-vertex AND google-vertex-anthropic → buildVertexConfig)', () => {
     const vertexAuth: AuthConfig = {
       type: 'iam-gcp',

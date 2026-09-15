@@ -43,6 +43,7 @@ import {
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders, getProviderAppHeaders } from '../../utils/provider'
 import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { agentConversationHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
@@ -810,7 +811,10 @@ async function resolveClaudeCodeRuntimeRoute(
       return {
         ...facts,
         apiKey: runtimeApiKey,
+        // First source = lowest precedence: an explicit provider header still wins. Absent from
+        // `facts.credentialsFingerprint` on purpose — a session id is not credential material.
         customHeaders: mergeAnthropicCustomHeaders(
+          agentConversationHeaders(primaryProvider, sessionId),
           getProviderAppHeaders(primaryProvider),
           getExtraHeaders(primaryProvider)
         ),
