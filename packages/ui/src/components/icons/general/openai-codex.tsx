@@ -5,13 +5,7 @@ const OpenaiCodex: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="1em"
-      height="1em"
-      fill="none"
-      viewBox="15.885 15.711 88.984 88.326"
-      {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
       <g clipPath={`url(#${iconId}-openaicodex__a)`}>
         <path
           fill="#fff"
