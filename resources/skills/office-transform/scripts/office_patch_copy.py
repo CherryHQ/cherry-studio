@@ -308,15 +308,6 @@ def paragraph_text(paragraph) -> str:
     """
     parts = []
 
-    def break_type(element) -> str:
-        """`w:type` by local name — the prefix is the document's to choose, like everywhere else here."""
-        attributes = element.attributes
-        for index in range(attributes.length):
-            attribute = attributes.item(index)
-            if attribute.name.rsplit(":", 1)[-1] == "type":
-                return attribute.value
-        return ""
-
     def append_run(run) -> None:
         for child in element_children(run):
             local_name = child.tagName.rsplit(":", 1)[-1]
@@ -329,7 +320,7 @@ def paragraph_text(paragraph) -> str:
             elif local_name == "br":
                 # A line break is a newline; a page or column break is a layout instruction
                 # `.text` does not spell.
-                if break_type(child) in ("", "textWrapping"):
+                if break_type(child) in (None, "textWrapping"):
                     parts.append("\n")
             elif local_name == "noBreakHyphen":
                 parts.append("-")
