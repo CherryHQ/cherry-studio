@@ -376,13 +376,13 @@ describe('useLaunchDialogController', () => {
     expect(mocks.requestMock).not.toHaveBeenCalled()
   })
 
-  it('resolves the same fallback for provider-less launches', async () => {
+  it('resolves the same fallback for MiniMax Code official launches', async () => {
     const { result } = renderHook(() =>
       useLaunchDialogController({
-        selectedCliTool: CodeCli.QODER_CLI,
-        toolName: 'Qoder',
+        selectedCliTool: CodeCli.MCODE,
+        toolName: 'MiniMax Code',
         directory: '/tmp/project',
-        isOwnLoginSelected: false,
+        isOwnLoginSelected: true,
         selectedTerminal: undefined,
         gatewayModelsById: new Map(),
         modelById: new Map<UniqueModelId, Model>([
@@ -402,7 +402,55 @@ describe('useLaunchDialogController', () => {
 
     expect(mocks.requestMock).toHaveBeenCalledWith(
       'code_cli.run',
-      expect.objectContaining({ mode: 'own-login', terminal: 'terminal' })
+      expect.objectContaining({
+        mode: 'own-login',
+        cliTool: CodeCli.MCODE,
+        directory: '/tmp/project',
+        terminal: 'terminal'
+      })
+    )
+  })
+
+  it('launches MiniMax Code normally when a Cherry provider is selected', async () => {
+    const { result } = renderHook(() =>
+      useLaunchDialogController({
+        selectedCliTool: CodeCli.MCODE,
+        toolName: 'MiniMax Code',
+        directory: '/tmp/project',
+        enabledProvider,
+        isOwnLoginSelected: false,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        selectedTerminal: 'terminal',
+        gatewayModelsById: new Map(),
+        modelById: new Map<UniqueModelId, Model>([
+          ['anthropic::claude-sonnet-4-5', { apiModelId: 'claude-sonnet-4-5' } as Model]
+        ]),
+        isModelsLoading: false,
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn(),
+        setTerminal: vi.fn(),
+        selectFolder: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      result.current.launchDialogProps.onLaunch()
+    })
+
+    expect(mocks.resolveCliConfigApplyContext).toHaveBeenCalledWith(
+      CodeCli.MCODE,
+      'anthropic',
+      { modelId: 'anthropic::claude-sonnet-4-5' },
+      undefined
+    )
+    expect(mocks.requestMock).toHaveBeenCalledWith(
+      'code_cli.run',
+      expect.objectContaining({
+        mode: 'normal',
+        cliTool: CodeCli.MCODE,
+        providerId: 'anthropic',
+        model: 'claude-sonnet-4-5'
+      })
     )
   })
 
@@ -486,9 +534,9 @@ describe('useLaunchDialogController', () => {
       expect(mocks.requestMock).not.toHaveBeenCalled()
     })
 
-    it('re-verifies the gateway and rewrites the config with its key before running', async () => {
+    it.each([CodeCli.CLAUDE_CODE, CodeCli.MCODE])('refreshes the gateway key before running %s', async (cliTool) => {
       const getApiKey = vi.fn().mockResolvedValue('cs-sk-current')
-      const { result } = renderGatewayLaunch(getApiKey)
+      const { result } = renderGatewayLaunch(getApiKey, gatewayModelsById, undefined, cliTool)
 
       await act(async () => {
         result.current.launchDialogProps.onLaunch()
@@ -498,13 +546,14 @@ describe('useLaunchDialogController', () => {
 
       expect(getApiKey).toHaveBeenCalledTimes(1)
       expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith({
-        cliTool: CodeCli.CLAUDE_CODE,
+        cliTool,
         modelId: 'deepseek::deepseek-chat',
         configBlob: { permissionMode: 'plan' },
         writePrimaryModel: true,
         gateway: { provider: gatewayProvider, apiKey: 'cs-sk-current' }
       })
       expect(mocks.requestMock).toHaveBeenCalledWith('code_cli.run', expect.objectContaining({ mode: 'normal' }))
+      if (cliTool === CodeCli.MCODE) expect(mocks.readCliConfigFiles).not.toHaveBeenCalled()
       // The rebuild must complete before the CLI is spawned.
       expect(mocks.writeCliConfigDraft.mock.invocationCallOrder[0]).toBeLessThan(
         mocks.requestMock.mock.invocationCallOrder[0]

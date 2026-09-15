@@ -10,6 +10,7 @@ import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@sha
 import { isFileConfiguredCli } from '@shared/utils/cliConfig'
 
 import {
+  activateMiniMaxCodeOfficial,
   clearCliConfig,
   type CliConfigConnection,
   type CliConfigFileDraft,
@@ -73,7 +74,7 @@ export function useConfigPanelController({
   const { t } = useTranslation()
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const pendingEnableProviderIdRef = useRef<string | null>(null)
-  const writesCliConfig = isFileConfiguredCli(selectedCliTool)
+  const writesCliConfig = isFileConfiguredCli(selectedCliTool) || selectedCliTool === CodeCli.MCODE
 
   // For a gateway write: start the gateway if needed and resolve its configured key, then hand back the
   // synthetic provider + key so `writeCliConfigDraft` injects the gateway URL/key (never the real
@@ -246,13 +247,13 @@ export function useConfigPanelController({
       if (inFlightToolsRef.current.has(selectedCliTool)) return
       inFlightToolsRef.current.add(selectedCliTool)
       void (async () => {
-        // Virtual "own login" entry: the CLI falls back to its own stored login. Always scrub the
-        // Cherry-managed credentials/model first (this also clears credential-only side files like
-        // Codex auth.json / Gemini .env), then — for configurable tools on select — layer the saved
-        // tool params back on. Finally mark the reserved id current (or clear it when re-toggled).
+        // Switch MiniMax Code explicitly to Token Plan; other own-login tools scrub Cherry-managed config.
+        // Configurable tools then layer their saved model-independent params back on.
         if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
           try {
-            if (writesCliConfig) {
+            if (isEnabling && selectedCliTool === CodeCli.MCODE) {
+              await activateMiniMaxCodeOfficial()
+            } else if (writesCliConfig) {
               await clearCliConfig({ cliTool: selectedCliTool })
             }
             if (isEnabling && isOwnLoginConfigurable(selectedCliTool)) {

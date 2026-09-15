@@ -6,6 +6,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 const mocks = vi.hoisted(() => ({
+  activateMiniMaxCodeOfficial: vi.fn(),
   clearCliConfig: vi.fn(),
   writeCliConfigDraft: vi.fn(),
   writeOwnLoginCliConfigDraft: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../../cliConfig/clear', () => ({ clearCliConfig: mocks.clearCliConfig }))
+vi.mock('../../cliConfig/official', () => ({ activateMiniMaxCodeOfficial: mocks.activateMiniMaxCodeOfficial }))
 vi.mock('../../cliConfig/draft', () => ({
   writeCliConfigDraft: mocks.writeCliConfigDraft,
   writeOwnLoginCliConfigDraft: mocks.writeOwnLoginCliConfigDraft,
@@ -147,46 +149,54 @@ describe('useConfigPanelController', () => {
       // clearAllMocks() keeps the never-resolving clearCliConfig impl from the in-flight guard tests.
       mocks.clearCliConfig.mockReset()
       mocks.clearCliConfig.mockResolvedValue(undefined)
+      mocks.activateMiniMaxCodeOfficial.mockReset()
+      mocks.activateMiniMaxCodeOfficial.mockResolvedValue(undefined)
       mocks.writeCliConfigDraft.mockReset()
       mocks.writeCliConfigDraft.mockResolvedValue(undefined)
     })
 
-    it('enables a configured provider without requiring the CLI to be installed first', async () => {
-      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
-      const options = { ...baseOptions(), currentProviderId: null }
-      const { result } = renderHook(() => useConfigPanelController(options))
-      const provider = { id: 'p2' } as Provider // not current → enabling
+    it.each([CodeCli.CLAUDE_CODE, CodeCli.MCODE])(
+      'applies a configured %s provider before enabling it',
+      async (cliTool) => {
+        mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+        const options = { ...baseOptions(), selectedCliTool: cliTool, currentProviderId: null }
+        const { result } = renderHook(() => useConfigPanelController(options))
+        const provider = { id: 'p2' } as Provider // not current → enabling
 
-      await act(async () => {
-        result.current.onToggleCurrent(provider)
-        await flushMicrotasks()
-      })
+        await act(async () => {
+          result.current.onToggleCurrent(provider)
+          await flushMicrotasks()
+        })
 
-      expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith({
-        cliTool: CodeCli.CLAUDE_CODE,
-        modelId: 'm1',
-        configBlob: undefined,
-        writePrimaryModel: true,
-        gateway: undefined
-      })
-      expect(options.setCurrentProvider).toHaveBeenCalledWith('p2')
-      expect(toast.error).not.toHaveBeenCalled()
-    })
+        expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith({
+          cliTool,
+          modelId: 'm1',
+          configBlob: undefined,
+          writePrimaryModel: true,
+          gateway: undefined
+        })
+        expect(options.setCurrentProvider).toHaveBeenCalledWith('p2')
+        expect(toast.error).not.toHaveBeenCalled()
+      }
+    )
 
-    it('still allows disabling the current provider', async () => {
-      const options = { ...baseOptions(), currentProviderId: 'p1' }
-      const { result } = renderHook(() => useConfigPanelController(options))
-      const provider = { id: 'p1' } as Provider // current → disabling
+    it.each([CodeCli.CLAUDE_CODE, CodeCli.MCODE])(
+      'clears the %s configuration when disabling its provider',
+      async (cliTool) => {
+        const options = { ...baseOptions(), selectedCliTool: cliTool, currentProviderId: 'p1' }
+        const { result } = renderHook(() => useConfigPanelController(options))
+        const provider = { id: 'p1' } as Provider // current → disabling
 
-      await act(async () => {
-        result.current.onToggleCurrent(provider)
-        await flushMicrotasks()
-      })
+        await act(async () => {
+          result.current.onToggleCurrent(provider)
+          await flushMicrotasks()
+        })
 
-      expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.CLAUDE_CODE })
-      expect(options.setCurrentProvider).toHaveBeenCalledWith(null)
-      expect(toast.error).not.toHaveBeenCalled()
-    })
+        expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool })
+        expect(options.setCurrentProvider).toHaveBeenCalledWith(null)
+        expect(toast.error).not.toHaveBeenCalled()
+      }
+    )
   })
 
   describe('own-login toggle (via onToggleCurrent with the reserved id)', () => {
@@ -236,6 +246,20 @@ describe('useConfigPanelController', () => {
 
       expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.GEMINI_CLI })
       expect(mocks.writeOwnLoginCliConfigDraft).not.toHaveBeenCalled()
+      expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID)
+    })
+
+    it('activates MiniMax Code Official through its dedicated lifecycle boundary', async () => {
+      const options = { ...baseOptions(), selectedCliTool: CodeCli.MCODE, currentProviderId: 'p1' }
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      await act(async () => {
+        result.current.onToggleCurrent(ownLoginProvider)
+        await flushMicrotasks()
+      })
+
+      expect(mocks.activateMiniMaxCodeOfficial).toHaveBeenCalledWith()
+      expect(mocks.clearCliConfig).not.toHaveBeenCalled()
       expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID)
     })
 
@@ -412,23 +436,26 @@ describe('useConfigPanelController', () => {
   describe('clear/write failure keeps the active-provider state (A3)', () => {
     const ownLoginProvider = { id: CLI_OWN_LOGIN_PROVIDER_ID } as Provider
 
-    it('does not clear the active provider when the disable scrub fails', async () => {
-      const options = { ...baseOptions(), currentProviderId: 'p1' }
-      mocks.clearCliConfig.mockReset()
-      mocks.clearCliConfig.mockRejectedValue(new Error('scrub failed'))
-      const { result } = renderHook(() => useConfigPanelController(options))
-      const provider = { id: 'p1' } as Provider // current → disabling
+    it.each([CodeCli.CLAUDE_CODE, CodeCli.MCODE])(
+      'keeps the %s provider active when cleanup fails',
+      async (cliTool) => {
+        const options = { ...baseOptions(), selectedCliTool: cliTool, currentProviderId: 'p1' }
+        mocks.clearCliConfig.mockReset()
+        mocks.clearCliConfig.mockRejectedValue(new Error('scrub failed'))
+        const { result } = renderHook(() => useConfigPanelController(options))
+        const provider = { id: 'p1' } as Provider // current → disabling
 
-      await act(async () => {
-        result.current.onToggleCurrent(provider)
-        await flushMicrotasks()
-      })
+        await act(async () => {
+          result.current.onToggleCurrent(provider)
+          await flushMicrotasks()
+        })
 
-      expect(mocks.clearCliConfig).toHaveBeenCalled()
-      expect(options.setCurrentProvider).not.toHaveBeenCalled()
-      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
-      expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
-    })
+        expect(mocks.clearCliConfig).toHaveBeenCalled()
+        expect(options.setCurrentProvider).not.toHaveBeenCalled()
+        expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
+        expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
+      }
+    )
 
     it('does not switch to own login when the scrub fails', async () => {
       const options = { ...baseOptions() } // currentProviderId 'p1' → toggling selects own login
@@ -471,40 +498,44 @@ describe('useConfigPanelController', () => {
 
     // Reviewer: a failed config injection on panel save must reject (not be swallowed) so the
     // submitting dialog treats the save as failed, keeps the user's draft, and stays open.
-    it('propagates a config-write failure and restores the previous provider preference', async () => {
-      const previousConfig = { modelId: 'anthropic::claude-old', config: { permissionMode: 'default' } } as any
-      const options = {
-        ...baseOptions(),
-        currentProviderId: 'p1',
-        providerConfigs: { p1: previousConfig }
+    it.each([CodeCli.CLAUDE_CODE, CodeCli.MCODE])(
+      'restores the %s provider preference when applying an edit fails',
+      async (cliTool) => {
+        const previousConfig = { modelId: 'anthropic::claude-old', config: { permissionMode: 'default' } } as any
+        const options = {
+          ...baseOptions(),
+          selectedCliTool: cliTool,
+          currentProviderId: 'p1',
+          providerConfigs: { p1: previousConfig }
+        }
+        mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+        mocks.writeCliConfigDraft.mockReset()
+        mocks.writeCliConfigDraft.mockRejectedValue(new Error('config write failed'))
+        const { result } = renderHook(() => useConfigPanelController(options))
+
+        act(() => {
+          result.current.openConfigurePanel({ id: 'p1' } as Provider)
+        })
+        const submit = result.current.configPanelProps?.onSubmit
+        expect(submit).toBeTypeOf('function')
+
+        await expect(submit!({ modelId: 'anthropic::claude-sonnet-4-5' as any, config: {} })).rejects.toThrow(
+          'config write failed'
+        )
+        expect(options.upsertProviderConfig).toHaveBeenNthCalledWith(1, 'p1', {
+          modelId: 'anthropic::claude-sonnet-4-5',
+          config: {}
+        })
+        expect(options.upsertProviderConfig).toHaveBeenNthCalledWith(2, 'p1', previousConfig)
+        expect(options.upsertProviderConfig.mock.invocationCallOrder[0]).toBeLessThan(
+          mocks.writeCliConfigDraft.mock.invocationCallOrder[0]
+        )
+        expect(mocks.writeCliConfigDraft.mock.invocationCallOrder[0]).toBeLessThan(
+          options.upsertProviderConfig.mock.invocationCallOrder[1]
+        )
+        expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
       }
-      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
-      mocks.writeCliConfigDraft.mockReset()
-      mocks.writeCliConfigDraft.mockRejectedValue(new Error('config write failed'))
-      const { result } = renderHook(() => useConfigPanelController(options))
-
-      act(() => {
-        result.current.openConfigurePanel({ id: 'p1' } as Provider)
-      })
-      const submit = result.current.configPanelProps?.onSubmit
-      expect(submit).toBeTypeOf('function')
-
-      await expect(submit!({ modelId: 'anthropic::claude-sonnet-4-5' as any, config: {} })).rejects.toThrow(
-        'config write failed'
-      )
-      expect(options.upsertProviderConfig).toHaveBeenNthCalledWith(1, 'p1', {
-        modelId: 'anthropic::claude-sonnet-4-5',
-        config: {}
-      })
-      expect(options.upsertProviderConfig).toHaveBeenNthCalledWith(2, 'p1', previousConfig)
-      expect(options.upsertProviderConfig.mock.invocationCallOrder[0]).toBeLessThan(
-        mocks.writeCliConfigDraft.mock.invocationCallOrder[0]
-      )
-      expect(mocks.writeCliConfigDraft.mock.invocationCallOrder[0]).toBeLessThan(
-        options.upsertProviderConfig.mock.invocationCallOrder[1]
-      )
-      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
-    })
+    )
 
     it('removes a newly-created provider preference when its first CLI write fails', async () => {
       const options = { ...baseOptions(), currentProviderId: null, providerConfigs: {} }
@@ -698,38 +729,42 @@ describe('useConfigPanelController', () => {
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
     })
 
-    it('propagates a gateway startup failure on panel save to the submitting dialog', async () => {
-      const ensureRunning = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
-      const options = {
-        ...baseOptions(),
-        currentProviderId: CLI_API_GATEWAY_PROVIDER_ID, // editing the active gateway provider
-        providerConfigs: {
-          [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: 'deepseek::deepseek-old', config: { permissionMode: 'default' } }
-        } as any,
-        apiGatewayProvider: {
-          provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
-          apiKey: 'cs-sk-old',
-          ensureRunning,
-          getApiKey: vi.fn().mockResolvedValue('cs-sk-current')
+    it.each([CodeCli.CLAUDE_CODE, CodeCli.MCODE])(
+      'fails the %s panel save when the gateway cannot start',
+      async (cliTool) => {
+        const ensureRunning = vi.fn().mockRejectedValue(new Error('API gateway failed to start'))
+        const options = {
+          ...baseOptions(),
+          selectedCliTool: cliTool,
+          currentProviderId: CLI_API_GATEWAY_PROVIDER_ID, // editing the active gateway provider
+          providerConfigs: {
+            [CLI_API_GATEWAY_PROVIDER_ID]: { modelId: 'deepseek::deepseek-old', config: { permissionMode: 'default' } }
+          } as any,
+          apiGatewayProvider: {
+            provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
+            apiKey: 'cs-sk-old',
+            ensureRunning,
+            getApiKey: vi.fn().mockResolvedValue('cs-sk-current')
+          }
         }
+        mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+        const { result } = renderHook(() => useConfigPanelController(options))
+
+        act(() => {
+          result.current.openConfigurePanel({ id: CLI_API_GATEWAY_PROVIDER_ID } as Provider)
+        })
+
+        await expect(
+          result.current.configPanelProps!.onSubmit({ modelId: 'deepseek::deepseek-chat' as any, config: {} })
+        ).rejects.toThrow('API gateway failed to start')
+        expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+        expect(options.upsertProviderConfig).toHaveBeenLastCalledWith(CLI_API_GATEWAY_PROVIDER_ID, {
+          modelId: 'deepseek::deepseek-old',
+          config: { permissionMode: 'default' }
+        })
+        expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
       }
-      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
-      const { result } = renderHook(() => useConfigPanelController(options))
-
-      act(() => {
-        result.current.openConfigurePanel({ id: CLI_API_GATEWAY_PROVIDER_ID } as Provider)
-      })
-
-      await expect(
-        result.current.configPanelProps!.onSubmit({ modelId: 'deepseek::deepseek-chat' as any, config: {} })
-      ).rejects.toThrow('API gateway failed to start')
-      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
-      expect(options.upsertProviderConfig).toHaveBeenLastCalledWith(CLI_API_GATEWAY_PROVIDER_ID, {
-        modelId: 'deepseek::deepseek-old',
-        config: { permissionMode: 'default' }
-      })
-      expect(options.setCurrentCliConfigConnection).not.toHaveBeenCalled()
-    })
+    )
 
     // Reviewer A3-1: enabling the gateway must not write the CLI config or mark it current when the
     // gateway fails to start — otherwise the UI shows the gateway active with nothing listening on the
