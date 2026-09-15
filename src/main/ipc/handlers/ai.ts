@@ -18,7 +18,7 @@ import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
+import { AI_STREAM_ABORT_ORIGIN_UNSPECIFIED, type aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('ipc/ai')
@@ -196,8 +196,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const wc = senderWebContents(senderId)
     if (wc) application.get('AiStreamManager').detach(wc, request)
   },
-  'ai.stream.abort': async ({ topicId }) => {
-    await application.get('AiStreamManager').abortAndDrain(topicId, 'user-requested')
+  'ai.stream.abort': async ({ topicId, origin }) => {
+    // A caller that names no origin is an un-updated caller, not a Stop the user pressed.
+    await application.get('AiStreamManager').abortAndDrain(topicId, origin ?? AI_STREAM_ABORT_ORIGIN_UNSPECIFIED)
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──

@@ -199,16 +199,16 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         if (abortSignal) {
           if (abortSignal.aborted) {
             ipcApi
-              .request('ai.stream.abort', { topicId })
+              .request('ai.stream.abort', { topicId, origin: 'transport-abort-signal' })
               .catch((e) => logger.warn('streamAbort failed', { topicId, e }))
             closeStream()
             return
           }
 
           const onAbort = () => {
-            logger.info('Stream abort requested', { topicId })
+            logger.info('Stream abort requested', { topicId }, { logToMain: true })
             ipcApi
-              .request('ai.stream.abort', { topicId })
+              .request('ai.stream.abort', { topicId, origin: 'transport-abort-signal' })
               .catch((e) => logger.warn('streamAbort failed', { topicId, e }))
             closeStream()
           }

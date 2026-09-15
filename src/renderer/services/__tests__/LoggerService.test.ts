@@ -1,5 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { IpcChannel } from '@shared/IpcChannel'
+
 import type * as LoggerModule from '../LoggerService'
 
 // `@logger` is globally mocked in renderer.setup.ts, and it resolves to the same
@@ -102,5 +104,37 @@ describe('LoggerService window source resolution', () => {
       errorMessage: 'User cancelled',
       stack: error.stack
     })
+  })
+})
+
+// `logToMain` defaults to WARN, so the `info` lines that name who asked for a stream
+// abort never reach main's `app.log` on a packaged build. This is the escape hatch those
+// call sites rely on; if it stops forcing, they go silent again without a failing test.
+describe('LoggerService forced forwarding to main', () => {
+  beforeEach(() => {
+    document.head.innerHTML = '<meta name="logger-window-source" content="mainWindow" />'
+    // The stubbed bridge is one shared vi.fn for the whole file; clear it so "never
+    // forwarded" means this test's logger, not an empty history.
+    vi.spyOn(window.electron.ipcRenderer, 'invoke').mockResolvedValue(undefined).mockClear()
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('keeps an unmarked info line out of main at the default threshold', () => {
+    new LoggerService().info('Stream abort requested', { topicId: 'agent-session:session-1' })
+
+    expect(window.electron.ipcRenderer.invoke).not.toHaveBeenCalled()
+  })
+
+  it('forwards a marked info line to main without the marker in the payload', () => {
+    new LoggerService().info('Stream abort requested', { topicId: 'agent-session:session-1' }, { logToMain: true })
+
+    const call = vi.mocked(window.electron.ipcRenderer.invoke).mock.calls.at(-1)!
+    expect(call[0]).toBe(IpcChannel.App_LogToMain)
+    expect(call[3]).toBe('Stream abort requested')
+    expect(call[4]).toEqual([{ topicId: 'agent-session:session-1' }])
   })
 })

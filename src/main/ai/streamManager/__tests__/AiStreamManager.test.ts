@@ -1820,6 +1820,66 @@ describe('AiStreamManager', () => {
       expect(nextTurnAdmitted).toBe(true)
     })
 
+    it('gives a drained replacement its own abort reason without sparing it the abort', async () => {
+      vi.useRealTimers()
+      const initialAbort = new AbortController()
+      const continuationAbort = new AbortController()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      let releaseContinuationPersistence!: () => void
+      continuationListener.onPausedImpl = () =>
+        new Promise<void>((resolve) => {
+          releaseContinuationPersistence = resolve
+        })
+      const runtimeListener = new FakeListener('agent-runtime:session-1')
+      runtimeListener.onPausedImpl = () => {
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener],
+          abortController: continuationAbort
+        })
+      }
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence'), runtimeListener],
+        abortController: initialAbort
+      })
+
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-stop')
+      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      await flushUntil(() => continuationListener.pausedResults.length === 1)
+      releaseContinuationPersistence()
+      await expect(stopping).resolves.toBeUndefined()
+
+      // The turn the caller stopped keeps the caller's reason; the turn that only
+      // appeared inside the teardown is labelled as collateral, not as the Stop.
+      expect(initialAbort.signal.reason).toBe('user-stop')
+      expect(continuationAbort.signal.aborted).toBe(true)
+      expect(continuationAbort.signal.reason).toBe('drain-replacement:user-stop')
+    })
+
+    it('leaves a replacement-free abort at exactly one teardown under the caller reason', async () => {
+      vi.useRealTimers()
+      const abortController = new AbortController()
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence')],
+        abortController
+      })
+
+      await expect(mgr.abortAndDrain('agent-session:session-1', 'user-stop')).resolves.toBeUndefined()
+
+      expect(abortController.signal.reason).toBe('user-stop')
+      expect(mockMainLoggerService.info.mock.calls.filter(([message]) => message === 'Aborting stream')).toEqual([
+        ['Aborting stream', { topicId: 'agent-session:session-1', reason: 'user-stop' }]
+      ])
+    })
+
     it('drains an agent continuation launched during terminal handling before releasing admission', async () => {
       vi.useRealTimers()
       const continuationListener = new FakeListener('persistence:continuation', 'persistence')

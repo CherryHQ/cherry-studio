@@ -4618,6 +4618,30 @@ describe('AgentComposer', () => {
     expect(mocks.stop).toHaveBeenCalledTimes(1)
   })
 
+  // Main's `Aborting stream` cannot say who asked for it, and the renderer drops
+  // `info` before it reaches main's `app.log`. The forcing marker is what puts the
+  // Pause button next to the abort it caused.
+  it('reaches app.log with the line that names Pause as the abort caller', () => {
+    const loggerInfo = vi.spyOn(mockRendererLoggerService, 'info').mockImplementation(() => {})
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    fireEvent.click(screen.getByText('pause'))
+
+    expect(loggerInfo).toHaveBeenCalledWith(
+      'Aborting agent session',
+      { sessionTopicId: 'agent-session:session-1' },
+      { logToMain: true }
+    )
+  })
+
   it('handles a failed active stream stop at the composer boundary', async () => {
     const stopError = new Error('main abort failed')
     mocks.stop.mockRejectedValueOnce(stopError)
