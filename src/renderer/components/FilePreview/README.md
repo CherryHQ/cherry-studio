@@ -213,6 +213,12 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   from an empty selection, highlights the cell or merged range under the pointer, and commits on click or drag.
   It also picks from the keyboard — arrows move the cursor, Shift+Arrow extends the range, Enter or Space
   commits — which the block producers do not: their pickers are pointer-only.
+- Unlike the block producers, the xlsx grid holds a selection whether or not capture is on — a cell clicked
+  to read a value stays selected. Capture therefore arms empty: the commit that switches capture on reports
+  nothing, so a browsing selection never becomes a pick the user did not make, and every selection after it
+  reports as usual, including re-picking the same range. Arming resets only when capture is switched off, so
+  a host must keep the callback's identity steady while capture stays on (the artifact pane passes a state
+  setter).
 - The host forwards the callback verbatim. What to do with a reference (show an action, inject it into a
   conversation) is the embedding surface's concern; neither the host nor the plugin renders reference UI.
 - The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding

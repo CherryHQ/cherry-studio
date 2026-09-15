@@ -35,6 +35,10 @@ export function normalizeSelectionText(text: string): string {
  * The fileStamp snapshots the metadata the preview loaded with — the stamp
  * marks preview-load time, not selection time, which can only make staleness
  * checks over-report (safe direction), never miss a change.
+ *
+ * The excerpt limit counts UTF-16 units, the unit the schema's `.max()` and the spreadsheet scan
+ * budget also count. Truncation backs off one unit rather than splitting a surrogate pair: a lone
+ * surrogate survives zod and JSON only to reach the Python consumer as U+FFFD.
  */
 export function createSelectionReference(input: {
   filePath: AbsoluteFilePath
@@ -42,10 +46,7 @@ export function createSelectionReference(input: {
   excerpt: string
   metadata: FilePreviewFileMetadata
 }): SelectionReference | null {
-  // The limit counts UTF-16 units — the unit the schema's `.max()` and the spreadsheet scan budget
-  // also count, and the one that tracks how much room the excerpt takes in the message. Cutting on
-  // that boundary can still halve a surrogate pair, and the lone surrogate survives zod and JSON
-  // only to reach the Python consumer as U+FFFD, so give back the unit that opens one.
+  // Back off one unit rather than cut a surrogate pair in half; see the excerpt-limit note above.
   const collapsed = normalizeSelectionText(input.excerpt)
   const end =
     (collapsed.codePointAt(SELECTION_EXCERPT_MAX_LENGTH - 1) ?? 0) > 0xffff

@@ -368,9 +368,8 @@ describe('PdfFilePreview', () => {
     )
     const callsWhenPicked = onSelectionReference.mock.calls.length
 
-    // What pdf.js does when it re-renders its page list: the viewer element's children are replaced
-    // with fresh page divs. The host still holds the reference, so the pick must survive the rebuild
-    // and the rebuild must report nothing.
+    // Replacing the viewer's children is what pdf.js does when it re-renders its page list: the pick must
+    // survive the rebuild, and the rebuild must report nothing.
     screen.getByTestId('pdfjs-viewer').replaceChildren()
     const rebuilt = renderPage('2')
 
@@ -434,9 +433,8 @@ describe('PdfFilePreview', () => {
     const link = renderLinkAnnotation(renderPage('1'))
 
     let observed: boolean | undefined
-    // jsdom attempts a real navigation for an unprevented click on an <a href>, logging "Not
-    // implemented: navigation" noise; observe defaultPrevented as the event reaches document, then
-    // cancel it ourselves so jsdom never gets there.
+    // jsdom logs "Not implemented: navigation" for an unprevented <a href> click, so observe
+    // defaultPrevented at document and cancel it ourselves before jsdom gets there.
     const observe = (event: Event) => {
       observed = event.defaultPrevented
       event.preventDefault()
