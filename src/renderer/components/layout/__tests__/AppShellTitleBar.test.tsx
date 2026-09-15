@@ -31,17 +31,14 @@ vi.mock('../ShellTabBarActions', () => ({
   ShellTabBarActions: () => null
 }))
 
-vi.mock('../TabIcon', () => ({
-  TabIcon: () => null
-}))
-
 import { AppShellTitleBar } from '../AppShellTitleBar'
 
-const createTab = (url: string, title: string): Tab => ({
+const createTab = (url: string, title: string, icon?: string): Tab => ({
   id: 'active-tab',
   type: 'route',
   url,
-  title
+  title,
+  icon
 })
 
 afterEach(cleanup)
@@ -64,10 +61,27 @@ describe('AppShellTitleBar', () => {
     expect(screen.queryByText(conversationTitle)).not.toBeInTheDocument()
   })
 
+  it.each([
+    ['/app/chat?topicId=topic-1', '🤖'],
+    ['/app/agents?sessionId=session-1', '🛠️']
+  ])('shows the route icon instead of the entity icon for %s', (url, entityIcon) => {
+    const { container } = render(
+      <AppShellTitleBar
+        activeTab={createTab(url, 'Entity title', `emoji:${entityIcon}`)}
+        isFocused={false}
+        isFullscreen={false}
+        onBack={vi.fn()}
+      />
+    )
+
+    expect(screen.queryAllByText(entityIcon)).toHaveLength(0)
+    expect(container.querySelector('svg')).toBeInTheDocument()
+  })
+
   it('keeps the tab title for other pages', () => {
     render(
       <AppShellTitleBar
-        activeTab={createTab('/app/mini-app/weather', 'Weather')}
+        activeTab={createTab('/app/mini-app/weather', 'Weather', 'emoji:☀️')}
         isFocused={false}
         isFullscreen={false}
         onBack={vi.fn()}
@@ -75,5 +89,6 @@ describe('AppShellTitleBar', () => {
     )
 
     expect(screen.getByText('Weather')).toBeInTheDocument()
+    expect(screen.getAllByText('☀️').length).toBeGreaterThan(0)
   })
 })

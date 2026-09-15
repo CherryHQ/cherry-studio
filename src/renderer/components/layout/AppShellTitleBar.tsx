@@ -26,7 +26,9 @@ export function AppShellTitleBar({
 }) {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
-  const title = activeTab && isPageTitledRoute(activeTab.url) ? getDefaultRouteTitle(activeTab.url) : activeTab?.title
+  const isPageTitled = activeTab ? isPageTitledRoute(activeTab.url) : false
+  const title = activeTab && isPageTitled ? getDefaultRouteTitle(activeTab.url) : activeTab?.title
+  const iconTab = activeTab && isPageTitled ? { ...activeTab, icon: undefined } : activeTab
 
   return (
     <header
@@ -50,7 +52,7 @@ export function AppShellTitleBar({
           </Button>
         ) : (
           <div className="flex min-w-0 items-center gap-2 px-1 text-sidebar-foreground text-sm">
-            {activeTab && <TabIcon tab={activeTab} size={15} />}
+            {iconTab && <TabIcon tab={iconTab} size={15} />}
             <span className="truncate">{title}</span>
           </div>
         )}
