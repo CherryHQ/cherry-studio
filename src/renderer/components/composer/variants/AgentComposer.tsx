@@ -1209,7 +1209,7 @@ const AgentComposerInner = ({
   useComposerQuoteInsertion(actionsRef)
 
   const abortAgentSession = useCallback(async () => {
-    logger.info('Aborting agent session', { sessionTopicId })
+    logger.info('Aborting agent session', { sessionTopicId }, { logToMain: true })
     try {
       await chatStop()
     } catch (error) {

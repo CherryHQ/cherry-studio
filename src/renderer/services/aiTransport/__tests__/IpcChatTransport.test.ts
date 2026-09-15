@@ -1,3 +1,4 @@
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -234,6 +235,21 @@ describe('IpcChatTransport', () => {
     const reader = stream.getReader()
 
     await expect(reader.read()).resolves.toMatchObject({ done: true })
+  })
+
+  // The renderer drops `info` before it reaches main's `app.log` (LoggerService's
+  // logToMain threshold is WARN), so without the forcing marker the only record of a
+  // transport-driven abort is main's `Aborting stream`, which cannot name a caller.
+  it('reaches app.log with the line that names the transport as the abort caller', async () => {
+    const loggerInfo = vi.spyOn(mockRendererLoggerService, 'info').mockImplementation(() => {})
+    const abortController = new AbortController()
+    const stream = await transport.sendMessages({ ...baseOptions, abortSignal: abortController.signal })
+    const reader = stream.getReader()
+
+    abortController.abort()
+    await reader.read()
+
+    expect(loggerInfo).toHaveBeenCalledWith('Stream abort requested', { topicId }, { logToMain: true })
   })
 
   it('calls streamAbort on abort signal', async () => {
