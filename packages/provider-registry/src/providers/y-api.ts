@@ -13,11 +13,14 @@ import { openaiCompatible } from './types'
  * `z-ai/glm-5.2`, `openai/gpt-5.6-luna`) onto the creators that already own
  * those models, so names, icons, capabilities and pricing resolve from the
  * shared catalog without a per-model row.
+ *
+ * Global only: the service's own documentation states it is not available to
+ * users in mainland China, so the CN edition must not advertise it.
  */
 export default openaiCompatible({
   id: 'y-api',
   name: 'Y-API',
-  availableInEditions: ['global', 'cn'],
+  availableInEditions: ['global'],
   baseUrl: 'https://api.y-api.bestvirtualgoods.com',
   anthropic: 'https://api.y-api.bestvirtualgoods.com',
   website: {
