@@ -4,9 +4,10 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
+import { ToolRuntime } from '@deepseek-ai/dsh-tools'
 import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import type { AskUserQuestionAnswer, AskUserQuestionRequest } from '@deepseek-ai/dsh-user-questions'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -103,6 +104,80 @@ const openParams = {
 }
 
 describe('cherry bridge plugin', () => {
+  it('enforces Hooks in the real SDK tool pipeline without granting permissions or changing completed results', async () => {
+    let denied = true
+    const host = await startHost((method, params) => {
+      if (method === 'guard/check') return { kind: 'allow' }
+      if (method === 'hook/run') {
+        if (params.event === 'preToolUse') return denied ? { denied: true, reason: 'script blocked' } : {}
+        throw new Error('post Hook disconnected')
+      }
+      return {}
+    })
+    const agent = { id: 'session-1', session: { header: { cwd: '/workspace' } } } as Agent
+    const ctx = new Context()
+    cleanup.push(() => ctx.fiber.dispose())
+    ctx.provide('systemPrompt', { tools: () => () => undefined })
+    ctx.provide('agents', { get: () => agent })
+    const tools = new ToolRuntime(ctx)
+    let executions = 0
+    let failTool = false
+    tools.register({
+      name: 'hook_test',
+      description: 'Hook contract test',
+      parameters: { type: 'object', properties: {} },
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: String(value) }] },
+      execute: async () => {
+        executions++
+        if (failTool) throw new Error('original tool error')
+        return 'original result'
+      }
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'test-token'
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    const updatePolicy = (permissionMode: string) =>
+      host.request('policy/update', {
+        sessionId: agent.id,
+        policy: { ...openParams.policy, permissionMode, planSafeTools: [] }
+      })
+    let seq = 0
+    const execute = () =>
+      tools.execute({
+        callId: `call-${++seq}` as never,
+        name: 'hook_test',
+        arguments: {},
+        agent,
+        signal: new AbortController().signal
+      })
+    await updatePolicy('bypassPermissions')
+    expect(await execute()).toMatchObject({
+      isError: true,
+      content: [expect.objectContaining({ text: expect.stringContaining('script blocked') })]
+    })
+    expect(executions).toBe(0)
+    denied = false
+    await updatePolicy('default')
+    expect((await execute()).isError).toBe(true)
+    expect(executions).toBe(0)
+    await updatePolicy('bypassPermissions')
+    expect(await execute()).toMatchObject({ isError: false, value: 'original result' })
+    failTool = true
+    expect(await execute()).toMatchObject({
+      isError: true,
+      error: expect.objectContaining({ message: expect.stringContaining('original tool error') })
+    })
+    expect(host.requests.filter(({ method }) => method === 'hook/run').map(({ params }) => params.event)).toEqual([
+      'preToolUse',
+      'preToolUse',
+      'preToolUse',
+      'postToolUse',
+      'preToolUse',
+      'postToolUseFailure'
+    ])
+  })
+
   it('checks root and delegated native tool calls with Main before local permission policy', async () => {
     const host = await startHost((method) =>
       method === 'guard/check' ? { kind: 'deny', ruleId: 'user-data-sqlite-write', reason: 'protected SQLite' } : {}

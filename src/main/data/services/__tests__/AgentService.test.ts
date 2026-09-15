@@ -69,6 +69,37 @@ vi.mock('@main/apiServer/services/models', () => ({
 describe('AgentService', () => {
   const dbh = setupTestDatabase()
 
+  it('persists Hook configuration without a migration and rejects damaged executable settings', async () => {
+    const hooks = [
+      {
+        id: randomUUID(),
+        name: 'deny',
+        enabled: true,
+        command: 'exit 2',
+        event: 'preToolUse' as const,
+        timeoutMs: 1000
+      }
+    ]
+    const { id } = await insertAgent({ configuration: { avatar: 'A', hooks } })
+    expect(agentService.getAgentHookConfiguration(id).hooks).toEqual(hooks)
+    const matchedHooks = hooks.map((hook) => ({
+      ...hook,
+      event: 'approvalRequested' as const,
+      matcher: { toolNameContains: 'write', inputContains: 'test.txt' }
+    }))
+    agentService.updateAgent(id, { configuration: { hooks: matchedHooks } })
+    expect(agentService.getAgentHookConfiguration(id).hooks).toEqual(matchedHooks)
+    expect(agentService.getAgent(id)?.configuration?.hooks).toEqual(matchedHooks)
+    agentService.updateAgent(id, { configuration: { hooks: [] } })
+    expect(agentService.getAgent(id)?.configuration).toMatchObject({ avatar: 'A', hooks: [] })
+    dbh.db
+      .update(agentTable)
+      .set({ configuration: { hooks: 'damaged' } })
+      .where(eq(agentTable.id, id))
+      .run()
+    expect(() => agentService.getAgentHookConfiguration(id)).toThrow()
+  })
+
   // Seed a user_model row whose id is the canonical FK form, so createAgent
   // calls with `model: <canonical id>` satisfy the FK.
   const TEST_MODEL_ID = 'anthropic::claude-3-5-sonnet'

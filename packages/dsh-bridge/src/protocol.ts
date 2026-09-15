@@ -132,6 +132,19 @@ export interface BridgeHostRequestMap {
 /** Plugin→host request methods. `ready` is the authentication handshake and MUST be first. */
 export interface BridgePluginRequestMap {
   ready: { params: { pid: number; token: string }; result: Record<string, never> }
+  'hook/run': {
+    params: {
+      sessionId: string
+      callId: string
+      event: 'preToolUse' | 'postToolUse' | 'postToolUseFailure'
+      toolName: string
+      toolCallId: string
+      toolInput: unknown
+      toolOutput?: unknown
+      error?: string
+    }
+    result: { denied?: boolean; reason?: string }
+  }
   'guard/check': {
     params: { sessionId: string; toolName: string; args: unknown; cwd: string }
     result: { kind: 'allow' } | { kind: 'deny'; ruleId: 'user-data-sqlite-write'; reason: string }
@@ -169,6 +182,7 @@ export interface BridgePluginRequestMap {
  *  bridge's own `callId` (independent of the transport's request id). */
 export interface BridgeNotificationMap {
   'tool/cancel': { sessionId: string; callId: string }
+  'hook/cancel': { sessionId: string; callId: string }
   /**
    * One subagent residency epoch's start or terminal edge (`ctx.on('subagent/start'|'end')`).
    * Fires per epoch — a continuable child cold-resumed by `send_message` starts a new epoch —

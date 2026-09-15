@@ -18,6 +18,10 @@ export interface BridgeLink {
     request: { sessionId: string; name: string; args: unknown },
     signal?: AbortSignal
   ): Promise<BridgeToolCallResult>
+  callHook(
+    request: Omit<BridgePluginRequestMap['hook/run']['params'], 'callId'>,
+    signal?: AbortSignal
+  ): Promise<BridgePluginRequestMap['hook/run']['result']>
 }
 
 export function connectBridgeLink(options: {
@@ -28,6 +32,7 @@ export function connectBridgeLink(options: {
   const transport = new JsonRpcLineTransport(socket, socket)
   let connected = true
   let toolCallSeq = 0
+  let hookCallSeq = 0
 
   const markDisconnected = () => {
     if (!connected) return
@@ -36,6 +41,7 @@ export function connectBridgeLink(options: {
     transport.close()
   }
   socket.on('error', markDisconnected)
+  socket.on('end', markDisconnected)
   socket.on('close', markDisconnected)
   transport.onRequest(options.onRequest)
   transport.start()
@@ -45,6 +51,8 @@ export function connectBridgeLink(options: {
     params: BridgePluginRequestMap[M]['params'],
     signal?: AbortSignal
   ): Promise<BridgePluginRequestMap[M]['result']> {
+    if (!connected) return Promise.reject(new Error('dsh bridge host is not connected'))
+    if (signal?.aborted) return Promise.reject(signal.reason ?? new Error('dsh bridge request cancelled'))
     return transport.request(method, params, signal) as Promise<BridgePluginRequestMap[M]['result']>
   }
 
@@ -55,6 +63,16 @@ export function connectBridgeLink(options: {
     request,
     notify(method, params) {
       if (connected) transport.notify(method, params)
+    },
+    callHook(hookRequest, signal) {
+      const callId = `hook-${++hookCallSeq}`
+      const onAbort = () => {
+        if (connected) transport.notify('hook/cancel', { sessionId: hookRequest.sessionId, callId })
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      return request('hook/run', { ...hookRequest, callId }, signal).finally(() =>
+        signal?.removeEventListener('abort', onAbort)
+      )
     },
     callTool(toolRequest, signal) {
       if (!connected) return Promise.reject(new Error('dsh bridge host is not connected'))
