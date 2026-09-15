@@ -2,7 +2,12 @@ import type { WebSearchToolConfigMap } from '@cherrystudio/ai-core/provider'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
-import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
+import {
+  getRawModelId,
+  isGeminiModel,
+  isOpenAIDeepResearchModel,
+  isOpenAIWebSearchChatCompletionOnlyModel
+} from '@shared/utils/model'
 import { isBuiltinWebFetchAvailable, matchesPreset } from '@shared/utils/provider'
 
 import type { KimiFormulaCredentials } from '../provider/custom/moonshotProvider'
@@ -28,6 +33,12 @@ export interface CherryWebSearchConfig {
  * `model.providerId` there routed those copies to the server side and then injected nothing.
  */
 export function getWebSearchParams(model: Model, provider: Provider | undefined): Record<string, any> {
+  // New API translates OpenAI Chat's standard web_search_options into the native search tool for
+  // Gemini routes. Keep this preset-specific: other compatible gateways may reject the field.
+  if (provider && matchesPreset(provider, 'new-api') && isGeminiModel(model)) {
+    return { web_search_options: {} }
+  }
+
   if (provider && matchesPreset(provider, 'zhipu')) {
     // BigModel's web search rides the tools array, which providerOptions cannot
     // reach — transformZhipuRequestBody moves this marker into `tools`
