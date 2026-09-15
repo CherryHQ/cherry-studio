@@ -565,11 +565,8 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
         error,
         labels: {
           errorMessage: t('error.message'),
-          errorName: t('error.name'),
           location: t('error.diagnostic_report.location'),
-          model: t('error.modelId'),
-          provider: t('error.provider'),
-          statusCode: t('error.statusCode')
+          model: t('error.modelId')
         },
         location: diagnosticReport.location
       })

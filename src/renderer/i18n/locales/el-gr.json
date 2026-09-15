@@ -1259,6 +1259,7 @@
   "error.diagnostics.action_required": "Απαιτείται ενέργεια",
   "error.diagnostics.back_to_overview": "Επιστροφή στην επισκόπηση διαγνωστικών",
   "error.diagnostics.basic_information": "Βασικές πληροφορίες",
+  "error.diagnostics.basic_information_with_location": "Βασικές πληροφορίες ({{location}})",
   "error.diagnostics.checking_progress": "Έλεγχος: {{check}} · {{completed}}/{{total}}",
   "error.diagnostics.diagnosing": "Διάγνωση σε εξέλιξη",
   "error.diagnostics.preparing_result": "Προετοιμασία αποτελεσμάτων…",

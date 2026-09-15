@@ -1259,6 +1259,7 @@
   "error.diagnostics.action_required": "Action requise",
   "error.diagnostics.back_to_overview": "Retour à la vue d’ensemble du diagnostic",
   "error.diagnostics.basic_information": "Informations de base",
+  "error.diagnostics.basic_information_with_location": "Informations de base ({{location}})",
   "error.diagnostics.checking_progress": "Vérification : {{check}} · {{completed}}/{{total}}",
   "error.diagnostics.diagnosing": "Diagnostic en cours",
   "error.diagnostics.preparing_result": "Préparation des résultats…",

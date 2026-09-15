@@ -1259,6 +1259,7 @@
   "error.diagnostics.action_required": "Требуется действие",
   "error.diagnostics.back_to_overview": "Назад к обзору диагностики",
   "error.diagnostics.basic_information": "Основная информация",
+  "error.diagnostics.basic_information_with_location": "Основная информация ({{location}})",
   "error.diagnostics.checking_progress": "Проверка: {{check}} · {{completed}}/{{total}}",
   "error.diagnostics.diagnosing": "Выполняется диагностика",
   "error.diagnostics.preparing_result": "Подготовка результатов…",

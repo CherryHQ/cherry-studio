@@ -1259,6 +1259,7 @@
   "error.diagnostics.action_required": "需要处理",
   "error.diagnostics.back_to_overview": "返回诊断概览",
   "error.diagnostics.basic_information": "基础信息",
+  "error.diagnostics.basic_information_with_location": "基础信息（{{location}}）",
   "error.diagnostics.checking_progress": "正在检查：{{check}} · {{completed}}/{{total}}",
   "error.diagnostics.diagnosing": "诊断中",
   "error.diagnostics.preparing_result": "正在整理结果…",
