@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
 
@@ -9,6 +10,10 @@ import { doctorCheckTitleKey } from '@shared/utils/doctor'
 
 interface ErrorDiagnosisPanelProps {
   readonly doctorController: DoctorController
+}
+
+function FixedSummary({ children, enabled }: { children?: ReactNode; enabled: boolean }) {
+  return enabled ? <span className="text-success">{children}</span> : null
 }
 
 export function ErrorDiagnosisPanel({ doctorController }: ErrorDiagnosisPanelProps) {
@@ -26,7 +31,7 @@ export function ErrorDiagnosisPanel({ doctorController }: ErrorDiagnosisPanelPro
   const activeCheckId = doctorController.viewModel.activeCheckIds[0]
   const activeCheckName = activeCheckId ? t(doctorCheckTitleKey(activeCheckId)) : undefined
   const resultSummaryValues = {
-    fixed: fixedCheckNames.length > 0 ? fixedCheckNames.join(', ') : t('common.none'),
+    fixed: fixedCheckNames.join(', '),
     attention: t('message.tools.units.item', { count: doctorController.viewModel.summary.userFixable })
   }
   const hasDoctorNotices =
@@ -102,7 +107,7 @@ export function ErrorDiagnosisPanel({ doctorController }: ErrorDiagnosisPanelPro
               i18nKey="error.diagnostics.result_summary"
               values={resultSummaryValues}
               components={{
-                fixed: <span key="fixed" className="text-success" />,
+                fixed: <FixedSummary key="fixed" enabled={fixedCheckNames.length > 0} />,
                 attention: <span key="attention" className="text-warning" />
               }}
             />

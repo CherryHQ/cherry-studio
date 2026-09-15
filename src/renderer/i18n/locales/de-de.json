@@ -1263,7 +1263,7 @@
   "error.diagnostics.diagnosing": "Diagnose läuft",
   "error.diagnostics.preparing_result": "Ergebnisse werden vorbereitet…",
   "error.diagnostics.result": "Diagnoseergebnis",
-  "error.diagnostics.result_summary": "<fixed>Behoben: {{fixed}}</fixed>; <attention>Handlungsbedarf: {{attention}}</attention>.",
+  "error.diagnostics.result_summary": "<fixed>Behoben: {{fixed}}; </fixed><attention>Handlungsbedarf: {{attention}}</attention>.",
   "error.errors": "Fehler",
   "error.finishReason": "Beendigungsgrund",
   "error.functionality": "Funktion",

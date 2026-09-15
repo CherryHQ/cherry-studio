@@ -113,7 +113,7 @@ const translations: Record<string, string> = {
   'error.diagnostics.preparing_result': 'Preparing results…',
   'error.diagnostics.result': 'Diagnostic result',
   'error.diagnostics.result_summary':
-    '<fixed>Fixed: {{fixed}}</fixed>; <attention>needs attention: {{attention}}</attention>.',
+    '<fixed>Fixed: {{fixed}}; </fixed><attention>needs attention: {{attention}}</attention>.',
   'error.message': 'Error message',
   'error.modelId': 'Model',
   'error.name': 'Error name',
@@ -421,24 +421,20 @@ describe('ErrorDetailContent diagnostics', () => {
     )
   })
 
-  it('shows only Doctor results and never starts an AI diagnosis', () => {
+  it('shows only Doctor results and hides the empty fixed summary', () => {
     mocks.cacheReady = false
     mocks.doctorState = completedDoctorState([passingVersionResult])
 
     renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
 
     const result = screen.getByRole('region', { name: 'Diagnostic result' })
-    const summary = within(result)
-      .getByText(/Fixed: None/)
-      .closest('p')
+    const summary = within(result).getByText('needs attention: 0 items').closest('p')
     if (!summary) throw new Error('Expected a single diagnostic result paragraph')
-    const fixed = within(result).getByText('Fixed: None')
     const attention = within(result).getByText('needs attention: 0 items')
-    expect(summary).toHaveTextContent('Fixed: None; needs attention: 0 items.')
+    expect(summary).toHaveTextContent('needs attention: 0 items.')
     expect(summary.tagName).toBe('P')
     expect(result.querySelectorAll('p')).toHaveLength(1)
-    // The semantic foreground tokens are the visual contract for the two result segments.
-    expect(fixed).toHaveClass('text-success')
+    expect(result).not.toHaveTextContent('Fixed: None')
     expect(attention).toHaveClass('text-warning')
     expect(result).toHaveAttribute('data-variant', 'sectioned')
     expect(result).not.toHaveTextContent(aiDiagnosis.summary)
@@ -469,7 +465,7 @@ describe('ErrorDetailContent diagnostics', () => {
     await act(async () => rejectRun(new Error('Doctor unavailable')))
 
     expect(await screen.findByRole('region', { name: 'Diagnostic result' })).toHaveTextContent(
-      'Fixed: None; needs attention: 0 items.'
+      'needs attention: 0 items.'
     )
     const quickRetry = screen.getByRole('button', { name: 'Quick basic checks' })
     expect(quickRetry).toBeEnabled()
