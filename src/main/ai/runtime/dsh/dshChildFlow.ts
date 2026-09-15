@@ -14,8 +14,8 @@ import type { SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
  * child events are therefore buffered (bounded) until a binding arrives.
  *
  * Binding: the connection reports every spawn-capable tool call it streams as
- * an anchor. `subagent`/`subagent_fork` anchors are targetless and a child's
- * first epoch binds to the oldest one; `send_message` anchors carry their
+ * an anchor. `subagent`/`subagent_fork` anchors are targetless and only SDK-created
+ * children consume them, oldest first; `send_message` anchors carry their
  * target session id, queue only for unbound targets (cold resumes), and bind
  * by exact match. A call that fails before any epoch withdraws its queued
  * anchor. Later epochs reuse the connection-persistent binding so one
@@ -61,21 +61,31 @@ export interface DshSubagentSink {
 
 interface ChildState {
   parentSessionId: string
+  /** Cold resumes have no SDK creation signal and must wait for their targeted anchor. */
+  hasCreationSignal: boolean
   /** Root tool call this child's flow renders under; undefined until an anchor binds. */
   rootCallId?: string
   /** Spawn `description` (task title); carried by the binding anchor. */
   title?: string
+  isBackgrounded?: boolean
   /** Live residency epoch (one Activation at a time per child). */
   activeRunId?: string
+  activeStartedAt?: string
   projection?: DshChildProjection
   buffered: SessionEvent[]
+  bufferedTaskEvents: Array<{ data: AgentTaskEventPartData; edgeId: string }>
   bufferOverflow: boolean
 }
 
 export class DshSubagentCoordinator {
   private readonly children = new Map<string, ChildState>()
   /** Spawn/wake tool calls awaiting their child epoch; send_message anchors carry their target session. */
-  private readonly pendingAnchors: Array<{ callId: string; title?: string; target?: string }> = []
+  private readonly pendingAnchors: Array<{
+    callId: string
+    title?: string
+    target?: string
+    isBackgrounded: boolean
+  }> = []
   private workStateActive = false
 
   constructor(
@@ -93,38 +103,62 @@ export class DshSubagentCoordinator {
       return
     }
     if (chunk.type !== 'tool-input-available' || !CHILD_ANCHOR_TOOLS.has(chunk.toolName)) return
-    const input = chunk.input as { description?: unknown; subagent_id?: unknown } | null | undefined
+    const input = chunk.input as
+      | { description?: unknown; run_in_background?: unknown; subagent_id?: unknown }
+      | null
+      | undefined
     if (chunk.toolName === 'send_message') {
       // Queued only for unbound targets: a warm wake reuses the persistent
       // binding, so its anchor would sit unconsumed in the queue forever.
       const target = typeof input?.subagent_id === 'string' ? input.subagent_id : undefined
       if (!target || this.children.get(target)?.rootCallId !== undefined) return
-      this.pendingAnchors.push({ callId: chunk.toolCallId, target })
-      return
+      this.pendingAnchors.push({ callId: chunk.toolCallId, target, isBackgrounded: true })
+    } else {
+      const description = input?.description
+      const requestedBackgroundMode = input?.run_in_background
+      this.pendingAnchors.push({
+        callId: chunk.toolCallId,
+        isBackgrounded:
+          typeof requestedBackgroundMode === 'boolean' ? requestedBackgroundMode : chunk.toolName !== 'subagent_fork',
+        ...(typeof description === 'string' && description ? { title: description } : {})
+      })
     }
-    const description = input?.description
-    this.pendingAnchors.push({
-      callId: chunk.toolCallId,
-      ...(typeof description === 'string' && description ? { title: description } : {})
-    })
+    for (const [childSessionId, child] of this.children) {
+      if (child.rootCallId === undefined) this.resolveRoot(childSessionId, child)
+    }
   }
 
   /** SDK-wire `subagent.started` — same pipe as `session.event`, so it precedes child events. */
   handleSdkSubagentStarted(parentSessionId: string, childSessionId: string): void {
+    this.admit(childSessionId, parentSessionId).hasCreationSignal = true
     this.bindChild(childSessionId, parentSessionId)
   }
 
   /** Bridge `subagent/lifecycle` — authoritative per-epoch edges (cold resumes included). */
   handleLifecycle(edge: SubagentLifecycleEdge): void {
     const child = this.bindChild(edge.childSessionId, edge.parentSessionId)
+    const eventAt = new Date().toISOString()
     if (edge.phase === 'start') {
       child.activeRunId = edge.runId
-      this.publishTaskEdge(edge.childSessionId, child, 'started', edge.runId)
+      child.activeStartedAt = eventAt
+      this.publishTaskEdge(child, 'started', edge.runId, eventAt)
     } else {
-      if (child.activeRunId === edge.runId || child.activeRunId === undefined) child.activeRunId = undefined
-      this.publishTaskEdge(edge.childSessionId, child, 'ended', edge.runId, edge.stopReason)
+      const startedAt = child.activeRunId === edge.runId ? child.activeStartedAt : undefined
+      if (child.activeRunId === edge.runId || child.activeRunId === undefined) {
+        child.activeRunId = undefined
+        child.activeStartedAt = undefined
+      }
+      this.publishTaskEdge(child, 'ended', edge.runId, startedAt, eventAt, edge.stopReason)
     }
     this.publishTasks()
+  }
+
+  /** Resolve the live DSH child behind an app-facing residency-run task id. */
+  resolveActiveChildSessionId(taskId: string): string | undefined {
+    for (const [childSessionId, child] of this.children) {
+      if (child.activeRunId === taskId) return childSessionId
+    }
+    return undefined
   }
 
   /** Whether this session id belongs to (or plausibly races) a descendant. */
@@ -165,7 +199,9 @@ export class DshSubagentCoordinator {
     if (existing) return existing
     const child: ChildState = {
       parentSessionId: parentSessionId ?? '',
+      hasCreationSignal: false,
       buffered: [],
+      bufferedTaskEvents: [],
       bufferOverflow: false
     }
     this.children.set(childSessionId, child)
@@ -183,19 +219,27 @@ export class DshSubagentCoordinator {
   private resolveRoot(childSessionId: string, child: ChildState): void {
     if (!child.parentSessionId) return
     if (child.parentSessionId === this.mainSessionId) {
-      const targeted = this.pendingAnchors.findIndex((anchor) => anchor.target === childSessionId)
-      const index = targeted !== -1 ? targeted : this.pendingAnchors.findIndex((anchor) => anchor.target === undefined)
+      let index = this.pendingAnchors.findIndex((anchor) => anchor.target === childSessionId)
+      if (index === -1 && child.hasCreationSignal) {
+        index = this.pendingAnchors.findIndex((anchor) => anchor.target === undefined)
+      }
       if (index === -1) return
       const [anchor] = this.pendingAnchors.splice(index, 1)
       child.rootCallId = anchor.callId
+      child.isBackgrounded = anchor.isBackgrounded
       if (anchor.title !== undefined) child.title = anchor.title
     } else {
       const parent = this.children.get(child.parentSessionId)
       if (parent?.rootCallId === undefined) return
       child.rootCallId = parent.rootCallId
       child.title = parent.title
+      child.isBackgrounded = parent.isBackgrounded
+    }
+    for (const { data, edgeId } of child.bufferedTaskEvents.splice(0)) {
+      this.emitTaskEvent(child, data, edgeId)
     }
     this.activateProjection(childSessionId, child)
+    if (child.activeRunId !== undefined) this.publishTasks()
     // A newly bound ancestor may unblock buffered grandchildren.
     for (const [id, pending] of this.children) {
       if (pending.rootCallId === undefined && pending.parentSessionId === childSessionId) {
@@ -214,10 +258,11 @@ export class DshSubagentCoordinator {
   }
 
   private publishTaskEdge(
-    childSessionId: string,
     child: ChildState,
     phase: 'started' | 'ended',
     runId: string,
+    createdAt?: string,
+    completedAt?: string,
     stopReason?: string
   ): void {
     // Task rows exist for direct children only; deeper descendants fold into their ancestor's flow.
@@ -232,27 +277,44 @@ export class DshSubagentCoordinator {
             : 'error'
     const data: AgentTaskEventPartData = {
       event: phase === 'started' ? 'started' : 'updated',
-      taskId: childSessionId,
-      ...(child.rootCallId !== undefined ? { toolUseId: child.rootCallId } : {}),
+      taskId: runId,
       status,
+      ...(createdAt !== undefined ? { createdAt } : {}),
+      ...(completedAt !== undefined ? { completedAt } : {}),
       taskType: 'subagent',
-      ...(child.title !== undefined ? { title: child.title } : {}),
       ...(status === 'error' && stopReason !== undefined ? { error: `subagent run ended: ${stopReason}` } : {})
     }
-    this.sink.emitTaskEvent(data, `${runId}-${phase}`)
+    this.emitTaskEvent(child, data, `${runId}-${phase}`)
+  }
+
+  private emitTaskEvent(child: ChildState, data: AgentTaskEventPartData, edgeId: string): void {
+    if (child.rootCallId === undefined) {
+      if (child.bufferedTaskEvents.length >= MAX_UNBOUND_EVENTS) child.bufferedTaskEvents.shift()
+      child.bufferedTaskEvents.push({ data, edgeId })
+      return
+    }
+    this.sink.emitTaskEvent(
+      {
+        ...data,
+        toolUseId: child.rootCallId,
+        ...(child.isBackgrounded !== undefined ? { isBackgrounded: child.isBackgrounded } : {}),
+        title: child.title ?? data.taskId
+      },
+      edgeId
+    )
   }
 
   private publishTasks(): void {
     const tasks: AgentSessionBackgroundTasks = []
     let activeEpochs = 0
-    for (const [sessionId, child] of this.children) {
+    for (const child of this.children.values()) {
       if (child.activeRunId === undefined) continue
       activeEpochs += 1
-      if (child.parentSessionId !== this.mainSessionId) continue
+      if (child.parentSessionId !== this.mainSessionId || child.isBackgrounded !== true) continue
       tasks.push({
-        id: sessionId,
+        id: child.activeRunId,
         type: 'subagent',
-        description: child.title ?? sessionId,
+        description: child.title ?? child.activeRunId,
         ...(child.rootCallId !== undefined ? { toolCallId: child.rootCallId } : {})
       })
     }
