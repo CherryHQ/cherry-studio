@@ -6,7 +6,12 @@ import winston from 'winston'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDataCollectionConsented } from '@main/utils/privacyConsent'
-import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from '@shared/utils/sentry'
+import {
+  getSentryBuildContext,
+  getSentryLogContext,
+  redactSentryEventPaths,
+  sanitizeSentryEvent
+} from '@shared/utils/sentry'
 
 import { name, version } from '../../../package.json'
 
@@ -36,7 +41,8 @@ function allowedIntegrations() {
     Sentry.additionalContextIntegration(),
     // Injects the renderer↔main bridge preload; without it renderer capture is inert.
     Sentry.preloadInjectionIntegration(),
-    // Strips usernames out of file paths — must run after context collection.
+    // Rewrites stack-frame filenames to app:/// (frames only; free text is scrubbed in
+    // beforeSend) — must run after context collection.
     Sentry.normalizePathsIntegration()
   ]
 }
@@ -66,7 +72,8 @@ export function initSentry(): void {
     sendDefaultPii: false,
     skipOpenTelemetrySetup: true,
     tracePropagationTargets: [],
-    beforeSend: (event) => (consentGranted() ? sanitizeSentryEvent(event) : null),
+    beforeSend: (event) =>
+      consentGranted() ? redactSentryEventPaths(sanitizeSentryEvent(event), application.getPath('sys.home')) : null,
     defaultIntegrations: false,
     integrations: allowedIntegrations(),
     // Not the SDK's offline transport: queueing envelopes on disk would persist

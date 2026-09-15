@@ -2,6 +2,7 @@ import { parse as parseToml } from 'smol-toml'
 import { describe, expect, it } from 'vitest'
 
 import {
+  createHomePathRedactor,
   isSensitiveKey,
   redactDeep,
   REDACTED,
@@ -313,5 +314,77 @@ describe('redactLiteral', () => {
   it('ignores an empty secret instead of destroying the text', () => {
     expect(redactLiteral('text', '')).toBe('text')
     expect(redactLiteral('text', undefined)).toBe('text')
+  })
+})
+
+describe('createHomePathRedactor', () => {
+  const posix = createHomePathRedactor('/Users/kovsu')
+  const windows = createHomePathRedactor('C:\\Users\\John Smith')
+
+  it.each([
+    [
+      "ENOENT: no such file or directory, open '/Users/kovsu/Library/Application Support/CherryStudio/Data/Files/report.pdf'",
+      "ENOENT: no such file or directory, open '~/Library/Application Support/CherryStudio/Data/Files/report.pdf'"
+    ],
+    ['spawn /Users/kovsu/.cherrystudio/bin/bun ENOENT', 'spawn ~/.cherrystudio/bin/bun ENOENT'],
+    ['HOME=/Users/kovsu', 'HOME=~'],
+    ['file:///Users/kovsu/Documents/report.pdf', '~/Documents/report.pdf'],
+    ['rename /Users/kovsu/a.txt to /Users/kovsu/b.txt failed', 'rename ~/a.txt to ~/b.txt failed']
+  ])('rewrites a POSIX home directory: %s', (input, expected) => {
+    expect(posix(input)).toBe(expected)
+  })
+
+  it.each([
+    ['spawn C:\\Users\\John Smith\\.cherrystudio\\bin\\bun.exe ENOENT', 'spawn ~\\.cherrystudio\\bin\\bun.exe ENOENT'],
+    ['c:/users/john smith/AppData/Roaming/CherryStudio/app.db', '~/AppData/Roaming/CherryStudio/app.db'],
+    ['{"path":"C:\\\\Users\\\\John Smith\\\\Documents\\\\a.pdf"}', '{"path":"~\\\\Documents\\\\a.pdf"}'],
+    [
+      '\n    at Foo (file:///C:/Users/John%20Smith/AppData/Local/Programs/Cherry%20Studio/resources/app.asar/out/renderer/assets/index-abc.js:12:34)\n    at div',
+      '\n    at Foo (~/AppData/Local/Programs/Cherry%20Studio/resources/app.asar/out/renderer/assets/index-abc.js:12:34)\n    at div'
+    ]
+  ])('rewrites a Windows home directory whose username contains a space: %s', (input, expected) => {
+    expect(windows(input)).toBe(expected)
+  })
+
+  it('matches the URL-encoded form of a non-ASCII username', () => {
+    expect(createHomePathRedactor('/Users/张三')('file:///Users/%E5%BC%A0%E4%B8%89/Documents/a.pdf')).toBe(
+      '~/Documents/a.pdf'
+    )
+  })
+
+  it('matches the percent-encoded form of a username character that file URLs escape', () => {
+    expect(createHomePathRedactor('/Users/a#b')('file:///Users/a%23b/Documents/a.pdf')).toBe('~/Documents/a.pdf')
+  })
+
+  it('escapes regex metacharacters in the home directory', () => {
+    expect(createHomePathRedactor('C:\\Users\\Jo (Work)')('C:\\Users\\Jo (Work)\\a.txt')).toBe('~\\a.txt')
+  })
+
+  it.each([
+    'POST https://api.openai.com/v1/chat/completions failed with 429',
+    'Error at app:///out/main/index.js:12:34',
+    '/Users/someone-else/Documents/a.pdf',
+    'relative/segment.txt',
+    '/Users/kovsu2/file.txt',
+    '/Users/kovsu-old/file.txt',
+    '/Users/kovsu.bak/file.txt'
+  ])('leaves everything outside the home directory alone: %s', (text) => {
+    expect(posix(text)).toBe(text)
+  })
+
+  it('leaves a longer username that starts with the Windows home directory alone', () => {
+    expect(windows('C:\\Users\\John Smithers\\a.txt')).toBe('C:\\Users\\John Smithers\\a.txt')
+  })
+
+  it.each([
+    '/System/Volumes/Data/Users/kovsu/Documents/a.pdf',
+    'prefix/Users/kovsu/a.txt',
+    'https://example.com/Users/kovsu/api'
+  ])('still removes the username when the home directory is embedded after another prefix: %s', (text) => {
+    expect(posix(text)).not.toContain('kovsu')
+  })
+
+  it.each(['', '/'])('does not rewrite every separator when the home directory is %j', (home) => {
+    expect(createHomePathRedactor(home)('/Users/kovsu/a.txt')).toBe('/Users/kovsu/a.txt')
   })
 })

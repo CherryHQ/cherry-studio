@@ -120,9 +120,19 @@ describe('Sentry consent gate', () => {
   it('sanitizes consented error events', () => {
     grantConsent()
 
-    const event = initOptions().beforeSend({ extra: { apiKey: 'real-api-key' } })
+    const event = initOptions().beforeSend({
+      extra: { apiKey: 'real-api-key' },
+      exception: {
+        values: [
+          { type: 'Error', value: "ENOENT: no such file or directory, open '/mock/sys.home/Documents/report.pdf'" }
+        ]
+      }
+    })
 
-    expect(JSON.stringify(event)).not.toContain('real-api-key')
+    const serialized = JSON.stringify(event)
+    expect(serialized).not.toContain('real-api-key')
+    expect(serialized).not.toContain('/mock/sys.home')
+    expect(event.exception.values[0].value).toBe("ENOENT: no such file or directory, open '~/Documents/report.pdf'")
   })
 
   it('blocks events and envelopes while an existing preference store is not ready', async () => {

@@ -127,6 +127,8 @@ export function redactUrlParams(rawUrl: string, extraKeys: readonly string[] = [
   }
 }
 
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 // Curated alternation (not the bare stems — those over-match English words); ordering
 // and value-alternative rationale lives with the edge-case tests in redaction.test.ts.
 const SECRET_KEY_VALUE_PATTERN =
@@ -144,7 +146,7 @@ const URL_USERINFO_PATTERN = /((?:\b[a-z][a-z\d+.-]*:)?\/\/)[^\s/\\?#]+@/gi
  */
 export function redactSecretText(text: string, extraKeys: readonly string[] = []): string {
   // Escape each extra key — raw insertion of regex metacharacters would silently break the alternation.
-  const escaped = extraKeys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const escaped = extraKeys.map(escapeRegExp)
   const withExtras =
     escaped.length === 0
       ? SECRET_KEY_VALUE_PATTERN
@@ -159,4 +161,29 @@ export function redactSecretText(text: string, extraKeys: readonly string[] = []
 export function redactLiteral(text: string, secret: string | undefined): string {
   if (!secret) return text
   return text.split(secret).join(REDACTED)
+}
+
+/**
+ * Build a replacer that rewrites the running user's home directory to `~`
+ * wherever it appears in free text, so the username never leaves the machine
+ * while the rest of the path stays for diagnostics — the same strategy as
+ * Sentry's server-side `@userpath` rule and Storybook's `cleanPaths`.
+ * Matches either separator (also doubled, as in JSON-escaped Windows paths),
+ * an optional `file://` prefix and URL-encoded segments, case-insensitively.
+ * The match must end at a segment boundary (`/Users/kovsu2` is left alone) but
+ * may start mid-string on purpose: an embedded home such as
+ * `/System/Volumes/Data/Users/kovsu` still carries the username.
+ */
+export function createHomePathRedactor(home: string): (text: string) => string {
+  const segments = home.split(/[\\/]/).filter(Boolean)
+  if (segments.length === 0) return (text) => text
+  const segmentPattern = segments
+    .map((segment) => {
+      const encoded = encodeURIComponent(segment)
+      return encoded === segment ? escapeRegExp(segment) : `(?:${escapeRegExp(segment)}|${escapeRegExp(encoded)})`
+    })
+    .join('[\\\\/]+')
+  const leadingSeparator = /^[\\/]/.test(home) ? '[\\\\/]+' : ''
+  const pattern = new RegExp(`(?:file:///?)?${leadingSeparator}${segmentPattern}(?![\\p{L}\\p{N}_.-])`, 'giu')
+  return (text) => text.replace(pattern, '~')
 }
