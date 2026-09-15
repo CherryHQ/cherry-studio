@@ -70,6 +70,7 @@ const providerKeyMap = {
   qiniu: 'provider.qiniu',
   qwenlm: 'provider.qwenlm',
   'radeon-cloud': 'provider.radeon-cloud',
+  requesty: 'provider.requesty',
   silicon: 'provider.silicon',
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
