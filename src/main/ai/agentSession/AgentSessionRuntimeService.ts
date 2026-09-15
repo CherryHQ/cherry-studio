@@ -1420,17 +1420,19 @@ export class AgentSessionRuntimeService extends BaseService {
    * same SDK query keeps streaming the post-steer response on A1a's captured model — retargeting in
    * that gap (e.g. a re-prime re-entering `ensureConnection`) would close the connection and drop the
    * continuation. Mirrors the live-turn test in `applyAgentModelUpdate`. Without a live turn or roll
-   * the connection follows the agent's latest model with the default reasoning selection.
+   * the connection follows the agent's latest model and its configured reasoning effort — the same
+   * fallback a fresh turn takes (`AgentChatContextProvider`), so an idle reconcile finds no drift.
    *
    * The turn's Fast and knowledge selections are frozen for exactly the same reason and on the same schedule.
    * Note the idle branch's `knowledgeBaseIds: []` means "no per-turn composer selection", NOT "no
    * knowledge": it is fed through `resolveKnowledgeBaseScope` against the agent's binding below, so a
    * statically bound agent still serves its full binding while idle. Idle deliberately converges on
-   * the default config — same as `reasoningEffort: 'default'` — so any turn that carried a composer
-   * selection (an unbound agent's whole scope, or a bound agent's narrowing) costs one rebuild once
-   * it goes idle. That is intentional: the next turn's selection is unknowable, and prewarm builds
-   * binding-only scope too, so pinning the last turn's selection would only move the rebuild onto the
-   * next turn that does not repeat it.
+   * the agent's own configuration, so any turn that carried a composer selection (an unbound agent's
+   * whole scope, or a bound agent's narrowing) costs one rebuild once it goes idle. That is
+   * intentional: the next turn's *selection* is unknowable, and prewarm builds binding-only scope
+   * too, so pinning the last turn's selection would only move the rebuild onto the next turn that
+   * does not repeat it. A configured reasoning effort is not a selection — it is what the next turn
+   * uses absent an override — so reading it here is what keeps idle free of permanent drift.
    */
   private connectionTarget(entry: AgentSessionRuntimeEntry): AgentSessionConnectionTarget {
     const turn =
@@ -1452,7 +1454,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       : {
           modelId: entry.modelId,
-          reasoningEffort: 'default',
+          reasoningEffort: agentService.getAgent(entry.agentId)?.configuration?.reasoning_effort ?? 'default',
           serviceTier: 'standard',
           knowledgeBaseIds: [],
           fastMode: false,
@@ -2785,7 +2787,12 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
     const { origin } = entry.runtimeState.execution
-    const { modelId, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } = this.connectionTarget(entry)
+    // Every facet of a receive-only turn is whatever the connection is currently targeted at:
+    // reading `reasoningEffort` from anywhere else would make an autonomous wake disagree with
+    // the connection it is already streaming on, and a reconcile racing that wake would report
+    // drift and close a valid warm connection.
+    const { modelId, reasoningEffort, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } =
+      this.connectionTarget(entry)
     const syntheticMessage = createSyntheticUserMessage(entry.sessionId)
 
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)
@@ -2822,7 +2829,7 @@ export class AgentSessionRuntimeService extends BaseService {
       assistantMessageId,
       userMessage: syntheticMessage,
       modelId,
-      reasoningEffort: 'default',
+      reasoningEffort,
       serviceTier,
       knowledgeBaseIds,
       fastMode,
@@ -2861,7 +2868,7 @@ export class AgentSessionRuntimeService extends BaseService {
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,
-        reasoningEffort: 'default',
+        reasoningEffort,
         serviceTier,
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
