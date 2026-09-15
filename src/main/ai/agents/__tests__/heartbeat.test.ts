@@ -57,6 +57,16 @@ describe('readHeartbeat', () => {
     expect((flags as number) & constants.O_NOFOLLOW).toBe(constants.O_NOFOLLOW)
   })
 
+  it('adds O_NONBLOCK on POSIX only, so a FIFO at the path cannot park the open', async () => {
+    // open(2) parks read-only on a FIFO until a writer appears — the tick would
+    // hang before the fstat refusal runs. No POSIX FIFO semantics on Windows.
+    mockedOpen.mockResolvedValue(readableHandle('heartbeat content') as never)
+    await readHeartbeat('/workspace')
+    const [, flags] = mockedOpen.mock.calls[0]
+    const expected = process.platform === 'win32' ? 0 : constants.O_NONBLOCK
+    expect((flags as number) & constants.O_NONBLOCK).toBe(expected)
+  })
+
   it('returns undefined when file does not exist', async () => {
     mockedOpen.mockRejectedValue(errWithCode('ENOENT'))
     const result = await readHeartbeat('/workspace')

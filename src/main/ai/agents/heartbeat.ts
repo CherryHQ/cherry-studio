@@ -50,7 +50,11 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
     // heartbeat.md — or one swapped in between any check and the read — fails
     // the open with ELOOP instead of streaming its target (e.g. ~/.ssh)
     // straight into the model prompt. lstat+readFile would leave that window.
-    const handle = await open(resolved, constants.O_RDONLY | constants.O_NOFOLLOW)
+    // O_NONBLOCK (no-op on regular files, skipped on Windows): open(2) parks on
+    // a FIFO until a writer appears, hanging the tick before fstat can refuse it.
+    const openFlags =
+      constants.O_RDONLY | constants.O_NOFOLLOW | (process.platform === 'win32' ? 0 : constants.O_NONBLOCK)
+    const handle = await open(resolved, openFlags)
     let content: string
     try {
       const stat = await handle.stat()

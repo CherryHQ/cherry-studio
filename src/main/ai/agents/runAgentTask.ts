@@ -138,6 +138,21 @@ function resolveTaskSession(params: {
   return session
 }
 
+/**
+ * Shared pause for stranded heartbeat schedules — both dead-source paths (a
+ * SYSTEM workspace, a deleted workspace) need the same disable + timer resync.
+ */
+function pauseHeartbeatSchedule(agentId: string, scheduleId: string, warnMessage: string): void {
+  try {
+    application.get('DbService').withWriteTx((tx) => {
+      application.get('JobManager').updateJobScheduleTx(tx, scheduleId, { enabled: false })
+    })
+    application.get('JobManager').syncJobScheduleTimerById(scheduleId)
+  } catch (pauseError) {
+    logger.warn(warnMessage, { agentId, scheduleId, error: pauseError })
+  }
+}
+
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
   const { agentId, prompt, timeoutMinutes, workspace } = ctx.input
 
@@ -195,18 +210,11 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
           liveTemplate?.prompt === HEARTBEAT_PROMPT_SENTINEL &&
           liveTemplate?.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
         if (scheduleId && stillSystemHeartbeat) {
-          try {
-            application.get('DbService').withWriteTx((tx) => {
-              application.get('JobManager').updateJobScheduleTx(tx, scheduleId, { enabled: false })
-            })
-            application.get('JobManager').syncJobScheduleTimerById(scheduleId)
-          } catch (pauseError) {
-            logger.warn('Failed to pause heartbeat schedule pointing at a system workspace', {
-              agentId,
-              scheduleId,
-              error: pauseError
-            })
-          }
+          pauseHeartbeatSchedule(
+            agentId,
+            scheduleId,
+            'Failed to pause heartbeat schedule pointing at a system workspace'
+          )
         }
         logger.debug('Heartbeat skipped (no file)', { agentId, scheduleId })
         return { result: 'Skipped (no file)' }
@@ -241,18 +249,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
           liveTemplate?.workspace?.type === AGENT_WORKSPACE_TYPE.USER &&
           liveTemplate?.workspace?.workspaceId === workspace.workspaceId
         if (scheduleId && stillTargetsDeletedWorkspace) {
-          try {
-            application.get('DbService').withWriteTx((tx) => {
-              application.get('JobManager').updateJobScheduleTx(tx, scheduleId, { enabled: false })
-            })
-            application.get('JobManager').syncJobScheduleTimerById(scheduleId)
-          } catch (pauseError) {
-            logger.warn('Failed to pause heartbeat schedule after workspace deletion', {
-              agentId,
-              scheduleId,
-              error: pauseError
-            })
-          }
+          pauseHeartbeatSchedule(agentId, scheduleId, 'Failed to pause heartbeat schedule after workspace deletion')
         }
         logger.debug('Heartbeat skipped (workspace deleted)', {
           agentId,
