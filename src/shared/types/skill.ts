@@ -157,6 +157,11 @@ export const InstalledSkillSchema = z.object({
 })
 export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 
+/** Managed skill folders are the sanitized names used by every runtime path projection. */
+export function isCanonicalSkillFolderName(folderName: string): boolean {
+  return /^[a-zA-Z0-9_-]{1,80}$/.test(folderName)
+}
+
 // ============================================================================
 // IPC option types
 // ============================================================================

@@ -15,6 +15,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSkillUpdateDto } from '@shared/data/api/schemas/agents'
 import {
@@ -22,6 +23,9 @@ import {
   type ListSkillsQuery,
   SKILL_LIST_MEMBERSHIP_DIMENSIONS
 } from '@shared/data/api/schemas/skills'
+import { isCanonicalSkillFolderName } from '@shared/types/skill'
+
+const logger = loggerService.withContext('AgentGlobalSkillService')
 
 /**
  * DataApi service for the `agent_global_skill` and `agent_skill` join tables.
@@ -90,10 +94,19 @@ export class AgentGlobalSkillService {
     if (!query.agentId) return skills
 
     const enabledMap = this.loadEnabledMap(query.agentId)
-    return skills.map((s) => ({
-      ...s,
-      isEnabled: enabledMap.get(s.id) ?? s.source === 'builtin'
-    }))
+    return skills
+      .filter((skill) => {
+        if (isCanonicalSkillFolderName(skill.folderName)) return true
+        logger.warn('Skipping malformed skill from agent runtime projection', {
+          skillId: skill.id,
+          folderName: skill.folderName
+        })
+        return false
+      })
+      .map((s) => ({
+        ...s,
+        isEnabled: enabledMap.get(s.id) ?? s.source === 'builtin'
+      }))
   }
 
   /** Every row from `agent_global_skill`, ordered by createdAt. Used to seed new agents with builtins. */

@@ -15,7 +15,7 @@ import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@m
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import type { SkillCatalogEntry } from '@shared/types/skill'
+import { isCanonicalSkillFolderName, type SkillCatalogEntry } from '@shared/types/skill'
 import type {
   SkillFileNode,
   SkillImportSystemOptions,
@@ -38,6 +38,201 @@ const logger = loggerService.withContext('SkillService')
 const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
+
+function sanitizeFolderCandidate(candidate: unknown): string {
+  if (typeof candidate !== 'string') return ''
+  const trimmed = candidate.trim()
+  if (!trimmed || !/[a-zA-Z0-9]/.test(trimmed)) return ''
+  return sanitizeFolderName(trimmed)
+}
+
+function sanitizeFolderValue(candidate: unknown): string {
+  if (typeof candidate !== 'string') return ''
+  const trimmed = candidate.trim()
+  if (!trimmed) return ''
+  const sanitized = sanitizeFolderName(trimmed)
+  return isCanonicalSkillFolderName(sanitized) ? sanitized : ''
+}
+
+function normalizeGithubSourceUrl(sourceUrl: string): string[] | null {
+  try {
+    const url = new URL(sourceUrl)
+    const host = url.hostname.toLowerCase().replace(/^www\./, '')
+    const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
+    const sourceRef = url.searchParams.get('ref')
+    const owner = parts.shift()
+    const repo = parts.shift()?.replace(/\.git$/i, '')
+    if (!owner || !repo) return null
+
+    let refAndPath: string[]
+    let explicitRefNamespace: 'heads' | 'tags' | null = null
+    if (host === 'raw.githubusercontent.com') {
+      refAndPath = parts
+      if (refAndPath[0] === 'refs' && (refAndPath[1] === 'heads' || refAndPath[1] === 'tags')) {
+        explicitRefNamespace = refAndPath[1]
+        refAndPath = refAndPath.slice(2)
+      }
+    } else if (host === 'github.com' && (parts[0] === 'blob' || parts[0] === 'raw' || parts[0] === 'tree')) {
+      refAndPath = parts.slice(1)
+      if (refAndPath[0] === 'refs' && (refAndPath[1] === 'heads' || refAndPath[1] === 'tags')) {
+        explicitRefNamespace = refAndPath[1]
+        refAndPath = refAndPath.slice(2)
+      }
+    } else {
+      return null
+    }
+
+    // Commit permalinks carry an unambiguous ref/path boundary. Keep only the selected path so
+    // slash-bearing branch names cannot alias a different nested skill through a shared suffix.
+    if (!explicitRefNamespace && /^[0-9a-f]{40}$/i.test(refAndPath[0] ?? '')) {
+      const skillPath = refAndPath.slice(1)
+      if (skillPath.at(-1)?.toLowerCase() === 'skill.md') skillPath.pop()
+      const encodedPath = skillPath.map((part) => encodeURIComponent(part)).join('/')
+      const pathIdentity = `github:${owner.toLowerCase()}/${repo.toLowerCase()}${encodedPath ? `/${encodedPath}` : ''}`
+      const refMatch = sourceRef?.match(/^refs\/(heads|tags)\/(.+)$/)
+      if (refMatch) {
+        return [
+          `github-ref-path:${owner.toLowerCase()}/${repo.toLowerCase()}/${refMatch[1]}/${encodeURIComponent(refMatch[2])}${
+            encodedPath ? `/${encodedPath}` : ''
+          }`,
+          pathIdentity
+        ]
+      }
+      return [pathIdentity]
+    }
+
+    // Generated source URLs put the ref (branch, tag, or commit) before the skill path. Branches
+    // may contain slashes, so retain the complete normalized ref/path as a legacy disambiguator
+    // alongside every possible path boundary. The latter lets a commit permalink match a legacy
+    // branch URL while the former prevents two ambiguous URLs from sharing a suffix accidentally.
+    const identities: string[] = []
+    const hasDescriptor = refAndPath.at(-1)?.toLowerCase() === 'skill.md'
+    const maxSplit = hasDescriptor ? refAndPath.length - 1 : refAndPath.length
+    const fullPath = refAndPath
+      .slice(0, maxSplit)
+      .map((part) => encodeURIComponent(part))
+      .join('/')
+    identities.push(`github-url:${owner.toLowerCase()}/${repo.toLowerCase()}/${fullPath}`)
+    if (explicitRefNamespace) {
+      identities.push(
+        `github-ref:${owner.toLowerCase()}/${repo.toLowerCase()}/${explicitRefNamespace}/${encodeURIComponent(refAndPath[0] ?? '')}`
+      )
+    }
+    for (let split = 1; split <= maxSplit; split++) {
+      const skillPath = refAndPath.slice(split)
+      if (skillPath.at(-1)?.toLowerCase() === 'skill.md') skillPath.pop()
+      // A one-segment suffix can be either the tail of a slash-bearing ref or a skill path. It is
+      // never enough to identify a nested skill, and retaining it lets a root ref overwrite one.
+      if (skillPath.length === 1) continue
+      // A root identity is safe only when no longer path can be selected from this URL. For a
+      // slash-bearing legacy ref this preserves root re-installs without aliasing nested skills.
+      if (skillPath.length === 0 && maxSplit > 2) continue
+      const encodedPath = skillPath.map((part) => encodeURIComponent(part)).join('/')
+      if (explicitRefNamespace) {
+        identities.push(
+          `github-ref-path:${owner.toLowerCase()}/${repo.toLowerCase()}/${explicitRefNamespace}/${encodeURIComponent(
+            refAndPath.slice(0, split).join('/')
+          )}${encodedPath ? `/${encodedPath}` : ''}`
+        )
+      }
+      identities.push(`github:${owner.toLowerCase()}/${repo.toLowerCase()}${encodedPath ? `/${encodedPath}` : ''}`)
+    }
+    return identities
+  } catch {
+    return null
+  }
+}
+
+function normalizeSkillSourceUrl(source: string, sourceUrl: string | null): string[] {
+  if (!sourceUrl || source !== 'marketplace') return sourceUrl ? [sourceUrl] : []
+  return normalizeGithubSourceUrl(sourceUrl) ?? [sourceUrl]
+}
+
+function legacyBranchIdentityFromRefPath(identity: string): string | null {
+  const match = identity.match(/^github-ref-path:([^/]+)\/([^/]+)\/heads\/([^/]+)(\/.*)?$/i)
+  if (!match || /%2f/i.test(match[3])) return null
+  return `github-url:${match[1]}/${match[2]}/${match[3]}${match[4] ?? ''}`
+}
+
+function sameSkillSourceUrl(left: string[], right: string[]): boolean {
+  const leftRefPath = left.filter((identity) => identity.startsWith('github-ref-path:'))
+  const rightRefPath = right.filter((identity) => identity.startsWith('github-ref-path:'))
+  if (leftRefPath.length > 0 && rightRefPath.length > 0) {
+    return leftRefPath.some((identity) => rightRefPath.includes(identity))
+  }
+
+  const leftUrlIdentity = left.filter((identity) => identity.startsWith('github-url:'))
+  const rightUrlIdentity = right.filter((identity) => identity.startsWith('github-url:'))
+
+  // An explicit ref is authoritative when it is being installed, so it may heal a legacy row.
+  // The reverse direction is unsafe: an unannotated legacy URL has no reliable ref/path boundary
+  // and must never overwrite a row that already carries an explicit ref identity.
+  if (leftRefPath.length > 0 && rightUrlIdentity.length > 0) return false
+  if (rightRefPath.length > 0 && leftUrlIdentity.length > 0) {
+    const refPath = rightRefPath
+    const legacyUrl = leftUrlIdentity
+    return refPath.some((identity) => {
+      const legacyIdentity = legacyBranchIdentityFromRefPath(identity)
+      return legacyIdentity ? legacyUrl.includes(legacyIdentity) : false
+    })
+  }
+
+  // Complete URL identities retain the ref/path sequence, so two ambiguous legacy URLs must
+  // match exactly. Explicit heads/tags namespaces share that identity for the same ref, but the
+  // namespace marker still keeps a same-named branch and tag distinct.
+  if (leftUrlIdentity.length > 0 && rightUrlIdentity.length > 0) {
+    const sharedUrlIdentity = leftUrlIdentity.find((identity) => rightUrlIdentity.includes(identity))
+    if (!sharedUrlIdentity) return false
+
+    const getRefIdentity = (identities: string[]) => identities.find((identity) => identity.startsWith('github-ref:'))
+    const leftRef = getRefIdentity(left)
+    const rightRef = getRefIdentity(right)
+    if (leftRef && rightRef) return leftRef === rightRef
+    // A URL without an explicit namespace is the legacy branch form. Keep it compatible with an
+    // explicit branch URL, but never let it alias an explicit tag URL with the same path.
+    const explicitRef = leftRef ?? rightRef
+    return explicitRef?.includes('/heads/') ?? true
+  }
+
+  const isRepositoryIdentity = (identity: string) => /^github:[^/]+\/[^/]+$/.test(identity)
+  const leftSpecific = left.filter(
+    (identity) =>
+      !identity.startsWith('github-url:') &&
+      !identity.startsWith('github-ref:') &&
+      !identity.startsWith('github-ref-path:') &&
+      !isRepositoryIdentity(identity)
+  )
+  const rightSpecific = right.filter(
+    (identity) =>
+      !identity.startsWith('github-url:') &&
+      !identity.startsWith('github-ref:') &&
+      !identity.startsWith('github-ref-path:') &&
+      !isRepositoryIdentity(identity)
+  )
+
+  if (leftSpecific.length > 0 || rightSpecific.length > 0)
+    return leftSpecific.some((identity) => rightSpecific.includes(identity))
+
+  // A repository-root identity is ambiguous when either URL also has a possible skill path (the
+  // ref itself may contain slashes). Only use it when both URLs are unambiguously root skills.
+  if (leftUrlIdentity.length > 0 && rightUrlIdentity.length > 0) {
+    return leftUrlIdentity.some((identity) => rightUrlIdentity.includes(identity))
+  }
+  return left.some((identity) => right.includes(identity))
+}
+
+function hasAmbiguousLegacySourceConflict(existing: string[], incoming: string[]): boolean {
+  const existingRefPath = existing.some((identity) => identity.startsWith('github-ref-path:'))
+  const incomingLegacyUrl = incoming.some((identity) => identity.startsWith('github-url:'))
+  const incomingExplicitRef = incoming.some(
+    (identity) => identity.startsWith('github-ref-path:') || identity.startsWith('github-ref:')
+  )
+  if (!existingRefPath || !incomingLegacyUrl || incomingExplicitRef) return false
+
+  const existingPathIdentities = existing.filter((identity) => identity.startsWith('github:'))
+  const incomingPathIdentities = incoming.filter((identity) => identity.startsWith('github:'))
+  return existingPathIdentities.some((identity) => incomingPathIdentities.includes(identity))
+}
 
 /**
  * Skill management service.
@@ -103,7 +298,17 @@ export class SkillService {
     const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) return null
 
-    const skillRoot = this.getMirrorPath(skill.folderName)
+    let skillRoot: string
+    try {
+      skillRoot = this.getMirrorPath(skill.folderName)
+    } catch (error) {
+      logger.warn('Rejected malformed skill mirror path', {
+        skillId,
+        folderName: skill.folderName,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return null
+    }
     const filePath = path.resolve(skillRoot, filename)
 
     // Prevent path traversal
@@ -134,7 +339,17 @@ export class SkillService {
     const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) return []
 
-    const skillRoot = this.getMirrorPath(skill.folderName)
+    let skillRoot: string
+    try {
+      skillRoot = this.getMirrorPath(skill.folderName)
+    } catch (error) {
+      logger.warn('Rejected malformed skill mirror path', {
+        skillId,
+        folderName: skill.folderName,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return []
+    }
     try {
       return await buildFileTree(skillRoot, skillRoot)
     } catch {
@@ -190,7 +405,16 @@ export class SkillService {
     return Promise.all(
       skills.map(async (skill): Promise<SkillCatalogEntry> => {
         if (skill.source === 'builtin') return { ...skill, scope: 'builtin' }
-        const directory = await realPath(this.getInstalledSkillDirectory(skill))
+        let directory: string | undefined
+        try {
+          directory = await realPath(this.getInstalledSkillDirectory(skill))
+        } catch (error) {
+          logger.warn('Rejected malformed skill storage path while listing catalog', {
+            skillId: skill.id,
+            folderName: skill.folderName,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
         const scope = directory && roots.some((root) => root && isPathInside(directory, root)) ? 'system' : 'local'
         return { ...skill, scope }
       })
@@ -238,7 +462,11 @@ export class SkillService {
     const fetched = await fetchRemoteSkill(source, rest.join(':'))
 
     try {
-      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
+      const installed = fetched.folderNameFallback
+        ? await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl, {
+            folderNameFallback: fetched.folderNameFallback
+          })
+        : await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
       fetched.onInstalled?.()
       return installed
     } finally {
@@ -502,7 +730,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; folderNameFallback?: string } = {}
   ): Promise<InstalledSkill> {
     // Serialize against reconcile / uninstall / builtin sync so a concurrent reconcile can't see
     // this install's transient `.bak` / half-copied state and then prune or mis-adopt the row.
@@ -513,15 +741,26 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; folderNameFallback?: string } = {}
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
     const skillsRoot = path.resolve(application.getPath('feature.agents.skills'))
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
-    const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(metadata.filename)
+    const folderName = isInPlace
+      ? path.basename(skillDir)
+      : provenance.folderNameFallback
+        ? ([metadata.declaredName, metadata.slug, provenance.folderNameFallback]
+            .map(sanitizeFolderCandidate)
+            .find(Boolean) ?? '')
+        : sanitizeFolderValue(metadata.filename)
 
-    const existing = this.findCatalogSkillCaseInsensitive(folderName)
+    const existingByFolderName = this.findCatalogSkillCaseInsensitive(folderName)
+    const existingBySourceUrl =
+      provenance.folderNameFallback && source === 'marketplace' && sourceUrl
+        ? this.findCatalogSkillBySourceUrl(source, sourceUrl, folderName)
+        : null
+    const existing = existingBySourceUrl ?? existingByFolderName
     if (existing) {
       // Only a re-install of the exact same skill (same source + origin URL) may overwrite the
       // existing folder in place. Anything else — a marketplace install colliding with a builtin,
@@ -529,7 +768,12 @@ export class SkillService {
       // silent replace: overwriting would clobber the files while the DB row keeps the old source
       // (e.g. a third-party `skill-creator` replacing the builtin, which then stays
       // enabled-for-all-agents), or irrecoverably destroy the user's own local skill.
-      const sameOrigin = existing.source === source && (existing.sourceUrl ?? null) === (sourceUrl ?? null)
+      const sameOrigin =
+        existing.source === source &&
+        sameSkillSourceUrl(
+          normalizeSkillSourceUrl(existing.source, existing.sourceUrl),
+          normalizeSkillSourceUrl(source, sourceUrl)
+        )
       if (!sameOrigin) {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; ` +
@@ -538,7 +782,8 @@ export class SkillService {
       }
     }
 
-    const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
+    const storageFolderName = existing?.folderName ?? folderName
+    const storageEntry = await this.findStorageFolderCaseInsensitive(storageFolderName)
     if (!existing && storageEntry) {
       throw new Error(
         `Folder name "${folderName}" conflicts with an existing library directory "${storageEntry}"; ` +
@@ -552,9 +797,20 @@ export class SkillService {
       )
     }
 
-    const contentHash = await this.installer.computeContentHash(skillDir)
+    if (existing && normalizeFolderKey(existing.folderName) !== normalizeFolderKey(folderName)) {
+      const candidateStorageEntry = await this.findStorageFolderCaseInsensitive(folderName)
+      const candidateCatalogSkill = this.findCatalogSkillCaseInsensitive(folderName)
+      if (candidateStorageEntry && !candidateCatalogSkill) {
+        throw new Error(
+          `Skill source URL matches catalog folder "${existing.folderName}", but derived folder "${candidateStorageEntry}" already exists; ` +
+            'reconcile the library before reinstalling.'
+        )
+      }
+    }
+
     const destFolderName = existing?.folderName ?? folderName
     const destPath = this.getSkillStoragePath(destFolderName)
+    const contentHash = await this.installer.computeContentHash(skillDir)
 
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await this.installer.install(skillDir, destPath)
@@ -600,6 +856,7 @@ export class SkillService {
         inserted = agentGlobalSkillService.getById(insertedRow.id) ?? undefined
       })
     } catch (error) {
+      await this.unlinkMirror(destFolderName)
       try {
         await this.installer.uninstall(destPath)
       } catch (cleanupError) {
@@ -612,6 +869,7 @@ export class SkillService {
       throw error
     }
     if (!inserted) {
+      await this.unlinkMirror(destFolderName)
       await this.installer.uninstall(destPath)
       throw new Error(`Failed to insert skill: ${metadata.name}`)
     }
@@ -629,7 +887,15 @@ export class SkillService {
   // ===========================================================================
 
   private getSkillStoragePath(folderName: string): string {
-    return path.join(application.getPath('feature.agents.skills'), folderName)
+    const storageRoot = path.resolve(application.getPath('feature.agents.skills'))
+    if (!isCanonicalSkillFolderName(folderName)) {
+      throw new Error(`Invalid skill folder name: ${folderName}`)
+    }
+    const storagePath = path.resolve(storageRoot, folderName)
+    if (storagePath === storageRoot || path.dirname(storagePath) !== storageRoot) {
+      throw new Error(`Invalid skill folder name: ${folderName}`)
+    }
+    return storagePath
   }
 
   // ===========================================================================
@@ -648,7 +914,15 @@ export class SkillService {
   }
 
   private getMirrorPath(folderName: string): string {
-    return path.join(this.getMirrorRoot(), folderName)
+    const mirrorRoot = path.resolve(this.getMirrorRoot())
+    if (!isCanonicalSkillFolderName(folderName)) {
+      throw new Error(`Invalid skill mirror folder name: ${folderName}`)
+    }
+    const mirrorPath = path.resolve(mirrorRoot, folderName)
+    if (mirrorPath === mirrorRoot || path.dirname(mirrorPath) !== mirrorRoot) {
+      throw new Error(`Invalid skill mirror folder name: ${folderName}`)
+    }
+    return mirrorPath
   }
 
   private async ensureSkillPluginManifest(): Promise<void> {
@@ -745,11 +1019,14 @@ export class SkillService {
 
   /** Remove the CLAUDE_CONFIG_DIR/skills mirror entry for a skill. */
   async unlinkMirror(folderName: string): Promise<void> {
-    const targetDir = this.getMirrorPath(folderName)
     try {
+      const targetDir = this.getMirrorPath(folderName)
       await fs.promises.rm(targetDir, { recursive: true, force: true })
     } catch (error) {
-      logger.warn('Failed to remove skill mirror', { folderName, targetDir, error })
+      logger.warn('Failed to remove skill mirror', {
+        folderName,
+        error: error instanceof Error ? error.message : String(error)
+      })
     }
   }
 
@@ -997,7 +1274,14 @@ export class SkillService {
         }
         continue
       }
-      await this.linkMirror(group[0].folderName)
+      try {
+        await this.linkMirror(group[0].folderName)
+      } catch (error) {
+        logger.warn('Skipped malformed skill mirror entry during reconcile', {
+          folderName: group[0].folderName,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
     }
 
     const root = this.getMirrorRoot()
@@ -1082,6 +1366,41 @@ export class SkillService {
       )
     }
     return matches[0] ?? null
+  }
+
+  private findCatalogSkillBySourceUrl(source: string, sourceUrl: string, folderName: string): InstalledSkill | null {
+    const sourceIdentity = normalizeSkillSourceUrl(source, sourceUrl)
+    const sourceSkills = agentGlobalSkillService.listAll().filter((skill) => skill.source === source)
+    const matches = sourceSkills.filter((skill) =>
+      sameSkillSourceUrl(normalizeSkillSourceUrl(skill.source, skill.sourceUrl), sourceIdentity)
+    )
+    if (matches.length === 0) {
+      // Legacy URLs omit the ref/path boundary. If one of their possible path identities points at
+      // an explicitly ref-bound row, surface that row as a conflict so the caller refuses to
+      // overwrite it instead of silently creating a duplicate under a new derived folder.
+      const ambiguousMatches = sourceSkills.filter((skill) =>
+        hasAmbiguousLegacySourceConflict(normalizeSkillSourceUrl(skill.source, skill.sourceUrl), sourceIdentity)
+      )
+      if (ambiguousMatches.length > 0) return ambiguousMatches[0]
+    }
+    if (matches.length <= 1) return matches[0] ?? null
+
+    const folderMatches = matches.filter(
+      (skill) => normalizeFolderKey(skill.folderName) === normalizeFolderKey(folderName)
+    )
+    if (folderMatches.length === 1) return folderMatches[0]
+
+    const [selected] = [...matches].sort((a, b) =>
+      `${normalizeFolderKey(a.folderName)}\0${a.id}`.localeCompare(`${normalizeFolderKey(b.folderName)}\0${b.id}`)
+    )
+    logger.warn('Multiple catalog skills share a source URL; selected one deterministically', {
+      source,
+      sourceUrl,
+      folderName,
+      skillIds: matches.map((skill) => skill.id),
+      selectedSkillId: selected?.id
+    })
+    return selected ?? null
   }
 
   private async findStorageFolderCaseInsensitive(folderName: string): Promise<string | null> {
@@ -1207,7 +1526,19 @@ export class SkillService {
   }
 
   private async uninstallLocked(skill: InstalledSkill): Promise<void> {
-    const skillPath = this.getSkillStoragePath(skill.folderName)
+    let skillPath: string
+    try {
+      skillPath = this.getSkillStoragePath(skill.folderName)
+    } catch (error) {
+      logger.warn('Quarantining skill with malformed storage path during uninstall', {
+        skillId: skill.id,
+        folderName: skill.folderName,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      await this.unlinkMirror(skill.folderName)
+      agentGlobalSkillService.deleteById(skill.id)
+      return
+    }
     await this.installer.uninstall(skillPath)
     await this.unlinkMirror(skill.folderName)
     agentGlobalSkillService.deleteById(skill.id)

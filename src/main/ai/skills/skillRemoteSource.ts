@@ -78,6 +78,8 @@ export interface FetchedSkill {
   tempDir: string
   skillDir: string
   sourceUrl: string
+  /** Repository name used when a root skill has no explicit metadata slug or name. */
+  folderNameFallback?: string
   /** Fire-and-forget notification to run once the install has committed. */
   onInstalled?: () => void
 }
@@ -179,17 +181,26 @@ async function fetchFromGithub(
   const { ref, namespace, oid, target } = await resolveGithubCommit(repoUrl, refAndPath, refNamespace)
   logger.info('Installing from GitHub', { owner, repo, ref, namespace, oid, target })
 
+  // A slash-bearing ref has no delimiter from the selected path in a raw URL. Store the observed
+  // commit permalink in that case so later catalog matching cannot reinterpret the ref boundary.
   const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
-  const sourceUrl = namespace
-    ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
-    : `${repoUrl}/tree/${encodeGithubPath(sourcePath)}`
+  const sourceUrl =
+    namespace && !ref.includes('/')
+      ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
+      : `${repoUrl}/tree/${encodeGithubPath(target.kind === 'root' ? oid : `${oid}/${target.path}`)}${
+          namespace && ref.includes('/') ? `?ref=${encodeURIComponent(`refs/${namespace}/${ref}`)}` : ''
+        }`
 
   const tempDir = await openTempDir()
   const { contentDir, skillDir } = await materializeGithubTarget(repoUrl, oid, target, descriptorFileName, tempDir)
   await validateRepositorySkillDirectory(contentDir, skillDir, path.join(skillDir, descriptorFileName))
   await assertSkillDirectoryWithinLimits(skillDir)
 
-  return { skillDir, sourceUrl }
+  return {
+    skillDir,
+    sourceUrl,
+    ...(target.kind === 'root' ? { folderNameFallback: repo } : {})
+  }
 }
 
 async function fetchFromSkillsSh(
