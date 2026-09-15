@@ -14,6 +14,7 @@ import {
 } from '../definitions'
 import {
   findKeybindingConflicts,
+  getCommandAccelerator,
   getCommandDefaultShortcutPreference,
   resolveCommandByKeybinding,
   resolveCommandKeybinding,
@@ -485,6 +486,35 @@ describe('findKeybindingConflicts', () => {
         conflictingTrigger: 'primary'
       })
     ])
+  })
+
+  it('registers keypad-Enter bindings under the canonical Electron accelerator', () => {
+    expect(getCommandAccelerator(['CommandOrControl', 'numenter'])).toBe('CommandOrControl+Enter')
+  })
+
+  it('treats keypad Enter and main Return as one trigger when matching', () => {
+    expect(
+      findKeybindingConflicts({
+        command: 'topic.create',
+        preference: { binding: ['CommandOrControl', 'numenter'], enabled: true },
+        preferences: { 'app.search': { binding: ['CommandOrControl', 'Enter'], enabled: true } },
+        rules: [testRule('topic.create'), testRule('app.search')]
+      })
+    ).toEqual([
+      expect.objectContaining({
+        command: 'topic.create',
+        conflictingCommand: 'app.search'
+      })
+    ])
+
+    expect(
+      findKeybindingConflicts({
+        command: 'topic.create',
+        preference: { binding: ['CommandOrControl', 'N'], enabled: true },
+        preferences: { 'app.search': { binding: ['CommandOrControl', 'numenter'], enabled: true } },
+        rules: [testRule('topic.create'), testRule('app.search')]
+      })
+    ).toEqual([])
   })
 
   it('reports main-process shortcuts that shadow a renderer binding', () => {

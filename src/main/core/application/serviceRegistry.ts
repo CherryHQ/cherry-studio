@@ -62,6 +62,7 @@ import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { SelectionService } from '@main/services/selection/SelectionService'
+import { SentryLogService } from '@main/services/SentryLogService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
@@ -103,6 +104,7 @@ export const services = {
   IpcApiService,
   SubWindowService,
   PreferenceService,
+  SentryLogService,
   TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,

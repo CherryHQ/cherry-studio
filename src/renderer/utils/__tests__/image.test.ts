@@ -544,13 +544,19 @@ describe('utils/image', () => {
     })
   })
 
-  describe('broken-image placeholder swap', () => {
-    const makeImage = (src: string, complete: boolean, naturalWidth: number) => {
-      const img = document.createElement('img')
-      img.setAttribute('src', src)
-      Object.defineProperty(img, 'complete', { value: complete, configurable: true })
-      Object.defineProperty(img, 'naturalWidth', { value: naturalWidth, configurable: true })
-      return img
+  describe('verified remote-image inlining', () => {
+    const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+    const stubFetch = (contentType: string, body: Uint8Array) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          ok: true,
+          status: 200,
+          headers: { get: () => contentType },
+          blob: async () => new Blob([body.slice()], { type: contentType })
+        }))
+      )
     }
 
     const makeRoot = (img: HTMLImageElement) => {
@@ -561,37 +567,269 @@ describe('utils/image', () => {
       return div
     }
 
-    it('rasterizes through a terminal-failure image (favicon service answered HTML)', async () => {
-      const img = makeImage('https://icon.horse/icon/example.com', true, 0)
-      const ref = { current: makeRoot(img) } as React.RefObject<HTMLDivElement>
+    // jsdom never decodes images, so the settle wait would ride its timeout cap;
+    // settle each swapped-in src on the next macrotask the way a browser decode would.
+    const armJsdomImageSettle = (root: HTMLElement) => {
+      for (const img of root.querySelectorAll('img')) {
+        const observer = new MutationObserver(() => {
+          if ((img.getAttribute('src') ?? '').startsWith('data:')) {
+            observer.disconnect()
+            setTimeout(() => img.dispatchEvent(new Event('load')), 0)
+          }
+        })
+        observer.observe(img, { attributes: true, attributeFilter: ['src'] })
+      }
+    }
 
+    const captureWithRasterSpy = async (root: HTMLDivElement) => {
+      armJsdomImageSettle(root)
       let srcAtRaster: string | undefined
       vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
-        srcAtRaster = img.src
+        const img = root.querySelector('img') as HTMLImageElement
+        srcAtRaster = img.getAttribute('src') ?? undefined
         return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
       })
+      const result = await captureScrollableAsDataUrl({ current: root })
+      return { result, srcAtRaster }
+    }
 
-      const result = await captureScrollableAsDataUrl(ref)
+    it('inlines a healthy remote image as a data URL', async () => {
+      stubFetch('image/png', PNG_BYTES)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://icon.horse/icon/example.com')
+      const root = makeRoot(img)
+
+      const { result, srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(srcAtRaster).toMatch(/^data:image\/png;base64,/)
+      expect(img.getAttribute('src')).toBe('https://icon.horse/icon/example.com')
+      vi.unstubAllGlobals()
+    })
+
+    it('swaps a rate-limited favicon (text/html answer) for the placeholder', async () => {
+      stubFetch('text/html; charset=utf-8', new TextEncoder().encode('<!DOCTYPE html><html>Too Many Requests</html>'))
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://icon.horse/icon/example.com')
+      const root = makeRoot(img)
+
+      const { result, srcAtRaster } = await captureWithRasterSpy(root)
 
       expect(result).toBe('data:image/png;base64,xxx')
       expect(srcAtRaster).toBe('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')
-      // the live element is restored after the capture
-      expect(img.src).toBe('https://icon.horse/icon/example.com')
+      expect(img.getAttribute('src')).toBe('https://icon.horse/icon/example.com')
+      vi.unstubAllGlobals()
     })
 
-    it('leaves healthy images untouched', async () => {
-      const img = makeImage('https://example.com/favicon.png', true, 16)
-      const ref = { current: makeRoot(img) } as React.RefObject<HTMLDivElement>
+    it('dedupes repeated sources into a single fetch', async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'image/png' },
+        blob: async () => new Blob([PNG_BYTES], { type: 'image/png' })
+      }))
+      vi.stubGlobal('fetch', fetchMock)
+      const root = document.createElement('div')
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(root, 'scrollHeight', { value: 100, configurable: true })
+      Array.from({ length: 3 }).forEach(() => {
+        const img = document.createElement('img')
+        img.setAttribute('src', 'https://icon.horse/icon/same.example')
+        root.appendChild(img)
+      })
+      armJsdomImageSettle(root)
 
-      let srcAtRaster: string | undefined
+      await captureScrollableAsDataUrl({ current: root })
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      vi.unstubAllGlobals()
+    })
+
+    it('leaves data-url images untouched', async () => {
+      const img = document.createElement('img')
+      img.setAttribute('src', 'data:image/png;base64,QUJD')
+      const root = makeRoot(img)
+
+      const { srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(srcAtRaster).toBe('data:image/png;base64,QUJD')
+    })
+
+    it('inlines the srcset-selected candidate (currentSrc), not the src attribute', async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'image/png' },
+        blob: async () => new Blob([PNG_BYTES], { type: 'image/png' })
+      }))
+      vi.stubGlobal('fetch', fetchMock)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://cdn.example.com/photo-small.jpg')
+      img.setAttribute(
+        'srcset',
+        'https://cdn.example.com/photo-small.jpg 480w, https://cdn.example.com/photo-large.jpg 1200w'
+      )
+      img.setAttribute('sizes', '800px')
+      // jsdom performs no srcset/sizes candidate selection; pin the browser's pick.
+      Object.defineProperty(img, 'currentSrc', { value: 'https://cdn.example.com/photo-large.jpg' })
+      // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+      Object.defineProperty(img, 'complete', { value: true, configurable: true })
+      const root = makeRoot(img)
+
+      const { result, srcAtRaster } = await captureWithRasterSpy(root)
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://cdn.example.com/photo-large.jpg',
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
+      expect(fetchMock).not.toHaveBeenCalledWith('https://cdn.example.com/photo-small.jpg', expect.anything())
+      expect(srcAtRaster).toMatch(/^data:image\/png;base64,/)
+      expect(img.getAttribute('src')).toBe('https://cdn.example.com/photo-small.jpg')
+      expect(img.getAttribute('srcset')).toContain('photo-large.jpg')
+      vi.unstubAllGlobals()
+    })
+
+    it('aborts a hung remote fetch into the placeholder instead of stalling the export', async () => {
+      const fetchMock = vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+          })
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://stalled.example.com/broken.png')
+      const root = makeRoot(img)
+      armJsdomImageSettle(root)
+
+      vi.useFakeTimers()
+      try {
+        let srcAtRaster: string | undefined
+        vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+          srcAtRaster = (root.querySelector('img') as HTMLImageElement).getAttribute('src') ?? undefined
+          return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+        })
+        const settled = captureScrollableAsDataUrl({ current: root })
+        // Covers the settle deadline (5s), the fonts wait (1s) and the per-source abort (10s).
+        await vi.advanceTimersByTimeAsync(20_000)
+        await expect(settled).resolves.toBe('data:image/png;base64,xxx')
+
+        expect(srcAtRaster).toBe('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==')
+        expect(img.getAttribute('src')).toBe('https://stalled.example.com/broken.png')
+      } finally {
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it('caps post-budget settle waits so an exhausted stage cannot stall per image', async () => {
+      const fetchMock = vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+          })
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const root = document.createElement('div')
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(root, 'scrollHeight', { value: 100, configurable: true })
+      const srcs = [
+        'https://stalled.example.com/one.png',
+        'https://stalled.example.com/two.png',
+        'https://stalled.example.com/three.png'
+      ]
+      srcs.forEach((src) => {
+        const img = document.createElement('img')
+        img.setAttribute('src', src)
+        // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+        Object.defineProperty(img, 'complete', { value: true, configurable: true })
+        root.appendChild(img)
+      })
+      // Deliberately not armed: jsdom never fires load/error, so each settle rides its timer cap.
+
+      vi.useFakeTimers()
+      try {
+        let srcsAtRaster: string[] = []
+        let resolved = false
+        vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+          srcsAtRaster = [...root.querySelectorAll('img')].map((img) => img.getAttribute('src') ?? '')
+          return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+        })
+        void captureScrollableAsDataUrl({ current: root })
+          .then(() => {
+            resolved = true
+          })
+          .catch(() => {})
+        // Budget math: abort at 10s + 2s settle, second abort at the 20s deadline, third
+        // source already past the budget. Only the post-budget settles are still pending
+        // at 22s when the stage cap is honored; an uncapped 2s settle per image lands at 25s.
+        await vi.advanceTimersByTimeAsync(22_000)
+
+        expect(resolved).toBe(true)
+        expect(srcsAtRaster).toHaveLength(3)
+        expect(srcsAtRaster.every((src) => src.startsWith('data:image/gif'))).toBe(true)
+      } finally {
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it('rasterizes only after the swapped-in data URL has settled', async () => {
+      stubFetch('image/png', PNG_BYTES)
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://icon.horse/icon/example.com')
+      // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+      Object.defineProperty(img, 'complete', { value: true, configurable: true })
+      const root = makeRoot(img)
+
+      let loadSeen = false
+      img.addEventListener('load', () => {
+        loadSeen = true
+      })
+      let settledAtRaster: boolean | undefined
       vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
-        srcAtRaster = img.src
+        settledAtRaster = loadSeen && (img.getAttribute('src') ?? '').startsWith('data:image/png')
         return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
       })
+      armJsdomImageSettle(root)
 
-      await captureScrollableAsDataUrl(ref)
+      const result = await captureScrollableAsDataUrl({ current: root })
 
-      expect(srcAtRaster).toBe('https://example.com/favicon.png')
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(settledAtRaster).toBe(true)
+      vi.unstubAllGlobals()
+    })
+
+    it('does not fetch remote images the capture filter omits', async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'image/png' },
+        blob: async () => new Blob([PNG_BYTES], { type: 'image/png' })
+      }))
+      vi.stubGlobal('fetch', fetchMock)
+      const root = document.createElement('div')
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(root, 'scrollHeight', { value: 100, configurable: true })
+      const hidden = document.createElement('img')
+      hidden.setAttribute('src', 'https://icon.horse/icon/hidden.example')
+      const hiddenWrapper = document.createElement('div')
+      hiddenWrapper.style.display = 'none'
+      hiddenWrapper.appendChild(hidden)
+      const visible = document.createElement('img')
+      visible.setAttribute('src', 'https://icon.horse/icon/visible.example')
+      root.appendChild(hiddenWrapper)
+      root.appendChild(visible)
+      armJsdomImageSettle(root)
+
+      await captureWithRasterSpy(root)
+
+      // A swapped img implies its source was fetched, so the fetch count is the proof.
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock).toHaveBeenCalledWith('https://icon.horse/icon/visible.example', expect.anything())
+      expect(hidden.getAttribute('src')).toBe('https://icon.horse/icon/hidden.example')
+      vi.unstubAllGlobals()
     })
   })
 
@@ -963,7 +1201,7 @@ describe('utils/image', () => {
     it('reads image blobs from remote URLs', async () => {
       const blob = await getImageBlobFromSource('https://example.com/image.webp')
 
-      expect(fetchMock).toHaveBeenCalledWith('https://example.com/image.webp')
+      expect(fetchMock).toHaveBeenCalledWith('https://example.com/image.webp', { signal: undefined })
       expect(blob.type).toBe('image/webp')
     })
 
@@ -982,24 +1220,18 @@ describe('utils/image', () => {
       await expect(getImageBlobFromSource('https://cdn.example.com/wallpaper.png')).rejects.toThrow('not an image')
     })
 
-    it('accepts a remote blob with an empty content type', async () => {
-      fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob(['bytes']) })
+    it.each(['', 'application/octet-stream'])(
+      'leaves remote image bytes with MIME "%s" for browser decoding',
+      async (type) => {
+        const pngBytes = new Uint8Array(createCanvas(1, 1).toBuffer('image/png'))
+        fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob([pngBytes], { type }) })
 
-      const blob = await getImageBlobFromSource('https://example.com/unknown.bin')
+        const blob = await getImageBlobFromSource('https://example.com/image')
 
-      expect(blob.type).toBe('')
-    })
-
-    it('accepts a remote image served as octet-stream (mislabelled, not a non-image)', async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        blob: async () => new Blob(['imagedata'], { type: 'application/octet-stream' })
-      })
-
-      const blob = await getImageBlobFromSource('https://cdn.example.com/mislabeled.png')
-
-      expect(blob.type).toBe('application/octet-stream')
-    })
+        expect(blob.type).toBe(type)
+        expect(await readBlobBytes(blob)).toEqual(pngBytes)
+      }
+    )
 
     it('trims the content type before judging it (stray whitespace does not reject an image)', async () => {
       fetchMock.mockResolvedValueOnce({
@@ -1021,16 +1253,18 @@ describe('utils/image', () => {
       await expect(getImageBlobFromSource('https://cdn.example.com/signin')).rejects.toThrow('not an image')
     })
 
-    it('accepts an octet-stream local file (extension-less entries are real images)', async () => {
+    it('leaves extensionless local image bytes for browser decoding', async () => {
+      const pngBytes = new Uint8Array(createCanvas(1, 1).toBuffer('image/png'))
       ipcMocks.request.mockResolvedValueOnce({
-        content: new Uint8Array([1, 2, 3]),
+        content: pngBytes,
         mime: 'application/octet-stream',
-        version: { mtime: 1, size: 3 }
+        version: { mtime: 1, size: pngBytes.length }
       })
 
       const blob = await getImageBlobFromSource('file:///data/Files/noext')
 
       expect(blob.type).toBe('application/octet-stream')
+      expect(await readBlobBytes(blob)).toEqual(pngBytes)
     })
 
     it('throws on a data URL with no media type', async () => {
