@@ -8,6 +8,8 @@ sources:
   - src/main/ai/runtime/dsh
   - src/main/ai/runtime/agentPrompt.ts
   - src/main/ai/toolApproval/userDataSqliteGuard.ts
+  - src/main/ai/messages/readConversation.ts
+  - src/main/ai/mcp/servers/cherryAutonomyTools.ts
   - packages/dsh-bridge/src/plugin.ts
 ---
 
@@ -175,15 +177,21 @@ enters the runtime's process-local follow-up queue.
 ### Tool contract
 
 Each `cherry-tools` instance receives its trusted `agentId` and `sessionId` from `settingsBuilder`
-and exposes five tools:
+and exposes the session tools below:
 
 - `session_list` — deterministically enumerate visible Sessions and filter by Agent;
+- `session_read` — read a Chat topic, Agent Session, or live temporary conversation by its ID,
+  using the existing storage query rules. The caller does not supply a conversation type;
+  ambiguous IDs fail rather than selecting the first matching store;
+- `agent_list` — discover Agents independently of their Sessions, with public identity, runtime
+  availability, and whether a model is configured;
 - `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
   Session metadata, returning evidence snippets rather than adding an embedding dependency. Agent
   filters are applied before either search limit. The final limit counts distinct Sessions, each
   Session keeps its strongest message evidence, and `metadataMatches` identifies name/description
   hits instead of overloading an empty message-match list;
-- `session_create` — atomically create a same-Agent Session plus its first completion request;
+- `session_create` — atomically create a Session plus its first completion request, optionally
+  choosing another Agent with `target_agent_id`;
 - `session_send` — send one-way or request an asynchronous terminal completion;
 - `session_deliveries` — inspect incoming and outgoing request/result state.
 
@@ -202,8 +210,10 @@ Session. Every request owns one independent target turn; delivery never redirect
 turn and never enters the runtime's process-local follow-up queue. The tool returns after the
 durable request reaches `accepted`; it never waits for scheduling or target execution.
 
-`session_create` reuses the same completion-request path after creating the same-Agent Session. The
-model is not a tool argument because Sessions use their owning Agent's model.
+`session_create` reuses the same completion-request path. Omitting `target_agent_id` creates a
+same-Agent Session; providing it creates a Session owned by the selected Agent. The sender remains
+the trusted calling Agent/Session, and the current workspace policy is retained. The model is not a
+tool argument because Sessions use their owning Agent's model.
 
 ### Deliberate security ceiling
 
@@ -225,6 +235,13 @@ List, search, send, create, and delivery-query visibility share one authorizatio
 scheduled, and delivery-triggered turns are denied in code; Task sub-agents may discover Sessions
 but still require a live approval for delegation. Knowing a Session or message id never grants
 access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor.
+
+`session_read` shares this caller authorization boundary. It reads current source data, without a
+handoff cutoff or snapshot. Topic queries retain branch and sibling options; Agent Session queries
+retain their existing pagination. Temporary conversations retain their in-memory lifetime and list
+semantics. Exact message reads check conversation membership. A `tool_call_id` with `message_id`
+uses the same persisted tool-output reconstruction as the renderer, including its explicit fallback
+when an offloaded blob is missing. Reading history does not grant filesystem attachment access.
 
 ### Durable row shape
 

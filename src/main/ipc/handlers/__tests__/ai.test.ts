@@ -12,14 +12,20 @@ const {
   fileEntryService,
   messageService,
   createAgent,
-  createBuiltinSupportSession
+  createBuiltinSupportSession,
+  openHandoffDraft,
+  HandoffDraftErrorMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn(),
-  createBuiltinSupportSession: vi.fn()
+  createBuiltinSupportSession: vi.fn(),
+  openHandoffDraft: vi.fn(),
+  HandoffDraftErrorMock: class HandoffDraftErrorMock extends Error {
+    readonly code = 'SOURCE_NOT_FOUND'
+  }
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
@@ -27,6 +33,10 @@ vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
 vi.mock('@main/ai/agents/createBuiltinSupportSession', () => ({ createBuiltinSupportSession }))
+vi.mock('@main/ai/agentSession/handoffDraft', () => ({
+  HandoffDraftError: HandoffDraftErrorMock,
+  openHandoffDraft
+}))
 
 import { aiHandlers } from '../ai'
 
@@ -89,6 +99,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
   createBuiltinSupportSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-support' })
+  openHandoffDraft.mockReturnValue({
+    modelId: 'openai::summary',
+    messageCount: 2,
+    attachments: [{ type: 'file', mediaType: 'text/plain', url: 'file:///tmp/a.txt', filename: 'a.txt' }]
+  })
   // The ownership gate's happy path: entries with the tool-output store's fixed attributes.
   fileEntryService.findById.mockReturnValue({
     origin: 'internal',
@@ -361,6 +376,59 @@ describe('aiHandlers', () => {
 })
 
 describe('aiHandlers — streaming', () => {
+  it('opens a handoff draft and returns preparation metadata', async () => {
+    const streamId = 'handoff:draft:00000000-0000-4000-8000-000000000001'
+    const request = {
+      sourceSessionId: 'source-1',
+      task: 'continue',
+      targetAgentId: 'agent-1',
+      streamId
+    } as never
+
+    await expect(aiHandlers['ai.agent.handoff.draft.open'](request, { senderId: 'w1' })).resolves.toEqual({
+      modelId: 'openai::summary',
+      messageCount: 2,
+      attachments: [expect.objectContaining({ type: 'file', filename: 'a.txt' })]
+    })
+  })
+
+  it('maps handoff preparation errors to a branchable AI IPC error', async () => {
+    openHandoffDraft.mockImplementationOnce(() => {
+      throw new HandoffDraftErrorMock('Source no longer exists')
+    })
+
+    const error = await aiHandlers['ai.agent.handoff.draft.open'](
+      {
+        sourceSessionId: 'source-1',
+        task: 'continue',
+        targetAgentId: 'agent-1',
+        streamId: 'handoff:draft:00000000-0000-4000-8000-000000000001'
+      },
+      { senderId: 'w1' }
+    ).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toMatchObject({
+      code: aiErrorCodes.AI_HANDOFF_DRAFT_FAILED,
+      data: { code: 'SOURCE_NOT_FOUND' }
+    })
+  })
+
+  it('does not start a handoff when the sender window is gone', async () => {
+    windowManager.getWindow.mockReturnValue(undefined)
+    await expect(
+      aiHandlers['ai.agent.handoff.draft.open'](
+        {
+          sourceSessionId: 'source-1',
+          task: 'continue',
+          targetAgentId: 'agent-1'
+        } as never,
+        { senderId: 'w1' }
+      )
+    ).rejects.toThrow('requires a managed window')
+    expect(openHandoffDraft).not.toHaveBeenCalled()
+  })
+
   it('stream_open resolves the sender WebContents and dispatches to AiStreamManager', async () => {
     const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] } as never
     aiStreamManager.dispatch.mockResolvedValue({ mode: 'started' })

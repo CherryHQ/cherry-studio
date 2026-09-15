@@ -39,7 +39,11 @@ export const aiErrorCodes = {
    * `JOB_SCHEDULE_TRIGGER_INVALID` by the `ai.agent.task.create/update`
    * handlers so the renderer keeps a branchable code instead of `INTERNAL`.
    */
-  AI_AGENT_TASK_TRIGGER_INVALID: 'AI_AGENT_TASK_TRIGGER_INVALID'
+  AI_AGENT_TASK_TRIGGER_INVALID: 'AI_AGENT_TASK_TRIGGER_INVALID',
+  /** Handoff draft preparation failed with a renderer-actionable code in `data`. */
+  AI_HANDOFF_DRAFT_FAILED: 'AI_HANDOFF_DRAFT_FAILED',
+  /** Confirmed handoff could not be admitted; data carries the stable session id when known. */
+  AI_HANDOFF_START_FAILED: 'AI_HANDOFF_START_FAILED'
 } as const
 
 /**

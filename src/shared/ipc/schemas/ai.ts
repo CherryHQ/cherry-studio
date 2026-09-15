@@ -1,4 +1,4 @@
-import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
+import type { EmbeddingModelUsage, FileUIPart, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
@@ -94,6 +94,58 @@ export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
 /** Edit-save patch: form fields only — pause/resume are separate commands, so no `enabled` here. */
 const agentTaskPatchSchema = agentTaskFormSchema.partial()
 export type AgentTaskPatch = z.infer<typeof agentTaskPatchSchema>
+
+const handoffDraftStreamIdPattern =
+  /^handoff:draft:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+export const HandoffDraftStreamIdSchema = z.string().regex(handoffDraftStreamIdPattern)
+
+export const HandoffDraftOpenSchema = z.strictObject({
+  sourceSessionId: z.string().min(1),
+  task: z.string().trim().min(1),
+  targetAgentId: z.string().min(1),
+  summaryModelId: UniqueModelIdSchema.optional(),
+  /** Renderer-generated identity lets it subscribe before preparation finishes. */
+  streamId: HandoffDraftStreamIdSchema
+})
+export type HandoffDraftOpen = z.infer<typeof HandoffDraftOpenSchema>
+
+const handoffAttachmentSchema = z.custom<FileUIPart>((value) => {
+  if (!value || typeof value !== 'object') return false
+  const part = value as Partial<FileUIPart>
+  return part.type === 'file' && typeof part.mediaType === 'string' && typeof part.url === 'string'
+})
+
+export const HandoffDraftOpenResponseSchema = z.strictObject({
+  modelId: UniqueModelIdSchema,
+  messageCount: z.number().int().nonnegative(),
+  attachments: z.array(handoffAttachmentSchema)
+})
+export type HandoffDraftOpenResponse = z.infer<typeof HandoffDraftOpenResponseSchema>
+
+const handoffSourceSchema = z.strictObject({
+  kind: z.enum(['topic', 'temporary']),
+  id: z.string().min(1),
+  name: z.string().optional()
+})
+
+export const HandoffStartSchema = z.strictObject({
+  /** Stable session identity allocated by the renderer for this confirmation. */
+  handoffId: z.uuid(),
+  source: handoffSourceSchema,
+  targetAgentId: z.string().min(1),
+  workspace: AgentSessionWorkspaceSourceSchema,
+  goal: z.string().trim().min(1),
+  summary: z.string(),
+  attachmentParts: z.array(handoffAttachmentSchema)
+})
+export type HandoffStart = z.infer<typeof HandoffStartSchema>
+
+export const HandoffStartResponseSchema = z.strictObject({
+  sessionId: z.uuid(),
+  state: z.enum(['started', 'existing']),
+  error: z.custom<unknown>().optional()
+})
+export type HandoffStartResponse = z.infer<typeof HandoffStartResponseSchema>
 
 /** Task identity carried by every by-id command; `agentId` doubles as the ownership guard input. */
 const agentTaskRefSchema = z.strictObject({
@@ -276,6 +328,14 @@ export const aiRequestSchemas = {
   'ai.stream.abort': defineRoute({
     input: z.strictObject({ topicId: z.string().min(1) }),
     output: z.void()
+  }),
+  'ai.agent.handoff.draft.open': defineRoute({
+    input: HandoffDraftOpenSchema,
+    output: HandoffDraftOpenResponseSchema
+  }),
+  'ai.agent.handoff.start': defineRoute({
+    input: HandoffStartSchema,
+    output: HandoffStartResponseSchema
   }),
 
   // ── Tool calls: deferred results + approval decisions. Spans two owners

@@ -9,6 +9,8 @@ import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
+import { HandoffStartConflictError, startHandoff } from '@main/ai/agentSession/handoff'
+import { HandoffDraftError, openHandoffDraft } from '@main/ai/agentSession/handoffDraft'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
@@ -147,6 +149,30 @@ async function exposeAgentTaskError<T>(op: () => T | Promise<T>): Promise<T> {
   }
 }
 
+async function exposeHandoffDraftError<T>(op: () => T | Promise<T>): Promise<T> {
+  try {
+    return await op()
+  } catch (error) {
+    if (error instanceof HandoffDraftError) {
+      throw new IpcError(aiErrorCodes.AI_HANDOFF_DRAFT_FAILED, error.message, {
+        code: error.code
+      })
+    }
+    throw error
+  }
+}
+
+async function exposeHandoffStartError<T>(op: () => T | Promise<T>): Promise<T> {
+  try {
+    return await op()
+  } catch (error) {
+    if (error instanceof HandoffStartConflictError) {
+      throw new IpcError(aiErrorCodes.AI_HANDOFF_START_FAILED, error.message, { code: 'CONFLICT' })
+    }
+    throw error
+  }
+}
+
 function agentTaskNotFound(taskId: string): IpcError {
   return new IpcError(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND, `Task not found: ${taskId}`)
 }
@@ -198,6 +224,18 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.stream.abort': async ({ topicId }) => {
     await application.get('AiStreamManager').abortAndDrain(topicId, 'user-requested')
+  },
+  'ai.agent.handoff.draft.open': async (request, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc) throw new Error('ai.agent.handoff.draft.open requires a managed window')
+    return exposeHandoffDraftError(() => openHandoffDraft(request, new WebContentsListener(wc, request.streamId)))
+  },
+  'ai.agent.handoff.start': async (request, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc) throw new Error('ai.agent.handoff.start requires a managed window')
+    return exposeHandoffStartError(() =>
+      startHandoff(request, new WebContentsListener(wc, `agent-session:${request.handoffId}`))
+    )
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──

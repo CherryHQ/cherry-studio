@@ -11,6 +11,7 @@
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import QRCode from 'qrcode'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
@@ -20,13 +21,19 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
+import { conversationEvidence } from '@main/ai/messages/conversationEvidence'
+import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
+import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import {
   AgentSessionDeliveryStatusSchema,
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
+  SESSION_READ_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
@@ -36,6 +43,8 @@ import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
+
+const AGENT_LIST_TOOL_NAME = 'agent_list'
 
 /** Per-session agent context the autonomy tools act on behalf of. */
 export interface CherryAgentContext {
@@ -286,6 +295,12 @@ const SESSION_LIST_TOOL: Tool = {
   }
 }
 
+const AGENT_LIST_TOOL: Tool = {
+  name: AGENT_LIST_TOOL_NAME,
+  description: 'List available Cherry Agents with their public identity and runtime readiness.',
+  inputSchema: { type: 'object', properties: {} }
+}
+
 const SESSION_SEARCH_TOOL: Tool = {
   name: SESSION_SEARCH_TOOL_NAME,
   description: 'Search visible Cherry Agent Sessions by metadata and message evidence.',
@@ -302,6 +317,27 @@ const SESSION_SEARCH_TOOL: Tool = {
     },
     required: ['query']
   }
+}
+
+const SessionReadArgsSchema = z.strictObject({
+  session_id: z.string().min(1).describe('Chat topic, Agent Session, or temporary conversation id.'),
+  cursor: z.string().optional().describe('Opaque cursor returned by the previous page.'),
+  limit: z.number().int().positive().optional().describe('Maximum messages to return.'),
+  node_id: z.string().optional().describe('Topic branch endpoint message id.'),
+  include_siblings: z.boolean().optional().describe('Include sibling replies for topic messages.'),
+  message_id: z.string().min(1).optional().describe('Read one exact message in the conversation.'),
+  tool_call_id: z.string().min(1).optional().describe('Restore the persisted output for message_id tool call.')
+})
+
+const sessionReadInputSchema = z.toJSONSchema(SessionReadArgsSchema)
+// Strict MCP clients reject the JSON Schema dialect marker.
+delete sessionReadInputSchema.$schema
+
+const SESSION_READ_TOOL: Tool = {
+  name: SESSION_READ_TOOL_NAME,
+  description:
+    'Read messages from a Cherry Chat topic, Agent Session, or temporary conversation. The session type is detected from session_id. Use message_id for one exact message and tool_call_id with it to restore a persisted tool result. Attachments are descriptive only: their addresses and contents are omitted.',
+  inputSchema: sessionReadInputSchema as Tool['inputSchema']
 }
 
 const SESSION_DELIVERIES_TOOL: Tool = {
@@ -321,12 +357,13 @@ const SESSION_DELIVERIES_TOOL: Tool = {
 const SESSION_CREATE_TOOL: Tool = {
   name: SESSION_CREATE_TOOL_NAME,
   description:
-    'Create a new Session for the current Agent and send its first durable message. The new Session inherits the current workspace policy and uses the Agent model.',
+    'Create a new Session and send its first durable message. Omit target_agent_id to use the current Agent; provide it to create the Session for another Agent. The new Session inherits the current workspace policy and uses the target Agent model.',
   inputSchema: {
     type: 'object',
     properties: {
       message: { type: 'string', description: 'First message for the new Session.' },
-      title: { type: 'string', maxLength: 255, description: 'Optional Session title.' }
+      title: { type: 'string', maxLength: 255, description: 'Optional Session title.' },
+      target_agent_id: { type: 'string', description: 'Optional target Agent id.' }
     },
     required: ['message']
   }
@@ -359,7 +396,9 @@ const AUTONOMY_TOOLS: readonly Tool[] = [
   NOTIFY_TOOL,
   CONFIG_TOOL,
   SESSION_LIST_TOOL,
+  AGENT_LIST_TOOL,
   SESSION_SEARCH_TOOL,
+  SESSION_READ_TOOL,
   SESSION_CREATE_TOOL,
   SESSION_DELIVERIES_TOOL,
   SESSION_SEND_TOOL
@@ -427,8 +466,12 @@ export class CherryAutonomyTools {
           return await this.sendNotification(args)
         case SESSION_LIST_TOOL_NAME:
           return this.listSessions(args)
+        case AGENT_LIST_TOOL_NAME:
+          return this.listAgents()
         case SESSION_SEARCH_TOOL_NAME:
           return this.searchSessions(args)
+        case SESSION_READ_TOOL_NAME:
+          return await this.readSession(args)
         case SESSION_CREATE_TOOL_NAME:
           return await this.createSession(args)
         case SESSION_DELIVERIES_TOOL_NAME:
@@ -513,6 +556,22 @@ export class CherryAutonomyTools {
     }
   }
 
+  private listAgents() {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const agents = agentService.listAgents().agents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      description: agent.description ?? '',
+      runtime: {
+        type: agent.type,
+        available: runtimeDriverRegistry.getAgentSessionDriver(agent.type) !== undefined
+      },
+      modelConfigured: agent.model !== null
+    }))
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ agents }) }] }
+  }
+
   private searchSessions(args: Record<string, unknown>) {
     this.assertCurrentSessionIdentity()
     this.assertSessionToolsAuthorized()
@@ -573,6 +632,41 @@ export class CherryAutonomyTools {
     return { content: [{ type: 'text' as const, text: JSON.stringify({ sessions: [...sessions.values()] }) }] }
   }
 
+  private async readSession(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
+    const parsed = SessionReadArgsSchema.safeParse(args)
+    if (!parsed.success)
+      throw new McpError(ErrorCode.InvalidParams, parsed.error.issues[0]?.message ?? 'Invalid session_read input')
+    const sessionId = parsed.data.session_id.trim()
+    if (parsed.data.tool_call_id && !parsed.data.message_id) {
+      throw new McpError(ErrorCode.InvalidParams, "'tool_call_id' requires 'message_id'")
+    }
+
+    const readInput: ReadConversationInput = {
+      sessionId,
+      cursor: parsed.data.cursor,
+      limit: parsed.data.limit,
+      nodeId: parsed.data.node_id,
+      includeSiblings: parsed.data.include_siblings,
+      messageId: parsed.data.message_id
+    }
+    const conversation = conversationEvidence(readConversation(readInput))
+    if (parsed.data.tool_call_id && parsed.data.message_id) {
+      const topicId = conversation.source === 'agent' ? buildAgentSessionTopicId(sessionId) : sessionId
+      const toolResult = await findPersistedToolOutput(topicId, parsed.data.message_id, parsed.data.tool_call_id)
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ ...conversation, toolResult })
+          }
+        ]
+      }
+    }
+    return { content: [{ type: 'text' as const, text: JSON.stringify(conversation) }] }
+  }
+
   private listSessionDeliveries(args: Record<string, unknown>) {
     this.assertCurrentSessionIdentity()
     this.assertSessionToolsAuthorized()
@@ -620,12 +714,24 @@ export class CherryAutonomyTools {
     }
     if (title.length > 255) throw new McpError(ErrorCode.InvalidParams, "'title' must be at most 255 characters")
 
+    let targetAgentId: string | undefined
+    if (args.target_agent_id !== undefined) {
+      if (typeof args.target_agent_id !== 'string' || !args.target_agent_id.trim()) {
+        throw new McpError(ErrorCode.InvalidParams, "'target_agent_id' must be a non-empty string")
+      }
+      targetAgentId = args.target_agent_id.trim()
+      if (!agentService.getAgent(targetAgentId)) {
+        throw new AgentSessionDeliveryRoutingError('TARGET_AGENT_DELETED', `Target Agent not found: ${targetAgentId}`)
+      }
+    }
+
     const created = application.get('AgentSessionDeliveryService').acceptWithNewSession({
       senderAgentId: this.agentId,
       senderSessionId: this.sessionId,
       sessionName: title,
       workspace: this.workspace,
-      content
+      content,
+      ...(targetAgentId ? { targetAgentId } : {})
     })
     return {
       content: [

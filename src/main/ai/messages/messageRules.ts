@@ -28,6 +28,16 @@ function isAssistantContinuation(part: UIMessage['parts'][number]): boolean {
   return part.type === 'text' || part.type === 'reasoning' || part.type === 'file'
 }
 
+/** A handoff placeholder is a display marker, not an empty assistant turn for model history. */
+function dropDisplayOnlyHandoffMessages<T extends UIMessage>(messages: T[]): T[] {
+  return messages.filter(
+    (message) =>
+      message.role !== 'assistant' ||
+      !message.parts.some((part) => part.type === 'data-handoff') ||
+      message.parts.some((part) => part.type !== 'data-handoff')
+  )
+}
+
 /** Restore inferable step boundaries that the v1 flat-block migration could not persist. */
 function restoreLegacyToolStepBoundaries(messages: UIMessage[]): UIMessage[] {
   let out: UIMessage[] | undefined
@@ -183,7 +193,7 @@ export async function toModelMessages(
   tools?: ToolSet,
   toolResultCaps?: MediaCapabilities
 ): Promise<ModelMessage[]> {
-  const rendered = sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools)
+  const rendered = sanitizeDynamicToolNames(dropDisplayOnlyHandoffMessages(renderPersistedToolOutputs(messages)), tools)
   const shaped = restoreLegacyToolStepBoundaries(
     dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
   )

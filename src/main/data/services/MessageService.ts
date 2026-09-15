@@ -1131,83 +1131,86 @@ export class MessageService {
    * - Topic activeNodeId update
    */
   create(topicId: string, dto: CreateMessageDto): Message {
-    const message = application.get('DbService').withWriteTx((tx) => {
-      // Step 1: Verify topic exists and fetch its current state.
-      // We need the topic to check activeNodeId for parentId auto-resolution.
-      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
-
-      if (!topic) {
-        throw DataApiErrorFactory.notFound('Topic', topicId)
-      }
-
-      // Step 2: Resolve parentId based on the three possible input states:
-      // - undefined: auto-resolve based on topic state
-      // - null: explicitly create as root (must validate uniqueness)
-      // - string: use provided ID (must validate existence and ownership)
-      let resolvedParentId: string | null
-
-      if (dto.parentId === undefined) {
-        // Auto-resolve: `activeNodeId` is the authoritative "where we are" marker —
-        // append there. An empty topic (no active node) starts its first turn under
-        // the virtual root.
-        resolvedParentId = topic.activeNodeId ?? this.getRootMessageIdTx(tx, topicId)
-      } else if (dto.parentId === null) {
-        // First-turn message: hang it off the topic's virtual root (created if absent).
-        // First turns and their resends are ordinary siblings under this shared root.
-        resolvedParentId = this.getRootMessageIdTx(tx, topicId)
-      } else {
-        // Explicit parent ID: verify existence and topic membership. Each
-        // topic's message tree is self-contained — cross-topic parent refs
-        // aren't a supported shape.
-        const [parent] = tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1).all()
-
-        if (!parent) {
-          throw DataApiErrorFactory.notFound('Message', dto.parentId)
-        }
-        if (parent.topicId !== topicId) {
-          throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
-        }
-        resolvedParentId = dto.parentId
-      }
-
-      // Step 3: Insert the message using the resolved parentId.
-      const createdAt = Date.now()
-      const [row] = tx
-        .insert(messageTable)
-        .values({
-          topicId,
-          parentId: resolvedParentId,
-          role: dto.role,
-          data: dto.data,
-          status: dto.status ?? 'pending',
-          siblingsGroupId: dto.siblingsGroupId,
-          modelId: dto.modelId ?? null,
-          messageSnapshot: dto.messageSnapshot,
-          createdAt,
-          updatedAt: createdAt
-        })
-        .returning()
-        .all()
-      replaceChatMessageFileRefsTx(tx, row.id, dto.data)
-
-      const topicService = getDataService('TopicService')
-
-      // Update activeNodeId if setAsActive is not explicitly false
-      if (dto.setAsActive !== false) {
-        topicService.setActiveNodeTx(tx, topicId, row.id, { assumeValid: true })
-      }
-      if (isConversationActivityRole(dto.role)) {
-        topicService.advanceLastActivityAtTx(tx, topicId, createdAt)
-      }
-
-      logger.info('Created message', { id: row.id, topicId, role: dto.role, setAsActive: dto.setAsActive !== false })
-
-      return rowToMessage(row)
-    })
+    const message = application.get('DbService').withWriteTx((tx) => this.createTx(tx, topicId, dto))
     if (isConversationActivityRole(message.role)) {
       getDataService('TopicService').notifyReadModelChange([topicId], 'projection')
     }
     return message
+  }
+
+  /** Compose message-tree writes with other business writes in one transaction. */
+  createTx(tx: DbOrTx, topicId: string, dto: CreateMessageDto): Message {
+    // Step 1: Verify topic exists and fetch its current state.
+    // We need the topic to check activeNodeId for parentId auto-resolution.
+    const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
+
+    if (!topic) {
+      throw DataApiErrorFactory.notFound('Topic', topicId)
+    }
+
+    // Step 2: Resolve parentId based on the three possible input states:
+    // - undefined: auto-resolve based on topic state
+    // - null: explicitly create as root (must validate uniqueness)
+    // - string: use provided ID (must validate existence and ownership)
+    let resolvedParentId: string | null
+
+    if (dto.parentId === undefined) {
+      // Auto-resolve: `activeNodeId` is the authoritative "where we are" marker —
+      // append there. An empty topic (no active node) starts its first turn under
+      // the virtual root.
+      resolvedParentId = topic.activeNodeId ?? this.getRootMessageIdTx(tx, topicId)
+    } else if (dto.parentId === null) {
+      // First-turn message: hang it off the topic's virtual root (created if absent).
+      // First turns and their resends are ordinary siblings under this shared root.
+      resolvedParentId = this.getRootMessageIdTx(tx, topicId)
+    } else {
+      // Explicit parent ID: verify existence and topic membership. Each
+      // topic's message tree is self-contained — cross-topic parent refs
+      // aren't a supported shape.
+      const [parent] = tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1).all()
+
+      if (!parent) {
+        throw DataApiErrorFactory.notFound('Message', dto.parentId)
+      }
+      if (parent.topicId !== topicId) {
+        throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
+      }
+      resolvedParentId = dto.parentId
+    }
+
+    // Step 3: Insert the message using the resolved parentId.
+    const createdAt = Date.now()
+    const [row] = tx
+      .insert(messageTable)
+      .values({
+        topicId,
+        parentId: resolvedParentId,
+        role: dto.role,
+        data: dto.data,
+        status: dto.status ?? 'pending',
+        siblingsGroupId: dto.siblingsGroupId,
+        modelId: dto.modelId ?? null,
+        messageSnapshot: dto.messageSnapshot,
+        createdAt,
+        updatedAt: createdAt
+      })
+      .returning()
+      .all()
+    replaceChatMessageFileRefsTx(tx, row.id, dto.data)
+
+    const topicService = getDataService('TopicService')
+
+    // Update activeNodeId if setAsActive is not explicitly false
+    if (dto.setAsActive !== false) {
+      topicService.setActiveNodeTx(tx, topicId, row.id, { assumeValid: true })
+    }
+    if (isConversationActivityRole(dto.role)) {
+      topicService.advanceLastActivityAtTx(tx, topicId, createdAt)
+    }
+
+    logger.info('Created message', { id: row.id, topicId, role: dto.role, setAsActive: dto.setAsActive !== false })
+
+    return rowToMessage(row)
   }
 
   /**

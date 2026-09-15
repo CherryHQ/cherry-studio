@@ -46,7 +46,7 @@ const HIDDEN_PART_TYPES = new Set([
   'data-clear'
 ])
 
-const ASSOCIATED_RESULT_PART_TYPES = new Set(['data-error', 'file', 'data-video'])
+const ASSOCIATED_RESULT_PART_TYPES = new Set(['data-error', 'file', 'data-video', 'data-handoff'])
 
 export function isHiddenPart(part: CherryMessagePart): boolean {
   return HIDDEN_PART_TYPES.has(part.type)

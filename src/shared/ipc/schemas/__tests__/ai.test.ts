@@ -172,3 +172,33 @@ describe('ai.agent.support_session.create IPC schema', () => {
     ).toBe(false)
   })
 })
+
+describe('ai.agent.handoff.draft.open IPC schema', () => {
+  const openDraft = aiRequestSchemas['ai.agent.handoff.draft.open'].input
+  const openDraftResult = aiRequestSchemas['ai.agent.handoff.draft.open'].output
+  const streamId = 'handoff:draft:00000000-0000-4000-8000-000000000001'
+
+  it('requires a namespaced stream id and target identity, rejecting renderer-supplied target details', () => {
+    const base = { sourceSessionId: 'source-1', task: 'continue', targetAgentId: 'agent-1' }
+    expect(openDraft.safeParse({ ...base, streamId }).success).toBe(true)
+    expect(openDraft.safeParse({ ...base, streamId, nodeId: 'other-branch' }).success).toBe(false)
+    expect(openDraft.safeParse(base).success).toBe(false)
+    expect(openDraft.safeParse({ ...base, streamId: 'topic-1' }).success).toBe(false)
+    expect(openDraft.safeParse({ ...base, streamId, target: { agentId: 'agent-1', name: 'Forged' } }).success).toBe(
+      false
+    )
+  })
+
+  it('accepts standard file parts and rejects malformed attachment metadata', () => {
+    const base = { modelId: 'openai::summary', messageCount: 1 }
+    expect(
+      openDraftResult.safeParse({
+        ...base,
+        attachments: [{ type: 'file', mediaType: 'text/plain', url: 'file:///tmp/a.txt' }]
+      }).success
+    ).toBe(true)
+    expect(
+      openDraftResult.safeParse({ ...base, attachments: [{ type: 'file', mediaType: 'text/plain' }] }).success
+    ).toBe(false)
+  })
+})

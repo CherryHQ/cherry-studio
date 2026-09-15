@@ -21,6 +21,7 @@ describe('builtinToolPolicy', () => {
   })
 
   it('stores approval behavior on each tool entry instead of parallel name lists', () => {
+    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName('agent_list'), WITHOUT_HOST_TOOLS)?.approval).toBe('auto')
     expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME), WITHOUT_HOST_TOOLS)?.approval).toBe(
       'required'
     )
