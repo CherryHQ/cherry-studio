@@ -57,6 +57,7 @@ import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { TerminalPersistenceError } from './listeners/PersistenceListener'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
+import { dropEmptyContentParts, stripTransientStatusParts } from './persistence/PersistenceBackend'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
 import type {
@@ -300,15 +301,10 @@ function isEmptySuccessTurn(finalMessage: CherryUIMessage | undefined): boolean 
   if (!finalMessage) return true
   const parts = finalMessage.parts as CherryMessagePart[]
   if (!parts || parts.length === 0) return true
-  // Strip transient and empty text/reasoning parts the same way PersistenceListener does,
-  // then check shared renderability (hidden markers + empty structured payloads).
-  const stripped = parts
-    .filter((part) => part.type !== 'data-retry')
-    .filter((part) => {
-      if (part.type === 'text' || part.type === 'reasoning') return !!part.text?.trim()
-      return true
-    })
-  return !hasRenderableContent(stripped as CherryMessagePart[])
+  // Same normalization PersistenceListener applies before storage, then the
+  // shared renderability check (hidden markers + empty structured payloads).
+  const stripped = dropEmptyContentParts(stripTransientStatusParts(parts))
+  return !hasRenderableContent(stripped)
 }
 
 /**

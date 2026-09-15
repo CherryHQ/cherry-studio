@@ -1,3 +1,4 @@
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
 import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_DESCRIBE_TOOL_NAME } from '@shared/ai/piBuiltinTools'
@@ -70,13 +71,20 @@ const KNOWN_RENDERABLE_TOOL_NAMES = new Set<string>([
   'mcp_resource_read',
   'memory',
   'notify',
-  'read_file',
   'report_artifacts',
   'to_markdown',
   'web_fetch',
   'web_search',
   'webSearch'
 ])
+// NB: `read_file` (ordinary-chat attachment paging) is intentionally absent —
+// the completed renderer renders no card for it, so such turns take the fallback.
+
+// Transports stamped by a known agent runtime (mirrors the renderer's check
+// in toolResponse.ts); unknown tags leave the wire name untouched there too.
+const CHERRY_AGENT_TRANSPORTS: ReadonlySet<string> = new Set(
+  Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport)
+)
 
 // Runtime-native wire names the cherry agent runtimes stamp onto tool parts
 // (providerMetadata.cherry.transport); the renderer maps them onto the
@@ -100,7 +108,8 @@ function hasCherryTransport(part: CherryMessagePart): boolean {
   if (typeof metadata !== 'object' || metadata === null) return false
   const cherry = (metadata as Record<string, unknown>).cherry
   if (typeof cherry !== 'object' || cherry === null) return false
-  return typeof (cherry as Record<string, unknown>).transport === 'string'
+  const transport = (cherry as Record<string, unknown>).transport
+  return typeof transport === 'string' && CHERRY_AGENT_TRANSPORTS.has(transport)
 }
 
 // dsh runtime-native builtins the renderer renders through the standard agent
@@ -172,8 +181,10 @@ export function isRenderablePart(part: CherryMessagePart): boolean {
   if (part.type === 'dynamic-tool' || part.type.startsWith('tool-')) {
     const p = part as unknown as { toolCallId?: string; toolName?: string }
     if (!p.toolCallId?.trim()) return false
-    const toolName = part.type.startsWith('tool-') ? part.type.slice(5) : (p.toolName ?? '')
-    return isRenderableToolName(part, toolName)
+    // Caller-defined (API-gateway) tools stream as `dynamic-tool` and render
+    // through the generic MCP card, so any identified call counts as visible.
+    if (part.type === 'dynamic-tool') return true
+    return isRenderableToolName(part, part.type.slice(5))
   }
   return true
 }

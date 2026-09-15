@@ -27,7 +27,7 @@ export function withTerminalErrorFallback(
   for (const message of messages) {
     if (message.role !== 'assistant') continue
     const status = message.metadata?.status
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const parts = partsByMessageId[message.id] ?? message.parts ?? []
     if (hasDismissedNoResponsePart(parts)) continue
     const hasVisiblePart = hasRenderableContent(parts)
     const needsFallback =

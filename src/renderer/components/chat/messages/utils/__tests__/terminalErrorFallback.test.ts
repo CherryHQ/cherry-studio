@@ -1,5 +1,6 @@
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import { withTerminalErrorFallback } from '../terminalErrorFallback'
 

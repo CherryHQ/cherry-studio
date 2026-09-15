@@ -568,7 +568,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       <MessageListAdapterHarness
         topic={createTopic('topic-a')}
         messages={[emptyAssistantMessage]}
-        partsByMessageId={{ 'empty-message': emptyAssistantMessage.parts as CherryMessagePart[] }}
+        partsByMessageId={{ 'empty-message': emptyAssistantMessage.parts }}
         onValue={(nextValue) => (value = nextValue)}
       />
     )
@@ -596,7 +596,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       parts: persistedParts
     } as CherryUIMessage
 
-    vi.mocked(dataApiService.get).mockResolvedValue({ data: { parts: persistedParts } } as never)
+    vi.mocked(dataApiService.get).mockResolvedValue({ data: { parts: persistedParts } })
     vi.mocked(resolvePartFromParts).mockReturnValue({
       index: 1,
       messageId: 'error-message',

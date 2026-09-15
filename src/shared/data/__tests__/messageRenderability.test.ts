@@ -54,6 +54,21 @@ describe('isRenderablePart tool names', () => {
     expect(isRenderablePart(part({ type: 'tool-Bash', toolCallId: '  ' }))).toBe(false)
   })
 
+  it('rejects ordinary-chat read_file calls that render no card', () => {
+    expect(isRenderablePart(part({ type: 'tool-read_file', toolCallId: 'call-1' }))).toBe(false)
+    expect(isRenderablePart(part({ type: 'tool-read_file', toolCallId: 'call-1', ...cherryTransport }))).toBe(false)
+  })
+
+  it('ignores runtime wire names under an unknown transport tag', () => {
+    const bogusTransport = { callProviderMetadata: { cherry: { transport: 'bogus-agent' } } }
+    expect(isRenderablePart(part({ type: 'tool-bash', toolCallId: 'call-1', ...bogusTransport }))).toBe(false)
+  })
+
+  it('treats caller-defined dynamic tool calls as visible gateway content', () => {
+    expect(isRenderablePart(part({ type: 'dynamic-tool', toolCallId: 'call-1', toolName: 'myGatewayTool' }))).toBe(true)
+    expect(isRenderablePart(part({ type: 'dynamic-tool', toolName: 'myGatewayTool' }))).toBe(false)
+  })
+
   it('treats dsh runtime-native builtins as visible agent content', () => {
     for (const name of [
       'read_image',

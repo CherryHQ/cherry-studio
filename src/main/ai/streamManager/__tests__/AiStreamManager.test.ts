@@ -622,6 +622,34 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('ordinary-empty')?.status).toBe('error')
     })
 
+    it('keeps a gateway turn of only caller-defined tool calls as success', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('l:gateway-tools')
+      startSingle(mgr, {
+        topicId: 'gateway-tools',
+        modelId: 'provider-a::model-a',
+        request: req('gateway-tools'),
+        listeners: [listener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      feed.enqueue({ type: 'start', messageId: 'm1' })
+      feed.enqueue({
+        type: 'tool-input-available',
+        toolCallId: 'call-1',
+        toolName: 'myGatewayTool',
+        input: { query: 'hi' },
+        dynamic: true
+      } as unknown as UIMessageChunk)
+      feed.close()
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+
+      expect(listener.errorResults).toEqual([])
+      expect(mgr.inspect('gateway-tools')?.status).toBe('done')
+    })
+
     it('keeps an empty successful agent-session turn as success', async () => {
       vi.useRealTimers()
       const feed = controlledStream()
