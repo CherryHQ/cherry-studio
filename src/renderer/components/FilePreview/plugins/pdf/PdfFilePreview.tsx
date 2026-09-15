@@ -122,6 +122,15 @@ function PdfPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
   )
 }
 
+/**
+ * PDF preview with page-level selection picking. The anchor names a page and the excerpt comes from
+ * the pdf.js document proxy rather than the DOM: text-layer order is not reading order, and a page's
+ * text layer may not be rendered yet. The pick lives in React state and the DOM marker is derived
+ * from it, because pdf.js rebuilds the page elements it renders and a DOM-only truth would be wiped
+ * along with them. `preventDefault` on a click covers external `href` annotations only — pdf.js binds
+ * an internal destination with `link.onclick`, which runs first and jumps instead of picking (known
+ * limitation, see the FilePreview README).
+ */
 export default function PdfFilePreview({
   filePath,
   fileName,
@@ -193,18 +202,8 @@ export default function PdfFilePreview({
     [focusContainer, pageCount]
   )
 
-  // Picking, not text selection: the anchor is page-level, and the excerpt comes from the document
-  // proxy rather than the DOM — pdf.js text-layer order is not reading order and a page's text
-  // layer may not be rendered yet. The token guards against a slow fetch reporting a stale pick.
-  // A new pick empties the host while that page's text is in flight, so the chip can never quote
-  // the page the marker just left.
-  // The pick lives in React state and the DOM marker is derived from it, because pdf.js rebuilds
-  // the page elements it renders and a DOM-only truth would be wiped along with them, turning the
-  // next click on that page into a duplicate pick instead of the clear it means. preventDefault
-  // covers external `href` annotations only: pdf.js binds an internal-destination link with
-  // `link.onclick = () => { goToDestination(...); return false }`, which runs at the target before
-  // React's root-delegated handler and jumps on its own — preventDefault cannot cancel that, so an
-  // in-document link jumps instead of picking (known limitation, see the FilePreview README).
+  // The token guards against a slow text fetch reporting a stale pick: a new pick empties the host
+  // while that page's text is in flight, so the chip can never quote the page the marker just left.
   const pickTokenRef = useRef(0)
   const handlePick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -248,10 +247,8 @@ export default function PdfFilePreview({
     [documentProxy, filePath, metadata, onSelectionReference, pickedPage]
   )
 
-  // Sole owner of the marker. pdf.js rebuilds the viewer's page divs when it re-renders the page
-  // list, so a childList mutation is the signal to paint the marker back on; a scale change keeps
-  // the divs but re-renders their content, which `zoom` covers. A rebuild is not a pick change: the
-  // host's reference still stands, so nothing is reported from here.
+  // Sole owner of the marker: pdf.js rebuilds the viewer's page divs, so a childList mutation (or a
+  // `zoom` change, which re-renders in place) repaints it. A rebuild is not a pick — report nothing.
   useEffect(() => {
     const viewerElement = viewerRef.current
     if (!viewerElement) return

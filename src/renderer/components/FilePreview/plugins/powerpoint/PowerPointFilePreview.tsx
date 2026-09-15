@@ -86,6 +86,15 @@ function stripExternalMediaRelationships(presentation: PresentationData): void {
   }
 }
 
+/**
+ * PowerPoint preview with slide-level selection picking. The pick lives in React state and the DOM
+ * marker is derived from it, because the renderer rebuilds every slide element on zoom (`setZoom` ->
+ * `queueRender` -> `container.innerHTML = ''`) and a DOM-only truth would be wiped. The excerpt comes
+ * from the parsed deck rather than the clicked element (see `slideExcerpt`), so a slide the windowed
+ * renderer has not mounted yet cannot be mis-read. `preventDefault` makes a click inside an external
+ * hyperlink a pick; the renderer's in-deck jump links are `role="link"` spans that stop propagation,
+ * so they jump without picking (known limitation, see the FilePreview README).
+ */
 export default function PowerPointFilePreview({
   filePath,
   fileName,
@@ -283,18 +292,8 @@ export default function PowerPointFilePreview({
     }
   }, [filePath, focusContainer, metadata.size, refreshKey, setPreviewControlsBusy])
 
-  // Picking, not text selection: the slides render inside the app-wide `user-select: none`, and the
-  // anchor is slide-level anyway. The callback's presence is the capture switch. The pick lives in
-  // React state and the DOM marker is derived from it, because the renderer rebuilds every slide
-  // element on zoom (`setZoom` -> `queueRender` -> `container.innerHTML = ''`) and a DOM-only truth
-  // would be wiped, turning the next click on that slide into a duplicate pick instead of the clear
-  // it means. The excerpt comes from the parsed deck, not that element (see `slideExcerpt`), which
-  // also makes a click on a slide the windowed renderer has not mounted yet impossible to mis-read.
-  // The marker goes on only after createSelectionReference confirms the host actually receives
-  // something, never before — a slide with no text must not look picked while the host gets null.
-  // A click inside an external hyperlink is still a pick, so it gets preventDefault instead of
-  // following the href; the renderer's in-deck jump links are `role="link"` spans whose own click
-  // listener calls stopPropagation(), so React never sees those — they jump without picking.
+  // The marker goes on only after createSelectionReference confirms the host receives something: a slide
+  // with no text must not look picked while the host gets null.
   const handlePick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (!onSelectionReference || !(event.target instanceof Element)) return
@@ -319,10 +318,8 @@ export default function PowerPointFilePreview({
     [filePath, metadata, onSelectionReference, pickedSlide]
   )
 
-  // Sole owner of the marker. The renderer replaces the container's children wholesale on zoom and
-  // fit changes, so a childList mutation on the container is the signal to paint the marker back on.
-  // A rebuild is not a selection change: the file did not change and the host's reference still
-  // stands, so nothing is reported from here.
+  // Sole owner of the marker: the renderer replaces the container's children wholesale on zoom and fit
+  // changes, so a childList mutation repaints it. A rebuild is not a pick — report nothing.
   useEffect(() => {
     const container = containerRef.current
     if (!container) return

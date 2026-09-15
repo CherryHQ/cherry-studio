@@ -565,9 +565,8 @@ describe('SpreadsheetFilePreview', () => {
   it('keeps the text of a range whose leading cells are blank', () => {
     const model = modelWithoutCharts()
     const sheet = model.sheets[0]
-    // A block of empty cells far larger than the character budget, with real text after it. The separators
-    // around blank cells collapse during normalization, so charging the budget for them would truncate the
-    // scan before reaching the text and leave an empty excerpt.
+    // Separators around blank cells collapse during normalization, so charging the budget for them would
+    // truncate the scan before the text that follows this oversized blank block, leaving an empty excerpt.
     sheet.rowCount = 5000
     sheet.colCount = 1
     sheet.cells = { '4001:1': { text: 'text after the blanks', styleId: 0 } }
@@ -585,9 +584,8 @@ describe('SpreadsheetFilePreview', () => {
   it('keeps the text of a range whose leading cells hold only whitespace', () => {
     const model = modelWithoutCharts()
     const sheet = model.sheets[0]
-    // The same case as above, for cells an export blanked with a space rather than leaving empty. They have
-    // text, so a raw-length budget charges for them, but none of it survives normalization — enough of them
-    // and the scan stops before any real text, leaving an excerpt that normalizes to nothing and is dropped.
+    // The same case for cells an export blanked with a space: they have text, so a raw-length budget charges
+    // for them, yet none survives normalization — the scan then stops before any real text.
     sheet.rowCount = 5000
     sheet.colCount = 1
     sheet.cells = Object.fromEntries(

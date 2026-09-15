@@ -304,9 +304,8 @@ describe('PowerPointFilePreview', () => {
     slide.appendChild(link)
 
     let observed: boolean | undefined
-    // jsdom attempts a real navigation for an unprevented click on an <a href>, logging "Not
-    // implemented: navigation" noise; observe defaultPrevented as the event reaches document, then
-    // cancel it ourselves so jsdom never gets there.
+    // jsdom logs "Not implemented: navigation" for an unprevented <a href> click, so observe
+    // defaultPrevented at document and cancel it ourselves before jsdom gets there.
     const observe = (event: Event) => {
       observed = event.defaultPrevented
       event.preventDefault()

@@ -62,6 +62,13 @@ function sanitizeHyperlinks(body: HTMLElement): void {
   })
 }
 
+/**
+ * Word preview with paragraph-level selection picking. The anchor is a body paragraph ordinal, and a
+ * click inside a link is a pick rather than a navigation, so it gets `preventDefault`. Unlike the pptx
+ * and pdf plugins the marker can live on the DOM as its own truth: docx has no in-mount rebuild path —
+ * the render effect re-runs only for `filePath` / `refreshKey` (and the metadata they carry), which
+ * remount the plugin through FilePreview's ErrorBoundary key rather than replacing the body.
+ */
 export default function WordFilePreview({
   filePath,
   fileName,
@@ -225,12 +232,8 @@ export default function WordFilePreview({
     return () => observer.disconnect()
   }, [pageCount])
 
-  // Picking, not text selection: the previews render inside the app-wide `user-select: none`, and a
-  // block pick is what the anchor names anyway (a body paragraph ordinal). The callback's presence is
-  // the capture switch — the host passes it only while its picker is on. The marker goes on only after
-  // createSelectionReference confirms the host actually receives something, never before — an empty
-  // paragraph must not look picked while the host gets null. A click inside a link is still a pick, not
-  // a navigation, so it gets preventDefault instead of following the href.
+  // The marker goes on only after createSelectionReference confirms the host receives something: an empty
+  // paragraph must not look picked while the host gets null.
   const handlePick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (!onSelectionReference || !(event.target instanceof Element)) return
@@ -257,10 +260,7 @@ export default function WordFilePreview({
     [filePath, metadata, onSelectionReference]
   )
 
-  // A pick outlives nothing: when the host stops capturing, the marker goes with it. Unlike pptx/pdf
-  // the marker can live on the DOM as its own truth, because docx has no in-mount rebuild path: the
-  // render effect only re-runs for filePath / refreshKey (and the metadata they carry), and those
-  // remount the plugin through FilePreview's ErrorBoundary key rather than replacing the body.
+  // A pick outlives nothing: when the host stops capturing, the marker goes with it.
   useEffect(() => {
     if (onSelectionReference) return
     bodyRef.current?.querySelector<HTMLElement>('[data-docx-picked="true"]')?.removeAttribute('data-docx-picked')

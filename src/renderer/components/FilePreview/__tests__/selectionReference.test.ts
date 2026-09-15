@@ -69,9 +69,8 @@ describe('createSelectionReference', () => {
   })
 
   it('produces an excerpt the schema accepts even when every character is astral', () => {
-    // Counting this limit in code points emits 2000 of them, which is 4000 UTF-16 units, and the
-    // schema's `.max()` counts UTF-16 units like every other budget here. This is what ties the
-    // producer's idea of the limit to the schema's, so the two cannot drift apart again.
+    // Ties the producer's idea of the limit to the schema's: counting the limit in code points would emit
+    // 4000 UTF-16 units, and the schema's `.max()` counts UTF-16 units.
     const reference = build('\u{1F600}'.repeat(SELECTION_EXCERPT_MAX_LENGTH))
 
     expect(SelectionReferenceSchema.safeParse(reference).success).toBe(true)

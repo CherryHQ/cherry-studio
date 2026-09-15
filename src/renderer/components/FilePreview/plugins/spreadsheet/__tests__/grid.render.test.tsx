@@ -571,9 +571,8 @@ describe('XlsxGrid — range selection', () => {
   })
 
   it('commits a plain press-and-release without relying on the trailing click', () => {
-    // The grid captures the pointer on pointerdown, so the click synthesized afterwards is not targeted at the
-    // cell the press started on. Leaving the commit to that click strands the parent on the old selection while
-    // the grid already shows the new one.
+    // The grid captures the pointer on pointerdown, so the synthesized click does not target the cell the
+    // press started on; leaving the commit to it strands the parent on the old selection.
     showHeaderRange()
     const onSelectCell = vi.fn()
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
@@ -608,9 +607,8 @@ describe('XlsxGrid — range selection', () => {
   })
 
   it('anchors a press inside a merged range at its master, the way a click does', () => {
-    // A2 is a follower of the A1:B2 merge. The committed range is the same either way — expandRangeToMerges
-    // grows both to A1:B2 — but the stored corner is where the next Shift+Arrow starts, and the click path
-    // (selectCell) has always stored the master. Keeping the follower makes the pointer path disagree.
+    // A2 is a follower of the A1:B2 merge. The committed range is the same either way, but the stored corner
+    // is where the next Shift+Arrow starts, and the click path (selectCell) has always stored the master.
     showHeaderRange()
     const mergeSheet: SheetRenderModel = { ...salesSheet, merges: [{ top: 1, left: 1, bottom: 2, right: 2 }] }
     const onSelectCell = vi.fn()
@@ -632,10 +630,8 @@ describe('XlsxGrid — range selection', () => {
   })
 
   it('keeps the master when a press inside a merge drifts before release', () => {
-    // pointerdown normalizes to the master, and then the very first pointermove writes the raw
-    // coordinate straight back over it. A press on a follower plus a pixel of hand tremor is the
-    // whole recipe. The committed range is identical either way, so nothing looks wrong until the
-    // next arrow key steps off a corner the user cannot see.
+    // pointerdown normalizes to the master and the first pointermove writes the raw coordinate back over it —
+    // a press on a follower plus a pixel of tremor. Nothing looks wrong until the next arrow key.
     showHeaderRange()
     const mergeSheet: SheetRenderModel = { ...salesSheet, merges: [{ top: 1, left: 1, bottom: 2, right: 2 }] }
     const onSelectCell = vi.fn()

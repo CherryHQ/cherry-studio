@@ -81,8 +81,9 @@ export interface XlsxGridProps {
   onSelectCell?: (info: SelectedCellInfo | null) => void
   /**
    * Region-pick mode switch. Switching it on clears the current selection so a pick starts from nothing, and
-   * while it stays on the cell (or merged range) under the pointer is highlighted. Picks themselves commit
-   * through `onSelectCell` exactly as they do with it off.
+   * while it stays on the cell (or merged range) under the pointer is highlighted. Switching it off keeps the
+   * pick and only drops the hover highlight. Picks themselves commit through `onSelectCell` exactly as they
+   * do with it off.
    */
   pickerActive?: boolean
   /** Chart rendering hook. Returns a cleanup function; the panel passes in a ChartRenderer implementation. */
@@ -520,19 +521,16 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   )
 
   const clearSelection = useCallback(() => {
-    // Abandon any in-flight drag too: pointerup commits `drag.selection` unconditionally, so leaving
-    // the drag alive would let the release re-commit the range the user just cancelled — and a
-    // pointermove would put it back on screen as well.
+    // Abandon any in-flight drag too: pointerup commits `drag.selection` unconditionally, so the release
+    // would re-commit the range the user just cancelled.
     dragRef.current = null
     pendingKeyCommitRef.current = false
     applySelection(null)
     commitSelection(null)
   }, [applySelection, commitSelection])
 
-  // A pick starts from nothing, so switching the picker on drops whatever was selected while browsing. Only the
-  // off -> on edge does it: clearSelection's identity changes on every scroll (through findMerge ->
-  // visibleMergeByCell), so an effect that merely depended on it would wipe the user's pick each time the grid
-  // scrolls. Switching the picker off keeps the pick and only drops the hover highlight.
+  // Only the off -> on edge clears: clearSelection's identity changes on every scroll (through findMerge ->
+  // visibleMergeByCell), so depending on it directly would wipe the user's pick each time the grid scrolls.
   const pickerWasActiveRef = useRef(false)
   useEffect(() => {
     const isActive = Boolean(pickerActive)
@@ -633,9 +631,8 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     [clearSelection, extendSelection, moveSelection, selected, selectCell, rowVirtualizer, colVirtualizer]
   )
 
-  // Held Shift+Arrow repeats keydown; committing on key release keeps the parent off the per-repeat render path.
-  // Also runs on blur: losing focus mid-extend means the keyup never arrives here, which would otherwise strand
-  // the parent on the pre-extend selection while the grid keeps showing the extended one.
+  // Held Shift+Arrow repeats keydown; committing on release keeps the parent off the per-repeat render path.
+  // Also runs on blur, where the keyup never arrives and would strand the parent on the pre-extend selection.
   const commitPendingKeySelection = useCallback(() => {
     if (!pendingKeyCommitRef.current) return
     pendingKeyCommitRef.current = false
@@ -674,9 +671,8 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
       if (pickerActive) setHoverRect(null)
       const target = cellAtPointer(e.clientX, e.clientY)
       if (!target || target.inHeader || target.row > sheet.rowCount || target.col > sheet.colCount) return
-      // Address a merged range by its master, the way selectCell does. Pressing a follower coordinate produces
-      // the same committed range either way, but it is also where later Shift+Arrow steps start from, and
-      // stepping off a follower walks back into the same merge instead of leaving it.
+      // Address a merged range by its master, the way selectCell does: the stored corner is where later
+      // Shift+Arrow steps start from, and stepping off a follower walks back into the same merge.
       const merge = findMerge(target.row, target.col)
       const cell: CellRef = { row: merge?.top ?? target.row, col: merge?.left ?? target.col }
       const current = selectionRef.current
@@ -742,16 +738,14 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
       if (drag.pointerId !== e.pointerId) return
       const target = cellAtPointer(e.clientX, e.clientY)
       if (!target) return
-      // Dragging back over the sticky headers puts the pointer at a negative content offset, which
-      // resolves to the first track. Clamp to at least 1 so the drag stops at the edge instead of
-      // pulling the selection onto a hidden leading row or column.
+      // Dragging back over the sticky headers gives a negative content offset. Clamp to at least 1 so the
+      // drag stops at the edge instead of pulling the selection onto a hidden leading row or column.
       const clamped: CellRef = {
         row: Math.min(Math.max(target.row, 1), sheet.rowCount),
         col: Math.min(Math.max(target.col, 1), sheet.colCount)
       }
-      // Address the merge by its master here too, for the reason pointerdown gives. A drag ending on
-      // a follower is the common way to land on one: pointerdown normalizes, then the first pointermove
-      // — a millimetre of hand tremor is enough — writes the raw coordinate straight back.
+      // Address the merge by its master here too, for the reason pointerdown gives: pointerdown normalizes,
+      // then the first pointermove — a millimetre of hand tremor — writes the raw coordinate straight back.
       const merge = findMerge(clamped.row, clamped.col)
       const active: CellRef = { row: merge?.top ?? clamped.row, col: merge?.left ?? clamped.col }
       if (active.row === drag.selection.active.row && active.col === drag.selection.active.col) return
@@ -771,10 +765,8 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     ]
   )
 
-  // Every pointer termination commits what the grid is already showing. pointerdown moves the visual selection
-  // without committing, so a path that returns without committing leaves the parent holding the previous
-  // selection while the grid shows the new one. Committing here also makes the trailing click redundant rather
-  // than load-bearing — the grid captures the pointer, so that click's target is not the cell it started on.
+  // Every pointer termination commits what the grid already shows: pointerdown moves the visual selection
+  // without committing, and the trailing click cannot be relied on — the grid captured the pointer.
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current
@@ -824,10 +816,8 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
     () => (hoverRect ? mergeRectPx(hoverRect, rowLayout, colLayout) : null),
     [hoverRect, rowLayout, colLayout]
   )
-  // The picked unit keeps its own outline: a hover highlight anywhere inside it would out-rank the pick marker,
-  // which is what the sibling producers' `:not([data-*-picked])` hover rules exist to prevent. A range pick's
-  // unit is the whole range, exactly as a picked PDF page is the whole page, so containment — not equality — is
-  // the guard: a single cell of a picked A2:B2 must stay hover-free too.
+  // The picked unit keeps its own outline, so containment — not equality — is the guard: a single cell inside
+  // a picked A2:B2 must stay hover-free too, the way the block producers' `:not([data-*-picked])` rules do.
   const hoverInsidePick = Boolean(
     hoverRect &&
       selectionRect &&

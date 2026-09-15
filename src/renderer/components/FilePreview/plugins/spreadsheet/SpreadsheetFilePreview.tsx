@@ -139,9 +139,8 @@ export default function SpreadsheetFilePreview({
     [activeSheet]
   )
 
-  // The reference is derived from the selection rather than emitted by the selection callback, so clearing the
-  // selection — including the sheet switch and model replacement handled above — reports null on its own. The
-  // sheet is compared rather than assumed: the switch resets the selection in an effect, one commit later.
+  // Derived from the selection rather than emitted by its callback, so any clear reports null on its own. The
+  // sheet is compared rather than assumed: a sheet switch resets the selection in an effect, one commit later.
   const selectionReference = useMemo(() => {
     if (!selectedCell || !activeSheet || selectedCell.sheet !== activeSheet) return null
     return createSelectionReference({
@@ -152,12 +151,8 @@ export default function SpreadsheetFilePreview({
     })
   }, [selectedCell, activeSheet, filePath, metadata.size, metadata.modifiedAt])
 
-  // Capture arms empty. Unlike the block pickers, the grid holds its selection whether or not capture is on
-  // — a cell clicked to read a value stays selected — so switching capture on must not turn that browsing
-  // selection into a pick the user never made. The commit that enables capture reports nothing; every
-  // selection after it reports as usual, including re-picking the very same range. Arming resets only when
-  // capture is switched off, so a host must hold the callback's identity steady while capture stays on —
-  // the artifact pane passes a state setter.
+  // Capture arms empty so switching it on never turns a browsing selection into a pick the user never made.
+  // The host's side of this (a steady callback identity) is in the FilePreview README, Selection References.
   const captureArmedRef = useRef(false)
   useEffect(() => {
     if (!onSelectionReference) {
@@ -261,11 +256,8 @@ export default function SpreadsheetFilePreview({
   } else if (!model || !activeSheet) {
     content = null
   } else {
-    // Selection status: the A1 range, plus the cell content when the selection is a single cell (formula cells show
-    // the raw formula). A multi-cell range reports no cell, so only the range is shown.
-    // The sheet is compared for the same reason selectionReference compares it: the effect that clears
-    // selectedCell on a sheet switch runs one commit later, so the new sheet's tabs would otherwise render
-    // beside the previous sheet's range for a frame.
+    // The sheet is compared for the same reason selectionReference compares it: the clearing effect runs one
+    // commit later, so the new sheet's tabs would otherwise render beside the previous sheet's range for a frame.
     const cellOnActiveSheet = selectedCell && selectedCell.sheet === activeSheet ? selectedCell : null
     const selectedCellContent = cellOnActiveSheet?.cell?.formula
       ? `= ${cellOnActiveSheet.cell.formula}`
