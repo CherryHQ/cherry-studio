@@ -1,14 +1,18 @@
 import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
+import { MINIMAL_CHERRY_SUPPORT_INSTRUCTIONS } from '@main/ai/runtime/supportPrompt'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { replacePromptVariables } from '@main/utils/prompt'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const logger = loggerService.withContext('AgentPrompt')
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
   'Within Cherry Studio, serve as Cherry Assistant, its built-in general-purpose Agent and onboarding guide. Help the user complete any request using the available tools.'
+const SUPPORT_LANGUAGE_PROMPT =
+  "IMPORTANT: Respond in the language of the user's latest non-runtime request. Ignore internal continuation messages when choosing the response language."
 
 const AGENT_INSTRUCTION_PRECEDENCE_PROMPT = `## Instruction Precedence
 
@@ -39,13 +43,21 @@ export interface BuildAgentRuntimePromptOptions {
   citationsGuidance?: string
   /** Runtime-loaded root workspace instructions, if they are not already supplied by the native base. */
   workspaceInstructions?: string
-  /** Context required only when a custom system.md replaces the runtime's native base. */
+  /** Context required when a custom system.md or protected Support identity replaces the native base. */
   customBaseContext?: string
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null
 }
 
 const promptBuilder = new PromptBuilder()
+
+export function buildAgentWorkspaceContext(workspacePath: string): string {
+  return [
+    '## Current Workspace',
+    `Current working directory: ${JSON.stringify(workspacePath)}`,
+    'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
+  ].join('\n')
+}
 
 /** Materialize Cherry-owned prompt policy once; runtime adapters only map base/append into their SDK. */
 export async function buildAgentRuntimePrompt({
@@ -58,10 +70,17 @@ export async function buildAgentRuntimePrompt({
   effectiveLanguage
 }: BuildAgentRuntimePromptOptions): Promise<AgentRuntimePrompt> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
-  const isAssistant = builtinRole === 'assistant'
+  const isAssistant = builtinRole === BUILTIN_AGENT_ROLE.ASSISTANT
+  const isSupport = builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
   let instructions = agent.instructions
 
-  if (builtinRole && !instructions?.trim()) {
+  if (isSupport) {
+    instructions = loadBuiltinAgentDefinition(builtinRole)?.instructions
+    if (!instructions) {
+      logger.error('Builtin Cherry Support definition missing; using minimal fallback instructions')
+      instructions = MINIMAL_CHERRY_SUPPORT_INSTRUCTIONS
+    }
+  } else if (builtinRole && !instructions?.trim()) {
     instructions = loadBuiltinAgentDefinition(builtinRole)?.instructions
     if (!instructions && isAssistant) {
       logger.error('Builtin Cherry Assistant definition missing; using minimal fallback instructions')
@@ -81,11 +100,32 @@ export async function buildAgentRuntimePrompt({
     agentDataPath
   )
 
-  // Stable prefix first for prompt-cache sharing; deferential language stays last so persona/workspace win.
+  const agentInstructions = hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined
+  const workspaceCustomBase = parts.base.kind === 'custom' ? parts.base.content : undefined
+
+  if (isSupport) {
+    // Custom base replaces runtime-native identity; workspace system.md follows standing identity.
+    const standing = [
+      agentInstructions,
+      hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
+      workspaceCustomBase,
+      workspaceInstructions,
+      parts.context,
+      customBaseContext,
+      citationsGuidance,
+      REPORT_ARTIFACTS_PROMPT,
+      SUPPORT_LANGUAGE_PROMPT
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+    return { base: { kind: 'custom', content: standing }, append: '' }
+  }
+
+  // Prefix-cache layout: Cherry-owned policy that is identical across sessions comes first.
   const append = [
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
     REPORT_ARTIFACTS_PROMPT,
-    hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined,
+    agentInstructions,
     workspaceInstructions,
     parts.context,
     parts.base.kind === 'custom' ? customBaseContext : undefined,

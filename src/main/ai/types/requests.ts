@@ -77,6 +77,8 @@ export interface AiRequest {
 /** Text generation (streaming or not): a conversation plus everything that shapes a turn. */
 export interface AiChatRequest extends AiRequest {
   conversation: ConversationRef
+  /** Standing instructions for in-process callers and `ai.text.generate`. Stream IPC omits this field. */
+  system?: string
   mcpToolIds?: string[]
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption

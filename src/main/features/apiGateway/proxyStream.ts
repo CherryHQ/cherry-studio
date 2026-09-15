@@ -22,10 +22,13 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { resolveEffectiveEndpoint, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
+import { normalizeAnthropicSupportSystemPrompt } from '@main/ai/runtime/supportPrompt'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
+import type { CherryUIMessage } from '@shared/data/types/message'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
@@ -57,6 +60,19 @@ const STARTUP_COMMIT_CHUNK_TYPES: ReadonlySet<UIMessageChunk['type']> = new Set(
 
 function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
   return STARTUP_COMMIT_CHUNK_TYPES.has(chunk.type)
+}
+
+function extractSystemPrompt(messages: CherryUIMessage[]): { conversation: CherryUIMessage[]; system?: string } {
+  const [standing, ...conversation] = messages
+  if (standing?.role !== 'system') return { conversation: messages }
+  const system = standing.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n')
+  return {
+    conversation,
+    system: system || undefined
+  }
 }
 
 /**
@@ -166,10 +182,17 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   const provider: Provider = config.provider ?? resolvedProvider
   const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalAgentRequest
+  const isInternalSupportRequest =
+    isInternalAnthropicAgentRequest &&
+    config.requestHeaders !== undefined &&
+    application.get('ApiGatewayService').isInternalSupportRequest(config.requestHeaders)
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
-    const anthropicParams = params as MessageCreateParams
+    const anthropicParams = isInternalSupportRequest
+      ? normalizeAnthropicSupportSystemPrompt(params as MessageCreateParams)
+      : (params as MessageCreateParams)
+    effectiveParams = anthropicParams
     const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
 
     if (normalization.status === 'conflict') {
@@ -202,11 +225,14 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   const convertedMessages = converter.toUIMessages(effectiveParams)
-  // Leaving inline system messages in place is what keeps the prompt prefix cacheable
-  // across turns; targets that reject them get a downgrade 400 or a fold.
+  const { conversation, system } = isInternalSupportRequest
+    ? extractSystemPrompt(convertedMessages)
+    : { conversation: convertedMessages, system: undefined }
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  // Later inline system updates stay in conversation so verified turn order is preserved.
   const positionedMessages = positionInlineSystemMessages(
-    convertedMessages,
-    resolveEffectiveEndpoint(provider, model).endpointType,
+    conversation,
+    resolvedEndpoint.endpointType,
     config.requestHeaders
   )
   const messages = isInternalAnthropicAgentRequest
@@ -228,9 +254,23 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const agentSessionId = config.requestHeaders
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
     : undefined
-  const providerOptions = agentSessionId
+  let providerOptions = agentSessionId
     ? applyAgentPromptCacheKey(provider, model, fastModeProviderOptions, agentSessionId)
     : fastModeProviderOptions
+  let forwardedSystem = system
+  if (
+    isInternalSupportRequest &&
+    system &&
+    resolvedEndpoint.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
+    positionedMessages.some((message) => message.role === 'system')
+  ) {
+    const providerOptionsKey = resolveEndpointProviderOptionsKey(provider, resolvedEndpoint)
+    const namespace = providerOptions[providerOptionsKey]
+    if (namespace?.instructions == null) {
+      providerOptions = { ...providerOptions, [providerOptionsKey]: { ...namespace, instructions: system } }
+      forwardedSystem = undefined
+    }
+  }
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {
@@ -247,7 +287,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
 
   const streamId = `gateway-${uuidv4()}`
-  if (messages !== convertedMessages) {
+  if (messages !== positionedMessages) {
     logger.info('Appended assistant-tail continuation for internal agent request', { providerId, modelId, streamId })
   }
   const aiStreamManager = application.get('AiStreamManager')
@@ -381,6 +421,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             streamId,
             uniqueModelId,
             messages,
+            system: forwardedSystem,
             listener,
             callOverrides,
             contextOwner: 'caller',
@@ -465,6 +506,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       streamId,
       uniqueModelId,
       messages,
+      system: forwardedSystem,
       listener,
       callOverrides,
       contextOwner: 'caller',

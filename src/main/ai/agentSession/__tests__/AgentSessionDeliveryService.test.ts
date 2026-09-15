@@ -158,7 +158,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.listRecoverable.mockReturnValue([])
     mocks.hasLiveStream.mockReturnValue(false)
     mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
-    mocks.whenTerminalDispatchSettled.mockResolvedValue(undefined)
+    mocks.whenTerminalDispatchSettled.mockReturnValue(undefined)
     mocks.runtimeBusy.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
     mocks.getMessage.mockReturnValue(accepted)
@@ -221,6 +221,7 @@ describe('AgentSessionDeliveryService', () => {
     expect(mocks.validateDispatch).not.toHaveBeenCalled()
 
     release()
+    mocks.whenTerminalDispatchSettled.mockReturnValue(undefined)
     await service.drainInFlight({ timeoutMs: 100 })
     expect(mocks.hasLiveStream).toHaveBeenCalled()
     expect(mocks.send).toHaveBeenCalled()

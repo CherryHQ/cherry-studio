@@ -417,7 +417,13 @@ export class AiStreamManager extends BaseService {
     return this.withDispatchLock(req.topicId, async () => {
       // A renderer submit can land while the previous turn's terminal dispatch is still running;
       // admitting now would evict that stream before its terminal lifecycle ran (see startAgentSessionRun).
-      await this.whenTerminalDispatchSettled(req.topicId)
+      // Do not await an already-settled placeholder: that yield would reopen a check-then-act
+      // window in which a terminal callback can register a new gate after this check.
+      for (;;) {
+        const terminalDispatch = this.whenTerminalDispatchSettled(req.topicId)
+        if (!terminalDispatch) break
+        await terminalDispatch
+      }
 
       // Write-quiesce admission gate, re-checked under the lock so a pause landing while this
       // dispatch waited on the mutex still rejects it — the gate must sit before `prepareDispatch`
@@ -886,6 +892,8 @@ export class AiStreamManager extends BaseService {
     uniqueModelId: UniqueModelId
     prompt?: string
     messages?: CherryUIMessage[]
+    /** Standing instructions supplied by the in-process caller. */
+    system?: string
     listener: StreamListener | StreamListener[]
     /** Per-request overrides (sampling/tools/providerOptions) for assistant-less callers (API gateway). */
     callOverrides?: CallOverrides
@@ -917,6 +925,7 @@ export class AiStreamManager extends BaseService {
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
       messages,
+      system: input.system,
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,
       reasoningEffort: input.reasoningEffort,
@@ -1000,9 +1009,9 @@ export class AiStreamManager extends BaseService {
     return (this.terminalPersistenceCounts.get(topicId) ?? 0) > 0
   }
 
-  /** Resolves once this topic's in-flight terminal dispatch (listeners + lifecycle) has settled. */
-  whenTerminalDispatchSettled(topicId: string): Promise<void> {
-    return this.terminalDispatchInFlight.get(topicId)?.settled ?? Promise.resolve()
+  /** Returns the in-flight terminal dispatch promise, if one exists. No promise means no yield is needed. */
+  whenTerminalDispatchSettled(topicId: string): Promise<void> | undefined {
+    return this.terminalDispatchInFlight.get(topicId)?.settled
   }
 
   /**

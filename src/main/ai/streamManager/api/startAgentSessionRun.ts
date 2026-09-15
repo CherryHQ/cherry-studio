@@ -40,7 +40,11 @@ export async function startAgentSessionRun(input: {
   await manager.withDispatchLock(topicId, async () => {
     // A cleanup listener of the previous turn may release this caller mid-dispatch; admitting now
     // would evict that stream before its terminal lifecycle ran (stale-generation guard skips it).
-    await manager.whenTerminalDispatchSettled(topicId)
+    for (;;) {
+      const terminalDispatch = manager.whenTerminalDispatchSettled(topicId)
+      if (!terminalDispatch) break
+      await terminalDispatch
+    }
 
     if (manager.isWriteQuiesced) {
       throw new Error(
@@ -98,6 +102,14 @@ export async function startAgentSessionRun(input: {
         return
       }
       throw error
+    }
+
+    // Preparation may yield while the previous turn enters terminal dispatch. Re-check at the
+    // synchronous handoff so send() cannot evict that stream before its terminal lifecycle settles.
+    for (;;) {
+      const terminalDispatch = manager.whenTerminalDispatchSettled(topicId)
+      if (!terminalDispatch) break
+      await terminalDispatch
     }
 
     manager.send({
