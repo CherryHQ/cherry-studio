@@ -27,6 +27,7 @@ const IDLE_DOCTOR_STATE: DoctorState = { status: 'idle' }
 interface UseDoctorControllerOptions {
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
+  readonly initialRunTier?: DoctorRunTier
   readonly onNavigate: (target: DoctorNavigateTarget) => void
   readonly onReportProblem?: (description: string) => void
 }
@@ -52,6 +53,7 @@ function fixRequestFor(
 export function useDoctorController({
   initialPanel,
   initialDescription,
+  initialRunTier,
   onNavigate,
   onReportProblem
 }: UseDoctorControllerOptions) {
@@ -66,6 +68,7 @@ export function useDoctorController({
     createDoctorSession
   )
   const [now, setNow] = useState(Date.now)
+  const [isAutoRunPending, setIsAutoRunPending] = useState(doctorState.status === 'idle')
   const autoRunRequestedRef = useRef(false)
 
   useEffect(() => {
@@ -85,13 +88,22 @@ export function useDoctorController({
   }, [doctorState])
 
   const viewModel = useMemo(() => buildDoctorViewModel(doctorState, now), [doctorState, now])
-
+  const confirmation = session.interaction
+  const evidenceConfirmationVisible =
+    confirmation.kind === 'confirm-evidence' &&
+    viewModel.status === 'completed' &&
+    viewModel.runId === confirmation.runId &&
+    viewModel.rows.some(
+      (row) =>
+        row.id === confirmation.checkId &&
+        (row.status === 'warn' || row.status === 'fail') &&
+        row.result?.evidence?.some((item) => item.dataClass === 'consent_required')
+    )
   useEffect(() => {
-    if (session.interaction.kind !== 'confirm-evidence' || session.interaction.runId === viewModel.runId) return
-    dispatch({ type: 'cancel-confirmation' })
-    toast.error(t('settings.doctor.messages.result_changed'))
-  }, [session.interaction, t, viewModel.runId])
-
+    if (session.interaction.kind === 'confirm-evidence' && !evidenceConfirmationVisible) {
+      dispatch({ type: 'cancel-confirmation' })
+    }
+  }, [evidenceConfirmationVisible, session.interaction])
   const isInteracting = session.interaction.kind !== 'idle'
   const isCloseBlocked =
     session.interaction.kind === 'fixing' ||
@@ -122,12 +134,21 @@ export function useDoctorController({
     if (!sharedCacheReady || autoRunRequestedRef.current) return
     if (doctorState.status === 'running') {
       autoRunRequestedRef.current = true
+      setIsAutoRunPending(false)
       return
     }
-    if (doctorState.status !== 'idle') return
+    if (initialRunTier) {
+      autoRunRequestedRef.current = true
+      void run(initialRunTier).finally(() => setIsAutoRunPending(false))
+      return
+    }
+    if (doctorState.status !== 'idle') {
+      setIsAutoRunPending(false)
+      return
+    }
     autoRunRequestedRef.current = true
-    void run('quick')
-  }, [doctorState.status, run, sharedCacheReady])
+    void run('quick').finally(() => setIsAutoRunPending(false))
+  }, [doctorState.status, initialRunTier, run, sharedCacheReady])
 
   const cancel = useCallback(async () => {
     if (!canCancelDoctorRun(doctorState)) return
@@ -168,9 +189,11 @@ export function useDoctorController({
         const result = await ipcApi.request('diagnostics.doctor.fix', request)
         switch (result.status) {
           case 'fixed':
+            dispatch({ type: 'mark-check-fixed', checkId: request.checkId })
             toast.success(t('settings.doctor.messages.fix_completed'))
             break
           case 'requires_relaunch':
+            dispatch({ type: 'mark-check-fixed', checkId: request.checkId })
             dispatch({ type: 'mark-relaunch-required' })
             toast.success(t('settings.doctor.messages.relaunch_required'))
             break
@@ -289,19 +312,14 @@ export function useDoctorController({
   )
 
   const confirmEvidence = useCallback(() => {
-    if (session.interaction.kind !== 'confirm-evidence') return
-    if (session.interaction.runId !== viewModel.runId) {
-      dispatch({ type: 'cancel-confirmation' })
-      toast.error(t('settings.doctor.messages.result_changed'))
-      return
-    }
+    if (session.interaction.kind !== 'confirm-evidence' || !evidenceConfirmationVisible) return
     dispatch({
       type: 'reveal-evidence',
       runId: session.interaction.runId,
       checkId: session.interaction.checkId
     })
     dispatch({ type: 'finish-interaction', kind: 'confirm-evidence' })
-  }, [session.interaction, t, viewModel.runId])
+  }, [evidenceConfirmationVisible, session.interaction])
 
   const requestEvidence = useCallback(
     (checkId: DoctorCheckId) => {
@@ -329,6 +347,7 @@ export function useDoctorController({
     cancelConfirmation: () => dispatch({ type: 'cancel-confirmation' }),
     confirmEvidence,
     executeAction,
+    isAutoRunPending,
     isInteracting,
     isCloseBlocked,
     openLogsPath,

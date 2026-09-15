@@ -93,6 +93,29 @@ function completedDoctorState(): DoctorState {
   }
 }
 
+function completedWithSensitiveEvidence(): Extract<DoctorState, { status: 'completed' }> {
+  const state = completedDoctorState()
+  if (state.status !== 'completed') throw new Error('Expected a completed Doctor state')
+  return {
+    ...state,
+    report: {
+      ...state.report,
+      results: [
+        {
+          id: 'runtime-claude-login',
+          status: 'warn',
+          durationMs: 1,
+          attribution: 'user-fixable',
+          detail: { variant: 'not_logged_in' },
+          evidence: [{ key: 'request-body', value: 'private', dataClass: 'consent_required' }],
+          actions: []
+        }
+      ],
+      summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
+    }
+  }
+}
+
 describe('useDoctorController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -163,6 +186,7 @@ describe('useDoctorController', () => {
       runId: 'shared-live',
       tier: 'live',
       startedAt: new Date().toISOString(),
+      activeCheckIds: [],
       results: []
     }
 
@@ -175,6 +199,32 @@ describe('useDoctorController', () => {
     rerender()
     await act(async () => {})
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
+  })
+
+  it('starts one full check when handed an existing basic report', async () => {
+    mocks.doctorState = completedDoctorState()
+
+    const { rerender } = renderHook(() =>
+      useDoctorController({ initialPanel: 'checks', initialRunTier: 'live', onNavigate: vi.fn() })
+    )
+
+    await waitFor(() =>
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toEqual([
+        ['diagnostics.doctor.run', { tier: 'live' }]
+      ])
+    )
+    rerender()
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
+  })
+
+  it('starts only the requested full check when no prior report exists', async () => {
+    renderHook(() => useDoctorController({ initialPanel: 'checks', initialRunTier: 'live', onNavigate: vi.fn() }))
+
+    await waitFor(() =>
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toEqual([
+        ['diagnostics.doctor.run', { tier: 'live' }]
+      ])
+    )
   })
 
   it('switches a report action to the report panel without copying Doctor results into the draft', async () => {
@@ -213,8 +263,8 @@ describe('useDoctorController', () => {
     expect(result.current.session.activePanel).toBe('checks')
   })
 
-  it('discards consent confirmation when a replacement report arrives', () => {
-    mocks.doctorState = completedDoctorState()
+  it('releases evidence confirmation when another window replaces the run and clears the finding', () => {
+    mocks.doctorState = completedWithSensitiveEvidence()
     const { rerender, result } = renderHook(() =>
       useDoctorController({
         initialPanel: 'checks',
@@ -235,15 +285,60 @@ describe('useDoctorController', () => {
     expect(result.current.session.evidenceGrant).toBeUndefined()
 
     act(() => result.current.requestEvidence('runtime-claude-login'))
-    const nextState = completedDoctorState()
-    if (nextState.status !== 'completed') throw new Error('Expected a completed Doctor state')
-    mocks.doctorState = { ...nextState, report: { ...nextState.report, runId: 'replacement-run' } }
+    mocks.doctorState = {
+      status: 'running',
+      runId: 'replacement-run',
+      tier: 'quick',
+      startedAt: new Date().toISOString(),
+      activeCheckIds: [],
+      results: []
+    }
     rerender()
     act(() => result.current.confirmEvidence())
 
     expect(result.current.session.interaction).toEqual({ kind: 'idle' })
     expect(result.current.session.evidenceGrant).toBeUndefined()
     expect(result.current.viewModel.runId).toBe('replacement-run')
+    expect(result.current.canChangePanel).toBe(true)
+    act(() => result.current.setPanel('export'))
+    expect(result.current.session.activePanel).toBe('export')
+
+    const settled = completedDoctorState()
+    if (settled.status !== 'completed') throw new Error('Expected a completed Doctor state')
+    mocks.doctorState = {
+      ...settled,
+      report: {
+        ...settled.report,
+        runId: 'replacement-run',
+        results: [{ id: 'runtime-claude-login', status: 'pass', durationMs: 1 }],
+        summary: { pass: 1, warn: 0, fail: 0, skip: 0, error: 0 }
+      }
+    }
+    rerender()
+    expect(result.current.viewModel.rows[0]).toMatchObject({ id: 'runtime-claude-login', status: 'pass' })
+    expect(result.current.session.interaction).toEqual({ kind: 'idle' })
+    expect(result.current.canChangePanel).toBe(true)
+  })
+
+  it('releases evidence confirmation when the check passes in the shared report', () => {
+    const state = completedWithSensitiveEvidence()
+    mocks.doctorState = state
+    const { rerender, result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+
+    act(() => result.current.requestEvidence('runtime-claude-login'))
+    expect(result.current.session.interaction.kind).toBe('confirm-evidence')
+    mocks.doctorState = {
+      ...state,
+      report: {
+        ...state.report,
+        results: [{ id: 'runtime-claude-login', status: 'pass', durationMs: 1 }],
+        summary: { pass: 1, warn: 0, fail: 0, skip: 0, error: 0 }
+      }
+    }
+    rerender()
+
+    expect(result.current.session.interaction).toEqual({ kind: 'idle' })
+    expect(result.current.canChangePanel).toBe(true)
   })
 
   it('keeps the shared Doctor report authoritative until the cache publishes a fixed result', async () => {
@@ -286,6 +381,7 @@ describe('useDoctorController', () => {
       checkId: 'permission-screen-capture',
       fixId: 'request'
     })
+    expect(result.current.session.fixedCheckIds).toEqual(['permission-screen-capture'])
     expect(result.current.viewModel.rows[0]).toMatchObject({ id: 'permission-screen-capture', status: 'warn' })
     expect(mocks.toastSuccess).toHaveBeenCalledWith('settings.doctor.messages.fix_completed')
 
@@ -302,12 +398,39 @@ describe('useDoctorController', () => {
     expect(result.current.viewModel.rows[0]).toMatchObject({ id: 'permission-screen-capture', status: 'pass' })
   })
 
+  it.each(['failed', 'stale'] as const)('does not count a %s fix response as repaired', async (status) => {
+    const completed = completedDoctorState()
+    if (completed.status !== 'completed') throw new Error('Expected a completed Doctor state')
+    mocks.doctorState = completed
+    mocks.request.mockResolvedValue(
+      status === 'failed'
+        ? {
+            status,
+            message: 'repair failed',
+            result: { id: 'config-boot-config-valid', status: 'fail', durationMs: 1 }
+          }
+        : {
+            status,
+            reason: 'finding_changed',
+            result: { id: 'config-boot-config-valid', status: 'pass', durationMs: 1 }
+          }
+    )
+    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+
+    await act(async () =>
+      result.current.executeAction('config-boot-config-valid', { kind: 'fix', fixId: 'repair' }, completed.report.runId)
+    )
+
+    expect(result.current.session.fixedCheckIds).toEqual([])
+  })
+
   it.each(['quick', 'live'] as const)('cancels an active %s run', async (tier) => {
     mocks.doctorState = {
       status: 'running',
       runId: 'run-1',
       tier,
       startedAt: '2026-09-04T08:59:00.000Z',
+      activeCheckIds: [],
       results: []
     }
     const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))

@@ -6,6 +6,7 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
+import { useDoctorController } from '@renderer/hooks/doctor'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -44,6 +45,7 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 import Scrollbar from '../Scrollbar'
 import { buildDiagnosticReportDescription, type DiagnosticReportConfig } from './diagnosticReportDescription'
 import { ErrorBasicInformation } from './ErrorBasicInformation'
+import { ErrorDiagnosisPanel } from './ErrorDiagnosisPanel'
 import { ErrorDiagnosticsPanel } from './ErrorDiagnosticsPanel'
 
 interface ErrorDetailContentProps {
@@ -53,6 +55,7 @@ interface ErrorDetailContentProps {
   blockId?: string
   onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
   onOpenDiagnosticReport?: (description: string) => void
+  onOpenFullCheck?: () => void
   cachedDiagnosis?: DiagnosisResult
   onDoctorNavigate?: (target: DoctorNavigateTarget) => void
 }
@@ -61,6 +64,8 @@ interface ErrorDetailContentInternalProps extends ErrorDetailContentProps {
   readonly doctorCloseBlocked?: boolean
   readonly onDoctorCloseBlockedChange?: (blocked: boolean) => void
 }
+
+const ignoreDoctorNavigation = () => undefined
 
 const truncateLargeData = (
   data: string,
@@ -510,10 +515,8 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   error,
   diagnosisContext,
   diagnosticReport,
-  blockId,
-  onDiagnosisComplete,
   onOpenDiagnosticReport,
-  cachedDiagnosis,
+  onOpenFullCheck,
   onDoctorNavigate,
   doctorCloseBlocked = false,
   onDoctorCloseBlockedChange
@@ -521,6 +524,20 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   const { t } = useTranslation()
   const [detailsOpen, setDetailsOpen] = useState(false)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
+  const doctorController = useDoctorController({
+    initialPanel: 'checks',
+    onNavigate: onDoctorNavigate ?? ignoreDoctorNavigation,
+    onReportProblem: onOpenDiagnosticReport
+  })
+
+  useEffect(() => {
+    onDoctorCloseBlockedChange?.(doctorController.isCloseBlocked)
+  }, [doctorController.isCloseBlocked, onDoctorCloseBlockedChange])
+
+  const isDoctorPending =
+    doctorController.isAutoRunPending ||
+    doctorController.viewModel.status === 'running' ||
+    doctorController.session.interaction.kind === 'run'
 
   const copyErrorDetails = useCallback(() => {
     if (!error) {
@@ -548,11 +565,8 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
         error,
         labels: {
           errorMessage: t('error.message'),
-          errorName: t('error.name'),
           location: t('error.diagnostic_report.location'),
-          model: t('error.modelId'),
-          provider: t('error.provider'),
-          statusCode: t('error.statusCode')
+          model: t('error.modelId')
         },
         location: diagnosticReport.location
       })
@@ -586,6 +600,11 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       </DialogHeader>
       <ErrorDetailContainer>
         <div className="space-y-4">
+          <ErrorDiagnosisPanel
+            doctorController={doctorController}
+            onRunFullCheck={onOpenFullCheck ?? (() => void doctorController.run('live'))}
+          />
+          <ErrorDiagnosticsPanel controller={doctorController} isPending={isDoctorPending} />
           <ErrorBasicInformation
             viewDetailsButtonRef={viewDetailsButtonRef}
             error={error}
@@ -593,16 +612,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
             diagnosticReport={diagnosticReport}
             onCopy={copyErrorDetails}
             onViewDetails={showDetails}
-          />
-          <ErrorDiagnosticsPanel
-            blockId={blockId}
-            cachedDiagnosis={cachedDiagnosis}
-            diagnosisContext={diagnosisContext}
-            error={error}
-            onCloseBlockedChange={onDoctorCloseBlockedChange}
-            onDiagnosisComplete={onDiagnosisComplete}
-            onNavigate={onDoctorNavigate}
-            onReportProblem={onOpenDiagnosticReport}
           />
         </div>
       </ErrorDetailContainer>
@@ -651,7 +660,10 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   )
 }
 
-type ErrorDetailPopupParams = Omit<ErrorDetailContentProps, 'onDoctorNavigate' | 'onOpenDiagnosticReport'>
+type ErrorDetailPopupParams = Omit<
+  ErrorDetailContentProps,
+  'onDoctorNavigate' | 'onOpenDiagnosticReport' | 'onOpenFullCheck'
+>
 
 const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps & PopupInjectedProps<void>) => {
   const [doctorCloseBlocked, setDoctorCloseBlocked] = useState(false)
@@ -695,6 +707,10 @@ export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
   void ErrorDetailPopup.show({
     ...params,
     onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
+    onOpenFullCheck: () =>
+      finishHandoff(() => {
+        void DoctorPopup.show({ initialPanel: 'checks', initialRunTier: 'live' })
+      }),
     onOpenDiagnosticReport: (initialDescription) =>
       finishHandoff(() => {
         void DoctorPopup.show({ initialPanel: 'report', initialDescription })
