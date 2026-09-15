@@ -53,6 +53,11 @@ describe('findBareFilePathMatches', () => {
     expect(paths('Generated /tmp/report.pdf README.md', 'posix')).toEqual(['/tmp/report.pdf'])
   })
 
+  it('does not join an extensionless directory with a separate filename-like token', () => {
+    expect(paths('Open /Users/lee/Desktop README.md', 'posix')).toEqual([])
+    expect(paths(String.raw`Open C:\Users\lee\Desktop README.md`, 'windows')).toEqual([])
+  })
+
   it('does not emit a valid prefix for an unquoted directory path with spaces', () => {
     expect(paths('Open /Users/lee/My Project now', 'posix')).toEqual([])
   })

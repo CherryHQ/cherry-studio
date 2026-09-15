@@ -290,6 +290,10 @@ function looksLikeUnquotedPathContinuation(value: string, end: number): boolean 
   const nextToken = trimUnmatchedClosingBrackets(value.slice(nextStart, nextEnd))
   if (startsPath(value, nextStart, 'posix') || startsPath(value, nextStart, 'windows')) return false
   if (/[，。；：！？（）【】「」“”‘’]/u.test(nextToken)) return false
+  // Unquoted paths with spaces are only unambiguous when the next token still
+  // contains a directory separator. Otherwise ordinary prose such as
+  // `/Users/lee/Desktop README.md` would be joined into one clickable target.
+  if (!nextToken.includes('/')) return false
   return /\.[\p{L}\p{N}][\p{L}\p{N}_+-]*$/u.test(nextToken)
 }
 
@@ -302,6 +306,7 @@ function looksLikeUnquotedWindowsPathContinuation(value: string, end: number): b
   const nextToken = trimUnmatchedClosingBrackets(value.slice(nextStart, nextEnd))
   if (startsPath(value, nextStart, 'posix') || startsPath(value, nextStart, 'windows')) return false
   if (/[，。；：！？（）【】「」“”‘’]/u.test(nextToken)) return false
+  if (!/[\\/]/u.test(nextToken)) return false
   return /\.[\p{L}\p{N}][\p{L}\p{N}_+-]*$/u.test(nextToken)
 }
 
