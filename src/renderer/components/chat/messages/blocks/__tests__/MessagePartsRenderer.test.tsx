@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,6 +17,7 @@ const mockReadText = vi.hoisted(() => vi.fn())
 const mockUsePlaceholderElapsedMs = vi.hoisted(() => vi.fn(() => 1000))
 const mockToolBlockGroupRender = vi.hoisted(() => vi.fn())
 const mockMessageToolsRender = vi.hoisted(() => vi.fn())
+const mockIpcRequest = vi.hoisted(() => vi.fn())
 
 type MainTextBlockModule = {
   buildUserMessagePreview: (content: string) => { content: string; isTruncated: boolean }
@@ -27,6 +28,7 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false, vi.fn()]) }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mockIpcRequest } }))
 
 // Mocked as a real external store, so a renderer that re-subscribes to topic
 // stream state re-renders from this source alone — the #19716 fan-out.
@@ -389,6 +391,7 @@ vi.mock('../PlaceholderBlock', () => ({
   usePlaceholderElapsedMs: mockUsePlaceholderElapsedMs
 }))
 
+import { MessageImageUrlsProvider } from '../MessageImageUrlsContext'
 import MessagePartsRenderer from '../MessagePartsRenderer'
 
 const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem => ({
@@ -516,6 +519,8 @@ function answeredAskUserQuestionPart(toolCallId: string, state = 'output-availab
 
 describe('MessagePartsRenderer', () => {
   beforeEach(() => {
+    mockIpcRequest.mockReset()
+    mockIpcRequest.mockResolvedValue({})
     activityStore = new KeyedMessageActivityStore()
     topicStreamStore.setStatus(undefined)
     mockThinkingBlockMounted.mockClear()
@@ -1177,6 +1182,29 @@ describe('MessagePartsRenderer', () => {
       )
 
       expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+    })
+
+    it('renders a managed image from its current file entry path', async () => {
+      mockIpcRequest.mockResolvedValue({ 'entry-photo': '/current/Data/Files/entry-photo.png' })
+
+      const parts = [
+        {
+          type: 'file',
+          url: 'file:///previous-machine/Data/Files/entry-photo.png',
+          mediaType: 'image/png',
+          filename: 'photo.png',
+          providerMetadata: { cherry: { fileEntryId: 'entry-photo' } }
+        } as unknown as CherryMessagePart
+      ]
+      render(<MessageImageUrlsProvider parts={parts}>{renderPartsTree(parts)}</MessageImageUrlsProvider>)
+
+      await waitFor(() =>
+        expect(screen.getByTestId('mock-image-block')).toHaveAttribute(
+          'data-images',
+          '["file:///current/Data/Files/entry-photo.png"]'
+        )
+      )
+      expect(mockIpcRequest).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: ['entry-photo'] })
     })
 
     it('renders non-image file attachments', () => {
