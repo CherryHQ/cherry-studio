@@ -1,7 +1,8 @@
+import { app } from 'electron'
+
 import { application } from '@application'
 import { loadNativeCaptureBackend } from '@main/services/screenshot'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import { app } from 'electron'
 
 import { defineDoctorCheck } from '../types'
 

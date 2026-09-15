@@ -1,8 +1,7 @@
-import type * as UtilModule from 'node:util'
-
 import { execFile, execFileSync, spawn } from 'child_process'
 import { EventEmitter } from 'events'
 import fs from 'fs'
+import type * as UtilModule from 'node:util'
 import path from 'path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'

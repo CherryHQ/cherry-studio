@@ -1,6 +1,7 @@
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 const services = vi.hoisted(() => ({
   getByProviderId: vi.fn(),

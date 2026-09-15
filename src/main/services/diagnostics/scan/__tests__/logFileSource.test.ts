@@ -2,9 +2,10 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { openReadableFileSnapshot } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readRawLines } from '../../sourceCollector'
 import type { DiagnosticTimeRange } from '../../types'

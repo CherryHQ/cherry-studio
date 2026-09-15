@@ -1,7 +1,6 @@
-import type * as UtilModule from 'node:util'
-
 import { execFile, execFileSync, spawn } from 'child_process'
 import fs from 'fs'
+import type * as UtilModule from 'node:util'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import which from 'which'
