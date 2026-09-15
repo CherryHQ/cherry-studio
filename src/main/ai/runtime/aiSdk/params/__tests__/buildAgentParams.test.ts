@@ -1249,6 +1249,42 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
   })
 
+  it('omits reasoning.summary for a Responses endpoint without explicit support', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'newapi', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'new-api',
+      presetProviderId: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'newapi' } }
+    })
+    const model = makeModel({
+      id: 'new-api::gpt-5.6-sol',
+      providerId: 'new-api',
+      apiModelId: 'gpt-5.6-sol',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
+    })
+    const assistant = makeAssistant({ settings: { reasoning_effort: 'high', reasoning_summary: 'detailed' } })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.options.providerOptions?.openai).toMatchObject({ reasoningEffort: 'high' })
+    expect(result.options.providerOptions?.openai).not.toHaveProperty('reasoningSummary')
+  })
+
   const makeOffCapableSetup = () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {
