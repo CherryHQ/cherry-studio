@@ -215,6 +215,18 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
     })
 
+    it('rejects a prompt that only trims to the heartbeat sentinel', () => {
+      // The sweep's tolerant identity reads a padded sentinel as a heartbeat
+      // row, so an ordinary task carrying one would lose its workspace.
+      expect(() => service.createTask(AGENT_ID, { ...form, prompt: '  __heartbeat__  ' })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+      const task = service.createTask(AGENT_ID, form)
+      expect(() => service.updateTask(AGENT_ID, task.id, { prompt: ' __heartbeat__ ' })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+    })
+
     it('rejects a foreign channel before any write', () => {
       seedAgent(OTHER_AGENT_ID)
       seedChannel('foreign-channel', OTHER_AGENT_ID)
@@ -806,6 +818,44 @@ describe('AgentJobsService', () => {
       expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
 
       expect(dbh.db.select().from(agentWorkspaceTable).all()).toEqual([])
+    })
+
+    it('keeps the workspace of an ordinary task whose padded-sentinel prompt sits outside the reserved names', async () => {
+      // createTask blocks new padded-sentinel prompts; a row from before that
+      // guard (or a manual write) must not have its user workspace swept.
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-task-padded',
+          name: 'My task workspace',
+          path: '/tmp/task-ws-padded',
+          type: 'user',
+          orderKey: 'ws-task-padded'
+        })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: 'daily-report',
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '  __heartbeat__  ',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-task-padded' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['ws-task-padded'])
     })
 
     it('keeps a heartbeat workspace row that still has a session bound (no cascade)', async () => {

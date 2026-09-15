@@ -93,6 +93,14 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
  * Idempotent: an existing file is never touched (the `wx` flag fails with
  * EEXIST), so user checklists survive re-runs.
  */
+/** Flag a non-regular occupant at the heartbeat path — a symlinked heartbeat.md would make every tick read outside managed storage. */
+async function warnIfNonRegularOccupant(resolved: string): Promise<void> {
+  const stat = await lstat(resolved).catch(() => null)
+  if (stat && (!stat.isFile() || stat.isSymbolicLink())) {
+    logger.warn(`Heartbeat path is not a regular file; not provisioning: ${resolved}`)
+  }
+}
+
 export async function ensureHeartbeatFile(workspacePath: string): Promise<void> {
   const resolved = path.resolve(workspacePath, HEARTBEAT_FILENAME)
   try {
@@ -102,12 +110,8 @@ export async function ensureHeartbeatFile(workspacePath: string): Promise<void> 
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
       // The exclusive create never follows a symlink, so something is there.
-      // Leave user content alone, but flag a non-regular occupant (a symlinked
-      // heartbeat.md would make every tick read outside managed storage).
-      const stat = await lstat(resolved).catch(() => null)
-      if (stat && (!stat.isFile() || stat.isSymbolicLink())) {
-        logger.warn(`Heartbeat path is not a regular file; not provisioning: ${resolved}`)
-      }
+      // Leave user content alone, but flag a non-regular occupant.
+      await warnIfNonRegularOccupant(resolved)
       return
     }
     // Missing workspace directory (migrated/corrupted install or manual deletion): recreate and retry once.
@@ -122,7 +126,12 @@ export async function ensureHeartbeatFile(workspacePath: string): Promise<void> 
     await writeTemplate(resolved)
     logger.info(`Provisioned heartbeat file after recreating workspace: ${resolved}`)
   } catch (retryError) {
-    if ((retryError as NodeJS.ErrnoException).code === 'EEXIST') return
+    if ((retryError as NodeJS.ErrnoException).code === 'EEXIST') {
+      // Same non-regular check as the first attempt: an occupant that appeared
+      // during the recovery window must not be silently accepted.
+      await warnIfNonRegularOccupant(resolved)
+      return
+    }
     if ((retryError as NodeJS.ErrnoException).code !== 'ENOENT') throw retryError
     // A concurrent remover deleted the directory between mkdir and open; a
     // missing file reads as empty, so skip rather than abort the sync.

@@ -347,11 +347,12 @@ export class AgentJobsService extends BaseService {
     const heartbeatWorkspaceIds = new Set<string>()
     for (const schedule of schedules) {
       const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
-      // Trim tolerance mirrors the repair-side fallback identity, so a
-      // whitespace-corrupted sentinel row cannot orphan its workspace here.
+      // Trim tolerance mirrors the repair fallback, but only under the reserved
+      // name shapes — a padded-sentinel user task must keep its workspace.
       if (
         template?.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL &&
-        template.workspace.type === AGENT_WORKSPACE_TYPE.USER
+        template.workspace.type === AGENT_WORKSPACE_TYPE.USER &&
+        (schedule.name === `heartbeat_${agentId}` || schedule.name?.startsWith(`heartbeat_${agentId}__`))
       ) {
         heartbeatWorkspaceIds.add(template.workspace.workspaceId)
       }
@@ -456,13 +457,15 @@ export class AgentJobsService extends BaseService {
 
   /**
    * The heartbeat sentinel is what identifies a heartbeat run, so a user task
-   * must never carry it: `AgentTaskService` would hide the task and
-   * `runAgentTask` would run `heartbeat.md` under the heartbeat toggle instead
-   * of the task's own prompt. Guarded here rather than in `agentTaskFormSchema`
-   * because MCP's `cherryAutonomyTools` calls this service directly.
+   * must never carry it — not even padded with whitespace, which the deletion
+   * sweep's tolerant identity would read as a heartbeat row: `AgentTaskService`
+   * would hide the task and `runAgentTask` would run `heartbeat.md` under the
+   * heartbeat toggle instead of the task's own prompt. Guarded here rather than
+   * in `agentTaskFormSchema` because MCP's `cherryAutonomyTools` calls this
+   * service directly.
    */
   private assertPromptNotReserved(prompt: string | undefined): void {
-    if (prompt === HEARTBEAT_PROMPT_SENTINEL) {
+    if (prompt?.trim() === HEARTBEAT_PROMPT_SENTINEL) {
       throw new Error(`Prompt is reserved for the agent heartbeat: ${HEARTBEAT_PROMPT_SENTINEL}`)
     }
   }

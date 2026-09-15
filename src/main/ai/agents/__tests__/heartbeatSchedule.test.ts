@@ -649,6 +649,32 @@ describe('heartbeatSchedule', () => {
     rmSync(outside, { recursive: true, force: true })
   })
 
+  it('pauses a previously-armed row while the agent data path is untrusted, and re-arms after recovery', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    expect(heartbeatRows(AGENT_ID)[0]?.enabled).toBe(true)
+
+    const outside = mkdtempSync(path.join(tmpdir(), 'cs-test-hb-untrusted-'))
+    rmSync(path.join(agentsRoot, AGENT_ID), { recursive: true, force: true })
+    symlinkSync(outside, path.join(agentsRoot, AGENT_ID))
+    try {
+      // A plain pause (no breaker marker): the row must not keep firing
+      // completed skip jobs against the untrusted path, and the next
+      // successful sync re-arms it without a toggle reset.
+      const outcome = await syncHeartbeatSchedule(AGENT_ID)
+      expect(outcome).toBe('skipped-untrusted-path')
+      expect(heartbeatRows(AGENT_ID)[0]?.enabled).toBe(false)
+    } finally {
+      rmSync(path.join(agentsRoot, AGENT_ID), { force: true })
+    }
+    mkdirSync(path.join(agentsRoot, AGENT_ID), { recursive: true })
+
+    const healed = await syncHeartbeatSchedule(AGENT_ID)
+    expect(healed).toBe('updated')
+    expect(heartbeatRows(AGENT_ID)[0]?.enabled).toBe(true)
+    rmSync(outside, { recursive: true, force: true })
+  })
+
   it('pauses a previously-armed row when the runtime loses the heartbeat capability', async () => {
     seedAgent(AGENT_ID)
     await syncHeartbeatSchedule(AGENT_ID)

@@ -293,7 +293,10 @@ async function runSync(
     await assertAgentStoragePath(agentsDataRoot, workspacePath)
   } catch (error) {
     logger.warn('Agent data path failed the storage check; heartbeat not armed', { agentId, workspacePath, error })
-    return 'skipped-untrusted-path'
+    // Pause like the other skip branches: a still-enabled row would keep
+    // firing completed skip jobs until a later successful sync re-arms it.
+    touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: false }))
+    return finalize('skipped-untrusted-path')
   }
   // Workspace row before the file: if this throws (a SYSTEM row owns the
   // path), no orphaned heartbeat.md is left behind to wedge future syncs.
@@ -303,6 +306,9 @@ async function runSync(
   createdWorkspaceId = workspaceCreated ? workspace.id : null
   try {
     await ensureHeartbeatFile(workspacePath)
+    // Re-check inside the provisioning window: mkdir follows ancestor links,
+    // so a directory swapped in after the entry check must not arm a row.
+    await assertAgentStoragePath(agentsDataRoot, workspacePath)
     const trigger: Trigger = { kind: 'interval', ms: intervalMinutes * 60_000 }
     const jobInputTemplate: HeartbeatJobInputTemplate = {
       agentId,
