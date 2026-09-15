@@ -435,6 +435,23 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       }
     })
 
+    it('denies the UI-backed draft tool on headless Assistant turns', async () => {
+      await expect(
+        evaluate(
+          makeCtx({
+            builtinRole: 'assistant',
+            toolName,
+            permissionMode: 'default',
+            interaction: HEADLESS
+          })
+        )
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'support-diagnostic-draft' })
+    })
+
+    it('leaves the draft tool auto-approved on interactive Assistant turns', async () => {
+      await expect(evaluate(makeCtx({ builtinRole: 'assistant', toolName }))).resolves.toBeUndefined()
+    })
+
     it('leaves the draft tool auto-approved on interactive Support turns', async () => {
       await expect(evaluate(makeCtx({ builtinRole: 'support', toolName }))).resolves.toBeUndefined()
     })

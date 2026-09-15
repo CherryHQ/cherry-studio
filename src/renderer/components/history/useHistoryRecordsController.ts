@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { HistoryRecordDescriptor } from './historyRecordsDescriptor'
 import { ALL_SOURCE_ID, findAdjacentHistoryRecordAfterBulkDelete } from './historyRecordsHelpers'
@@ -29,10 +29,11 @@ export interface HistoryRecordsController<T> {
   selectAllState: SelectAllState
   selectionDisabled: boolean
   isSelected: (id: string) => boolean
-  toggleSelection: (id: string, checked: boolean) => void
+  toggleSelection: (id: string, checked: boolean, selectRange?: boolean) => void
   toggleSelectAll: (checked: boolean) => void
   handleBulkDelete: () => Promise<void>
   handleBulkMove: (targetId: string) => Promise<void>
+  handleTogglePin: (item: T) => Promise<void>
 }
 
 /**
@@ -58,13 +59,15 @@ export function useHistoryRecordsController<T>({
     sources,
     onBulkDelete,
     onActiveRecordChange,
-    onBulkMove
+    onBulkMove,
+    onTogglePin
   } = descriptor
 
   const [searchText, setSearchText] = useState('')
   const [selectedSourceId, setSelectedSourceId] = useState<string>(ALL_SOURCE_ID)
   const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const selectionAnchorIdRef = useRef<string | null>(null)
 
   const visibleItems = useMemo(() => {
     const base = selectedSourceId === ALL_SOURCE_ID ? timeSorted : sourceSorted
@@ -121,20 +124,49 @@ export function useHistoryRecordsController<T>({
 
   const isSelected = useCallback((id: string) => selectedIdSet.has(id), [selectedIdSet])
 
+  useEffect(() => {
+    if (selectedIds.length === 0 || !selectableIds.includes(selectionAnchorIdRef.current ?? '')) {
+      selectionAnchorIdRef.current = null
+    }
+  }, [selectableIds, selectedIds])
+
   const toggleSelection = useCallback(
-    (id: string, checked: boolean) => {
+    (id: string, checked: boolean, selectRange = false) => {
       if (checked && isPinned(id)) return
 
-      setSelectedIds((ids) =>
-        checked ? (ids.includes(id) ? ids : [...ids, id]) : ids.filter((current) => current !== id)
-      )
+      const anchorIndex = selectableIds.indexOf(selectionAnchorIdRef.current ?? '')
+      const targetIndex = selectableIds.indexOf(id)
+      const isRangeSelection = selectRange && anchorIndex !== -1 && targetIndex !== -1
+      const changedIds = isRangeSelection
+        ? selectableIds.slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1)
+        : [id]
+      if (!isRangeSelection) selectionAnchorIdRef.current = id
+
+      setSelectedIds((ids) => {
+        const next = new Set(ids)
+        for (const changedId of changedIds) {
+          if (checked) next.add(changedId)
+          else next.delete(changedId)
+        }
+        return [...next]
+      })
     },
-    [isPinned]
+    [isPinned, selectableIds]
   )
 
   const toggleSelectAll = useCallback(
     (checked: boolean) => setSelectedIds(checked ? selectableIds : []),
     [selectableIds]
+  )
+
+  const handleTogglePin = useCallback(
+    async (item: T) => {
+      const result = await onTogglePin(item)
+      if (result !== false) {
+        setSelectedIds((ids) => ids.filter((id) => id !== getId(item)))
+      }
+    },
+    [getId, onTogglePin]
   )
 
   const handleBulkDelete = useCallback(async () => {
@@ -184,6 +216,7 @@ export function useHistoryRecordsController<T>({
     toggleSelection,
     toggleSelectAll,
     handleBulkDelete,
-    handleBulkMove
+    handleBulkMove,
+    handleTogglePin
   }
 }
