@@ -20,7 +20,12 @@ const STATUS_TIMEOUT_MS = 10 * 1000
 export type CherryDiagnosticUploadFailureReason = DiagnosticUploadFailureReason
 
 export type CherryDiagnosticUploadResult =
-  | { status: 'uploaded'; reportId: string; processingStatus: DiagnosticProcessingStatus | null }
+  | {
+      status: 'uploaded'
+      reportId: string
+      processingStatus: DiagnosticProcessingStatus | null
+      submittedAt?: number
+    }
   | { status: 'rejected'; reason: CherryDiagnosticUploadFailureReason; fileSha256?: string }
   | { status: 'submission_unknown'; fileSha256: string }
 
@@ -124,7 +129,13 @@ function uploadedResult(body: Buffer, fileSha256: string): CherryDiagnosticUploa
       return { fileSha256, status: 'submission_unknown' }
     }
     const parsedStatus = DiagnosticProcessingStatusSchema.safeParse(value.status)
-    return { reportId: value.id, processingStatus: parsedStatus.success ? parsedStatus.data : null, status: 'uploaded' }
+    const parsedCreatedAt = typeof value.created_at === 'string' ? Date.parse(value.created_at) : Number.NaN
+    return {
+      reportId: value.id,
+      processingStatus: parsedStatus.success ? parsedStatus.data : null,
+      ...(Number.isFinite(parsedCreatedAt) ? { submittedAt: parsedCreatedAt } : {}),
+      status: 'uploaded'
+    }
   } catch {
     return { fileSha256, status: 'submission_unknown' }
   }

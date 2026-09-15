@@ -16,9 +16,36 @@ export class DiagnosticReportService {
   }
 
   updateStatus(reportId: string, processingStatus: NonNullable<DiagnosticReportEntity['processingStatus']>): void {
+    const currentStatusRank = sql`
+      CASE ${diagnosticReportTable.processingStatus}
+        WHEN 'unprocessed' THEN 0
+        WHEN 'pending' THEN 1
+        WHEN 'investigating' THEN 2
+        WHEN 'resolved' THEN 3
+        WHEN 'closed' THEN 4
+      END
+    `
+    const incomingStatusRank = sql`
+      CASE ${processingStatus}
+        WHEN 'unprocessed' THEN 0
+        WHEN 'pending' THEN 1
+        WHEN 'investigating' THEN 2
+        WHEN 'resolved' THEN 3
+        WHEN 'closed' THEN 4
+      END
+    `
     const updated = this.db
       .update(diagnosticReportTable)
-      .set({ processingStatus, lastCheckedAt: Date.now() })
+      .set({
+        processingStatus: sql`
+          CASE
+            WHEN ${diagnosticReportTable.processingStatus} IS NULL OR ${incomingStatusRank} >= ${currentStatusRank}
+            THEN ${processingStatus}
+            ELSE ${diagnosticReportTable.processingStatus}
+          END
+        `,
+        lastCheckedAt: Date.now()
+      })
       .where(eq(diagnosticReportTable.reportId, reportId))
       .returning()
       .get()

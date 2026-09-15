@@ -42,4 +42,22 @@ describe('DiagnosticReportService', () => {
     expect(items[0]).toMatchObject({ reportId: 'known', submittedAt: 1, processingStatus: 'investigating' })
     expect(items[0].lastCheckedAt).toEqual(expect.any(Number))
   })
+
+  it('does not let a stale status lookup move history backwards', () => {
+    diagnosticReportService.record({
+      reportId: 'monotonic',
+      submittedAt: 1,
+      processingStatus: 'resolved',
+      lastCheckedAt: 1
+    })
+
+    diagnosticReportService.updateStatus('monotonic', 'pending')
+
+    const [afterStaleRefresh] = diagnosticReportService.list(1, 20).items
+    expect(afterStaleRefresh).toMatchObject({ reportId: 'monotonic', processingStatus: 'resolved' })
+    expect(afterStaleRefresh.lastCheckedAt).toBeGreaterThan(1)
+
+    diagnosticReportService.updateStatus('monotonic', 'closed')
+    expect(diagnosticReportService.list(1, 20).items[0].processingStatus).toBe('closed')
+  })
 })

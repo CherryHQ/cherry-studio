@@ -101,9 +101,15 @@ function submissionUnknownResult(): CherryDiagnosticUploadResult {
 
 function uploadedResult(
   reportId = REPORT_ID,
-  processingStatus: 'pending' | null = 'pending'
+  processingStatus: 'pending' | null = 'pending',
+  submittedAt: number | null = Date.parse(CREATED_AT)
 ): CherryDiagnosticUploadResult {
-  return { reportId, processingStatus, status: 'uploaded' }
+  return {
+    reportId,
+    processingStatus,
+    ...(submittedAt === null ? {} : { submittedAt }),
+    status: 'uploaded'
+  }
 }
 
 describe('CherryDiagnosticUploadClient', () => {
@@ -340,10 +346,10 @@ describe('CherryDiagnosticUploadClient', () => {
 
     await expect(
       client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
-    ).resolves.toEqual(uploadedResult(reportId, null))
+    ).resolves.toEqual(uploadedResult(reportId, null, null))
   })
 
-  it('accepts a 201 response with Go RFC3339Nano metadata and ignores other response metadata', async () => {
+  it('accepts a 201 response with Go RFC3339Nano metadata and preserves the server submission time', async () => {
     fetchMock.mockResolvedValueOnce(
       reportResponse(
         reportPayload({
@@ -357,7 +363,7 @@ describe('CherryDiagnosticUploadClient', () => {
 
     await expect(
       client.upload({ description: '', fileName: 'diagnostics.zip', filePath: AbsoluteFilePathSchema.parse(filePath) })
-    ).resolves.toEqual(uploadedResult(REPORT_ID, null))
+    ).resolves.toEqual(uploadedResult(REPORT_ID, null, Date.parse('2026-08-26T01:02:03.123Z')))
   })
 
   it('reads only a matching public processing status from the encoded report URL', async () => {

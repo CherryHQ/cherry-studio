@@ -492,13 +492,14 @@ export class DiagnosticBundleService {
 
   private recordSuccessfulUpload(
     reportId: string,
-    processingStatus: DiagnosticProcessingStatus | null
+    processingStatus: DiagnosticProcessingStatus | null,
+    submittedAt?: number
   ): Extract<UploadResult, { status: 'uploaded' }> {
     let historySaved = true
     try {
       diagnosticReportService.record({
         reportId,
-        submittedAt: Date.now(),
+        submittedAt: submittedAt ?? Date.now(),
         processingStatus,
         lastCheckedAt: processingStatus === null ? null : Date.now()
       })
@@ -620,7 +621,11 @@ export class DiagnosticBundleService {
         filePath: bundle.filePath
       })
       if (uploadResult.status === 'uploaded') {
-        return this.recordSuccessfulUpload(uploadResult.reportId, uploadResult.processingStatus ?? null)
+        return this.recordSuccessfulUpload(
+          uploadResult.reportId,
+          uploadResult.processingStatus ?? null,
+          uploadResult.submittedAt
+        )
       }
 
       const retainedBundle: RetainedUploadBundle = {
@@ -681,7 +686,11 @@ export class DiagnosticBundleService {
     if (uploadResult.status === 'uploaded') {
       this.retainedUploads.delete(input.bundleId)
       await this.cleanupTemporaryUpload(retained.bundle)
-      return this.recordSuccessfulUpload(uploadResult.reportId, uploadResult.processingStatus ?? null)
+      return this.recordSuccessfulUpload(
+        uploadResult.reportId,
+        uploadResult.processingStatus ?? null,
+        uploadResult.submittedAt
+      )
     }
     if (uploadResult.status === 'submission_unknown') {
       logger.warn('Diagnostic bundle retry result is unknown')
