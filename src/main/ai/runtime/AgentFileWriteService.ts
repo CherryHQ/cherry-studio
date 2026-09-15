@@ -92,7 +92,7 @@ export class AgentFileWriteService extends BaseService {
       const relative = path.relative(directory, lease.path)
       return !relative || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
     })
-
+  } 
   release(owner: object, id: string): void {
     if (this.exited.has(owner)) return
     const state = this.owner(owner)
