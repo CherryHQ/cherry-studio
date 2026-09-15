@@ -40,7 +40,7 @@ jobs:
       - name: Checkout workflow controller
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Set up pnpm
@@ -111,7 +111,7 @@ jobs:
       - name: Checkout workflow controller
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Checkout application under test
@@ -416,7 +416,7 @@ jobs:
       - name: Checkout workflow controller
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
       - name: Set up pnpm

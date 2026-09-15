@@ -83,6 +83,8 @@ pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase \
 
 The task selected when initializing the run determines which cases execute.
 For a Notes-only run, initialize with `--task notes`. Enumeration is read-only:
+set `CHERRY_TEST_RUN_DIR` to an absolute path, but no initialized run directory
+or running Electron process is required because `--list` does not execute fixtures.
 
 ```bash
 CHERRY_TEST_RUN_DIR=/tmp/cherry-regression-list pnpm test:e2e:regression --list
@@ -97,7 +99,7 @@ Run the focused script suite and enumerate Playwright cases:
 
 ```bash
 pnpm exec vitest run --project scripts scripts/cherry-regression-test
-CHERRY_TEST_RUN_DIR=/absolute/initialized/run-directory \
+CHERRY_TEST_RUN_DIR=/tmp/cherry-regression-list \
   pnpm test:e2e:regression --list
 pnpm typecheck:e2e
 pnpm test:lint
