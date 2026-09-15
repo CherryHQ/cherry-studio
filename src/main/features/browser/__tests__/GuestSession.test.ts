@@ -310,6 +310,30 @@ describe('GuestSession command lifetime', () => {
     expect(session.isAvailable()).toBe(true)
   })
 
+  it('rejects in-flight commands and releases listeners after native guest destruction', async () => {
+    const { session, mock } = setup()
+    const debuggerEvents = mock.debugger
+    const electronSession = mock.session
+    const observation = await session.observe()
+    const started = new Signal<void>()
+    debuggerEvents.sendCommand.mockImplementation(() => {
+      started.resolve()
+      return new Promise(() => undefined)
+    })
+    const command = session.send('Runtime.evaluate', { expression: '1' })
+    const rejected = expect(command).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    await started
+
+    expect(() => mock.close()).not.toThrow()
+    await rejected
+    expect(() => observation.dispose()).not.toThrow()
+    expect(() => session.dispose()).not.toThrow()
+    expect(debuggerEvents.listenerCount('message')).toBe(0)
+    expect(debuggerEvents.listenerCount('detach')).toBe(0)
+    expect(electronSession.listenerCount('will-download')).toBe(0)
+    expect(mock.listenerCount('destroyed')).toBe(0)
+  })
+
   it('aborts a pending command and removes its listeners on disposal', async () => {
     const { session, mock } = setup()
     await session.send('Runtime.enable')
