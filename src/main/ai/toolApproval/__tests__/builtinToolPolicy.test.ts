@@ -5,6 +5,7 @@ import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME } from '@main/ai/mcp/servers/
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
+import { getAutoApprovedBrowserTools } from '../browserToolPolicy'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
@@ -28,27 +29,22 @@ describe('builtinToolPolicy', () => {
     }
   })
 
-  it('resolves mounted browser policies from current preferences without auto-approving unknown tools', async () => {
+  it('authorizes known browser tools together and honors revocation without approving unknown tools', async () => {
     const preferences = application.get('PreferenceService')
     const mountedServers = new Set(['browser'])
     await preferences.set('app.browser.agent_control.enabled', true)
-    await preferences.set('app.browser.tool_permissions', { click: 'allow' })
-    expect(listBuiltinToolPolicies({ approval: 'auto', mountedServers }).map(toMcpRuntimeName)).toEqual([
-      'mcp__browser__click'
-    ])
-    await preferences.set('app.browser.tool_permissions', { click: 'ask' })
-    expect(listBuiltinToolPolicies({ approval: 'auto', mountedServers })).toEqual([])
-    expect(findBuiltinToolPolicy('mcp__browser__click', mountedServers)).toMatchObject({
-      approval: 'required',
-      bypassApproval: 'lift'
-    })
-    await preferences.set('app.browser.tool_permissions', { click: 'allow' })
+    for (const toolName of ['open', 'snapshot', 'click', 'scroll', 'execute']) {
+      expect(findBuiltinToolPolicy(`mcp__browser__${toolName}`, mountedServers)?.approval).toBe('auto')
+    }
+    expect(findBuiltinToolPolicy('mcp__browser__future_tool', mountedServers)).toBeUndefined()
+    expect(findBuiltinToolPolicy('mcp__browser__click', WITHOUT_HOST_TOOLS)).toBeUndefined()
+    expect(getAutoApprovedBrowserTools()).toEqual(
+      expect.arrayContaining(['mcp__browser__open', 'mcp__browser__click', 'mcp__browser__execute'])
+    )
+    expect(getAutoApprovedBrowserTools()).not.toContain('mcp__browser__*')
     await preferences.set('app.browser.agent_control.enabled', false)
     expect(findBuiltinToolPolicy('mcp__browser__click', mountedServers)?.approval).toBe('required')
-    expect(findBuiltinToolPolicy('mcp__browser__future_tool', mountedServers)).toBeUndefined()
-    expect(
-      listBuiltinToolPolicies({ mountedServers: WITHOUT_HOST_TOOLS }).some((entry) => entry.serverName === 'browser')
-    ).toBe(false)
+    expect(getAutoApprovedBrowserTools()).toEqual([])
   })
 
   it('stores approval behavior on each tool entry instead of parallel name lists', () => {

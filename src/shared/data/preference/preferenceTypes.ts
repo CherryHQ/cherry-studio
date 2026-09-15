@@ -1,6 +1,5 @@
 import * as z from 'zod'
 
-import type { BrowserToolName } from '@shared/ai/browserTools'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -34,8 +33,6 @@ export type PreferenceShortcutType = {
 
 /** Global menu presentation mode: native system menus or Cherry custom menus. */
 export type MenuPresentationMode = 'native' | 'cherry'
-
-export type BrowserToolPermissions = Partial<Record<BrowserToolName, 'ask' | 'allow' | 'deny'>>
 
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 

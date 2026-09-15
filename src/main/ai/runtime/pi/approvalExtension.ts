@@ -139,7 +139,7 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     }
 
     const mode = ctx.getPermissionMode() ?? 'default'
-    const approvalRequired = browserPermission === 'ask' || ctx.approvalRequiredTools.has(toolName)
+    const approvalRequired = ctx.approvalRequiredTools.has(toolName)
     const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
 
     // (3)/(4) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
