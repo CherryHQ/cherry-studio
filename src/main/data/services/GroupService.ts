@@ -21,14 +21,16 @@ import { and, asc, eq } from 'drizzle-orm'
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
+import { assistantTable } from '@data/db/schemas/assistant'
 import { groupTable } from '@data/db/schemas/group'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateGroupDto, UpdateGroupDto } from '@shared/data/api/schemas/groups'
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { CollectionGetPaths, DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Group } from '@shared/data/types/group'
 
@@ -38,6 +40,47 @@ import { timestampToISO } from './utils/rowMappers'
 const logger = loggerService.withContext('DataApi:GroupService')
 
 type GroupRow = typeof groupTable.$inferSelect
+
+/**
+ * Where each entityType's group membership lives: the table carrying the
+ * `group_id` FK (ON DELETE SET NULL) and the list endpoint whose group buckets
+ * the members move between. Entity types without a member column resolve to
+ * undefined — deleting their groups unbinds nothing.
+ */
+const GROUP_MEMBER_SOURCES: Partial<
+  Record<EntityType, { endpoint: CollectionGetPaths; memberIds: (tx: DbOrTx, groupId: string) => string[] }>
+> = {
+  agent: {
+    endpoint: '/agents',
+    memberIds: (tx, groupId) =>
+      tx
+        .select({ id: agentTable.id })
+        .from(agentTable)
+        .where(eq(agentTable.groupId, groupId))
+        .all()
+        .map((row) => row.id)
+  },
+  assistant: {
+    endpoint: '/assistants',
+    memberIds: (tx, groupId) =>
+      tx
+        .select({ id: assistantTable.id })
+        .from(assistantTable)
+        .where(eq(assistantTable.groupId, groupId))
+        .all()
+        .map((row) => row.id)
+  },
+  knowledge: {
+    endpoint: '/knowledge-bases',
+    memberIds: (tx, groupId) =>
+      tx
+        .select({ id: knowledgeBaseTable.id })
+        .from(knowledgeBaseTable)
+        .where(eq(knowledgeBaseTable.groupId, groupId))
+        .all()
+        .map((row) => row.id)
+  }
+}
 
 function rowToGroup(row: GroupRow): Group {
   return {
@@ -184,32 +227,30 @@ export class GroupService {
   }
 
   /**
-   * Delete a group. Members unbind through the agent.group_id FK (ON DELETE
-   * SET NULL); their ids are read first so the unbind can be broadcast.
+   * Delete a group. Members unbind through their `group_id` FK (ON DELETE SET
+   * NULL); their ids are read first so the unbind can be broadcast.
    */
   delete(id: string): void {
-    let unboundAgentIds: string[] = []
+    let unbindEffect: DataApiDataChangeEffect | undefined
     this.db.transaction((tx) => {
-      unboundAgentIds = tx
-        .select({ id: agentTable.id })
-        .from(agentTable)
-        .where(eq(agentTable.groupId, id))
-        .all()
-        .map((row) => row.id)
+      const [row] = tx.select({ entityType: groupTable.entityType }).from(groupTable).where(eq(groupTable.id, id)).all()
+      const source = row ? GROUP_MEMBER_SOURCES[row.entityType as EntityType] : undefined
+      const memberIds = source?.memberIds(tx, id) ?? []
+      if (source && memberIds.length > 0) {
+        unbindEffect = { endpoint: source.endpoint, kind: 'membership', entityIds: memberIds }
+      }
 
-      const [row] = tx.delete(groupTable).where(eq(groupTable.id, id)).returning({ id: groupTable.id }).all()
+      const deleted = tx.delete(groupTable).where(eq(groupTable.id, id)).returning({ id: groupTable.id }).all()
 
-      if (!row) {
+      if (deleted.length === 0) {
         throw DataApiErrorFactory.notFound('Group', id)
       }
     })
 
-    const unbindEffects: DataApiDataChangeEffect[] =
-      unboundAgentIds.length > 0 ? [{ endpoint: '/agents', kind: 'membership', entityIds: unboundAgentIds }] : []
     notifyDataApiDataChange([
       { endpoint: '/groups', kind: 'membership', entityIds: [id] },
       { endpoint: '/groups/:id', routeParams: { id }, entityIds: [id] },
-      ...unbindEffects
+      ...(unbindEffect ? [unbindEffect] : [])
     ])
 
     logger.info('Deleted group', { id })
