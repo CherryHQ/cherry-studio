@@ -83,6 +83,10 @@ export class McpCatalogService extends BaseService {
   /** Single-flights `warmToolsCache` refreshes per serverId so concurrent sessions warming
    *  the same server at once don't each open a connection to it. */
   private readonly warmRefreshInFlight = new Map<string, Promise<void>>()
+  /** Single-flights `refreshTools` per serverId so concurrent triggers (session warms,
+   *  upstream notifications, stale-tool kicks) coalesce to one live `listTools`
+   *  instead of opening a connection per trigger. */
+  private readonly refreshInFlight = new Map<string, Promise<void>>()
 
   /**
    * Fires when a server's `mcp.tools.<serverId>` shared-cache **content** actually changes
@@ -332,9 +336,22 @@ export class McpCatalogService extends BaseService {
   }
 
   public async refreshTools(serverId: string): Promise<void> {
-    const server = this.getServerById(serverId)
-    this.clearToolsCache(server)
-    await this.listToolsForServer(server, { includeDisabled: true })
+    const inFlight = this.refreshInFlight.get(serverId)
+    if (inFlight) {
+      await inFlight
+      return
+    }
+    const refresh = (async () => {
+      const server = this.getServerById(serverId)
+      this.clearToolsCache(server)
+      await this.listToolsForServer(server, { includeDisabled: true })
+    })()
+    this.refreshInFlight.set(serverId, refresh)
+    try {
+      await refresh
+    } finally {
+      this.refreshInFlight.delete(serverId)
+    }
   }
 
   private async prewarmActiveServerTools(): Promise<void> {

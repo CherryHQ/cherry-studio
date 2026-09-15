@@ -198,6 +198,28 @@ describe('McpCatalogService', () => {
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'error', error)
   })
 
+  it('coalesces concurrent refreshTools for one server into a single live list (issue #20283)', async () => {
+    // Rapid unknown-tool kicks from a retrying model must not open a connection per kick.
+    getById.mockReturnValue(server())
+    let resolveList: ((value: { tools: ReturnType<typeof sdkTool>[] }) => void) | undefined
+    listTools.mockImplementation(
+      () =>
+        new Promise<{ tools: ReturnType<typeof sdkTool>[] }>((resolve) => {
+          resolveList = resolve
+        })
+    )
+
+    const service = new McpCatalogService()
+    const first = service.refreshTools('server-1')
+    const second = service.refreshTools('server-1')
+    resolveList!({ tools: [sdkTool('search')] })
+    await expect(first).resolves.toBeUndefined()
+    await expect(second).resolves.toBeUndefined()
+
+    expect(listTools).toHaveBeenCalledTimes(1)
+    expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['search'])
+  })
+
   it('prewarms active server tools into shared cache', async () => {
     listServers.mockReturnValue({ items: [server()], total: 1, page: 1 })
     listTools.mockResolvedValue({ tools: [sdkTool('search')] })
