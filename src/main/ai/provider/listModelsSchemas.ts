@@ -22,6 +22,32 @@ export const OpenAIModelsResponseSchema = z.object({
   object: z.string().optional()
 })
 
+/**
+ * `GET /api/v0/models` lists loaded and downloaded LM Studio models, unlike `/v1/models`.
+ */
+export const LMStudioModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      type: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined),
+      publisher: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined),
+      max_context_length: z
+        .number()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined)
+    })
+  )
+})
+
 // === GitHub Copilot (/models) ===
 export const CopilotModelsResponseSchema = z.object({
   data: z.array(

@@ -93,6 +93,16 @@ function makeGeminiProvider() {
   })
 }
 
+function makeLmStudioProvider() {
+  return makeProvider({
+    id: 'lmstudio',
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://lmstudio.test:1234' }
+    }
+  })
+}
+
 describe('listModels — default grouping', () => {
   it('surfaces strict listing errors without writing provider error details to logs', async () => {
     const apiKey = 'sk-should-not-reach-logs'
@@ -216,6 +226,85 @@ describe('listModels — TokenDance protocol routing', () => {
 
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
   })
+})
+
+describe('listModels — LM Studio', () => {
+  it("lists the complete catalog from LM Studio's model endpoint", async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: {
+        data: [{ id: 'loaded-model' }, { id: 'downloaded-but-not-loaded-model' }]
+      }
+    })
+
+    const models = await listModels(makeLmStudioProvider())
+
+    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
+      url: 'http://lmstudio.test:1234/api/v0/models'
+    })
+    expect(models.map((model) => model.apiModelId)).toEqual(['loaded-model', 'downloaded-but-not-loaded-model'])
+  })
+
+  it('maps embedding and vision metadata from the LM Studio catalog', async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: {
+        data: [
+          { id: 'embedding-model', type: 'embeddings', max_context_length: 2048 },
+          { id: 'vision-model', type: 'vlm', max_context_length: 32768 }
+        ]
+      }
+    })
+
+    const models = await listModels(makeLmStudioProvider())
+
+    expect(models[0]).toMatchObject({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      contextWindow: 2048
+    })
+    expect(models[1]).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      contextWindow: 32768
+    })
+  })
+
+  it('falls back to /v1/models for older LM Studio servers', async () => {
+    aiSdkGetFromApiMock.mockRejectedValueOnce(new Error('404 Not Found'))
+    aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { data: [{ id: 'legacy-model' }] } })
+
+    const models = await listModels(makeLmStudioProvider())
+
+    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
+      url: 'http://lmstudio.test:1234/api/v0/models'
+    })
+    expect(aiSdkGetFromApiMock.mock.calls[1][0]).toMatchObject({
+      url: 'http://lmstudio.test:1234/v1/models'
+    })
+    expect(models[0]).toMatchObject({ apiModelId: 'legacy-model' })
+  })
+
+  it.each(['http://lmstudio.test:1234/api/v0', 'http://lmstudio.test:1234/v1/', 'http://lmstudio.test:1234#'])(
+    'normalizes %s to the server root',
+    async (baseUrl) => {
+      const provider = makeProvider({
+        id: 'lmstudio',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl }
+        }
+      })
+      aiSdkGetFromApiMock.mockRejectedValueOnce(new Error('404 Not Found'))
+      aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { data: [{ id: 'legacy-model' }] } })
+
+      await listModels(provider)
+
+      expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
+        url: 'http://lmstudio.test:1234/api/v0/models'
+      })
+      expect(aiSdkGetFromApiMock.mock.calls[1][0]).toMatchObject({
+        url: 'http://lmstudio.test:1234/v1/models'
+      })
+    }
+  )
 })
 
 describe('listModels — Ollama capabilities', () => {
