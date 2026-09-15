@@ -248,6 +248,21 @@ describe('AssistantDataService', () => {
   })
 
   describe('list', () => {
+    it('filters requested IDs before pagination and excludes deleted assistants', async () => {
+      await seedAssistantRow(
+        generateOrderKeySequence(502).map((orderKey, index) => ({
+          id: `assistant-${index}`,
+          name: `Assistant ${index}`,
+          orderKey,
+          deletedAt: index === 501 ? Date.now() : null
+        }))
+      )
+      const result = assistantDataService.list(
+        listQuery({ ids: ['assistant-500', 'assistant-501', 'missing'], limit: 1 })
+      )
+      expect(result.items.map((assistant) => assistant.id)).toEqual(['assistant-500'])
+      expect(result.total).toBe(1)
+    })
     it('should return all assistants with relation ids', async () => {
       await seedAssistantRow([
         { id: 'ast-1', name: 'first', modelId: 'openai::gpt-4', createdAt: 100 },

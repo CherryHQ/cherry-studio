@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import { cacheService } from '@renderer/data/CacheService'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -28,9 +29,12 @@ const hookMocks = vi.hoisted(() => ({
   virtualListRenderRows: [] as VirtualListRenderRow[]
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
-  return MockCherrystudioUI
+  return {
+    ...(await importOriginal<typeof CherryStudioUI>()),
+    ...MockCherrystudioUI
+  }
 })
 
 vi.mock('@renderer/data/CacheService', async () => {

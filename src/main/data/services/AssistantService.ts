@@ -277,6 +277,7 @@ export class AssistantDataService {
     const offset = (page - 1) * limit
 
     const conditions: SQL[] = [isNull(assistantTable.deletedAt)]
+    if (query.ids) conditions.push(inArray(assistantTable.id, query.ids))
     if (query.id !== undefined) {
       conditions.push(eq(assistantTable.id, query.id))
     }

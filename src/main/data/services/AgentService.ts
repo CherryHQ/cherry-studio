@@ -531,12 +531,13 @@ export class AgentService {
     return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
   }
 
-  listAgents(options: ListOptions = {}): { agents: AgentEntity[]; total: number } {
+  listAgents(options: ListOptions & { ids?: string[] } = {}): { agents: AgentEntity[]; total: number } {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional server-side search. The localized builtin
     // fallback is part of the predicate, so pagination and full-library search stay authoritative.
     const conditions: SQL[] = [isNull(agentsTable.deletedAt)]
+    if (options.ids) conditions.push(inArray(agentsTable.id, options.ids))
     if (options.search) {
       conditions.push(buildAgentSearchPredicate(options.search))
     }

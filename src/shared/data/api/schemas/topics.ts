@@ -53,6 +53,8 @@ export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
  * Query parameters for `GET /topics` (cursor pagination + search).
  */
 export const ListTopicsQuerySchema = z.strictObject({
+  /** Exact topic ids to include. */
+  ids: z.array(z.string().min(1)).min(1).max(200).optional(),
   /** Opaque cursor from previous page's `nextCursor`. */
   cursor: z.string().optional(),
   /** Page size; defaults to 50 in the service. */

@@ -1,9 +1,9 @@
 import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmojiIcon } from '@cherrystudio/ui'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
@@ -200,8 +200,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
           <EmojiIcon
             emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
             size={20}
-            fontSize={12}
-            className="mr-0 text-foreground"
+            className="text-foreground"
           />
         )
       },
@@ -259,8 +258,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
                 <EmojiIcon
                   emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
                   size={16}
-                  fontSize={10}
-                  className="mr-0 text-foreground"
+                  className="text-foreground"
                 />
               )
             ) : undefined

@@ -17,14 +17,17 @@ import {
   PageHeader,
   Scrollbar
 } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { ipcApi } from '@renderer/ipc'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { toast } from '@renderer/services/toast'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
@@ -314,13 +317,24 @@ const FileToolbar = memo(function FileToolbar({
 
 // ─── Main FilePage ───
 
-function FilesPage() {
+interface FilesPageProps {
+  entryId?: string
+  onEntryIdChange?: (entryId?: string) => void
+}
+
+function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   const { t } = useTranslation()
+  const previewErrorMessage = t('files.preview.error')
+  const { isPinned: isSidebarShortcutPinned, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
   const [embeddedPreview, setEmbeddedPreview] = useState<EmbeddedFilePreview | null>(null)
-  // Guards the async open flow: each open bumps the token, and stale physical-path
-  // resolutions (success or failure) are ignored so a slower earlier click can never
-  // overwrite — or error over — the file the user most recently opened.
   const openRequestTokenRef = useRef(0)
+  const imageRequestTokenRef = useRef(0)
+  useEffect(
+    () => () => {
+      imageRequestTokenRef.current += 1
+    },
+    [entryId]
+  )
   const [metadataById, setMetadataById] = useState<FileMetadataById>({})
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
@@ -538,10 +552,17 @@ function FilesPage() {
 
   const handleOpen = useCallback(
     (file: FileItem) => {
-      const requestToken = ++openRequestTokenRef.current
+      const imageRequestToken = ++imageRequestTokenRef.current
+      if (file.type !== 'image' && onEntryIdChange) {
+        onEntryIdChange(file.id)
+        return
+      }
+
+      const requestRef = file.type === 'image' ? imageRequestTokenRef : openRequestTokenRef
+      const requestToken = file.type === 'image' ? imageRequestToken : ++openRequestTokenRef.current
       void requestBatchedFileRecords('file.batch_get_physical_paths', [file.id])
         .then((physicalPaths) => {
-          if (openRequestTokenRef.current !== requestToken) return
+          if (requestRef.current !== requestToken) return
           const filePath = physicalPaths[file.id]
           if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
           const normalizedPath = normalizeFilePreviewPath(filePath)
@@ -560,14 +581,54 @@ function FilesPage() {
           }))
         })
         .catch((error: unknown) => {
-          if (openRequestTokenRef.current !== requestToken) return
+          if (requestRef.current !== requestToken) return
           const normalized = error instanceof Error ? error : new Error(String(error))
           logger.error('Failed to open file preview', normalized)
           toast.error(t('files.preview.error'))
         })
     },
-    [t]
+    [onEntryIdChange, t]
   )
+
+  useEffect(() => {
+    const requestToken = ++openRequestTokenRef.current
+    if (!entryId) {
+      setEmbeddedPreview(null)
+      return
+    }
+
+    void Promise.all([
+      dataApiService.get(`/files/entries/${entryId}`),
+      requestBatchedFileRecords('file.batch_get_physical_paths', [entryId])
+    ])
+      .then(([entry, physicalPaths]) => {
+        if (openRequestTokenRef.current !== requestToken) return
+        const filePath = physicalPaths[entry.id]
+        if (!filePath) throw new Error(`Physical path is unavailable for file ${entry.id}`)
+        setEmbeddedPreview({
+          fileName: displayNameOf(entry),
+          filePath: normalizeFilePreviewPath(filePath),
+          refreshKey: 0
+        })
+      })
+      .catch((error: unknown) => {
+        if (openRequestTokenRef.current !== requestToken) return
+        const normalized = error instanceof Error ? error : new Error(String(error))
+        logger.error('Failed to reveal file entry', normalized)
+        toast.error(previewErrorMessage)
+        onEntryIdChange?.()
+      })
+
+    return () => {
+      if (openRequestTokenRef.current === requestToken) openRequestTokenRef.current += 1
+    }
+  }, [entryId, onEntryIdChange, previewErrorMessage])
+
+  const closeEmbeddedPreview = useCallback(() => {
+    openRequestTokenRef.current += 1
+    setEmbeddedPreview(null)
+    onEntryIdChange?.()
+  }, [onEntryIdChange])
 
   const handleShowInFolder = useCallback((id: string) => {
     void ipcApi.request('file.show_in_folder', createFileEntryHandle(id)).catch((error) => {
@@ -841,14 +902,35 @@ function FilesPage() {
   const handleRenameConfirm = useCallback((id: string, name: string) => void handleRename(id, name), [handleRename])
   const handleRenameCancel = useCallback(() => setRenamingId(null), [])
 
+  const isFilePinnedToSidebar = useCallback(
+    (id: string) => isSidebarShortcutPinned(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.FILE_ENTRY, id)),
+    [isSidebarShortcutPinned]
+  )
+  const handleToggleFileSidebar = useCallback(
+    (file: FileItem) => {
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.FILE_ENTRY, file.id)
+      setSidebarShortcutPinned(target, !isSidebarShortcutPinned(target), file.name)
+    },
+    [isSidebarShortcutPinned, setSidebarShortcutPinned]
+  )
+
   const listMenuActions = useMemo<FileContextMenuActions>(
     () => ({
+      isSidebarPinned: isFilePinnedToSidebar,
       onRename: startInlineRename,
       onDelete: handleDeleteOne,
       onRestore: handleRestoreOne,
-      onShowInFolder: handleShowInFolder
+      onShowInFolder: handleShowInFolder,
+      onToggleSidebar: handleToggleFileSidebar
     }),
-    [handleDeleteOne, handleRestoreOne, handleShowInFolder, startInlineRename]
+    [
+      handleDeleteOne,
+      handleRestoreOne,
+      handleShowInFolder,
+      handleToggleFileSidebar,
+      isFilePinnedToSidebar,
+      startInlineRename
+    ]
   )
 
   const handleSort = useCallback(
@@ -1100,7 +1182,7 @@ function FilesPage() {
                   size="icon-sm"
                   aria-label={t('common.back')}
                   className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                  onClick={() => setEmbeddedPreview(null)}>
+                  onClick={closeEmbeddedPreview}>
                   <ArrowLeft className="size-3.5" />
                 </Button>
                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">{embeddedPreview.fileName}</span>
