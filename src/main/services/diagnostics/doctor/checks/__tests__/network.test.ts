@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { DoctorContextBase } from '../../types'
+import { DOCTOR_CHECK_CATALOG, type DoctorCheckId } from '@shared/types/doctor'
+
+import { runDoctorChecks } from '../../engine'
+import type { DoctorContextBase, DoctorProbeOutcome } from '../../types'
 
 const network = vi.hoisted(() => ({
   isOnline: vi.fn(),
@@ -56,7 +59,7 @@ beforeEach(() => {
 describe('network-dns-resolution', () => {
   it('fails with the count of unresolved hosts, keeping the hosts out of the params', async () => {
     only('cloud', { dns: failed('dns', 'ENOTFOUND') })
-    const result = await checks.dnsResolution.run(ctx())
+    const result = await checks.dnsResolution.run({ ...ctx(), subject: null })
     expect(result).toMatchObject({
       status: 'fail',
       detail: { variant: 'unresolved', params: { count: 1 } },
@@ -68,12 +71,14 @@ describe('network-dns-resolution', () => {
 
   it('reports no_response when every failure is a timeout', async () => {
     every({ dns: failed('timeout', 'TimeoutError') })
-    await expect(checks.dnsResolution.run(ctx())).resolves.toMatchObject({ detail: { variant: 'no_response' } })
+    await expect(checks.dnsResolution.run({ ...ctx(), subject: null })).resolves.toMatchObject({
+      detail: { variant: 'no_response' }
+    })
   })
 
   it('passes with the via_proxy variant when a proxy is in effect', async () => {
     every({ proxy: { effective: 'PROXY p:1', configuredMode: 'custom' } })
-    await expect(checks.dnsResolution.run(ctx())).resolves.toMatchObject({
+    await expect(checks.dnsResolution.run({ ...ctx(), subject: null })).resolves.toMatchObject({
       status: 'pass',
       detail: { variant: 'via_proxy' }
     })
@@ -85,7 +90,7 @@ describe('network-tls-handshake', () => {
     only('update', {
       tls: failed('tls_cert', 'ERR_CERT_AUTHORITY_INVALID', { issuer: 'Corp CA', validTo: '' })
     })
-    const result = await checks.tlsHandshake.run(ctx())
+    const result = await checks.tlsHandshake.run({ ...ctx(), subject: null })
     expect(result).toMatchObject({
       status: 'fail',
       detail: { variant: 'certificate', params: { code: 'ERR_CERT_AUTHORITY_INVALID' } },
@@ -97,7 +102,7 @@ describe('network-tls-handshake', () => {
 
   it('reports non-certificate handshake failures as unreachable with a count', async () => {
     only('cloud', { tls: failed('refused', 'ECONNREFUSED') })
-    await expect(checks.tlsHandshake.run(ctx())).resolves.toMatchObject({
+    await expect(checks.tlsHandshake.run({ ...ctx(), subject: null })).resolves.toMatchObject({
       status: 'fail',
       detail: { variant: 'unreachable', params: { count: 1 } }
     })
@@ -105,7 +110,7 @@ describe('network-tls-handshake', () => {
 
   it('passes as skipped when every handshake was skipped for the proxy', async () => {
     every({ tls: skipped('proxy_in_use') })
-    await expect(checks.tlsHandshake.run(ctx())).resolves.toMatchObject({
+    await expect(checks.tlsHandshake.run({ ...ctx(), subject: null })).resolves.toMatchObject({
       status: 'pass',
       detail: { variant: 'skipped_proxy' }
     })
@@ -113,22 +118,15 @@ describe('network-tls-handshake', () => {
 })
 
 describe('network-proxy-applied', () => {
-  it('reads the proxy for the first built-in endpoint without probing anything', async () => {
-    await expect(checks.proxyApplied.run(ctx())).resolves.toMatchObject({
-      status: 'pass',
-      detail: { variant: 'direct' }
-    })
-    expect(network.effectiveProxy).toHaveBeenCalledWith('https://update.example')
-    expect(network.diagnoseEndpoint).not.toHaveBeenCalled()
-  })
-
   it('warns when the configured proxy could not be applied', async () => {
-    network.effectiveProxy.mockResolvedValue({
-      effective: 'DIRECT',
-      configuredMode: 'custom',
-      mismatch: 'apply_failed'
+    every({
+      proxy: {
+        effective: 'DIRECT',
+        configuredMode: 'custom',
+        mismatch: 'apply_failed'
+      }
     })
-    await expect(checks.proxyApplied.run(ctx())).resolves.toMatchObject({
+    await expect(checks.proxyApplied.run({ ...ctx(), subject: null })).resolves.toMatchObject({
       status: 'warn',
       detail: { variant: 'apply_failed' },
       actions: [{ kind: 'navigate', target: '/settings/general' }]
@@ -218,4 +216,56 @@ describe('network-provider-endpoint', () => {
     })
     expect(network.diagnoseEndpoint).not.toHaveBeenCalled()
   })
+})
+
+// A failed app-update host must not become the diagnosis of a reachable chat provider.
+it('uses the chat provider for DNS, TLS and proxy checks instead of built-in hosts', async () => {
+  providers.getByProviderId.mockReturnValue({
+    id: 'openai',
+    endpointConfigs: { 'openai-chat': { baseUrl: 'https://api.openai.example' } }
+  })
+  network.builtinEndpoints.mockReturnValue([{ id: 'update', url: 'https://unrelated.invalid' }])
+  network.diagnoseEndpoint.mockImplementation(async ({ id }: { id: string }) =>
+    diagnosis(
+      id,
+      id === 'update'
+        ? { dns: failed('dns', 'ENOTFOUND') }
+        : { proxy: { effective: 'PROXY chat-proxy:80', configuredMode: 'system' } }
+    )
+  )
+  const context = { ...ctx(), subject: { providerId: 'openai' } }
+  await expect(checks.dnsResolution.run(context)).resolves.toMatchObject({
+    status: 'pass',
+    detail: { variant: 'via_proxy' }
+  })
+  await expect(checks.tlsHandshake.run(context)).resolves.toMatchObject({ status: 'pass' })
+  await expect(checks.proxyApplied.run(context)).resolves.toMatchObject({
+    status: 'pass',
+    detail: { variant: 'proxy' }
+  })
+  expect(network.diagnoseEndpoint).toHaveBeenCalledWith(
+    expect.objectContaining({ id: 'provider:openai', url: expect.stringContaining('api.openai.example') }),
+    expect.any(AbortSignal)
+  )
+  expect(network.builtinEndpoints).not.toHaveBeenCalled()
+})
+
+it('keeps a reachable cloud check running when the unrelated update host cannot resolve', async () => {
+  network.isOnline.mockReturnValue(true)
+  only('update', { dns: failed('dns', 'ENOTFOUND'), http: skipped('dns_failed') })
+  const definitions = [
+    { id: 'network-online' as const, run: () => checks.online.run(ctx()) },
+    { id: 'network-dns-resolution' as const, run: () => checks.dnsResolution.run({ ...ctx(), subject: null }) },
+    { id: 'network-endpoint-cloud' as const, run: () => checks.endpointCloud.run(ctx()) }
+  ]
+  const results = await runDoctorChecks<DoctorCheckId, DoctorProbeOutcome<DoctorCheckId>>({
+    checks: definitions.map((definition) => ({
+      ...definition,
+      requires: DOCTOR_CHECK_CATALOG[definition.id].requires,
+      lane: 'live',
+      timeoutMs: 1_000
+    }))
+  })
+  expect(results.find(({ id }) => id === 'network-dns-resolution')?.status).toBe('fail')
+  expect(results.find(({ id }) => id === 'network-endpoint-cloud')?.status).toBe('pass')
 })

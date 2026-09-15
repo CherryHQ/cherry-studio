@@ -1260,6 +1260,7 @@
   "error.diagnostics.back_to_overview": "Quay lại tổng quan chẩn đoán",
   "error.diagnostics.basic_information": "Thông tin cơ bản",
   "error.diagnostics.checking_progress": "Đang kiểm tra: {{check}} · {{completed}}/{{total}}",
+  "error.diagnostics.context_unavailable": "Không xác định được đối tượng chẩn đoán. Bạn vẫn có thể xem chi tiết lỗi ban đầu.",
   "error.diagnostics.diagnosing": "Đang chẩn đoán",
   "error.diagnostics.preparing_result": "Đang chuẩn bị kết quả…",
   "error.diagnostics.result": "Kết quả chẩn đoán",

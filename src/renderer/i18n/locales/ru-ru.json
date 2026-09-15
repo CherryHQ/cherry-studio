@@ -1260,6 +1260,7 @@
   "error.diagnostics.back_to_overview": "Назад к обзору диагностики",
   "error.diagnostics.basic_information": "Основная информация",
   "error.diagnostics.checking_progress": "Проверка: {{check}} · {{completed}}/{{total}}",
+  "error.diagnostics.context_unavailable": "Объект диагностики недоступен. Вы по-прежнему можете просмотреть сведения об исходной ошибке.",
   "error.diagnostics.diagnosing": "Выполняется диагностика",
   "error.diagnostics.preparing_result": "Подготовка результатов…",
   "error.diagnostics.result": "Результат диагностики",

@@ -81,6 +81,7 @@ describe('doctorSessionReducer', () => {
     const initial = createDoctorSession({ initialPanel: 'checks' })
     const fixed = doctorSessionReducer(initial, {
       type: 'mark-check-fixed',
+      runId: 'test-run',
       checkId: 'config-boot-config-valid'
     })
 
@@ -88,6 +89,7 @@ describe('doctorSessionReducer', () => {
     expect(
       doctorSessionReducer(fixed, {
         type: 'mark-check-fixed',
+        runId: 'test-run',
         checkId: 'config-boot-config-valid'
       })
     ).toBe(fixed)

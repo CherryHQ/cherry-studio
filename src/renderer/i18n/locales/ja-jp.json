@@ -1260,6 +1260,7 @@
   "error.diagnostics.back_to_overview": "診断概要に戻る",
   "error.diagnostics.basic_information": "基本情報",
   "error.diagnostics.checking_progress": "確認中：{{check}} · {{completed}}/{{total}}",
+  "error.diagnostics.context_unavailable": "診断対象を特定できません。元のエラーの詳細は引き続き確認できます。",
   "error.diagnostics.diagnosing": "診断中",
   "error.diagnostics.preparing_result": "結果をまとめています…",
   "error.diagnostics.result": "診断結果",

@@ -1260,6 +1260,7 @@
   "error.diagnostics.back_to_overview": "Retour à la vue d’ensemble du diagnostic",
   "error.diagnostics.basic_information": "Informations de base",
   "error.diagnostics.checking_progress": "Vérification : {{check}} · {{completed}}/{{total}}",
+  "error.diagnostics.context_unavailable": "La cible du diagnostic est indisponible. Vous pouvez toujours consulter les détails de l’erreur d’origine.",
   "error.diagnostics.diagnosing": "Diagnostic en cours",
   "error.diagnostics.preparing_result": "Préparation des résultats…",
   "error.diagnostics.result": "Résultat du diagnostic",

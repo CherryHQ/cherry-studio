@@ -16,7 +16,11 @@ beforeEach(() => vi.clearAllMocks())
 describe('doctorHandlers', () => {
   it('forwards a run request including the optional check subset', async () => {
     doctor.run.mockResolvedValue({ status: 'busy', runId: 'r1' })
-    const input = { tier: 'live' as const, checkIds: ['config-boot-config-valid' as const] }
+    const input = {
+      subject: { kind: 'global' as const },
+      tier: 'live' as const,
+      checkIds: ['config-boot-config-valid' as const]
+    }
     await expect(doctorHandlers['diagnostics.doctor.run'](input, ctx)).resolves.toEqual({ status: 'busy', runId: 'r1' })
     expect(doctor.run).toHaveBeenCalledWith(input)
   })

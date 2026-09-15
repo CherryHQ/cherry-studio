@@ -153,7 +153,7 @@ describe('projectDoctorReport', () => {
 describe('doctorScopeKey', () => {
   // Main publishes under this key and the renderer subscribes to it; a drift between the two is a blank dialog.
   it('derives one key per subject and a fixed key for the global doctor', () => {
-    expect(doctorScopeKey()).toBe('global')
+    expect(doctorScopeKey({ kind: 'global' })).toBe('global')
     expect(doctorScopeKey({ kind: 'chat', providerId: 'openai', modelId: 'gpt-4o' })).toBe('chat:openai/gpt-4o')
     expect(doctorScopeKey({ kind: 'agent', agentId: 'a1' })).toBe('agent:a1')
   })

@@ -1260,6 +1260,7 @@
   "error.diagnostics.back_to_overview": "Επιστροφή στην επισκόπηση διαγνωστικών",
   "error.diagnostics.basic_information": "Βασικές πληροφορίες",
   "error.diagnostics.checking_progress": "Έλεγχος: {{check}} · {{completed}}/{{total}}",
+  "error.diagnostics.context_unavailable": "Ο στόχος διάγνωσης δεν είναι διαθέσιμος. Μπορείτε να δείτε τις αρχικές λεπτομέρειες του σφάλματος.",
   "error.diagnostics.diagnosing": "Διάγνωση σε εξέλιξη",
   "error.diagnostics.preparing_result": "Προετοιμασία αποτελεσμάτων…",
   "error.diagnostics.result": "Διαγνωστικό αποτέλεσμα",

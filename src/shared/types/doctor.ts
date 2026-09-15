@@ -59,6 +59,7 @@ export type DoctorSubjectKey = keyof DoctorSubject
  * union and the UI label only — check selection never reads it.
  */
 export type DoctorSubjectRef =
+  | { readonly kind: 'global' }
   | { readonly kind: 'chat'; readonly providerId: string; readonly modelId: string }
   | { readonly kind: 'agent'; readonly agentId: string }
 
@@ -239,7 +240,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'network-dns-resolution': {
     domain: 'network',
     tier: 'live',
-    scope: 'any',
+    scope: ['providerId'],
     fixes: [],
     details: ['resolved', 'via_proxy', 'unresolved', 'no_response'],
     requires: ['network-online']
@@ -247,7 +248,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'network-tls-handshake': {
     domain: 'network',
     tier: 'live',
-    scope: 'global',
+    scope: ['providerId'],
     fixes: [],
     details: ['ok', 'skipped_proxy', 'certificate', 'unreachable'],
     requires: ['network-dns-resolution']
@@ -255,7 +256,7 @@ export const DOCTOR_CHECK_CATALOG = {
   'network-proxy-applied': {
     domain: 'network',
     tier: 'live',
-    scope: 'any',
+    scope: ['providerId'],
     fixes: [],
     details: ['direct', 'proxy', 'custom_without_url', 'system_read_failed', 'apply_failed'],
     requires: []
@@ -266,7 +267,7 @@ export const DOCTOR_CHECK_CATALOG = {
     scope: 'global',
     fixes: [],
     details: ENDPOINT_DETAILS,
-    requires: ['network-dns-resolution']
+    requires: ['network-online']
   },
   'network-endpoint-registry': {
     domain: 'network',
@@ -274,7 +275,7 @@ export const DOCTOR_CHECK_CATALOG = {
     scope: 'global',
     fixes: [],
     details: ENDPOINT_DETAILS,
-    requires: ['network-dns-resolution']
+    requires: ['network-online']
   },
   'network-endpoint-cloud': {
     domain: 'network',
@@ -282,7 +283,7 @@ export const DOCTOR_CHECK_CATALOG = {
     scope: 'global',
     fixes: [],
     details: ENDPOINT_DETAILS,
-    requires: ['network-dns-resolution']
+    requires: ['network-online']
   },
   'network-endpoint-diagnostics': {
     domain: 'network',
@@ -290,7 +291,7 @@ export const DOCTOR_CHECK_CATALOG = {
     scope: 'global',
     fixes: [],
     details: ENDPOINT_DETAILS,
-    requires: ['network-dns-resolution']
+    requires: ['network-online']
   },
   'network-provider-endpoint': {
     domain: 'network',

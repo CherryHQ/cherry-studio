@@ -762,7 +762,7 @@ class AssistantServer {
 
   /** The System Doctor report in its `upload` projection: nothing local-only reaches the model. */
   private async diagnoseDoctor(tier: DoctorRunTier) {
-    const outcome = await application.get('DoctorService').run({ tier })
+    const outcome = await application.get('DoctorService').run({ tier, subject: { kind: 'global' } })
     if (outcome.status !== 'completed') return this.jsonResult(outcome)
     return this.jsonResult(projectDoctorReport(outcome.report, 'upload'))
   }

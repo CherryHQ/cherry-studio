@@ -23,8 +23,8 @@ export function isDoctorCheckId(value: unknown): value is DoctorCheckId {
 }
 
 /** Both processes derive the same key: main to publish a run's state, the renderer to subscribe to it. */
-export function doctorScopeKey(ref?: DoctorSubjectRef): DoctorScopeKey {
-  if (!ref) return 'global'
+export function doctorScopeKey(ref: DoctorSubjectRef): DoctorScopeKey {
+  if (ref.kind === 'global') return 'global'
   return ref.kind === 'chat' ? `chat:${ref.providerId}/${ref.modelId}` : `agent:${ref.agentId}`
 }
 

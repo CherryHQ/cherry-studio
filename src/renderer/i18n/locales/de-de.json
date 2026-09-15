@@ -1260,6 +1260,7 @@
   "error.diagnostics.back_to_overview": "Zurück zur Diagnoseübersicht",
   "error.diagnostics.basic_information": "Grundinformationen",
   "error.diagnostics.checking_progress": "Wird geprüft: {{check}} · {{completed}}/{{total}}",
+  "error.diagnostics.context_unavailable": "Das Diagnoseziel ist nicht verfügbar. Die ursprünglichen Fehlerdetails können weiterhin angezeigt werden.",
   "error.diagnostics.diagnosing": "Diagnose läuft",
   "error.diagnostics.preparing_result": "Ergebnisse werden vorbereitet…",
   "error.diagnostics.result": "Diagnoseergebnis",

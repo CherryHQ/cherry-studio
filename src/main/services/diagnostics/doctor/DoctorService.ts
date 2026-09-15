@@ -3,8 +3,9 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isPortable } from '@main/core/platform'
-import { assistantDataService } from '@main/data/services/AssistantService'
+import { agentService } from '@main/data/services/AgentService'
 import { getAppEdition } from '@main/utils/appEdition'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import {
   DOCTOR_CHECK_CATALOG,
@@ -100,7 +101,10 @@ function offersFix(result: DoctorCheckResult, fixId: string, target?: string): b
 export class DoctorService extends BaseService {
   private readonly activeRuns = new Map<DoctorScopeKey, ActiveRun>()
   /** The facts each scope last ran with, so a fix can re-probe the same subject. */
-  private readonly subjects = new Map<DoctorScopeKey, DoctorSubject | null>()
+  private readonly subjects = new Map<
+    DoctorScopeKey,
+    { runId: string; ref: DoctorSubjectRef; facts: DoctorSubject | null; expiresAt: number }
+  >()
   private allReady = false
 
   protected override onAllReady(): void {
@@ -108,12 +112,13 @@ export class DoctorService extends BaseService {
   }
 
   /** The renderer names a subject; only main knows how to expand it (an agent's model, its servers). */
-  private resolveSubject(ref: DoctorSubjectRef | undefined): DoctorSubject | null {
-    if (!ref) return null
+  private resolveSubject(ref: DoctorSubjectRef): DoctorSubject | null {
+    if (ref.kind === 'global') return null
     if (ref.kind === 'chat') return { providerId: ref.providerId, modelId: ref.modelId }
-    const assistant = assistantDataService.getById(ref.agentId)
-    const model = assistant.modelId ? parseUniqueModelId(assistant.modelId) : null
-    return { agentId: ref.agentId, ...model, mcpServerIds: assistant.mcpServerIds }
+    const agent = agentService.getAgent(ref.agentId)
+    if (!agent) throw DataApiErrorFactory.notFound('Agent', ref.agentId)
+    const model = agent.model ? parseUniqueModelId(agent.model) : null
+    return { agentId: ref.agentId, ...model, mcpServerIds: agent.mcps ?? [] }
   }
 
   private selectChecks(
@@ -145,10 +150,16 @@ export class DoctorService extends BaseService {
   /** One run per scope: a second call while one is in flight gets `busy` with the id it may cancel. */
   async run(input: {
     tier: DoctorRunTier
-    subject?: DoctorSubjectRef
+    subject: DoctorSubjectRef
     checkIds?: readonly DoctorCheckId[]
   }): Promise<DoctorRunResult> {
     if (!this.allReady) throw new Error('Doctor is not ready')
+    for (const [key, record] of this.subjects) {
+      if (record.expiresAt <= Date.now() && !this.activeRuns.has(key)) {
+        this.subjects.delete(key)
+        application.get('CacheService').deleteShared(`doctor.state.${key}`)
+      }
+    }
     const scope = doctorScopeKey(input.subject)
     const active = this.activeRuns.get(scope)
     if (active) return { status: 'busy', runId: active.runId }
@@ -165,7 +176,12 @@ export class DoctorService extends BaseService {
     const runId = randomUUID()
     const controller = new AbortController()
     this.activeRuns.set(scope, { runId, controller })
-    this.subjects.set(scope, subject)
+    this.subjects.set(scope, {
+      runId,
+      ref: input.subject,
+      facts: subject,
+      expiresAt: Date.now() + DOCTOR_REPORT_TTL_MS
+    })
     const startedAt = new Date()
     try {
       const running: DoctorState = {
@@ -202,6 +218,7 @@ export class DoctorService extends BaseService {
         results,
         summary: summarize(results)
       }
+      this.subjects.get(scope)!.expiresAt = Date.parse(report.expiresAt)
       this.publish(scope, { status: 'completed', report })
       return { status: 'completed', report }
     } catch (error) {
@@ -216,6 +233,7 @@ export class DoctorService extends BaseService {
   /** A run outlives the service otherwise, publishing onto the shared cache after teardown. */
   protected onStop(): void {
     for (const { controller } of this.activeRuns.values()) controller.abort()
+    this.subjects.clear()
   }
 
   cancel(scope: DoctorScopeKey, runId: string): DoctorCancelResult {
@@ -241,7 +259,9 @@ export class DoctorService extends BaseService {
     try {
       const state = this.currentState(scope)
       if (state.status !== 'completed') return { status: 'stale', reason: 'run_superseded' }
-      const subject = this.subjects.get(scope) ?? null
+      const record = this.subjects.get(scope)
+      if (!record || record.runId !== request.runId) return { status: 'stale', reason: 'run_superseded' }
+      const subject = record.facts
       const ids = this.selectChecks([request.checkId], state.report.tier, subject)
       const probe = async () => {
         const results = await this.execute(ids, subject, controller.signal)
@@ -282,6 +302,14 @@ export class DoctorService extends BaseService {
     if (state.status !== 'completed' || state.report.runId !== request.runId)
       return { status: 'stale', reason: 'run_superseded' }
     if (!(Date.parse(state.report.expiresAt) > Date.now())) return { status: 'stale', reason: 'report_expired' }
+    const record = this.subjects.get(request.scope)
+    if (!record || record.runId !== request.runId) return { status: 'stale', reason: 'run_superseded' }
+    if (record.ref.kind === 'agent') {
+      const agent = agentService.getAgent(record.ref.agentId)
+      if (!agent || (request.checkId === 'mcp-servers-connected' && !agent.mcps?.includes(request.target))) {
+        return { status: 'stale', reason: 'finding_changed' }
+      }
+    }
     const finding = state.report.results.find((item) => item.id === request.checkId)
     if (!finding || !offersFix(finding, request.fixId, request.target))
       return { status: 'stale', reason: 'finding_changed' }
@@ -315,7 +343,9 @@ export class DoctorService extends BaseService {
   ): Promise<DoctorCheckResult[]> {
     const settled: DoctorCheckResult[] = []
     const activeCheckIds = new Set<DoctorCheckId>()
-    const memo: RunMemo = new Map()
+    const memo: RunMemo = new Map([
+      ['provider:default-model-id', Promise.resolve(application.get('PreferenceService').get('chat.default_model_id'))]
+    ])
     const results = (await runDoctorChecks({
       checks: ids.map((id) => toEngineCheck(id, memo, subject)),
       signal,

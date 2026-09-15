@@ -1260,6 +1260,7 @@
   "error.diagnostics.back_to_overview": "Back to diagnostic overview",
   "error.diagnostics.basic_information": "Basic information",
   "error.diagnostics.checking_progress": "Checking: {{check}} · {{completed}}/{{total}}",
+  "error.diagnostics.context_unavailable": "The diagnostic target is unavailable. You can still view the original error details.",
   "error.diagnostics.diagnosing": "Diagnosing",
   "error.diagnostics.preparing_result": "Preparing results…",
   "error.diagnostics.result": "Diagnostic result",

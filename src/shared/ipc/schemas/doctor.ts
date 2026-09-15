@@ -13,6 +13,7 @@ import { isDoctorFixRequest, isDoctorScopeKey } from '@shared/utils/doctor'
 import { defineRoute } from '../define'
 
 const subjectRefSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('global') }).strict(),
   z.object({ kind: z.literal('chat'), providerId: z.string().min(1), modelId: z.string().min(1) }).strict(),
   z.object({ kind: z.literal('agent'), agentId: z.string().min(1) }).strict()
 ])
@@ -24,8 +25,7 @@ export const doctorRequestSchemas = {
     input: z
       .object({
         tier: z.enum(['quick', 'live']),
-        /** Absent = a global run. Present = only checks whose `scope` the resolved subject satisfies. */
-        subject: subjectRefSchema.optional(),
+        subject: subjectRefSchema,
         checkIds: z.array(z.enum(DOCTOR_CHECK_IDS)).optional()
       })
       .strict(),

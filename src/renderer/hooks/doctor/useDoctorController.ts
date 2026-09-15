@@ -30,8 +30,7 @@ interface UseDoctorControllerOptions {
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
   readonly initialRunTier?: DoctorRunTier
-  /** Absent = the global doctor. Present = diagnose one chat or agent; its state lives in its own scope. */
-  readonly subject?: DoctorSubjectRef
+  readonly subject: DoctorSubjectRef
   readonly onNavigate: (target: DoctorNavigateTarget) => void
   readonly onReportProblem?: (description: string) => void
 }
@@ -76,7 +75,9 @@ export function useDoctorController({
     createDoctorSession
   )
   const [now, setNow] = useState(Date.now)
-  const [isAutoRunPending, setIsAutoRunPending] = useState(doctorState.status === 'idle')
+  const [isAutoRunPending, setIsAutoRunPending] = useState(
+    initialPanel === 'checks' && (doctorState.status === 'idle' || initialRunTier !== undefined)
+  )
   const autoRunRequestedRef = useRef(false)
 
   useEffect(() => {
@@ -127,7 +128,7 @@ export function useDoctorController({
         interaction: { kind: 'run', tier }
       })
       try {
-        await ipcApi.request('diagnostics.doctor.run', subject ? { tier, subject } : { tier })
+        await ipcApi.request('diagnostics.doctor.run', { tier, subject })
       } catch (error) {
         logger.error('Failed to run system diagnostics', error as Error)
         toast.error(t('settings.doctor.messages.run_failed'))
@@ -139,7 +140,7 @@ export function useDoctorController({
   )
 
   useEffect(() => {
-    if (!sharedCacheReady || autoRunRequestedRef.current) return
+    if (initialPanel !== 'checks' || !sharedCacheReady || autoRunRequestedRef.current) return
     if (doctorState.status === 'running') {
       autoRunRequestedRef.current = true
       setIsAutoRunPending(false)
@@ -151,12 +152,13 @@ export function useDoctorController({
       return
     }
     if (doctorState.status !== 'idle') {
+      autoRunRequestedRef.current = true
       setIsAutoRunPending(false)
       return
     }
     autoRunRequestedRef.current = true
     void run('quick').finally(() => setIsAutoRunPending(false))
-  }, [doctorState.status, initialRunTier, run, sharedCacheReady])
+  }, [doctorState.status, initialPanel, initialRunTier, run, sharedCacheReady])
 
   const cancel = useCallback(async () => {
     if (!canCancelDoctorRun(doctorState)) return
@@ -197,11 +199,11 @@ export function useDoctorController({
         const result = await ipcApi.request('diagnostics.doctor.fix', request)
         switch (result.status) {
           case 'fixed':
-            dispatch({ type: 'mark-check-fixed', checkId: request.checkId })
+            dispatch({ type: 'mark-check-fixed', checkId: request.checkId, runId: request.runId })
             toast.success(t('settings.doctor.messages.fix_completed'))
             break
           case 'requires_relaunch':
-            dispatch({ type: 'mark-check-fixed', checkId: request.checkId })
+            dispatch({ type: 'mark-check-fixed', checkId: request.checkId, runId: request.runId })
             dispatch({ type: 'mark-relaunch-required' })
             toast.success(t('settings.doctor.messages.relaunch_required'))
             break
@@ -361,7 +363,7 @@ export function useDoctorController({
     openLogsPath,
     openPath,
     run,
-    session,
+    session: { ...session, fixedCheckIds: session.fixedRunId === viewModel.runId ? session.fixedCheckIds : [] },
     setDescription: (description: string) => dispatch({ type: 'set-description', description }),
     setPanel,
     setPanelInteraction,

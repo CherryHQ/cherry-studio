@@ -132,10 +132,11 @@ describe('useDoctorController', () => {
   })
 
   it('starts one basic check without a partial check list when no result exists', async () => {
-    renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+    renderHook(() => useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() }))
 
     await waitFor(() =>
       expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', {
+        subject: { kind: 'global' },
         tier: 'quick'
       })
     )
@@ -154,7 +155,9 @@ describe('useDoctorController', () => {
   it('waits for shared-cache hydration before deciding that no report exists', async () => {
     mocks.cacheReady = false
     mocks.doctorState = undefined
-    const { rerender } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+    const { rerender } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
+    )
 
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
 
@@ -201,7 +204,9 @@ describe('useDoctorController', () => {
       results: []
     }
 
-    const { rerender } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+    const { rerender } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
+    )
 
     await act(async () => {})
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
@@ -216,12 +221,17 @@ describe('useDoctorController', () => {
     mocks.doctorState = completedDoctorState()
 
     const { rerender } = renderHook(() =>
-      useDoctorController({ initialPanel: 'checks', initialRunTier: 'live', onNavigate: vi.fn() })
+      useDoctorController({
+        subject: { kind: 'global' },
+        initialPanel: 'checks',
+        initialRunTier: 'live',
+        onNavigate: vi.fn()
+      })
     )
 
     await waitFor(() =>
       expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toEqual([
-        ['diagnostics.doctor.run', { tier: 'live' }]
+        ['diagnostics.doctor.run', { subject: { kind: 'global' }, tier: 'live' }]
       ])
     )
     rerender()
@@ -229,11 +239,18 @@ describe('useDoctorController', () => {
   })
 
   it('starts only the requested full check when no prior report exists', async () => {
-    renderHook(() => useDoctorController({ initialPanel: 'checks', initialRunTier: 'live', onNavigate: vi.fn() }))
+    renderHook(() =>
+      useDoctorController({
+        subject: { kind: 'global' },
+        initialPanel: 'checks',
+        initialRunTier: 'live',
+        onNavigate: vi.fn()
+      })
+    )
 
     await waitFor(() =>
       expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toEqual([
-        ['diagnostics.doctor.run', { tier: 'live' }]
+        ['diagnostics.doctor.run', { subject: { kind: 'global' }, tier: 'live' }]
       ])
     )
   })
@@ -242,6 +259,7 @@ describe('useDoctorController', () => {
     mocks.doctorState = { status: 'canceled', runId: 'run-1' }
     const { result } = renderHook(() =>
       useDoctorController({
+        subject: { kind: 'global' },
         initialPanel: 'checks',
         initialDescription: 'confirmed safe description',
         onNavigate: vi.fn()
@@ -259,11 +277,7 @@ describe('useDoctorController', () => {
     mocks.doctorState = { status: 'canceled', runId: 'run-1' }
     const onReportProblem = vi.fn()
     const { result } = renderHook(() =>
-      useDoctorController({
-        initialPanel: 'checks',
-        onNavigate: vi.fn(),
-        onReportProblem
-      })
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn(), onReportProblem })
     )
 
     await act(async () => result.current.executeAction('logs-recent-findings', { kind: 'report' }, 'run-1'))
@@ -277,10 +291,7 @@ describe('useDoctorController', () => {
   it('releases evidence confirmation when another window replaces the run and clears the finding', () => {
     mocks.doctorState = completedWithSensitiveEvidence()
     const { rerender, result } = renderHook(() =>
-      useDoctorController({
-        initialPanel: 'checks',
-        onNavigate: vi.fn()
-      })
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
     )
 
     act(() => result.current.requestEvidence('runtime-claude-login'))
@@ -334,7 +345,9 @@ describe('useDoctorController', () => {
   it('releases evidence confirmation when the check passes in the shared report', () => {
     const state = completedWithSensitiveEvidence()
     mocks.doctorState = state
-    const { rerender, result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+    const { rerender, result } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
+    )
 
     act(() => result.current.requestEvidence('runtime-claude-login'))
     expect(result.current.session.interaction.kind).toBe('confirm-evidence')
@@ -375,7 +388,9 @@ describe('useDoctorController', () => {
       status: 'fixed',
       result: { id: 'permission-screen-capture', status: 'pass', durationMs: 1 }
     })
-    const { rerender, result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+    const { rerender, result } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
+    )
 
     expect(result.current.viewModel.rows[0]).toMatchObject({ id: 'permission-screen-capture', status: 'warn' })
 
@@ -427,7 +442,9 @@ describe('useDoctorController', () => {
             result: { id: 'config-boot-config-valid', status: 'pass', durationMs: 1 }
           }
     )
-    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+    const { result } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
+    )
 
     await act(async () =>
       result.current.executeAction('config-boot-config-valid', { kind: 'fix', fixId: 'repair' }, completed.report.runId)
@@ -445,7 +462,9 @@ describe('useDoctorController', () => {
       activeCheckIds: [],
       results: []
     }
-    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+    const { result } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
+    )
     await act(async () => result.current.cancel())
 
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { scope: 'global', runId: 'run-1' })
@@ -460,7 +479,9 @@ describe('useDoctorController', () => {
           release = resolve
         })
     )
-    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+    const { result } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
+    )
 
     let opening!: Promise<void>
     act(() => {
@@ -485,7 +506,9 @@ describe('useDoctorController', () => {
     mocks.request.mockImplementation(async (route: string) =>
       route === 'app.get_info' ? { logsPath: '/Users/local/CherryStudio/logs' } : undefined
     )
-    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
+    const { result } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn() })
+    )
 
     await act(async () => result.current.openLogsPath())
 
@@ -496,7 +519,9 @@ describe('useDoctorController', () => {
   it('executes every non-fix backend action with its exact public contract', async () => {
     mocks.doctorState = { status: 'canceled', runId: 'run-1' }
     const onNavigate = vi.fn()
-    const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate }))
+    const { result } = renderHook(() =>
+      useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate })
+    )
 
     await act(async () =>
       result.current.executeAction('provider-api-key-present', { kind: 'navigate', target: '/settings/provider' })

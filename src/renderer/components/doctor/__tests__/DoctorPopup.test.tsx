@@ -228,7 +228,7 @@ describe('DoctorPopup', () => {
       within(staleAlert as HTMLElement).getByRole('button', { name: 'settings.doctor.actions.run_basic' })
     )
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { subject: { kind: 'global' }, tier: 'quick' })
   })
 
   it('offers a quick recovery after full checks are canceled', async () => {
@@ -250,7 +250,7 @@ describe('DoctorPopup', () => {
       within(canceledAlert as HTMLElement).getByRole('button', { name: 'settings.doctor.actions.rerun' })
     )
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { subject: { kind: 'global' }, tier: 'quick' })
   })
 
   it.each(['quick', 'live'] as const)('keeps an active %s run cancelable', async (tier) => {
@@ -497,6 +497,7 @@ describe('DoctorPopup', () => {
 
     expect(await screen.findByText('Fixed: 1')).toHaveClass('text-success')
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.fix', {
+      scope: 'global',
       runId: 'completed-quick',
       checkId: 'permission-accessibility',
       fixId: 'request'

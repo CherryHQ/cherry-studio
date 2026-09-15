@@ -1260,6 +1260,7 @@
   "error.diagnostics.back_to_overview": "Înapoi la prezentarea diagnosticului",
   "error.diagnostics.basic_information": "Informații de bază",
   "error.diagnostics.checking_progress": "Se verifică: {{check}} · {{completed}}/{{total}}",
+  "error.diagnostics.context_unavailable": "Ținta diagnosticului nu este disponibilă. Puteți vedea în continuare detaliile erorii originale.",
   "error.diagnostics.diagnosing": "Diagnosticare în curs",
   "error.diagnostics.preparing_result": "Se pregătesc rezultatele…",
   "error.diagnostics.result": "Rezultatul diagnosticului",

@@ -1,7 +1,7 @@
 # System Doctor
 
 Runs health checks in main and publishes progress + the final report on the shared cache key
-`doctor.state`. Product spec (Feishu): System Doctor PRD.
+`doctor.state.${scope}`. Product spec (Feishu): System Doctor PRD.
 
 ## Layout
 
@@ -13,7 +13,7 @@ Runs health checks in main and publishes progress + the final report on the shar
 | `checks/<domain>.ts` | One file per domain, `defineDoctorCheck({...})` per check |
 | `registry.ts` | `{ [Id in DoctorCheckId]: DoctorCheckDefinition<Id> }` — exhaustive and closed |
 | `engine.ts` | Pure runner: prerequisite layering, timeout, cancel, skip cascade, lane concurrency |
-| `DoctorService.ts` | Lifecycle service: run / cancel / fix, publishes `doctor.state` |
+| `DoctorService.ts` | Lifecycle service: run / cancel / fix, publishes `doctor.state.${scope}` |
 
 ## Adding a check (three edits, all compile-checked)
 
@@ -21,6 +21,7 @@ Runs health checks in main and publishes progress + the final report on the shar
    ```ts
    'network-proxy-applied': {
      domain: 'network',            // must equal the id prefix
+     scope: ['providerId'],       // facts this check reads; global runs use system defaults
      tier: 'live',                 // quick ≤ 1 s local | live = network | deep = opt-in
      fixes: [],                    // or [{ id: 'restart', reversible: true, relaunch: false }]
      details: ['custom_without_url'],
@@ -65,11 +66,13 @@ Paths and hostnames are `local_only`; raw error bodies are `consent_required`.
 ## Consuming from the renderer
 
 ```ts
-const state = useSharedCacheValue('doctor.state')   // idle | running | completed | canceled
-await ipcApi.request('diagnostics.doctor.run', { tier: 'quick' })      // then, on user click:
-await ipcApi.request('diagnostics.doctor.run', { tier: 'live' })       // live = quick + live checks
-await ipcApi.request('diagnostics.doctor.cancel', { runId })
-await ipcApi.request('diagnostics.doctor.fix', { runId, checkId: 'mcp-servers-connected', fixId: 'restart', target: serverId })
+const subject = { kind: 'chat', providerId, modelId } as const // or { kind: 'global' } / { kind: 'agent', agentId }
+const scope = doctorScopeKey(subject)
+const state = useSharedCacheValue(`doctor.state.${scope}`)
+await ipcApi.request('diagnostics.doctor.run', { tier: 'quick', subject })
+await ipcApi.request('diagnostics.doctor.run', { tier: 'live', subject })
+await ipcApi.request('diagnostics.doctor.cancel', { scope, runId })
+await ipcApi.request('diagnostics.doctor.fix', { scope, runId, checkId: 'mcp-servers-connected', fixId: 'restart', target: serverId })
 ```
 
 `run` returns `busy` with the in-flight `runId` while a run is active. `fix` is bound to the report's `runId`
@@ -78,3 +81,18 @@ Only MCP restart requires a target; other fixes reject one. Passing checks never
 Runs and fixes are mutually exclusive and refused before all services have initialized. Selected checks
 include their transitive prerequisites. Fixes revalidate identity, expiry and the offered action after
 re-probing; only the original report is updated. Expired reports require another run.
+
+## Ownership
+
+Business adapters provide the subject: Chat uses the producing message's saved model identity;
+Agent uses its Agent ID. Error components never infer a subject from optional exception fields.
+A missing target leaves diagnostics unavailable; only an explicit global subject runs system checks.
+Opening report/export panels does not start health checks. The explicit full-system action opens
+its own global Doctor, preserving the contextual report.
+
+DoctorService resolves Agents through AgentService, captures the default model once per execution,
+and owns runs and report validity. Contextual DNS/TLS/proxy checks share the selected provider's
+endpoint diagnosis; global checks use the built-in endpoints. CacheService transports reports and
+does not select their subject. Run metadata is retained with its run ID and expired scopes are
+pruned on subsequent runs. Fixes revalidate Agent existence and MCP membership before acting.
+MCP connection ownership and resource-level operation coordination remain with McpRuntimeService.

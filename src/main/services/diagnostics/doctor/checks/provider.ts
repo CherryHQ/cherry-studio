@@ -6,16 +6,16 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
-import { defaultChatModel } from '../subjectDefaults'
-import { defineDoctorCheck, type DoctorProbeOutcome } from '../types'
+import { defaultChatModel, defaultChatModelId } from '../subjectDefaults'
+import { defineDoctorCheck, type DoctorContextBase, type DoctorProbeOutcome } from '../types'
 
 const PROVIDER_SETTINGS_ACTION = [{ kind: 'navigate', target: '/settings/provider' }] as const
 
 type ModelTarget = { readonly providerId: string; readonly modelId: string }
 
 /** A global run judges the chat default; only there can the model be unset or malformed. */
-function defaultModelTarget(): ModelTarget | DoctorProbeOutcome<'provider-model'> {
-  const defaultModelId = application.get('PreferenceService').get('chat.default_model_id')
+async function defaultModelTarget(ctx: DoctorContextBase): Promise<ModelTarget | DoctorProbeOutcome<'provider-model'>> {
+  const defaultModelId = await defaultChatModelId(ctx)
   if (!defaultModelId) {
     return {
       status: 'fail',
@@ -42,7 +42,7 @@ function defaultModelTarget(): ModelTarget | DoctorProbeOutcome<'provider-model'
 export const providerModel = defineDoctorCheck({
   id: 'provider-model',
   async run(ctx) {
-    const target = ctx.subject ?? defaultModelTarget()
+    const target = ctx.subject ?? (await defaultModelTarget(ctx))
     if ('status' in target) return target
     const { providerId, modelId } = target
     let provider
@@ -96,7 +96,7 @@ export const providerModel = defineDoctorCheck({
 export const providerApiKey = defineDoctorCheck({
   id: 'provider-api-key-present',
   async run(ctx) {
-    const providerId = ctx.subject?.providerId ?? defaultChatModel()?.providerId
+    const providerId = ctx.subject?.providerId ?? (await defaultChatModel(ctx))?.providerId
     if (!providerId) throw new Error('Default model configuration changed; rerun the provider-model check')
 
     let provider
