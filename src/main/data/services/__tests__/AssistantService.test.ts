@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { followupQueueTable } from '@data/db/schemas/followupQueue'
 import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
@@ -1402,6 +1403,38 @@ describe('AssistantDataService', () => {
       expect(assistantRows[0].deletedAt).toBeTruthy()
       const topicRows = await dbh.db.select().from(topicTable)
       expect(topicRows.map((row) => row.id)).toEqual(['topic-2'])
+    })
+
+    it('should purge follow-up queue rows and notify consumers when deleting topics', async () => {
+      notifyDataApiDataChangeMock.mockClear()
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'delete with topics' },
+        { id: 'ast-2', name: 'keep topics' }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-1', name: '', assistantId: 'ast-1', orderKey: 'a0' },
+        { id: 'topic-2', name: 'kept', assistantId: 'ast-2', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: '11111111-1111-7111-8111-111111111111',
+          scopeKey: 'topic-1:ast-1',
+          draft: { text: 'queued', tokens: [] },
+          payload: { text: 'queued', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+
+      assistantDataService.delete('ast-1', { deleteTopics: true })
+
+      expect(await dbh.db.select().from(followupQueueTable)).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/followup-queues', kind: 'membership', dimension: 'scopeKey' },
+        { endpoint: '/followup-queue-states' }
+      ])
     })
 
     it('should roll back assistant delete when topic deletion fails', async () => {

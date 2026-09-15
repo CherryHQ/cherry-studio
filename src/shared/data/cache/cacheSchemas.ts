@@ -400,6 +400,11 @@ export type RendererPersistCacheSchema = {
   'ui.chat.resource_pane.width': number
   // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
   'ui.composer.input_history': string[]
+  // Follow-up queue crash recovery: ids this profile already sent, keyed by
+  // queue row id with the send timestamp. A row reclaimed after a crash
+  // between send and dequeue is dequeued without replaying instead of being
+  // sent a second time.
+  'followup.sent_ids': Record<string, number>
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
   // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
@@ -462,6 +467,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.width': 460,
   'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
   'ui.composer.input_history': [],
+  'followup.sent_ids': {},
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
   'ui.chat.right_pane_open_override': null,

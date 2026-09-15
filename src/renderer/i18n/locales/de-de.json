@@ -599,6 +599,7 @@
   "chat.input.file_not_supported_count": "{{count}} Dateien werden nicht unterstützt",
   "chat.input.focus_hint": "zum Fokussieren",
   "chat.input.followup_queue.edit": "Bearbeiten",
+  "chat.input.followup_queue.limit_reached": "Warteschlange ist voll (max. {{count}})",
   "chat.input.followup_queue.pause": "Automatisches Senden pausieren",
   "chat.input.followup_queue.remove": "Entfernen",
   "chat.input.followup_queue.resume": "Auto-Send fortsetzen",

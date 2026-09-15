@@ -599,6 +599,7 @@
   "chat.input.file_not_supported_count": "{{count}} αρχεία δεν υποστηρίζονται",
   "chat.input.focus_hint": "για εστίαση",
   "chat.input.followup_queue.edit": "Επεξεργασία",
+  "chat.input.followup_queue.limit_reached": "Η ουρά είναι γεμάτη (μέγιστο {{count}})",
   "chat.input.followup_queue.pause": "Παύση αυτόματης αποστολής",
   "chat.input.followup_queue.remove": "Αφαίρεση",
   "chat.input.followup_queue.resume": "Συνέχιση αυτόματης αποστολής",

@@ -22,6 +22,7 @@ import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { aiUsageRecordHandlers } from './aiUsageRecords'
 import { assistantHandlers } from './assistants'
 import { fileHandlers } from './files'
+import { followupQueueHandlers } from './followupQueues'
 import { groupHandlers } from './groups'
 import { jobHandlers } from './jobs'
 import { knowledgeHandlers } from './knowledges'
@@ -55,6 +56,7 @@ export const apiHandlers: ApiImplementation = {
   ...topicHandlers,
   ...messageHandlers,
   ...fileHandlers,
+  ...followupQueueHandlers,
   ...temporaryChatHandlers,
   ...modelHandlers,
   ...paintingHandlers,
