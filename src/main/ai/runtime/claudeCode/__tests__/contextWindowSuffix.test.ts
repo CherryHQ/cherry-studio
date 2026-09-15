@@ -40,6 +40,12 @@ describe('isAnthropicOfficialHost', () => {
     expect(isAnthropicOfficialHost('https://api.deepseek.com/anthropic')).toBe(false)
   })
 
+  it('is false for plain HTTP and non-default ports on the official host', () => {
+    expect(isAnthropicOfficialHost('http://api.anthropic.com')).toBe(false)
+    expect(isAnthropicOfficialHost('https://api.anthropic.com:8443')).toBe(false)
+    expect(isAnthropicOfficialHost('https://api.anthropic.com:443')).toBe(true)
+  })
+
   it('is false for an unparseable base URL', () => {
     expect(isAnthropicOfficialHost('not a url')).toBe(false)
   })
