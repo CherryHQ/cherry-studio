@@ -21,32 +21,30 @@ describe('WebviewSurface', () => {
     const anchor = document.createElement('div')
     document.body.append(anchor)
     vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 20, 640, 480))
-    const view = render(
-      <WebviewSurface anchor={anchor}>
-        <Guest />
-      </WebviewSurface>
-    )
+    const view = render(<WebviewSurface anchor={anchor} guest={<Guest />} overlay={<div data-testid="overlay" />} />)
     const guest = view.getByTestId('guest')
-    const surface = guest.parentElement!
-    expect(surface).toHaveStyle({ width: '640px', height: '480px', left: '10px', top: '20px' })
+    const overlay = view.getByTestId('overlay')
+    const guestPlane = guest.parentElement!
+    const overlayPlane = overlay.parentElement!
+    expect(guestPlane).toHaveStyle({ width: '640px', height: '480px', left: '10px', top: '20px' })
+    expect(overlayPlane).toHaveStyle({ width: '640px', height: '480px', left: '10px', top: '20px' })
+    expect(guestPlane).toHaveStyle({ opacity: '1', pointerEvents: 'auto' })
+    expect(overlayPlane).toHaveStyle({ opacity: '1', pointerEvents: 'none' })
 
-    view.rerender(
-      <WebviewSurface anchor={null}>
-        <Guest />
-      </WebviewSurface>
-    )
+    view.rerender(<WebviewSurface anchor={null} guest={<Guest />} overlay={<div data-testid="overlay" />} />)
     expect(view.getByTestId('guest')).toBe(guest)
+    expect(view.getByTestId('overlay')).toBe(overlay)
     expect(live).toBe(1)
-    expect(surface).toHaveStyle({ opacity: '0', width: '640px', height: '480px' })
-    expect(surface.inert).toBe(true)
+    expect(guestPlane).toHaveStyle({ opacity: '0', width: '640px', height: '480px' })
+    expect(overlayPlane).toHaveStyle({ opacity: '0', width: '640px', height: '480px' })
+    expect(guestPlane.inert).toBe(true)
+    expect(overlayPlane.inert).toBe(true)
 
-    view.rerender(
-      <WebviewSurface anchor={anchor}>
-        <Guest />
-      </WebviewSurface>
-    )
+    view.rerender(<WebviewSurface anchor={anchor} guest={<Guest />} overlay={<div data-testid="overlay" />} />)
     expect(view.getByTestId('guest')).toBe(guest)
-    expect(surface).toHaveStyle({ opacity: '1' })
+    expect(view.getByTestId('overlay')).toBe(overlay)
+    expect(guestPlane).toHaveStyle({ opacity: '1' })
+    expect(overlayPlane).toHaveStyle({ opacity: '1' })
     act(() => view.unmount())
     expect(live).toBe(0)
     expect(guest.isConnected).toBe(false)
@@ -74,25 +72,29 @@ describe('WebviewSurface', () => {
       () => new DOMRect(anchor.parentElement === first ? 10 : 200, anchor.previousSibling ? 90 : 20, 640, 480)
     )
     const view = render(
-      <WebviewSurface anchor={anchor}>
-        <Guest />
-      </WebviewSurface>
+      <WebviewSurface anchor={anchor} guest={<Guest />} overlay={<div data-testid="moving-overlay" />} />
     )
     const guest = view.getByTestId('moving-guest')
-    const surface = guest.parentElement!
+    const guestPlane = guest.parentElement!
+    const overlayPlane = view.getByTestId('moving-overlay').parentElement!
     second.append(anchor)
-    await waitFor(() => expect(surface).toHaveStyle({ left: '200px', top: '90px' }))
+    await waitFor(() => expect(guestPlane).toHaveStyle({ left: '200px', top: '90px' }))
+    expect(overlayPlane).toHaveStyle({ left: '200px', top: '90px' })
 
     second.prepend(anchor)
-    await waitFor(() => expect(surface).toHaveStyle({ left: '200px', top: '20px' }))
+    await waitFor(() => expect(guestPlane).toHaveStyle({ left: '200px', top: '20px' }))
+    expect(overlayPlane).toHaveStyle({ left: '200px', top: '20px' })
     expect(view.getByTestId('moving-guest')).toBe(guest)
     expect(live).toBe(1)
 
     anchor.remove()
-    await waitFor(() => expect(surface).toHaveStyle({ opacity: '0' }))
-    expect(surface.inert).toBe(true)
+    await waitFor(() => expect(guestPlane).toHaveStyle({ opacity: '0' }))
+    expect(overlayPlane).toHaveStyle({ opacity: '0' })
+    expect(guestPlane.inert).toBe(true)
+    expect(overlayPlane.inert).toBe(true)
     second.append(anchor)
-    await waitFor(() => expect(surface).toHaveStyle({ opacity: '1', top: '90px' }))
+    await waitFor(() => expect(guestPlane).toHaveStyle({ opacity: '1', top: '90px' }))
+    expect(overlayPlane).toHaveStyle({ opacity: '1', top: '90px' })
     expect(live).toBe(1)
     view.unmount()
     expect(live).toBe(0)

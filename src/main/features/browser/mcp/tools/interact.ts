@@ -4,7 +4,8 @@ import { selectOption } from '../../actions/forms'
 import { pressKey, typeText } from '../../actions/keyboard'
 import { click, hover, scroll } from '../../actions/mouse'
 import { settleAction } from '../../actions/settle'
-import { browserRefSchema, type CommandOptions } from '../../browserUse'
+import type { BrowserActionOptions } from '../../BrowserCursor'
+import { browserRefSchema } from '../../browserUse'
 import type { GuestSession } from '../../session/GuestSession'
 import type { BrowserController } from '../browserController'
 import { browserResult } from './result'
@@ -56,7 +57,7 @@ export async function handleInteraction(
 ) {
   const input = interactionSchemas[name].parse(args)
   return browserResult(controller, input, signal, async (session, options) => {
-    const act = async (session: GuestSession, options: CommandOptions) => {
+    const act = async (session: GuestSession, options: BrowserActionOptions) => {
       switch (name) {
         case 'click': {
           const p = interactionSchemas.click.parse(input)

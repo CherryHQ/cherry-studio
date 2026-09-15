@@ -6,12 +6,14 @@ import { Activity, useLayoutEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentBrowserRuntimeService as runtime } from '@renderer/services/AgentBrowserRuntimeService'
+import type { BrowserCursorState } from '@shared/types/browserCursor'
 
 import { AgentBrowserRuntimeHost } from '../AgentBrowserRuntimeHost'
 
 const bridge = vi.hoisted(() => ({
-  listeners: new Map<string, (input: { sessionId: string }) => void>(),
+  listeners: new Map<string, (input: unknown) => void>(),
   binding: undefined as number | undefined,
+  presented: false,
   tabs: [{ id: 'tab-a' }]
 }))
 
@@ -23,10 +25,11 @@ vi.mock('@renderer/data/hooks/usePreference', async () => {
 vi.mock('@renderer/ipc/ipcApi', () => ({
   ipcApi: {
     on: (event: string, handler: (input: { sessionId: string }) => void) => {
-      bridge.listeners.set(event, handler)
+      bridge.listeners.set(event, (input) => handler(input as { sessionId: string }))
       return () => bridge.listeners.delete(event)
     },
-    request: async (route: string, input: { webviewId?: number }) => {
+    request: async (route: string, input: { webviewId?: number; presented?: boolean }) => {
+      if (route === 'browser.cursor.present') bridge.presented = input.presented ?? false
       if (route === 'browser.pane.attach') {
         bridge.binding = input.webviewId
         return { tabId: 'binding-a' }
@@ -62,11 +65,34 @@ function Harness({ visible }: { visible: boolean }) {
   )
 }
 
+function selectContents(element: HTMLElement): Selection {
+  const selection = window.getSelection()
+  if (!selection) throw new Error('Selection API is unavailable')
+  const range = document.createRange()
+  range.selectNodeContents(element)
+  selection.removeAllRanges()
+  selection.addRange(range)
+  return selection
+}
+
+function emitCursorState(state: BrowserCursorState): void {
+  act(() => bridge.listeners.get('browser.cursor.state')?.(state))
+}
+
 describe('AgentBrowserRuntimeHost', () => {
   beforeEach(() => {
     runtime.dispose()
     bridge.tabs = [{ id: 'tab-a' }]
     bridge.binding = undefined
+    bridge.presented = false
+    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      }
+    )
     MockUsePreferenceUtils.setPreferenceValue('app.spell_check.enabled', true)
     Object.assign(HTMLElement.prototype, {
       getWebContentsId: () => 42,
@@ -78,29 +104,93 @@ describe('AgentBrowserRuntimeHost', () => {
   })
   afterEach(() => {
     cleanup()
+    window.getSelection()?.removeAllRanges()
     for (const key of ['getWebContentsId', 'isLoading', 'getTitle', 'getURL'])
       Reflect.deleteProperty(HTMLElement.prototype, key)
     runtime.dispose()
+    vi.unstubAllGlobals()
   })
 
   it('keeps the execution binding while Activity stops the view and releases it when the owner closes', async () => {
     runtime.ensure('session-a', 'https://example.com/')
     const view = render(<Harness visible />)
     await waitFor(() => expect(bridge.binding).toBe(42))
+    await waitFor(() => expect(bridge.presented).toBe(true))
     const guest = view.getByTestId('webview-browser-guest')
     view.rerender(<Harness visible={false} />)
     await act(async () => {})
     expect(livePresentation).toBe(0)
     expect(bridge.binding).toBe(42)
+    expect(bridge.presented).toBe(false)
     expect(view.getByTestId('webview-browser-guest')).toBe(guest)
 
     view.rerender(<Harness visible />)
+    await waitFor(() => expect(bridge.presented).toBe(true))
     expect(view.getByTestId('webview-browser-guest')).toBe(guest)
     bridge.tabs = []
     view.rerender(<Harness visible />)
     await waitFor(() => expect(bridge.binding).toBeUndefined())
     expect(guest.isConnected).toBe(false)
     expect(runtime.get('session-a')).toBeUndefined()
+  })
+
+  it('mounts the guest above the pane and host overlays above the guest at the document root', async () => {
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+
+    const guest = view.getByTestId('webview-browser-guest')
+    const cursor = await view.findByTestId('browser-cursor-overlay')
+    const guestPlane = guest.parentElement
+    const overlayPlane = cursor.parentElement
+
+    // Electron compositing requires body siblings ordered above the z-40 pane host.
+    expect(guestPlane).not.toBeNull()
+    expect(overlayPlane).not.toBeNull()
+    expect(guestPlane?.parentElement).toBe(document.body)
+    expect(overlayPlane?.parentElement).toBe(document.body)
+    expect(guestPlane?.nextElementSibling).toBe(overlayPlane)
+    expect(guestPlane).toHaveClass('z-[45]')
+    expect(overlayPlane).toHaveClass('z-50')
+    expect(guestPlane).not.toContainElement(cursor)
+    expect(overlayPlane).toContainElement(runtime.get('session-a')?.overlays ?? null)
+  })
+
+  it('clears only chat selections after an agent browser press', async () => {
+    const outside = document.createElement('div')
+    outside.textContent = 'Outside selection'
+    const messages = document.createElement('div')
+    messages.id = 'messages'
+    messages.textContent = 'Chat selection'
+    document.body.append(outside, messages)
+
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.presented).toBe(true))
+    vi.spyOn(view.getByTestId('webview-browser-guest'), 'getBoundingClientRect').mockReturnValue({
+      width: 800,
+      height: 600
+    } as DOMRect)
+
+    const pressed = (sequence: number): BrowserCursorState => ({
+      sessionId: 'session-a',
+      tabId: 'binding-a',
+      kind: 'pressed',
+      sequence,
+      documentId: 'document',
+      x: 80,
+      y: 40,
+      scale: 1,
+      animate: false
+    })
+
+    const outsideSelection = selectContents(outside)
+    emitCursorState(pressed(1))
+    expect(outsideSelection.toString()).toBe('Outside selection')
+
+    const chatSelection = selectContents(messages)
+    emitCursorState(pressed(2))
+    expect(chatSelection.rangeCount).toBe(0)
   })
 
   it('releases the previous session guest when its only owning tab changes sessions', async () => {

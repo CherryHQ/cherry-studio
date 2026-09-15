@@ -67,6 +67,72 @@ afterEach(() => {
 })
 
 describe('Browser actions', () => {
+  it('waits for visual arrival and clicks the target at its updated position', async () => {
+    let arrive!: () => void
+    const arrival = new Promise<boolean>((resolve) => {
+      arrive = () => resolve(true)
+    })
+    let started!: () => void
+    const moving = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    const pointer = {
+      move: () => {
+        started()
+        return arrival
+      },
+      update: vi.fn(),
+      pressed: vi.fn(),
+      hide: vi.fn()
+    }
+    const result = click(session, 'e1', 'left', 1, { pointer })
+    await moving
+    expect(commands.filter((command) => command.method === 'Input.dispatchMouseEvent')).toEqual([])
+    quads = [[100, 100, 200, 100, 200, 140, 100, 140]]
+    arrive()
+    expect(await result).toEqual({ occluded: false, synthetic: false })
+    expect(
+      commands
+        .filter((command) => command.method === 'Input.dispatchMouseEvent')
+        .map(({ params }) => [params.type, params.x, params.y])
+    ).toEqual([
+      ['mouseMoved', 150, 120],
+      ['mousePressed', 150, 120],
+      ['mouseReleased', 150, 120]
+    ])
+  })
+
+  it('does not send mouse input when the action is cancelled during animation', async () => {
+    const abort = new AbortController()
+    const pointer = {
+      move: async () => {
+        abort.abort(new Error('cancelled'))
+        return true
+      },
+      update: vi.fn(),
+      pressed: vi.fn(),
+      hide: vi.fn()
+    }
+    await expect(click(session, 'e1', 'left', 1, { pointer, signal: abort.signal })).rejects.toThrow('cancelled')
+    expect(commands.filter((command) => command.method === 'Input.dispatchMouseEvent')).toEqual([])
+  })
+
+  it('does not press a target that moved as a result of real hover', async () => {
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation(async (method, params: any) => {
+      const result = await fallback(method, params)
+      if (method === 'Input.dispatchMouseEvent' && params.type === 'mouseMoved') {
+        quads = [[200, 200, 300, 200, 300, 240, 200, 240]]
+      }
+      return result
+    })
+    const pointer = { move: async () => true, update: vi.fn(), pressed: vi.fn(), hide: vi.fn() }
+    await expect(click(session, 'e1', 'left', 1, { pointer })).rejects.toMatchObject({ code: 'occluded' })
+    expect(
+      commands.filter((command) => command.method === 'Input.dispatchMouseEvent').map(({ params }) => params.type)
+    ).toEqual(['mouseMoved'])
+  })
+
   it('hit-tests scrolled documents in page coordinates while keeping mouse input in viewport coordinates', async () => {
     const fallback = mock.debugger.sendCommand.getMockImplementation()!
     mock.debugger.sendCommand.mockImplementation(async (method, params: any) => {

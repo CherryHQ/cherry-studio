@@ -12,10 +12,23 @@ import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { getWebviewPartition } from '@shared/utils/webviewSecurity'
 
+import { BrowserCursorOverlay } from './BrowserCursorOverlay'
 import { WebviewHost } from './WebviewHost'
 import { WebviewSurface } from './WebviewSurface'
 
 const logger = loggerService.withContext('AgentBrowserRuntimeHost')
+
+function clearMessageSelection(): void {
+  const messages = document.getElementById('messages')
+  const selection = window.getSelection()
+  if (!messages || !selection || selection.isCollapsed) return
+
+  for (let index = 0; index < selection.rangeCount; index += 1) {
+    if (!selection.getRangeAt(index).intersectsNode(messages)) continue
+    selection.removeAllRanges()
+    return
+  }
+}
 
 /** Window composition mounts this outside page Activity; the runtime owns its instances. */
 export function AgentBrowserRuntimeHost() {
@@ -43,7 +56,7 @@ export function AgentBrowserRuntimeHost() {
 const AgentBrowserGuest = memo(function AgentBrowserGuest({ sessionId }: { sessionId: string }) {
   const resource = useSyncExternalStore(runtime.subscribe, () => runtime.get(sessionId))
   const guest = resource?.guest ?? null
-  useAgentBrowserGuest(sessionId, guest, 0)
+  const tabId = useAgentBrowserGuest(sessionId, guest, 0)
   const onWebviewChange = useCallback(
     (webview: WebviewTag | null) => runtime.update(sessionId, { guest: webview, ready: false, title: '' }),
     [sessionId]
@@ -56,32 +69,49 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({ sessionId }: { sessi
   const { sourceUrl, securityProfile, anchor } = resource
   const authorization = getGuestAuthorizationKey(securityProfile, sourceUrl)
   return (
-    <WebviewSurface anchor={anchor}>
-      <WebviewHost
-        key={authorization}
-        id={`agent-browser:${sessionId}`}
-        src={sourceUrl}
-        reloadKey={resource.reloadKey}
-        partition={getWebviewPartition(securityProfile)}
-        allowPopups
-        className="inline-flex h-full w-full bg-white"
-        testId="webview-browser-guest"
-        onWebviewChange={onWebviewChange}
-        onDomReady={(webview) =>
-          runtime.update(sessionId, { ready: true, url: webview.getURL(), title: webview.getTitle() })
-        }
-        onDidStartLoading={() => runtime.update(sessionId, { loading: true, failed: false })}
-        onDidFinishLoad={() => runtime.update(sessionId, { ready: true, loading: false })}
-        onDidNavigate={(event) => {
-          if (!('isMainFrame' in event) || event.isMainFrame) runtime.update(sessionId, { url: event.url })
-        }}
-        onPageTitleUpdated={(event) => runtime.update(sessionId, { title: event.title })}
-        onDidFailLoad={(event) => {
-          if (event.isMainFrame && event.errorCode !== -3)
-            runtime.update(sessionId, { failed: true, ready: true, loading: false })
-        }}
-      />
-      <div ref={onOverlaysChange} className="contents" />
-    </WebviewSurface>
+    <WebviewSurface
+      anchor={anchor}
+      guest={
+        <WebviewHost
+          key={authorization}
+          id={`agent-browser:${sessionId}`}
+          src={sourceUrl}
+          reloadKey={resource.reloadKey}
+          partition={getWebviewPartition(securityProfile)}
+          allowPopups
+          className="inline-flex h-full w-full bg-white"
+          testId="webview-browser-guest"
+          onWebviewChange={onWebviewChange}
+          onDomReady={(webview) =>
+            runtime.update(sessionId, { ready: true, url: webview.getURL(), title: webview.getTitle() })
+          }
+          onDidStartLoading={() => runtime.update(sessionId, { loading: true, failed: false })}
+          onDidFinishLoad={() => runtime.update(sessionId, { ready: true, loading: false })}
+          onDidNavigate={(event) => {
+            if (!('isMainFrame' in event) || event.isMainFrame) runtime.update(sessionId, { url: event.url })
+          }}
+          onPageTitleUpdated={(event) => runtime.update(sessionId, { title: event.title })}
+          onDidFailLoad={(event) => {
+            if (event.isMainFrame && event.errorCode !== -3)
+              runtime.update(sessionId, { failed: true, ready: true, loading: false })
+          }}
+        />
+      }
+      overlay={
+        <>
+          {tabId && guest && (
+            <BrowserCursorOverlay
+              key={tabId}
+              sessionId={sessionId}
+              tabId={tabId}
+              guest={guest}
+              active={!!anchor && resource.ready && !resource.failed}
+              onPressed={clearMessageSelection}
+            />
+          )}
+          <div ref={onOverlaysChange} className="contents" />
+        </>
+      }
+    />
   )
 })
