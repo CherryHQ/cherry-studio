@@ -73,6 +73,9 @@ export function isMcpErrorMessage(message: string): boolean {
 
 export function isProxyErrorMessage(message: string): boolean {
   const msg = message.toLowerCase()
+  if (msg.includes('err_tunnel_connection_failed')) {
+    return true
+  }
   // Underscore→space would split ERR_MANDATORY_PROXY_* into "err mandatory proxy".
   if (/\berr(?:_[a-z0-9]+)*_proxy(?:_[a-z0-9]+)*\b/.test(msg)) {
     return true
@@ -213,6 +216,9 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   if (
     msg.includes('econnreset') ||
     msg.includes('connection reset') ||
+    msg.includes('err_connection_reset') ||
+    msg.includes('err_connection_aborted') ||
+    msg.includes('err_connection_closed') ||
     msg.includes('stream interrupted') ||
     msg.includes('stream closed') ||
     msg.includes('stream aborted') ||
@@ -222,7 +228,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'stream'
   }
 
-  // Network errors
+  // Chromium `net::ERR_*` codes use underscores, matching the diagnostics scanner anchors.
   if (
     msg.includes('econnrefused') ||
     msg.includes('etimedout') ||
@@ -230,7 +236,18 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('timed out') ||
     msg.includes('network') ||
     msg.includes('fetch failed') ||
-    msg.includes('enotfound')
+    msg.includes('enotfound') ||
+    msg.includes('err_name_not_resolved') ||
+    msg.includes('err_name_resolution_failed') ||
+    msg.includes('err_internet_disconnected') ||
+    msg.includes('err_network_changed') ||
+    msg.includes('err_address_unreachable') ||
+    msg.includes('enetunreach') ||
+    msg.includes('ehostunreach') ||
+    msg.includes('eai_again') ||
+    msg.includes('err_connection_refused') ||
+    msg.includes('err_connection_timed_out') ||
+    msg.includes('err_timed_out')
   ) {
     return 'network'
   }
