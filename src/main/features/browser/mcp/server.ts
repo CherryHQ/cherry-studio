@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { Mutex } from 'async-mutex'
 
 import { loggerService } from '@logger'
-import { BROWSER_TOOL_NAMES } from '@shared/ai/browserTools'
+import { BROWSER_TOOL_NAMES } from '@main/ai/mcp/browserTools'
 
 import type { BrowserSessionService } from '../BrowserSessionService'
 import { BrowserSessionError } from '../session/BrowserSessionError'

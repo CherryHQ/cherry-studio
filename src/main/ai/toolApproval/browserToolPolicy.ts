@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { BROWSER_TOOL_NAMES, browserToolFromRuntimeName } from '@shared/ai/browserTools'
+import { BROWSER_TOOL_NAMES, browserToolFromRuntimeName } from '@main/ai/mcp/browserTools'
 
 import type { BuiltinToolPolicyEntry } from './builtinToolPolicyRegistry'
 
