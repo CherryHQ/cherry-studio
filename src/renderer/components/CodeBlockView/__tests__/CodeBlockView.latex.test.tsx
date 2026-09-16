@@ -58,19 +58,33 @@ describe('LaTeX code block preview', () => {
     expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
   })
 
-  it.each(['$$\\frac{a}{b}$$', '\\[\\frac{a}{b}\\]', '\\[\\frac{a}{\\[b\\]}\\]', '\\begin{aligned}a&=b\\end{aligned}'])(
-    'previews mathematical LaTeX with existing delimiters or environments: %s',
-    async (source) => {
-      render(
-        <CodeBlockView language="latex" editable={false}>
-          {source}
-        </CodeBlockView>
-      )
+  it.each([
+    '$\\frac{a}{b}$',
+    '$$\\frac{a}{b}$$',
+    '\\[\\frac{a}{b}\\]',
+    '\\[\\frac{a}{\\[b\\]}\\]',
+    '\\begin{aligned}a&=b\\end{aligned}'
+  ])('previews mathematical LaTeX with existing delimiters or environments: %s', async (source) => {
+    render(
+      <CodeBlockView language="latex" editable={false}>
+        {source}
+      </CodeBlockView>
+    )
 
-      expect(await screen.findByRole('math', { hidden: true })).toHaveTextContent('a')
-      expect(screen.getByRole('math', { hidden: true })).toHaveTextContent('b')
-    }
-  )
+    expect(await screen.findByRole('math', { hidden: true })).toHaveTextContent('a')
+    expect(screen.getByRole('math', { hidden: true })).toHaveTextContent('b')
+  })
+
+  it.each([false, true])('previews single-dollar math with streaming=%s', async (isStreaming) => {
+    render(
+      <CodeBlockView language="latex" editable={false} isStreaming={isStreaming}>
+        {'$x$'}
+      </CodeBlockView>
+    )
+
+    expect(await screen.findByRole('math', { hidden: true })).toHaveTextContent('x')
+    expect(screen.queryByTitle(/ParseError/)).not.toBeInTheDocument()
+  })
 
   it.each([
     ['    \\[\n    \\frac{a}{b}\n    \\]', 'ab'],
