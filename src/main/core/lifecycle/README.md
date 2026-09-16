@@ -22,7 +22,7 @@ lifecycle/
 ├── types.ts              # Phase, LifecycleState, ServiceMetadata, Pausable, errors
 ├── decorators.ts         # @Injectable, @ServicePhase, @DependsOn, @Priority, etc.
 ├── BaseService.ts        # Abstract base class with lifecycle hooks
-├── event.ts              # Emitter<T>, Event<T>, Disposable — typed inter-service events
+├── event.ts              # Emitter<T>, Event<T>, toDisposable — typed inter-service events
 ├── signal.ts             # Signal<T> — one-shot deferred value (PromiseLike)
 ├── ServiceContainer.ts   # IoC container with DI and conditional activation
 ├── DependencyResolver.ts # Topological sort, layered parallel resolution
@@ -30,3 +30,7 @@ lifecycle/
 ├── index.ts              # Barrel export
 └── __tests__/            # Unit tests for all components
 ```
+
+`Disposable` is defined in [`src/shared/types/disposable.ts`](../../../shared/types/disposable.ts)
+and re-exported by this module. Shared async resources use the same contract and
+can be registered directly with `BaseService.registerDisposable()`.

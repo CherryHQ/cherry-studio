@@ -2,9 +2,10 @@ import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
+import type { Disposable } from '@shared/types/disposable'
 
 import { getServiceName } from './decorators'
-import { type Disposable, toDisposable } from './event'
+import { toDisposable } from './event'
 import { type ErrorStrategy, isActivatable, isPausable, LifecycleState, type ServiceConstructor } from './types'
 
 const logger = loggerService.withContext('Lifecycle')
