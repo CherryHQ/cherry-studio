@@ -190,9 +190,9 @@ export class BrowserGuestRegistry implements Disposable {
     const ownerId = this.resolveOwner(context.sessionId)
     if (ownerId !== context.ownerId) throw new BrowserSessionError('not_allowed')
     const target = this.targets.get(context.sessionId)
-    return target?.ownerId === context.ownerId && !target.guest.isDestroyed() && !target.abort.signal.aborted
-      ? target
-      : undefined
+    if (!target || target.guest.isDestroyed() || target.abort.signal.aborted) return undefined
+    target.ownerId = ownerId
+    return target
   }
 
   async ensureGuest(context: BrowserGuestContext, signal: AbortSignal, url?: string): Promise<BrowserGuestTarget> {

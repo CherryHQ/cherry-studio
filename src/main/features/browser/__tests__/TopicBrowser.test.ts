@@ -41,7 +41,7 @@ describe('topic browser ownership and cancellation', () => {
     vi.restoreAllMocks()
   })
 
-  it('confines targets to their topic and trusted renderer window', async () => {
+  it('confines targets to their topic and window while allowing the topic to move between assistants', async () => {
     const host = { getZoomFactor: () => 1 } as Electron.WebContents
     vi.mocked(application.get('WindowManager').getWindow).mockReturnValue({
       webContents: host,
@@ -73,6 +73,17 @@ describe('topic browser ownership and cancellation', () => {
     await expect(
       service.callTopicTool(topicId, assistantId, 'list_tabs', {}, new AbortController().signal)
     ).rejects.toThrow()
+    const newOwner = '44444444-4444-4444-8444-444444444444'
+    dbh.db
+      .insert(assistantTable)
+      .values({ id: newOwner, name: 'New owner', emoji: '', orderKey: 'a1', settings: DEFAULT_ASSISTANT_SETTINGS })
+      .run()
+    dbh.db.update(topicTable).set({ assistantId: newOwner }).where(eq(topicTable.id, topicId)).run()
+    const moved = await Promise.all(
+      [1, 2].map(() => service.callTopicTool(topicId, newOwner, 'list_tabs', {}, new AbortController().signal))
+    )
+    expect(moved.every((result) => !result.isError && JSON.stringify(result).includes(tabId))).toBe(true)
+    expect(() => service.topicBrowser.get({ sessionId: topicId, ownerId: assistantId })).toThrow()
     expect(fixture.guest.isDestroyed()).toBe(false)
   })
 

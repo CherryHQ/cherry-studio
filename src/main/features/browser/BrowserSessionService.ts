@@ -177,7 +177,8 @@ export class BrowserSessionService extends BaseService {
     let entry = this.topicServers.get(topicId)
     if (entry && entry.ownerId !== assistantId) {
       await entry.server.close()
-      entry = undefined
+      assertAvailable()
+      entry = this.topicServers.get(topicId)
     }
     if (!entry) {
       const controller = new SessionBrowserController(this, {
