@@ -281,10 +281,7 @@ export const AppShell = () => {
     />
   )
 
-  // Expose eviction-aware tab lifecycle through TabsContext so in-page
-  // surfaces (MiniAppPage toolbar) benefit from the same cleanup as the
-  // tab bar — detach is included so future context consumers do not bypass
-  // eviction.
+  // Context consumers must run the same mini-app cleanup as the tab bar.
   const tabsContextValue = useMemo(
     () => ({
       ...tabsApi,
