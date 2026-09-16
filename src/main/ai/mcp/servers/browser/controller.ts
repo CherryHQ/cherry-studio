@@ -492,6 +492,7 @@ export class CdpBrowserController {
         nodeIntegration: false,
         devTools: true,
         backgroundThrottling: false,
+        autoplayPolicy: 'user-gesture-required',
         partition
       }
     })
@@ -648,7 +649,9 @@ export class CdpBrowserController {
 
     logger.info('Loading URL', { url, windowKey, tabId: actualTabId, privateMode })
     const { webContents } = view
+    const windowInfo = this.windows.get(windowKey)
     this.touchTab(windowKey, actualTabId)
+    if (windowInfo) this.syncAudioState(windowInfo)
 
     let resolved = false
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
