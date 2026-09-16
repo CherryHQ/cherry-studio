@@ -5144,6 +5144,7 @@
   "trace.toolCalls": "Araç Çağrıları",
   "translate.alter_language": "Alternatif Dil",
   "translate.any.language": "Herhangi bir dil",
+  "translate.bidirectional_hint": "Giriş dilini otomatik olarak algılar ve bu iki dil arasında çeviri yapar. Elle geçiş yapmanız gerekmez.",
   "translate.button.translate": "Çevir",
   "translate.close": "Kapat",
   "translate.closed": "Çeviri kapatıldı",

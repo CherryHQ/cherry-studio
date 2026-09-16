@@ -5144,6 +5144,7 @@
   "trace.toolCalls": "Apeluri de instrumente",
   "translate.alter_language": "Limbă alternativă",
   "translate.any.language": "Orice limbă",
+  "translate.bidirectional_hint": "Detectează automat limba introdusă și traduce între aceste două limbi. Nu este necesară comutarea manuală.",
   "translate.button.translate": "Tradu",
   "translate.close": "Închide",
   "translate.closed": "Traducere închisă",

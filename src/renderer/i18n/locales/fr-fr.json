@@ -5144,6 +5144,7 @@
   "trace.toolCalls": "Appels d'outils",
   "translate.alter_language": "Langue de secours",
   "translate.any.language": "langue arbitraire",
+  "translate.bidirectional_hint": "Détecte automatiquement la langue saisie et traduit entre ces deux langues. Aucun changement manuel nécessaire.",
   "translate.button.translate": "traduire",
   "translate.close": "fermer",
   "translate.closed": "La traduction est désactivée",

@@ -5144,6 +5144,7 @@
   "trace.toolCalls": "Chamadas de Ferramentas",
   "translate.alter_language": "Idioma alternativo",
   "translate.any.language": "qualquer idioma",
+  "translate.bidirectional_hint": "Deteta automaticamente o idioma de entrada e traduz entre estes dois idiomas. Não é necessário alternar manualmente.",
   "translate.button.translate": "Traduzir",
   "translate.close": "Fechar",
   "translate.closed": "A tradução foi desativada",

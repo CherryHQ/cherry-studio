@@ -5144,6 +5144,7 @@
   "trace.toolCalls": "Cuộc gọi công cụ",
   "translate.alter_language": "Ngôn ngữ thay thế",
   "translate.any.language": "Bất kỳ ngôn ngữ nào",
+  "translate.bidirectional_hint": "Tự động nhận diện ngôn ngữ đầu vào và dịch qua lại giữa hai ngôn ngữ này. Không cần chuyển đổi thủ công.",
   "translate.button.translate": "Dịch",
   "translate.close": "Đóng",
   "translate.closed": "Dịch đã đóng",

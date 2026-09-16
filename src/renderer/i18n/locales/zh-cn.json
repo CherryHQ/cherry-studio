@@ -5144,6 +5144,7 @@
   "trace.toolCalls": "工具调用",
   "translate.alter_language": "备用语言",
   "translate.any.language": "任意语言",
+  "translate.bidirectional_hint": "自动识别输入语言，并在这两种语言之间互译，无需手动切换。",
   "translate.button.translate": "翻译",
   "translate.close": "关闭",
   "translate.closed": "翻译已关闭",

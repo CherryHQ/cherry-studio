@@ -5144,6 +5144,7 @@
   "trace.toolCalls": "Tool Calls",
   "translate.alter_language": "Alternative Language",
   "translate.any.language": "Any language",
+  "translate.bidirectional_hint": "Automatically detects the input language and translates between these two languages. No manual switching needed.",
   "translate.button.translate": "Translate",
   "translate.close": "Close",
   "translate.closed": "Translation closed",

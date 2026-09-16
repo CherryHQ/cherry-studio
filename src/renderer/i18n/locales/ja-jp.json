@@ -5144,6 +5144,7 @@
   "trace.toolCalls": "ツール呼び出し",
   "translate.alter_language": "予備の言語",
   "translate.any.language": "任意の言語",
+  "translate.bidirectional_hint": "入力言語を自動で検出し、この2つの言語間で相互に翻訳します。手動で切り替える必要はありません。",
   "translate.button.translate": "翻訳",
   "translate.close": "閉じる",
   "translate.closed": "翻訳は閉じられました",

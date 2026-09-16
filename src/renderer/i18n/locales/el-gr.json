@@ -5144,6 +5144,7 @@
   "trace.toolCalls": "Κλήσεις Εργαλείων",
   "translate.alter_language": "Εναλλακτική γλώσσα",
   "translate.any.language": " οποιαδήποτε γλώσσα",
+  "translate.bidirectional_hint": "Αναγνωρίζει αυτόματα τη γλώσσα εισόδου και μεταφράζει μεταξύ αυτών των δύο γλωσσών. Δεν χρειάζεται χειροκίνητη εναλλαγή.",
   "translate.button.translate": "Μετάφραση",
   "translate.close": "Κλείσιμο",
   "translate.closed": "Η μετάφραση έχει απενεργοποιηθεί",

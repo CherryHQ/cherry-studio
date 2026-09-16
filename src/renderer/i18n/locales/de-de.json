@@ -5144,6 +5144,7 @@
   "trace.toolCalls": "Toolaufrufe",
   "translate.alter_language": "Alternative Sprache",
   "translate.any.language": "Beliebige Sprache",
+  "translate.bidirectional_hint": "Erkennt die Eingabesprache automatisch und übersetzt zwischen diesen beiden Sprachen. Kein manuelles Umschalten nötig.",
   "translate.button.translate": "Übersetzen",
   "translate.close": "Schließen",
   "translate.closed": "Übersetzung deaktiviert",
