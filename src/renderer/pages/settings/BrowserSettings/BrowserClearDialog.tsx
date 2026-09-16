@@ -21,10 +21,34 @@ const categories = [
   { kind: 'cache', label: 'settings.browser.cachedFiles', help: 'settings.browser.clearCacheHelp' }
 ] as const
 
-export function BrowserClearDialog({ onDone, onClosed }: { onDone: () => void; onClosed?: () => void }) {
+export function BrowserClearDialog({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation()
+  const [busy, setBusy] = useState(false)
+  return (
+    <DialogContent
+      closeLabel={t('common.close')}
+      showCloseButton={!busy}
+      closeOnOverlayClick={!busy}
+      onEscapeKeyDown={(event) => {
+        if (busy) event.preventDefault()
+      }}
+      className="max-h-[85dvh] overflow-y-auto overscroll-contain">
+      <BrowserClearContent onDone={onDone} busy={busy} setBusy={setBusy} />
+    </DialogContent>
+  )
+}
+
+function BrowserClearContent({
+  onDone,
+  busy,
+  setBusy
+}: {
+  onDone: () => void
+  busy: boolean
+  setBusy: (value: boolean) => void
+}) {
   const { t } = useTranslation()
   const [selected, setSelected] = useState({ history: false, site_data: false, cache: true })
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
 
   const clear = async () => {
@@ -44,15 +68,7 @@ export function BrowserClearDialog({ onDone, onClosed }: { onDone: () => void; o
     }
   }
   return (
-    <DialogContent
-      onCloseAutoFocus={onClosed}
-      closeLabel={t('common.close')}
-      showCloseButton={!busy}
-      closeOnOverlayClick={!busy}
-      onEscapeKeyDown={(event) => {
-        if (busy) event.preventDefault()
-      }}
-      className="max-h-[85dvh] overflow-y-auto overscroll-contain">
+    <>
       <DialogHeader className="text-start">
         <DialogTitle className="pe-6 leading-snug">{t('settings.browser.clear')}</DialogTitle>
         <DialogDescription>{t('settings.browser.clearConfirm')}</DialogDescription>
@@ -96,6 +112,6 @@ export function BrowserClearDialog({ onDone, onClosed }: { onDone: () => void; o
           {t('common.clear')}
         </Button>
       </DialogFooter>
-    </DialogContent>
+    </>
   )
 }

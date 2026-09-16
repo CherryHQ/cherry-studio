@@ -49,13 +49,37 @@ function profileLabel(source: BrowserImportSource): string {
   return [...new Set([source.displayName || source.profile, source.account].filter(Boolean))].join(' · ')
 }
 
-export function BrowserImportDialog({ onDone, onClosed }: { onDone: () => void; onClosed?: () => void }) {
+export function BrowserImportDialog({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation()
+  const [busy, setBusy] = useState(false)
+  return (
+    <DialogContent
+      closeLabel={t('common.close')}
+      showCloseButton={!busy}
+      closeOnOverlayClick={!busy}
+      onEscapeKeyDown={(event) => {
+        if (busy) event.preventDefault()
+      }}
+      className="max-h-[85dvh] overflow-y-auto overscroll-contain">
+      <BrowserImportContent onDone={onDone} busy={busy} setBusy={setBusy} />
+    </DialogContent>
+  )
+}
+
+function BrowserImportContent({
+  onDone,
+  busy,
+  setBusy
+}: {
+  onDone: () => void
+  busy: boolean
+  setBusy: (value: boolean) => void
+}) {
   const { t } = useTranslation()
   const [sources, setSources] = useState<BrowserImportSource[]>([])
   const [sourceId, setSourceId] = useState('')
   const [loading, setLoading] = useState(true)
   const [scan, setScan] = useState(0)
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
   const [history, setHistory] = useState(true)
   const [siteData, setSiteData] = useState(false)
@@ -135,15 +159,7 @@ export function BrowserImportDialog({ onDone, onClosed }: { onDone: () => void; 
   const incomplete = result?.cancelled || results.some((item) => item.failed || item.unsupported)
 
   return (
-    <DialogContent
-      onCloseAutoFocus={onClosed}
-      closeLabel={t('common.close')}
-      showCloseButton={!busy}
-      closeOnOverlayClick={!busy}
-      onEscapeKeyDown={(event) => {
-        if (busy) event.preventDefault()
-      }}
-      className="max-h-[85dvh] overflow-y-auto overscroll-contain">
+    <>
       <DialogHeader className="text-start">
         <DialogTitle className="pe-6 leading-snug">{t('settings.browser.import')}</DialogTitle>
         <DialogDescription className="leading-relaxed">
@@ -333,6 +349,6 @@ export function BrowserImportDialog({ onDone, onClosed }: { onDone: () => void; 
           </>
         )}
       </DialogFooter>
-    </DialogContent>
+    </>
   )
 }
