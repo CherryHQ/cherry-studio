@@ -1,5 +1,6 @@
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
 import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_DESCRIBE_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -117,18 +118,29 @@ function hasCherryTransport(part: CherryMessagePart): boolean {
 // Windows identity for `bash`; the renderer maps both, so both count here.
 const DSH_RUNTIME_TOOL_NAMES: ReadonlySet<string> = new Set([...DSH_BUILTIN_TOOLS.map((tool) => tool.name), 'pwsh'])
 
-// Mirrors the renderer's file-addressability contract (see fileHandleFromPart
-// + the `file` case in MessagePartsRenderer): images render from any URL, but
-// a non-image file only renders when it addresses managed storage (a cherry
-// fileEntryId) or a `file://` URL that decodes to an absolute path. A remote
-// URL or filename-only part renders nothing.
+// Mirrors the completed renderer's file contract: `isPotentiallyVisibleEntry`
+// requires a URL while the `file` render case needs a handle
+// (`fileHandleFromPart`), so a non-image file counts only when it has both —
+// a cherry `fileEntryId` with its stored URL, or a `file://` URL decoding to
+// an absolute path. Entry-only or remote-URL parts render nothing.
 function isAddressableFilePart(part: CherryMessagePart): boolean {
   if (part.type !== 'file') return false
-  if (readCherryMeta(part)?.fileEntryId) return true
   const url = (part as unknown as { url?: string }).url?.trim()
   if (!url) return false
+  if (readCherryMeta(part)?.fileEntryId) return true
   const path = tryFileUrlToPath(url)
   return path !== undefined && AbsoluteFilePathSchema.safeParse(path).success
+}
+
+function isReportArtifactsName(name: string): boolean {
+  return name === REPORT_ARTIFACTS_TOOL_NAME || name.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
+}
+
+// The artifacts footer (`MessageReportArtifacts`) zod-parses the call input
+// and renders nothing when it is invalid, so only a valid call counts here.
+function isValidReportArtifactsCall(part: CherryMessagePart): boolean {
+  const input = (part as unknown as { input?: unknown }).input
+  return reportArtifactsInputSchema.safeParse(input).success
 }
 
 function isRenderableToolName(part: CherryMessagePart, name: string): boolean {
@@ -181,10 +193,12 @@ export function isRenderablePart(part: CherryMessagePart): boolean {
   if (part.type === 'dynamic-tool' || part.type.startsWith('tool-')) {
     const p = part as unknown as { toolCallId?: string; toolName?: string }
     if (!p.toolCallId?.trim()) return false
+    const candidate = (part.type === 'dynamic-tool' ? (p.toolName ?? '') : part.type.slice(5)).trim()
+    if (candidate && isReportArtifactsName(candidate)) return isValidReportArtifactsCall(part)
     // Caller-defined (API-gateway) tools stream as `dynamic-tool` and render
     // through the generic MCP card, so any identified call counts as visible.
     if (part.type === 'dynamic-tool') return true
-    return isRenderableToolName(part, part.type.slice(5))
+    return isRenderableToolName(part, candidate)
   }
   return true
 }

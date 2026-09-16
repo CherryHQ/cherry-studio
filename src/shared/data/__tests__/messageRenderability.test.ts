@@ -87,6 +87,24 @@ describe('isRenderablePart tool names', () => {
     expect(isRenderablePart(part({ type: 'tool-read_image', toolCallId: 'call-1' }))).toBe(false)
     expect(isRenderablePart(part({ type: 'tool-send_message', toolCallId: 'call-1' }))).toBe(false)
   })
+
+  it('counts only valid report_artifacts calls as visible', () => {
+    const validInput = { artifacts: [{ path: '/tmp/report.md' }] }
+    expect(isRenderablePart(part({ type: 'tool-report_artifacts', toolCallId: 'call-1', input: validInput }))).toBe(
+      true
+    )
+    expect(isRenderablePart(part({ type: 'tool-report_artifacts', toolCallId: 'call-1', input: undefined }))).toBe(
+      false
+    )
+    expect(
+      isRenderablePart(part({ type: 'tool-report_artifacts', toolCallId: 'call-1', input: { artifacts: [] } }))
+    ).toBe(false)
+    expect(
+      isRenderablePart(
+        part({ type: 'tool-mcp__cherry__report_artifacts', toolCallId: 'call-1', input: { artifacts: [] } })
+      )
+    ).toBe(false)
+  })
 })
 
 describe('isRenderablePart file addressability', () => {
@@ -97,10 +115,23 @@ describe('isRenderablePart file addressability', () => {
         part({
           type: 'file',
           mediaType: 'text/markdown',
+          url: 'file:///tmp/note.md',
           providerMetadata: { cherry: { fileEntryId: '01a066b1-2d81-76ca-a828-018c02068f88' } }
         })
       )
     ).toBe(true)
+  })
+
+  it('rejects entry-only parts the completed renderer hides behind its URL gate', () => {
+    expect(
+      isRenderablePart(
+        part({
+          type: 'file',
+          mediaType: 'text/markdown',
+          providerMetadata: { cherry: { fileEntryId: '01a066b1-2d81-76ca-a828-018c02068f88' } }
+        })
+      )
+    ).toBe(false)
   })
 
   it('rejects filename-only and remote-URL parts that render nothing', () => {
