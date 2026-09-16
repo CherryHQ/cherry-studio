@@ -12,7 +12,7 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { MODEL_DISPLAY_NAME_SHOW_RAW_ID, providerRegistryService } from '@data/services/ProviderRegistryService'
+import { MODEL_DISPLAY_NAME_SHOW_RAW_ID } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
