@@ -113,9 +113,9 @@ function readPiShellPathSetting(settingsPath: string): string | undefined {
   }
 }
 
-function resolvePiShellPath(pi: Awaited<ReturnType<typeof loadPiSdk>>): string | undefined {
+function resolvePiShellPath(): string | undefined {
   if (process.platform !== 'win32') return undefined
-  const settingsPath = path.join(pi.getAgentDir(), 'settings.json')
+  const settingsPath = application.getPath('external.pi.settings_file')
   const configuredShellPath = readPiShellPathSetting(settingsPath)
   if (configuredShellPath) {
     const shellPath = validateGitBashPath(configuredShellPath)
@@ -310,7 +310,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       // shellPath is the only standalone Pi setting admitted to the isolated runtime.
       // Workspace Pi settings remain outside Cherry's executable-resource trust boundary.
-      const shellPath = resolvePiShellPath(pi)
+      const shellPath = resolvePiShellPath()
       const settingsManager = pi.SettingsManager.inMemory(shellPath ? { shellPath } : {}, { projectTrusted: true })
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)

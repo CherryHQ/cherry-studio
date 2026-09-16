@@ -45,6 +45,13 @@ function getUserSystemPath(name: UserSystemPathName, fallback: string): string {
 export function buildPathRegistry() {
   // Intermediate vars (primitives only — no object literals in this file).
   const sysHome = os.homedir()
+  const externalPiAgentDir = process.env.PI_CODING_AGENT_DIR
+    ? process.env.PI_CODING_AGENT_DIR === '~'
+      ? sysHome
+      : process.env.PI_CODING_AGENT_DIR.startsWith('~/') || (isWin && process.env.PI_CODING_AGENT_DIR.startsWith('~\\'))
+        ? path.join(sysHome, process.env.PI_CODING_AGENT_DIR.slice(2))
+        : process.env.PI_CODING_AGENT_DIR
+    : path.join(sysHome, '.pi', 'agent')
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')
   const appUserDataRuntime = path.join(appUserData, 'Runtime')
@@ -267,6 +274,7 @@ export function buildPathRegistry() {
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.openclaw.config': path.join(sysHome, '.openclaw'),
     'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
+    'external.pi.settings_file': path.join(externalPiAgentDir, 'settings.json'),
     'external.hermes.default_home': isWin
       ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
       : path.join(sysHome, '.hermes'),

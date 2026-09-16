@@ -488,7 +488,12 @@ export function validateGitBashPath(customPath?: string | null): string | null {
 
   const resolved = path.resolve(customPath)
 
-  if (!fs.existsSync(resolved)) {
+  try {
+    if (!fs.statSync(resolved).isFile()) {
+      logger.warn('Custom Git Bash path is not a file', { path: resolved })
+      return null
+    }
+  } catch {
     logger.warn('Custom Git Bash path does not exist', { path: resolved })
     return null
   }

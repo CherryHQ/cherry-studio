@@ -96,6 +96,7 @@ const mocks = vi.hoisted(() => ({
   settingsArgs: undefined as unknown[] | undefined,
   settingsCreate: vi.fn(),
   getAgentDir: vi.fn(),
+  piSettingsFile: '',
   autoDiscoverGitBash: vi.fn(),
   validateGitBashPath: vi.fn((shellPath?: string | null) => shellPath ?? null),
   runtimeDebug: vi.fn(),
@@ -322,6 +323,7 @@ beforeEach(() => {
   mocks.settingsArgs = undefined
   mocks.settingsCreate.mockReturnValue({ getShellPath: () => undefined })
   mocks.getAgentDir.mockReturnValue(MISSING_PI_AGENT_DIR)
+  mocks.piSettingsFile = path.join(MISSING_PI_AGENT_DIR, 'settings.json')
   mocks.autoDiscoverGitBash.mockReturnValue(null)
   mocks.validateGitBashPath.mockImplementation((shellPath?: string | null) => shellPath ?? null)
   mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
@@ -404,6 +406,7 @@ beforeEach(() => {
     }
   })
   mocks.getPath.mockImplementation((key: string) => {
+    if (key === 'external.pi.settings_file') return mocks.piSettingsFile
     if (key === 'feature.agents.pi.root') return PI_ROOT
     if (key === 'feature.agents.pi.sessions') return PI_SESSIONS
     if (key === 'feature.binary.data') return '/cherry/Toolchain/mise'
@@ -1484,7 +1487,7 @@ describe('PiRuntimeConnection', () => {
       path.join(agentDir, 'settings.json'),
       JSON.stringify({ shellPath: globalShellPath, theme: 'dark', extensions: ['ignored-extension'] })
     )
-    mocks.getAgentDir.mockReturnValue(agentDir)
+    mocks.piSettingsFile = path.join(agentDir, 'settings.json')
     mocks.validateGitBashPath.mockImplementation((shellPath?: string | null) =>
       shellPath === globalShellPath ? globalShellPath : null
     )
@@ -1498,7 +1501,8 @@ describe('PiRuntimeConnection', () => {
     }
 
     expect(mocks.settingsCreate).not.toHaveBeenCalled()
-    expect(mocks.getAgentDir).toHaveBeenCalledOnce()
+    expect(mocks.getAgentDir).not.toHaveBeenCalled()
+    expect(mocks.getPath).toHaveBeenCalledWith('external.pi.settings_file')
     expect(mocks.settingsArgs).toEqual([{ shellPath: globalShellPath }, { projectTrusted: true }])
     expect(mocks.bashToolOptions).toMatchObject({ shellPath: globalShellPath })
     expect(mocks.autoDiscoverGitBash).not.toHaveBeenCalled()
@@ -1540,7 +1544,7 @@ describe('PiRuntimeConnection', () => {
     const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'cherry-pi-shell-'))
     const configuredShellPath = 'C:\\missing\\bash.exe'
     await writeFile(path.join(fixtureRoot, 'settings.json'), JSON.stringify({ shellPath: configuredShellPath }))
-    mocks.getAgentDir.mockReturnValue(fixtureRoot)
+    mocks.piSettingsFile = path.join(fixtureRoot, 'settings.json')
     mocks.validateGitBashPath.mockReturnValue(null)
 
     try {
@@ -1565,7 +1569,7 @@ describe('PiRuntimeConnection', () => {
     const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'cherry-pi-shell-'))
     const fallbackPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
     await writeFile(path.join(fixtureRoot, 'settings.json'), contents)
-    mocks.getAgentDir.mockReturnValue(fixtureRoot)
+    mocks.piSettingsFile = path.join(fixtureRoot, 'settings.json')
     mocks.autoDiscoverGitBash.mockReturnValue(fallbackPath)
 
     try {
