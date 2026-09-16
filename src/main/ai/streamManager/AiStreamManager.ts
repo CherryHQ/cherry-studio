@@ -1312,12 +1312,11 @@ export class AiStreamManager extends BaseService {
       exec.pendingApprovalToolCallIds?.delete(chunk.toolCallId)
       exec.runtimeTiming.finishApproval({ toolCallId: chunk.toolCallId })
     }
-    // Open tool inputs pin their `tool-input-start` against ring eviction;
-    // available/error/output proves the input finished and releases the pin.
+    // Open tool inputs pin their `tool-input-start` against ring eviction until
+    // terminal output arrives; `tool-input-available` alone must not release it.
     if (chunk.type === 'tool-input-start') {
       ;(exec.openToolInputIds ??= new Set()).add(chunk.toolCallId)
     } else if (
-      chunk.type === 'tool-input-available' ||
       chunk.type === 'tool-input-error' ||
       chunk.type === 'tool-output-available' ||
       chunk.type === 'tool-output-error' ||

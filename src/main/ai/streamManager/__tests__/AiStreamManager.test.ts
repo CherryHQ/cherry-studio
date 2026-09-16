@@ -2175,6 +2175,51 @@ describe('AiStreamManager', () => {
       )
     })
 
+    it('keeps the tool opener pinned through tool-input-available until its output arrives', () => {
+      // `tool-input-available` only proves the input finished: a later output
+      // still needs the opener in attach replay, so eviction must not drop
+      // the start in between or the resumed stream terminates in
+      // `readUIMessageStream`.
+      const ringMgr = createManager({ maxBufferChunks: 4 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'tc1',
+        toolName: 'search'
+      })
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'tc1',
+        toolName: 'search',
+        input: { q: 'hi' }
+      })
+      for (const id of ['p1', 'p2']) {
+        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id })
+        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id, delta: 'hi' })
+        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id })
+      }
+      expect(ringMgr.inspect('a')!.executions[0].openToolInputCount).toBe(1)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.some(({ chunk }) => chunk.type === 'tool-input-start')).toBe(true)
+
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'tc1',
+        output: { ok: true }
+      })
+      expect(ringMgr.inspect('a')!.executions[0].openToolInputCount).toBe(0)
+    })
+
     it('replays a post-eviction buffer that the real readUIMessageStream accepts', async () => {
       // Regression for "replay has gaps due to buffer overflow": when the ring
       // evicts a part's opening chunk, the attach replay must still parse
