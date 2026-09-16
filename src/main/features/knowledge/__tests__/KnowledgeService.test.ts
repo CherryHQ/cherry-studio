@@ -1489,6 +1489,27 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
   })
 
+  it('does not cancel a replaced item job when the incoming file fails admission', async () => {
+    const service = new KnowledgeService()
+    const existing = createFileItem('existing-readme', 'kb-1', '/old/README', 'processing')
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([existing])
+    isSupportedKnowledgeFilePathMock.mockResolvedValueOnce(false)
+
+    await expect(
+      service.addItems(
+        'kb-1',
+        [{ type: 'file', data: { source: '/new/README', path: '/new/README' as AbsoluteFilePath } }],
+        'replace'
+      )
+    ).rejects.toThrow('Unsupported knowledge file type: /new/README')
+
+    expect(knowledgeItemGetSubtreeItemsMock).not.toHaveBeenCalled()
+    expect(listMock).not.toHaveBeenCalled()
+    expect(cancelMock).not.toHaveBeenCalled()
+    expect(knowledgeItemDeleteMock).not.toHaveBeenCalled()
+  })
+
   it('does not hold the base mutation lock while classifying file content', async () => {
     const service = new KnowledgeService()
     const classification = createDeferred<boolean>()

@@ -108,17 +108,10 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         }
       } else {
         // replace: incoming sources win. Drop earlier same-name batch items (last
-        // wins) and cancel any in-flight job on the conflicting existing subtrees
-        // BEFORE taking the lock — cancel awaits handler settlement and the
-        // index/prepare handlers take this same base lock, so cancelling while
-        // holding it would deadlock.
+        // wins). Conflicting jobs are cancelled after file admission succeeds:
+        // rejecting an incoming file must not interrupt the existing item it
+        // would have replaced.
         itemsToAdd = resolution.keptInputs
-        if (resolution.conflictingExistingRootIds.length > 0) {
-          await cancelActiveKnowledgeJobs(base.id, 'knowledge-add-replace', {
-            rootItemIds: resolution.conflictingExistingRootIds,
-            onCancelTimeout: 'throw'
-          })
-        }
       }
     }
 
@@ -127,6 +120,20 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     for (const input of itemsToAdd) {
       if (input.type === 'file') {
         await assertSupportedKnowledgeFilePath(input.data.path)
+      }
+    }
+
+    if (conflictStrategy === 'replace') {
+      // Re-read after admission because classification runs outside the lock.
+      // Cancellation must also stay outside the lock: it waits for handlers
+      // that can acquire this same base mutex while settling.
+      const currentRoots = knowledgeItemService.getRootItemsByBaseId(base.id)
+      const { conflictingExistingRootIds } = resolveKnowledgeAddConflicts(itemsToAdd, currentRoots)
+      if (conflictingExistingRootIds.length > 0) {
+        await cancelActiveKnowledgeJobs(base.id, 'knowledge-add-replace', {
+          rootItemIds: conflictingExistingRootIds,
+          onCancelTimeout: 'throw'
+        })
       }
     }
 
