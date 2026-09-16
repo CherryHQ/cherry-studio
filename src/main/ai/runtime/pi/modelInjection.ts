@@ -136,7 +136,9 @@ function omitImplicitOpenAiOutputLimit(
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
   api: PiApi
 ): NonNullable<ProviderConfig['streamSimple']> {
-  if (api !== 'openai-completions' && api !== 'openai-responses') return streamSimple
+  if (api !== 'openai-completions' && api !== 'openai-responses' && api !== 'azure-openai-responses') {
+    return streamSimple
+  }
 
   return (model, context, options) =>
     streamSimple(model, context, {

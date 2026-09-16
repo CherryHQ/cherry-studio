@@ -397,6 +397,59 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.baseUrl).toBe('https://x.openai.azure.com')
   })
 
+  it('omits the Azure Responses catalog limit while preserving an explicit limit', async () => {
+    const provider = makeProvider({
+      id: 'azure-openai',
+      name: 'Azure OpenAI',
+      defaultChatEndpoint: 'openai-responses',
+      endpointConfigs: {
+        'openai-responses': { adapterFamily: 'azure-responses', baseUrl: 'https://x.openai.azure.com' }
+      }
+    })
+    const injection = buildPiProviderInjection(
+      provider,
+      makeModel({
+        id: 'azure-openai::gpt',
+        apiModelId: 'gpt-4o',
+        endpointTypes: ['openai-responses'],
+        maxOutputTokens: 393_216
+      }),
+      REAL_KEY
+    )
+    const requestBodies: Record<string, unknown>[] = []
+    const fetch = async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestBodies.push(JSON.parse(String(init?.body)))
+      return Response.json({ error: { message: 'expected test rejection' } }, { status: 400 })
+    }
+    vi.stubGlobal('fetch', fetch)
+    const { providerConfig, streamSimple } = await materializePiProviderStream(injection)
+    const model = providerConfig.models?.[0]
+    if (!model || model.api !== 'azure-openai-responses') throw new Error('Expected an Azure Responses model')
+    if (!providerConfig.baseUrl) throw new Error('Expected an Azure Responses base URL')
+    const context = { messages: [{ role: 'user' as const, content: 'hello', timestamp: 1 }] }
+    const configuredModel = {
+      ...model,
+      api: 'azure-openai-responses' as const,
+      provider: injection.providerName,
+      baseUrl: providerConfig.baseUrl
+    }
+
+    const implicitResult = await streamSimple(configuredModel, context, { apiKey: REAL_KEY, maxRetries: 0 }).result()
+    const explicitResult = await streamSimple(configuredModel, context, {
+      apiKey: REAL_KEY,
+      maxRetries: 0,
+      maxTokens: 12_345
+    }).result()
+    if (requestBodies.length !== 2) {
+      throw new Error(
+        JSON.stringify({ implicitError: implicitResult.errorMessage, explicitError: explicitResult.errorMessage })
+      )
+    }
+
+    expect(requestBodies[0]).not.toHaveProperty('max_output_tokens')
+    expect(requestBodies[1]).toHaveProperty('max_output_tokens', 12_345)
+  })
+
   it('preserves provider headers and Azure API version request configuration', () => {
     const provider = makeProvider({
       id: 'azure-openai',
