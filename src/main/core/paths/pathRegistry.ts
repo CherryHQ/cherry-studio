@@ -11,6 +11,7 @@
 
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { app } from 'electron'
 
@@ -32,6 +33,13 @@ function getUserSystemPath(name: UserSystemPathName, fallback: string): string {
   }
 }
 
+function normalizePiAgentDir(input: string, home: string): string {
+  if (input === '~') return home
+  if (input.startsWith('~/') || (isWin && input.startsWith('~\\'))) return path.join(home, input.slice(2))
+  if (input.startsWith('file://')) return fileURLToPath(input)
+  return input
+}
+
 /**
  * Build the frozen path registry. Called once during preboot (after
  * `app.setPath('userData', ...)`, before `app.whenReady()`).
@@ -46,11 +54,7 @@ export function buildPathRegistry() {
   // Intermediate vars (primitives only — no object literals in this file).
   const sysHome = os.homedir()
   const externalPiAgentDir = process.env.PI_CODING_AGENT_DIR
-    ? process.env.PI_CODING_AGENT_DIR === '~'
-      ? sysHome
-      : process.env.PI_CODING_AGENT_DIR.startsWith('~/') || (isWin && process.env.PI_CODING_AGENT_DIR.startsWith('~\\'))
-        ? path.join(sysHome, process.env.PI_CODING_AGENT_DIR.slice(2))
-        : process.env.PI_CODING_AGENT_DIR
+    ? normalizePiAgentDir(process.env.PI_CODING_AGENT_DIR, sysHome)
     : path.join(sysHome, '.pi', 'agent')
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')

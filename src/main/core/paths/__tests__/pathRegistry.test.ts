@@ -1,5 +1,6 @@
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -199,6 +200,16 @@ describe('buildPathRegistry', () => {
       path.join(os.homedir(), '.pi', 'agent', 'settings.json')
     )
     expect(shouldAutoEnsure('external.pi.settings_file')).toBe(false)
+  })
+
+  it('resolves a file URL in PI_CODING_AGENT_DIR before locating Pi settings', () => {
+    const agentDir = path.join(os.homedir(), '.pi', 'custom agent')
+    vi.stubEnv('PI_CODING_AGENT_DIR', pathToFileURL(agentDir).href)
+    try {
+      expect(buildPathRegistry()['external.pi.settings_file']).toBe(path.join(agentDir, 'settings.json'))
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('registers the platform-native default Hermes home as external data', () => {
