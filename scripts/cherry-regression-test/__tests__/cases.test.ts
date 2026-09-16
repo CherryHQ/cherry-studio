@@ -10,6 +10,31 @@ import { parse } from 'yaml'
 import { getCase, missingCapabilities, PHASE_IDS, REGRESSION_CASES, selectCases } from '../cases'
 
 describe('regression execution plan', () => {
+  it('caches only tool downloads and still installs and checks every tool on a cache hit', () => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8'))
+    const steps = workflow.jobs.test.steps
+    const cacheIndex = steps.findIndex((step: { name: string }) => step.name === 'Cache code tool downloads')
+    const installIndex = steps.findIndex((step: { name: string }) => step.name === 'Install code tools under test')
+    const cache = steps[cacheIndex]
+    const install = steps[installIndex]
+    expect(cacheIndex).toBeGreaterThan(-1)
+    expect(cacheIndex).toBeLessThan(installIndex)
+    expect(cache.with.path).toBe(`${install.env.npm_config_cache}/_cacache`)
+    expect(install.env.npm_config_cache).toBe('${{ runner.temp }}/cherry-code-tools-npm')
+    for (const dimension of ['runner.os', 'runner.arch', 'env.NODE_VERSION']) {
+      expect(cache.with.key).toContain(`\${{ ${dimension} }}`)
+    }
+    expect(cache.with.key).toContain("hashFiles('.github/workflows/cherry-regression-test.yml')")
+    expect(install.if).toBeUndefined()
+    expect(install.run).toMatch(/^npm install --global /)
+    for (const tool of ['@anthropic-ai/claude-code', '@openai/codex', 'openclaw']) {
+      expect(install.run).toMatch(new RegExp(`${tool}@\\d+\\.\\d+\\.\\d+(?:\\s|$)`))
+    }
+    for (const command of ['claude --version', 'codex --version', 'openclaw --version']) {
+      expect(install.run.split('\n')).toContain(command)
+    }
+  })
+
   it('resolves a push without installing or invoking the controller toolchain', () => {
     const workflow = parse(readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8'))
     const steps = workflow.jobs.resolve.steps as Array<{ name: string; if?: string; run?: string }>

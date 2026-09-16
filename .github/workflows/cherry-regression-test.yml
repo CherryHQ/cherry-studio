@@ -156,8 +156,16 @@ jobs:
           echo "RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
           echo "CHERRY_TEST_RUN_DIR=$RUNNER_TEMP/cherry-regression" >> "$GITHUB_ENV"
 
+      - name: Cache code tool downloads
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/cherry-code-tools-npm/_cacache
+          key: cherry-code-tools-v1-${{ runner.os }}-${{ runner.arch }}-node-${{ env.NODE_VERSION }}-${{ hashFiles('.github/workflows/cherry-regression-test.yml') }}
+
       - name: Install code tools under test
         shell: bash
+        env:
+          npm_config_cache: ${{ runner.temp }}/cherry-code-tools-npm
         run: |
           npm install --global @anthropic-ai/claude-code@2.1.239 @openai/codex@0.149.0 openclaw@2026.6.11
           claude --version
