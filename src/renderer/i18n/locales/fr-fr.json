@@ -2807,7 +2807,6 @@
   "paintings.background_options.auto": "Automatique",
   "paintings.background_options.opaque": "Opaque",
   "paintings.background_options.transparent": "Transparent",
-  "paintings.button.delete.image.confirm": "Êtes-vous sûr de vouloir supprimer cette image?",
   "paintings.button.delete.image.label": "Supprimer l'image",
   "paintings.button.new.image": "Nouvelle image",
   "paintings.button.select.image": "Sélectionner une image",

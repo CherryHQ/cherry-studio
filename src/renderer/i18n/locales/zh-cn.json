@@ -2807,7 +2807,6 @@
   "paintings.background_options.auto": "自动",
   "paintings.background_options.opaque": "不透明",
   "paintings.background_options.transparent": "透明",
-  "paintings.button.delete.image.confirm": "确定要删除此图片吗？",
   "paintings.button.delete.image.label": "删除图片",
   "paintings.button.new.image": "新建图片",
   "paintings.button.select.image": "选择图片",

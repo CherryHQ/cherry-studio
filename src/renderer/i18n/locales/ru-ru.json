@@ -2807,7 +2807,6 @@
   "paintings.background_options.auto": "Авто",
   "paintings.background_options.opaque": "Непрозрачный",
   "paintings.background_options.transparent": "Прозрачный",
-  "paintings.button.delete.image.confirm": "Вы уверены, что хотите удалить это изображение?",
   "paintings.button.delete.image.label": "Удалить изображение",
   "paintings.button.new.image": "Новое изображение",
   "paintings.button.select.image": "Выбрать изображение",

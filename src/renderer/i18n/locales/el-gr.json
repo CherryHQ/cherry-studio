@@ -2807,7 +2807,6 @@
   "paintings.background_options.auto": "Αυτόματο",
   "paintings.background_options.opaque": "Αδιαφανές",
   "paintings.background_options.transparent": "Διαφανές",
-  "paintings.button.delete.image.confirm": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτή την εικόνα;",
   "paintings.button.delete.image.label": "Διαγραφή εικόνας",
   "paintings.button.new.image": "Νέα εικόνα",
   "paintings.button.select.image": "Επιλογή Εικόνας",
