@@ -74,6 +74,36 @@ describe('useSmoothStream', () => {
     await i18n.changeLanguage('en-US')
   })
 
+  // Regression: a zero-length completion delta (caller repeats the same
+  // accumulated text with isComplete=true) must still flush the held word
+  // tail — and never duplicate already-revealed text.
+  it('flushes the held tail on a zero-delta completion without duplication', async () => {
+    const i18n = (await import('@renderer/i18n/resolver')).default
+    await i18n.changeLanguage('th-TH')
+
+    const onUpdate = vi.fn()
+    const { result } = renderHook(() => useSmoothStream({ onUpdate, minDelay: 0 }))
+
+    act(() => result.current.update('สวัสดีครับ', false))
+    act(() => tick(16, 60))
+    expect(lastText(onUpdate)).toBe('สวัสดี')
+
+    act(() => result.current.update('สวัสดีครับ', true))
+    act(() => tick(16, 60))
+    expect(onUpdate).toHaveBeenLastCalledWith('สวัสดีครับ')
+
+    // A trimmed completion must also reconcile exactly, never duplicating
+    // the previously held tail.
+    const onUpdate2 = vi.fn()
+    const { result: r2 } = renderHook(() => useSmoothStream({ onUpdate: onUpdate2, minDelay: 0 }))
+    act(() => r2.current.update('สวัสดีครับ ', false))
+    act(() => tick(16, 60))
+    act(() => r2.current.update('สวัสดีครับ', true))
+    act(() => tick(16, 60))
+    expect(onUpdate2).toHaveBeenLastCalledWith('สวัสดีครับ')
+    await i18n.changeLanguage('en-US')
+  })
+
   // While the stream is still running, the trailing word-like segment is
   // held back (a word may continue in the next chunk), so only the leading
   // word of "สวัสดีครับ" is revealed mid-stream.

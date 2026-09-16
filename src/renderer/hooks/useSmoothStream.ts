@@ -258,23 +258,7 @@ export const useSmoothStream = ({
       if (accumulated.startsWith(lastAccumulatedRef.current)) {
         const delta = accumulated.slice(lastAccumulatedRef.current.length)
         lastAccumulatedRef.current = accumulated
-        if (delta) {
-          if (isComplete) {
-            // Completion: release the held word tail along with the delta —
-            // no further chunk can complete it, and the render loop must see
-            // the full remainder even before the streamDone rerender lands.
-            chunkQueueRef.current = [...chunkQueueRef.current, ...segmentForQueue(delta, true)]
-            ensureLoopRef.current()
-          } else {
-            addChunk(delta)
-          }
-        } else if (isComplete && pendingTailRef.current) {
-          // Zero-length completion delta: the held word tail is the whole
-          // remainder — release it so the render loop can play it out.
-          chunkQueueRef.current = [...chunkQueueRef.current, pendingTailRef.current]
-          pendingTailRef.current = ''
-          ensureLoopRef.current()
-        }
+        if (delta) addChunk(delta)
       } else {
         // Non-monotonic update (e.g. the caller trims on completion): the
         // prefix-extension assumption broke. Re-base so the final displayed
@@ -297,6 +281,13 @@ export const useSmoothStream = ({
   )
 
   const renderLoop = useCallback(() => {
+    // Release any held word tail once the stream is complete, so the
+    // finalize paths below (with or without a queued remainder) show the
+    // full text exactly once.
+    if (streamDone && pendingTailRef.current) {
+      chunkQueueRef.current = [...chunkQueueRef.current, pendingTailRef.current]
+      pendingTailRef.current = ''
+    }
     const queue = chunkQueueRef.current
 
     // Empty queue: finalize + stop if the stream ended, else idle one frame.
@@ -316,10 +307,7 @@ export const useSmoothStream = ({
     }
 
     if (streamDone) {
-      // Release the held word tail so the completed text is shown in full.
-      const fullQueue = [...queue, ...(pendingTailRef.current ? [pendingTailRef.current] : [])]
-      pendingTailRef.current = ''
-      displayedTextRef.current += fullQueue.join('')
+      displayedTextRef.current += queue.join('')
       chunkQueueRef.current = []
       onUpdateRef.current(displayedTextRef.current)
       animationFrameRef.current = null
