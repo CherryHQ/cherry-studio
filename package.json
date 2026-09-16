@@ -93,7 +93,7 @@
     "test:aicore": "vitest run --project aiCore",
     "test:coverage": "vitest run --coverage --silent",
     "test:e2e": "pnpm playwright test",
-    "test:lint": "oxlint && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache",
+    "test:lint": "oxlint --deny-warnings && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache",
     "test:main": "vitest run --project main",
     "test:pkg:ui": "vitest run --project ui",
     "test:preload": "vitest run --project preload",
