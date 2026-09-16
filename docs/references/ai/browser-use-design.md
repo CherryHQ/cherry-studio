@@ -52,7 +52,8 @@ The Agent right pane already has `AgentBrowserRightPanel` â†’ `WebviewBrowser` â
 with navigation, search and annotations. The `agent-browser-integration` stack layer extends this surface; it does not
 create another browser UI. It builds on PR3 and combines visible-page control, ordinary website
 browsing, persistent browser data, history/import settings and a bundled `cherry-browser` skill.
-Implementation is on `agent-browser-integration`, based on PR3. Its GitHub PR number is pending publication.
+Implementation is on `agent-browser-integration`, based on PR3, in
+[#20166](https://github.com/CherryHQ/cherry-studio/pull/20166).
 Ordinary HTTP(S) browsing explicitly permits LAN and loopback access; this initial plan used Electron 41.8.0.
 
 The gaps at that planning stage were:
