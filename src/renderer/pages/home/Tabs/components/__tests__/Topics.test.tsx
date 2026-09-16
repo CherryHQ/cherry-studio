@@ -765,9 +765,8 @@ function getTopicRow(topicName: string) {
   return row as HTMLElement
 }
 
-function confirmTopicRowDelete(row: HTMLElement) {
+function deleteTopicRow(row: HTMLElement) {
   fireEvent.click(within(row).getByRole('button', { name: 'Delete' }))
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
 }
 
 function sortableData(id: string) {
@@ -1138,7 +1137,7 @@ describe('Topics', () => {
     })
 
     const topicRow = getTopicRow('Alpha topic')
-    confirmTopicRowDelete(topicRow)
+    deleteTopicRow(topicRow)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
     await vi.waitFor(() => expect(clearActiveTopic).toHaveBeenCalledOnce())
@@ -1184,7 +1183,7 @@ describe('Topics', () => {
     })
 
     const topicRow = getTopicRow('Default topic')
-    confirmTopicRowDelete(topicRow)
+    deleteTopicRow(topicRow)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-unlinked'))
     // The unlinked assistant group is a display fallback, not a real assistant: deleting its last
@@ -1222,7 +1221,7 @@ describe('Topics', () => {
     })
 
     const topicRow = getTopicRow('Default topic')
-    confirmTopicRowDelete(topicRow)
+    deleteTopicRow(topicRow)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-unlinked'))
     await vi.waitFor(() => expect(clearActiveTopic).toHaveBeenCalledOnce())
@@ -1928,7 +1927,7 @@ describe('Topics', () => {
     expect(topicRenameMocks.finishTopicRenaming).not.toHaveBeenCalled()
   })
 
-  it('confirms topic deletion from the shared context menu before deleting', async () => {
+  it('deletes from the shared context menu without opening a confirmation', async () => {
     topicDataMocks.restoreTopic.mockRejectedValueOnce(DataApiErrorFactory.notFound('Topic', 'topic-a'))
     const getActiveTopic = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-a' })
     const { getByText } = renderTopicList()
@@ -1938,21 +1937,8 @@ describe('Topics', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
 
-    // Deletion is delegated to ConfirmActionPopup, which gates the action behind its own confirm
-    // dialog (that "don't run until confirmed" gate is covered by ConfirmActionPopup's unit test).
-    // The default mock confirms and runs the gated action, so the topic is deleted.
-    await vi.waitFor(() =>
-      expect(confirmActionShow).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Move to Recycle Bin?',
-          content: undefined,
-          okText: 'Move to Recycle Bin',
-          cancelText: 'Cancel',
-          action: expect.any(Function)
-        })
-      )
-    )
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
+    expect(confirmActionShow).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'Alpha topic',
       onUndo: expect.any(Function)
@@ -1985,19 +1971,15 @@ describe('Topics', () => {
     expect(toast.info).toHaveBeenCalledWith('Already in Recycle Bin')
   })
 
-  it('requires the shared Recycle Bin confirmation before inline topic deletion', async () => {
+  it('deletes inline without opening a confirmation', async () => {
     const { getByText } = renderTopicList()
 
     const topicRow = getByText('Gamma topic').closest('[role="option"]')
     const deleteButton = within(topicRow as HTMLElement).getByRole('button', { name: 'Delete' })
     fireEvent.click(deleteButton)
 
-    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
-
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-c'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('selects the same assistant neighbouring topic after deleting the active topic in the right panel', async () => {
@@ -2049,7 +2031,7 @@ describe('Topics', () => {
     })
 
     const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
-    confirmTopicRowDelete(topicRow as HTMLElement)
+    deleteTopicRow(topicRow as HTMLElement)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
     await vi.waitFor(() =>
@@ -2105,7 +2087,7 @@ describe('Topics', () => {
     })
 
     const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
-    confirmTopicRowDelete(topicRow as HTMLElement)
+    deleteTopicRow(topicRow as HTMLElement)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
     await vi.waitFor(() =>
@@ -2143,7 +2125,7 @@ describe('Topics', () => {
     })
 
     const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
-    confirmTopicRowDelete(topicRow as HTMLElement)
+    deleteTopicRow(topicRow as HTMLElement)
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
 
     const refreshedTopics = topics.filter((topic) => topic.id !== 'topic-a1-second')
@@ -2196,7 +2178,7 @@ describe('Topics', () => {
     })
 
     const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
-    confirmTopicRowDelete(topicRow as HTMLElement)
+    deleteTopicRow(topicRow as HTMLElement)
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
 
     // Simulate the broadcast-race: by-id refetch 404s → activeTopic collapses mid-delete.
@@ -2233,7 +2215,7 @@ describe('Topics', () => {
     })
 
     const topicRow = screen.getByText('A1 First').closest('[role="option"]')
-    confirmTopicRowDelete(topicRow as HTMLElement)
+    deleteTopicRow(topicRow as HTMLElement)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-first'))
     await act(async () => {
@@ -2291,7 +2273,7 @@ describe('Topics', () => {
     })
 
     const topicRow = screen.getByText('A1 Only').closest('[role="option"]')
-    confirmTopicRowDelete(topicRow as HTMLElement)
+    deleteTopicRow(topicRow as HTMLElement)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1'))
     await vi.waitFor(() =>
@@ -2414,7 +2396,7 @@ describe('Topics', () => {
     })
 
     const topicRow = screen.getByText('A1 Only').closest('[role="option"]')
-    confirmTopicRowDelete(topicRow as HTMLElement)
+    deleteTopicRow(topicRow as HTMLElement)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-only'))
     await vi.waitFor(() =>

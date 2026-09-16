@@ -485,13 +485,7 @@ sessionActionRegistry.registerAction({
   group: 'danger',
   order: 90,
   surface: 'menu',
-  availability: ({ pinned }) => ({ visible: !pinned }),
-  confirm: ({ t }) => ({
-    title: t('recycle_bin.move.confirm_title'),
-    confirmText: t('recycle_bin.move.confirm_action'),
-    cancelText: t('common.cancel'),
-    destructive: true
-  })
+  availability: ({ pinned }) => ({ visible: !pinned })
 })
 
 export function resolveSessionMenuActions(context: SessionActionContext): ResolvedAction<SessionActionContext>[] {

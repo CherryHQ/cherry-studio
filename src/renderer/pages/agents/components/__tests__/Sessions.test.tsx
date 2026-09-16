@@ -850,12 +850,9 @@ function openSessionListOptions() {
   return title.closest('[data-radix-popper-content-wrapper]') ?? title.parentElement
 }
 
-function confirmSessionRowDelete(row: HTMLElement) {
+function deleteSessionRow(row: HTMLElement) {
   act(() => {
     fireEvent.click(within(row).getByLabelText('Delete'))
-  })
-  act(() => {
-    fireEvent.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
   })
 }
 
@@ -2407,7 +2404,7 @@ describe('Sessions', () => {
     expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
   })
 
-  it('requires the shared Recycle Bin confirmation before deleting a session and offers Undo', async () => {
+  it('moves a session to the Recycle Bin immediately and offers Undo', async () => {
     sessionDataMocks.restoreSession.mockRejectedValueOnce(
       new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session active')
     )
@@ -2421,14 +2418,8 @@ describe('Sessions', () => {
       fireEvent.click(deleteButton)
     })
 
-    expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
-
-    act(() => {
-      fireEvent.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
-
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'Alpha session',
       onUndo: expect.any(Function)
@@ -2469,7 +2460,7 @@ describe('Sessions', () => {
     )
 
     const sessionRow = screen.getByText('A1 Second session').closest('[role="option"]')
-    confirmSessionRowDelete(sessionRow as HTMLElement)
+    deleteSessionRow(sessionRow as HTMLElement)
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a1-second'))
     await vi.waitFor(() =>
@@ -2501,7 +2492,7 @@ describe('Sessions', () => {
     render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
 
     const sessionRow = screen.getByText('B session').closest('[role="option"]')
-    confirmSessionRowDelete(sessionRow as HTMLElement)
+    deleteSessionRow(sessionRow as HTMLElement)
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-b'))
     // Neighbour in the visible display order, not the raw API/orderKey head (session-a).
@@ -2534,7 +2525,7 @@ describe('Sessions', () => {
     render(<SessionsForTest activeSessionId="session-a1-second" setActiveSessionId={setActiveSessionId} />)
 
     const sessionRow = screen.getByText('A1 Second session').closest('[role="option"]')
-    confirmSessionRowDelete(sessionRow as HTMLElement)
+    deleteSessionRow(sessionRow as HTMLElement)
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a1-second'))
     await vi.waitFor(() =>
@@ -2569,7 +2560,7 @@ describe('Sessions', () => {
     render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
 
     const sessionRow = screen.getByText('B session').closest('[role="option"]')
-    confirmSessionRowDelete(sessionRow as HTMLElement)
+    deleteSessionRow(sessionRow as HTMLElement)
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-b'))
     await vi.waitFor(() =>
@@ -2621,7 +2612,7 @@ describe('Sessions', () => {
     render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
 
     const sessionRow = screen.getByText('A session').closest('[role="option"]')
-    confirmSessionRowDelete(sessionRow as HTMLElement)
+    deleteSessionRow(sessionRow as HTMLElement)
 
     // The guard is holding the transition: neither the switch nor the delete may have happened.
     await vi.waitFor(() => expect(fileNavigationMocks.request).toHaveBeenCalledOnce())
@@ -2669,7 +2660,7 @@ describe('Sessions', () => {
     const view = render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
 
     const sessionRow = screen.getByText('A session').closest('[role="option"]')
-    confirmSessionRowDelete(sessionRow as HTMLElement)
+    deleteSessionRow(sessionRow as HTMLElement)
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a'))
 
@@ -2705,7 +2696,7 @@ describe('Sessions', () => {
     render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
 
     const sessionRow = screen.getByText('A session').closest('[role="option"]')
-    confirmSessionRowDelete(sessionRow as HTMLElement)
+    deleteSessionRow(sessionRow as HTMLElement)
 
     await vi.waitFor(() =>
       expect(setActiveSessionId).toHaveBeenLastCalledWith('session-a', expect.objectContaining({ id: 'session-a' }))
@@ -2760,7 +2751,7 @@ describe('Sessions', () => {
     )
 
     const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
-    confirmSessionRowDelete(sessionRow as HTMLElement)
+    deleteSessionRow(sessionRow as HTMLElement)
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
     await vi.waitFor(() =>
@@ -2813,7 +2804,7 @@ describe('Sessions', () => {
     )
 
     const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
-    confirmSessionRowDelete(sessionRow as HTMLElement)
+    deleteSessionRow(sessionRow as HTMLElement)
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
     await vi.waitFor(() =>
@@ -2864,7 +2855,7 @@ describe('Sessions', () => {
     )
 
     const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
-    confirmSessionRowDelete(sessionRow as HTMLElement)
+    deleteSessionRow(sessionRow as HTMLElement)
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
     await vi.waitFor(() =>
@@ -2905,7 +2896,7 @@ describe('Sessions', () => {
     )
 
     const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
-    confirmSessionRowDelete(sessionRow as HTMLElement)
+    deleteSessionRow(sessionRow as HTMLElement)
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
     expect(setActiveSessionId).not.toHaveBeenCalled()
@@ -2943,7 +2934,7 @@ describe('Sessions', () => {
     )
 
     const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
-    confirmSessionRowDelete(sessionRow as HTMLElement)
+    deleteSessionRow(sessionRow as HTMLElement)
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
     await vi.waitFor(() => expect(setActiveSessionId).toHaveBeenCalledWith(null, null))

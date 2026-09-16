@@ -519,12 +519,6 @@ topicActionRegistry.registerAction({
     visible: !topic.pinned,
     enabled: !isArchiveBlocked,
     reason: isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : undefined
-  }),
-  confirm: ({ t }) => ({
-    title: t('recycle_bin.move.confirm_title'),
-    confirmText: t('recycle_bin.move.confirm_action'),
-    cancelText: t('common.cancel'),
-    destructive: true
   })
 })
 

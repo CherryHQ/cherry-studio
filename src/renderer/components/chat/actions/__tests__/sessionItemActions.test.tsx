@@ -170,17 +170,18 @@ describe('session item actions', () => {
     expect(onSetPanePosition).toHaveBeenCalledWith('left')
   })
 
-  it('labels the recoverable action as Delete and uses the Recycle Bin confirmation', () => {
-    const actions = resolveSessionMenuActions(createSessionActionFixture())
+  it('labels the recoverable action as Delete and runs without a confirmation', async () => {
+    const onDelete = vi.fn()
+    const context = createSessionActionFixture({ onDelete })
+    const actions = resolveSessionMenuActions(context)
     const deleteAction = actions.find((action) => action.id === 'session.delete')
 
     expect(deleteAction?.label).toBe('common.delete')
-    expect(deleteAction?.confirm).toEqual({
-      title: 'recycle_bin.move.confirm_title',
-      confirmText: 'recycle_bin.move.confirm_action',
-      cancelText: 'common.cancel',
-      destructive: true
-    })
+    expect(deleteAction?.confirm).toBeUndefined()
+
+    await executeSessionMenuAction(deleteAction!, context)
+
+    expect(onDelete).toHaveBeenCalledOnce()
   })
 
   it('keeps Save to Notes independent from export and copy preferences', () => {
