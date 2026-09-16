@@ -268,8 +268,7 @@ new, genuinely host-local App Shell variables with a documented owner.
 
 The renderer legacy alias file was deleted after repository-wide exact usage reached zero. Historical names such
 as `--color-text-1` remain registry sources so old branches and incoming changes can be migrated deterministically,
-but they must not be declared or consumed at runtime. Use `pnpm styles:legacy-vars` to report reintroductions and
-`pnpm styles:legacy-vars --fix` to map approved exact cases back to the canonical graph.
+but they must not be declared or consumed at runtime.
 
 ## 4. Canonical Shadcn contract
 

@@ -139,6 +139,33 @@ export const TogetherModelsResponseSchema = z.array(
   })
 )
 
+// === LM Studio (/api/v1/models) ===
+
+export const LMStudioModelsResponseSchema = z.object({
+  models: z.array(
+    z.looseObject({
+      key: z.string(),
+      display_name: z.string().nullish(),
+      capabilities: z.looseObject({ vision: z.boolean().nullish() }).nullish(),
+      type: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined),
+      publisher: z
+        .string()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined),
+      max_context_length: z
+        .number()
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined)
+    })
+  )
+})
+
 // === NewAPI (extends OpenAI with endpoint types) ===
 
 export const NewApiModelsResponseSchema = z.object({
