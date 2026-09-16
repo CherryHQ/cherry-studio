@@ -354,7 +354,7 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
           type="button"
           className="shrink-0"
           size="sm"
-          variant="link"
+          variant="outline"
           onClick={(event) => {
             event.stopPropagation()
             store.remove(toast.key)
