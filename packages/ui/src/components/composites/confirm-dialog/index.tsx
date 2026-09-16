@@ -28,8 +28,8 @@ interface ConfirmDialogProps {
   cancelText?: string
   /** Disabled state for cancel button */
   cancelDisabled?: boolean
-  /** Callback when confirm button is clicked */
-  onConfirm?: () => void | Promise<void>
+  /** Return false to keep the dialog open; void or true closes it. */
+  onConfirm?: () => boolean | void | Promise<boolean | void>
   /** Whether this is a destructive action (e.g., delete) */
   destructive?: boolean
   /** Loading state for confirm button */
@@ -59,8 +59,8 @@ function ConfirmDialog({
   overlayClassName
 }: ConfirmDialogProps) {
   const handleConfirm = React.useCallback(async () => {
-    await onConfirm?.()
-    onOpenChange?.(false)
+    const result = await onConfirm?.()
+    if (result !== false) onOpenChange?.(false)
   }, [onConfirm, onOpenChange])
 
   return (

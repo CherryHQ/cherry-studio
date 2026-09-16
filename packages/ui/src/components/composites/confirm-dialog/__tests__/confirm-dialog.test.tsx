@@ -80,4 +80,29 @@ describe('ConfirmDialog', () => {
       'data-[state=closed]:slide-out-to-bottom-4'
     )
   })
+
+  it('stays open when confirmation resolves false', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const onConfirm = vi.fn().mockResolvedValue(false)
+    render(<ConfirmDialog open title="Confirm action" onOpenChange={onOpenChange} onConfirm={onConfirm} />)
+
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+
+    expect(onConfirm).toHaveBeenCalledOnce()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+  })
+
+  it.each([
+    ['void', () => undefined],
+    ['true', () => true]
+  ])('closes when confirmation returns %s', async (_label, onConfirm) => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    render(<ConfirmDialog open title="Confirm action" onOpenChange={onOpenChange} onConfirm={onConfirm} />)
+
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
 })
