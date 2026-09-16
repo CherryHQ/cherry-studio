@@ -135,6 +135,7 @@ export function useUsageData({
     exploreOther: exploreStatsResult.data?.other ?? EMPTY_STATS_METRICS,
     timelineLoading: timelineQueryResult.isLoading && timelineQueryResult.data === undefined,
     overviewLoading: overviewStatsResult.isLoading && overviewStatsResult.data === undefined,
+    exploreStatsError: exploreStatsResult.data === undefined ? exploreStatsResult.error : undefined,
     exploreStatsLoading: exploreStatsResult.isLoading && exploreStatsResult.data === undefined,
     exploreTimelineLoading: exploreTimelineResult.isLoading && exploreTimelineResult.data === undefined
   }
