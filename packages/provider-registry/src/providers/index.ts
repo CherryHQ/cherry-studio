@@ -2,6 +2,7 @@ import p_302ai from './302ai'
 import p_aihubmix from './aihubmix'
 import p_aionly from './aionly'
 import p_alayanew from './alayanew'
+import p_anonrouter from './anonrouter'
 import p_anthropic from './anthropic'
 import p_aws_bedrock from './aws-bedrock'
 import p_azure_openai from './azure-openai'
@@ -84,6 +85,7 @@ export const PROVIDERS: Provider[] = [
   p_openrouter,
   p_ollama,
   p_radeon_cloud,
+  p_anonrouter,
   p_tokendance,
   p_new_api,
   p_lmstudio,

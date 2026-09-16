@@ -103,6 +103,9 @@ export function openaiCompatible(
     reasoningFormat?: ProviderReasoningFormat
     authOptional?: ProviderConfig['authOptional']
     serverTools?: ProviderServerToolConfig[]
+    /** The provider returns the authoritative billed amount in `usage.cost`. */
+    reportsActualCost?: ProviderConfig['reportsActualCost']
+    reportedCostCurrency?: ProviderConfig['reportedCostCurrency']
   } & GenFields
 ): Provider {
   const endpointConfigs: ProviderConnection['endpointConfigs'] = {
@@ -123,6 +126,8 @@ export function openaiCompatible(
     availableInEditions: p.availableInEditions,
     ...(p.authOptional ? { authOptional: p.authOptional } : {}),
     ...(p.serverTools ? { serverTools: p.serverTools } : {}),
+    ...(p.reportsActualCost ? { reportsActualCost: p.reportsActualCost } : {}),
+    ...(p.reportedCostCurrency ? { reportedCostCurrency: p.reportedCostCurrency } : {}),
     ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),
     ...(p.modelsDevProvider ? { modelsDevProvider: p.modelsDevProvider } : {}),
     ...(p.fetchModels ? { fetchModels: p.fetchModels } : {}),
