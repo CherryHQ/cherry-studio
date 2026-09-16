@@ -45,6 +45,7 @@ export function connectBridgeLink(options: {
     params: BridgePluginRequestMap[M]['params'],
     signal?: AbortSignal
   ): Promise<BridgePluginRequestMap[M]['result']> {
+    if (!connected) return Promise.reject(new Error('dsh bridge host is not connected'))
     return transport.request(method, params, signal) as Promise<BridgePluginRequestMap[M]['result']>
   }
 

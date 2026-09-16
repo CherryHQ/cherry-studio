@@ -44,6 +44,8 @@ type Props = {
   openArtifactFile?: MessageListActions['openArtifactFile']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage?: MessageListActions['deleteMessage']
+  startEditing?: (messageId: string) => Promise<void>
+  editBusy?: boolean
   respondToolApproval?: MessageListActions['respondToolApproval']
 }
 
@@ -64,6 +66,8 @@ const AgentSessionMessages = ({
   openArtifactFile,
   openDiagnosticReport,
   deleteMessage,
+  startEditing,
+  editBusy,
   respondToolApproval
 }: Props) => {
   const { t } = useTranslation()
@@ -138,6 +142,8 @@ const AgentSessionMessages = ({
     openDiagnosticReport,
     diagnosticReport,
     deleteMessage,
+    startEditing,
+    editBusy,
     respondToolApproval,
     messageNavigation,
     workspacePath: session?.workspace?.path,

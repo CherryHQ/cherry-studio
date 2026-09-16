@@ -1,3 +1,4 @@
+import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -62,7 +63,17 @@ vi.mock('@main/ai/utils/usageCapture', () => ({
 vi.mock('@main/services/TopicNamingService', () => ({
   topicNamingService: { maybeRenameAgentSession: mocks.maybeRenameAgentSession }
 }))
-vi.mock('@application', () => ({ application: { get: mocks.applicationGet } }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const mocked = mockApplicationFactory()
+  return {
+    ...mocked,
+    application: {
+      ...mocked.application,
+      get: (name: string) => (name === 'DbService' ? mocked.application.get(name) : mocks.applicationGet(name))
+    }
+  }
+})
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
@@ -125,8 +136,11 @@ beforeEach(() => {
 })
 
 describe('subagent settlement wake (incident replay)', () => {
+  setupTestDatabase()
+
   it('delivers wake-turn chunks into the receive-only stream under background occupancy', async () => {
     const service = new AgentSessionRuntimeService()
+    const send = vi.fn().mockResolvedValue(undefined)
     const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
 
     // Turn 1: the spawning user turn, streamed and settled normally.
@@ -135,7 +149,7 @@ describe('subagent settlement wake (incident replay)', () => {
     entry.runtimeState.connection = {
       kind: 'connected',
       connection: {
-        send: vi.fn(),
+        send,
         close: vi.fn(),
         events: [],
         reconcile: vi.fn().mockResolvedValue('current'),
@@ -148,6 +162,7 @@ describe('subagent settlement wake (incident replay)', () => {
       .openTurnStream({ sessionId: 'session-1', turnId: turn1.turnId, signal: new AbortController().signal })
       .getReader()
     await expect(turn1Reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
 
     // Spawn tool call registers the flow anchor; children start (background occupancy on).
     handleRuntimeEvent({

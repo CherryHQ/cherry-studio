@@ -226,6 +226,27 @@ export const aiRequestSchemas = {
 
   // ── Streaming chat (AiStreamManager) ──
   // Requests are R→M; the produced chunk/done/error events ride the AiEventSchemas block below.
+  'ai.agent.session.edit_snapshot': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), messageId: z.string().min(1) }),
+    output: z.strictObject({ version: z.string(), parts: z.array(z.custom<CherryMessagePart>()) })
+  }),
+  'ai.agent.session.set_pending_input_count': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), count: z.number().int().nonnegative() }),
+    output: z.void()
+  }),
+  'ai.agent.session.edit_resend': defineRoute({
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      messageId: z.string().min(1),
+      version: z.string().min(1),
+      operationId: z.uuid(),
+      userMessageParts: z.array(z.custom<CherryMessagePart>()).min(1),
+      reasoningEffort: ReasoningEffortOptionSchema.optional(),
+      serviceTier: ServiceTierSelectionSchema.optional(),
+      fastMode: z.boolean().optional()
+    }),
+    output: z.custom<AiStreamOpenResponse>()
+  }),
   'ai.stream.open': defineRoute({
     // Variant union mirrors AiStreamOpenRequest. `userMessageParts` is opaque pass-through
     // (main persists it), so its items are `z.custom<CherryMessagePart>()`.
@@ -324,6 +345,14 @@ export const aiRequestSchemas = {
   'ai.agent.session.prewarm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
+  }),
+  'ai.agent.session.fork': defineRoute({
+    input: z.strictObject({
+      sourceSessionId: z.uuid(),
+      messageId: z.uuid(),
+      allowHistoryRebuild: z.boolean().default(false)
+    }),
+    output: z.strictObject({ sessionId: z.uuid() })
   }),
   'ai.agent.session.close_warm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),

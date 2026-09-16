@@ -14,6 +14,8 @@ import {
   type BridgePermissionMode,
   type BridgePolicy
 } from '@cherrystudio/dsh-bridge'
+import { agentSessionForkContextService } from '@data/services/AgentSessionForkContextService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -41,6 +43,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
+import type { RuntimeForkCheckpoint } from '../forkCheckpoint'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -66,6 +69,7 @@ import {
   type DshConnectionSnapshot,
   DshInvalidConnectionSnapshotError
 } from './dshConnectionSignature'
+import { readDshForkContext } from './dshFork'
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
@@ -108,7 +112,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'chunk', chunk })
     },
     onAssistantUsage: (info) => this.recordProviderInvocation(info),
-    onTurnEnd: (reason) => this.handleTurnEnd(reason),
+    onTurnEnd: (reason, boundary) => this.handleTurnEnd(reason, boundary),
     onCompaction: (event) => this.eventQueue.push(event),
     onApiRetry: (retry) => this.eventQueue.push({ type: 'api-retry', retry }),
     onAutonomousTurnState: (event) => {
@@ -128,11 +132,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private compositionPath?: string
   private resumeToken?: string
   private closed = false
+  private closePromise?: Promise<void>
   private turnActive = false
   /** Monotonic host-turn identity; child items pin it at open so they never split across streams. */
   private turnEpoch = 0
   private modelId = ''
   private contextWindow = 0
+  private forkSystemPrompt = ''
   private reasoningEffort: ReasoningEffortOption = 'default'
   private workspacePath = ''
   private agentDataPath = ''
@@ -158,12 +164,19 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     return this._usageCapture
   }
 
-  constructor(private readonly input: AgentRuntimeConnectInput) {
+  constructor(
+    private readonly input: AgentRuntimeConnectInput,
+    private readonly onClosed: () => void = () => undefined
+  ) {
     this.resumeToken = input.resumeToken
     this.traceContext = input.trace
     // Constructor-body creation: parameter properties are not yet assigned while
     // field initializers run, so `input.sessionId` is unavailable up there.
-    this.subagents = new DshSubagentCoordinator(input.sessionId, this.buildSubagentSink())
+    this.subagents = new DshSubagentCoordinator(this.runtimeSessionId, this.buildSubagentSink())
+  }
+
+  private get runtimeSessionId(): string {
+    return this.input.resumeToken ?? this.input.nativeSessionId ?? this.input.sessionId
   }
 
   // The socket can outrun session notifications; provenance must land before approval content.
@@ -232,6 +245,14 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   async start(): Promise<this> {
     if (this.input.resumeToken) assertValidDshResumeToken(this.input.resumeToken)
+    const requireExistingHistory =
+      this.input.requireExistingHistory ??
+      (Boolean(this.input.resumeToken && this.runtimeSessionId !== this.input.sessionId) ||
+        (agentSessionService.isFork(this.input.sessionId) &&
+          !agentSessionForkContextService.needsPreparation(this.input.sessionId)))
+    assertValidDshResumeToken(this.runtimeSessionId)
+    if (requireExistingHistory && !this.input.resumeToken)
+      throw new Error('history_missing: this fork requires its existing native history.')
     const resolveInjection = async (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> => {
       try {
         return await resolveDshProviderInjectionFromSnapshot(
@@ -316,6 +337,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     const persona = [prompt.base.kind === 'custom' ? prompt.base.content : undefined, prompt.append || undefined]
       .filter(Boolean)
       .join('\n\n')
+    this.forkSystemPrompt = persona
 
     const yaml = buildDshCompositionYaml({
       providerName: injection.providerName,
@@ -364,10 +386,18 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
       this.bridge = new DshBridgeServer({
         sessionId: this.input.sessionId,
+        runtimeSessionId: this.runtimeSessionId,
         emit: (event, source) => this.emitBridgeEvent(event, source),
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
+        onDisconnect: () => {
+          this.eventQueue.push({
+            type: 'error',
+            error: new Error('dsh bridge disconnected; runtime execution is stopping')
+          })
+          void this.close().catch((error) => logger.warn('dsh disconnected runtime close failed', { error }))
+        },
         onGuardCheck: async (toolName, args, cwd) => {
           const decision = await evaluateUserDataSqliteGuard({
             runtime: 'dsh',
@@ -414,12 +444,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       await client.initialize({ cwd: workspacePath, provider: injection.providerName, model: injection.modelId })
       await this.bridge.whenReady()
       await this.bridge.request('session/open', {
-        sessionId: this.input.sessionId,
+        sessionId: this.runtimeSessionId,
         provider: injection.providerName,
         model: injection.modelId,
         cwd: workspacePath,
-        // The plugin degrades resume to a fresh create when no session log exists yet.
+        // Only an unsent history rebuild may recreate missing native fork storage.
         resume: Boolean(this.input.resumeToken),
+        requireExistingHistory,
         policy: this.buildPolicy(),
         tools: toolBridge.tools
       })
@@ -427,7 +458,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         // Activate dsh's plan surface (prompt section + exit tool); a resumed log
         // that already folds to plan makes this a no-op.
         this.runtimePlanActive = true
-        await this.bridge.request('plan/set', { sessionId: this.input.sessionId, active: true })
+        await this.bridge.request('plan/set', { sessionId: this.runtimeSessionId, active: true })
       }
       this.maybeEmitResumeToken()
 
@@ -439,6 +470,22 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       await this.disposeRuntime()
       throw error
     }
+  }
+
+  async getForkContextEnvironment() {
+    const { default: manifest } = await import('../../../../../package.json')
+    return {
+      sdkVersion: manifest.dependencies['@deepseek-ai/dsh-sdk-client'],
+      systemPrompt: { persona: this.forkSystemPrompt, signature: this.connectionSignature },
+      tools: this.toolBridge?.tools ?? [],
+      contextWindow: this.contextWindow,
+      opaqueEnvelope: true
+    }
+  }
+
+  async readForkContext(checkpoint: RuntimeForkCheckpoint) {
+    if (checkpoint.runtime !== 'dsh' || checkpoint.runtimeSessionId !== this.resumeToken) return undefined
+    return readDshForkContext(await this.snapshotForFork(checkpoint.boundary), checkpoint.boundary)
   }
 
   async send(input: Parameters<AgentRuntimeConnection['send']>[0]): Promise<void> {
@@ -460,7 +507,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.adapter.beginTurn()
     try {
       await bridge.request('session/prompt', {
-        sessionId: this.input.sessionId,
+        sessionId: this.runtimeSessionId,
         contentBlocks: [{ type: 'text', text: content }]
       })
     } catch (error) {
@@ -530,7 +577,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     if (policyChanged) {
       try {
         await this.bridge?.request('policy/update', {
-          sessionId: this.input.sessionId,
+          sessionId: this.runtimeSessionId,
           policy: this.buildPolicy()
         })
       } catch (error) {
@@ -542,7 +589,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     if (planBoundaryChanged) {
       try {
         await this.bridge?.request('plan/set', {
-          sessionId: this.input.sessionId,
+          sessionId: this.runtimeSessionId,
           active: applicablePermissionMode === 'plan'
         })
       } catch (error) {
@@ -576,7 +623,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     if (!bridge || this.closed) return null
     let usage
     try {
-      usage = await bridge.requestContextUsage(this.input.sessionId, { timeoutMs: 5_000 })
+      usage = await bridge.requestContextUsage(this.runtimeSessionId, { timeoutMs: 5_000 })
     } catch (error) {
       logger.warn('dsh context usage query failed', { error })
       return null
@@ -605,7 +652,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     try {
       await bridge.request(
         'subagent/interrupt',
-        { sessionId: this.input.sessionId, childSessionId: taskId },
+        { sessionId: this.runtimeSessionId, childSessionId: taskId },
         { timeoutMs: 5_000 }
       )
       return true
@@ -615,9 +662,23 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return
+  async snapshotForFork(boundary: number): Promise<unknown[]> {
+    if (!this.bridge || this.closed) throw new Error('DSH connection is closed')
+    const result = await this.bridge.request(
+      'session/fork-snapshot',
+      { sessionId: this.runtimeSessionId, boundary },
+      { timeoutMs: 60_000 }
+    )
+    return result.events
+  }
+
+  close(): Promise<void> {
     this.closed = true
+    return (this.closePromise ??= Promise.resolve().then(() => this.finishClose()))
+  }
+
+  private async finishClose(): Promise<void> {
+    this.onClosed()
     this.pendingBridgeEvents.length = 0
     this.sessionEventSeqs.clear()
     this.subagents.close()
@@ -627,22 +688,30 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.subscription?.close()
     this.subscription = undefined
     try {
-      await this.bridge?.request('session/cancel', { sessionId: this.input.sessionId }, { timeoutMs: 2_000 })
+      await this.bridge?.request('session/cancel', { sessionId: this.runtimeSessionId }, { timeoutMs: 2_000 })
     } catch (error) {
       logger.warn('dsh cancel during close failed', { error })
     }
-    await this.disposeRuntime()
-    this.eventQueue.close()
+    try {
+      await this.disposeRuntime()
+    } finally {
+      this.eventQueue.close()
+    }
   }
 
   /** Best-effort teardown shared by close() and start() failure cleanup. */
   private async disposeRuntime(): Promise<void> {
+    let closeFailure: unknown
     this.traceRecorder?.close('dsh connection closed')
     this.traceRecorder = undefined
     try {
       await this.client?.close()
+      this.bridge?.runtimeExited()
     } catch (error) {
+      // A failed SDK close can leave the process alive; socket cleanup is not proof of exit.
+      // Keep its write leases until shutdown is confirmed, never release them in finally.
       logger.warn('dsh client close failed', { error })
+      closeFailure = error
     }
     this.client = undefined
     await this.bridge?.close().catch((error) => logger.warn('dsh bridge close failed', { error }))
@@ -654,6 +723,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       await rm(this.compositionPath, { force: true }).catch(() => undefined)
       this.compositionPath = undefined
     }
+    if (closeFailure) throw closeFailure
   }
 
   /** Stored mode overlaid with the runtime's committed plan fold (see `runtimePlanActive`). */
@@ -676,7 +746,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     // A failed refresh leaves the previous (plan-restricted or stored) policy in
     // force — over-restriction at worst, never an enforcement gap.
     void bridge
-      .request('policy/update', { sessionId: this.input.sessionId, policy: this.buildPolicy() })
+      .request('policy/update', { sessionId: this.runtimeSessionId, policy: this.buildPolicy() })
       .catch((error) => logger.warn('dsh plan-mode policy refresh failed', { error }))
   }
 
@@ -716,7 +786,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         // The SDK server forwards session-log envelopes verbatim across this wire boundary.
         // Unknown merged types fall through the adapter.
         const event = params.event as SessionEvent
-        if (params.sessionId !== this.input.sessionId) {
+        if (params.sessionId !== this.runtimeSessionId) {
           // Every other session in this process is a descendant (or one racing its
           // started/lifecycle signal); the coordinator buffers until a binding lands.
           this.subagents.handleChildEvent(params.sessionId, event)
@@ -750,7 +820,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.markTurnActive()
     let outcome
     try {
-      outcome = await bridge.requestCommand(this.input.sessionId, line)
+      outcome = await bridge.requestCommand(this.runtimeSessionId, line)
     } catch (error) {
       this.turnActive = false
       if (this.closed) return true
@@ -776,13 +846,27 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-end', id } })
   }
 
-  private handleTurnEnd(reason: TurnEndReason): void {
+  private handleTurnEnd(reason: TurnEndReason, boundary?: number): void {
     if (this.closed) return
     this.turnActive = false
     switch (reason.kind) {
       case 'completed':
       case 'max-tokens':
-        this.eventQueue.push({ type: 'turn-complete' })
+        this.eventQueue.push({
+          type: 'turn-complete',
+          forkState:
+            boundary !== undefined
+              ? {
+                  version: 1,
+                  status: 'available',
+                  checkpoint: {
+                    runtime: 'dsh',
+                    runtimeSessionId: this.runtimeSessionId,
+                    boundary
+                  }
+                }
+              : { version: 1, status: 'unavailable', reason: 'checkpoint_failed' }
+        })
         return
       case 'aborted':
       case 'interrupted':
@@ -808,7 +892,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       model?: string
       metrics?: DshInvocationMetrics
     },
-    sessionId: string = this.input.sessionId
+    sessionId: string = this.runtimeSessionId
   ): void {
     if (this.closed) return
     if (this._usageCapture?.owner !== 'agent-sdk') return
@@ -844,9 +928,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     })
   }
 
-  /** resume-token = Cherry session id = dsh session id (the JSONL backend owns file pathing). */
+  /** Native identity may change when editing history without changing the visible conversation. */
   private maybeEmitResumeToken(): void {
-    const token = this.input.sessionId
+    const token = this.runtimeSessionId
     if (token === this.resumeToken) return
     this.resumeToken = token
     this.eventQueue.push({ type: 'resume-token', token })

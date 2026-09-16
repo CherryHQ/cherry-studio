@@ -304,6 +304,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
     ctx?: DispatchContext
   ): Promise<PreparedDispatch> {
     const validated = await this.validateDispatch(req, authority)
+    const runtimeService = application.get('AgentSessionRuntimeService')
+    if (req.agentEdit) {
+      return runtimeService.edits.run(
+        req.agentEdit,
+        validated,
+        (tx) => this.persistDispatchTx(tx, validated, ctx?.expectedAgentId),
+        (persisted) => this.activateDispatch(persisted, subscriber)
+      )
+    }
+    runtimeService.assertDispatchAllowed(validated.sessionId)
 
     // Ordinary interactive follow-ups still use the runtime FIFO. Durable cross-Session deliveries
     // are gated by AgentSessionDeliveryService and never enter this branch.

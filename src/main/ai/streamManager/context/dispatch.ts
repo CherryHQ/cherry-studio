@@ -6,6 +6,7 @@
 
 import { loggerService } from '@logger'
 import { topicService } from '@main/data/services/TopicService'
+import type { AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { ServiceTierSelection } from '@shared/data/types/model'
@@ -62,6 +63,7 @@ export type MainDispatchRequest = (
   headless?: boolean
   /** Main-only durable user row accepted by the cross-session delivery path. */
   agentDeliveryMessage?: AgentSessionMessageEntity
+  agentEdit?: AgentSessionEditTarget
   /** Main-only queue policy: never redirect this delivery into the currently-running turn. */
 }
 

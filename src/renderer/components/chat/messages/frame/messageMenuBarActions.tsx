@@ -33,11 +33,13 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
+import { canRebuildAgentSessionFork } from '@shared/ai/agentSessionFork'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
 import { createActionRegistry } from '../../actions/actionRegistry'
 import type { ActionAvailabilityInput, ActionDescriptor, ResolvedAction } from '../../actions/actionTypes'
+import { agentSessionForkReasonLabel } from '../agentSessionFork'
 import type { MessageListActions, MessageListItem, MessageListSelectionState } from '../types'
 import type { MessageMenuConfig } from '../types'
 import { getMessageListItemModelName } from '../utils/messageListItem'
@@ -224,6 +226,9 @@ registerCommand('message.newBranch', async ({ actions, message, t }) => {
   await actions.startMessageBranch?.(message.id)
   actions.notifySuccess?.(t('chat.message.new.branch.created'))
 })
+registerCommand('message.forkSession', async ({ actions, message }) => {
+  await actions.forkSession?.(message.id)
+})
 
 registerCommand('message.copyToNewTopic', async ({ actions, message, t }) => {
   await actions.copyBranchToNewTopic?.(message.id)
@@ -327,13 +332,25 @@ registerCommand('message.useful', ({ message, onSelectContext }) => {
 registerToolbarAction({
   id: 'user-edit',
   commandId: 'message.edit',
-  label: ({ t }) => t('common.edit'),
+  label: ({ t, actions }) => actions.editMessageLabel ?? t('common.edit'),
   icon: <EditIcon size={15} />,
-  availability: toolbarAvailability(
-    'user-edit',
-    ({ actions, isTranslating, isUserMessage, startEditingMessage }) =>
-      !isTranslating && isUserMessage && !!actions.editMessage && !!startEditingMessage
-  )
+  availability: (context) => {
+    const availability = context.actions.getMessageEditAvailability?.(context.message.id)
+    const visible =
+      !context.isTranslating &&
+      context.isUserMessage &&
+      !!context.actions.editMessage &&
+      !!context.startEditingMessage &&
+      (availability?.visible ?? true)
+    return {
+      visible,
+      enabled:
+        visible &&
+        !availability?.disabledReason &&
+        !(context.isProcessing && STREAMING_DISABLED_BUTTON_IDS.has('user-edit')),
+      reason: availability?.disabledReason
+    }
+  }
 })
 
 registerToolbarAction({
@@ -454,17 +471,30 @@ registerToolbarAction({
 registerAction({
   id: 'edit',
   commandId: 'message.edit',
-  label: ({ t }) => t('common.edit'),
+  label: ({ t, actions }) => actions.editMessageLabel ?? t('common.edit'),
   icon: <FilePenLine size={15} />,
   group: 'write',
   order: 10,
   surface: 'menu',
-  availability: ({ actions, isAssistantMessage, isEditable, isTranslating, isUserMessage, startEditingMessage }) =>
-    !isTranslating &&
-    isEditable &&
-    !!actions.editMessage &&
-    !!startEditingMessage &&
-    (isUserMessage || isAssistantMessage)
+  availability: ({
+    actions,
+    message,
+    isAssistantMessage,
+    isEditable,
+    isTranslating,
+    isUserMessage,
+    startEditingMessage
+  }) => {
+    const availability = actions.getMessageEditAvailability?.(message.id)
+    const visible =
+      !isTranslating &&
+      isEditable &&
+      !!actions.editMessage &&
+      !!startEditingMessage &&
+      (isUserMessage || isAssistantMessage) &&
+      (availability?.visible ?? true)
+    return { visible, enabled: visible && !availability?.disabledReason, reason: availability?.disabledReason }
+  }
 })
 
 registerAction({
@@ -478,6 +508,29 @@ registerAction({
   availability: ({ actions, isAssistantMessage }) => {
     if (!actions.startMessageBranch || !isAssistantMessage) return false
     return true
+  }
+})
+
+registerAction({
+  id: 'fork-session',
+  commandId: 'message.forkSession',
+  label: ({ t }) => t('agent_session_fork.label'),
+  icon: <Split size={15} />,
+  group: 'write',
+  order: 22,
+  surface: 'menu',
+  availability: ({ actions, message, isAssistantMessage, t }) => {
+    if (!actions.forkSession || !isAssistantMessage) return false
+    const state = message.forkAvailability
+    const reason = state?.status === 'unavailable' ? state.reason : 'legacy_history'
+    return {
+      visible: true,
+      enabled: message.status === 'success' && (state?.status === 'available' || canRebuildAgentSessionFork(reason)),
+      reason:
+        message.status !== 'success' || reason === 'not_turn_boundary'
+          ? agentSessionForkReasonLabel(t, 'not_turn_boundary')
+          : undefined
+    }
   }
 })
 

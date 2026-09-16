@@ -7,11 +7,17 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
+import { agentSessionEditService } from '@data/services/AgentSessionEditService'
+import { agentSessionForkContextService } from '@data/services/AgentSessionForkContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import { FORK_CHECKPOINT_FAILED, NOT_FORK_BOUNDARY, type RuntimeForkState } from '../../runtime/forkCheckpoint'
 import type { PersistAssistantInput, PersistenceBackend } from '../../streamManager'
+
+const logger = loggerService.withContext('AgentSessionMessageBackend')
 
 export interface AgentSessionMessageBackendOptions {
   /** Cherry Studio agent-session id. */
@@ -22,6 +28,7 @@ export interface AgentSessionMessageBackendOptions {
   modelId?: UniqueModelId
   /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
   runtimeResumeToken?: string | (() => string | undefined)
+  forkState?: () => RuntimeForkState | undefined
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -39,21 +46,55 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
   persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, runtimeStats } = input
     const runtimeResumeToken = this.getRuntimeResumeToken()
-    agentSessionMessageService.saveMessage(
-      {
-        sessionId: this.opts.sessionId,
-        ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
-        ...(runtimeStats ? { runtimeStats } : {}),
-        message: {
-          id: finalMessage?.id ?? this.opts.assistantMessageId,
-          role: 'assistant',
-          status,
-          data: { parts: finalMessage?.parts ?? [] },
-          modelId: this.opts.modelId
-        }
-      },
-      { publishDataChange: true }
-    )
+    let forkState = NOT_FORK_BOUNDARY
+    if (status === 'success') {
+      try {
+        forkState = this.opts.forkState?.() ?? NOT_FORK_BOUNDARY
+      } catch (error) {
+        logger.warn('Fork checkpoint capture failed; preserving completed answer', { error })
+        forkState = FORK_CHECKPOINT_FAILED
+      }
+    }
+    const save = (runtimeForkState: RuntimeForkState) =>
+      agentSessionMessageService.saveMessage(
+        {
+          sessionId: this.opts.sessionId,
+          runtimeForkState,
+          ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
+          ...(runtimeStats ? { runtimeStats } : {}),
+          message: {
+            id: finalMessage?.id ?? this.opts.assistantMessageId,
+            role: 'assistant',
+            status,
+            data: { parts: finalMessage?.parts ?? [] },
+            modelId: this.opts.modelId
+          }
+        },
+        { publishDataChange: true }
+      )
+    try {
+      save(forkState)
+    } catch (error) {
+      if (forkState.status !== 'available') throw error
+      logger.warn('Fork checkpoint persistence failed; retrying completed answer without checkpoint', { error })
+      save(FORK_CHECKPOINT_FAILED)
+    }
+    if (status === 'success' && runtimeResumeToken) {
+      try {
+        agentSessionEditService.confirmSend(
+          this.opts.sessionId,
+          finalMessage?.id ?? this.opts.assistantMessageId,
+          runtimeResumeToken
+        )
+        agentSessionForkContextService.confirmSend(
+          this.opts.sessionId,
+          runtimeResumeToken,
+          finalMessage?.id ?? this.opts.assistantMessageId
+        )
+      } catch (error) {
+        logger.warn('Fork context receipt remains pending reconciliation', { error })
+      }
+    }
   }
 
   markTerminalError(): void {

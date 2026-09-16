@@ -126,6 +126,9 @@ export interface ComposerSurfaceActions {
 
 export interface ComposerSurfaceEditingState {
   messageId: string
+  description?: string
+  sendLabel?: string
+  cancelDisabled?: boolean
   highlightKey?: number
   onCancel: () => void
   onLocate?: () => void
@@ -2158,7 +2161,11 @@ export default function ComposerSurfaceRuntime({
     typeof sendAccessory === 'function' ? sendAccessory(inputAdapter, unifiedPanelControl) : sendAccessory
   const compactControls = renderCompactControls?.(inputAdapter, unifiedPanelControl)
   const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
-  const sendAction = showPauseButton ? (
+  const sendAction = editingState?.sendLabel ? (
+    <Button size="sm" disabled={sendDisabled} onClick={sendDraft}>
+      {editingState.sendLabel}
+    </Button>
+  ) : showPauseButton ? (
     <Tooltip content={t('chat.input.pause')} placement="top">
       <button
         data-ui="chat.composer.action.pause"
@@ -2181,7 +2188,9 @@ export default function ComposerSurfaceRuntime({
       className="flex h-9 shrink-0 items-center justify-between border-border-subtle border-b bg-transparent px-3 text-muted-foreground text-xs">
       <div className="flex min-w-0 items-center gap-1.5">
         <Pencil aria-hidden="true" data-composer-editing-icon="" className="size-3.5 shrink-0" />
-        <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
+        <span className="min-w-0 truncate font-medium" title={editingState.description}>
+          {editingState.description ?? t('chat.input.editing')}
+        </span>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {editingState.onLocate ? (
@@ -2214,6 +2223,7 @@ export default function ComposerSurfaceRuntime({
           <Button
             type="button"
             onClick={editingState.onCancel}
+            disabled={editingState.cancelDisabled}
             variant="ghost"
             size="icon-sm"
             className="shrink-0 rounded-full text-muted-foreground! hover:bg-accent hover:text-foreground!"

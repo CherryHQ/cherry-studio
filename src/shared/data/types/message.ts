@@ -14,6 +14,7 @@ import * as z from 'zod'
 
 import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
+import type { AgentSessionForkAvailability } from '@shared/ai/agentSessionFork'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
@@ -178,6 +179,7 @@ export interface MessageData {
  * omitted buckets from earlier steps, producing a mixed and invalid total.
  */
 export interface CherryUIMessageMetadata {
+  forkAvailability?: AgentSessionForkAvailability
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
   //    response, or seeded locally when pushing a placeholder before the
   //    first refresh completes). Keeping these on the message itself means

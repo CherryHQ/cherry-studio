@@ -1,5 +1,6 @@
 import { isToolUIPart } from 'ai'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   createOverlayRefreshHandoff,
@@ -17,6 +18,8 @@ import type {
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
@@ -27,10 +30,27 @@ import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
+import { toast } from '@renderer/services/toast'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import type { AgentSessionEditReason, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_PENDING_INPUT_COUNT_KEY } from '@shared/ai/agentSessionEdit'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { agentSessionEditFailureReason } from '@shared/ipc/errors/ai'
+
+const editErrorKeys = {
+  source_missing: 'agent.edit_resend.error.source_missing',
+  not_last_user_message: 'agent.edit_resend.error.not_last_user_message',
+  busy: 'agent.edit_resend.error.busy',
+  history_changed: 'agent.edit_resend.error.history_changed',
+  invalid_mapping: 'agent.edit_resend.error.invalid_mapping',
+  attachment_unavailable: 'agent.edit_resend.error.attachment_unavailable',
+  input_unsupported: 'agent.edit_resend.error.input_unsupported',
+  operation_conflict: 'agent.edit_resend.error.operation_conflict',
+  send_uncertain: 'agent.edit_resend.error.send_uncertain',
+  close_failed: 'agent.edit_resend.error.close_failed'
+} as const satisfies Record<AgentSessionEditReason, string>
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -45,6 +65,12 @@ export type AgentSendOptions = AgentComposerSendOptions
 export interface AgentTurnInput {
   text: string
   options?: AgentSendOptions
+  edit?: AgentSessionEditTarget
+}
+
+export interface AgentMessageEdit extends AgentSessionEditTarget {
+  sessionId: string
+  parts: CherryMessagePart[]
 }
 
 export function getAgentTurnParts(input: AgentTurnInput): CherryMessagePart[] {
@@ -114,11 +140,16 @@ export interface AgentChatRuntimeState {
   loadOlder?: () => void
   selectAllPagination?: MessageListSelectAllPagination
   isPending: boolean
+  editBusy: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
   composerContext: ComposerContextValue
+  editing?: AgentMessageEdit
+  startEditing: (messageId: string) => Promise<void>
+  cancelEditing: () => void
+  resendEditedMessage: AgentChatRuntimeState['sendMessage']
 }
 
 interface UseAgentChatRuntimeStateParams {
@@ -134,6 +165,13 @@ export function useAgentChatRuntimeState({
   sessionHistoryFetchOnMount,
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
+  const { t } = useTranslation()
+  const pendingInputCount = useSharedCacheValue(AGENT_SESSION_PENDING_INPUT_COUNT_KEY(sessionId)) ?? 0
+  const backgroundTasks = useAgentSessionBackgroundTasks(sessionId)
+  const [editing, setEditing] = useState<AgentMessageEdit>()
+  const editSubmissionRef = useRef<{ key: string; operationId: string } | undefined>(undefined)
+  const scopeRef = useRef(sessionId)
+  scopeRef.current = sessionId
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const {
     messages: uiMessages,
@@ -175,12 +213,74 @@ export function useAgentChatRuntimeState({
     }),
     []
   )
+  const openStream = useCallback(
+    async (input: AgentTurnInput, request: AiStreamOpenRequest) => {
+      if (!input.edit) return ipcApi.request('ai.stream.open', request)
+      const result = await ipcApi.request('ai.agent.session.edit_resend', {
+        sessionId,
+        ...input.edit,
+        userMessageParts: getAgentTurnParts(input),
+        reasoningEffort: input.options?.body?.reasoningEffort,
+        serviceTier: input.options?.body?.serviceTier,
+        fastMode: input.options?.body?.fastMode
+      })
+      if (result.mode !== 'blocked') await refresh().catch(() => undefined)
+      return result
+    },
+    [sessionId, refresh]
+  )
   const { send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
     scopeKey: sessionTopicId,
     historyAdapter,
     ensureConversation,
-    buildStreamRequest
+    buildStreamRequest,
+    openStream
   })
+  const startEditing = useCallback(
+    async (messageId: string) => {
+      if (editing?.sessionId === sessionId && editing.messageId === messageId) return
+      if (pendingInputCount > 0 || backgroundTasks.length > 0) {
+        toast.error(t('agent.edit_resend.error.busy'))
+        return
+      }
+      try {
+        const snapshot = await ipcApi.request('ai.agent.session.edit_snapshot', { sessionId, messageId })
+        if (scopeRef.current !== sessionId) return
+        editSubmissionRef.current = undefined
+        setEditing({ sessionId, messageId, ...snapshot, operationId: crypto.randomUUID() })
+      } catch (error) {
+        const reason = agentSessionEditFailureReason(error)
+        toast.error(reason ? t(editErrorKeys[reason]) : t('chat.input.send_failed'))
+      }
+    },
+    [sessionId, t, editing, pendingInputCount, backgroundTasks.length]
+  )
+  const cancelEditing = useCallback(() => setEditing(undefined), [])
+  const resendEditedMessage = useCallback(
+    async (message?: { text: string }, options?: AgentSendOptions) => {
+      if (!editing || editing.sessionId !== sessionId) return false
+      const key = JSON.stringify({ editing: editing.operationId, message, options })
+      if (editSubmissionRef.current?.key !== key) editSubmissionRef.current = { key, operationId: crypto.randomUUID() }
+      try {
+        const sent = await send({
+          text: message?.text ?? '',
+          options,
+          edit: {
+            messageId: editing.messageId,
+            version: editing.version,
+            operationId: editSubmissionRef.current.operationId
+          }
+        })
+        if (sent) setEditing((current) => (current === editing ? undefined : current))
+        return sent
+      } catch (error) {
+        const reason = agentSessionEditFailureReason(error)
+        toast.error(reason ? t(editErrorKeys[reason]) : t('chat.input.send_failed'))
+        return false
+      }
+    },
+    [editing, send, sessionId, t]
+  )
   const sendMessage = useCallback(
     async (message?: { text: string }, options?: AgentSendOptions) => {
       return send({ text: message?.text ?? '', options })
@@ -313,10 +413,15 @@ export function useAgentChatRuntimeState({
     loadOlder,
     selectAllPagination,
     isPending,
+    editBusy: isPending || pendingInputCount > 0 || backgroundTasks.length > 0,
     stop,
     sendMessage,
     deleteMessage,
     respondToolApproval,
-    composerContext
+    composerContext,
+    editing: editing?.sessionId === sessionId ? editing : undefined,
+    startEditing,
+    cancelEditing,
+    resendEditedMessage
   }
 }

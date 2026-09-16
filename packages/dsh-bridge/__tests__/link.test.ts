@@ -78,6 +78,9 @@ describe('connectBridgeLink', () => {
 
     await expect(pending).rejects.toThrow()
     await expect.poll(() => link.connected).toBe(false)
+    await expect(link.request('file-write/release', { sessionId: 'session-1', leaseId: 'late' })).rejects.toThrow(
+      'not connected'
+    )
     await expect(link.callTool({ sessionId: 'session-1', name: 'slow', args: {} })).rejects.toThrow('not connected')
   })
 })

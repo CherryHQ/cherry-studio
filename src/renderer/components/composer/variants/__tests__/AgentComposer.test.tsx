@@ -1376,6 +1376,48 @@ describe('AgentComposer', () => {
     expect(mocks.speedControlProps?.reasoningEffort).toBe('low')
   })
 
+  it('restores edit text and attachment references without reimporting the original file', async () => {
+    const attachment: FileUIPart = {
+      type: 'file',
+      url: 'file:///C:/photos/original.png',
+      mediaType: 'image/png',
+      filename: 'original.png',
+      providerMetadata: { cherry: { fileEntryId: 'existing-file', fileTokenSourceId: 'original-source' } }
+    }
+    const onCancel = vi.fn()
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        launchOptions={{
+          initialDraft: { text: '', tokens: [] },
+          initialParts: [{ type: 'text', text: 'original question' }, attachment],
+          editing: { messageId: 'last-user', onCancel, sendLabel: 'Save and resend' }
+        }}
+      />
+    )
+    expect(mocks.surfaceProps?.text).toBe('original question')
+    expect(mocks.surfaceProps?.editingState?.onCancel).toBe(onCancel)
+    await waitFor(() => expect(mocks.surfaceProps?.sendDisabled).toBe(false))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'edited question',
+        tokens: [{ id: 'file:original-source', kind: 'file', label: 'original.png', index: 0, textOffset: 0 }]
+      })
+    })
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'edited question' },
+      {
+        body: expect.objectContaining({ userMessageParts: expect.arrayContaining([attachment]) })
+      }
+    )
+    expect(mocks.createInternalEntry).not.toHaveBeenCalled()
+  })
+
   it('persists and snapshots the selected Agent service tier', async () => {
     mocks.modelResult = {
       ...model,

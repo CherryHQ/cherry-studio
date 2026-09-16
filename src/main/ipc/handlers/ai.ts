@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { isToolUIPart } from 'ai'
 
 import { application } from '@application'
+import { AgentSessionEditError } from '@data/services/agentSessionEdit'
+import { AgentSessionForkSourceError } from '@data/services/agentSessionFork'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
@@ -11,8 +13,10 @@ import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
+import { AgentSessionForkError } from '@main/ai/runtime/forkCheckpoint'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
 import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -22,6 +26,16 @@ import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('ipc/ai')
+
+async function exposeAgentEdit<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (error) {
+    if (error instanceof AgentSessionEditError)
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED, error.message, { reason: error.reason })
+    throw error
+  }
+}
 
 /**
  * Thin adapters for the AI routes. The non-streaming model ops delegate to `AiService`;
@@ -180,6 +194,28 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     exposeAiError('ai.provider.model.check', () => application.get('AiService').checkModel(request)),
 
   // ── Streaming chat — delegate to AiStreamManager, which owns the stream registry. ──
+  'ai.agent.session.edit_snapshot': async ({ sessionId, messageId }, { senderId }) => {
+    if (!senderWebContents(senderId)) throw new Error('Editing requires a managed window')
+    return exposeAgentEdit(() => application.get('AgentSessionRuntimeService').getEditSnapshot(sessionId, messageId))
+  },
+  'ai.agent.session.set_pending_input_count': async ({ sessionId, count }, { senderId }) => {
+    const sender = senderWebContents(senderId)
+    if (sender) application.get('AgentSessionRuntimeService').setPendingInputCount(sessionId, sender, count)
+  },
+  'ai.agent.session.edit_resend': async (request, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc) throw new Error('Editing requires a managed window')
+    const { sessionId, messageId, version, operationId, ...input } = request
+    const topicId = `agent-session:${sessionId}`
+    return exposeAgentEdit(() =>
+      application.get('AiStreamManager').dispatch(new WebContentsListener(wc, topicId), {
+        ...input,
+        topicId,
+        trigger: 'submit-message',
+        agentEdit: { messageId, version, operationId }
+      })
+    )
+  },
   'ai.stream.open': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
@@ -233,6 +269,23 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.delete': ({ sessionIds }) =>
     application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
+  'ai.agent.session.fork': async ({ sourceSessionId, messageId, allowHistoryRebuild }) => {
+    try {
+      return {
+        sessionId: await application
+          .get('AgentSessionRuntimeService')
+          .forkSession(sourceSessionId, messageId, allowHistoryRebuild)
+      }
+    } catch (error) {
+      logger.warn('Agent session fork failed', { sourceSessionId, messageId, error })
+      const failure =
+        error instanceof AgentSessionForkError || error instanceof AgentSessionForkSourceError
+          ? error.reason
+          : undefined
+      const reason = isAgentSessionForkFailureReason(failure) ? failure : 'operation_failed'
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
+    }
+  },
   'ai.agent.session.reuse_or_create': (input) =>
     application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
   'ai.agent.workspace.delete': ({ workspaceId }) =>

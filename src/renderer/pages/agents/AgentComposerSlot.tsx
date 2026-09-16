@@ -1,4 +1,5 @@
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
@@ -25,6 +26,10 @@ interface AgentComposerSlotProps {
   onCreateEmptySession?: () => void | Promise<unknown>
   composerContext: ComposerContextValue
   composerLaunchOptions?: AgentComposerLaunchOptions
+  editing?: AgentChatRuntimeState['editing']
+  editBusy?: boolean
+  cancelEditing: () => void
+  resendEditedMessage: AgentChatRuntimeState['sendMessage']
 }
 
 function AgentComposerSlot({
@@ -41,9 +46,80 @@ function AgentComposerSlot({
   sendDisabled,
   onCreateEmptySession,
   composerContext,
-  composerLaunchOptions
+  composerLaunchOptions,
+  editing,
+  editBusy,
+  cancelEditing,
+  resendEditedMessage
 }: AgentComposerSlotProps) {
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
+  const { t } = useTranslation()
+  const editLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(
+    () =>
+      editing
+        ? {
+            initialDraft: { text: '', tokens: [] },
+            initialParts: editing.parts,
+            editing: {
+              messageId: editing.messageId,
+              onCancel: cancelEditing,
+              description: t('agent.edit_resend.warning'),
+              sendLabel: t('agent.edit_resend.save')
+            }
+          }
+        : undefined,
+    [cancelEditing, editing, t]
+  )
+  const context = useMemo<ComposerContextValue>(
+    () => ({
+      overrides: [
+        ...(composerContext.overrides ?? []),
+        ...(editing && agentId
+          ? [
+              {
+                id: `edit:${editing.operationId}`,
+                priority: 10,
+                render: () => (
+                  <AgentComposer
+                    agentId={agentId}
+                    sessionId={sessionId}
+                    sessionOverride={session}
+                    resolvedAgent={activeAgent}
+                    resolvedModel={activeModel}
+                    resolvedWorkspaceWarning={workspaceWarning ?? null}
+                    externalContextControls
+                    canChangeModel={false}
+                    sendMessage={resendEditedMessage}
+                    stop={stop}
+                    isStreaming={false}
+                    sendDisabled={sendDisabled || isStreaming || editBusy}
+                    launchOptions={editLaunchOptions}
+                    compactWhenSingleLine={compactWhenSingleLine}
+                  />
+                )
+              }
+            ]
+          : [])
+      ]
+    }),
+    [
+      composerContext.overrides,
+      editing,
+      editBusy,
+      agentId,
+      sessionId,
+      session,
+      activeAgent,
+      activeModel,
+      workspaceWarning,
+      resendEditedMessage,
+      stop,
+      sendDisabled,
+      isStreaming,
+      editLaunchOptions,
+      compactWhenSingleLine
+    ]
+  )
   const fallback =
     agentId && !isMultiSelectMode ? (
       <AgentComposer
@@ -64,7 +140,7 @@ function AgentComposerSlot({
       />
     ) : undefined
 
-  return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
+  return <ConversationComposerSlot composerContext={context} fallback={fallback} />
 }
 
 export default memo(AgentComposerSlot)

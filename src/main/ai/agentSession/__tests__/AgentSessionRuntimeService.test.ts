@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
+import { createForkContextSnapshot, forkContextSegment } from '@data/services/utils/forkContext'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
@@ -14,6 +15,10 @@ const mocks = vi.hoisted(() => ({
   hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
+  getForkHistory: vi.fn(),
+  currentEdit: vi.fn(),
+  prepareForkContext: vi.fn(),
+  needsPreparation: vi.fn(() => true),
   findCrashOrphanedAssistantMessages: vi.fn(),
   resolveCrashOrphanedMessages: vi.fn(),
   updateSessionDeliveryStatus: vi.fn(),
@@ -41,8 +46,41 @@ const mocks = vi.hoisted(() => ({
   trackTokenUsage: vi.fn()
 }))
 
+vi.mock('@data/services/AgentSessionForkService', () => ({
+  agentSessionForkService: { journals: vi.fn(() => []), resetCleanupClaims: vi.fn() }
+}))
+
+vi.mock('@data/services/AgentSessionEditService', () => ({
+  agentSessionEditService: {
+    current: mocks.currentEdit,
+    beginSend: vi.fn(),
+    confirmSend: vi.fn(),
+    list: vi.fn(() => [])
+  }
+}))
+
+vi.mock('../prepareForkContext', () => ({
+  ForkContextPreparer: class {
+    prepare = mocks.prepareForkContext
+  }
+}))
+vi.mock('../forkContextEnvironment', () => ({
+  resolveForkContextInput: async (input: object) => ({ ...input, compatibility: {}, budget: 2000 })
+}))
+vi.mock('@data/services/AgentSessionForkContextService', () => ({
+  ForkContextFailure: class extends Error {},
+  agentSessionForkContextService: {
+    needsPreparation: mocks.needsPreparation,
+    captureNativePrefix: vi.fn(),
+    beginSend: vi.fn(),
+    confirmSend: vi.fn(),
+    fail: vi.fn()
+  }
+}))
+
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
+    isFork: vi.fn(() => false),
     getById: mocks.getSessionById,
     ensureTraceId: mocks.ensureTraceId
   }
@@ -60,6 +98,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
+    getForkHistory: mocks.getForkHistory,
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages,
     updateSessionDeliveryStatus: mocks.updateSessionDeliveryStatus,
@@ -259,6 +298,21 @@ describe('AgentSessionRuntimeService', () => {
     })
     mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.getForkHistory.mockReturnValue(undefined)
+    mocks.currentEdit.mockReturnValue(undefined)
+    mocks.prepareForkContext.mockReset()
+    mocks.needsPreparation.mockReset().mockReturnValue(true)
+    mocks.prepareForkContext.mockImplementation(async () => {
+      const rows = mocks.getForkHistory()?.map((row: any, index: number) => ({ ...row, id: `history-${index}` })) ?? []
+      const snapshot = createForkContextSnapshot(rows)
+      return {
+        preparedContextId: 'prepared-history',
+        compatibility: {},
+        segments: snapshot.entries.map((entry) =>
+          forkContextSegment(snapshot, entry.ordinal, entry.ordinal + 1, entry.text, 'history')
+        )
+      }
+    })
     mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
     mocks.resolveCrashOrphanedMessages.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
@@ -268,6 +322,7 @@ describe('AgentSessionRuntimeService', () => {
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
     mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'DbService') return { withWriteTx: (fn: () => unknown) => fn() }
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
@@ -3382,7 +3437,7 @@ describe('AgentSessionRuntimeService', () => {
       })
       await Promise.resolve()
 
-      expect(firstConnection.close).toHaveBeenCalledOnce()
+      await vi.waitFor(() => expect(firstConnection.close).toHaveBeenCalledOnce())
       expect(secondConnection.close).toHaveBeenCalledOnce()
       expect(settled).toBe(false)
 
@@ -3503,6 +3558,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
+        runtimeForkState: { version: 1, status: 'unavailable', reason: 'not_turn_boundary' },
         sessionId: 'session-1',
         runtimeResumeToken: 'resume-1',
         message: {
@@ -3548,6 +3604,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
+        runtimeForkState: { version: 1, status: 'unavailable', reason: 'not_turn_boundary' },
         sessionId: 'session-1',
         runtimeResumeToken: 'resume-1',
         message: {
@@ -4194,8 +4251,108 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
+  it.each(['pi', 'claude-code', 'dsh'].flatMap((agentType) => ['fork', 'edit'].map((kind) => ({ agentType, kind }))))(
+    'injects reconstructed $kind history once at the $agentType runtime boundary',
+    async ({ agentType, kind }) => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: agentType, model: baseTurnInput.modelId })
+      if (kind === 'edit')
+        mocks.currentEdit.mockReturnValue({
+          runtime: agentType,
+          rebuilt: true,
+          status: 'committed',
+          nativeSessionId: 'new-edit-generation',
+          assistantMessageId: 'assistant-1'
+        })
+      mocks.getForkHistory.mockReturnValue([
+        {
+          role: 'assistant',
+          data: {
+            parts: [
+              { type: 'text', text: 'Historical fact: amber' },
+              {
+                type: 'tool-Bash',
+                toolCallId: 'old-tool',
+                state: 'output-available',
+                input: { command: 'echo amber' },
+                output: 'amber',
+                approval: { id: 'old-approval', approved: true }
+              },
+              { type: 'file', filename: 'old.png', mediaType: 'image/png', url: 'data:image/png;base64,SECRET' }
+            ]
+          }
+        }
+      ])
+      const events = createAsyncQueue<any>()
+      const connection = {
+        events: events.iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      runtimeDriverRegistry.register({
+        type: agentType,
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockImplementation(async () => {
+          events.push({ type: 'resume-token', token: 'fresh-child-token' })
+          return connection
+        }),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const firstMessage = userMessage('first-user')
+      const first = service.beginTurn({ ...baseTurnInput, agentType, userMessage: firstMessage })
+      // An empty prewarmed session may hand its token to a replacement before any turn is persisted.
+      getEntry(service).lastResumeToken = 'empty-prewarmed-token'
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: first.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await reader.read()
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+      const input = connection.send.mock.calls[0][0].message
+      const text = input.data.parts[0].text
+      expect(text).toContain('Historical fact: amber')
+      expect(text).toContain('Historical tool')
+      expect(text).not.toContain('echo amber')
+      expect(text).toContain('old.png')
+      expect(text).not.toContain('old-approval')
+      expect(text).not.toContain('SECRET')
+      expect(input.data.parts.every((part: any) => part.type === 'text')).toBe(true)
+      expect(JSON.stringify(input).match(/hello/g)).toHaveLength(1)
+      expect(firstMessage.data.parts).toEqual([{ type: 'text', text: 'hello' }])
+      events.push({ type: 'turn-complete' })
+      await reader.read()
+      await terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+      mocks.needsPreparation.mockReturnValue(false)
+      const secondMessage = userMessage('second-user')
+      const second = service.beginTurn({
+        ...baseTurnInput,
+        agentType,
+        assistantMessageId: 'assistant-2',
+        userMessage: secondMessage
+      })
+      const secondReader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: second.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await secondReader.read()
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(2))
+      expect(connection.send.mock.calls[1][0].message).toEqual(secondMessage)
+      void service.closeSession('session-1')
+      await secondReader.cancel().catch(() => undefined)
+    }
+  )
+
   it('hydrates the persisted resume token before connecting a cold historical session', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue('resume-db')
+    mocks.getForkHistory.mockReturnValue(undefined)
     const events = createAsyncQueue<any>()
     const connection = {
       events: events.iterable,
@@ -5235,6 +5392,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
+        runtimeForkState: { version: 1, status: 'unavailable', reason: 'not_turn_boundary' },
         sessionId: 'session-1',
         runtimeResumeToken: 'resume-init',
         message: {
@@ -5267,6 +5425,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
+        runtimeForkState: { version: 1, status: 'unavailable', reason: 'not_turn_boundary' },
         sessionId: 'session-1',
         message: {
           id: 'assistant-1',
