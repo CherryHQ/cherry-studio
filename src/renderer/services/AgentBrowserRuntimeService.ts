@@ -123,3 +123,5 @@ export class AgentBrowserRuntimeService {
 }
 
 export const agentBrowserRuntimeService = new AgentBrowserRuntimeService()
+
+export const topicBrowserRuntimeService = new AgentBrowserRuntimeService()

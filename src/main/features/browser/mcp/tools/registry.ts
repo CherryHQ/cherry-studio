@@ -1,12 +1,14 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
+import { BROWSER_TOOL_NAMES } from '@main/ai/mcp/browserTools'
+
 import type { BrowserController } from '../browserController'
 import { dialogToolDefinition, handleDialog } from './dialog'
 import { executeToolDefinition, handleExecute } from './execute'
 import { handleConsoleMessages, handleFind, handleNetworkRequests, inspectToolDefinitions } from './inspect'
 import { handleInteraction, interactionToolDefinitions } from './interact'
 import { handleHistory, handleWaitFor, navigateToolDefinitions } from './navigate'
-import { handleOpen, openToolDefinition } from './open'
+import { handleOpen, openToolDefinition, OpenSchema } from './open'
 import { handleReset, resetToolDefinition } from './reset'
 import { handleScreenshot, screenshotToolDefinition } from './screenshot'
 import { handleSnapshot, snapshotToolDefinition } from './snapshot'
@@ -35,6 +37,22 @@ export const toolDefinitions = [
   ...webMcpToolDefinitions,
   ...navigateToolDefinitions
 ]
+
+export const sessionToolDefinitions = toolDefinitions
+  .filter(({ name }) => BROWSER_TOOL_NAMES.some((known) => known === name))
+  .map((definition) =>
+    definition.name === 'open'
+      ? {
+          ...definition,
+          description:
+            'Navigate this conversation browser pane. The user sees the same page. New tabs and private windows are unavailable.',
+          inputSchema: OpenSchema.omit({ showWindow: true }).extend({
+            privateMode: OpenSchema.shape.privateMode.describe('Unsupported by this host; must be false.'),
+            newTab: OpenSchema.shape.newTab.describe('Unsupported by this host; must be false.')
+          })
+        }
+      : definition
+  )
 
 export const toolHandlers: Record<
   string,
