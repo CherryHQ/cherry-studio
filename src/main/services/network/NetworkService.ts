@@ -1,6 +1,7 @@
+import { net, session } from 'electron'
+
 import { application } from '@application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { net, session } from 'electron'
 
 import { builtinEndpoints } from './endpoints'
 import { httpReach, resolveHost, tlsHandshake } from './probes'
