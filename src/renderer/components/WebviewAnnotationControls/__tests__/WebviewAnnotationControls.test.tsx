@@ -60,48 +60,6 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-// The annotation editor reuses the composer editor kernel; fake the TipTap layer
-// with a plain textarea so the host command flow stays testable in jsdom.
-vi.mock('@renderer/components/composer/composerPreset', () => ({
-  createComposerEditorPreset: (options: { placeholder?: string }) => options
-}))
-vi.mock('@renderer/components/composer/composerDraft', () => ({
-  createComposerDraftContent: ({ text }: { text: string }) => text,
-  serializeComposerDocument: (source: unknown) => ({
-    text: typeof source === 'object' && source !== null && 'text' in source ? String(source.text) : '',
-    tokens: []
-  })
-}))
-vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
-  useRichTextEditorKernel: (options: unknown) => options
-}))
-vi.mock('@tiptap/react', () => ({
-  EditorContent: ({ editor }: { editor: FakeKernelOptions }) => (
-    <textarea
-      aria-label={editor.editorProps.attributes['aria-label']}
-      placeholder={editor.extensions.placeholder}
-      defaultValue={editor.content}
-      onChange={(event) => editor.onUpdate?.({ editor: { text: event.target.value } })}
-      onKeyDown={(event) =>
-        editor.editorProps.handleKeyDown?.(
-          { state: { doc: { toJSON: () => ({ text: event.currentTarget.value }) } } },
-          event
-        )
-      }
-    />
-  )
-}))
-
-interface FakeKernelOptions {
-  content: string
-  extensions: { placeholder?: string }
-  editorProps: {
-    attributes: Record<string, string>
-    handleKeyDown?: (view: unknown, event: unknown) => boolean
-  }
-  onUpdate?: (payload: { editor: { text: string } }) => void
-}
-
 import { WebviewAnnotationControls } from '../WebviewAnnotationControls'
 
 const sessionId = '00000000-0000-4000-8000-000000000001'
@@ -171,6 +129,9 @@ function renderControls(webview: WebviewTag, isHostActive = true) {
   )
 }
 
+Range.prototype.getClientRects = () => [] as unknown as DOMRectList
+Range.prototype.getBoundingClientRect = () => new DOMRect()
+
 describe('WebviewAnnotationControls', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -230,11 +191,17 @@ describe('WebviewAnnotationControls', () => {
       })
     )
 
-    const editor = screen.getByRole('textbox')
+    const editor = await screen.findByLabelText('描述需要修改的内容或你注意到的问题…')
     expect(readPopoverAnchorRect).toHaveBeenLastCalledWith(
       expect.objectContaining({ x: 420, y: 420, width: 80, height: 32 })
     )
-    await user.type(editor, 'Host-owned draft')
+    await waitFor(() => expect(editor).toHaveFocus())
+    expect(editor.querySelector('[data-placeholder]')).toHaveAttribute(
+      'data-placeholder',
+      '描述需要修改的内容或你注意到的问题…'
+    )
+    await user.type(editor, 'Host-owned draft{Enter}', { skipClick: true })
+    expect(editor.querySelector('[data-placeholder]')?.getAttribute('data-placeholder') ?? '').toBe('')
     await user.click(screen.getByRole('button', { name: '保存' }))
 
     expect(sentCommands(webview)).toContainEqual({
@@ -278,12 +245,13 @@ describe('WebviewAnnotationControls', () => {
       })
     )
 
-    const editor = screen.getByRole('textbox')
-    await user.type(editor, ' updated')
+    const editor = await screen.findByLabelText('描述需要修改的内容或你注意到的问题…')
+    await waitFor(() => expect(editor).toHaveFocus())
+    await user.type(editor, ' updated', { skipClick: true })
 
     expect(screen.getByRole('alert')).toHaveTextContent('无法标注此元素，请选择附近的元素。')
     expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
-    expect(editor).toHaveValue('Host-owned draft updated')
+    expect(editor).toHaveTextContent('Host-owned draft updated')
     expect(readPopoverAnchorRect).toHaveBeenLastCalledWith(
       expect.objectContaining({ x: 24, y: 16, width: 60, height: 28 })
     )
