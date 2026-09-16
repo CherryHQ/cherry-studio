@@ -4407,6 +4407,8 @@
   "settings.models.context_management.truncate_threshold_description": "この文字数を超えるツール出力はファイルへ退避して切り詰めます。モデルは必要に応じて読み戻せます。アシスタントごとに上書きできます",
   "settings.models.default_assistant_model": "デフォルトアシスタントモデル",
   "settings.models.default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
+  "settings.models.display_name.description": "モデルリストで元のモデル ID（例: gpt-5.6-sol）を表示し、装飾された表示名（例: GPT 5.6 Sol）は使用しません。",
+  "settings.models.display_name.title": "モデル ID をそのまま表示",
   "settings.models.docs": "モデルドキュメント",
   "settings.models.empty": "モデルを選択",
   "settings.models.empty_hint": "上の「モデルを同期」をクリックしてモデルを追加します。",

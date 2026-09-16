@@ -153,6 +153,13 @@
       "description": "Fresh v2 key (no migration): per-tool CLI configs with per-provider modelId, config blob, and sortIndex. v1 codeTools is throwaway."
     },
     {
+      "targetKey": "models.display_name.show_raw_id",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show the raw model id (e.g. gpt-5.6-sol) instead of the decorated display name (e.g. GPT 5.6 Sol) for pulled provider models (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "chat.input.toolbar.pinned_tools",
       "type": "string[]",
       "defaultValue": [

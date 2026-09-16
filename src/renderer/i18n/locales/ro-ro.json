@@ -4407,6 +4407,8 @@
   "settings.models.context_management.truncate_threshold_description": "Rezultatele instrumentelor peste acest număr de caractere sunt descărcate într-un fișier și trunchiate; modelul le poate reciti la nevoie. Asistenții pot suprascrie această setare",
   "settings.models.default_assistant_model": "Model asistent implicit",
   "settings.models.default_assistant_model_description": "Folosit când un asistent nu are model.",
+  "settings.models.display_name.description": "Afișează ID-ul original al modelului (ex. gpt-5.6-sol) în locul numelui decorat (ex. GPT 5.6 Sol) în listele de modele.",
+  "settings.models.display_name.title": "Afișează ID-ul brut al modelului",
   "settings.models.docs": "Documentația modelului",
   "settings.models.empty": "Selectează un model",
   "settings.models.empty_hint": "Fă clic pe „Sincronizează modelele” de mai sus pentru a adăuga modele.",

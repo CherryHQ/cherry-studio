@@ -4407,6 +4407,8 @@
   "settings.models.context_management.truncate_threshold_description": "Οι έξοδοι εργαλείων άνω αυτού του αριθμού χαρακτήρων αποθηκεύονται σε αρχείο και περικόπτονται· το μοντέλο μπορεί να τις διαβάσει ξανά όποτε χρειαστεί. Οι βοηθοί μπορούν να το παρακάμψουν",
   "settings.models.default_assistant_model": "Πρόεδρος Υπηρεσίας προεπιλεγμένου μοντέλου",
   "settings.models.default_assistant_model_description": "Χρησιμοποιείται όταν ένας βοηθός δεν έχει μοντέλο.",
+  "settings.models.display_name.description": "Εμφανίζει το αρχικό ID μοντέλου (π.χ. gpt-5.6-sol) αντί για το διακοσμημένο όνομα (π.χ. GPT 5.6 Sol) στις λίστες μοντέλων.",
+  "settings.models.display_name.title": "Εμφάνιση πρωτογενούς ID μοντέλου",
   "settings.models.docs": "Τεκμηρίωση μοντέλου",
   "settings.models.empty": "Επιλέξτε μοντέλο",
   "settings.models.empty_hint": "Κάντε κλικ στο «Συγχρονισμός μοντέλων» παραπάνω για να προσθέσετε μοντέλα.",

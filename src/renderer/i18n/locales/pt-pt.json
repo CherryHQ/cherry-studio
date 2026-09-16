@@ -4407,6 +4407,8 @@
   "settings.models.context_management.truncate_threshold_description": "Saídas de ferramentas acima deste número de caracteres são descarregadas para um ficheiro e truncadas; o modelo pode voltar a lê-las quando precisar. Os assistentes podem substituir esta definição",
   "settings.models.default_assistant_model": "Modelo de assistente padrão",
   "settings.models.default_assistant_model_description": "Usado quando um assistente não tem modelo.",
+  "settings.models.display_name.description": "Mostra o ID de modelo original (ex.: gpt-5.6-sol) em vez do nome decorado (ex.: GPT 5.6 Sol) nas listas de modelos.",
+  "settings.models.display_name.title": "Mostrar ID bruta do modelo",
   "settings.models.docs": "Documentação do modelo",
   "settings.models.empty": "Selecione um modelo",
   "settings.models.empty_hint": "Clique em «Sincronizar modelos» acima para adicionar modelos.",

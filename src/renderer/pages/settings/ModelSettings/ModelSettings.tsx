@@ -1,9 +1,9 @@
-import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2, Tag } from 'lucide-react'
 import type { FC, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, PageSidePanel, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
@@ -145,6 +145,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const { setTimeoutTimer } = useTimer()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
+  const [showRawModelId, setShowRawModelId] = usePreference('models.display_name.show_raw_id')
 
   const chatModelFilter = useCallback(
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
@@ -321,6 +322,15 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 )}
               </>
             )}
+          </ModelSettingRow>
+          {showDividers && <SettingDivider />}
+          <ModelSettingRow
+            compact={compact}
+            id={compact ? undefined : 'setting-model-display-name'}
+            icon={<Tag size={16} className="lucide-custom shrink-0 text-foreground" />}
+            title={t('settings.models.display_name.title')}
+            description={showDescription ? t('settings.models.display_name.description') : undefined}>
+            <Switch checked={showRawModelId} onCheckedChange={setShowRawModelId} />
           </ModelSettingRow>
           {showPaintingModel && (
             <>

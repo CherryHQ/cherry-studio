@@ -4407,6 +4407,8 @@
   "settings.models.context_management.truncate_threshold_description": "超过该字符数的工具输出会被转存为文件并截断，模型可按需读回。助手可单独覆盖",
   "settings.models.default_assistant_model": "默认助手模型",
   "settings.models.default_assistant_model_description": "助手没有模型时使用这个模型",
+  "settings.models.display_name.description": "在模型列表中显示原始模型 ID（如 gpt-5.6-sol），而不是美化后的显示名（如 GPT 5.6 Sol）。",
+  "settings.models.display_name.title": "显示模型 ID 原名",
   "settings.models.docs": "模型文档",
   "settings.models.empty": "请选择模型",
   "settings.models.empty_hint": "点击上方的“同步模型”添加模型",

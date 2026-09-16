@@ -4407,6 +4407,8 @@
   "settings.models.context_management.truncate_threshold_description": "Bu karakter sayısını aşan araç çıktıları bir dosyaya aktarılır ve kırpılır; model gerektiğinde bunları yeniden okuyabilir. Asistanlar bunu geçersiz kılabilir",
   "settings.models.default_assistant_model": "Varsayılan Asistan Modeli",
   "settings.models.default_assistant_model_description": "Bir asistanın modeli olmadığında kullanılır.",
+  "settings.models.display_name.description": "Model listelerinde süslenmiş ad (ör. GPT 5.6 Sol) yerine orijinal model kimliğini (ör. gpt-5.6-sol) gösterir.",
+  "settings.models.display_name.title": "Orijinal Model Kimliğini Göster",
   "settings.models.docs": "Model belgeleri",
   "settings.models.empty": "Bir model seçin",
   "settings.models.empty_hint": "Model eklemek için yukarıdaki Modelleri eşitle seçeneğine tıklayın.",

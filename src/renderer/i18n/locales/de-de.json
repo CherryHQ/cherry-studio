@@ -4407,6 +4407,8 @@
   "settings.models.context_management.truncate_threshold_description": "Werkzeugausgaben über dieser Zeichenzahl werden in eine Datei ausgelagert und gekürzt; das Modell kann sie bei Bedarf wieder lesen. Assistenten können dies überschreiben",
   "settings.models.default_assistant_model": "Standard-Assistent-Modell",
   "settings.models.default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
+  "settings.models.display_name.description": "Zeigt die ursprüngliche Modell-ID (z. B. gpt-5.6-sol) statt des dekorierten Namens (z. B. GPT 5.6 Sol) in Modelllisten an.",
+  "settings.models.display_name.title": "Roh-Modell-ID anzeigen",
   "settings.models.docs": "Modelldokumentation",
   "settings.models.empty": "Modell auswählen",
   "settings.models.empty_hint": "Klicken Sie oben auf „Modelle synchronisieren“, um Modelle hinzuzufügen.",

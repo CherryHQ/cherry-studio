@@ -4407,6 +4407,8 @@
   "settings.models.context_management.truncate_threshold_description": "Tool outputs beyond this many characters are offloaded to a file and truncated; the model can read them back on demand. Assistants can override this",
   "settings.models.default_assistant_model": "Default Assistant Model",
   "settings.models.default_assistant_model_description": "Used when an assistant has no model.",
+  "settings.models.display_name.description": "Show the original model ID (e.g. gpt-5.6-sol) instead of the decorated name (e.g. GPT 5.6 Sol) in model lists.",
+  "settings.models.display_name.title": "Display Raw Model ID",
   "settings.models.docs": "Model docs",
   "settings.models.empty": "Select a model",
   "settings.models.empty_hint": "Click Sync models above to add models.",

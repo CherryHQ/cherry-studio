@@ -4407,6 +4407,8 @@
   "settings.models.context_management.truncate_threshold_description": "Les sorties d’outils dépassant ce nombre de caractères sont déchargées dans un fichier et tronquées ; le modèle peut les relire à la demande. Les assistants peuvent le remplacer",
   "settings.models.default_assistant_model": "Modèle d'assistant par défaut",
   "settings.models.default_assistant_model_description": "Utilisé lorsqu'un assistant n'a pas de modèle.",
+  "settings.models.display_name.description": "Affiche l'ID de modèle d'origine (ex. gpt-5.6-sol) au lieu du nom décoré (ex. GPT 5.6 Sol) dans les listes de modèles.",
+  "settings.models.display_name.title": "Afficher l'ID brut du modèle",
   "settings.models.docs": "Documentation du modèle",
   "settings.models.empty": "Sélectionnez un modèle",
   "settings.models.empty_hint": "Cliquez sur « Synchroniser les modèles » ci-dessus pour ajouter des modèles.",

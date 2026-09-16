@@ -4407,6 +4407,8 @@
   "settings.models.context_management.truncate_threshold_description": "Kết quả công cụ vượt quá số ký tự này sẽ được lưu tách ra tệp và cắt bớt; mô hình có thể đọc lại khi cần. Trợ lý có thể ghi đè cài đặt này",
   "settings.models.default_assistant_model": "Mô hình Trợ lý Mặc định",
   "settings.models.default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
+  "settings.models.display_name.description": "Hiển thị ID mô hình gốc (ví dụ: gpt-5.6-sol) thay vì tên đã định dạng (ví dụ: GPT 5.6 Sol) trong danh sách mô hình.",
+  "settings.models.display_name.title": "Hiển thị ID mô hình gốc",
   "settings.models.docs": "Tài liệu mô hình",
   "settings.models.empty": "Chọn mô hình",
   "settings.models.empty_hint": "Nhấp vào “Đồng bộ mô hình” ở trên để thêm mô hình.",
