@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { setWebviewLoaded } from '@renderer/services/MiniAppWebviewService'
 
 const logger = loggerService.withContext('WebviewRecreationService')
 

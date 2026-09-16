@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { clearAllWebviewStates, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { clearAllWebviewStates, getWebviewLoaded, setWebviewLoaded } from '@renderer/services/MiniAppWebviewService'
 
 import { webviewRecreationService } from '../WebviewRecreationService'
 

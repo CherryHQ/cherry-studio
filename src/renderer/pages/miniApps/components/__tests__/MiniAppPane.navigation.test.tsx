@@ -3,8 +3,13 @@ import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import {
+  clearAllWebviewStates,
+  getWebviewLoaded,
+  setWebviewElement,
+  setWebviewLoaded
+} from '@renderer/services/MiniAppWebviewService'
 import { webviewRecreationService } from '@renderer/services/WebviewRecreationService'
-import { clearAllWebviewStates, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MiniAppPane from '../MiniAppPane'
@@ -19,7 +24,7 @@ vi.mock('@renderer/components/MiniApp/MiniAppDetailPanel', () => ({
   default: () => null
 }))
 
-vi.mock('../WebviewSearch', () => ({
+vi.mock('@renderer/components/WebviewSearch', () => ({
   default: () => null
 }))
 
@@ -51,7 +56,7 @@ const createGuest = () => {
   guest.dataset.miniAppId = customApp.appId
   const canGoBack = vi.fn(() => false)
   const canGoForward = vi.fn(() => false)
-  Object.assign(guest, { canGoBack, canGoForward })
+  Object.assign(guest, { canGoBack, canGoForward, getURL: vi.fn(() => customApp.url) })
   guests.push(guest)
   return { guest, canGoBack, canGoForward }
 }
@@ -72,6 +77,7 @@ describe('MiniAppPane navigation', () => {
     subscriptions.push(
       webviewRecreationService.subscribe(() => {
         document.body.append(replacement.guest)
+        setWebviewElement(customApp.appId, replacement.guest)
       })
     )
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
@@ -92,10 +98,12 @@ describe('MiniAppPane navigation', () => {
     const original = createGuest()
     const replacement = createGuest()
     document.body.append(original.guest)
+    setWebviewElement(customApp.appId, original.guest)
     setWebviewLoaded(customApp.appId, true)
     subscriptions.push(
       webviewRecreationService.subscribe(() => {
         original.guest.replaceWith(replacement.guest)
+        setWebviewElement(customApp.appId, replacement.guest)
       })
     )
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
@@ -127,10 +135,12 @@ describe('MiniAppPane navigation', () => {
     original.canGoBack.mockReturnValue(true)
     replacement.canGoBack.mockReturnValue(true)
     document.body.append(original.guest)
+    setWebviewElement(customApp.appId, original.guest)
     setWebviewLoaded(customApp.appId, true)
     subscriptions.push(
       webviewRecreationService.subscribe(() => {
         original.guest.replaceWith(replacement.guest)
+        setWebviewElement(customApp.appId, replacement.guest)
       })
     )
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
