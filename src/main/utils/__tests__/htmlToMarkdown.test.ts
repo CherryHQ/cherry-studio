@@ -87,6 +87,60 @@ describe('applyTableRules', () => {
     expect(markdown).toBe('Prices\n\n| A |\n| --- |\n| 1 |')
   })
 
+  it('pads the columns a colspan covers', () => {
+    // One cell for three columns left the row two cells short of the header.
+    const markdown = convert(
+      '<table><tr><th>A</th><th>B</th><th>C</th></tr>' +
+        '<tr><td colspan="3">total</td></tr>' +
+        '<tr><td>1</td><td colspan="2">rest</td></tr></table>'
+    )
+
+    expect(tableRows(markdown)).toEqual([
+      ['A', 'B', 'C'],
+      ['---', '---', '---'],
+      ['total', '', ''],
+      ['1', 'rest', '']
+    ])
+  })
+
+  it('holds the column a rowspan covers open in the rows below it', () => {
+    // Without the placeholder, "9 EUR" moved left into the Product column.
+    const markdown = convert(
+      '<table><tr><th>Product</th><th>Variant</th><th>Price</th></tr>' +
+        '<tr><td rowspan="2">Cable</td><td>1 m</td><td>9 EUR</td></tr>' +
+        '<tr><td>2 m</td><td>12 EUR</td></tr></table>'
+    )
+
+    expect(tableRows(markdown)).toEqual([
+      ['Product', 'Variant', 'Price'],
+      ['---', '---', '---'],
+      ['Cable', '1 m', '9 EUR'],
+      ['', '2 m', '12 EUR']
+    ])
+  })
+
+  it('counts the header columns by their spans', () => {
+    const markdown = convert(
+      '<table><tr><th colspan="2">Size</th><th>Price</th></tr>' + '<tr><td>S</td><td>M</td><td>9 EUR</td></tr></table>'
+    )
+
+    expect(tableRows(markdown)).toEqual([
+      ['Size', '', 'Price'],
+      ['---', '---', '---'],
+      ['S', 'M', '9 EUR']
+    ])
+  })
+
+  it('pads a row that is short of the widest row', () => {
+    const markdown = convert('<table><tr><th>A</th><th>B</th></tr><tr><td>1</td></tr></table>')
+
+    expect(tableRows(markdown)).toEqual([
+      ['A', 'B'],
+      ['---', '---'],
+      ['1', '']
+    ])
+  })
+
   it('leaves markup without a table alone', () => {
     expect(convert('<p>hello</p><ul><li>a</li></ul>')).toBe(
       new TurndownService().turndown('<p>hello</p><ul><li>a</li></ul>')
