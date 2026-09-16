@@ -13,6 +13,7 @@ import {
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
+import type * as KnowledgeItemsModule from '../items'
 import type * as PathStorage from '../pathStorage'
 
 const {
@@ -56,6 +57,7 @@ const {
   storeSearchMock,
   getMaterialByRelativePathMock,
   readMaterialContentMock,
+  isSupportedKnowledgeFilePathMock,
   probeKnowledgeFileMock,
   probeKnowledgeSourcePathMock
 } = vi.hoisted(() => ({
@@ -99,6 +101,7 @@ const {
   storeSearchMock: vi.fn(),
   getMaterialByRelativePathMock: vi.fn(),
   readMaterialContentMock: vi.fn(),
+  isSupportedKnowledgeFilePathMock: vi.fn(),
   probeKnowledgeFileMock: vi.fn(),
   probeKnowledgeSourcePathMock: vi.fn()
 }))
@@ -194,6 +197,14 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
 vi.mock('../pipeline/indexing/rerank', () => ({
   rerankKnowledgeSearchResults: rerankKnowledgeSearchResultsMock
 }))
+
+vi.mock('../items', async (importOriginal) => {
+  const actual = await importOriginal<typeof KnowledgeItemsModule>()
+  return {
+    ...actual,
+    isSupportedKnowledgeFilePath: isSupportedKnowledgeFilePathMock
+  }
+})
 
 vi.mock('../pathStorage', async () => {
   const actual = await vi.importActual<typeof PathStorage>('../pathStorage')
@@ -404,6 +415,7 @@ describe('KnowledgeService', () => {
     storeSearchMock.mockResolvedValue([])
     getMaterialByRelativePathMock.mockResolvedValue(null)
     readMaterialContentMock.mockResolvedValue(null)
+    isSupportedKnowledgeFilePathMock.mockImplementation(async (filePath: string) => !filePath.endsWith('.exe'))
     knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([])
     aiEmbedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
@@ -1475,6 +1487,34 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+  })
+
+  it('does not hold the base mutation lock while classifying file content', async () => {
+    const service = new KnowledgeService()
+    const classification = createDeferred<boolean>()
+    isSupportedKnowledgeFilePathMock.mockReturnValueOnce(classification.promise)
+
+    const fileAdd = service.addItems('kb-1', [
+      { type: 'file', data: { source: '/Users/me/README', path: '/Users/me/README' as AbsoluteFilePath } }
+    ])
+    await vi.waitFor(() => expect(isSupportedKnowledgeFilePathMock).toHaveBeenCalledWith('/Users/me/README'))
+
+    let noteAddSettled = false
+    const noteAdd = service
+      .addItems('kb-1', [{ type: 'note', data: { source: 'note-while-classifying', content: 'ready' } }])
+      .then(() => {
+        noteAddSettled = true
+      })
+
+    try {
+      await flushMicrotasks()
+      expect(noteAddSettled).toBe(true)
+      expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
+    } finally {
+      classification.resolve(true)
+    }
+
+    await Promise.all([fileAdd, noteAdd])
   })
 
   it.each(['/Users/me/analysis.R', '/Users/me/.bashrc'])(

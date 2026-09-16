@@ -122,6 +122,14 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       }
     }
 
+    // Content admission can read and decode the external file, so do it outside the lock.
+    // Path reservation and mutation remain serialized below.
+    for (const input of itemsToAdd) {
+      if (input.type === 'file') {
+        await assertSupportedKnowledgeFilePath(input.data.path)
+      }
+    }
+
     const acceptedItems: KnowledgeItem[] = []
     const copiedFileItems: Array<Pick<CreateKnowledgeItemDto, 'type' | 'data'>> = []
 
@@ -608,7 +616,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       return input
     }
 
-    await assertSupportedKnowledgeFilePath(input.data.path)
     const fileName = getKnowledgeSourceRelativePath(input.data.path)
     // A restore that carries a processed artifact reserves the artifact slot too, even if
     // the destination base has no processor configured, so the copied `.md` cannot collide.
