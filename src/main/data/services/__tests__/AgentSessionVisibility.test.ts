@@ -2,6 +2,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { agentSessionMessageHandlers } from '@data/api/handlers/agentSessionMessages'
 import { agentSessionHandlers } from '@data/api/handlers/agentSessions'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -80,6 +81,33 @@ describe('background session isolation', () => {
     await expect(
       agentSessionHandlers['/agent-sessions/:sessionId'].GET({ params: { sessionId: conversation.id } })
     ).resolves.toMatchObject({ id: conversation.id })
+  })
+
+  it('rejects background IDs on session mutations and message routes while retaining internal access', async () => {
+    const background = create('heartbeat', 'background')
+    const expectNotFound = (call: Promise<unknown>) => expect(call).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    const sessionRoutes = agentSessionHandlers
+    const messageRoutes = agentSessionMessageHandlers
+
+    await expectNotFound(
+      sessionRoutes['/agent-sessions/:sessionId'].PATCH({ params: { sessionId: background.id }, body: { name: 'x' } })
+    )
+    await expectNotFound(
+      sessionRoutes['/agent-sessions/:sessionId/workspace'].PUT({
+        params: { sessionId: background.id },
+        body: { type: 'system' }
+      })
+    )
+    await expectNotFound(
+      messageRoutes['/agent-sessions/:sessionId/messages'].GET({ params: { sessionId: background.id } })
+    )
+    await expectNotFound(
+      messageRoutes['/agent-sessions/:sessionId/messages/:messageId'].DELETE({
+        params: { sessionId: background.id, messageId: crypto.randomUUID() }
+      })
+    )
+    // The runtime retains access: the row stays intact for internal reads.
+    expect(agentSessionService.getById(background.id).name).toBe('heartbeat')
   })
 
   it('does not reuse or delete an empty background session as an interactive placeholder', () => {

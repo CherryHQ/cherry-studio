@@ -54,18 +54,22 @@ ordinary scheduled tasks retain their conversation behavior. The type is interna
 to Main and is not a renderer-controlled visibility flag.
 
 Conversation lists (including pins), latest-session selection, discovery search,
-and empty-session reuse only consider conversation sessions. The ordinary
-`GET /agent-sessions/:sessionId` endpoint also applies that scope, so a saved tab
-cannot restore a background session as an interactive conversation. Runtime
-lookups retain access to all sessions through the internal `getById` method.
-Background activity publishes detail/message changes without invalidating the
-conversation navigation read models.
+and empty-session reuse only consider conversation sessions. The public
+session-by-id and message routes (reads, mutations, and workspace changes) apply
+that scope too, so a saved tab cannot restore a background session as an
+interactive conversation and a known background id is not addressable from the
+renderer surface. Runtime lookups retain access to all sessions through the
+internal `getById` method and service methods. Background activity publishes
+detail/message changes without invalidating the conversation navigation read
+models.
 
 The appended migration classifies existing sessions only when retained job
-records identify heartbeat execution and no retained job records identify a
-different use of the same session. Unknown history remains a conversation;
-classification never relies on a session name or workspace. Session/message data
-is retained, and subsequent job retention cannot change the classification.
+records identify heartbeat execution — the fire ran on a schedule whose
+template carries the heartbeat sentinel — and no retained job records identify
+a different use of the same session. Unknown history remains a conversation;
+classification never relies on a session name or workspace. Session/message
+data is retained, and subsequent job retention cannot change the
+classification.
 
 This is a bounded classification within the existing session model. Separating
 execution sessions from user-managed conversation membership is tracked in

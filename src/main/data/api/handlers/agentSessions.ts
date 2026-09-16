@@ -49,6 +49,8 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     },
 
     PATCH: async ({ params, body }) => {
+      // Mutations scope like reads: background sessions are not addressable here.
+      agentSessionService.getConversationById(params.sessionId)
       const parsed = UpdateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.update(params.sessionId, parsed.data)
@@ -57,6 +59,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
 
   '/agent-sessions/:sessionId/workspace': {
     PUT: async ({ params, body }) => {
+      agentSessionService.getConversationById(params.sessionId)
       const parsed = SetAgentSessionWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.setWorkspace(params.sessionId, parsed.data)
