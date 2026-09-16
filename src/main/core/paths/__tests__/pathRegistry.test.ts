@@ -203,7 +203,7 @@ describe('buildPathRegistry', () => {
   })
 
   it('resolves a file URL in PI_CODING_AGENT_DIR before locating Pi settings', () => {
-    const agentDir = path.join(os.homedir(), '.pi', 'custom agent')
+    const agentDir = path.resolve(os.homedir(), '.pi', 'custom agent')
     vi.stubEnv('PI_CODING_AGENT_DIR', pathToFileURL(agentDir).href)
     try {
       expect(buildPathRegistry()['external.pi.settings_file']).toBe(path.join(agentDir, 'settings.json'))
