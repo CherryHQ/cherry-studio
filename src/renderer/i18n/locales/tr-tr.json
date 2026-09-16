@@ -3000,6 +3000,7 @@
   "provider.minimax": "MiniMax CN",
   "provider.minimax-global": "MiniMax",
   "provider.mistral": "Mistral",
+  "provider.mizumi": "Mizumi",
   "provider.modelscope": "ModelScope",
   "provider.moonshot": "Moonshot",
   "provider.new-api": "Yeni API",
