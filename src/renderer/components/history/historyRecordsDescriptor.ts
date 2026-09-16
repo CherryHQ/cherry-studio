@@ -19,6 +19,11 @@ export interface HistoryRowActions {
   onAction: (action: ResolvedAction) => void | Promise<void>
 }
 
+/** Per-row transient state needed while building mode-specific menu actions. */
+export interface HistoryRowState {
+  isRenaming: boolean
+}
+
 /** i18n strings that differ between assistant (topic) and agent (session) modes. */
 export interface HistoryRecordsStrings {
   /** Filter-bar source field label ("Assistant" / "Agent"). */
@@ -57,6 +62,8 @@ export interface HistoryRecordDescriptor<T> {
   onActiveRecordChange: (item: T | null) => void
 
   // --- rendering (consumed by HistoryRecordList / HistoryRecordRow) ---
+  /** Optional topic id used to derive the row's automatic-rename state. */
+  getRenameTopicId?: (item: T) => string
   getName: (item: T) => string
   getUpdatedAt: (item: T) => string
   getSourceLabel: (item: T) => string
@@ -64,7 +71,7 @@ export interface HistoryRecordDescriptor<T> {
   rowHeight: number
   getSelectLabel: (item: T) => string
   /** Build the row's menu actions; `openRename` lets a menu item open the rename dialog. */
-  getRowActions: (item: T, openRename: HistoryOpenRename) => HistoryRowActions
+  getRowActions: (item: T, openRename: HistoryOpenRename, rowState: HistoryRowState) => HistoryRowActions
   onOpen: (item: T) => void
   onTogglePin: (item: T) => boolean | void | Promise<boolean | void>
   /** Wrap a rendered row with its right-click context menu (returns the row unchanged if empty). */
