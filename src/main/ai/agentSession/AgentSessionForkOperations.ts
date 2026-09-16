@@ -5,19 +5,19 @@ import path from 'node:path'
 
 import { application } from '@application'
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
-import { getAgentSessionForkAvailability } from '@data/services/agentSessionFork'
+import {
+  getAgentSessionForkAvailability,
+  type RuntimeForkCheckpoint,
+  RuntimeForkMetadataSchema,
+  RuntimeForkStateSchema
+} from '@data/services/agentSessionFork'
 import { AgentSessionForkJournalSchema } from '@data/services/agentSessionForkJournal'
 import { type AgentSessionForkJournal, agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 
-import {
-  AgentSessionForkError,
-  type RuntimeForkCheckpoint,
-  RuntimeForkMetadataSchema,
-  RuntimeForkStateSchema
-} from '../runtime/forkCheckpoint'
+import { AgentSessionForkError } from '../runtime/forkCheckpoint'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import { copyForkWorkspace, forkFileIdentity, publishForkArtifact } from './forkFiles'
 import { workspaceHasReferences } from './forkWorkspaceCleanup'

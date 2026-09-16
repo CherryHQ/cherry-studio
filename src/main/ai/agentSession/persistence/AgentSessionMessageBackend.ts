@@ -7,12 +7,13 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
+import type { RuntimeForkState } from '@data/services/agentSessionFork'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
-import { FORK_CHECKPOINT_FAILED, NOT_FORK_BOUNDARY, type RuntimeForkState } from '../../runtime/forkCheckpoint'
+import { FORK_CHECKPOINT_FAILED, NOT_FORK_BOUNDARY } from '../../runtime/forkCheckpoint'
 import type { PersistAssistantInput, PersistenceBackend } from '../../streamManager'
 
 const logger = loggerService.withContext('AgentSessionMessageBackend')

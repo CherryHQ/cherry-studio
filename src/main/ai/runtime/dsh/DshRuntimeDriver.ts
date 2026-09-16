@@ -18,10 +18,13 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
   private readonly forkSources = new Map<string, DshRuntimeConnection>()
 
   async fork(input: RuntimeForkInput) {
+    input.signal.throwIfAborted()
     let events: unknown[] | undefined
     try {
       if (input.checkpoint.runtime === 'dsh')
-        events = await this.forkSources.get(input.sourceSessionId)?.snapshotForFork(input.checkpoint.boundary)
+        events = await this.forkSources
+          .get(input.sourceSessionId)
+          ?.snapshotForFork(input.checkpoint.boundary, input.signal)
     } catch (error) {
       input.signal.throwIfAborted()
       if (error instanceof AgentSessionForkError) throw error

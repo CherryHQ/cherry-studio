@@ -5,6 +5,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 import type { SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
 
+import type { RuntimeForkState } from '@data/services/agentSessionFork'
 import { loggerService } from '@logger'
 
 import { readForkPrefix, readNativeForkHistory } from '../../agentSession/forkFiles'
@@ -12,8 +13,7 @@ import {
   AgentSessionForkError,
   FORK_CHECKPOINT_FAILED,
   type RuntimeForkInput,
-  type RuntimeForkResult,
-  type RuntimeForkState
+  type RuntimeForkResult
 } from '../forkCheckpoint'
 import { runForkWorker } from '../runForkWorker'
 

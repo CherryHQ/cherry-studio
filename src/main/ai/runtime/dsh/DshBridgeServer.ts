@@ -132,24 +132,25 @@ export class DshBridgeServer {
   request<M extends keyof BridgeHostRequestMap>(
     method: M,
     params: BridgeHostRequestMap[M]['params'],
-    options?: { timeoutMs?: number }
+    options?: { timeoutMs?: number; signal?: AbortSignal }
   ): Promise<BridgeHostRequestMap[M]['result']> {
     const transport = this.transport
     if (!transport || !this.connection || this.connection.destroyed) {
       return Promise.reject(new Error('dsh bridge plugin is not connected'))
     }
     if (options?.timeoutMs === undefined) {
-      return transport.request(method, params) as Promise<BridgeHostRequestMap[M]['result']>
+      return transport.request(method, params, options?.signal) as Promise<BridgeHostRequestMap[M]['result']>
     }
     // The transport has no timeouts; aborting drops the pending entry and rejects with this reason.
     const { timeoutMs } = options
     const controller = new AbortController()
+    const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal
     const timer = setTimeout(() => {
       controller.abort(new Error(`dsh bridge ${method} timed out after ${timeoutMs}ms`))
     }, timeoutMs)
     timer.unref?.()
-    return (transport.request(method, params, controller.signal) as Promise<BridgeHostRequestMap[M]['result']>).finally(
-      () => clearTimeout(timer)
+    return (transport.request(method, params, signal) as Promise<BridgeHostRequestMap[M]['result']>).finally(() =>
+      clearTimeout(timer)
     )
   }
 

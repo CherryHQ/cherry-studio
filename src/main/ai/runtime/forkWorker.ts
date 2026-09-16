@@ -5,7 +5,7 @@ import { parentPort, workerData } from 'node:worker_threads'
 
 import type { SessionKey, SessionStore, SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
 
-import type { RuntimeForkCheckpoint } from './forkCheckpoint'
+import type { RuntimeForkCheckpoint } from '@data/services/agentSessionFork'
 
 export type ForkWorkerInput =
   | {

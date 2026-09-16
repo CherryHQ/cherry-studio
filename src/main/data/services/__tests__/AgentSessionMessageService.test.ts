@@ -94,6 +94,126 @@ describe('AgentSessionMessageService', () => {
   })
 
   describe('native fork persistence', () => {
+    it.each(['edit', 'delete'])('preserves earlier checkpoints at the same timestamp on %s', (operation) => {
+      const rows = [
+        { id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d009', createdAt: 999 },
+        { id: USER_MESSAGE_ID, createdAt: 1000 },
+        { id: ASSISTANT_MESSAGE_ID, createdAt: 1000 },
+        { id: FILE_ENTRY_ID, createdAt: 1000 },
+        { id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d000', createdAt: 1001 }
+      ]
+      for (const row of rows) {
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          runtimeForkState: {
+            version: 1,
+            status: 'available',
+            checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: row.id }
+          },
+          message: {
+            id: row.id,
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: row.id }] }
+          }
+        })
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ createdAt: row.createdAt })
+          .where(eq(agentSessionMessageTable.id, row.id))
+          .run()
+      }
+      expect(
+        agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, ASSISTANT_MESSAGE_ID).map((row) => row.id)
+      ).toEqual(rows.slice(0, 3).map((row) => row.id))
+      if (operation === 'edit') {
+        agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+          data: { parts: [{ type: 'text', text: 'edited' }] }
+        })
+      } else {
+        agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+      }
+      for (const row of rows.slice(0, 2)) {
+        expect(agentSessionMessageService.getSessionMessage(SESSION_ID, row.id).forkAvailability).toEqual({
+          status: 'available'
+        })
+      }
+      for (const row of rows.slice(operation === 'edit' ? 2 : 3)) {
+        expect(agentSessionMessageService.getSessionMessage(SESSION_ID, row.id).forkAvailability).toEqual({
+          status: 'unavailable',
+          reason: 'history_changed'
+        })
+      }
+      if (operation === 'delete')
+        expect(() => agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow()
+    })
+
+    it.each([
+      { runtime: 'pi', runtimeSessionId: 'native-pi', leafId: 'leaf' },
+      {
+        runtime: 'claude-code',
+        runtimeSessionId: 'native-claude',
+        messageUuid: ASSISTANT_MESSAGE_ID,
+        configDir: '/config',
+        sourceCwd: '/workspace',
+        prefixBytes: 100,
+        prefixHash: 'a'.repeat(64)
+      },
+      { runtime: 'dsh', runtimeSessionId: 'native-dsh', boundary: 7, prefixHash: 'a'.repeat(64) }
+    ])('exposes only availability for a valid $runtime checkpoint', (checkpoint) => {
+      const saved = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeForkState: { version: 1, status: 'available', checkpoint, excludedMessageIds: [USER_MESSAGE_ID] },
+        message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      expect(saved.forkAvailability).toEqual({ status: 'available' })
+      expect(saved).not.toHaveProperty('runtimeForkState')
+      expect(JSON.stringify(saved)).not.toContain(checkpoint.runtimeSessionId)
+      const metadata = agentSessionMessageService.listCreatedInRangeMetadataPage({
+        fromMs: 0,
+        toMs: Number.MAX_SAFE_INTEGER,
+        limit: 10
+      }).items[0]
+      const entity = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+      expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(entity), 'utf8'))
+      expect(metadata).not.toHaveProperty('runtimeForkState')
+    })
+
+    it.each([
+      ['missing checkpoint', undefined],
+      ['null checkpoint', null],
+      ['unknown runtime', { runtime: 'unknown', runtimeSessionId: 'native' }],
+      ['missing Pi leaf', { runtime: 'pi', runtimeSessionId: 'native' }],
+      ['empty native identity', { runtime: 'pi', runtimeSessionId: '', leafId: 'leaf' }],
+      ['extra native fields', { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf', unexpected: true }],
+      [
+        'incomplete Claude boundary',
+        { runtime: 'claude-code', runtimeSessionId: 'native', messageUuid: ASSISTANT_MESSAGE_ID }
+      ],
+      [
+        'negative DSH boundary',
+        { runtime: 'dsh', runtimeSessionId: 'native', boundary: -1, prefixHash: 'a'.repeat(64) }
+      ],
+      ['invalid DSH hash', { runtime: 'dsh', runtimeSessionId: 'native', boundary: 7, prefixHash: 'invalid' }]
+    ])('does not offer a fork for %s', (_label, checkpoint) => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeForkState: { version: 1, status: 'available', checkpoint },
+        message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      const expected = { status: 'unavailable', reason: 'unsupported_checkpoint' }
+      const entity = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+      expect(entity.forkAvailability).toEqual(expected)
+      expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items[0].forkAvailability).toEqual(expected)
+      const metadata = agentSessionMessageService.listCreatedInRangeMetadataPage({
+        fromMs: 0,
+        toMs: Number.MAX_SAFE_INTEGER,
+        limit: 10
+      }).items[0]
+      expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(entity), 'utf8'))
+      expect(metadata).not.toHaveProperty('runtimeForkState')
+    })
+
     it('rolls back checkpoint invalidation and deletion together on a real SQLite failure', () => {
       agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,

@@ -314,9 +314,56 @@ describe('DshRuntimeConnection tracing', () => {
       expect(runtimeMocks.clientClose).not.toHaveBeenCalled()
       const cancelled = new Error('cancelled by user')
       controller.abort(cancelled)
-      runtimeMocks.bridgeRequest.mockRejectedValueOnce(new Error(message))
+      runtimeMocks.bridgeRequest.mockClear()
       await expect(driver.fork(input)).rejects.toBe(cancelled)
+      expect(runtimeMocks.bridgeRequest).not.toHaveBeenCalled()
     } finally {
+      await connection.close()
+    }
+  })
+
+  it('cancels an in-flight live snapshot through the driver without closing the source', async () => {
+    const driver = new DshRuntimeDriver()
+    const connection = await driver.connect(connectInput)
+    const controller = new AbortController()
+    const captured = Promise.withResolvers<{ events: unknown[] }>()
+    const reason = new Error('source deletion cancelled fork')
+    runtimeMocks.bridgeRequest.mockImplementation((method, _params, options) => {
+      if (method !== 'session/fork-snapshot') return Promise.resolve(undefined)
+      options?.signal?.addEventListener('abort', () => captured.reject(options.signal.reason), { once: true })
+      return captured.promise
+    })
+    const checkpoint = {
+      runtime: 'dsh' as const,
+      runtimeSessionId: 'session-1',
+      boundary: 7,
+      prefixHash: 'a'.repeat(64)
+    }
+    let failure: unknown
+    const pending = driver
+      .fork({
+        sourceSessionId: 'session-1',
+        targetSessionId: 'child',
+        targetCwd: '/child',
+        artifactDirectory: '/owned',
+        checkpoint,
+        checkpoints: [checkpoint],
+        signal: controller.signal
+      })
+      .catch((error) => {
+        failure = error
+      })
+    try {
+      controller.abort(reason)
+      await vi.waitFor(() => expect(failure).toBe(reason))
+      expect(runtimeMocks.clientClose).not.toHaveBeenCalled()
+      runtimeMocks.bridgeRequest.mockResolvedValueOnce({ events: [{ type: 'turn/end', seq: 7 }] })
+      await expect((connection as InstanceType<typeof DshRuntimeConnection>).snapshotForFork(7)).resolves.toEqual([
+        { type: 'turn/end', seq: 7 }
+      ])
+    } finally {
+      captured.resolve({ events: [] })
+      await pending
       await connection.close()
     }
   })
@@ -330,7 +377,7 @@ describe('DshRuntimeConnection tracing', () => {
       expect(runtimeMocks.bridgeRequest).toHaveBeenLastCalledWith(
         'session/fork-snapshot',
         { sessionId: 'session-1', boundary: 7 },
-        { timeoutMs: 60_000 }
+        { timeoutMs: 60_000, signal: undefined }
       )
       runtimeMocks.bridgeRequest.mockRejectedValueOnce(new Error('snapshot timed out'))
       await expect(connection.snapshotForFork(7)).rejects.toThrow('snapshot timed out')

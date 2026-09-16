@@ -1,6 +1,7 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { UIMessageChunk } from 'ai'
 
+import type { RuntimeForkState } from '@data/services/agentSessionFork'
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
@@ -17,7 +18,7 @@ import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/mod
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import type { RuntimeForkInput, RuntimeForkResult, RuntimeForkState } from './forkCheckpoint'
+import type { RuntimeForkInput, RuntimeForkResult } from './forkCheckpoint'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
 

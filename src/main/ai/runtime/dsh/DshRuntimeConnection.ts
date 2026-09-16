@@ -14,6 +14,7 @@ import {
   type BridgePermissionMode,
   type BridgePolicy
 } from '@cherrystudio/dsh-bridge'
+import { RuntimeForkStateSchema } from '@data/services/agentSessionFork'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
@@ -42,7 +43,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
-import { FORK_CHECKPOINT_FAILED, RuntimeForkStateSchema } from '../forkCheckpoint'
+import { FORK_CHECKPOINT_FAILED } from '../forkCheckpoint'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -635,12 +636,12 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  async snapshotForFork(boundary: number): Promise<unknown[]> {
+  async snapshotForFork(boundary: number, signal?: AbortSignal): Promise<unknown[]> {
     if (!this.bridge || this.closed) throw new Error('DSH connection is closed')
     const result = await this.bridge.request(
       'session/fork-snapshot',
       { sessionId: this.input.sessionId, boundary },
-      { timeoutMs: 60_000 }
+      { timeoutMs: 60_000, signal }
     )
     return result.events
   }

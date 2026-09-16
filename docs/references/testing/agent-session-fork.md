@@ -5,6 +5,7 @@ sources:
   - src/main/ai/agentSession/forkFiles.ts
   - src/main/ai/runtime/forkCheckpoint.ts
   - src/main/ai/runtime/forkWorker.ts
+  - src/main/data/services/agentSessionFork.ts
   - src/main/data/services/AgentSessionForkService.ts
   - packages/dsh-bridge/src/fork.ts
   - packages/dsh-bridge/src/plugin.ts
@@ -24,6 +25,8 @@ The renderer sends `ai.agent.session.fork` with only `sourceSessionId` and
 Missing, failed, corrupt, changed or unsupported checkpoints remain unavailable
 with their specific reason. A native fork failure is returned to the caller;
 it never creates a child from UI history or silently starts an empty conversation.
+Availability and publication share the same Main-only persisted checkpoint schema;
+an `available` flag alone cannot enable a malformed checkpoint.
 
 Pi, Claude and DSH own their context management and compaction. Cherry retains
 visible messages, source relationships, native checkpoints and resume references,
@@ -98,6 +101,9 @@ Repeat for Pi, Claude and DSH:
    backed up; only owned, uncommitted artifacts may be cleaned.
 9. Change or unset Chat compression configuration. Native fork/resume behavior
    must remain independent of it.
+10. Edit or delete a message sharing its millisecond timestamp with earlier and
+    later messages. Only that message and later checkpoints in `(createdAt, id)`
+    order become unavailable; earlier checkpoints must remain usable.
 
 Pi: inspect source manager identity, sessionId, sessionFile and leafId during
 fork. Normal source appends are allowed, but fork must not switch its manager
@@ -123,6 +129,10 @@ Verify MCP routing, interactive approvals, and source/child/grandchild forks
 after parent deletion. A host-opened fork is an execution root even with
 `parentSession` lineage; actual delegated subagents still inherit their execution
 root's approval ceiling.
+Leave a live fork snapshot unanswered, then cancel the fork or delete its source.
+Cancellation must abandon the pending request without waiting for its 60-second
+timeout. Cancelling only the fork must keep the source connection usable; a late
+snapshot response must not complete a cancelled fork or interfere with a new one.
 
 For shared user workspaces, coordinate file changes between sessions. Forking
 preserves the shared directory relationship. Runtime file tools retain their

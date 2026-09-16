@@ -1,5 +1,5 @@
 import { isToolUIPart } from 'ai'
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
@@ -87,6 +87,8 @@ export interface AgentSessionMessageRangeMetadata {
 }
 
 function agentSessionMessageEntityJsonBytes(): SQL<number> {
+  // Availability is validated in Main below; count a null placeholder here instead
+  // of duplicating the native checkpoint schema in SQL.
   return sql<number>`length(cast(json_object(
     'id', ${sessionMessagesTable.id},
     'sessionId', ${sessionMessagesTable.sessionId},
@@ -98,12 +100,7 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
     'messageSnapshot', json(${sessionMessagesTable.messageSnapshot}),
     'stats', json(${sessionMessagesTable.stats}),
     'runtimeResumeToken', ${sessionMessagesTable.runtimeResumeToken},
-    'forkAvailability', json(case
-      when ${sessionMessagesTable.runtimeForkState} is null then '{"status":"unavailable","reason":"legacy_history"}'
-      when json_extract(${sessionMessagesTable.runtimeForkState}, '$.version') != 1 then '{"status":"unavailable","reason":"unsupported_checkpoint"}'
-      when json_extract(${sessionMessagesTable.runtimeForkState}, '$.status') = 'available' then '{"status":"available"}'
-      else json_object('status', 'unavailable', 'reason', json_extract(${sessionMessagesTable.runtimeForkState}, '$.reason'))
-    end),
+    'forkAvailability', null,
     'delivery', json(case
       when ${sessionMessagesTable.delivery} is not null and ${sessionMessagesTable.deliveryStatus} is not null
       then json_set(
@@ -366,7 +363,11 @@ export class AgentSessionMessageService {
       .where(
         and(
           eq(sessionMessagesTable.sessionId, sessionId),
-          sql`${sessionMessagesTable.createdAt} >= ${row.createdAt}`,
+          // Match readForkPrefixTx's inclusive (createdAt, id) boundary.
+          or(
+            gt(sessionMessagesTable.createdAt, row.createdAt),
+            and(eq(sessionMessagesTable.createdAt, row.createdAt), gte(sessionMessagesTable.id, row.id))
+          ),
           sql`json_extract(${sessionMessagesTable.runtimeForkState}, '$.status') = 'available'`
         )
       )
@@ -577,6 +578,7 @@ export class AgentSessionMessageService {
       .select({
         createdAt: sessionMessagesTable.createdAt,
         entityJsonBytes: agentSessionMessageEntityJsonBytes(),
+        runtimeForkState: sessionMessagesTable.runtimeForkState,
         id: sessionMessagesTable.id,
         sessionId: sessionMessagesTable.sessionId
       })
@@ -596,7 +598,15 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const tail = pageRows[pageRows.length - 1]
     return {
-      items: pageRows.map((row) => ({ ...row, createdAt: timestampToISO(row.createdAt) })),
+      items: pageRows.map(({ runtimeForkState, ...row }) => ({
+        ...row,
+        createdAt: timestampToISO(row.createdAt),
+        // Replace the four-byte SQL null placeholder with the actual public projection.
+        entityJsonBytes:
+          row.entityJsonBytes -
+          4 +
+          Buffer.byteLength(JSON.stringify(getAgentSessionForkAvailability(runtimeForkState)), 'utf8')
+      })),
       nextCursor: hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
     }
   }

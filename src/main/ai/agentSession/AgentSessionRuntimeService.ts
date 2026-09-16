@@ -4,6 +4,7 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import type { RuntimeForkState } from '@data/services/agentSessionFork'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
@@ -57,7 +58,7 @@ import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shar
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
-import { AgentSessionForkError, type RuntimeForkState } from '../runtime/forkCheckpoint'
+import { AgentSessionForkError } from '../runtime/forkCheckpoint'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
