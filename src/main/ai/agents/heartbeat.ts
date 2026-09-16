@@ -35,10 +35,7 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
   }
 
   try {
-    // libuv drops O_NOFOLLOW on Windows (UV_FS_O_NOFOLLOW unsupported), so
-    // the open below would silently follow a symlink there. Refuse a
-    // pre-existing symlink via lstat on that platform — non-atomic, but the
-    // only guard Windows offers.
+    // Windows ignores O_NOFOLLOW; lstat rejects existing symlinks, but is not atomic.
     if (process.platform === 'win32') {
       const linkStat = await lstat(resolved).catch(() => null)
       if (linkStat?.isSymbolicLink()) {
@@ -46,12 +43,8 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
         return undefined
       }
     }
-    // O_NOFOLLOW + fstat on the open handle: a pre-existing symlink at
-    // heartbeat.md — or one swapped in between any check and the read — fails
-    // the open with ELOOP instead of streaming its target (e.g. ~/.ssh)
-    // straight into the model prompt. lstat+readFile would leave that window.
-    // O_NONBLOCK (no-op on regular files, skipped on Windows): open(2) parks on
-    // a FIFO until a writer appears, hanging the tick before fstat can refuse it.
+    // O_NOFOLLOW rejects symlink swaps; handle.stat validates the opened file.
+    // O_NONBLOCK prevents FIFO opens from hanging before validation.
     const openFlags =
       constants.O_RDONLY | constants.O_NOFOLLOW | (process.platform === 'win32' ? 0 : constants.O_NONBLOCK)
     const handle = await open(resolved, openFlags)
@@ -118,9 +111,7 @@ export async function ensureHeartbeatFile(workspacePath: string): Promise<void> 
     return
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-      // The exclusive create never follows a symlink, so something is there.
-      // Leave user content alone; a non-regular occupant means every tick
-      // would fail its read, so the sync must not arm the schedule.
+      // Exclusive creation preserves user files; reject non-regular occupants before arming.
       if (!(await heartbeatOccupantIsRegular(resolved))) throw new HeartbeatFileNotRegularError(resolved)
       return
     }
@@ -157,9 +148,7 @@ async function writeTemplate(resolved: string): Promise<void> {
     // Close BEFORE unlink: Windows refuses to delete an open file (EPERM),
     // and a swallowed failure there would leave the corpse behind forever.
     await handle.close().catch(() => undefined)
-    // A failed write leaves a zero-byte/partial file behind; every later
-    // ensure short-circuits on EEXIST and the heartbeat is silently empty
-    // forever. Drop the corpse so the next sync re-provisions.
+    // Remove partial files after failed writes so the next sync can provision them again.
     await unlink(resolved).catch(() => undefined)
     throw error
   }

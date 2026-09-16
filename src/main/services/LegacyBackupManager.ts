@@ -345,14 +345,17 @@ class BackupManager {
         const agentSessionRuntime = application.get('AgentSessionRuntimeService')
         const agentSessionDelivery = application.get('AgentSessionDeliveryService')
         const jobManager = application.get('JobManager')
+        const agentJobs = application.get('AgentJobsService')
         const writerHolds: Array<{ dispose(): void }> = []
         try {
           writerHolds.push(aiStreamManager.pause(quiesceReason))
           writerHolds.push(agentSessionRuntime.pause(quiesceReason))
           writerHolds.push(agentSessionDelivery.pause(quiesceReason))
+          writerHolds.push(agentJobs.pause(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
 
           const writerVerdicts = await Promise.all([
+            agentJobs.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             agentSessionRuntime.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             agentSessionDelivery.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
@@ -1087,9 +1090,15 @@ class BackupManager {
       this.fsyncTree(stagingRoot)
 
       const jobManager = application.get('JobManager')
+      const agentJobs = application.get('AgentJobsService')
+      const heartbeatHold = agentJobs.pause('backup restore: stage promotion journal')
       const quiesceHold = jobManager.pause('backup restore: stage promotion journal')
       try {
-        await this.assertJobsDrained(jobManager)
+        const [heartbeatVerdict] = await Promise.all([
+          agentJobs.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+          this.assertJobsDrained(jobManager)
+        ])
+        this.assertWritersDrained([heartbeatVerdict])
         this.assertNoActiveDataWriters()
         const dbService = application.get('DbService')
         dbService.checkpointTruncate()
@@ -1116,6 +1125,7 @@ class BackupManager {
       } finally {
         if (!journalCommitted) {
           quiesceHold.dispose()
+          heartbeatHold.dispose()
         }
       }
     } catch (error) {
@@ -1549,8 +1559,16 @@ class BackupManager {
     this.assertWritersDrained([verdict])
   }
 
-  private assertWritersDrained(verdicts: Array<{ stragglerIds: string[]; startupRecoveryPending?: boolean }>): void {
-    if (verdicts.some((verdict) => verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending === true)) {
+  private assertWritersDrained(
+    verdicts: Array<{ stragglerIds: string[]; startupRecoveryPending?: boolean } | { settled: boolean }>
+  ): void {
+    if (
+      verdicts.some((verdict) =>
+        'settled' in verdict
+          ? !verdict.settled
+          : verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending === true
+      )
+    ) {
       throw new Error('Background data writes did not quiesce in time. Please retry after current tasks finish.')
     }
   }

@@ -57,6 +57,8 @@ const {
   mockChannelManager,
   mockChannelHold,
   mockJobManager,
+  mockAgentJobs,
+  mockHeartbeatHold,
   mockJobHold,
   mockAiStreamManager,
   mockAiStreamHold,
@@ -80,6 +82,7 @@ const {
 } = vi.hoisted(() => {
   const mockChannelHold = { dispose: vi.fn() }
   const mockJobHold = { dispose: vi.fn() }
+  const mockHeartbeatHold = { dispose: vi.fn() }
   const mockAiStreamHold = { dispose: vi.fn() }
   const mockAgentSessionHold = { dispose: vi.fn() }
   const mockAgentSessionDeliveryHold = { dispose: vi.fn() }
@@ -105,6 +108,11 @@ const {
       drainInFlight: vi.fn(async () => ({ stragglerIds: [], startupRecoveryPending: false }))
     },
     mockJobHold,
+    mockHeartbeatHold,
+    mockAgentJobs: {
+      pause: vi.fn(() => mockHeartbeatHold),
+      drainInFlight: vi.fn(async () => ({ settled: true }))
+    },
     mockAiStreamManager: {
       pause: vi.fn(() => mockAiStreamHold),
       drainInFlight: vi.fn(async (): Promise<{ stragglerIds: string[] }> => ({ stragglerIds: [] })),
@@ -275,6 +283,7 @@ vi.mock('@application', () => ({
       if (name === 'ChannelManager') {
         return mockChannelManager
       }
+      if (name === 'AgentJobsService') return mockAgentJobs
       if (name === 'JobManager') {
         return mockJobManager
       }
@@ -653,6 +662,20 @@ describe('BackupManager direct v2 data compatibility', () => {
   })
 
   it('writes a version 7 archive with complete Data, IndexedDB, Local Storage, and cache.json', async () => {
+    let heartbeatHeld = false
+    mockAgentJobs.pause.mockImplementationOnce(() => {
+      heartbeatHeld = true
+      return {
+        dispose: vi.fn(() => {
+          heartbeatHeld = false
+          mockHeartbeatHold.dispose()
+        })
+      }
+    })
+    mockHashDbFile.mockImplementation(async () => {
+      expect(heartbeatHeld).toBe(true)
+      return 'same-fingerprint'
+    })
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
       return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
     })
@@ -664,6 +687,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     const result = await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')
 
     expect(result).toBe('/backups/backup.zip')
+    expect(heartbeatHeld).toBe(false)
     // S8 wiring lock: the archive must be created owner-only (mocked stream,
     // so this asserts the call, not the on-disk mode — fs.test.ts covers that).
     expect(mockCreateAtomicWriteStream).toHaveBeenCalledWith('/backups/backup.zip', { mode: 0o600 })
@@ -713,6 +737,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockAiStreamHold.dispose).toHaveBeenCalledOnce()
     expect(mockAgentSessionHold.dispose).toHaveBeenCalledOnce()
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+    expect(mockHeartbeatHold.dispose).toHaveBeenCalledOnce()
   })
 
   it('rejects remote backup file names containing path separators', async () => {
@@ -843,6 +868,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockCacheService.flushPersistForBackup).toHaveBeenCalledOnce()
     expect(fs.createWriteStream).not.toHaveBeenCalled()
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+    expect(mockHeartbeatHold.dispose).toHaveBeenCalledOnce()
   })
 
   it('fails closed when the live database changes while resources are copied', async () => {
@@ -856,6 +882,7 @@ describe('BackupManager direct v2 data compatibility', () => {
 
     expect(fs.createWriteStream).not.toHaveBeenCalled()
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+    expect(mockHeartbeatHold.dispose).toHaveBeenCalledOnce()
   })
 
   it.each([
@@ -892,6 +919,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockAiStreamHold.dispose).toHaveBeenCalledOnce()
     expect(mockAgentSessionHold.dispose).toHaveBeenCalledOnce()
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+    expect(mockHeartbeatHold.dispose).toHaveBeenCalledOnce()
   })
 
   it('does not pause AI writers until flushed channel messages finish admission', async () => {
@@ -918,6 +946,31 @@ describe('BackupManager direct v2 data compatibility', () => {
     ])
     vi.spyOn(backupManager as any, 'fsyncTree').mockImplementation(() => {})
   }
+
+  it('refuses restore staging while an admitted heartbeat write has not drained', async () => {
+    arrangeDirectRestore()
+    mockAgentJobs.drainInFlight.mockResolvedValueOnce({ settled: false })
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
+      'Background data writes did not quiesce'
+    )
+
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+    expect(mockHeartbeatHold.dispose).toHaveBeenCalledOnce()
+    expect(fs.remove).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
+  })
+
+  it('refuses backup capture while an admitted heartbeat write has not drained', async () => {
+    mockAgentJobs.drainInFlight.mockResolvedValueOnce({ settled: false })
+
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      'Background data writes did not quiesce'
+    )
+
+    expect(mockDbService.checkpointTruncate).not.toHaveBeenCalled()
+    expect(mockHeartbeatHold.dispose).toHaveBeenCalledOnce()
+    expect(mockCreateAtomicWriteStream).not.toHaveBeenCalled()
+  })
 
   it('opens staged files with write access before fsync on Windows', () => {
     const originalPlatform = process.platform
@@ -971,6 +1024,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect((backupManager as any).fsyncTree).toHaveBeenCalledWith('/mock/userData/restore-staging')
     expect(mockRelaunch).not.toHaveBeenCalled()
     expect(mockJobHold.dispose).not.toHaveBeenCalled()
+    expect(mockHeartbeatHold.dispose).not.toHaveBeenCalled()
     expect(fs.remove).not.toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
   })
 
@@ -1494,6 +1548,7 @@ describe('BackupManager direct v2 data compatibility', () => {
 
     expect(fs.remove).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+    expect(mockHeartbeatHold.dispose).toHaveBeenCalledOnce()
     expect(mockRelaunch).not.toHaveBeenCalled()
   })
 

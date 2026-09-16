@@ -25,7 +25,6 @@ import {
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
-import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import { t } from '@main/i18n'
 import { clampHeartbeatIntervalMinutes, isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -81,10 +80,8 @@ function isHeartbeatRow(row: { jobInputTemplate: unknown }, agentId: string): bo
 
 /** Self-heal identity: whitespace-corrupted sentinel + reserved name + agentId. */
 function matchesFallbackIdentity(row: JobScheduleSnapshot, agentId: string): boolean {
-  // Free-text prompt = user task on the reserved name — never rewrite it. A
-  // non-string/missing prompt is foreign too (legacy/manual writes): repair
-  // overwrites the template wholesale, so only a string that trims to the
-  // sentinel counts as a corrupted heartbeat row.
+  // Only a string that trims to the sentinel is a corrupted heartbeat.
+  // Preserve foreign tasks that happen to occupy a reserved name.
   if (row.name !== `heartbeat_${agentId}`) return false
   const template = row.jobInputTemplate as { agentId?: unknown; prompt?: unknown } | null
   if (template?.agentId !== agentId) return false
@@ -133,54 +130,13 @@ function templateDrifted(current: unknown, target: HeartbeatJobInputTemplate): b
   return workspace.type !== target.workspace.type || workspace.workspaceId !== target.workspace.workspaceId
 }
 
-// Per-agent sync chains — the serialization behind the export below.
-const syncChains = new Map<string, Promise<HeartbeatSyncOutcome>>()
-
-// All unsettled heartbeat work, tracked at module level so the lifecycle
-// drain covers every caller (AgentJobsService, createAgent), not just one.
-const inFlightWork = createInFlightWorkTracker()
-
-const trackWork = inFlightWork.track
-
-/**
- * Wait out all in-flight heartbeat work; loops since settling work can
- * enqueue follow-ups. Returns false when the drain deadline was hit with
- * work still in flight (a producer outliving shutdown must not stall stop).
- */
-export const drainHeartbeatWork: (options?: { timeoutMs?: number }) => Promise<boolean> = inFlightWork.drain
-
-/**
- * Converge the agent's heartbeat schedule with its configuration. Safe to
- * call repeatedly and from any context (event handlers, startup, agent
- * creation); every failure path is the caller's to log, never a user-facing
- * error — the v1 handler had the same contract.
- *
- * Same-agent calls are serialized: each sync reads the configuration at
- * entry, so an unserialized pair (config-save racing the startup pass) could
- * commit a stale read over a fresher one. The last entrant commits last.
- */
-export function syncHeartbeatSchedule(agentId: string, rows?: JobScheduleSnapshot[]): Promise<HeartbeatSyncOutcome> {
-  const previous = syncChains.get(agentId) ?? Promise.resolve()
-  const current = previous.catch(() => undefined).then(() => runSync(agentId, rows))
-  syncChains.set(agentId, current)
-  const settled = () => {
-    if (syncChains.get(agentId) === current) syncChains.delete(agentId)
-  }
-  current.then(settled, settled)
-  return trackWork(current)
-}
-
 /** Pause (never delete) every enabled heartbeat row; returns the paused ids. */
 function pauseHeartbeatRows(
   agentId: string,
   rows: JobScheduleSnapshot[],
   options: { clearBreakerMarker: boolean }
 ): string[] {
-  // Duplicates can exist (migration disambiguation) — pausing only the first
-  // identity match would leave the rest firing. Only the user's explicit
-  // toggle-off clears the circuit-breaker marker (the reset gesture);
-  // capability-gated pauses must keep it, or restoring the capability would
-  // silently re-arm a schedule the breaker stopped.
+  // Pause every migrated duplicate; only an explicit toggle-off resets the breaker.
   const paused: string[] = []
   for (const row of rows) {
     if (!matchesHeartbeatIdentity(row, agentId)) continue
@@ -230,10 +186,12 @@ function armCommittedScheduleTimer(scheduleId: string): void {
   }
 }
 
-async function runSync(
+export async function syncHeartbeatSchedule(
   agentId: string,
+  signal: AbortSignal,
   rows: JobScheduleSnapshot[] = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
 ): Promise<HeartbeatSyncOutcome> {
+  signal.throwIfAborted()
   const agent = agentService.getAgent(agentId)
   if (!agent) return 'skipped-missing-agent'
 
@@ -242,9 +200,7 @@ async function runSync(
   const touchedScheduleIds: string[] = []
   let createdWorkspaceId: string | null = null
   const finalize = async (outcome: HeartbeatSyncOutcome): Promise<HeartbeatSyncOutcome> => {
-    // The agent could be deleted mid-sync, its onAgentDeleted schedule sweep
-    // having already run — a row committed afterwards would be orphaned, as
-    // would a workspace this sync created.
+    // Agent deletion may finish during file IO; compensate any writes that followed it.
     if (touchedScheduleIds.length === 0 && !createdWorkspaceId) return outcome
     if (agentService.getAgent(agentId)) return outcome
     const jobManager = application.get('JobManager')
@@ -293,9 +249,7 @@ async function runSync(
     return finalize('skipped-capability')
   }
 
-  // The heartbeat switch only renders for runtimes that support it; honor
-  // the same capability here so a schedule is never armed for, say, dsh —
-  // and a capability removal pauses (never deletes) any previously-armed row.
+  // Honor runtime capabilities even for schedules provisioned before a capability change.
   if (capabilities.heartbeat !== true) {
     touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: false }))
     return finalize('skipped-capability')
@@ -304,9 +258,7 @@ async function runSync(
   const config = agent.configuration ?? {}
 
   if (!isHeartbeatEnabled(config)) {
-    // Pause instead of delete: zero timer ticks while off, no churn on re-enable.
-    // The run-side gate remains as a backstop for rows paused by neither path.
-    // An explicit toggle-off also resets a circuit-breaker stop (marker cleared).
+    // Keep disabled rows for reuse; an explicit toggle-off also resets the breaker.
     touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: true }))
     return finalize(touchedScheduleIds.length > 0 ? 'paused' : 'skipped-disabled')
   }
@@ -322,12 +274,14 @@ async function runSync(
     // the run side's heartbeat.md read) outside managed storage.
     await assertAgentStoragePath(agentsDataRoot, workspacePath)
   } catch (error) {
+    signal.throwIfAborted()
     logger.warn('Agent data path failed the storage check; heartbeat not armed', { agentId, workspacePath, error })
     // Pause like the other skip branches: a still-enabled row would keep
     // firing completed skip jobs until a later successful sync re-arms it.
     touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: false }))
     return finalize('skipped-untrusted-path')
   }
+  signal.throwIfAborted()
   // Workspace row before the file: if this throws (a SYSTEM row owns the
   // path), no orphaned heartbeat.md is left behind to wedge future syncs.
   const { workspace, created: workspaceCreated } = agentWorkspaceService.findOrCreateByPathResult(workspacePath, {
@@ -337,7 +291,9 @@ async function runSync(
   try {
     try {
       await ensureHeartbeatFile(workspacePath)
+      signal.throwIfAborted()
     } catch (error) {
+      signal.throwIfAborted()
       // A non-regular occupant at heartbeat.md makes every tick fail its read
       // — pause like the untrusted path instead of firing skips forever.
       if (!(error instanceof HeartbeatFileNotRegularError)) throw error
@@ -348,6 +304,7 @@ async function runSync(
     // Re-check inside the provisioning window: mkdir follows ancestor links,
     // so a directory swapped in after the entry check must not arm a row.
     await assertAgentStoragePath(agentsDataRoot, workspacePath)
+    signal.throwIfAborted()
     const trigger: Trigger = { kind: 'interval', ms: intervalMinutes * 60_000 }
     const jobInputTemplate: HeartbeatJobInputTemplate = {
       agentId,
@@ -363,27 +320,24 @@ async function runSync(
     // The repair branch is shared by the create-race fallback below, so it is
     // factored into a local that both paths can reach.
     const repairRow = (row: JobScheduleSnapshot): HeartbeatSyncOutcome => {
-      // Repair in place, preserving the schedule name (renaming a migrated row
-      // could collide with the UNIQUE index and breaks no behavior that reads it).
-      // A circuit-breaker pause is a stop signal, not drift: repair the row but
-      // keep it disabled until the user resets via the heartbeat toggle off/on.
-      const breakerPaused = !row.enabled && isCircuitBreakerPaused(row.metadata)
-      const reenable = !row.enabled && !breakerPaused
-      const triggerChanged = !triggersEqual(row.trigger, trigger)
-      const needsRepair = reenable || triggerChanged || templateDrifted(row.jobInputTemplate, jobInputTemplate)
-      if (!needsRepair) return 'noop'
-
-      application.get('DbService').withWriteTx((tx) => {
-        jobManager.updateJobScheduleTx(tx, row.id, {
+      // Preserve migrated names and newly committed breaker stops when repairing drift.
+      const repair = application.get('DbService').withWriteTx((tx) => {
+        const current = jobScheduleService.getByIdTx(tx, row.id)
+        if (!current || !matchesHeartbeatIdentity(current, agentId)) return null
+        const breakerPaused = !current.enabled && isCircuitBreakerPaused(current.metadata)
+        const reenable = !current.enabled && !breakerPaused
+        const triggerChanged = !triggersEqual(current.trigger, trigger)
+        if (!reenable && !triggerChanged && !templateDrifted(current.jobInputTemplate, jobInputTemplate)) return null
+        jobManager.updateJobScheduleTx(tx, current.id, {
           ...(reenable ? { enabled: true } : {}),
           ...(triggerChanged ? { trigger } : {}),
           jobInputTemplate
         })
+        return { breakerPaused, rearm: (reenable || triggerChanged) && !breakerPaused }
       })
-      // Re-arming an enabled interval resets its phase — skip the timer sync
-      // when only the template changed (the armed callback re-reads the row),
-      // and never re-arm a breaker-paused row: the toggle off/on is the reset.
-      if ((reenable || triggerChanged) && !breakerPaused) armCommittedScheduleTimer(row.id)
+      if (!repair) return 'noop'
+      const { breakerPaused, rearm } = repair
+      if (rearm) armCommittedScheduleTimer(row.id)
       touchedScheduleIds.push(row.id)
       if (breakerPaused) {
         logger.info('Heartbeat schedule left paused by the circuit breaker; drift repaired', {
@@ -397,9 +351,7 @@ async function runSync(
     }
 
     const existing = findHeartbeatRow(agentId, rows)
-    // A migration-disambiguated duplicate can coexist with the canonical row
-    // and both would fire — converge to one schedule per agent. One failure
-    // must not strand the rest: allSettled + per-row logging.
+    // Converge migrated duplicates independently so one removal failure cannot strand the rest.
     const duplicates = rows.filter((row) => row.id !== existing?.id && matchesHeartbeatIdentity(row, agentId))
     const removals = await Promise.allSettled(
       duplicates.map(async (row) => {
@@ -423,6 +375,7 @@ async function runSync(
         })
       }
     })
+    signal.throwIfAborted()
     if (!existing) {
       // (type, name) is UNIQUE: a concurrent sync may have registered this row
       // against a stale snapshot — a benign race, repair the winner in place.
@@ -444,9 +397,7 @@ async function runSync(
       } catch (error) {
         if (!isScheduleNameConflict(error)) throw error
         const winner = jobScheduleService.getByTypeAndName(AGENT_TASK_TYPE, scheduleName)
-        // Benign only when the (type, name) winner is this agent's heartbeat
-        // row — sentinel OR corrupted-sentinel fallback identity, never a
-        // foreign row sharing the reserved name.
+        // Only repair a conflicting row owned by this agent and identified as its heartbeat.
         if (winner && matchesHeartbeatIdentity(winner, agentId)) {
           logger.info('Heartbeat create raced a concurrent sync; repairing winner', {
             agentId,
@@ -454,11 +405,7 @@ async function runSync(
           })
           return finalize(repairRow(winner))
         }
-        // A foreign row squats the reserved name (a task created before this
-        // agent existed, or a manual write). Rewriting it would destroy user
-        // data, but rethrowing wedges every future sync on the same conflict
-        // — so register under a disambiguated name instead. Identity is
-        // sentinel-based, never name-based: the label does not matter.
+        // Preserve foreign rows occupying reserved names; sentinel identity permits another name.
         const disambiguated = `${scheduleName}__${randomUUID().slice(0, 8)}`
         logger.warn('Reserved heartbeat schedule name is used by a foreign row; using a disambiguated name', {
           agentId,
@@ -483,23 +430,12 @@ async function runSync(
     }
 
     return finalize(repairRow(existing))
-  } catch (error) {
-    // A workspace row created by this call is orphaned (no heartbeat row
-    // points at it) when provisioning fails before the schedule commits.
-    // Guarded delete: a concurrent bind may already reference it.
-    if (createdWorkspaceId && touchedScheduleIds.length === 0) {
+  } finally {
+    // Failed or skipped provisioning must not leave an unreferenced workspace behind.
+    if (createdWorkspaceId) {
       const workspaceId = createdWorkspaceId
-      const removed = application
-        .get('DbService')
-        .withWriteTx((tx) => agentWorkspaceService.deleteIfUnreferencedTx(tx, workspaceId))
-      if (!removed) {
-        logger.info('Kept heartbeat workspace still referenced after provisioning rollback', {
-          agentId,
-          workspaceId
-        })
-      }
+      application.get('DbService').withWriteTx((tx) => agentWorkspaceService.deleteIfUnreferencedTx(tx, workspaceId))
     }
-    throw error
   }
 }
 
@@ -509,21 +445,20 @@ async function runSync(
  * agents created while the producer was missing (#19203). Per-agent failures
  * are isolated — one broken agent must not block the rest.
  */
-export function repairHeartbeatSchedules(): Promise<void> {
-  return trackWork(runRepairPass())
-}
-
-async function runRepairPass(): Promise<void> {
+export async function repairHeartbeatSchedules(
+  sync: (agentId: string, rows: JobScheduleSnapshot[]) => Promise<HeartbeatSyncOutcome | undefined>,
+  signal: AbortSignal
+): Promise<void> {
+  signal.throwIfAborted()
   const { agents } = agentService.listAgents()
-  // Snapshot rows once — a per-agent scan would make this O(agents × schedules).
-  // Identity is per-agent, so mid-pass inserts for one agent never affect another.
+  // Share discovery across agents; mutation decisions re-read the row inside their transaction.
   const rows = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
   const counts = new Map<HeartbeatSyncOutcome | 'failed', number>()
   // Per-agent I/O is independent — overlap it; one rejection must not block the rest.
-  const results = await Promise.allSettled(agents.map((agent) => syncHeartbeatSchedule(agent.id, rows)))
+  const results = await Promise.allSettled(agents.map((agent) => sync(agent.id, rows)))
   results.forEach((result, index) => {
     if (result.status === 'fulfilled') {
-      counts.set(result.value, (counts.get(result.value) ?? 0) + 1)
+      if (result.value) counts.set(result.value, (counts.get(result.value) ?? 0) + 1)
     } else {
       counts.set('failed', (counts.get('failed') ?? 0) + 1)
       logger.warn('Heartbeat sync failed at startup', { agentId: agents[index].id, error: result.reason })
@@ -539,7 +474,8 @@ async function runRepairPass(): Promise<void> {
       failed: counts.get('failed') ?? 0
     })
   }
-  await reapOrphanedScheduleRows(rows)
+  signal.throwIfAborted()
+  await reapOrphanedScheduleRows(rows, signal)
 }
 
 function readTemplateAgentId(row: JobScheduleSnapshot): string | null {
@@ -565,7 +501,7 @@ function dropOrphanWorkspace(scheduleId: string, workspaceId: string): void {
  * sweep can fail transiently mid-unregister and leave the row (and its user
  * workspace) behind. Per-row isolation, mirroring the sweep.
  */
-async function reapOrphanedScheduleRows(rows: JobScheduleSnapshot[]): Promise<void> {
+async function reapOrphanedScheduleRows(rows: JobScheduleSnapshot[], signal: AbortSignal): Promise<void> {
   const liveAgents = new Set(agentService.listAgents().agents.map((agent) => agent.id))
   const orphans = rows.filter((row) => {
     const producer = readTemplateAgentId(row)
@@ -573,6 +509,7 @@ async function reapOrphanedScheduleRows(rows: JobScheduleSnapshot[]): Promise<vo
   })
   const reaped: string[] = []
   for (const row of orphans) {
+    signal.throwIfAborted()
     try {
       if (!(await application.get('JobManager').unregisterJobScheduleById(row.id))) continue
     } catch (error) {

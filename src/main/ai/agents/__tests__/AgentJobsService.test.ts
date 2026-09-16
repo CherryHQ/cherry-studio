@@ -9,6 +9,7 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -1065,6 +1066,7 @@ describe('AgentJobsService', () => {
     it('agent deletion fires the cleanup through onAgentDeleted', async () => {
       const task = service.createTask(AGENT_ID, form)
 
+      dbh.db.delete(agentTable).where(eq(agentTable.id, AGENT_ID)).run()
       // The full deleteAgent path needs the data-service registry (out of
       // scope here); fire the real emitter the subscription listens on.
       ;(
@@ -1098,86 +1100,6 @@ describe('AgentJobsService', () => {
     it('run fires an owned task', async () => {
       const task = service.createTask(AGENT_ID, form)
       expect(await service.runTask(AGENT_ID, task.id)).toBe(true)
-    })
-  })
-
-  // ------------------------------------------------------- heartbeat wiring
-
-  describe('heartbeat wiring', () => {
-    function fireAgentCreated(): void {
-      const agent = agentService.getAgent(AGENT_ID)
-      ;(
-        agentService as unknown as { _onAgentCreated: { fire: (e: { agentId: string; agent: unknown }) => void } }
-      )._onAgentCreated.fire({ agentId: AGENT_ID, agent })
-    }
-
-    function fireAgentUpdated(updates: Record<string, unknown>): void {
-      const agent = agentService.getAgent(AGENT_ID)
-      ;(
-        agentService as unknown as {
-          _onAgentUpdated: { fire: (e: { agentId: string; updates: unknown; agent: unknown }) => void }
-        }
-      )._onAgentUpdated.fire({ agentId: AGENT_ID, updates, agent })
-    }
-
-    it('syncs the heartbeat for a configuration patch that carries a heartbeat key', async () => {
-      fireAgentUpdated({ configuration: { heartbeat_interval: 45 } })
-      await vi.waitFor(() => expect(syncHeartbeatScheduleMock).toHaveBeenCalledWith(AGENT_ID))
-      syncHeartbeatScheduleMock.mockClear()
-
-      fireAgentUpdated({ configuration: { heartbeat_enabled: false } })
-      await vi.waitFor(() => expect(syncHeartbeatScheduleMock).toHaveBeenCalledWith(AGENT_ID))
-    })
-
-    it('ignores saves that do not carry a heartbeat key', async () => {
-      // The heartbeat schedule is derived state of two configuration keys —
-      // every other save must not re-provision it.
-      fireAgentUpdated({ configuration: { model: 'other' } })
-      fireAgentUpdated({ name: 'renamed' })
-      fireAgentUpdated({})
-      // Nothing to wait for: a call here is the bug, so let the microtask
-      // queue drain and assert its absence.
-      await Promise.resolve()
-      expect(syncHeartbeatScheduleMock).not.toHaveBeenCalled()
-    })
-
-    it('provisions the heartbeat from the creation event', async () => {
-      // createAgent awaits its own sync; the event is the seam that also
-      // covers creation paths which never go through createAgent.
-      fireAgentCreated()
-      await vi.waitFor(() => expect(syncHeartbeatScheduleMock).toHaveBeenCalledWith(AGENT_ID))
-    })
-
-    it('defers the startup repair pass behind the quiet window', async () => {
-      vi.useFakeTimers()
-      try {
-        await service._doAllReady()
-        // Deferred, not run inline — onAllReady is fire-and-forget.
-        expect(repairHeartbeatSchedulesMock).not.toHaveBeenCalled()
-        await vi.advanceTimersByTimeAsync(60_000)
-        expect(repairHeartbeatSchedulesMock).toHaveBeenCalledTimes(1)
-      } finally {
-        vi.useRealTimers()
-      }
-    })
-
-    it('stops producing work once the service has been stopped', async () => {
-      // Shutdown gate: onStop's drain must converge, so every producer
-      // returns early rather than refilling the in-flight set. Kept last —
-      // these tests do not restart a stopped service.
-      const task = service.createTask(AGENT_ID, form)
-      await service._doStop()
-
-      fireAgentCreated()
-      fireAgentUpdated({ configuration: { heartbeat_interval: 45 } })
-      ;(
-        agentService as unknown as { _onAgentDeleted: { fire: (e: { agentId: string }) => void } }
-      )._onAgentDeleted.fire({ agentId: AGENT_ID })
-      await Promise.resolve()
-
-      expect(syncHeartbeatScheduleMock).not.toHaveBeenCalled()
-      // The deletion sweep is the other producer the gate covers.
-      expect(jobScheduleService.getById(task.id)).not.toBeNull()
     })
   })
 })

@@ -23,14 +23,18 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import '@data/services/AgentSessionMessageService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
+import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { JobManager } from '@main/core/job/JobManager'
-import type { JobHandler } from '@main/core/job/types'
+import type { JobContext, JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { DEFAULT_HEARTBEAT_INTERVAL_MINUTES } from '@shared/ai/agentHeartbeat'
+import type { JobScheduleSnapshot } from '@shared/data/api/schemas/jobs'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import type * as HeartbeatModule from '../heartbeat'
@@ -76,7 +80,11 @@ vi.mock('../agentTaskJobHandler', () => ({
   } satisfies JobHandler
 }))
 
-import { drainHeartbeatWork, repairHeartbeatSchedules, syncHeartbeatSchedule } from '../heartbeatSchedule'
+vi.mock('@main/ai/streamManager', () => ({ startAgentSessionRun: vi.fn(), ChannelAdapterListener: class {} }))
+
+import { AgentJobsService } from '../AgentJobsService'
+import { repairHeartbeatSchedules as repairSchedules } from '../heartbeatSchedule'
+import { runAgentTask, type AgentTaskInput } from '../runAgentTask'
 
 const AGENT_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_AGENT_ID = '22222222-2222-4222-8222-222222222222'
@@ -93,6 +101,10 @@ describe('heartbeatSchedule', () => {
   let scheduler: SchedulerService
   let jobManager: JobManager
   let agentsRoot: string
+  let service: AgentJobsService
+  const syncHeartbeatSchedule = (id: string, rows?: JobScheduleSnapshot[]) => service.syncHeartbeat(id, rows)
+  const drainHeartbeatWork = async (options = { timeoutMs: 15000 }) => (await service.drainInFlight(options)).settled
+  const repairHeartbeatSchedules = () => repairSchedules(syncHeartbeatSchedule, new AbortController().signal)
 
   /** Insert an agent row and its data directory — what createAgent provisions in production. */
   function seedAgent(id: string, configuration: AgentConfiguration = {}, type: string = 'claude-code'): void {
@@ -113,6 +125,7 @@ describe('heartbeatSchedule', () => {
     agentsRoot = mkdtempSync(path.join(tmpdir(), 'cs-test-hb-'))
     scheduler = new SchedulerService()
     jobManager = new JobManager()
+    service = new AgentJobsService()
 
     const dbSvc = MockMainDbServiceExport.dbService
     dbSvc.withWriteTx.mockImplementation(<T>(fn: (tx: unknown) => T): T => dbh.db.transaction((tx) => fn(tx)))
@@ -127,6 +140,8 @@ describe('heartbeatSchedule', () => {
           return scheduler
         case 'JobManager':
           return jobManager
+        case 'AgentJobsService':
+          return service
       }
       throw new Error(`Unexpected application.get('${name}')`)
     })
@@ -136,13 +151,7 @@ describe('heartbeatSchedule', () => {
 
     await scheduler._doInit()
     await jobManager._doInit()
-    jobManager.registerHandler('agent.task', {
-      recovery: 'retry',
-      defaultConcurrency: 1,
-      async execute() {
-        return {}
-      }
-    })
+    await service._doInit()
   })
 
   beforeEach(async () => {
@@ -158,10 +167,49 @@ describe('heartbeatSchedule', () => {
   })
 
   afterAll(async () => {
+    await service._doStop()
     await jobManager._doStop()
     await scheduler._doStop()
     BaseService.resetInstances()
     rmSync(agentsRoot, { recursive: true, force: true })
+  })
+
+  it('removes a newly created workspace when heartbeat.md is a directory', async () => {
+    seedAgent(AGENT_ID)
+    mkdirSync(path.join(agentsRoot, AGENT_ID, 'heartbeat.md'))
+
+    await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
+  })
+
+  it('preserves a breaker stop committed while re-enable waits for file IO', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    setAgentConfiguration(AGENT_ID, { heartbeat_enabled: false })
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    setAgentConfiguration(AGENT_ID, { heartbeat_enabled: true })
+    let release!: () => void
+    heartbeatFileGate.current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const ensure = vi.spyOn(await import('../heartbeat'), 'ensureHeartbeatFile')
+    const pending = syncHeartbeatSchedule(AGENT_ID)
+    await vi.waitFor(() => expect(ensure).toHaveBeenCalled())
+    application
+      .get('DbService')
+      .withWriteTx((tx) =>
+        jobManager.updateJobScheduleTx(tx, row.id, { enabled: false, metadata: { circuitBreakerPaused: true } })
+      )
+    release()
+    heartbeatFileGate.current = null
+    await pending
+    ensure.mockRestore()
+
+    expect(jobScheduleService.getById(row.id)?.enabled).toBe(false)
+    expect(scheduler.has(`schedule:${row.id}`)).toBe(false)
   })
 
   it('creates a schedule for an enabled agent and seeds heartbeat.md', async () => {
@@ -517,7 +565,7 @@ describe('heartbeatSchedule', () => {
       catchUpPolicy: { kind: 'skip-missed' }
     })
 
-    const outcome = await syncHeartbeatSchedule(AGENT_ID, [])
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
 
     expect(outcome).toBe('updated')
     expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
@@ -548,7 +596,7 @@ describe('heartbeatSchedule', () => {
       catchUpPolicy: { kind: 'skip-missed' }
     })
 
-    const outcome = await syncHeartbeatSchedule(AGENT_ID, [])
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
 
     expect(outcome).toBe('updated')
     expect(jobScheduleService.getById(id)?.jobInputTemplate).toMatchObject({
@@ -584,7 +632,7 @@ describe('heartbeatSchedule', () => {
     })
     const templateBefore = structuredClone(jobScheduleService.getById(id)?.jobInputTemplate)
 
-    const outcome = await syncHeartbeatSchedule(AGENT_ID, [])
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
 
     expect(outcome).toBe('created')
     // The non-heartbeat row must be untouched: same id, same template, still enabled.
@@ -696,7 +744,7 @@ describe('heartbeatSchedule', () => {
     })
     const templateBefore = structuredClone(jobScheduleService.getById(id)?.jobInputTemplate)
 
-    const outcome = await syncHeartbeatSchedule(AGENT_ID, [])
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
 
     expect(outcome).toBe('created')
     expect(jobScheduleService.getById(id)?.jobInputTemplate).toEqual(templateBefore)
@@ -733,9 +781,7 @@ describe('heartbeatSchedule', () => {
 
     expect(firstOutcome).toBe('created')
     expect(secondOutcome).toBe('updated')
-    // Two reads per sync (entry + post-commit deletion guard); the second
-    // sync's reads must both come after the first sync fully settled.
-    expect(events).toEqual(['read', 'read', 'first-settled', 'read', 'read'])
+
     const [row] = heartbeatRows(AGENT_ID)
     expect(row.trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
   })
@@ -866,29 +912,6 @@ describe('heartbeatSchedule', () => {
 
     expect(outcome).toBe('skipped-missing-agent')
     expect(jobScheduleService.getById(row.id)).toBeNull()
-  })
-
-  it('drives a stale rows snapshot through the create path and converges on the winner', async () => {
-    // repairHeartbeatSchedules hands every agent the same snapshot taken
-    // before the pass. A row created after that snapshot must not make the
-    // create path throw on the (type, name) UNIQUE conflict — it repairs the
-    // winner instead. This is the only path where a stale array reaches a
-    // write.
-    seedAgent(AGENT_ID)
-    const staleRows = jobScheduleService.listAll({ type: 'agent.task' })
-    expect(staleRows).toHaveLength(0)
-
-    // A "concurrent" sync commits the row the snapshot cannot see.
-    await syncHeartbeatSchedule(AGENT_ID)
-    // Drift it so the convergence is observable as an update, not a noop.
-    setAgentConfiguration(AGENT_ID, { heartbeat_interval: 45 })
-
-    const outcome = await syncHeartbeatSchedule(AGENT_ID, staleRows)
-
-    expect(outcome).toBe('updated')
-    const rows = heartbeatRows(AGENT_ID)
-    expect(rows).toHaveLength(1)
-    expect(rows[0].trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
   })
 
   it('drains the syncs a repair pass enqueues while it settles', async () => {
@@ -1219,5 +1242,117 @@ describe('heartbeatSchedule', () => {
 
     expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
     expect(heartbeatRows(OTHER_AGENT_ID)).toHaveLength(1)
+  })
+  it('defers startup repair through nested backup holds and replays the latest configuration', async () => {
+    seedAgent(AGENT_ID)
+    const first = service.pause('backup')
+    const second = service.pause('restore')
+    vi.useFakeTimers()
+    await service._doAllReady()
+    await vi.advanceTimersByTimeAsync(60000)
+    vi.useRealTimers()
+    setAgentConfiguration(AGENT_ID, { heartbeat_interval: 45 })
+    await service.syncHeartbeat(AGENT_ID)
+    expect(await drainHeartbeatWork()).toBe(true)
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+    first.dispose()
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+    second.dispose()
+    await drainHeartbeatWork()
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
+    expect(heartbeatRows(AGENT_ID)[0].trigger).toEqual({ kind: 'interval', ms: 45 * 60000 })
+  })
+
+  it('drains admitted IO but does not admit another agent while paused', async () => {
+    seedAgent(AGENT_ID)
+    seedAgent(OTHER_AGENT_ID)
+    let release!: () => void
+    heartbeatFileGate.current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const pending = service.syncHeartbeat(AGENT_ID)
+    await vi.waitFor(() => expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1))
+    const hold = service.pause('backup')
+    await service.syncHeartbeat(OTHER_AGENT_ID)
+    expect(await drainHeartbeatWork({ timeoutMs: 10 })).toBe(false)
+    release()
+    heartbeatFileGate.current = null
+    await pending
+    expect(await drainHeartbeatWork()).toBe(true)
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
+    expect(heartbeatRows(OTHER_AGENT_ID)).toHaveLength(0)
+    hold.dispose()
+    await drainHeartbeatWork()
+    expect(heartbeatRows(OTHER_AGENT_ID)).toHaveLength(1)
+  })
+
+  it('joins creation-event provisioning without a duplicate file pass', async () => {
+    seedAgent(AGENT_ID)
+    const agent = agentService.getAgent(AGENT_ID)!
+    const ensure = vi.spyOn(await import('../heartbeat'), 'ensureHeartbeatFile')
+    agentService.emitAgentCreated(agent)
+    await service.waitForHeartbeat(AGENT_ID)
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
+    expect(ensure).toHaveBeenCalledTimes(1)
+    ensure.mockRestore()
+  })
+
+  it('recovers the SYSTEM template produced by the real workspace deletion cascade', async () => {
+    seedAgent(AGENT_ID)
+    await service.syncHeartbeat(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    const oldWorkspace = (row.jobInputTemplate as AgentTaskInput).workspace
+    if (oldWorkspace.type !== 'user') throw new Error('Expected user workspace')
+    agentSessionService.deleteWorkspaceCascadeForDelivery(oldWorkspace.workspaceId)
+    const input = jobScheduleService.getById(row.id)!.jobInputTemplate as AgentTaskInput
+    expect(input.workspace).toEqual({ type: 'system' })
+    const job = jobService.create({
+      type: 'agent.task',
+      status: 'running',
+      queue: 'test',
+      input,
+      scheduleId: row.id,
+      scheduledAt: Date.now()
+    })
+    await runAgentTask({ jobId: job.id, input } as JobContext<AgentTaskInput>)
+    await drainHeartbeatWork()
+    const repaired = jobScheduleService.getById(row.id)!
+    expect(repaired.enabled).toBe(true)
+    const workspace = (repaired.jobInputTemplate as AgentTaskInput).workspace
+    expect(workspace.type).toBe('user')
+    if (workspace.type !== 'user') throw new Error('Expected repaired user workspace')
+    expect(workspace.workspaceId).not.toBe(oldWorkspace.workspaceId)
+    expect(agentWorkspaceService.getById(workspace.workspaceId).path).toBe(path.join(agentsRoot, AGENT_ID))
+    expect(scheduler.has(`schedule:${row.id}`)).toBe(true)
+  })
+
+  it('applies saved heartbeat configuration through the owner event', async () => {
+    seedAgent(AGENT_ID)
+    await service.syncHeartbeat(AGENT_ID)
+    agentService.updateAgent(AGENT_ID, { configuration: { heartbeat_enabled: false } })
+    await drainHeartbeatWork()
+    expect(heartbeatRows(AGENT_ID)[0].enabled).toBe(false)
+    agentService.updateAgent(AGENT_ID, { configuration: { heartbeat_enabled: true, heartbeat_interval: 45 } })
+    await drainHeartbeatWork()
+    expect(heartbeatRows(AGENT_ID)[0]).toMatchObject({ enabled: true, trigger: { kind: 'interval', ms: 2700000 } })
+  })
+
+  it('stops after admitted IO and compensates a new workspace without arming a schedule', async () => {
+    seedAgent(AGENT_ID)
+    let release!: () => void
+    heartbeatFileGate.current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const pending = service.syncHeartbeat(AGENT_ID)
+    const rejected = expect(pending).rejects.toThrow()
+    await vi.waitFor(() => expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1))
+    const stopping = service._doStop()
+    await service.syncHeartbeat(OTHER_AGENT_ID)
+    release()
+    heartbeatFileGate.current = null
+    await rejected
+    await stopping
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
   })
 })

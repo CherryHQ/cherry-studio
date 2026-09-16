@@ -53,7 +53,7 @@ vi.mock('@application', async () => {
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
     AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
-    AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse },
+    AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse, syncHeartbeat: syncHeartbeatScheduleMock },
     // Gate that keeps a reusing fire off a session with a live turn.
     AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy },
     // The heartbeat workspace-deleted branch pauses its own schedule.
@@ -92,10 +92,6 @@ vi.mock('@main/ai/agents/heartbeat', () => ({
 }))
 
 const { syncHeartbeatScheduleMock } = vi.hoisted(() => ({ syncHeartbeatScheduleMock: vi.fn(async () => 'noop') }))
-vi.mock('@main/ai/agents/heartbeatSchedule', async (importOriginal) => ({
-  ...(await importOriginal()),
-  syncHeartbeatSchedule: syncHeartbeatScheduleMock
-}))
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   assertAgentStorageDirectory: mockAssertAgentStorageDirectory
 }))

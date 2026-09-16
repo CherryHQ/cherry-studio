@@ -18,7 +18,10 @@ const {
 
 vi.mock('@data/services/AgentService', () => ({ agentService: { createAgentWithId } }))
 vi.mock('../agentDataDirectory', () => ({ createAgentDataDirectory, removeAgentDataDirectory }))
-vi.mock('../heartbeatSchedule', () => ({ syncHeartbeatSchedule, repairHeartbeatSchedules }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ AgentJobsService: { waitForHeartbeat: syncHeartbeatSchedule } } as never)
+})
 vi.mock('uuid', () => ({ v4: () => '11111111-1111-4111-8111-111111111111' }))
 
 const { createAgent } = await import('../createAgent')
