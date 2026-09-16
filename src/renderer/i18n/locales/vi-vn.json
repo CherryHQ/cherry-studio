@@ -548,6 +548,7 @@
   "backup.confirm.button": "Chọn Vị trí Sao lưu",
   "backup.content": "Sao lưu tất cả dữ liệu, bao gồm lịch sử trò chuyện, cài đặt và cơ sở tri thức. Xin lưu ý rằng quá trình sao lưu có thể mất một thời gian, cảm ơn bạn đã kiên nhẫn.",
   "backup.error.active_data_writers": "Một cuộc trò chuyện hoặc Agent vẫn đang chạy. Hãy đợi hoàn tất rồi thử lại.",
+  "backup.error.background_tasks": "Các tác vụ nền (chẳng hạn như lập chỉ mục cơ sở kiến thức) chưa hoàn tất trong thời gian chờ. Để bảo vệ tính toàn vẹn của dữ liệu, quá trình sao lưu hoặc khôi phục này đã dừng. Hãy chờ các tác vụ hoàn tất rồi thử lại. Nếu tình trạng này tiếp diễn, hãy kiểm tra trạng thái tác vụ và lỗi trong tính năng tương ứng.",
   "backup.error.disk_full": "Không đủ dung lượng ổ đĩa. Hãy giải phóng dung lượng rồi thử lại.",
   "backup.error.disk_full_with_available": "Không đủ dung lượng ổ đĩa (còn trống {{available}}). Hãy giải phóng dung lượng rồi thử lại.",
   "backup.error.newer_version": "This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",

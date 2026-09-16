@@ -548,6 +548,7 @@
   "backup.confirm.button": "Escolher local da cópia de segurança",
   "backup.content": "Crie uma cópia de segurança de todos os dados, incluindo o histórico de conversas, as definições e a base de conhecimento. O processo poderá demorar algum tempo. Agradecemos a sua paciência.",
   "backup.error.active_data_writers": "Uma conversa ou agente ainda está em execução. Aguarde até que termine e tente novamente.",
+  "backup.error.background_tasks": "As tarefas em segundo plano (como a indexação da base de conhecimento) não terminaram dentro do tempo de espera. Para proteger a integridade dos dados, esta cópia de segurança ou restauro foi interrompido. Aguarde a conclusão das tarefas e tente novamente. Se o problema persistir, verifique o estado das tarefas e os erros na funcionalidade correspondente.",
   "backup.error.disk_full": "Não há espaço suficiente no disco. Liberte espaço e tente novamente.",
   "backup.error.disk_full_with_available": "Não há espaço suficiente no disco ({{available}} disponíveis). Liberte espaço e tente novamente.",
   "backup.error.newer_version": "This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
