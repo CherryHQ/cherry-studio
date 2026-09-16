@@ -1607,6 +1607,23 @@ describe('AgentSessionService', () => {
     expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(1)
   })
 
+  it('returns purged system workspace paths for post-commit cleanup', async () => {
+    const systemSession = agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'System workspace cleanup target',
+      workspace: { type: 'system' }
+    })
+    const userSession = await createSession('User workspace retained')
+    agentSessionService.deleteByIds([systemSession.id, userSession.id])
+
+    const result = agentSessionService.deleteByIdsForDelivery([systemSession.id, userSession.id], {
+      permanent: true
+    })
+
+    expect(result.deletedIds).toEqual(expect.arrayContaining([systemSession.id, userSession.id]))
+    expect(result.purgedSystemWorkspacePaths).toEqual([systemSession.workspace.path])
+  })
+
   it('permanently deletes only trashed sessions from a mixed batch', async () => {
     const trashed = await createSession('Trashed batch session')
     const active = await createSession('Active batch session')

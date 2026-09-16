@@ -3,6 +3,7 @@ import { agentService } from '@data/services/AgentService'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
+import { removeAgentStorageSubdirectory } from '@main/ai/agents/agentDataDirectory'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -322,6 +323,16 @@ export class AgentSessionDeliveryService extends BaseService {
       this.assertWritesAvailable()
       const result = agentSessionService.deleteByIdsForDelivery(ids, { permanent })
       await this.finishDeletion(result.deletedIds, result.deliveryResults)
+      if (permanent && result.purgedSystemWorkspacePaths.length > 0) {
+        const systemWorkspacesRoot = application.getPath('feature.agents.system_workspaces')
+        for (const workspacePath of result.purgedSystemWorkspacePaths) {
+          try {
+            await removeAgentStorageSubdirectory(systemWorkspacesRoot, workspacePath)
+          } catch (error) {
+            logger.warn('Failed to remove purged Agent Session workspace', { workspacePath, error })
+          }
+        }
+      }
       return { deletedIds: result.deletedIds }
     }
     if (permanent) return deleteSessions()
