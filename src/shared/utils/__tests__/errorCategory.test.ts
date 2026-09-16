@@ -9,9 +9,9 @@ describe('classifyErrorCategory transport failures', () => {
   it('maps DNS resolution failure to network', () => {
     expect(classifyErrorCategory({ text: 'net::ERR_NAME_NOT_RESOLVED' })).toBe('network')
     expect(classifyErrorCategory({ text: 'net::ERR_NAME_RESOLUTION_FAILED' })).toBe('network')
-    expect(
-      classifyErrorCategory({ text: 'request to https://api.example.com failed: getaddrinfo ENOTFOUND' })
-    ).toBe('network')
+    expect(classifyErrorCategory({ text: 'request to https://api.example.com failed: getaddrinfo ENOTFOUND' })).toBe(
+      'network'
+    )
   })
 
   it('maps offline and unreachable signals to network', () => {
