@@ -61,6 +61,42 @@ describe('EpubReader', () => {
     expect(loggerErrorMock).not.toHaveBeenCalled()
   })
 
+  it('drops the contents of style and script tags', async () => {
+    getChapterMock.mockImplementation(
+      async (id: string) =>
+        `<head><style>body{font-family:serif;color:#222}</style></head>` +
+        `<body><script>var a = 1</script><p>${id} content</p></body>`
+    )
+
+    const reader = new EpubReader()
+    const docs = await reader.loadDataAsContent(new Uint8Array([1, 2, 3]), 'book.epub')
+
+    expect(docs[0]?.text).toBe('chapter-1 content')
+    expect(docs[0]?.text).not.toContain('font-family')
+    expect(docs[0]?.text).not.toContain('var a')
+  })
+
+  it('decodes html entities', async () => {
+    getChapterMock.mockImplementation(async () => '<p>Caf&#233; &amp; bar&#8212;it&#8217;s open</p>')
+
+    const reader = new EpubReader()
+    const docs = await reader.loadDataAsContent(new Uint8Array([1, 2, 3]), 'book.epub')
+
+    expect(docs[0]?.text).toBe('Café & bar—it’s open')
+  })
+
+  it('skips a chapter that carries no text of its own', async () => {
+    getChapterMock.mockImplementation(async (id: string) =>
+      id === 'chapter-1' ? '<style>p{margin:0}</style>' : '<p>chapter-2 content</p>'
+    )
+
+    const reader = new EpubReader()
+    const docs = await reader.loadDataAsContent(new Uint8Array([1, 2, 3]), 'book.epub')
+
+    expect(docs).toHaveLength(1)
+    expect(docs[0]?.text).toBe('chapter-2 content')
+  })
+
   it('rejects the epub when any chapter fails instead of silently returning partial content', async () => {
     const chapterError = new Error('chapter read failed')
     getChapterMock.mockImplementation(async (id: string) => {

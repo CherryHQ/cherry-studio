@@ -1,18 +1,21 @@
 import { Document, FileReader, type Metadata } from '@vectorstores/core'
+import { HTMLReader } from '@vectorstores/readers/html'
 import EPub from 'epub'
 
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('KnowledgeEpubReader')
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
 export class EpubReader extends FileReader<Document<Metadata>> {
+  /**
+   * An EPUB chapter is XHTML, so it is read with the same reader a standalone
+   * .html file gets. Stripping tags with a regex instead kept whatever sat
+   * inside `<style>` and `<script>` - an inline stylesheet is ordinary in an
+   * EPUB chapter - and left entities undecoded, so `it&#8217;s` was indexed
+   * instead of `it's`.
+   */
+  private readonly htmlReader = new HTMLReader()
+
   async loadDataAsContent(fileContent: Uint8Array, filename?: string): Promise<Document<Metadata>[]> {
     const epub = new EPub(Buffer.from(fileContent))
     await epub.parse()
@@ -24,7 +27,7 @@ export class EpubReader extends FileReader<Document<Metadata>> {
     for (const chapter of chapters) {
       try {
         const content = await epub.getChapter(chapter.id)
-        const text = stripHtml(content)
+        const text = (await this.htmlReader.parseContent(content)).trim()
 
         if (!text) {
           continue
