@@ -103,7 +103,8 @@ const PROMPT_VARIABLES: { name: string; i18n: string }[] = [
   { name: '{{arch}}', i18n: 'library.config.prompt.vars.arch' },
   { name: '{{language}}', i18n: 'library.config.prompt.vars.language' },
   { name: '{{model_name}}', i18n: 'library.config.prompt.vars.model_name' },
-  { name: '{{username}}', i18n: 'library.config.prompt.vars.username' }
+  { name: '{{username}}', i18n: 'library.config.prompt.vars.username' },
+  { name: '{{assistant_name}}', i18n: 'library.config.prompt.vars.assistant_name' }
 ]
 
 export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '200px'
