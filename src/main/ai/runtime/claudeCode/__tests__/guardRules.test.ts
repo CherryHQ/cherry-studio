@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, symlink } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -574,6 +574,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
           makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: path.join(agentDataPath, 'b.txt') } })
         )
       ).resolves.toBeUndefined()
+    })
+
+    it.skipIf(process.platform === 'win32')('asks for a dangling symlink that points outside', async () => {
+      const link = path.join(cwd, 'dangling-file')
+      await symlink(path.join(root, 'missing.txt'), link)
+      const decision = await evaluate(makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: link } }))
+      expect(decision?.ruleId).toBe('workspace-escape')
+    })
+
+    it('asks for a new file below a dangling directory symlink that points outside', async () => {
+      const link = path.join(cwd, 'dangling-dir')
+      await symlink(path.join(root, 'missing-dir'), link, process.platform === 'win32' ? 'junction' : 'dir')
+      const decision = await evaluate(
+        makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: path.join(link, 'new.txt') } })
+      )
+      expect(decision?.ruleId).toBe('workspace-escape')
     })
 
     it('is lifted by bypassPermissions (matches the pierced ask it replaces)', async () => {
