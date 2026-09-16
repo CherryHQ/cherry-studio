@@ -6,6 +6,7 @@ import { apiGatewayHandlers } from './apiGateway'
 import { appHandlers } from './app'
 import { backupHandlers } from './backup'
 import { binaryHandlers } from './binary'
+import { browserHandlers } from './browser'
 import { channelHandlers } from './channel'
 import { cherryCloudHandlers } from './cherryCloud'
 import { cherryinHandlers } from './cherryin'
@@ -56,6 +57,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...appHandlers,
   ...backupHandlers,
   ...binaryHandlers,
+  ...browserHandlers,
   ...channelHandlers,
   ...cherryinHandlers,
   ...cherryCloudHandlers,

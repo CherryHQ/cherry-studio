@@ -109,7 +109,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('classifies only proven heartbeat sessions while preserving conversation data', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0022_complex_dexter_bennett'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0023_first_dexter_bennett'))
     const now = Date.now()
     sqlite
       .prepare(`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)

@@ -387,6 +387,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
+  'ui.browser.import_prompt_hidden': boolean
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
   // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
   // restart. Main window only — written from TabsContext, gated on includePinnedTabs.
@@ -454,6 +455,7 @@ export type RendererPersistCacheSchema = {
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
+  'ui.browser.import_prompt_hidden': false,
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],
   'ui.tab.active_tab_id': '',
@@ -508,6 +510,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  'browser.favicons': Record<string, string>
   // Last completed automatic-backup attempt (or manual backup) per backend.
   // AutoBackupService owns this restart-safe scheduling baseline.
   'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
@@ -522,6 +525,7 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'browser.favicons': {},
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'internal.persist_probe': 0,
   'window.bounds': {}
