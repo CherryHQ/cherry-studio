@@ -84,6 +84,50 @@ class MockAdapter extends ChannelAdapter {
   }
 }
 
+class AbortableConnectAdapter extends ChannelAdapter {
+  connectStarted = false
+  connectAborted = false
+  disconnected = false
+  private rejectConnectPromise: ((reason: Error) => void) | undefined
+  private releaseConnectPromise: (() => void) | undefined
+
+  sendMessage = vi.fn().mockResolvedValue(undefined)
+  sendTypingIndicator = vi.fn().mockResolvedValue(undefined)
+
+  constructor(
+    config: ChannelAdapterConfig,
+    private readonly rejectOnAbort = true
+  ) {
+    super(config)
+  }
+
+  rejectConnect(): void {
+    this.rejectConnectPromise?.(new Error('connect aborted'))
+  }
+
+  releaseConnect(): void {
+    this.releaseConnectPromise?.()
+  }
+
+  protected async performConnect(signal: AbortSignal): Promise<void> {
+    this.connectStarted = true
+    await new Promise<void>((resolve, reject) => {
+      this.releaseConnectPromise = resolve
+      this.rejectConnectPromise = reject
+      const abort = () => {
+        this.connectAborted = true
+        if (this.rejectOnAbort) reject(new Error('connect aborted'))
+      }
+      if (signal.aborted) abort()
+      else signal.addEventListener('abort', abort, { once: true })
+    })
+  }
+
+  protected async performDisconnect(): Promise<void> {
+    this.disconnected = true
+  }
+}
+
 // Track adapters created by the factory
 let createdAdapters: MockAdapter[] = []
 let channelManager: ChannelManager
@@ -562,41 +606,73 @@ describe('ChannelManager', () => {
     expect(channelManager.getAgentAdapters('agent-1')).toEqual([createdAdapters[1]])
   })
 
-  it('does not leave an in-flight Agent restore connected after the manager stops', async () => {
+  it('aborts an in-flight connection while stopping instead of waiting for connect to finish', async () => {
     const channel = makeChannelRow()
-    const connectDeferred = createDeferred()
-    let transportConnected = false
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([]).mockReturnValueOnce([channel])
-    vi.mocked(channelService.getChannel).mockReturnValue(channel)
+    let adapter: AbortableConnectAdapter | undefined
+    mockStoredChannels([channel])
     registerAdapterFactory('telegram', (channel, agentId) => {
-      const adapter = new MockAdapter({
+      adapter = new AbortableConnectAdapter({
         channelId: channel.id,
         channelType: channel.type,
         agentId,
         channelConfig: channel.config
       })
-      adapter.connect.mockImplementation(async () => {
-        await connectDeferred.promise
-        transportConnected = true
-      })
-      adapter.disconnect.mockImplementation(async () => {
-        transportConnected = false
-      })
-      createdAdapters.push(adapter)
       return adapter
     })
-    await channelManager._doInit()
+    await channelManager.start()
+    await vi.waitFor(() => expect(adapter?.connectStarted).toBe(true))
 
-    for (const listener of mocks.restoredListeners) listener({ agentId: 'agent-1' })
-    await vi.waitFor(() => expect(createdAdapters[0].connect).toHaveBeenCalledTimes(1))
+    const stopping = channelManager.stop()
+    try {
+      await vi.waitFor(() => expect(adapter?.connectAborted).toBe(true), { timeout: 100, interval: 5 })
+    } finally {
+      adapter?.releaseConnect()
+      await stopping
+    }
 
-    const stop = channelManager._doStop()
-    connectDeferred.resolve()
-    await stop
+    expect(adapter?.disconnected).toBe(true)
+    expect(channelManager.getAdapter('ch-1')).toBeUndefined()
+  })
+
+  it('does not let a superseded connection failure overwrite the replacement status', async () => {
+    const channel = makeChannelRow()
+    let staleAdapter: AbortableConnectAdapter | undefined
+    let replacementAdapter: MockAdapter | undefined
+    let adapterCount = 0
+    mockStoredChannels([channel])
+    registerAdapterFactory('telegram', (channel, agentId) => {
+      const config = {
+        channelId: channel.id,
+        channelType: channel.type,
+        agentId,
+        channelConfig: channel.config
+      }
+      adapterCount++
+      if (adapterCount === 1) {
+        staleAdapter = new AbortableConnectAdapter(config, false)
+        return staleAdapter
+      }
+      replacementAdapter = new MockAdapter(config)
+      return replacementAdapter
+    })
+    await channelManager.start()
+    await vi.waitFor(() => expect(staleAdapter?.connectStarted).toBe(true))
+
+    await channelManager.syncChannel('ch-1', { awaitConnect: true })
+    expect(staleAdapter?.connectAborted).toBe(true)
+    replacementAdapter?.emit('statusChange', { channelId: 'ch-1', connected: true })
+    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-1')).toEqual({
+      channelId: 'ch-1',
+      connected: true
+    })
+
+    staleAdapter?.rejectConnect()
     await flush()
 
-    expect(transportConnected).toBe(false)
-    expect(channelManager.getAdapter('ch-1')).toBeUndefined()
+    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-1')).toEqual({
+      channelId: 'ch-1',
+      connected: true
+    })
   })
 
   it('does not let a sync begun before stop reconnect under the restarted manager generation', async () => {

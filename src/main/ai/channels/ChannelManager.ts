@@ -243,37 +243,10 @@ export class ChannelManager extends BaseService {
     awaitCompletion: boolean,
     work: () => Promise<ChannelTransitionWork>
   ): Promise<void> {
-    if (awaitCompletion) {
-      await this.channelTransitions.runExclusive(channelId, async () => {
-        const transition = await work()
-        await transition.completion
-      })
-      return
-    }
-
-    let resolveStarted!: () => void
-    let rejectStarted!: (reason: unknown) => void
-    let startedSettled = false
-    const started = new Promise<void>((resolve, reject) => {
-      resolveStarted = resolve
-      rejectStarted = reject
-    })
-    const completion = this.channelTransitions.runExclusive(channelId, async () => {
-      try {
-        const transition = await work()
-        startedSettled = true
-        resolveStarted()
-        await transition.completion
-      } catch (error) {
-        if (!startedSettled) {
-          startedSettled = true
-          rejectStarted(error)
-        }
-        throw error
-      }
-    })
-    this.trackPendingConnection(completion)
-    await started
+    const transition = await this.channelTransitions.runExclusive(channelId, work)
+    if (!transition.completion) return
+    if (awaitCompletion) return transition.completion
+    this.trackPendingConnection(transition.completion)
   }
 
   private trackPendingConnection(connection: Promise<void>): void {
@@ -308,6 +281,14 @@ export class ChannelManager extends BaseService {
     const ownership = this.adapters.get(channelId)
     if (!ownership) return true
 
+    return this.disconnectAdapterOwnership(channelId, ownership, suppressErrors)
+  }
+
+  private async disconnectAdapterOwnership(
+    channelId: string,
+    ownership: AdapterOwnership,
+    suppressErrors: boolean
+  ): Promise<boolean> {
     ownership.quarantined = true
     try {
       await ownership.adapter.disconnect()
@@ -322,7 +303,10 @@ export class ChannelManager extends BaseService {
       })
       return false
     } finally {
-      this.publishStatus({ channelId: ownership.adapter.channelId, connected: false })
+      const current = this.adapters.get(channelId)
+      if (!current || current === ownership) {
+        this.publishStatus({ channelId: ownership.adapter.channelId, connected: false })
+      }
     }
   }
 
@@ -632,12 +616,13 @@ export class ChannelManager extends BaseService {
             current.agentId !== agentId ||
             !canConnectChannel(current)
           ) {
-            await this.disconnectOwnedAdapter(key, true)
+            await this.disconnectAdapterOwnership(key, ownership, true)
             return
           }
           logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type })
         } catch (error) {
-          if (this.adapters.get(key) === ownership) this.adapters.delete(key)
+          if (!this.isAdapterEventCurrent(key, ownership)) return
+          this.adapters.delete(key)
           logger.error('Failed to connect channel adapter', {
             agentId,
             channelId: row.id,

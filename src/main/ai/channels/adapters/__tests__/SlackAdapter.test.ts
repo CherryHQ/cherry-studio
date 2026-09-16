@@ -217,6 +217,29 @@ describe('SlackAdapter', () => {
     expect(wsRef.close).toHaveBeenCalled()
   })
 
+  it('aborts a stalled startup request when disconnected', async () => {
+    let startupSignal: AbortSignal | undefined
+    let rejectStartup!: (error: Error) => void
+    mockNetFetch.mockImplementation((_url: string, init?: RequestInit) => {
+      startupSignal = init?.signal ?? undefined
+      return new Promise((_resolve, reject) => {
+        rejectStartup = reject
+        startupSignal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+      })
+    })
+    const adapter = createAdapter()
+
+    const connecting = adapter.connect()
+    await vi.waitFor(() => expect(mockNetFetch).toHaveBeenCalled())
+
+    const observedSignal = startupSignal
+    await adapter.disconnect()
+    if (!observedSignal) rejectStartup(new Error('test cleanup'))
+    await expect(connecting).resolves.toBeUndefined()
+    expect(observedSignal).toBeInstanceOf(AbortSignal)
+    expect(mockWsInstance).toBeNull()
+  })
+
   // ─── Message Sending ──────────────────────────────────────
 
   it('sendMessage() calls chat.postMessage with correct params', async () => {
