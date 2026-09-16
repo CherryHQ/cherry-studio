@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@cherrystudio/ui'
@@ -194,17 +194,7 @@ const DeleteDialogContent: FC<{
   resource: Extract<ResourceItem, { type: 'skill' | 'prompt' }>
   onClose: () => void
   onDelete: () => Promise<void>
-  title?: string
-  description?: string
-  confirmText?: string
-}> = ({
-  resource,
-  onClose,
-  onDelete,
-  title: titleOverride,
-  description: descriptionOverride,
-  confirmText: confirmTextOverride
-}) => {
+}> = ({ resource, onClose, onDelete }) => {
   const { t } = useTranslation()
   const [pending, setPending] = useState(false)
 
@@ -220,26 +210,9 @@ const DeleteDialogContent: FC<{
     }
   }, [onDelete, t])
 
-  const { title, description, confirmText } = useMemo(() => {
-    if (titleOverride && confirmTextOverride) {
-      return { title: titleOverride, description: descriptionOverride, confirmText: confirmTextOverride }
-    }
-    if (resource.type === 'skill') {
-      return {
-        title: t('library.delete.skill.title'),
-        description: t('library.delete.skill.content'),
-        confirmText: t('library.action.uninstall')
-      }
-    }
-    if (resource.type === 'prompt') {
-      return {
-        title: t('settings.prompts.delete'),
-        description: t('settings.prompts.deleteConfirm'),
-        confirmText: t('common.delete')
-      }
-    }
-    return { title: '', description: undefined, confirmText: '' }
-  }, [confirmTextOverride, descriptionOverride, resource.type, t, titleOverride])
+  const title = t(resource.type === 'skill' ? 'library.delete.skill.title' : 'settings.prompts.delete')
+  const description = t(resource.type === 'skill' ? 'library.delete.skill.content' : 'settings.prompts.deleteConfirm')
+  const confirmText = t(resource.type === 'skill' ? 'library.action.uninstall' : 'common.delete')
 
   return (
     <ConfirmDialog
