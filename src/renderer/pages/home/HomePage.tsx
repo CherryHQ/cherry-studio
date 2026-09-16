@@ -518,16 +518,19 @@ const HomePage: FC = () => {
     toggleHistoryRecords()
   }, [toggleHistoryRecords])
   const handleHistoryRecordsTopicSelect = useCallback(
-    (topic: Topic | null) => {
+    (topic: Topic) => {
       closeHistoryRecords()
-      if (!topic) {
-        void createAndActivateEmptyTopic()
-        return
-      }
-
       handleHistoryTopicSelect(topic)
     },
-    [closeHistoryRecords, createAndActivateEmptyTopic, handleHistoryTopicSelect]
+    [closeHistoryRecords, handleHistoryTopicSelect]
+  )
+  const handleHistoryActiveTopicChange = useCallback(
+    (topic: Topic | null) => {
+      clearLocate()
+      if (topic) setActiveTopic(topic)
+      else reenterChatRoute()
+    },
+    [clearLocate, reenterChatRoute, setActiveTopic]
   )
   const handleGlobalSearchTopicSelect = useEffectEvent((topic: Topic, messageId?: string) => {
     handleHistoryTopicSelect(topic, messageId)
@@ -589,6 +592,7 @@ const HomePage: FC = () => {
             activeRecordId={activeTopicId}
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsTopicSelect}
+            onActiveRecordChange={handleHistoryActiveTopicChange}
             toolbarLeading={
               !isWindowFrame ? (
                 <ConversationSidebarToggleButton
