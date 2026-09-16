@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import i18n from '@renderer/i18n/resolver'
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import { languageEnglishNameMap } from '@shared/utils/languages'
 
 interface UseSmoothStreamOptions {
   onUpdate: (text: string) => void
@@ -10,20 +12,7 @@ interface UseSmoothStreamOptions {
   initialText?: string
 }
 
-const languages = [
-  'en-US',
-  'de-DE',
-  'es-ES',
-  'zh-CN',
-  'zh-TW',
-  'ja-JP',
-  'ru-RU',
-  'el-GR',
-  'fr-FR',
-  'pt-PT',
-  'ro-RO',
-  'th-TH'
-]
+const segmenterLocales = Object.keys(languageEnglishNameMap) as LanguageVarious[]
 const segmenters = new Map<string, Intl.Segmenter>()
 /**
  * `Intl.Segmenter` resolves a single locale for its lifetime — it does not
@@ -34,7 +23,7 @@ const segmenters = new Map<string, Intl.Segmenter>()
  * only yields characters.
  */
 export const getSegmenter = (locale?: string): Intl.Segmenter => {
-  const key = languages.find((l) => l.toLowerCase() === (locale || '').toLowerCase()) ?? 'en-US'
+  const key = segmenterLocales.find((l) => l.toLowerCase() === (locale || '').toLowerCase()) ?? 'en-US'
   let segmenter = segmenters.get(key)
   if (!segmenter) {
     segmenter = new Intl.Segmenter(key, { granularity: 'word' })
