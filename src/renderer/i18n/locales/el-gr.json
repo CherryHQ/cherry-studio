@@ -4046,6 +4046,8 @@
   "settings.general.avatar.reset": "Επαναφορά εικονιδίου",
   "settings.general.backup.button": "Αντιγραφή ασφαλείας",
   "settings.general.backup.title": "Αντιγραφή ασφαλείας και αποκατάσταση δεδομένων",
+  "settings.general.commit_attribution.description": "Επιτρέπει στους agents να προσθέτουν την απόδοση Claude Code στα git commits και τα pull requests που δημιουργούν. Απενεργοποιήστε το για να κρυφτεί.",
+  "settings.general.commit_attribution.title": "Απόδοση στα commits",
   "settings.general.common.menu.presentation_mode.cherry": "Κεράσι",
   "settings.general.common.menu.presentation_mode.native": "Εγγενές",
   "settings.general.common.menu.presentation_mode.restart.content": "Η αλλαγή του στυλ του μενού απαιτεί επανεκκίνηση της εφαρμογής για να τεθεί σε ισχύ. Θέλετε να γίνει επανεκκίνηση τώρα;",

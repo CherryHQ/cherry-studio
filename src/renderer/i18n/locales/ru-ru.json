@@ -4046,6 +4046,8 @@
   "settings.general.avatar.reset": "Сброс аватара",
   "settings.general.backup.button": "Резервное копирование",
   "settings.general.backup.title": "Резервное копирование и восстановление данных",
+  "settings.general.commit_attribution.description": "Разрешить агентам добавлять указание авторства Claude Code в создаваемые ими git-коммиты и pull request'ы. Отключите, чтобы скрыть его.",
+  "settings.general.commit_attribution.title": "Указание авторства в коммитах",
   "settings.general.common.menu.presentation_mode.cherry": "Вишня",
   "settings.general.common.menu.presentation_mode.native": "Родной",
   "settings.general.common.menu.presentation_mode.restart.content": "Изменение стиля меню требует перезапуска приложения для вступления изменений в силу. Перезапустить сейчас?",

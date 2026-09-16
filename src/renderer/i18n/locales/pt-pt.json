@@ -4046,6 +4046,8 @@
   "settings.general.avatar.reset": "Redefinir avatar",
   "settings.general.backup.button": "Backup",
   "settings.general.backup.title": "Backup e restauração de dados",
+  "settings.general.commit_attribution.description": "Permitir que os agentes adicionem a atribuição do Claude Code aos commits git e pull requests que criam. Desative para a ocultar.",
+  "settings.general.commit_attribution.title": "Atribuição dos commits",
   "settings.general.common.menu.presentation_mode.cherry": "Cherry",
   "settings.general.common.menu.presentation_mode.native": "Nativo",
   "settings.general.common.menu.presentation_mode.restart.content": "Alterar o estilo do menu exige reiniciar a aplicação para que as alterações entrem em vigor. Deseja reiniciar agora?",

@@ -4046,6 +4046,8 @@
   "settings.general.avatar.reset": "重置头像",
   "settings.general.backup.button": "备份",
   "settings.general.backup.title": "数据备份与恢复",
+  "settings.general.commit_attribution.description": "允许智能体在它创建的 git 提交和 PR 中署名 Claude Code。关闭后将不再署名。",
+  "settings.general.commit_attribution.title": "提交署名",
   "settings.general.common.menu.presentation_mode.cherry": "Cherry",
   "settings.general.common.menu.presentation_mode.native": "原生",
   "settings.general.common.menu.presentation_mode.restart.content": "更改菜单样式需要重启应用才能生效，是否现在重启？",

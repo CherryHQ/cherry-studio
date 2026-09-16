@@ -4046,6 +4046,8 @@
   "settings.general.avatar.reset": "Avatar zurücksetzen",
   "settings.general.backup.button": "Sichern",
   "settings.general.backup.title": "Datensicherung und -wiederherstellung",
+  "settings.general.commit_attribution.description": "Agenten dürfen die von ihnen erstellten Git-Commits und Pull Requests mit Claude Code kennzeichnen. Deaktiviert unterbleibt die Kennzeichnung.",
+  "settings.general.commit_attribution.title": "Namensnennung bei Commits",
   "settings.general.common.menu.presentation_mode.cherry": "Kirsche",
   "settings.general.common.menu.presentation_mode.native": "Nativ",
   "settings.general.common.menu.presentation_mode.restart.content": "Das Ändern des Menüstils erfordert einen Neustart der App, damit die Änderung wirksam wird. Möchten Sie jetzt neu starten?",

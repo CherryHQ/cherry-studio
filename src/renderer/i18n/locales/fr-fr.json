@@ -4046,6 +4046,8 @@
   "settings.general.avatar.reset": "Réinitialiser l'avatar",
   "settings.general.backup.button": "Sauvegarder",
   "settings.general.backup.title": "Sauvegarde et restauration des données",
+  "settings.general.commit_attribution.description": "Autoriser les agents à ajouter l'attribution Claude Code aux commits git et aux pull requests qu'ils créent. Désactivez-la pour la masquer.",
+  "settings.general.commit_attribution.title": "Attribution des commits",
   "settings.general.common.menu.presentation_mode.cherry": "Cerise",
   "settings.general.common.menu.presentation_mode.native": "Natif",
   "settings.general.common.menu.presentation_mode.restart.content": "Changer le style du menu nécessite de redémarrer l'application pour prendre effet. Voulez-vous redémarrer maintenant ?",

@@ -4046,6 +4046,8 @@
   "settings.general.avatar.reset": "アバターをリセット",
   "settings.general.backup.button": "バックアップ",
   "settings.general.backup.title": "データのバックアップと復元",
+  "settings.general.commit_attribution.description": "エージェントが作成する git コミットとプルリクエストに Claude Code の帰属表示を付けます。オフにすると表示されません。",
+  "settings.general.commit_attribution.title": "コミットの帰属表示",
   "settings.general.common.menu.presentation_mode.cherry": "桜",
   "settings.general.common.menu.presentation_mode.native": "ネイティブ",
   "settings.general.common.menu.presentation_mode.restart.content": "メニュースタイルを変更するには、アプリを再起動する必要があります。今すぐ再起動しますか？",
