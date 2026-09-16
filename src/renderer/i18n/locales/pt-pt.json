@@ -5082,7 +5082,7 @@
   "settings.usage.table.tps": "TPS",
   "settings.usage.table.tpsValue": "{{value}} tok/s",
   "settings.usage.table.ttft": "TTFT",
-  "settings.usage.title": "Análise de Uso",
+  "settings.usage.title": "Informações pessoais",
   "settings.usage.tooltip.cost": "Custo {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} pedido",
   "settings.usage.tooltip.requests_other": "{{count}} pedidos",

@@ -5082,7 +5082,7 @@
   "settings.usage.table.tps": "TPS",
   "settings.usage.table.tpsValue": "{{value}} ток/с",
   "settings.usage.table.ttft": "TTFT",
-  "settings.usage.title": "Аналитика использования",
+  "settings.usage.title": "Личная информация",
   "settings.usage.tooltip.cost": "Стоимость {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} запрос",
   "settings.usage.tooltip.requests_other": "{{count}} запроса",

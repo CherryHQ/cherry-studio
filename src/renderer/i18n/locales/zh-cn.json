@@ -5082,7 +5082,7 @@
   "settings.usage.table.tps": "TPS",
   "settings.usage.table.tpsValue": "{{value}} tok/s",
   "settings.usage.table.ttft": "TTFT",
-  "settings.usage.title": "用量统计",
+  "settings.usage.title": "个人信息",
   "settings.usage.tooltip.cost": "成本 {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} 个请求",
   "settings.usage.tooltip.requests_other": "{{count}} 个请求",

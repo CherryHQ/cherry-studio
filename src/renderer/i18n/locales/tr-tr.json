@@ -5082,7 +5082,7 @@
   "settings.usage.table.tps": "TPS",
   "settings.usage.table.tpsValue": "{{value}} tok/s",
   "settings.usage.table.ttft": "TTFT",
-  "settings.usage.title": "Kullanım Analizi",
+  "settings.usage.title": "Kişisel Bilgiler",
   "settings.usage.tooltip.cost": "Maliyet {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} istek",
   "settings.usage.tooltip.requests_other": "{{count}} istek",

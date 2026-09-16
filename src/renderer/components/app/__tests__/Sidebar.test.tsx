@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   setActiveTab: vi.fn(),
   showUpdatePopup: vi.fn(),
+  openSettingsTab: vi.fn(),
   useMiniApps: vi.fn(),
   updateTab: vi.fn(),
   activeTab: {
@@ -189,6 +190,11 @@ vi.mock('../../layout/ShellTabBarActions', () => ({
   AppUpdateButton: () => (
     <button type="button" aria-label="Install update" onClick={mocks.showUpdatePopup}>
       update
+    </button>
+  ),
+  SidebarSettingsButton: () => (
+    <button type="button" aria-label="Settings" onClick={() => mocks.openSettingsTab()}>
+      settings
     </button>
   )
 }))
@@ -496,9 +502,9 @@ describe('app Sidebar', () => {
     expect(container.querySelector('#app-sidebar')).toHaveAttribute('data-ui', 'app.sidebar')
     expect(screen.queryByText('Cherry Studio')).not.toBeInTheDocument()
     expect(screen.getByTestId('sidebar-footer-user')).toHaveTextContent('JD')
+    expect(within(screen.getByTestId('sidebar-footer-user')).getByRole('button', { name: 'Settings' })).toBeVisible()
     expect(within(screen.getByTestId('sidebar-footer-user')).getByRole('button', { name: 'Help' })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Install update' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument()
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'JD' }))
@@ -520,6 +526,16 @@ describe('app Sidebar', () => {
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
   })
 
+  it('opens settings from the footer icon without opening the account menu', async () => {
+    const user = userEvent.setup()
+    render(<Sidebar />)
+
+    await user.click(within(screen.getByTestId('sidebar-footer-user')).getByRole('button', { name: 'Settings' }))
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith()
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+  })
+
   it('keeps the full footer update action independent from the account menu', async () => {
     const user = userEvent.setup()
     mocks.sidebarWidth = 180
@@ -527,9 +543,11 @@ describe('app Sidebar', () => {
 
     const footer = screen.getByTestId('sidebar-footer-user')
     const accountButton = within(footer).getByRole('button', { name: 'JD' })
+    const settingsButton = within(footer).getByRole('button', { name: 'Settings' })
     const helpButton = within(footer).getByRole('button', { name: 'Help' })
     const updateButton = within(footer).getByRole('button', { name: 'Install update' })
-    expect(accountButton.compareDocumentPosition(helpButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(accountButton.compareDocumentPosition(settingsButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(settingsButton.compareDocumentPosition(helpButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(helpButton.compareDocumentPosition(updateButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     await user.click(updateButton)

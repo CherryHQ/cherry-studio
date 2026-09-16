@@ -24,7 +24,7 @@ import {
 } from '@renderer/utils/sidebar'
 
 import { HelpMenu } from '../layout/HelpMenu'
-import { AppUpdateButton } from '../layout/ShellTabBarActions'
+import { AppUpdateButton, SidebarSettingsButton } from '../layout/ShellTabBarActions'
 import {
   getSidebarDisplayWidth,
   getSidebarLayout,
@@ -84,7 +84,6 @@ export default function Sidebar({
   const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const [isEditingUserName, setIsEditingUserName] = useState(false)
   const [hoverVisible, setHoverVisible] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
   const layout = getSidebarLayout(activeSidebarWidth)
@@ -113,7 +112,6 @@ export default function Sidebar({
   const handleUserMenuOpenChange = useCallback(
     (open: boolean) => {
       setUserMenuOpen(open)
-      if (!open) setIsEditingUserName(false)
       if (!open && layout === 'hidden') setHoverVisible(false)
     },
     [layout]
@@ -142,15 +140,8 @@ export default function Sidebar({
         side="top"
         sideOffset={8}
         className="w-56 rounded-md p-0"
-        onClick={(event) => event.stopPropagation()}
-        onEscapeKeyDown={(event) => {
-          if (isEditingUserName) event.preventDefault()
-        }}>
-        <UserAccountPanel
-          active={userMenuOpen}
-          onEditingUserNameChange={setIsEditingUserName}
-          onRequestClose={() => handleUserMenuOpenChange(false)}
-        />
+        onClick={(event) => event.stopPropagation()}>
+        <UserAccountPanel active={userMenuOpen} onRequestClose={() => handleUserMenuOpenChange(false)} />
       </PopoverContent>
     ) : null
 
@@ -393,6 +384,7 @@ export default function Sidebar({
     user: sidebarUser,
     userAction: (_footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
       <>
+        <SidebarSettingsButton />
         <HelpMenu layout="icon" onFeedbackClick={handleOpenFeedback} onOverlayOpenChange={onOverlayOpenChange} />
         {layout === 'full' ? <AppUpdateButton placement="top" /> : null}
       </>

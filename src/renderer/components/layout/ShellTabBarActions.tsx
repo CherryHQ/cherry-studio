@@ -14,6 +14,24 @@ import { WindowControls } from '../WindowControls'
 
 const logger = loggerService.withContext('ShellTabBarActions')
 
+export function SidebarSettingsButton() {
+  const { t } = useTranslation()
+
+  return (
+    <Tooltip content={t('settings.title')} placement="right" delay={800}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={t('settings.title')}
+        onClick={() => openSettingsTab()}
+        className="flex size-7 items-center justify-center rounded-none bg-transparent text-muted-foreground opacity-55 shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-100 focus-visible:bg-transparent focus-visible:text-foreground focus-visible:opacity-100 active:bg-transparent dark:text-muted-foreground dark:hover:text-foreground [&_svg]:text-current">
+        <Settings size={18} strokeWidth={1.6} />
+      </Button>
+    </Tooltip>
+  )
+}
+
 export function AppUpdateButton({ placement = 'bottom' }: { placement?: 'top' | 'right' | 'bottom' | 'left' }) {
   const { t } = useTranslation()
   const { appUpdateState } = useAppUpdateState()

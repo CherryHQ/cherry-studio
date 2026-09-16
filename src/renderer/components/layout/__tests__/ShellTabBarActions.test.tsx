@@ -89,7 +89,7 @@ vi.mock('../../WindowControls', () => ({
   WindowControls: () => null
 }))
 
-import { AppUpdateButton, ShellTabBarActions } from '../ShellTabBarActions'
+import { AppUpdateButton, ShellTabBarActions, SidebarSettingsButton } from '../ShellTabBarActions'
 
 afterEach(() => {
   cleanup()
@@ -200,6 +200,20 @@ describe('ShellTabBarActions', () => {
 
     await user.click(screen.getByRole('button', { name: /settings/i }))
 
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith()
+  })
+})
+
+describe('SidebarSettingsButton', () => {
+  it('opens settings without a circular hover disc', async () => {
+    const user = userEvent.setup()
+    render(<SidebarSettingsButton />)
+
+    const button = screen.getByRole('button', { name: 'Settings' })
+    expect(button).toHaveClass('hover:bg-transparent', 'hover:opacity-100', 'hover:text-foreground')
+    expect(button).not.toHaveClass('rounded-full')
+
+    await user.click(button)
     expect(mocks.openSettingsTab).toHaveBeenCalledWith()
   })
 })

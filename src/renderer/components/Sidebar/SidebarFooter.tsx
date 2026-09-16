@@ -38,7 +38,7 @@ function IconFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
     <button
       type="button"
       aria-label={user.name}
-      className="flex size-9 items-center justify-center rounded-full transition-colors hover:bg-accent/60"
+      className="flex size-9 items-center justify-center rounded-none bg-transparent transition-colors hover:bg-transparent hover:opacity-80 active:bg-transparent"
       onClick={user.onClick}>
       <UserAvatar user={user} className="size-6" />
     </button>
@@ -51,7 +51,7 @@ function IconFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
           <button
             type="button"
             onClick={onExtensionsClick}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+            className="flex h-9 w-9 items-center justify-center bg-transparent text-muted-foreground opacity-55 transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-100">
             <Columns2 size={18} strokeWidth={1.6} />
           </button>
         </SidebarTooltip>
@@ -68,20 +68,20 @@ function FullFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
     <button
       type="button"
       aria-label={user.name}
-      className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors hover:bg-accent/60"
+      className="flex min-w-0 flex-1 items-center gap-2 rounded-none py-1.5 pr-1 pl-2 text-left transition-colors hover:bg-transparent hover:opacity-80 active:bg-transparent"
       onClick={user.onClick}>
       <UserAvatar user={user} className="size-6 shrink-0" />
-      <span className="min-w-0 flex-1 truncate text-[13px] text-sidebar-foreground">{user.name}</span>
+      <span className="min-w-0 truncate text-[13px] text-sidebar-foreground">{user.name}</span>
     </button>
   ) : null
 
   return (
-    <div className="space-y-1 px-2 py-2 [-webkit-app-region:no-drag]">
+    <div className="space-y-1 py-2 pr-1 pl-2 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <button
           type="button"
           onClick={onExtensionsClick}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+          className="flex w-full items-center gap-2.5 px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground">
           <Columns2 size={16} strokeWidth={1.6} />
           <span>{extensionsLabel}</span>
         </button>
@@ -90,9 +90,9 @@ function FullFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
       {actions}
 
       {userButton ? (
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 items-center">
           {renderUserTrigger?.(userButton) ?? userButton}
-          {userAction}
+          <div className="ml-auto flex shrink-0 items-center">{userAction}</div>
         </div>
       ) : null}
     </div>

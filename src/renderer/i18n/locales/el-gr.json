@@ -5082,7 +5082,7 @@
   "settings.usage.table.tps": "TPS",
   "settings.usage.table.tpsValue": "{{value}} tok/s",
   "settings.usage.table.ttft": "TTFT",
-  "settings.usage.title": "Αναλυτικά Στοιχεία Χρήσης",
+  "settings.usage.title": "Προσωπικές πληροφορίες",
   "settings.usage.tooltip.cost": "Κόστος {{value}}",
   "settings.usage.tooltip.requests_one": "{{count}} αίτημα",
   "settings.usage.tooltip.requests_other": "{{count}} αιτήματα",
