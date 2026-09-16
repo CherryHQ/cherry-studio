@@ -141,6 +141,13 @@ test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
+  await openSettingsSection(page, 'API Gateway')
+  const startGateway = page.getByRole('button', { name: 'Start', exact: true })
+  const stopGateway = page.getByRole('button', { name: 'Stop', exact: true })
+  await expect(startGateway.or(stopGateway)).toBeVisible()
+  if (await startGateway.isVisible()) await startGateway.click()
+  await expect(stopGateway).toBeVisible({ timeout: 30_000 })
+  await closeSettings(page)
   await startNewAgentTask(page, 'Cherry Assistant')
   const agentView = page.locator('[data-ui~="agent.view"]:visible')
   await agentView

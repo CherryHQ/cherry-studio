@@ -2,18 +2,18 @@ import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
 export async function dismissTransientDialogs(page: Page): Promise<void> {
-  // Close the model-picker popover before dismissing its parent configuration dialog.
+  // Escape also closes popovers; repeated presses let nested dialogs finish their exit animations.
   await page.keyboard.press('Escape')
-  const dialogs = page.getByRole('dialog')
-  for (let count = await dialogs.count(); count > 0; count -= 1) {
-    const dismiss = dialogs
-      .last()
-      .getByRole('button', { name: /^(Cancel|Close)$/ })
-      .last()
-    if (await dismiss.isVisible()) await dismiss.click()
-    else await page.keyboard.press('Escape')
-    await expect(dialogs).toHaveCount(count - 1, { timeout: 5_000 })
-  }
+  await expect
+    .poll(
+      async () => {
+        const count = await page.getByRole('dialog').count()
+        if (count > 0) await page.keyboard.press('Escape')
+        return count
+      },
+      { timeout: 10_000 }
+    )
+    .toBe(0)
 }
 
 export async function dismissOnboarding(page: Page): Promise<void> {

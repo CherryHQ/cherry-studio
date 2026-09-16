@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { vi } from 'vitest'
 
@@ -33,8 +34,9 @@ it('closes only the owned TextEdit document without quitting the application', (
   closeExternalText('macos')
   const [command, args] = execFileSync.mock.calls[0]
   expect(command).toBe('osascript')
-  expect(args.slice(-2)).toEqual(['--', filePath])
-  expect(args[1]).toContain('if path of doc is item 1 of argv then close doc saving no')
+  expect(args.slice(-2)).toEqual(['--', pathToFileURL(filePath).href])
+  expect(args[1]).toContain('if value of attribute "AXDocument" of docWindow is item 1 of argv then')
+  expect(args[1]).not.toContain('tell application "TextEdit"')
   expect(args[1]).not.toMatch(/\bquit\b/)
   execFileSync.mockClear()
   closeExternalText('macos')
@@ -53,5 +55,5 @@ it('retains the document for cleanup when activation or closing fails', () => {
   expect(() => closeExternalText('macos')).toThrow('Automation denied')
   execFileSync.mockReset()
   closeExternalText('macos')
-  expect(execFileSync.mock.calls[0][1].at(-1)).toBe(filePath)
+  expect(execFileSync.mock.calls[0][1].at(-1)).toBe(pathToFileURL(filePath).href)
 })

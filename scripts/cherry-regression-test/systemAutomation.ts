@@ -16,15 +16,24 @@ export function closeExternalText(platform: Platform): void {
   if (platform === 'macos' && activeMacTextFixturePath) {
     const script = [
       'on run argv',
-      'if application "TextEdit" is not running then return',
-      'tell application "TextEdit"',
-      'repeat with doc in (get documents)',
-      'if path of doc is item 1 of argv then close doc saving no',
+      'tell application "System Events"',
+      'if not (exists process "TextEdit") then return',
+      'tell process "TextEdit"',
+      'repeat with docWindow in windows',
+      'if exists attribute "AXDocument" of docWindow then',
+      'if value of attribute "AXDocument" of docWindow is item 1 of argv then',
+      'click (first button of docWindow whose subrole is "AXCloseButton")',
+      'end if',
+      'end if',
       'end repeat',
+      'end tell',
       'end tell',
       'end run'
     ].join('\n')
-    execFileSync('osascript', ['-e', script, '--', activeMacTextFixturePath], { stdio: 'ignore', timeout: 10_000 })
+    execFileSync('osascript', ['-e', script, '--', pathToFileURL(activeMacTextFixturePath).href], {
+      stdio: 'ignore',
+      timeout: 10_000
+    })
     activeMacTextFixturePath = undefined
     return
   }
@@ -214,20 +223,39 @@ export function chooseNativeFile(platform: Platform, paths: RunPaths, candidateP
     const script = [
       'on run argv',
       'tell application "System Events"',
-      'set frontmost of first application process whose unix id is (item 2 of argv as integer) to true',
-      'delay 0.5',
+      'tell (first application process whose unix id is (item 2 of argv as integer))',
+      'set frontmost to true',
+      'repeat 100 times',
+      'if exists button "Open" of splitter group 1 of window 1 then exit repeat',
+      'delay 0.1',
+      'end repeat',
+      'if not (exists button "Open" of splitter group 1 of window 1) then error "Native file dialog was not found"',
       'keystroke "g" using {command down, shift down}',
-      'delay 1',
-      'keystroke (item 1 of argv)',
+      'repeat 100 times',
+      'if exists text field 1 of sheet 1 of window 1 then exit repeat',
+      'delay 0.1',
+      'end repeat',
+      'if not (exists text field 1 of sheet 1 of window 1) then error "Go to Folder input was not found"',
+      'set value of text field 1 of sheet 1 of window 1 to item 1 of argv',
       'key code 36',
-      'delay 1.5',
-      'key code 36',
+      'repeat 100 times',
+      'if not (exists sheet 1 of window 1) then exit repeat',
+      'delay 0.1',
+      'end repeat',
+      'if exists sheet 1 of window 1 then error "Go to Folder did not finish"',
+      'repeat 100 times',
+      'if enabled of button "Open" of splitter group 1 of window 1 then exit repeat',
+      'delay 0.1',
+      'end repeat',
+      'if not (enabled of button "Open" of splitter group 1 of window 1) then error "Selected path cannot be opened"',
+      'click button "Open" of splitter group 1 of window 1',
+      'end tell',
       'end tell',
       'end run'
     ].join('\n')
     execFileSync('osascript', ['-e', script, '--', filePath, String(electronPid)], {
       stdio: 'ignore',
-      timeout: 15_000
+      timeout: 45_000
     })
   } else {
     const isDirectory = statSync(filePath).isDirectory()
