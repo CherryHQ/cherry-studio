@@ -38,16 +38,19 @@ PR3 (C1–C2), [#20139](https://github.com/CherryHQ/cherry-studio/pull/20139), i
 `browser-use-inspection`, based on PR2: same-document
 ref recovery, `find`, `console_messages` and `network_requests`. WebMCP remains a separate follow-up.
 
-### Next delivery — connect the existing Agent browser
+### Historical delivery plan — connect the existing Agent browser
+
+The following records the initial Agent integration scope, before the inherited Electron 44 upgrade.
 
 The Agent right pane already has `AgentBrowserRightPanel` → `WebviewBrowser` → `WebviewHost`,
 with navigation, search and annotations. The `agent-browser-integration` stack layer extends this surface; it does not
 create another browser UI. It builds on PR3 and combines visible-page control, ordinary website
 browsing, persistent browser data, history/import settings and a bundled `cherry-browser` skill.
-Implementation is on `agent-browser-integration`, based on PR3. Its GitHub PR number is pending publication.
-Ordinary HTTP(S) browsing explicitly permits LAN and loopback access; Electron remains at 41.8.0.
+Implementation is on `agent-browser-integration`, based on PR3, in
+[#20166](https://github.com/CherryHQ/cherry-studio/pull/20166).
+Ordinary HTTP(S) browsing explicitly permits LAN and loopback access; this initial plan used Electron 41.8.0.
 
-The current gaps are concrete:
+The gaps at that planning stage were:
 
 - MCP actions target the controller's separate `BrowserView` guests, not the right-pane guest.
 - The right pane's `AgentDevPreview` policy permits an authorized loopback origin; HTML artifacts
@@ -76,8 +79,8 @@ counts separately. System helpers and key buffers end with the tracked import op
 never reads keys. See [delivered support](./browser-use-implementation.md#127-delivered-import-support-and-validation)
 for supported formats, Linux prerequisites and OS validation limits.
 
-Keep Electron at 41.8.0 because an upgrade needs a separate operating-system compatibility decision.
-WebMCP is deferred. Multiple visible tabs, retained-tab freezing, a full handoff protocol and
+The initial integration kept Electron at 41.8.0 and excluded WebMCP; the current baseline is listed above.
+Multiple visible tabs, retained-tab freezing, a full handoff protocol and
 `WebContentsView` migration are not prerequisites for this PR. The file-level plan, tool compatibility
 boundary and acceptance cases are in [implementation §12](./browser-use-implementation.md#12-existing-agent-browser-integration).
 
