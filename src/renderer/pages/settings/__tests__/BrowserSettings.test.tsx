@@ -106,6 +106,9 @@ beforeAll(async () => {
 })
 afterEach(cleanup)
 beforeEach(() => {
+  MockUsePreferenceUtils.resetMocks()
+  MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+  MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
   openTab.mockReset()
   MockUseDataApiUtils.resetMocks()
   mockUseInfiniteQuery.mockReset()
@@ -492,6 +495,19 @@ describe('Browser settings workflows', () => {
 })
 
 describe('Browser preferences', () => {
+  it('changes browser preferences only through the switches, not their titles', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    for (const key of ['settings.browser.control', 'settings.browser.openLinks'] as const) {
+      const toggle = screen.getByRole('switch', { name: en[key] })
+      expect(toggle).not.toBeChecked()
+      await user.click(screen.getByText(en[key], { exact: true }))
+      expect(toggle).not.toBeChecked()
+      await user.click(toggle)
+      await waitFor(() => expect(toggle).toBeChecked())
+    }
+  })
+
   it('persists website routing independently of Agent control', async () => {
     const user = userEvent.setup()
     renderSettings()
