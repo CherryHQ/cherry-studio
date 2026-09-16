@@ -35,15 +35,8 @@ export const REGRESSION_CASES = [
     id: 'K-01',
     capabilities: ['desktopAutomation'],
     phase: '06-knowledge',
-    title: 'Configure an embedding provider and create a knowledge base',
-    task: 'knowledge-import'
-  },
-  {
-    id: 'K-02',
-    capabilities: ['desktopAutomation'],
-    phase: '06-knowledge',
-    title: 'Query a knowledge base and verify citations',
-    task: 'knowledge-qa'
+    title: 'Create a knowledge base, verify persistence, and answer with citations',
+    task: 'knowledge'
   },
   {
     id: 'MCP-01',

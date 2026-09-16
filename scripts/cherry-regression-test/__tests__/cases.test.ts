@@ -92,6 +92,7 @@ describe('regression execution plan', () => {
   })
 
   it('selects only the requested task within its workflow phase', () => {
+    expect(selectCases('knowledge', '06-knowledge').map(({ id }) => id)).toEqual(['K-01'])
     expect(selectCases('code-cli', '08-code-tools').map(({ id }) => id)).toEqual(['CODE-01', 'CODE-02'])
     expect(selectCases('notes', '03-models-and-assistants')).toEqual([])
     expect(selectCases('notes', '02-basic-features').map(({ id }) => id)).toEqual(['N-01'])

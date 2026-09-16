@@ -23,6 +23,11 @@ The built-in assistant's tests start new tasks and clear skill tokens where requ
 
 A failed scenario must not supply the expected result for another scenario. Assert a new assistant response, a newly written file, or a real native event; do not inject success markers through IPC.
 
+The `knowledge` task is one end-to-end case (`K-01`): create and index a knowledge
+base, verify recall, restart the application, then query the persisted base and
+verify the answer and citations. It imports the fixtures only once. The former
+`knowledge-import` and `knowledge-qa` task IDs are replaced by `knowledge`.
+
 ## Adding or selecting a case
 
 1. Add the case to `scripts/cherry-regression-test/cases.ts`, including its phase, task, and required capabilities.
