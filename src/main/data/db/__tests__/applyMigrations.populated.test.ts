@@ -118,23 +118,35 @@ describe('applyMigrations over a populated database', () => {
     const insertSession = sqlite.prepare(`INSERT INTO agent_session
       (id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
       VALUES (?, ?, 'workspace', ?, ?, ?, ?)`)
-    for (const id of ['heartbeat', 'ordinary', 'unknown', 'shared']) {
+    for (const id of ['heartbeat', 'ordinary', 'unknown', 'shared', 'unlinked']) {
       insertSession.run(id, 'heartbeat', id, now, now, now)
     }
     sqlite
       .prepare(`INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at)
       VALUES ('message', 'heartbeat', 'assistant', ?, 'success', ?, ?)`)
       .run(JSON.stringify({ parts: [{ type: 'text', text: 'kept result' }] }), now, now)
+    sqlite
+      .prepare(`INSERT INTO job_schedule
+      (id, type, name, trigger, job_input_template, catch_up_policy, created_at, updated_at)
+      VALUES ('heartbeat-schedule', 'agent.task', 'heartbeat', ?, ?, ?, ?, ?)`)
+      .run(
+        JSON.stringify({ kind: 'interval', ms: 60_000 }),
+        JSON.stringify({ prompt: '__heartbeat__' }),
+        JSON.stringify({ kind: 'skip-missed' }),
+        now,
+        now
+      )
     const insertJob = sqlite.prepare(`INSERT INTO job
-      (id, type, status, queue, scheduled_at, input, metadata, created_at, updated_at)
-      VALUES (?, 'agent.task', 'completed', 'agent', ?, ?, ?, ?, ?)`)
-    for (const [id, sessionId, prompt] of [
-      ['heartbeat-run', 'heartbeat', '__heartbeat__'],
-      ['ordinary-run', 'ordinary', 'summarize'],
-      ['shared-heartbeat', 'shared', '__heartbeat__'],
-      ['shared-ordinary', 'shared', 'summarize']
+      (id, type, status, queue, schedule_id, scheduled_at, input, metadata, created_at, updated_at)
+      VALUES (?, 'agent.task', 'completed', 'agent', ?, ?, ?, ?, ?, ?)`)
+    for (const [id, sessionId, prompt, scheduleId] of [
+      ['heartbeat-run', 'heartbeat', '__heartbeat__', 'heartbeat-schedule'],
+      ['ordinary-run', 'ordinary', 'summarize', null],
+      ['shared-heartbeat', 'shared', '__heartbeat__', 'heartbeat-schedule'],
+      ['shared-ordinary', 'shared', 'summarize', null],
+      ['unlinked-heartbeat', 'unlinked', '__heartbeat__', null]
     ]) {
-      insertJob.run(id, now, JSON.stringify({ prompt }), JSON.stringify({ sessionId }), now, now)
+      insertJob.run(id, scheduleId, now, JSON.stringify({ prompt }), JSON.stringify({ sessionId }), now, now)
     }
 
     applyMigrations(db, resolveMigrationsPath())
@@ -143,7 +155,8 @@ describe('applyMigrations over a populated database', () => {
       { id: 'heartbeat', type: 'background' },
       { id: 'ordinary', type: 'conversation' },
       { id: 'shared', type: 'conversation' },
-      { id: 'unknown', type: 'conversation' }
+      { id: 'unknown', type: 'conversation' },
+      { id: 'unlinked', type: 'conversation' }
     ])
     expect(sqlite.prepare('SELECT session_id, data FROM agent_session_message').get()).toEqual({
       session_id: 'heartbeat',
