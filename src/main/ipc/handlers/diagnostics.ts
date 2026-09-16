@@ -7,6 +7,7 @@ export const diagnosticsHandlers: IpcHandlersFor<typeof diagnosticsRequestSchema
   'diagnostics.bundle.export': async (input, { senderId }) => diagnosticBundleService.exportBundle(input, senderId),
   'diagnostics.bundle.upload': async (input) => diagnosticBundleService.uploadBundle(input),
   'diagnostics.bundle.retry_upload': async (input) => diagnosticBundleService.retryUpload(input),
+  'diagnostics.report.refresh': async ({ reportId }) => diagnosticBundleService.refreshReport(reportId),
   'diagnostics.bundle.save_upload': async (input, { senderId }) =>
     diagnosticBundleService.saveUploadBundle(input, senderId),
   'diagnostics.bundle.discard_upload': async (input) => diagnosticBundleService.discardUpload(input)
