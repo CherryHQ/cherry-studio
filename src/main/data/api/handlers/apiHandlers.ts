@@ -19,6 +19,7 @@ import { agentSessionMessageHandlers } from './agentSessionMessages'
 import { agentSessionHandlers } from './agentSessions'
 import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { aiUsageRecordHandlers } from './aiUsageRecords'
+import { apiGatewayPairedDeviceHandlers } from './apiGatewayPairedDevices'
 import { assistantHandlers } from './assistants'
 import { browserVisitHandlers } from './browserVisits'
 import { fileHandlers } from './files'
@@ -49,6 +50,7 @@ import { translateHandlers } from './translate'
  * TypeScript ensures exhaustive coverage - missing handlers cause compile errors.
  */
 export const apiHandlers: ApiImplementation = {
+  ...apiGatewayPairedDeviceHandlers,
   ...agentHandlers,
   ...assistantHandlers,
   ...agentChannelHandlers,

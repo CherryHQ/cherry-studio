@@ -723,12 +723,18 @@ describe('utils/image', () => {
       }
     })
 
-    it('caps post-budget settle waits so an exhausted stage cannot stall per image', async () => {
-      const fetchMock = vi.fn(
-        (_url: string, init?: RequestInit) =>
-          new Promise((_resolve, reject) => {
-            init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
-          })
+    it('inlines a healthy image behind hung sources instead of starving it on the shared budget', async () => {
+      const fetchMock = vi.fn((url: string, init?: RequestInit) =>
+        url.endsWith('/healthy.png')
+          ? Promise.resolve({
+              ok: true,
+              status: 200,
+              headers: { get: () => 'image/png' },
+              blob: async () => new Blob([PNG_BYTES.slice()], { type: 'image/png' })
+            })
+          : new Promise((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+            })
       )
       vi.stubGlobal('fetch', fetchMock)
       const root = document.createElement('div')
@@ -737,7 +743,8 @@ describe('utils/image', () => {
       const srcs = [
         'https://stalled.example.com/one.png',
         'https://stalled.example.com/two.png',
-        'https://stalled.example.com/three.png'
+        'https://stalled.example.com/three.png',
+        'https://cdn.example.com/healthy.png'
       ]
       srcs.forEach((src) => {
         const img = document.createElement('img')
@@ -746,7 +753,7 @@ describe('utils/image', () => {
         Object.defineProperty(img, 'complete', { value: true, configurable: true })
         root.appendChild(img)
       })
-      // Deliberately not armed: jsdom never fires load/error, so each settle rides its timer cap.
+      armJsdomImageSettle(root)
 
       vi.useFakeTimers()
       try {
@@ -761,16 +768,64 @@ describe('utils/image', () => {
             resolved = true
           })
           .catch(() => {})
-        // Budget math: abort at 10s + 2s settle, second abort at the 20s deadline, third
-        // source already past the budget. Only the post-budget settles are still pending
-        // at 22s when the stage cap is honored; an uncapped 2s settle per image lands at 25s.
-        await vi.advanceTimersByTimeAsync(22_000)
+        // Hung sources overlap, so the stage ends after one per-source abort (10s) plus the
+        // settle, not at the 20s budget; serial fetches would have starved healthy.png.
+        await vi.advanceTimersByTimeAsync(12_000)
 
         expect(resolved).toBe(true)
-        expect(srcsAtRaster).toHaveLength(3)
-        expect(srcsAtRaster.every((src) => src.startsWith('data:image/gif'))).toBe(true)
+        expect(srcsAtRaster.slice(0, 3).every((src) => src.startsWith('data:image/gif'))).toBe(true)
+        expect(srcsAtRaster[3]).toMatch(/^data:image\/png/)
       } finally {
         vi.useRealTimers()
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it('keeps at most four remote fetches in flight at once', async () => {
+      const release: Array<() => void> = []
+      const fetchMock = vi.fn(
+        () =>
+          new Promise((resolve) => {
+            release.push(() =>
+              resolve({
+                ok: true,
+                status: 200,
+                headers: { get: () => 'image/png' },
+                blob: async () => new Blob([PNG_BYTES.slice()], { type: 'image/png' })
+              })
+            )
+          })
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const root = document.createElement('div')
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(root, 'scrollHeight', { value: 100, configurable: true })
+      Array.from({ length: 6 }).forEach((_, index) => {
+        const img = document.createElement('img')
+        img.setAttribute('src', `https://cdn.example.com/${index}.png`)
+        // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+        Object.defineProperty(img, 'complete', { value: true, configurable: true })
+        root.appendChild(img)
+      })
+      armJsdomImageSettle(root)
+
+      try {
+        let srcsAtRaster: string[] = []
+        vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+          srcsAtRaster = [...root.querySelectorAll('img')].map((img) => img.getAttribute('src') ?? '')
+          return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+        })
+        const settled = captureScrollableAsDataUrl({ current: root })
+
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4))
+        release.splice(0).forEach((resolveFetch) => resolveFetch())
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(6))
+        release.splice(0).forEach((resolveFetch) => resolveFetch())
+
+        await expect(settled).resolves.toBe('data:image/png;base64,xxx')
+        expect(srcsAtRaster).toHaveLength(6)
+        expect(srcsAtRaster.every((src) => src.startsWith('data:image/png'))).toBe(true)
+      } finally {
         vi.unstubAllGlobals()
       }
     })
@@ -798,6 +853,29 @@ describe('utils/image', () => {
 
       expect(result).toBe('data:image/png;base64,xxx')
       expect(settledAtRaster).toBe(true)
+      vi.unstubAllGlobals()
+    })
+
+    it('sizes the canvas from the layout after the placeholder swap, not before', async () => {
+      stubFetch('text/html; charset=utf-8', new TextEncoder().encode('<!DOCTYPE html><html>Too Many Requests</html>'))
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://example.com/figure.png')
+      // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+      Object.defineProperty(img, 'complete', { value: true, configurable: true })
+      const root = document.createElement('div')
+      root.appendChild(img)
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      // A block-level markdown image collapses once its src becomes the 1×1 placeholder.
+      Object.defineProperty(root, 'scrollHeight', {
+        get: () => ((img.getAttribute('src') ?? '').startsWith('data:') ? 100 : 360),
+        configurable: true
+      })
+      armJsdomImageSettle(root)
+
+      await captureScrollableAsDataUrl({ current: root })
+
+      const captureOptions = vi.mocked(htmlToImage.toCanvas).mock.calls[0]?.[1]
+      expect(captureOptions).toMatchObject({ height: 100, canvasHeight: 100 })
       vi.unstubAllGlobals()
     })
 
