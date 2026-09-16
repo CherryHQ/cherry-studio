@@ -71,6 +71,27 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 type RowItem = Exclude<GlobalSearchPanelItem, { kind: 'message' | 'message-parent' }>
 const props = { active: false, language: 'en-US', query: '', onMouseEnter: vi.fn(), onOpen: vi.fn() }
 
+it.each([
+  ['/settings/provider', 'title.settings - settings.provider.title'],
+  ['/settings/general?focus=language', 'title.settings - settings.general.common.title'],
+  ['/settings/mcp/settings/server-1', 'title.settings - agent.settings.toolsMcp.mcp.tab'],
+  ['/settings/search?q=model', 'title.settings - common.search'],
+  ['/app/translate', 'Saved title'],
+  ['/settings/unknown', 'Saved title']
+])('identifies the destination of the saved recent route %s', (url, title) => {
+  render(
+    <GlobalSearchRow
+      {...props}
+      item={{
+        kind: 'recent',
+        id: `route:${url}`,
+        recent: { kind: 'route', url, title: 'Saved title', lastAccessTime: 1 }
+      }}
+    />
+  )
+  expect(screen.getByRole('option', { name: title })).toBeInTheDocument()
+})
+
 function topicItem(recent: boolean): RowItem {
   return recent
     ? {
