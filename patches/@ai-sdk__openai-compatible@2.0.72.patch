@@ -82,7 +82,7 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..dbe7772ae88509d86ca27584369a45f1
          content: import_v43.z.string().nullish(),
          reasoning_content: import_v43.z.string().nullish(),
          reasoning: import_v43.z.string().nullish(),
-+        annotations: import_v43.z.array(import_v43.z.unknown()).nullish(),
++        annotations: import_v43.z.array(import_v43.z.unknown()).nullish().catch([]),
          tool_calls: import_v43.z.array(
            import_v43.z.object({
              id: import_v43.z.string().nullish(),
@@ -105,7 +105,7 @@ index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..dbe7772ae88509d86ca27584369a45f1
          // providers serving `gpt-oss` set `reasoning`. See #7866
          reasoning_content: import_v43.z.string().nullish(),
          reasoning: import_v43.z.string().nullish(),
-+        annotations: import_v43.z.array(import_v43.z.unknown()).nullish(),
++        annotations: import_v43.z.array(import_v43.z.unknown()).nullish().catch([]),
          tool_calls: import_v43.z.array(
            import_v43.z.object({
              index: import_v43.z.number().nullish(),
@@ -314,7 +314,7 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..679e3e4f5cb025a692473c150fe9dd07
          content: z3.string().nullish(),
          reasoning_content: z3.string().nullish(),
          reasoning: z3.string().nullish(),
-+        annotations: z3.array(z3.unknown()).nullish(),
++        annotations: z3.array(z3.unknown()).nullish().catch([]),
          tool_calls: z3.array(
            z3.object({
              id: z3.string().nullish(),
@@ -337,7 +337,7 @@ index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..679e3e4f5cb025a692473c150fe9dd07
          // providers serving `gpt-oss` set `reasoning`. See #7866
          reasoning_content: z3.string().nullish(),
          reasoning: z3.string().nullish(),
-+        annotations: z3.array(z3.unknown()).nullish(),
++        annotations: z3.array(z3.unknown()).nullish().catch([]),
          tool_calls: z3.array(
            z3.object({
              index: z3.number().nullish(),

@@ -97,6 +97,29 @@ describe('New API Gemini web search boundary', () => {
     expect(result.content).toEqual([{ type: 'text', text: 'Answer with a file annotation.' }])
   })
 
+  it('keeps a non-streaming answer when annotations is a malformed object', async () => {
+    const response = {
+      id: 'chatcmpl-malformed-annotations',
+      created: 1,
+      model: 'gemini-2.5-pro',
+      choices: [
+        {
+          message: {
+            role: 'assistant',
+            content: 'Usable answer.',
+            annotations: { type: 'url_citation' }
+          },
+          finish_reason: 'stop'
+        }
+      ],
+      usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
+    }
+
+    const result = await runWithResponse(response, (fetch) => createModel(fetch).doGenerate({ prompt }))
+
+    expect(result.content).toEqual([{ type: 'text', text: 'Usable answer.' }])
+  })
+
   it('omits a non-string URL citation title', async () => {
     const response = {
       id: 'chatcmpl-invalid-title',
@@ -220,6 +243,44 @@ describe('New API Gemini web search boundary', () => {
 
     expect(parts).toEqual(
       expect.arrayContaining([expect.objectContaining({ type: 'text-delta', delta: 'Streaming answer.' })])
+    )
+    expect(parts).not.toEqual(expect.arrayContaining([expect.objectContaining({ type: 'error' })]))
+  })
+
+  it('keeps streamed text when annotations is a malformed string', async () => {
+    const body = [
+      `data: ${JSON.stringify({
+        id: 'chatcmpl-malformed-stream-annotations',
+        created: 1,
+        model: 'gemini-2.5-pro',
+        choices: [
+          {
+            delta: {
+              role: 'assistant',
+              content: 'Usable streaming answer.',
+              annotations: 'not-an-array'
+            },
+            finish_reason: 'stop'
+          }
+        ],
+        usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
+      })}`,
+      'data: [DONE]',
+      ''
+    ].join('\n\n')
+    const fetch = (() =>
+      Promise.resolve(
+        new Response(body, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' }
+        })
+      )) as typeof globalThis.fetch
+
+    const result = await createModel(fetch).doStream({ prompt })
+    const parts = await Array.fromAsync(result.stream)
+
+    expect(parts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'text-delta', delta: 'Usable streaming answer.' })])
     )
     expect(parts).not.toEqual(expect.arrayContaining([expect.objectContaining({ type: 'error' })]))
   })
