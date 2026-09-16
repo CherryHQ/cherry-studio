@@ -1,6 +1,8 @@
 {
   "agent.builtin.cherry_assistant.description": "ที่ปรึกษาในตัวของ Cherry Studio วินิจฉัยปัญหา แนะนำการใช้งาน รวบรวม FAQ ส่งรายงานบั๊ก/คำขอฟีเจอร์ และค้นหา/สร้าง Skills",
   "agent.builtin.cherry_support.description": "เอเจนต์สนับสนุนอย่างเป็นทางการของ Cherry Studio สำหรับคำแนะนำการตั้งค่า การแก้ไขปัญหา FAQ และข้อเสนอแนะ",
+  "agent.session.dsh.bun_unavailable": "DSH เริ่มทำงานไม่ได้เพราะรันไทม์ที่มาพร้อมแอปไม่พร้อมใช้ ติดตั้ง Cherry Studio ใหม่แล้วลองอีกครั้ง",
+  "agent.session.dsh.bun_unavailable_dev": "DSH เริ่มทำงานไม่ได้เพราะรันไทม์ที่มาพร้อมแอปไม่พร้อมใช้ รัน pnpm download:binaries ในโฟลเดอร์พัฒนาแล้วลองอีกครั้ง",
   "agent.session.new": "งานใหม่",
   "agent.session.run_status.busy": "เอเจนต์เซสชันกำลังทำงาน โปรดลองอีกครั้งเร็ว ๆ นี้",
   "agent.session.run_status.unavailable": "เอเจนต์เซสชันไม่พร้อมใช้งานอีกต่อไป",
