@@ -42,6 +42,13 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.t('common.copy')).toBe('Kopyala')
   })
 
+  it('lazy-loads the Thai pack when switching language', async () => {
+    await i18n.changeLanguage('th-TH')
+
+    expect(i18n.hasResourceBundle('th-TH', 'translation')).toBe(true)
+    expect(i18n.t('common.copy')).toBe('คัดลอก')
+  })
+
   it('uses singular and plural diagnostic file summaries in English', async () => {
     await i18n.changeLanguage('en-US')
 

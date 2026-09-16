@@ -781,6 +781,11 @@
       "value": "tr-TR",
       "flag": "🇹🇷",
       "label": "Türkçe"
+    },
+    {
+      "value": "th-TH",
+      "flag": "🇹🇭",
+      "label": "ภาษาไทย"
     }
   ],
   "agents": {
