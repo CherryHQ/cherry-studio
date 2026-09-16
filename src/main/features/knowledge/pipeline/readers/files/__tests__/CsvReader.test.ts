@@ -42,6 +42,32 @@ describe('detectDelimiter', () => {
     // csv-parse's own sniffing splits "Note" on the "t" inside it.
     expect(detectDelimiter('Note\nalpha\nbeta\n')).toBe(',')
   })
+
+  it('reads a newline inside a quoted field as part of the record', () => {
+    // Split on newlines alone, the quoted break makes the records disagree and
+    // the file falls back to a comma it was not written with.
+    const text = 'Name;Note;Units\nWidget;"first\nsecond";12\nGadget;plain;7\n'
+
+    expect(detectDelimiter(text)).toBe(';')
+  })
+
+  it('keeps the comma when another candidate would split the rows further', () => {
+    // A headerless export whose second column is a semicolon joined tag list:
+    // every record is consistent under both, and the file is comma separated.
+    const text = '1,red;green;blue\n2,big;small;tiny\n'
+
+    expect(detectDelimiter(text)).toBe(',')
+  })
+
+  it('ignores the record the sample boundary cuts in half', () => {
+    // The sample stops at 64 KB, so its last record is a fragment of unknown
+    // width; counting it makes every separator look inconsistent.
+    const cell = 'x'.repeat(4000)
+    const text = `${[...Array(30).keys()].map((index) => `${index};${cell};${cell}`).join('\n')}\n`
+    expect(text.length).toBeGreaterThan(64 * 1024)
+
+    expect(detectDelimiter(text)).toBe(';')
+  })
 })
 
 describe('CsvReader', () => {

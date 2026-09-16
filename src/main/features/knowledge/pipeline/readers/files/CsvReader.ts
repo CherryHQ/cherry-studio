@@ -9,43 +9,55 @@ const logger = loggerService.withContext('KnowledgeCsvReader')
 const CANDIDATE_DELIMITERS = [',', ';', '\t', '|'] as const
 
 const SAMPLE_CHARS = 64 * 1024
-const SAMPLE_ROWS = 20
+const SAMPLE_RECORDS = 20
 
-/** Fields in one line, ignoring delimiters inside a quoted field. */
-function countFields(line: string, delimiter: string): number {
+/**
+ * Fields per record under `delimiter`, read the way a CSV parser reads: a
+ * delimiter or a newline inside a quoted field belongs to the field.
+ *
+ * `truncated` says the sample stops mid-file, so its last record may be cut and
+ * is left out rather than counted at the wrong width.
+ */
+function recordFieldCounts(sample: string, delimiter: string, truncated: boolean): number[] {
+  const counts: number[] = []
   let fields = 1
   let quoted = false
-  for (let index = 0; index < line.length; index++) {
-    const char = line[index]
+  let blank = true
+
+  for (let index = 0; index < sample.length && counts.length < SAMPLE_RECORDS; index++) {
+    const char = sample[index]
     if (char === '"') {
-      if (quoted && line[index + 1] === '"') {
+      if (quoted && sample[index + 1] === '"')
         index++ // an escaped quote inside a quoted field
-        continue
-      }
-      quoted = !quoted
-    } else if (char === delimiter && !quoted) {
+      else quoted = !quoted
+      blank = false
+    } else if (quoted) {
+      blank = false
+    } else if (char === delimiter) {
       fields++
+      blank = false
+    } else if (char === '\n' || char === '\r') {
+      if (char === '\r' && sample[index + 1] === '\n') index++
+      if (!blank) counts.push(fields)
+      fields = 1
+      blank = true
+    } else {
+      blank = false
     }
   }
-  return fields
+
+  if (!blank && !truncated && counts.length < SAMPLE_RECORDS) counts.push(fields)
+  return counts
 }
 
 /**
- * Fields per row under `delimiter`, or 0 when the rows disagree — a separator
- * the file was not written with does not line the rows up.
+ * Fields per record under `delimiter`, or 0 when the records disagree — a
+ * separator the file was not written with does not line the records up.
  */
-function consistentFieldCount(sample: string, delimiter: string): number {
-  let count = 0
-  let rows = 0
-  for (const line of sample.split(/\r\n|\n|\r/)) {
-    if (rows >= SAMPLE_ROWS) break
-    if (!line) continue // a blank line says nothing about the separator
-    rows++
-    const fields = countFields(line, delimiter)
-    if (count && fields !== count) return 0
-    count = fields
-  }
-  return count > 1 ? count : 0
+function consistentFieldCount(sample: string, delimiter: string, truncated: boolean): number {
+  const counts = recordFieldCounts(sample, delimiter, truncated)
+  if (!counts.length || counts[0] < 2) return 0
+  return counts.every((count) => count === counts[0]) ? counts[0] : 0
 }
 
 /**
@@ -56,10 +68,18 @@ function consistentFieldCount(sample: string, delimiter: string): number {
  */
 export function detectDelimiter(text: string): string {
   const sample = text.slice(0, SAMPLE_CHARS)
+  const truncated = sample.length < text.length
+
+  // A file whose records already line up under a comma is read correctly
+  // today. Another candidate can line them up too — a tag list joined with
+  // semicolons does — and preferring it over the comma would be a regression,
+  // so the comma keeps the file whenever it fits.
+  if (consistentFieldCount(sample, ',', truncated)) return ','
+
   let bestDelimiter = ','
   let bestFields = 0
   for (const delimiter of CANDIDATE_DELIMITERS) {
-    const fields = consistentFieldCount(sample, delimiter)
+    const fields = consistentFieldCount(sample, delimiter, truncated)
     if (fields > bestFields) {
       bestDelimiter = delimiter
       bestFields = fields
