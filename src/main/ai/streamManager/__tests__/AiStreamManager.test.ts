@@ -507,6 +507,26 @@ describe('AiStreamManager', () => {
       expect(listener.pausedResults).toHaveLength(1)
     })
 
+    it('names the origin of a pre-stream agent-session stop', () => {
+      mockAbortPendingTurn.mockImplementationOnce(() => true)
+
+      mgr.abort('agent-session:session-1', 'user-requested')
+
+      expect(
+        mockMainLoggerService.info.mock.calls.filter(([message]) => message === 'Aborting pending agent turn')
+      ).toEqual([['Aborting pending agent turn', { topicId: 'agent-session:session-1', reason: 'user-requested' }]])
+    })
+
+    it('does not claim an abort when there was no pending agent turn to stop', () => {
+      mockAbortPendingTurn.mockReturnValue(false)
+
+      mgr.abort('agent-session:session-1', 'user-requested')
+
+      expect(
+        mockMainLoggerService.info.mock.calls.filter(([message]) => message === 'Aborting pending agent turn')
+      ).toEqual([])
+    })
+
     it('does not apply an old pre-stream stop request to a new agent-session turn controller', () => {
       const oldTurnAbortController = new AbortController()
       const newTurnAbortController = new AbortController()

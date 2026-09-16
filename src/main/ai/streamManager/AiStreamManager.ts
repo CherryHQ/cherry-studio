@@ -1199,7 +1199,13 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) {
       if (isAgentSessionTopic(topicId)) {
-        application.get('AgentSessionRuntimeService').abortPendingTurn(extractAgentSessionId(topicId), reason)
+        const abortedPendingTurn = application
+          .get('AgentSessionRuntimeService')
+          .abortPendingTurn(extractAgentSessionId(topicId), reason)
+        // A turn aborted before its stream exists never reaches the line below, so a Stop
+        // pressed on an agent session that has not started streaming would otherwise take
+        // effect without anything naming who asked for it.
+        if (abortedPendingTurn) logger.info('Aborting pending agent turn', { topicId, reason })
       }
       return
     }

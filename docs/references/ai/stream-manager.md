@@ -799,7 +799,11 @@ chunks-only prompt stream with no message target. See
 ### Abort reasons
 
 `abort(topicId, reason)` logs `Aborting stream { topicId, reason }`, and that reason is
-the only record of **who** ended a stream. Main names its own teardowns
+the only record of **who** ended a stream. An agent-session Stop that arrives before the
+stream exists never reaches that line: it aborts the pending turn through
+`AgentSessionRuntimeService.abortPendingTurn` and logs
+`Aborting pending agent turn { topicId, reason }` instead, and only when a live turn was
+actually stopped. Main names its own teardowns
 (`no-subscribers`, `app-shutdown`, `agent-session-runtime-stop`, `mini-app-cancelled`, …);
 a renderer-requested abort carries the `origin` the caller passed to `ai.stream.abort`:
 
