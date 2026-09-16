@@ -338,9 +338,12 @@ export class AgentJobsService extends BaseService {
    * @returns How many schedule rows were removed.
    */
   async deleteSchedulesForAgent(agentId: string): Promise<number> {
+    // Ownership is the raw template agentId — the same contract the startup
+    // reaper reads. A stricter parse here would strand a malformed-template
+    // row armed on a deleted agent until the next restart.
     const schedules = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((s) => {
-      const template = readAgentTaskJobInputTemplate(s.jobInputTemplate)
-      return template?.agentId === agentId
+      const template = s.jobInputTemplate as { agentId?: unknown } | null
+      return typeof template?.agentId === 'string' && template.agentId === agentId
     })
 
     // The heartbeat's user workspace row (pointing at the agent data directory)

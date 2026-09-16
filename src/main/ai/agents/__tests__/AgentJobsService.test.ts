@@ -697,6 +697,27 @@ describe('AgentJobsService', () => {
       expect(scheduler.has(`schedule:${foreign.id}`)).toBe(true)
     })
 
+    it('sweep removes a malformed-template row whose raw agentId still claims ownership', async () => {
+      // Ownership is the raw template agentId — the same contract the startup
+      // reaper reads. Requiring the full template parse here would strand a
+      // bad-workspace row armed on a deleted agent until the next restart.
+      seedAgent(OTHER_AGENT_ID)
+      const own = service.createTask(AGENT_ID, form)
+      const malformed = jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: 'task_malformed_template',
+        trigger: intervalTrigger,
+        // Deliberately violates the agent.task contract: no workspace/timeout/reuseRevision.
+        jobInputTemplate: { agentId: AGENT_ID, prompt: 'orphan me' } as never,
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(2)
+
+      expect(jobScheduleService.getById(own.id)).toBeNull()
+      expect(jobScheduleService.getById(malformed.id)).toBeNull()
+    })
+
     it('continues the sweep when one schedule fails to unregister (transient failure)', async () => {
       // A transient unregister failure (SQLITE_BUSY, timer teardown) must not
       // abort the whole pass: the remaining schedules and the heartbeat

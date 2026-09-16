@@ -17,7 +17,7 @@ vi.mock('node:fs/promises', () => ({
 import { constants } from 'node:fs'
 import { lstat, mkdir, open, unlink } from 'node:fs/promises'
 
-import { ensureHeartbeatFile, readHeartbeat } from '../heartbeat'
+import { ensureHeartbeatFile, HeartbeatFileNotRegularError, readHeartbeat } from '../heartbeat'
 
 const mockedOpen = vi.mocked(open)
 const mockedMkdir = vi.mocked(mkdir)
@@ -178,11 +178,13 @@ describe('ensureHeartbeatFile', () => {
     expect(mockedMkdir).not.toHaveBeenCalled()
   })
 
-  it('warns and skips provisioning when a symlink occupies heartbeat.md', async () => {
+  it('rejects with HeartbeatFileNotRegularError when a symlink occupies heartbeat.md', async () => {
+    // Every tick would fail its read of a non-regular occupant — provisioning
+    // must surface that so the sync pauses instead of arming the schedule.
     mockedOpen.mockRejectedValueOnce(errWithCode('EEXIST'))
     mockedLstat.mockResolvedValue({ isFile: () => false, isSymbolicLink: () => true } as never)
 
-    await expect(ensureHeartbeatFile('/workspace')).resolves.toBeUndefined()
+    await expect(ensureHeartbeatFile('/workspace')).rejects.toBeInstanceOf(HeartbeatFileNotRegularError)
     expect(mockedMkdir).not.toHaveBeenCalled()
   })
 

@@ -35,7 +35,7 @@ import { JOB_ERROR_CODES, type JobScheduleSnapshot, type Trigger, triggersEqual 
 
 import { agentDataDirectoryPath, assertAgentStoragePath } from './agentDataDirectory'
 import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from './agentTaskDefaults'
-import { ensureHeartbeatFile } from './heartbeat'
+import { ensureHeartbeatFile, HeartbeatFileNotRegularError } from './heartbeat'
 
 const logger = loggerService.withContext('HeartbeatSchedule')
 
@@ -335,7 +335,16 @@ async function runSync(
   })
   createdWorkspaceId = workspaceCreated ? workspace.id : null
   try {
-    await ensureHeartbeatFile(workspacePath)
+    try {
+      await ensureHeartbeatFile(workspacePath)
+    } catch (error) {
+      // A non-regular occupant at heartbeat.md makes every tick fail its read
+      // — pause like the untrusted path instead of firing skips forever.
+      if (!(error instanceof HeartbeatFileNotRegularError)) throw error
+      logger.warn('Heartbeat file path is not a regular file; heartbeat not armed', { agentId, workspacePath })
+      touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: false }))
+      return finalize('skipped-untrusted-path')
+    }
     // Re-check inside the provisioning window: mkdir follows ancestor links,
     // so a directory swapped in after the entry check must not arm a row.
     await assertAgentStoragePath(agentsDataRoot, workspacePath)

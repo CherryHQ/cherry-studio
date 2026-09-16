@@ -300,6 +300,22 @@ describe('heartbeatSchedule', () => {
     expect(seeded).toContain('<!--')
   })
 
+  it('pauses the schedule when heartbeat.md is occupied by a non-regular file', async () => {
+    // A directory (or symlink) at heartbeat.md makes every tick fail its
+    // read — leaving the row armed would fire completed skips forever.
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    expect(row?.enabled).toBe(true)
+    rmSync(path.join(agentsRoot, AGENT_ID, 'heartbeat.md'))
+    mkdirSync(path.join(agentsRoot, AGENT_ID, 'heartbeat.md'))
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(outcome).toBe('skipped-untrusted-path')
+    expect(jobScheduleService.getById(row.id)?.enabled).toBe(false)
+  })
+
   it('is idempotent — a second sync is a no-op', async () => {
     seedAgent(AGENT_ID)
 

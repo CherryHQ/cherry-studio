@@ -92,17 +92,22 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
   }
 }
 
+/** The heartbeat.md path is occupied by a non-regular file — every tick would fail its read. */
+export class HeartbeatFileNotRegularError extends Error {
+  constructor(readonly occupiedPath: string) {
+    super(`Heartbeat path is not a regular file: ${occupiedPath}`)
+  }
+}
+
 /**
  * Provision `heartbeat.md` in a workspace with the comments-only template.
  * Idempotent: an existing file is never touched (the `wx` flag fails with
  * EEXIST), so user checklists survive re-runs.
  */
-/** Flag a non-regular occupant at the heartbeat path — a symlinked heartbeat.md would make every tick read outside managed storage. */
-async function warnIfNonRegularOccupant(resolved: string): Promise<void> {
+/** True when the heartbeat path is absent or holds a regular file — not a symlink/dir/FIFO occupant. */
+async function heartbeatOccupantIsRegular(resolved: string): Promise<boolean> {
   const stat = await lstat(resolved).catch(() => null)
-  if (stat && (!stat.isFile() || stat.isSymbolicLink())) {
-    logger.warn(`Heartbeat path is not a regular file; not provisioning: ${resolved}`)
-  }
+  return stat === null || stat.isFile()
 }
 
 export async function ensureHeartbeatFile(workspacePath: string): Promise<void> {
@@ -114,8 +119,9 @@ export async function ensureHeartbeatFile(workspacePath: string): Promise<void> 
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
       // The exclusive create never follows a symlink, so something is there.
-      // Leave user content alone, but flag a non-regular occupant.
-      await warnIfNonRegularOccupant(resolved)
+      // Leave user content alone; a non-regular occupant means every tick
+      // would fail its read, so the sync must not arm the schedule.
+      if (!(await heartbeatOccupantIsRegular(resolved))) throw new HeartbeatFileNotRegularError(resolved)
       return
     }
     // Missing workspace directory (migrated/corrupted install or manual deletion): recreate and retry once.
@@ -133,7 +139,7 @@ export async function ensureHeartbeatFile(workspacePath: string): Promise<void> 
     if ((retryError as NodeJS.ErrnoException).code === 'EEXIST') {
       // Same non-regular check as the first attempt: an occupant that appeared
       // during the recovery window must not be silently accepted.
-      await warnIfNonRegularOccupant(resolved)
+      if (!(await heartbeatOccupantIsRegular(resolved))) throw new HeartbeatFileNotRegularError(resolved)
       return
     }
     if ((retryError as NodeJS.ErrnoException).code !== 'ENOENT') throw retryError
