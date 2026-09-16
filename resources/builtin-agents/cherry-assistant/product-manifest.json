@@ -773,6 +773,11 @@
       "label": "Română"
     },
     {
+      "value": "th-TH",
+      "flag": "🇹🇭",
+      "label": "ภาษาไทย"
+    },
+    {
       "value": "vi-VN",
       "flag": "🇻🇳",
       "label": "Tiếng Việt"
@@ -781,11 +786,6 @@
       "value": "tr-TR",
       "flag": "🇹🇷",
       "label": "Türkçe"
-    },
-    {
-      "value": "th-TH",
-      "flag": "🇹🇭",
-      "label": "ภาษาไทย"
     }
   ],
   "agents": {

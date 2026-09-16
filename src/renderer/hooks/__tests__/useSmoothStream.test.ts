@@ -50,6 +50,27 @@ afterEach(() => {
 })
 
 describe('useSmoothStream', () => {
+  // Regression: Intl.Segmenter resolves one locale per instance, so it must
+  // be selected from the active UI language. With the Thai locale active,
+  // Thai text without spaces must be segmented into multiple units — under
+  // the old single `new Intl.Segmenter([...])` (resolving to en-US) the whole
+  // no-space run collapsed into one giant segment and streamed as one dump.
+  it('segments Thai text into words when the UI language is Thai', async () => {
+    const i18n = (await import('@renderer/i18n/resolver')).default
+    await i18n.changeLanguage('th-TH')
+
+    const onUpdate = vi.fn()
+    const { result } = renderHook(() => useSmoothStream({ onUpdate, streamDone: false, minDelay: 0 }))
+
+    act(() => result.current.addChunk('สวัสดีครับ'))
+    act(() => tick(16, 60))
+
+    expect(onUpdate).toHaveBeenLastCalledWith('สวัสดีครับ')
+    const segments = Array.from(new Intl.Segmenter('th-TH').segment('สวัสดีครับ'))
+    expect(segments.length).toBeGreaterThan(1)
+    await i18n.changeLanguage('en-US')
+  })
+
   // A burst can accumulate before the first frame; that frame must not dump
   // it. With no reference dt / rate sample yet it reveals exactly MIN_STEP.
   it('reveals only MIN_STEP on the first frame, never a dump', () => {

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import i18n from '@renderer/i18n/resolver'
+
 interface UseSmoothStreamOptions {
   onUpdate: (text: string) => void
   /** Optional external control. Omit to let the hook manage it via `update(_, isComplete)`. */
@@ -22,7 +24,22 @@ const languages = [
   'ro-RO',
   'th-TH'
 ]
-const segmenter = new Intl.Segmenter(languages)
+const segmenters = new Map<string, Intl.Segmenter>()
+/**
+ * `Intl.Segmenter` resolves a single locale for its lifetime — it does not
+ * pick one per call based on the text. Build one per app language (cached)
+ * and select by the active UI locale so locale-specific word boundaries
+ * (Thai has no word spaces) actually apply.
+ */
+export const getSegmenter = (locale?: string): Intl.Segmenter => {
+  const key = languages.find((l) => l.toLowerCase() === (locale || '').toLowerCase()) ?? 'en-US'
+  let segmenter = segmenters.get(key)
+  if (!segmenter) {
+    segmenter = new Intl.Segmenter(key)
+    segmenters.set(key, segmenter)
+  }
+  return segmenter
+}
 
 /**
  * Playout is an adaptive jitter buffer: bursty, IPC-coalesced input is queued
@@ -132,7 +149,7 @@ export const useSmoothStream = ({
   })
 
   const addChunk = useCallback((chunk: string) => {
-    const chars = Array.from(segmenter.segment(chunk)).map((s) => s.segment)
+    const chars = Array.from(getSegmenter(i18n.language).segment(chunk)).map((s) => s.segment)
     if (chars.length === 0) return
     const now = performance.now()
     chunkQueueRef.current = [...chunkQueueRef.current, ...chars]
@@ -211,7 +228,9 @@ export const useSmoothStream = ({
         lastAccumulatedRef.current = accumulated
         const shown = displayedTextRef.current
         if (accumulated.startsWith(shown)) {
-          chunkQueueRef.current = Array.from(segmenter.segment(accumulated.slice(shown.length))).map((s) => s.segment)
+          chunkQueueRef.current = Array.from(getSegmenter(i18n.language).segment(accumulated.slice(shown.length))).map(
+            (s) => s.segment
+          )
         } else {
           chunkQueueRef.current = []
           displayedTextRef.current = accumulated
