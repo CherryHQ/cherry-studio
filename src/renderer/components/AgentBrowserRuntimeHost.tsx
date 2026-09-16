@@ -12,6 +12,7 @@ import {
   topicBrowserRuntimeService,
   type AgentBrowserRuntimeService
 } from '@renderer/services/AgentBrowserRuntimeService'
+import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { getWebviewPartition } from '@shared/utils/webviewSecurity'
@@ -51,7 +52,20 @@ export function AgentBrowserRuntimeHost() {
 function BrowserRuntimeHost({ runtime, scope }: { runtime: AgentBrowserRuntimeService; scope?: 'topic' }) {
   const { tabs } = useTabs()
   const ids = useSyncExternalStore(runtime.subscribe, runtime.getIds)
-  useEffect(() => runtime.reconcileOwners(new Set(tabs.map((tab) => tab.id))), [runtime, tabs])
+  useEffect(() => {
+    if (scope === 'topic') {
+      const app = getSidebarApp('assistants')
+      const owners = new Map<string, string>()
+      for (const tab of tabs) {
+        if (tab.type !== 'route' || !app || !tabBelongsToApp(app, tab.url)) continue
+        const topicId = app.conversationRoute?.keyFromUrl(tab.url)
+        if (topicId) owners.set(tab.id, topicId)
+      }
+      runtime.syncOwners(owners)
+    } else {
+      runtime.reconcileOwners(new Set(tabs.map((tab) => tab.id)))
+    }
+  }, [runtime, scope, tabs])
   useEffect(() => () => runtime.dispose(), [runtime])
   useDataChange('/agent-sessions', (effects) => {
     const changed = effects.filter((effect) => effect.kind === 'membership')

@@ -1265,6 +1265,8 @@ intentionally skipped under the local validation override.
 The assistant browser layer is stacked above PR #20582. Chat's AI SDK loop and Agent's
 native runtimes remain separate; both use the same session tool definitions,
 `SessionBrowserController`, CDP sessions, screenshot tiles and WebMCP implementation.
+Pure tool schemas and descriptions live in `src/main/ai/mcp/browserToolDefinitions.ts`;
+browser feature handlers consume that contract, without an AI-to-feature import.
 
 `BrowserGuestRegistry` owns guest validation, leases and cursor identity. Agent and Topic
 registries resolve their owners through their respective data services. Their shared guest
@@ -1282,6 +1284,9 @@ Idle Topic controllers are released after five minutes; their renderer-owned pag
 The existing retained WebView host also renders Topic browsers outside page Activity. A Topic
 browser capability supplies its anchor inside the existing right-panel shell, alongside resources,
 branches and trace. Closing its owning tab or deleting the Topic releases the retained guest.
+The host derives Topic ownership from the tab's conversation URL outside Activity. Clearing
+or retargeting that URL releases the guest only after its last owner leaves; hiding a page
+does not revoke ownership. Ownership transfers are reconciled atomically.
 Browser navigation, history, import UI and cursor rendering are shared with Agent browsers.
 
 `settings.enableBrowser` is an assistant-level opt-out, defaulting to enabled when absent.

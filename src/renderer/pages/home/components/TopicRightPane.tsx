@@ -1,16 +1,6 @@
 import { Activity, GitBranch, Globe } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import {
-  createContext,
-  lazy,
-  Suspense,
-  use,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useSyncExternalStore
-} from 'react'
+import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
@@ -31,7 +21,6 @@ import {
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { SessionBrowserView } from '@renderer/components/SessionBrowserView'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useIpcOn } from '@renderer/ipc'
 import { topicBrowserRuntimeService as browserRuntime } from '@renderer/services/AgentBrowserRuntimeService'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
@@ -170,12 +159,8 @@ function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<Topi
   )
 }
 
-function TopicBrowserOwner({ topicId }: { topicId?: string }) {
-  const tabId = useCurrentTabId()
+function TopicBrowserPaneOpener({ topicId }: { topicId?: string }) {
   const actions = useRightPanelActions()
-  useEffect(() => {
-    if (topicId && tabId) browserRuntime.declare(topicId, tabId)
-  }, [topicId, tabId])
   useIpcOn('browser.pane.open_requested', ({ sessionId, scope }) => {
     if (scope === 'topic' && sessionId === topicId) actions.tryOpen('browser')
   })
@@ -276,7 +261,7 @@ function TopicRightPaneProvider({
       onOpenChange={onOpenChange}
       userOpenIntentSeq={userOpenIntentSeq}
       present={present}>
-      <TopicBrowserOwner topicId={topicId} />
+      <TopicBrowserPaneOpener topicId={topicId} />
       <ResourcePaneLocateOpener revealRequest={revealRequest} />
       <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
     </RightPanelProvider>
