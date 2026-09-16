@@ -59,6 +59,22 @@ const {
   resolveTools
 } = await import('../buildAgentParams')
 
+function captureAnthropicRequest(onBody: (body: Record<string, any>) => void) {
+  return async (_input: RequestInfo | URL, init?: RequestInit) => {
+    onBody(JSON.parse(String(init?.body)))
+    return Response.json({
+      id: 'msg_test',
+      type: 'message',
+      role: 'assistant',
+      model: 'custom-model',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+      stop_sequence: null,
+      usage: { input_tokens: 1, output_tokens: 1 }
+    })
+  }
+}
+
 beforeEach(() => {
   preferenceGetMock.mockReturnValue(null)
 })
@@ -759,19 +775,9 @@ describe('buildAgentParams standard model parameters', () => {
         providerSettings: {
           apiKey: 'sk-ant-test',
           baseURL: 'https://gateway.test/v1',
-          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
-            sentBody = JSON.parse(String(init?.body)) as Record<string, any>
-            return Response.json({
-              id: 'msg_test',
-              type: 'message',
-              role: 'assistant',
-              model: 'custom-model',
-              content: [{ type: 'text', text: 'ok' }],
-              stop_reason: 'end_turn',
-              stop_sequence: null,
-              usage: { input_tokens: 1, output_tokens: 1 }
-            })
-          }
+          fetch: captureAnthropicRequest((body) => {
+            sentBody = body
+          })
         }
       },
       credentialReceipt: { attribution: 'auth', method: 'api-key' }
@@ -815,19 +821,9 @@ describe('buildAgentParams standard model parameters', () => {
         providerSettings: {
           apiKey: 'sk-ant-test',
           baseURL: 'https://gateway.test/v1',
-          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
-            sentBody = JSON.parse(String(init?.body)) as Record<string, any>
-            return Response.json({
-              id: 'msg_test',
-              type: 'message',
-              role: 'assistant',
-              model: 'custom-model',
-              content: [{ type: 'text', text: 'ok' }],
-              stop_reason: 'end_turn',
-              stop_sequence: null,
-              usage: { input_tokens: 1, output_tokens: 1 }
-            })
-          }
+          fetch: captureAnthropicRequest((body) => {
+            sentBody = body
+          })
         }
       },
       credentialReceipt: { attribution: 'auth', method: 'api-key' }
@@ -864,19 +860,9 @@ describe('buildAgentParams standard model parameters', () => {
         providerSettings: {
           baseURL: 'https://vertex.test/v1/projects/test/locations/global/publishers/anthropic/models',
           generateAuthToken: async () => 'test-token',
-          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
-            sentBody = JSON.parse(String(init?.body)) as Record<string, any>
-            return Response.json({
-              id: 'msg_test',
-              type: 'message',
-              role: 'assistant',
-              model: 'custom-model',
-              content: [{ type: 'text', text: 'ok' }],
-              stop_reason: 'end_turn',
-              stop_sequence: null,
-              usage: { input_tokens: 1, output_tokens: 1 }
-            })
-          }
+          fetch: captureAnthropicRequest((body) => {
+            sentBody = body
+          })
         }
       },
       credentialReceipt: { attribution: 'auth', method: 'iam-gcp' }
@@ -930,19 +916,9 @@ describe('buildAgentParams standard model parameters', () => {
         providerSettings: {
           baseURL: 'https://vertex.test/v1/projects/test/locations/global/publishers/anthropic/models',
           generateAuthToken: async () => 'test-token',
-          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
-            sentBody = JSON.parse(String(init?.body)) as Record<string, any>
-            return Response.json({
-              id: 'msg_test',
-              type: 'message',
-              role: 'assistant',
-              model: 'custom-model',
-              content: [{ type: 'text', text: 'ok' }],
-              stop_reason: 'end_turn',
-              stop_sequence: null,
-              usage: { input_tokens: 1, output_tokens: 1 }
-            })
-          }
+          fetch: captureAnthropicRequest((body) => {
+            sentBody = body
+          })
         }
       },
       credentialReceipt: { attribution: 'auth', method: 'iam-gcp' }
@@ -1101,19 +1077,9 @@ describe('buildAgentParams standard model parameters', () => {
         providerSettings: {
           apiKey: 'sk-ant-test',
           baseURL: 'https://gateway.test/v1',
-          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
-            sentBody = JSON.parse(String(init?.body)) as Record<string, any>
-            return Response.json({
-              id: 'msg_test',
-              type: 'message',
-              role: 'assistant',
-              model: 'custom-model',
-              content: [{ type: 'text', text: 'ok' }],
-              stop_reason: 'end_turn',
-              stop_sequence: null,
-              usage: { input_tokens: 1, output_tokens: 1 }
-            })
-          }
+          fetch: captureAnthropicRequest((body) => {
+            sentBody = body
+          })
         }
       },
       credentialReceipt: { attribution: 'auth', method: 'api-key' }
@@ -1154,19 +1120,9 @@ describe('buildAgentParams standard model parameters', () => {
         providerSettings: {
           apiKey: 'sk-ant-test',
           baseURL: 'https://gateway.test/v1',
-          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
-            sentBody = JSON.parse(String(init?.body)) as Record<string, any>
-            return Response.json({
-              id: 'msg_test',
-              type: 'message',
-              role: 'assistant',
-              model: 'custom-model',
-              content: [{ type: 'text', text: 'ok' }],
-              stop_reason: 'end_turn',
-              stop_sequence: null,
-              usage: { input_tokens: 1, output_tokens: 1 }
-            })
-          }
+          fetch: captureAnthropicRequest((body) => {
+            sentBody = body
+          })
         }
       },
       credentialReceipt: { attribution: 'auth', method: 'api-key' }
