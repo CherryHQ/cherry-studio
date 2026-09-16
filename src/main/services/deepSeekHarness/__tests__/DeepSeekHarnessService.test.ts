@@ -468,7 +468,7 @@ describe('DeepSeekHarnessService', () => {
     expect(mocks.execFile).toHaveBeenCalledWith(
       'taskkill',
       ['/PID', String(child.pid), '/T'],
-      { windowsHide: true },
+      expect.objectContaining({ windowsHide: true, env: expect.any(Object) }),
       expect.any(Function)
     )
     expect(processKill).not.toHaveBeenCalled()

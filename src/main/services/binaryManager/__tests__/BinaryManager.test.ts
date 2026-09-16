@@ -3689,6 +3689,20 @@ describe('BinaryManager', () => {
   })
 
   describe('runMise env/cwd contract', () => {
+    it('sanitizes snapshot and per-call environment entries at the mise handoff', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      const snapshot = { env: { GOOD: 'keep', BROKEN: 'bad\0value' }, usesDefaultChinaPipIndex: false }
+      const override = { ADDED: 'ok', INJECTED: 'bad\0value', ['BAD\0KEY']: 'value' }
+      mockExecFileAsync.mockResolvedValueOnce({ stdout: 'ok', stderr: '' })
+
+      await (service as any).runMise(['registry'], { snapshot, env: override })
+
+      expect(mockExecFileAsync.mock.calls[0][2].env).toEqual({ GOOD: 'keep', ADDED: 'ok' })
+      expect(snapshot.env.BROKEN).toBe('bad\0value')
+      expect(override.INJECTED).toBe('bad\0value')
+    })
+
     it('passes isolated env and cwd to execFileAsync, not process.env', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'

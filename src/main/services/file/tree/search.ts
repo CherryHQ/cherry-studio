@@ -19,7 +19,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
-import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryExecutionEnv, sanitizeEnvNullBytes } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import type { AbsoluteFilePath, DirectoryEntry, DirectoryListOptions } from '@shared/types/file'
 
@@ -103,7 +103,7 @@ async function executeRipgrep(args: string[]): Promise<RipgrepResult> {
 
   return new Promise((resolve, reject) => {
     const child = spawn(ripgrepBinaryPath, ['--no-config', '--ignore-case', ...args], {
-      env: { ...process.env, ...getBinaryExecutionEnv() },
+      env: sanitizeEnvNullBytes({ ...process.env, ...getBinaryExecutionEnv() }),
       stdio: ['pipe', 'pipe', 'pipe']
     })
 

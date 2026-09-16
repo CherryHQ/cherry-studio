@@ -5,7 +5,7 @@ import path from 'path'
 
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryExecutionEnv, sanitizeEnvNullBytes } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { canonicalizePathForContainment } from '@main/utils/file'
 
@@ -634,7 +634,7 @@ export async function runRipgrep(args: string[]): Promise<RipgrepResult> {
   return new Promise((resolve) => {
     const child = spawn(ripgrepBinaryPath, args, {
       cwd: process.cwd(),
-      env: { ...process.env, ...getBinaryExecutionEnv() },
+      env: sanitizeEnvNullBytes({ ...process.env, ...getBinaryExecutionEnv() }),
       stdio: ['ignore', 'pipe', 'pipe']
     })
 

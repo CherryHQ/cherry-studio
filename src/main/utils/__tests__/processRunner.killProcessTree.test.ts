@@ -76,7 +76,12 @@ describe('killProcessTree', () => {
     platform.isWin = true
     const child = makeChild(4242)
     killProcessTree(child)
-    expect(execFileMock).toHaveBeenCalledWith('taskkill', ['/PID', '4242', '/T', '/F'], expect.any(Function))
+    expect(execFileMock).toHaveBeenCalledWith(
+      'taskkill',
+      ['/PID', '4242', '/T', '/F'],
+      expect.objectContaining({ env: expect.any(Object) }),
+      expect.any(Function)
+    )
     expect((child as unknown as FakeChild).kill).not.toHaveBeenCalled()
   })
 
@@ -84,7 +89,7 @@ describe('killProcessTree', () => {
     platform.isWin = true
     const child = makeChild(4242)
     killProcessTree(child)
-    const callback = execFileMock.mock.calls[0][2] as (error: Error | null) => void
+    const callback = execFileMock.mock.calls[0][3] as (error: Error | null) => void
     callback(new Error('ERROR: The process 4242 not found.'))
     expect((child as unknown as FakeChild).kill).toHaveBeenCalledTimes(1)
   })

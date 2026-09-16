@@ -12,6 +12,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
+import { sanitizeEnvNullBytes } from '@main/utils/binaryEnv'
 import { atomicWriteFile, remove } from '@main/utils/file'
 import { crossPlatformSpawn, removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -936,7 +937,10 @@ export class OpenClawService extends BaseService {
     const currentPid = process.pid
     try {
       if (isWin) {
-        const output = execSync(`netstat -ano | findstr ":${this.gatewayPort}"`, { encoding: 'utf-8' })
+        const output = execSync(`netstat -ano | findstr ":${this.gatewayPort}"`, {
+          encoding: 'utf-8',
+          env: sanitizeEnvNullBytes({ ...process.env })
+        })
         const pids = new Set<string>()
         for (const line of output.split('\n')) {
           const match = line.trim().match(/LISTENING\s+(\d+)/)
@@ -946,14 +950,14 @@ export class OpenClawService extends BaseService {
         }
         for (const pid of pids) {
           try {
-            execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' })
+            execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore', env: sanitizeEnvNullBytes({ ...process.env }) })
             logger.info(`Killed process ${pid} on port ${this.gatewayPort}`)
           } catch {
             // ignore
           }
         }
       } else {
-        execSync('pkill -9 openclaw', { stdio: 'ignore' })
+        execSync('pkill -9 openclaw', { stdio: 'ignore', env: sanitizeEnvNullBytes({ ...process.env }) })
         logger.info('Killed all openclaw processes')
       }
     } catch {

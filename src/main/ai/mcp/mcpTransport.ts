@@ -11,6 +11,7 @@ import {
   getBuiltinRegistryEnv,
   hasInMemoryImplementation
 } from '@main/ai/mcp/servers/factory'
+import { sanitizeEnvNullBytes } from '@main/utils/binaryEnv'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -197,7 +198,7 @@ async function createStdio(
     args: launch.args,
     // On Windows the SDK prepends process.env.PATH before this object, so use
     // one canonical key to ensure our fresh shell PATH replaces the stale value.
-    env: buildStdioEnvironment(loginShellEnv, connectEnv),
+    env: sanitizeEnvNullBytes(buildStdioEnvironment(loginShellEnv, connectEnv)),
     stderr: 'pipe'
   }
 
