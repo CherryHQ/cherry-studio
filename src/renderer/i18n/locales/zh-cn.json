@@ -3025,6 +3025,7 @@
   "provider.minimax": "MiniMax",
   "provider.minimax-global": "MiniMax 海外版",
   "provider.mistral": "Mistral",
+  "provider.mizumi": "Mizumi",
   "provider.modelscope": "ModelScope 魔搭",
   "provider.moonshot": "月之暗面",
   "provider.new-api": "New API",
