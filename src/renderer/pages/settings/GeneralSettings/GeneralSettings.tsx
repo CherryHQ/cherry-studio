@@ -68,6 +68,7 @@ const GeneralSettings: FC = () => {
   const proxyTestGeneration = useRef(0)
   const proxyTestInput = useRef({ mode: storeProxyMode, url: storeProxyUrl, bypassRules: storeProxyBypassRules })
   const proxyTestButtonRef = useRef<HTMLButtonElement>(null)
+  const pendingProxyPreferenceSave = useRef<(() => void) | null>(null)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
@@ -95,9 +96,7 @@ const GeneralSettings: FC = () => {
   const isProxyTestAction = (event: FocusEvent<HTMLInputElement>) =>
     event.relatedTarget instanceof Node && proxyTestButtonRef.current?.contains(event.relatedTarget)
 
-  const onSetProxyUrl = (event: FocusEvent<HTMLInputElement>) => {
-    if (isProxyTestAction(event)) return
-
+  const saveProxyUrl = () => {
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
       toast.error(t('message.error.invalid.proxy.url'))
       return
@@ -106,10 +105,26 @@ const GeneralSettings: FC = () => {
     void _setProxyUrl(proxyUrl)
   }
 
-  const onSetProxyBypassRules = (event: FocusEvent<HTMLInputElement>) => {
-    if (isProxyTestAction(event)) return
+  const onSetProxyUrl = (event: FocusEvent<HTMLInputElement>) => {
+    if (isProxyTestAction(event)) {
+      pendingProxyPreferenceSave.current = saveProxyUrl
+      return
+    }
 
+    saveProxyUrl()
+  }
+
+  const saveProxyBypassRules = () => {
     void _setProxyBypassRules(proxyBypassRules)
+  }
+
+  const onSetProxyBypassRules = (event: FocusEvent<HTMLInputElement>) => {
+    if (isProxyTestAction(event)) {
+      pendingProxyPreferenceSave.current = saveProxyBypassRules
+      return
+    }
+
+    saveProxyBypassRules()
   }
 
   const updateProxyTestInput = (nextInput: typeof proxyTestInput.current) => {
@@ -120,6 +135,7 @@ const GeneralSettings: FC = () => {
   }
 
   const handleProxyTest = async () => {
+    pendingProxyPreferenceSave.current = null
     const input = { ...proxyTestInput.current }
     const generation = ++proxyTestGeneration.current
     const isCurrent = () =>
@@ -309,6 +325,11 @@ const GeneralSettings: FC = () => {
             variant="outline"
             loading={proxyTestLoading}
             aria-busy={proxyTestLoading}
+            onBlur={() => {
+              const savePreference = pendingProxyPreferenceSave.current
+              pendingProxyPreferenceSave.current = null
+              savePreference?.()
+            }}
             onClick={() => void handleProxyTest()}>
             {t('settings.proxy.test.action')}
           </Button>

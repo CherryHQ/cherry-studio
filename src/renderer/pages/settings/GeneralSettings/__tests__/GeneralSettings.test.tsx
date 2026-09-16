@@ -219,6 +219,33 @@ describe('GeneralSettings', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('app.proxy.bypass_rules')).toBe('localhost')
   })
 
+  it('persists edited bypass rules when tabbing past the connection test without activating it', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'app.proxy.mode': 'custom',
+      'app.proxy.url': 'http://saved.example:8080',
+      'app.proxy.bypass_rules': 'localhost'
+    })
+    render(<GeneralSettings />)
+
+    const bypassRulesInput = screen.getByDisplayValue('localhost')
+    const testButton = screen.getByRole('button', { name: 'settings.proxy.test.action' })
+
+    await user.clear(bypassRulesInput)
+    await user.type(bypassRulesInput, 'www.gstatic.com')
+    await user.tab()
+
+    expect(testButton).toHaveFocus()
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.proxy.bypass_rules')).toBe('localhost')
+
+    await user.tab()
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.proxy.bypass_rules')).toBe('www.gstatic.com')
+    })
+    expect(ipcRequestMock).not.toHaveBeenCalled()
+  })
+
   it('ignores a deferred result after the proxy input changes and clears results when the mode changes', async () => {
     let resolveRequest: (result: { target: string; route: 'proxy'; success: true }) => void = () => undefined
     const deferredRequest = new Promise<{ target: string; route: 'proxy'; success: true }>((resolve) => {
