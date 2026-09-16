@@ -46,6 +46,7 @@ type DisplayedTranslateHistoryItem = TranslateHistory & {
 
 type Props = {
   isOpen: boolean
+  isRestorePending: boolean
   onHistoryItemClick: (history: TranslateHistory, files?: TranslationFiles) => void
   onClose: () => void
 }
@@ -68,7 +69,7 @@ const formatCreatedAt = (value: unknown, locale: string): string => {
   return `${date} ${time}`
 }
 
-const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }) => {
+const TranslateHistoryList: FC<Props> = ({ isOpen, isRestorePending, onHistoryItemClick, onClose }) => {
   const { t, i18n } = useTranslation()
   const [showStared, setShowStared] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -143,6 +144,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
 
   const handleReuse = useCallback(
     (item: DisplayedTranslateHistoryItem, files?: TranslationFiles) => {
+      if (isRestorePending) return
       setSelectedId(null)
       if (files) {
         onHistoryItemClick(item, files)
@@ -150,7 +152,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
         onHistoryItemClick(item)
       }
     },
-    [onHistoryItemClick]
+    [isRestorePending, onHistoryItemClick]
   )
 
   const estimateItemSize = useCallback(() => ITEM_HEIGHT, [])
@@ -224,6 +226,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
               onCopy={copyText}
               onReuse={handleReuse}
               onDeleted={() => setSelectedId(null)}
+              isRestorePending={isRestorePending}
             />
           ) : (
             <>
@@ -356,7 +359,8 @@ const HistoryDetail: FC<{
   onCopy: (value: string) => Promise<void>
   onReuse: (item: DisplayedTranslateHistoryItem, files?: TranslationFiles) => void
   onDeleted: () => void
-}> = ({ item, onBack, onCopy, onReuse, onDeleted }) => {
+  isRestorePending: boolean
+}> = ({ item, onBack, onCopy, onReuse, onDeleted, isRestorePending }) => {
   const { t } = useTranslation()
   const { update: updateHistory, remove: deleteHistory } = useTranslateHistory()
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
@@ -416,7 +420,7 @@ const HistoryDetail: FC<{
           <span className="text-foreground-tertiary text-sm">{item._createdAtLabel}</span>
         </div>
         {item.kind === 'file' ? (
-          <FileHistoryBody item={item} onReuse={(files) => onReuse(item, files)} />
+          <FileHistoryBody item={item} onReuse={(files) => onReuse(item, files)} isRestorePending={isRestorePending} />
         ) : (
           <>
             <div className="rounded-md bg-muted/40 p-3">
@@ -444,8 +448,9 @@ const HistoryDetail: FC<{
             <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
+                disabled={isRestorePending}
                 onClick={() => onReuse(item)}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none">
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50">
                 <Repeat size={11} />
                 <span>{t('translate.history.reuse')}</span>
               </button>
@@ -483,10 +488,11 @@ const HistoryDetail: FC<{
  * Everything here is format-agnostic except the side-by-side preview, which needs a
  * viewer and so gates on `isPdfTranslation`.
  */
-const FileHistoryBody: FC<{ item: DisplayedTranslateHistoryItem; onReuse: (files: TranslationFiles) => void }> = ({
-  item,
-  onReuse
-}) => {
+const FileHistoryBody: FC<{
+  item: DisplayedTranslateHistoryItem
+  onReuse: (files: TranslationFiles) => void
+  isRestorePending: boolean
+}> = ({ item, onReuse, isRestorePending }) => {
   const { t } = useTranslation()
   const [files, setFiles] = useState<TranslationFiles | null>(null)
 
@@ -564,8 +570,9 @@ const FileHistoryBody: FC<{ item: DisplayedTranslateHistoryItem; onReuse: (files
         {canPreview && (
           <button
             type="button"
+            disabled={isRestorePending}
             onClick={() => files && onReuse(files)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none">
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50">
             <Repeat size={11} />
             <span>{t('translate.history.file.preview')}</span>
           </button>
