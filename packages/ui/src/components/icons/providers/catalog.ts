@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-09-07T13:21:05.291Z
- * Total icons: 160
+ * Generated at: 2026-09-12T14:39:39.765Z
+ * Total icons: 161
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -132,6 +132,7 @@ import { QwenIcon } from './qwen'
 import { RadeonCloudIcon } from './radeon-cloud'
 import { RecraftIcon } from './recraft'
 import { RelaceIcon } from './relace'
+import { RequestyIcon } from './requesty/requesty'
 import { RiverflowIcon } from './riverflow'
 import { RunwayIcon } from './runway'
 import { SearxngIcon } from './searxng'
@@ -294,6 +295,7 @@ export const PROVIDER_ICON_CATALOG = {
   'radeon-cloud': RadeonCloudIcon,
   recraft: RecraftIcon,
   relace: RelaceIcon,
+  requesty: RequestyIcon,
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
