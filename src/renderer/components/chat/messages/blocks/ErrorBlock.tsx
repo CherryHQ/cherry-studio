@@ -101,6 +101,10 @@ const MessageErrorInfo: React.FC<{
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
+  const localizedErrorMessage = useMemo(
+    () => t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined),
+    [classification.i18nKey, providerId, t]
+  )
 
   useEffect(() => {
     if (
@@ -164,7 +168,8 @@ const MessageErrorInfo: React.FC<{
     void openErrorDetail?.({
       message,
       error,
-      partId
+      partId,
+      localizedErrorMessage
     })
   }
 

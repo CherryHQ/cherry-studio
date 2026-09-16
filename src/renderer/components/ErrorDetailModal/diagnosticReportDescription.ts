@@ -17,12 +17,14 @@ export interface DiagnosticReportDescriptionLabels {
 interface BuildDiagnosticReportDescriptionInput extends DiagnosticReportConfig {
   diagnosisContext?: DiagnosisContext
   error?: SerializedError
+  localizedErrorMessage?: string
   labels: DiagnosticReportDescriptionLabels
 }
 
 interface DiagnosticReportFieldsInput {
   diagnosisContext?: DiagnosisContext
   error?: SerializedError
+  localizedErrorMessage?: string
   location?: string
 }
 
@@ -43,11 +45,13 @@ function diagnosticReportField(id: DiagnosticReportField['id'], value: unknown):
   return text ? { id, value: text } : undefined
 }
 
-function combineErrorParts(name: unknown, message: unknown): string | undefined {
+function combineErrorParts(localized: unknown, name: unknown, message: unknown): string | undefined {
   const errorName = nonEmptyText(name)
   const errorMessage = nonEmptyText(message)
-  if (errorName && errorMessage) return `${errorName}: ${errorMessage}`
-  return errorName ?? errorMessage
+  const raw = errorName && errorMessage ? errorName + ': ' + errorMessage : (errorName ?? errorMessage)
+  const localizedMessage = nonEmptyText(localized)
+  if (localizedMessage && raw && localizedMessage !== raw) return localizedMessage + ' (' + raw + ')'
+  return localizedMessage ?? raw
 }
 
 function combineModelParts(provider: unknown, model: unknown): string | undefined {
@@ -75,12 +79,13 @@ function truncateUtf8(value: string): string {
 export function diagnosticReportFields({
   diagnosisContext,
   error,
-  location
+  location,
+  localizedErrorMessage
 }: DiagnosticReportFieldsInput): DiagnosticReportField[] {
   return [
     diagnosticReportField('location', location),
     diagnosticReportField('model', combineModelParts(diagnosisContext?.providerId, diagnosisContext?.modelId)),
-    diagnosticReportField('errorMessage', combineErrorParts(error?.name, error?.message))
+    diagnosticReportField('errorMessage', combineErrorParts(localizedErrorMessage, error?.name, error?.message))
   ].filter((field): field is DiagnosticReportField => field !== undefined)
 }
 
@@ -88,9 +93,10 @@ export function buildDiagnosticReportDescription({
   diagnosisContext,
   error,
   labels,
-  location
+  location,
+  localizedErrorMessage
 }: BuildDiagnosticReportDescriptionInput): string {
-  const lines = diagnosticReportFields({ diagnosisContext, error, location }).map(
+  const lines = diagnosticReportFields({ diagnosisContext, error, location, localizedErrorMessage }).map(
     ({ id, value }) => `${labels[id]}: ${value}`
   )
 

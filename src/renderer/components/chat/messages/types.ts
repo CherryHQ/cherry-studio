@@ -186,6 +186,7 @@ export interface MessageErrorDetailInput {
   message: MessageListItem
   partId: string
   error?: SerializedError
+  localizedErrorMessage?: string
 }
 
 export interface OpenAgentToolFlowInput {

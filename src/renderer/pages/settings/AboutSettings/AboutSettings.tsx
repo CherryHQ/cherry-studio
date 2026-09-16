@@ -212,7 +212,7 @@ const AboutSettings: FC = () => {
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle className="gap-2">
-          <span className="font-semibold text-[15px]">{t('settings.about.title')}</span>
+          <span className="text-[15px] font-semibold">{t('settings.about.title')}</span>
           <button
             type="button"
             aria-label={t('settings.about.repository')}
@@ -233,7 +233,7 @@ const AboutSettings: FC = () => {
               className="relative cursor-pointer">
               <span aria-hidden="true">
                 {appUpdateState.downloading && appUpdateState.downloadProgress > 0 && (
-                  <div className="-top-0.5 -left-0.5 pointer-events-none absolute">
+                  <div className="pointer-events-none absolute -top-0.5 -left-0.5">
                     <CircularProgress
                       value={appUpdateState.downloadProgress}
                       size={76}
@@ -249,14 +249,14 @@ const AboutSettings: FC = () => {
             </button>
 
             <div className="flex min-h-18 flex-col items-start justify-center">
-              <div className="mb-1 font-bold text-foreground text-lg">Cherry Studio</div>
+              <div className="mb-1 text-lg font-bold text-foreground">Cherry Studio</div>
               <div className="text-muted-foreground text-sm">{t('settings.about.description')}</div>
               <button
                 type="button"
                 aria-label={t('settings.about.releases.title')}
                 onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
                 className="mt-1.5">
-                <Badge className="cursor-pointer rounded-md border-primary/20 bg-primary/10 px-1.5 py-0 text-[11px] text-primary leading-4 transition-colors hover:bg-primary/15">
+                <Badge className="cursor-pointer rounded-md border-primary/20 bg-primary/10 px-1.5 py-0 text-[11px] leading-4 text-primary transition-colors hover:bg-primary/15">
                   v{version}
                 </Badge>
               </button>

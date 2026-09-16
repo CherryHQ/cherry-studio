@@ -311,6 +311,7 @@ describe('ErrorDetailContent diagnostics', () => {
     renderErrorDetailContent({
       diagnosisContext: { errorSource: 'chat', providerId: 'OpenAI', modelId: 'gpt-5' },
       diagnosticReport: { location: 'Home conversation' },
+      localizedErrorMessage: 'API Key is invalid, please check and reconfigure',
       error: providerError
     })
 
@@ -318,7 +319,7 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(basicInformation).toBeInTheDocument()
     expect(basicInformation).toHaveAttribute('data-variant', 'sectioned')
     expect(screen.getByText('OpenAI:gpt-5')).toBeInTheDocument()
-    expect(screen.getByText('ProviderError: failed')).toBeInTheDocument()
+    expect(screen.getByText('API Key is invalid, please check and reconfigure')).toBeInTheDocument()
     expect(screen.queryByText('Home conversation')).not.toBeInTheDocument()
     expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
     expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()

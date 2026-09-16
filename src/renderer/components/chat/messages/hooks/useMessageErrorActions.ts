@@ -51,6 +51,7 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
         error: input.error,
         subject: getDoctorSubject(input.message),
         diagnosisContext: { providerId: model?.provider, modelId: model?.id },
+        localizedErrorMessage: input.localizedErrorMessage,
         diagnosticReport
       })
     },

@@ -74,9 +74,11 @@ describe('renderer i18n lazy init', () => {
     )
 
     await i18n.changeLanguage('zh-CN')
-    expect(i18n.t('settings.doctor.actions.run_basic')).toBe('重跑基础检查')
-    expect(i18n.t('settings.doctor.actions.run_network')).toBe('完整检查')
-    expect(i18n.t('settings.doctor.panel_descriptions.checks')).toBe('完整检查会重新运行基础项，并加入网络与服务检查。')
+    expect(i18n.t('settings.doctor.actions.run_basic')).toBe('运行基础检查')
+    expect(i18n.t('settings.doctor.actions.run_network')).toBe('运行完整检查')
+    expect(i18n.t('settings.doctor.panel_descriptions.checks')).toBe(
+      '完整检查会重新运行基础检查，并包含网络与服务检查。'
+    )
   })
 
   it('falls back to en-US for a non-catalog language without throwing', async () => {

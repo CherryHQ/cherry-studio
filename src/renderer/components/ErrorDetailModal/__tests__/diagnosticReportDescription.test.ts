@@ -54,6 +54,17 @@ describe('buildDiagnosticReportDescription', () => {
 
     expect(
       diagnosticReportFields({
+        error: { name: 'AuthError', message: 'Unauthorized', stack: null },
+        localizedErrorMessage: 'API Key 无效，请检查并重新配置',
+        location: 'Home conversation'
+      })
+    ).toEqual([
+      { id: 'location', value: 'Home conversation' },
+      { id: 'errorMessage', value: 'API Key 无效，请检查并重新配置 (AuthError: Unauthorized)' }
+    ])
+
+    expect(
+      diagnosticReportFields({
         diagnosisContext: { providerId: 'OpenAI' },
         error: { name: 'ProviderError', message: null, stack: null },
         location: 'Home conversation'
