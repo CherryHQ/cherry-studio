@@ -7,6 +7,8 @@
  * `@renderer/aiCore/errors/paintingGenerateError`, which re-exports this core.
  */
 
+import * as z from 'zod'
+
 export type PaintingGenerateErrorCode =
   | 'PROVIDER_DISABLED'
   | 'PROMPT_REQUIRED'
@@ -21,12 +23,28 @@ export type PaintingGenerateErrorCode =
   | 'REQ_ERROR_NO_BALANCE'
   | 'OPERATION_FAILED'
   | 'GENERATE_FAILED'
+  | 'IMAGE_OUTPUT_EMPTY'
+  | 'IMAGE_OUTPUT_INVALID'
+  | 'IMAGE_OUTPUT_UNSUPPORTED'
   | 'IMAGE_MIX_FAILED'
   | 'CUSTOM_SIZE_REQUIRED'
   | 'CUSTOM_SIZE_RANGE'
   | 'CUSTOM_SIZE_DIVISIBLE'
   | 'CUSTOM_SIZE_PIXELS'
   | 'REMOTE_ERROR'
+
+export const generatedImageRejectionReasons = [
+  'invalid_image_data',
+  'unsupported_media_type',
+  'download_failed'
+] as const
+export type GeneratedImageRejectionReason = (typeof generatedImageRejectionReasons)[number]
+
+export const GeneratedImageValidationSchema = z.object({
+  receivedCount: z.number().int().nonnegative(),
+  rejected: z.array(z.object({ index: z.number().int().nonnegative(), reason: z.enum(generatedImageRejectionReasons) }))
+})
+export type GeneratedImageValidation = z.infer<typeof GeneratedImageValidationSchema>
 
 export interface PaintingGenerateErrorOptions {
   message?: string

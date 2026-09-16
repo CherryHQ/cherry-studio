@@ -379,19 +379,15 @@ describe('RuntimeExecutor.generateImage', () => {
       )
     })
 
-    it('should handle NoImageGeneratedError', async () => {
+    it('should preserve NoImageGeneratedError from asynchronous generation', async () => {
       const noImageError = new NoImageGeneratedError({
         cause: new Error('No image generated'),
         responses: []
       })
 
       vi.mocked(aiGenerateImage).mockRejectedValue(noImageError)
-      vi.mocked(NoImageGeneratedError.isInstance).mockReturnValue(true)
 
-      // Error propagates directly from pluginEngine
-      await expect(executor.generateImage({ model: 'dall-e-3', prompt: 'A test image' })).rejects.toThrow(
-        'No image generated'
-      )
+      await expect(executor.generateImage({ model: 'dall-e-3', prompt: 'A test image' })).rejects.toBe(noImageError)
     })
 
     it('should execute onError plugin hook on failure', async () => {
