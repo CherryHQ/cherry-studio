@@ -3,8 +3,8 @@ import { openaiCompatible } from './types'
 import { modeWire } from './wires'
 
 // Token Market exposes model-dependent reasoning through the OpenAI-compatible
-// `enable_thinking` request field. Encoding remains gated by model capability.
-const thinkingWire: ReasoningWireProfile = modeWire('enable_thinking', { off: false, auto: true })
+// `extra_body.enable_thinking` request field. Encoding remains gated by model capability.
+const thinkingWire: ReasoningWireProfile = modeWire('extra_body.enable_thinking', { off: false, auto: true })
 
 export default openaiCompatible({
   id: 'tokenmarket',

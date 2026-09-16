@@ -763,7 +763,7 @@
               "auto": {
                 "operations": [
                   {
-                    "target": "enable_thinking",
+                    "target": "extra_body.enable_thinking",
                     "value": {
                       "source": "literal",
                       "value": true
@@ -774,7 +774,7 @@
               "off": {
                 "operations": [
                   {
-                    "target": "enable_thinking",
+                    "target": "extra_body.enable_thinking",
                     "value": {
                       "source": "literal",
                       "value": false
@@ -2577,5 +2577,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "12c26d9885c0546c"
+  "version": "29a621aa936eeeea"
 }

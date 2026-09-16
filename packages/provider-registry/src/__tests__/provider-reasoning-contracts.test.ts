@@ -275,10 +275,14 @@ describe('provider reasoning contracts', () => {
     ).toEqual([{ target: 'extra_body.thinking_budget', value: { source: 'budget' } }])
   })
 
-  it('encodes Token Market thinking through enable_thinking', () => {
+  it('encodes Token Market thinking through extra_body.enable_thinking', () => {
     const wire = provider('tokenmarket').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
-    expect(wire?.off?.operations).toEqual([{ target: 'enable_thinking', value: { source: 'literal', value: false } }])
-    expect(wire?.auto?.operations).toEqual([{ target: 'enable_thinking', value: { source: 'literal', value: true } }])
+    expect(wire?.off?.operations).toEqual([
+      { target: 'extra_body.enable_thinking', value: { source: 'literal', value: false } }
+    ])
+    expect(wire?.auto?.operations).toEqual([
+      { target: 'extra_body.enable_thinking', value: { source: 'literal', value: true } }
+    ])
     expect(wire?.effort).toBeUndefined()
   })
 
