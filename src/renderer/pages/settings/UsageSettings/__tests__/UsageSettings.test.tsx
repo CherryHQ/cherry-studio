@@ -194,4 +194,17 @@ describe('UsageSettings', () => {
     view.rerender(<UsageSettings />)
     expect(screen.getByLabelText('总计 · Token')).toHaveTextContent('0')
   })
+  it('does not report a zero total when aggregate loading fails, and recovers to a real zero', () => {
+    MockCacheUtils.setInitialState({ persist: [['settings.usage.rollup', 'total']] })
+    usageDataOverride.current = { exploreStatsError: new Error('Stats unavailable') }
+    const view = render(<UsageSettings />)
+
+    expect(screen.queryByLabelText('总计 · Token')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    usageDataOverride.current = {}
+    view.rerender(<UsageSettings />)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('总计 · Token')).toHaveTextContent('0')
+  })
 })

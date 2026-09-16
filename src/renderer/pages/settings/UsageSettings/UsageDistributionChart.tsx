@@ -1,3 +1,4 @@
+import { CircleAlert } from 'lucide-react'
 import { lazy, Suspense, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -37,6 +38,7 @@ interface UsageDistributionChartProps {
   exploreOther: AiUsageRecordStatsMetrics
   exploreTotals: AiUsageRecordStatsMetrics
   exploreStatsLoading: boolean
+  exploreStatsError?: Error
   rollup: UsageRollupKey
   chartMetric: UsageMetricKey
   chartType: UsageChartType
@@ -68,6 +70,7 @@ export function UsageDistributionChart({
   exploreOther,
   exploreTotals,
   exploreStatsLoading,
+  exploreStatsError,
   rollup,
   chartMetric,
   chartType,
@@ -139,6 +142,14 @@ export function UsageDistributionChart({
   const isEmpty = periodKeys.length === 0 || chartSeries.every((series) => series.total <= 0)
 
   const isLoading = rollup === 'total' ? exploreStatsLoading : exploreTimelineLoading
+
+  if (rollup === 'total' && exploreStatsError) {
+    return (
+      <div role="alert">
+        <EmptyState compact icon={CircleAlert} title={t('common.error')} />
+      </div>
+    )
+  }
 
   if (rollup !== 'total' && !isLoading && isEmpty) {
     return (

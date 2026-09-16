@@ -151,6 +151,7 @@ function UsageSettings() {
     exploreBuckets,
     exploreOther,
     exploreStatsLoading,
+    exploreStatsError,
     overviewTotals,
     previousOverviewTotals,
     exploreTotals,
@@ -616,6 +617,7 @@ function UsageSettings() {
                 exploreOther={exploreOther}
                 exploreTotals={exploreTotals}
                 exploreStatsLoading={exploreStatsLoading}
+                exploreStatsError={exploreStatsError}
                 rollup={rollup}
                 chartMetric={chartMetric}
                 chartType={chartType}
