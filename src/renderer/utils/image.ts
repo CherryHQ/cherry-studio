@@ -311,6 +311,9 @@ async function captureScrollableElement(el: HTMLElement | null) {
         new Promise((resolve) => setTimeout(resolve, 1000))
       ])
 
+      restoreLocalImageSources = await inlineLocalImageSources(el)
+      restoreRemoteImages = await inlineVerifiedRemoteImages(el)
+
       // calculate the size of the element
       const totalWidth = el.scrollWidth
       const totalHeight = el.scrollHeight
@@ -338,9 +341,6 @@ async function captureScrollableElement(el: HTMLElement | null) {
         }
         return true
       }
-
-      restoreLocalImageSources = await inlineLocalImageSources(el)
-      restoreRemoteImages = await inlineVerifiedRemoteImages(el)
 
       const fontEmbedCSS = await buildFontEmbedCSS()
       const captureOptions = {

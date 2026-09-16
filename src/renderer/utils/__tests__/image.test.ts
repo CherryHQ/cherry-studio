@@ -801,6 +801,29 @@ describe('utils/image', () => {
       vi.unstubAllGlobals()
     })
 
+    it('sizes the canvas from the layout after the placeholder swap, not before', async () => {
+      stubFetch('text/html; charset=utf-8', new TextEncoder().encode('<!DOCTYPE html><html>Too Many Requests</html>'))
+      const img = document.createElement('img')
+      img.setAttribute('src', 'https://example.com/figure.png')
+      // Mark loaded so waitForCaptureAssets settles without jsdom's never-firing load.
+      Object.defineProperty(img, 'complete', { value: true, configurable: true })
+      const root = document.createElement('div')
+      root.appendChild(img)
+      Object.defineProperty(root, 'scrollWidth', { value: 100, configurable: true })
+      // A block-level markdown image collapses once its src becomes the 1×1 placeholder.
+      Object.defineProperty(root, 'scrollHeight', {
+        get: () => ((img.getAttribute('src') ?? '').startsWith('data:') ? 100 : 360),
+        configurable: true
+      })
+      armJsdomImageSettle(root)
+
+      await captureScrollableAsDataUrl({ current: root })
+
+      const captureOptions = vi.mocked(htmlToImage.toCanvas).mock.calls[0]?.[1]
+      expect(captureOptions).toMatchObject({ height: 100, canvasHeight: 100 })
+      vi.unstubAllGlobals()
+    })
+
     it('does not fetch remote images the capture filter omits', async () => {
       const fetchMock = vi.fn(async () => ({
         ok: true,
