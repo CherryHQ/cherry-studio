@@ -18,5 +18,3 @@ export type {
   AccessibleNodeSummary
 } from './snapshot/accessibilityTypes'
 export { ANNOTATION_EXPORT_LIMITS, createAccessibilityContext } from './snapshot/describeElement'
-
-export { sessionToolDefinitions } from './mcp/tools/registry'

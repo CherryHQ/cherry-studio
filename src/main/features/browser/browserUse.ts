@@ -1,15 +1,8 @@
-import * as z from 'zod'
+import type * as z from 'zod'
 
-export const browserRefSchema = z.string().regex(/^e[1-9]\d*$/)
+import type { browserRefSchema, snapshotOptionsSchema } from '@main/ai/mcp/browserToolDefinitions'
+
 export type BrowserRef = z.infer<typeof browserRefSchema>
-
-export const snapshotOptionsSchema = z
-  .object({
-    full: z.boolean().optional(),
-    scope: browserRefSchema.optional(),
-    maxChars: z.number().int().min(256).max(40_000).optional()
-  })
-  .strict()
 export type SnapshotOptions = z.infer<typeof snapshotOptionsSchema>
 export type TabRetention = 'temporary' | 'deliverable' | 'handoff'
 export type SessionOwnership = { ownership: 'managed'; close: () => void } | { ownership: 'borrowed' }

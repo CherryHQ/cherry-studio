@@ -1,58 +1,17 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
-import { BROWSER_TOOL_NAMES } from '@main/ai/mcp/browserTools'
-
 import type { BrowserController } from '../browserController'
-import { dialogToolDefinition, handleDialog } from './dialog'
-import { executeToolDefinition, handleExecute } from './execute'
-import { handleConsoleMessages, handleFind, handleNetworkRequests, inspectToolDefinitions } from './inspect'
-import { handleInteraction, interactionToolDefinitions } from './interact'
-import { handleHistory, handleWaitFor, navigateToolDefinitions } from './navigate'
-import { handleOpen, openToolDefinition, OpenSchema } from './open'
-import { handleReset, resetToolDefinition } from './reset'
-import { handleScreenshot, screenshotToolDefinition } from './screenshot'
-import { handleSnapshot, snapshotToolDefinition } from './snapshot'
-import {
-  closeTabToolDefinition,
-  handleCloseTab,
-  handleListTabs,
-  handleSwitchTab,
-  listTabsToolDefinition,
-  switchTabToolDefinition
-} from './tabs'
-import { handleListWebTools, handleCallWebTool, webMcpToolDefinitions } from './webMcp'
-
-export const toolDefinitions = [
-  openToolDefinition,
-  executeToolDefinition,
-  screenshotToolDefinition,
-  snapshotToolDefinition,
-  listTabsToolDefinition,
-  switchTabToolDefinition,
-  closeTabToolDefinition,
-  resetToolDefinition,
-  dialogToolDefinition,
-  ...interactionToolDefinitions,
-  ...inspectToolDefinitions,
-  ...webMcpToolDefinitions,
-  ...navigateToolDefinitions
-]
-
-export const sessionToolDefinitions = toolDefinitions
-  .filter(({ name }) => BROWSER_TOOL_NAMES.some((known) => known === name))
-  .map((definition) =>
-    definition.name === 'open'
-      ? {
-          ...definition,
-          description:
-            'Navigate this conversation browser pane. The user sees the same page. New tabs and private windows are unavailable.',
-          inputSchema: OpenSchema.omit({ showWindow: true }).extend({
-            privateMode: OpenSchema.shape.privateMode.describe('Unsupported by this host; must be false.'),
-            newTab: OpenSchema.shape.newTab.describe('Unsupported by this host; must be false.')
-          })
-        }
-      : definition
-  )
+import { handleDialog } from './dialog'
+import { handleExecute } from './execute'
+import { handleConsoleMessages, handleFind, handleNetworkRequests } from './inspect'
+import { handleInteraction } from './interact'
+import { handleHistory, handleWaitFor } from './navigate'
+import { handleOpen } from './open'
+import { handleReset } from './reset'
+import { handleScreenshot } from './screenshot'
+import { handleSnapshot } from './snapshot'
+import { handleCloseTab, handleListTabs, handleSwitchTab } from './tabs'
+import { handleListWebTools, handleCallWebTool } from './webMcp'
 
 export const toolHandlers: Record<
   string,

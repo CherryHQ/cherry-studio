@@ -2,7 +2,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { tool } from 'ai'
 
 import { application } from '@application'
-import { sessionToolDefinitions } from '@main/features/browser'
+import { sessionToolDefinitions } from '@main/ai/mcp/browserToolDefinitions'
 
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'

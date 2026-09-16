@@ -3,12 +3,13 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { Mutex } from 'async-mutex'
 
 import { loggerService } from '@logger'
+import { toolDefinitions, sessionToolDefinitions } from '@main/ai/mcp/browserToolDefinitions'
 
 import type { BrowserSessionService } from '../BrowserSessionService'
 import { BrowserSessionError } from '../session/BrowserSessionError'
 import type { BrowserController } from './browserController'
 import { CdpBrowserController } from './controller'
-import { toolDefinitions, sessionToolDefinitions, toolHandlers } from './tools/registry'
+import { toolHandlers } from './tools/registry'
 
 const logger = loggerService.withContext('BrowserServer')
 
