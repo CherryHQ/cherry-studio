@@ -8,6 +8,7 @@ import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
+import { redactUrlToOrigin } from '@shared/utils/redaction'
 
 import { NodeProxyController } from './NodeProxyController'
 
@@ -125,7 +126,9 @@ export class ProxyService extends BaseService {
   }
 
   private async applyProxyConfig(config: ProxyConfig): Promise<void> {
-    logger.info(`apply proxy: ${config.mode} ${config.proxyRules ?? ''} ${config.proxyBypassRules ?? ''}`)
+    logger.info(
+      `apply proxy: ${config.mode} ${config.proxyRules ? redactUrlToOrigin(config.proxyRules) : ''} ${config.proxyBypassRules ?? ''}`
+    )
     // In system mode, poll the OS proxy so external changes re-converge through the reconciler.
     if (config.mode === 'system') this.ensureSystemProxyMonitor()
     else this.clearSystemProxyMonitor()

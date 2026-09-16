@@ -15,6 +15,8 @@ import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/typ
 import { LEVEL, LEVEL_MAP, MAX_LOG_RETENTION_DAYS } from '@shared/types/logger'
 import { redactSecretText } from '@shared/utils/redaction'
 
+import { redactUrlCredentials } from './redactUrlCredentials'
+
 const ANSICOLORS = {
   RED: '\x1b[31m',
   GREEN: '\x1b[32m',
@@ -184,7 +186,12 @@ export class LoggerService {
           format: 'YYYY-MM-DD HH:mm:ss'
         }),
         winston.format.errors({ stack: true }),
-        winston.format.json()
+        winston.format.json({
+          replacer(_key, value: unknown) {
+            if (typeof value === 'bigint') return value.toString()
+            return typeof value === 'string' ? redactUrlCredentials(value) : value
+          }
+        })
       ),
       exitOnError: false,
       transports
