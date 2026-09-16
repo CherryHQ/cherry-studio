@@ -69,7 +69,7 @@ describe('useConversationCenterSurface', () => {
     expect(result.current.activeResourceKind).toBeNull()
   })
 
-  it('invalidates the active surface when the conversation key changes', () => {
+  it('keeps history open when the conversation key changes', () => {
     const { result, rerender } = renderHook(
       ({ conversationKey }) =>
         useConversationCenterSurface({
@@ -86,8 +86,21 @@ describe('useConversationCenterSurface', () => {
 
     rerender({ conversationKey: 'session:two' })
 
+    expect(result.current.historyActive).toBe(true)
+    act(() => result.current.toggleHistory())
     expect(result.current.historyActive).toBe(false)
     expect(result.current.activeResourceKind).toBeNull()
+  })
+
+  it('invalidates a resource surface when the conversation changes', () => {
+    const { result, rerender } = renderHook(
+      ({ conversationKey }) => useConversationCenterSurface({ conversationKey, resourceKinds }),
+      { initialProps: { conversationKey: 'session:one' } }
+    )
+    act(() => result.current.toggleResource('agent'))
+    rerender({ conversationKey: 'session:two' })
+    expect(result.current.activeResourceKind).toBeNull()
+    expect(result.current.historyActive).toBe(false)
   })
 
   it('clears the active surface while disabled', () => {

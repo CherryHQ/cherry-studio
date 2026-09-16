@@ -9,6 +9,7 @@ import {
   FileCode,
   HardDrive,
   Info,
+  MonitorSmartphone,
   Package,
   Palette,
   PictureInPicture2,
@@ -122,6 +123,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/channels',
     titleKey: 'settings.channels.title',
     icon: createElement(Radio),
+    groupKey: 'settings.menuGroups.automation'
+  },
+  {
+    route: '/settings/device-connections',
+    titleKey: 'deviceConnections.title',
+    icon: createElement(MonitorSmartphone),
     groupKey: 'settings.menuGroups.automation'
   },
   {
