@@ -1,10 +1,18 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, DialogTrigger, Label, Switch } from '@cherrystudio/ui'
+import { Button, Dialog, DialogTrigger, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { BrowserImportDialog } from '@renderer/components/BrowserImportDialog'
-import { SettingGroup, SettingRow, SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import {
+  SettingDescription,
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 
 import { BrowserClearDialog } from './BrowserSettings/BrowserClearDialog'
 import { BrowserHistoryDialog } from './BrowserSettings/BrowserHistoryDialog'
@@ -31,21 +39,23 @@ export function BrowserSettings() {
   const [enabled, setEnabled] = usePreference('app.browser.agent_control.enabled')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
-  const [dialog, setDialog] = useState<'import' | 'history' | 'clear' | null>(null)
+  const [dialog, setDialog] = useState<{ kind: 'import' | 'history' | 'clear'; open: boolean } | null>(null)
+  const closeDialog = () => setDialog((current) => (current ? { ...current, open: false } : null))
+  const releaseDialog = () => setDialog((current) => (current?.open ? current : null))
 
   return (
     <SettingsContentColumn>
-      <h1 className="mb-6 font-semibold text-lg">{t('settings.browser.title')}</h1>
-      <SettingGroup variant="plain" className="pb-6">
-        <SettingRow className="flex-nowrap items-start">
-          <div className="min-w-0 space-y-2">
-            <Label htmlFor="browser-agent-control">{t('settings.browser.control')}</Label>
-            <p id="browser-control-help" className="max-w-xl text-muted-foreground text-sm leading-relaxed">
-              {t('settings.browser.controlHelp')}
-            </p>
+      <SettingGroup>
+        <SettingTitle>{t('settings.browser.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow id="setting-browser-agent-control" className="scroll-mt-6 flex-nowrap">
+          <div className="min-w-0">
+            <SettingRowTitle id="browser-control-title">{t('settings.browser.control')}</SettingRowTitle>
+            <SettingDescription id="browser-control-help">{t('settings.browser.controlHelp')}</SettingDescription>
           </div>
           <Switch
             id="browser-agent-control"
+            aria-labelledby="browser-control-title"
             aria-describedby="browser-control-help"
             className="mt-0.5"
             checked={enabled}
@@ -63,15 +73,15 @@ export function BrowserSettings() {
             }}
           />
         </SettingRow>
-        <SettingRow className="mt-5 flex-nowrap items-start">
-          <div className="min-w-0 space-y-2">
-            <Label htmlFor="browser-open-links">{t('settings.browser.openLinks')}</Label>
-            <p id="browser-open-links-help" className="max-w-xl text-muted-foreground text-sm leading-relaxed">
-              {t('settings.browser.openLinksHelp')}
-            </p>
+        <SettingDivider />
+        <SettingRow id="setting-browser-open-links" className="scroll-mt-6 flex-nowrap">
+          <div className="min-w-0">
+            <SettingRowTitle id="browser-open-links-title">{t('settings.browser.openLinks')}</SettingRowTitle>
+            <SettingDescription id="browser-open-links-help">{t('settings.browser.openLinksHelp')}</SettingDescription>
           </div>
           <Switch
             id="browser-open-links"
+            aria-labelledby="browser-open-links-title"
             aria-describedby="browser-open-links-help"
             className="mt-0.5"
             checked={openLinks}
@@ -95,15 +105,20 @@ export function BrowserSettings() {
           </p>
         )}
       </SettingGroup>
-      <SettingGroup variant="plain">
+      <SettingGroup>
         {sections.map(({ kind, title, help, action }) => (
-          <Dialog key={kind} open={dialog === kind} onOpenChange={(open) => setDialog(open ? kind : null)}>
-            <SettingRow className="py-4">
-              <div className="min-w-0 flex-1 space-y-1">
-                <h2 id={`browser-${kind}-title`} className="font-medium text-sm">
-                  {t(title)}
-                </h2>
-                <p className="text-muted-foreground text-sm">{t(help)}</p>
+          <Dialog
+            key={kind}
+            open={dialog?.kind === kind && dialog.open}
+            onOpenChange={(open) => {
+              if (open) setDialog({ kind, open: true })
+              else closeDialog()
+            }}>
+            {kind !== 'import' && <SettingDivider />}
+            <SettingRow id={`setting-browser-${kind}`} className="scroll-mt-6 flex-nowrap">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle id={`browser-${kind}-title`}>{t(title)}</SettingRowTitle>
+                <SettingDescription>{t(help)}</SettingDescription>
               </div>
               <DialogTrigger asChild>
                 <Button variant="outline" aria-labelledby={`browser-${kind}-action browser-${kind}-title`}>
@@ -111,13 +126,13 @@ export function BrowserSettings() {
                 </Button>
               </DialogTrigger>
             </SettingRow>
-            {dialog === kind &&
+            {dialog?.kind === kind &&
               (kind === 'import' ? (
-                <BrowserImportDialog onDone={() => setDialog(null)} />
+                <BrowserImportDialog onDone={closeDialog} onClosed={releaseDialog} />
               ) : kind === 'history' ? (
-                <BrowserHistoryDialog onOpenPage={() => setDialog(null)} />
+                <BrowserHistoryDialog onOpenPage={closeDialog} onClosed={releaseDialog} />
               ) : (
-                <BrowserClearDialog onDone={() => setDialog(null)} />
+                <BrowserClearDialog onDone={closeDialog} onClosed={releaseDialog} />
               ))}
           </Dialog>
         ))}

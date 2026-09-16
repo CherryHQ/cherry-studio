@@ -8,14 +8,14 @@
     {
       "targetKey": "app.browser.agent_control.enabled",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
       "description": "Allow agents to control their visible browser pane (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "app.browser.open_links_in_browser",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
       "description": "Open website links in shared built-in browser tabs"
     },

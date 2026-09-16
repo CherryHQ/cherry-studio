@@ -270,7 +270,7 @@ export function WebviewNavigation({
       <Popover open={showHistory} onOpenChange={setHistoryOpen}>
         <PopoverAnchor asChild>
           <form
-            className="relative mx-1 min-w-0 flex-1"
+            className="@container/address relative mx-1 min-w-0 flex-1"
             onSubmit={(event) => {
               event.preventDefault()
               navigateToAddress(addressValue)
@@ -313,12 +313,12 @@ export function WebviewNavigation({
               <span
                 aria-hidden
                 className="pointer-events-none absolute inset-0 flex items-center gap-1.5 overflow-hidden px-2.5 text-xs md:text-sm">
-                <span className="truncate text-muted-foreground">{addressHost}</span>
+                <span className="truncate text-muted-foreground @sm/address:shrink-0">{addressHost}</span>
                 {addressTitle && (
-                  <>
+                  <span className="hidden min-w-0 items-center gap-1.5 @sm/address:flex">
                     <span className="shrink-0 text-foreground-tertiary">/</span>
                     <span className="min-w-0 truncate text-foreground">{addressTitle}</span>
-                  </>
+                  </span>
                 )}
               </span>
             )}
@@ -326,7 +326,7 @@ export function WebviewNavigation({
         </PopoverAnchor>
         <PopoverContent
           align="start"
-          className="w-(--radix-popover-trigger-width) p-1"
+          className="w-[var(--radix-popover-trigger-width)] p-1"
           onOpenAutoFocus={(event) => event.preventDefault()}
           onCloseAutoFocus={(event) => event.preventDefault()}
           onInteractOutside={(event) => {

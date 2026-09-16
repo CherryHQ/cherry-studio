@@ -52,6 +52,30 @@ describe('WebviewSurface', () => {
     expect(guest.isConnected).toBe(false)
     anchor.remove()
   })
+  it('yields input during ancestor resize without hiding or remounting the guest', async () => {
+    const pane = document.createElement('div')
+    const anchor = document.createElement('div')
+    pane.append(anchor)
+    document.body.append(pane)
+    vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue(new DOMRect(8, 0, 640, 480))
+    const view = render(
+      <WebviewSurface anchor={anchor}>
+        <webview data-testid="guest" />
+      </WebviewSurface>
+    )
+    const guest = view.getByTestId('guest')
+    const plane = guest.parentElement!
+
+    pane.dataset.resizing = 'true'
+    await waitFor(() => expect(plane.inert).toBe(true))
+    expect(plane).toHaveStyle({ opacity: '1', pointerEvents: 'none' })
+    delete pane.dataset.resizing
+    await waitFor(() => expect(plane.inert).toBe(false))
+    expect(plane).toHaveStyle({ pointerEvents: 'auto' })
+    expect(view.getByTestId('guest')).toBe(guest)
+    view.unmount()
+    pane.remove()
+  })
   it('tracks same-size anchor reparenting and sibling reordering without remounting its guest', async () => {
     let live = 0
     function Guest() {
