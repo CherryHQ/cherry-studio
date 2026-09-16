@@ -32,6 +32,8 @@ work and interrupts pending commands; it does not await arbitrary running callba
 or promise that Chromium has cancelled an already-dispatched command.
 Native WebMCP retains the debugger for bounded invocation acknowledgements and cancellation
 before detaching; `settleWebTools()` awaits this cleanup, including IDs returned after disposal.
+Acquisition waits for the previous session on the same guest to finish cleanup, then rechecks
+service and guest availability before sharing or creating a session.
 
 Snapshots combine main-frame AX and DOM data. References remain stable within a
 live document and are never reused during a session, including after navigation

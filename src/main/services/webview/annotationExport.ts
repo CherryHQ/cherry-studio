@@ -39,7 +39,7 @@ async function captureDocumentAccessibility(
   const owner = `annotation:${guest.id}`
   let session: GuestSession
   try {
-    session = service.acquire(guest, owner, { ownership: 'borrowed' })
+    session = await service.acquire(guest, owner, { ownership: 'borrowed' })
   } catch {
     return withStatus('debugger_unavailable')
   }

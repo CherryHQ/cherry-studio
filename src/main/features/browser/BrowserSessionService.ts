@@ -36,7 +36,7 @@ interface SessionEntry {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager', 'ConversationNavigationService'])
 export class BrowserSessionService extends BaseService {
-  private readonly guestCleanup = new Set<Promise<void>>()
+  private readonly guestCleanup = new Map<number, Promise<void>>()
   private readonly shutdown = new AbortController()
   private dataOperation?: Promise<unknown>
   private readonly faviconTasks = new Set<Promise<void>>()
@@ -203,9 +203,14 @@ export class BrowserSessionService extends BaseService {
     this.remove(guest.id, true)
   }
 
-  acquire(guest: Electron.WebContents, owner: string, ownership: SessionOwnership): GuestSession {
-    if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed || guest.isDestroyed())
-      throw new BrowserSessionError('debugger_unavailable')
+  async acquire(guest: Electron.WebContents, owner: string, ownership: SessionOwnership): Promise<GuestSession> {
+    while (true) {
+      if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed || guest.isDestroyed())
+        throw new BrowserSessionError('debugger_unavailable')
+      const cleanup = this.guestCleanup.get(guest.id)
+      if (!cleanup) break
+      await cleanup
+    }
     const existing = this.sessions.get(guest.id)
     if (existing) {
       if (existing.ownership.ownership !== ownership.ownership) throw new BrowserSessionError('not_allowed')
@@ -283,9 +288,8 @@ export class BrowserSessionService extends BaseService {
     this.sessions.delete(id)
     entry.session.guest.removeListener('destroyed', entry.onDestroyed)
     entry.session.dispose()
-    const cleanup = entry.session.settleWebTools()
-    this.guestCleanup.add(cleanup)
-    void cleanup.finally(() => this.guestCleanup.delete(cleanup))
+    const cleanup = entry.session.settleWebTools().finally(() => this.guestCleanup.delete(id))
+    this.guestCleanup.set(id, cleanup)
     if (close && entry.ownership.ownership === 'managed' && !entry.session.guest.isDestroyed()) {
       try {
         entry.ownership.close()
@@ -303,7 +307,7 @@ export class BrowserSessionService extends BaseService {
     this.agentServers.clear()
     this.agentBrowser.dispose()
     for (const id of this.sessions.keys()) this.remove(id, true)
-    await Promise.all(this.guestCleanup)
+    await Promise.all(this.guestCleanup.values())
     const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
     if (errors.length) {
       logger.warn('Browser server shutdown failed', { errors })

@@ -62,7 +62,7 @@ export class AgentBrowserController extends BrowserPageController {
       }
       if (this.lease?.target !== target) {
         this.lease?.release()
-        const session = this.service.acquire(target.guest, this.owner, { ownership: 'borrowed' })
+        const session = await this.service.acquire(target.guest, this.owner, { ownership: 'borrowed' })
         let observation
         try {
           observation = await session.observe({ signal: AbortSignal.any([this.signal, target.abort.signal]) })

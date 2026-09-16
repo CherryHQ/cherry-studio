@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { browserHistoryService } from '@data/services/BrowserHistoryService'
-import { BaseService } from '@main/core/lifecycle'
+import { BaseService, Signal } from '@main/core/lifecycle'
 
 import { BrowserSessionService } from '../BrowserSessionService'
 import * as browserProfiles from '../import/browserProfiles'
@@ -38,25 +38,100 @@ afterEach(async () => {
 describe('Browser session ownership', () => {
   it('releases a borrowed debugger only after the last consumer and never closes the page', async () => {
     const { guest, mock } = createGuest()
-    const session = service.acquire(guest, 'annotation', { ownership: 'borrowed' })
-    expect(service.acquire(guest, 'another', { ownership: 'borrowed' })).toBe(session)
+    const session = await service.acquire(guest, 'annotation', { ownership: 'borrowed' })
+    expect(await service.acquire(guest, 'another', { ownership: 'borrowed' })).toBe(session)
     await session.send('Runtime.enable')
     service.release(guest, 'annotation')
     expect(session.isAvailable()).toBe(true)
     await vi.advanceTimersByTimeAsync(10 * 60_000)
     expect(service.get(guest.id)).toBe(session)
-    expect(() => service.acquire(guest, 'mcp', { ownership: 'managed', close: mock.close })).toThrow('not_allowed')
+    await expect(service.acquire(guest, 'mcp', { ownership: 'managed', close: mock.close })).rejects.toThrow(
+      'not_allowed'
+    )
     service.release(guest, 'another')
     expect(service.get(guest.id)).toBeUndefined()
     expect(mock.debugger.isAttached()).toBe(false)
     expect(mock.isDestroyed()).toBe(false)
   })
 
+  it('waits for WebMCP cancellation before reconnecting to the same borrowed guest', async () => {
+    const { guest, mock } = createGuest()
+    const previous = await service.acquire(guest, 'old-agent', { ownership: 'borrowed' })
+    await previous.send('Runtime.enable')
+    const cancellation = new Signal<void>()
+    mock.debugger.sendCommand.mockImplementation(async (method) => {
+      if (method === 'WebMCP.cancelInvocation') await cancellation
+      if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main', loaderId: 'document-1' } } }
+      return {}
+    })
+    void previous.cancelWebTool('pending-invocation')
+    service.release(guest, 'old-agent')
+
+    const reconnect = service.acquire(guest, 'new-agent', { ownership: 'borrowed' }).then(async (session) => {
+      await session.send('Runtime.enable')
+      return session
+    })
+    const annotation = service.acquire(guest, 'annotation', { ownership: 'borrowed' })
+    const connected = expect(reconnect).resolves.toMatchObject({ guest })
+    cancellation.resolve()
+    await connected
+    const current = await reconnect
+    expect(current.isAvailable()).toBe(true)
+    expect(current).not.toBe(previous)
+    expect(await annotation).toBe(current)
+    service.release(guest, 'new-agent')
+    expect(current.isAvailable()).toBe(true)
+    service.release(guest, 'annotation')
+    expect(mock.debugger.isAttached()).toBe(false)
+    expect(mock.isDestroyed()).toBe(false)
+  })
+
+  it('reconnects after the bounded cancellation timeout when Chromium does not acknowledge', async () => {
+    const { guest, mock } = createGuest()
+    const previous = await service.acquire(guest, 'old-agent', { ownership: 'borrowed' })
+    await previous.send('Runtime.enable')
+    const send = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation((method, params) =>
+      method === 'WebMCP.cancelInvocation' ? new Promise(() => undefined) : send(method, params)
+    )
+    void previous.cancelWebTool('pending-invocation')
+    service.release(guest, 'old-agent')
+    const reconnect = service.acquire(guest, 'new-agent', { ownership: 'borrowed' })
+    await vi.advanceTimersByTimeAsync(999)
+    expect(service.get(guest.id)).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(1)
+    const current = await reconnect
+    await current.send('Runtime.enable')
+    expect(current.isAvailable()).toBe(true)
+  })
+
+  it.each(['destroy', 'stop'])('rejects a waiting acquisition after %s', async (reason) => {
+    const { guest, mock } = createGuest()
+    const previous = await service.acquire(guest, 'old-agent', { ownership: 'borrowed' })
+    await previous.send('Runtime.enable')
+    const cancellation = new Signal<void>()
+    mock.debugger.sendCommand.mockImplementation(async (method) => {
+      if (method === 'WebMCP.cancelInvocation') await cancellation
+      return {}
+    })
+    void previous.cancelWebTool('pending-invocation')
+    service.release(guest, 'old-agent')
+    const reconnect = service.acquire(guest, 'new-agent', { ownership: 'borrowed' })
+    const rejected = expect(reconnect).rejects.toMatchObject({ code: 'debugger_unavailable' })
+    const stopping = reason === 'stop' ? service._doStop() : undefined
+    if (reason === 'destroy') mock.close()
+    cancellation.resolve()
+    await rejected
+    await stopping
+    expect(service.get(guest.id)).toBeUndefined()
+    expect(mock.listenerCount('destroyed')).toBe(0)
+  })
+
   it('evicts the oldest temporary managed tab without counting borrowed pages', async () => {
     const managed = Array.from({ length: 5 }, (_, i) => createGuest(i + 1))
-    for (let i = 0; i < 12; i++) service.acquire(createGuest(100 + i).guest, 'owner', { ownership: 'borrowed' })
+    for (let i = 0; i < 12; i++) await service.acquire(createGuest(100 + i).guest, 'owner', { ownership: 'borrowed' })
     for (const { guest, mock } of managed) {
-      service.acquire(guest, 'owner', { ownership: 'managed', close: mock.close })
+      await service.acquire(guest, 'owner', { ownership: 'managed', close: mock.close })
       await vi.advanceTimersByTimeAsync(10)
     }
     expect(managed[0].mock.isDestroyed()).toBe(true)
@@ -64,33 +139,34 @@ describe('Browser session ownership', () => {
     expect(service.get(100)).toBeDefined()
   })
 
-  it('rejects acquisitions when the global budget contains only deliverables', () => {
+  it('rejects acquisitions when the global budget contains only deliverables', async () => {
     for (let i = 0; i < 8; i++) {
       const { guest, mock } = createGuest(i)
-      service.acquire(guest, `owner-${i}`, { ownership: 'managed', close: mock.close }).retention = 'deliverable'
+      const session = await service.acquire(guest, `owner-${i}`, { ownership: 'managed', close: mock.close })
+      session.retention = 'deliverable'
     }
     const { guest, mock } = createGuest(9)
-    expect(() => service.acquire(guest, 'new', { ownership: 'managed', close: mock.close })).toThrow('budget_exceeded')
+    await expect(service.acquire(guest, 'new', { ownership: 'managed', close: mock.close })).rejects.toThrow(
+      'budget_exceeded'
+    )
     expect(Array.from({ length: 8 }, (_, i) => service.get(i))).not.toContain(undefined)
   })
 
   it('rejects a reentrant acquisition during shutdown', async () => {
     const first = createGuest(1)
     const second = createGuest(2)
-    let rejected = false
-    service.acquire(first.guest, 'owner', {
+    let rejected: Promise<unknown> | undefined
+    await service.acquire(first.guest, 'owner', {
       ownership: 'managed',
       close: () => {
-        try {
-          service.acquire(second.guest, 'owner', { ownership: 'borrowed' })
-        } catch {
-          rejected = true
-        }
+        rejected = expect(service.acquire(second.guest, 'owner', { ownership: 'borrowed' })).rejects.toMatchObject({
+          code: 'debugger_unavailable'
+        })
         first.mock.close()
       }
     })
     await service._doStop()
-    expect(rejected).toBe(true)
+    await rejected
     expect(service.get(2)).toBeUndefined()
     expect(second.mock.listenerCount('destroyed')).toBe(0)
   })
@@ -99,10 +175,13 @@ describe('Browser session ownership', () => {
     const temporary = createGuest(1)
     const retained = createGuest(2)
     const borrowed = createGuest(3)
-    service.acquire(temporary.guest, 'owner', { ownership: 'managed', close: temporary.mock.close })
-    service.acquire(retained.guest, 'owner', { ownership: 'managed', close: retained.mock.close }).retention =
-      'deliverable'
-    service.acquire(borrowed.guest, 'owner', { ownership: 'borrowed' })
+    await service.acquire(temporary.guest, 'owner', { ownership: 'managed', close: temporary.mock.close })
+    const retainedSession = await service.acquire(retained.guest, 'owner', {
+      ownership: 'managed',
+      close: retained.mock.close
+    })
+    retainedSession.retention = 'deliverable'
+    await service.acquire(borrowed.guest, 'owner', { ownership: 'borrowed' })
     await vi.advanceTimersByTimeAsync(5 * 60_000)
     expect(temporary.mock.isDestroyed()).toBe(true)
     expect(retained.mock.isDestroyed()).toBe(false)

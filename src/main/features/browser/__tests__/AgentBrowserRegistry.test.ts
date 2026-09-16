@@ -261,7 +261,7 @@ describe('Agent browser authority and control lifetime', () => {
   })
 
   it('revokes old target IDs and cancels work while an annotation lease keeps the debugger alive', async () => {
-    const annotation = service.acquire(fixture.guest, 'annotation', { ownership: 'borrowed' })
+    const annotation = await service.acquire(fixture.guest, 'annotation', { ownership: 'borrowed' })
     const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
     await controller.getSession(false, tabId)
     const started = new Signal<void>()

@@ -548,7 +548,7 @@ describe('MCP browser on shared sessions', () => {
 
   it('reports server shutdown failures after releasing remaining borrowed leases', async () => {
     const { guest, mock } = createGuest(1)
-    const borrowed = service.acquire(guest, 'annotation', { ownership: 'borrowed' })
+    const borrowed = await service.acquire(guest, 'annotation', { ownership: 'borrowed' })
     await borrowed.send('Runtime.enable')
     const server = await service.createMcpServer()
     vi.spyOn(server, 'close').mockRejectedValueOnce(new Error('Transport close failed'))
@@ -765,7 +765,7 @@ describe('MCP browser on shared sessions', () => {
 
   it('preserves borrowed pages when controller and service shut down', async () => {
     const { guest, mock } = createGuest(1)
-    const borrowed = service.acquire(guest, 'annotation', { ownership: 'borrowed' })
+    const borrowed = await service.acquire(guest, 'annotation', { ownership: 'borrowed' })
     await borrowed.send('Runtime.enable')
     await controller().open('https://example.com')
     await service._doStop()

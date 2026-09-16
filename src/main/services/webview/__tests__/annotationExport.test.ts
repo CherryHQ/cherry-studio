@@ -148,7 +148,7 @@ describe('exportAnnotationDocument', () => {
         }
       return {}
     })
-    const session = service.acquire(guest as unknown as Electron.WebContents, 'other', { ownership: 'borrowed' })
+    const session = await service.acquire(guest as unknown as Electron.WebContents, 'other', { ownership: 'borrowed' })
     await session.send('Runtime.enable')
     const markdown = await exportFrom(guest)
     expect(markdown).toContain('Shared target')
@@ -180,7 +180,7 @@ describe('exportAnnotationDocument', () => {
         ? Promise.resolve({ executionContextId: context })
         : fallback(method, params)
     )
-    const session = service.acquire(guest as unknown as Electron.WebContents, 'other', { ownership: 'borrowed' })
+    const session = await service.acquire(guest as unknown as Electron.WebContents, 'other', { ownership: 'borrowed' })
     const annotations = Array.from({ length: 20 }, (_, index) => ({
       ...annotation,
       id: `123e4567-e89b-42d3-a456-${String(index).padStart(12, '0')}`

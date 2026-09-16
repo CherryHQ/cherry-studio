@@ -538,10 +538,11 @@ export class CdpBrowserController extends BrowserPageController {
     this.creatingTabs++
     let session
     try {
-      session = this.service.acquire(view.webContents, this.owner, {
+      session = await this.service.acquire(view.webContents, this.owner, {
         ownership: 'managed',
         close: () => this.destroyTab(windowInfo, tabId)
       })
+      this.assertWindowActive(windowInfo)
     } catch (error) {
       this.closeContents(view.webContents)
       if (!windowInfo.tabs.size) this.closeWindow(windowInfo)
