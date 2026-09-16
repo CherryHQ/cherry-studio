@@ -61,7 +61,7 @@ export function assertOwnedProcess(record: ProcessOwner, pid: number, kind: 'ele
       : kind === 'electron'
         ? record.targetRoot
         : record.platform === 'windows'
-          ? 'pnpm debug'
+          ? 'pnpm exec dotenv -- electron-vite'
           : 'pnpm'
   if (!expected || !command.toLowerCase().includes(expected.toLowerCase())) {
     throw new Error(`Refusing to terminate stale ${kind} PID ${pid}; its command no longer matches the owned run`)

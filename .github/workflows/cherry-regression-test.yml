@@ -45,15 +45,18 @@ jobs:
           fetch-depth: 1
 
       - name: Set up pnpm
+        if: github.event_name == 'workflow_dispatch'
         uses: pnpm/action-setup@v5
 
       - name: Set up Node.js
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
           cache: pnpm
 
       - name: Install controller dependencies
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           for attempt in 1 2 3; do
@@ -202,6 +205,13 @@ jobs:
       - name: Download application binary dependencies
         if: needs.resolve.outputs.mode == 'branch'
         run: pnpm --dir target-app download:binaries
+
+      - name: Prepare application runtime once
+        if: needs.resolve.outputs.mode == 'branch'
+        shell: bash
+        run: |
+          pnpm --dir target-app rebuild:electron
+          pnpm --dir target-app run build:utility-process
 
       - name: Download and install release
         if: needs.resolve.outputs.mode == 'tag'

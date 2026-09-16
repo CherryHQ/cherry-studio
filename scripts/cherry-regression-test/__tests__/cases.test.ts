@@ -10,6 +10,62 @@ import { parse } from 'yaml'
 import { getCase, missingCapabilities, PHASE_IDS, REGRESSION_CASES, selectCases } from '../cases'
 
 describe('regression execution plan', () => {
+  it('resolves a push without installing or invoking the controller toolchain', () => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8'))
+    const steps = workflow.jobs.resolve.steps as Array<{ name: string; if?: string; run?: string }>
+    for (const name of ['Set up pnpm', 'Set up Node.js', 'Install controller dependencies']) {
+      expect(steps.find((step) => step.name === name)?.if).toBe("github.event_name == 'workflow_dispatch'")
+    }
+    const directory = mkdtempSync(join(tmpdir(), 'cherry-push-ref-'))
+    const output = join(directory, 'output')
+    try {
+      execFileSync(
+        'bash',
+        [
+          '-e',
+          '-c',
+          `pnpm() { return 97; }\n${steps.find((step) => step.name === 'Resolve and validate test reference')!.run}`
+        ],
+        {
+          cwd: directory,
+          env: {
+            ...process.env,
+            EVENT_NAME: 'push',
+            PUSH_REF: 'refs/heads/regression',
+            PUSH_REF_NAME: 'regression',
+            PUSH_SHA: 'a'.repeat(40),
+            GITHUB_OUTPUT: output
+          }
+        }
+      )
+      expect(readFileSync(output, 'utf8').trim().split('\n')).toEqual([
+        'mode=branch',
+        'name=regression',
+        'ref=refs/heads/regression',
+        `sha=${'a'.repeat(40)}`,
+        'task=all'
+      ])
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('prepares native and utility-process dependencies before the first branch launch only', () => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8'))
+    const steps = workflow.jobs.test.steps as Array<{ name: string; if?: string; run?: string }>
+    const prepare = steps.findIndex((step) => step.name === 'Prepare application runtime once')
+    expect(prepare).toBeGreaterThan(steps.findIndex((step) => step.name === 'Install application dependencies'))
+    expect(prepare).toBeLessThan(steps.findIndex((step) => step.name === 'Launch controlled Cherry Studio once'))
+    expect(steps[prepare].if).toBe("needs.resolve.outputs.mode == 'branch'")
+    const commands = steps.flatMap((step) => step.run?.split('\n') ?? [])
+    expect(commands.filter((command) => command.includes('rebuild:electron'))).toEqual([
+      'pnpm --dir target-app rebuild:electron'
+    ])
+    expect(commands.filter((command) => command.includes('build:utility-process'))).toEqual([
+      'pnpm --dir target-app run build:utility-process'
+    ])
+  })
+
   it('selects only the requested task within its workflow phase', () => {
     expect(selectCases('code-cli', '08-code-tools').map(({ id }) => id)).toEqual(['CODE-01', 'CODE-02'])
     expect(selectCases('notes', '03-models-and-assistants')).toEqual([])

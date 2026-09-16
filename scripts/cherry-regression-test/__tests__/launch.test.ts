@@ -10,6 +10,49 @@ vi.mock('node:child_process', () => ({ execFileSync, spawn }))
 import { launchApp, readAppRecord, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
+beforeEach(() => vi.clearAllMocks())
+
+it.each(['macos', 'windows'] as const)(
+  'launches a prepared %s checkout without repeating runtime builds',
+  async (platform) => {
+    const directory = mkdtempSync(join(tmpdir(), 'cherry-prepared-launch-'))
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    let launched = false
+    execFileSync.mockImplementation(() => (launched ? '42001' : ''))
+    spawn.mockImplementation(() => {
+      launched = true
+      return { pid: 42001, unref() {} }
+    })
+    vi.spyOn(process, 'kill').mockReturnValue(true)
+    vi.stubGlobal('fetch', async () => ({
+      ok: true,
+      json: async () => [{ type: 'page', title: 'Cherry Studio', url: 'http://localhost:5173/windows/main/index.html' }]
+    }))
+    try {
+      const record = await launchApp(paths, {
+        mode: 'branch',
+        platform,
+        profile: 'authenticated',
+        targetRoot: directory,
+        runKey: 'prepared',
+        restartCount: 1
+      })
+      const [command, args, options] = spawn.mock.calls[0]
+      const launch = platform === 'windows' ? args.at(-1) : [command, ...args].join(' ')
+      expect(launch).toBe('pnpm exec dotenv -- electron-vite -- --inspect --sourcemap --remote-debugging-port=9222')
+      if (platform === 'windows') expect([command, ...args.slice(0, 3)]).toEqual(['cmd.exe', '/d', '/s', '/c'])
+      expect(options.cwd).toBe(directory)
+      expect(options.env.CS_DEV_USER_DATA_SUFFIX).toBe('Regression-prepared-authenticated')
+      expect(record).toMatchObject({ electronPid: 42001, restartCount: 1, profile: 'authenticated' })
+    } finally {
+      vi.restoreAllMocks()
+      vi.unstubAllGlobals()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  }
+)
+
 it('starts Windows installers with both owned inspector and renderer CDP ports', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'cherry-launch-'))
   const paths = getRunPaths(directory)

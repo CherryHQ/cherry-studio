@@ -93,9 +93,19 @@ function getLaunchSpec(
 ): Pick<AppRecord, 'args' | 'command' | 'cwd' | 'executablePath' | 'logPath'> & { environment: NodeJS.ProcessEnv } {
   const logPath = join(paths.logs, `electron-${profile}.log`)
   if (mode === 'branch') {
+    const args = [
+      'exec',
+      'dotenv',
+      '--',
+      'electron-vite',
+      '--',
+      '--inspect',
+      '--sourcemap',
+      '--remote-debugging-port=9222'
+    ]
     return {
       command: platform === 'windows' ? 'cmd.exe' : 'pnpm',
-      args: platform === 'windows' ? ['/d', '/s', '/c', 'pnpm debug'] : ['debug'],
+      args: platform === 'windows' ? ['/d', '/s', '/c', `pnpm ${args.join(' ')}`] : args,
       cwd: targetRoot,
       environment: { ...process.env, CS_DEV_USER_DATA_SUFFIX: `Regression-${runKey}-${profile}` },
       logPath

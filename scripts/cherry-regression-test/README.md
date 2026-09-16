@@ -24,6 +24,12 @@ The explicit profile/restart operation prepares Windows connections by closing n
 
 ## Execution contract
 
+Branch runs prepare `rebuild:electron` and `build:utility-process` once after installing
+application dependencies. The controller then launches the development server directly,
+including on profile switches and persistence-test restarts. Local controller runs must
+perform the same preparation in the target checkout before `launch`; release installers
+do not need it. Restarting still stops the owned application and preserves its profile.
+
 The workflow keeps ten separately timed steps. Each calls `run-phase`; the controller intersects its phase with the run's selected task and returns immediately for unselected phases.
 `cases.ts` is the execution manifest. Workflow task input is a string validated against the manifest, so adding a task does not require another task list in YAML.
 

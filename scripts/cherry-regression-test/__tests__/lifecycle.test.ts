@@ -104,7 +104,9 @@ describe('owned application lifecycle', () => {
         cdpChecks += 1
         return alive.has(electronPid) || cdpChecks === 2 ? String(electronPid) : ''
       }
-      if (script.includes('CommandLine')) return script.includes(String(electronPid)) ? targetRoot : 'pnpm debug'
+      if (script.includes('CommandLine')) {
+        return script.includes(String(electronPid)) ? targetRoot : 'pnpm exec dotenv -- electron-vite'
+      }
       if (script.includes('ParentProcessId')) return script.includes(String(electronPid)) ? String(runnerPid) : '1'
       throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
     })
@@ -172,7 +174,9 @@ describe('owned application lifecycle', () => {
       }
       if (script.includes('Get-NetTCPConnection'))
         return alive.has(currentElectronPid) ? String(currentElectronPid) : ''
-      if (script.includes('CommandLine')) return script.includes(String(currentElectronPid)) ? targetRoot : 'pnpm debug'
+      if (script.includes('CommandLine')) {
+        return script.includes(String(currentElectronPid)) ? targetRoot : 'pnpm exec dotenv -- electron-vite'
+      }
       if (script.includes('ParentProcessId'))
         return script.includes(String(currentElectronPid)) ? String(currentParentPid) : '1'
       throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
