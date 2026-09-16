@@ -886,7 +886,7 @@ full handoff protocol or `WebContentsView` migration is required to complete thi
 
 ### 12.1 Reuse and first vertical slice
 
-Reuse `AgentBrowserRightPanel` in `AgentRightPane.tsx`, `WebviewBrowser`, `WebviewHost`, navigation,
+Reuse `AgentBrowserRightPanel` in `AgentRightPane.tsx`, shared browser chrome, `WebviewHost`, navigation,
 search, annotations and the shared CDP engine. First prove that a snapshot and one click from an
 Agent Session affect the very guest shown in its right pane; do this before history/import work.
 Keep one visible browser page per Agent Session in this delivery.
@@ -896,7 +896,7 @@ Extend `BrowserSessionService` with a main-owned binding from Agent Session to t
 and each fresh opaque `tabId` is the binding generation. It changes when the guest is replaced,
 not when its presentation resumes. `AgentBrowserRuntimeHost` mounts beside the page Activities in
 `TabsProvider`; its session resources own the guest, native event listeners and binding effects.
-`WebviewBrowser` supplies a presentation anchor and view-only overlays. Hiding a pane or switching
+`AgentBrowserView` supplies a presentation anchor and view-only overlays. Hiding a pane or switching
 Activities removes the anchor without detaching the guest or keeping the chat subtree active.
 Session deletion, closing the owning app tabs, or closing the host renderer releases the resource. History reopening uses the existing conversation navigation service
 to focus the owning session before revealing and navigating its browser. This is runtime state,
@@ -904,6 +904,13 @@ not a SQLite record.
 The owning app renderer registers/unregisters via typed IpcApi. Main validates the sender, guest's
 host window, security profile and actual session ownership; renderer-supplied IDs alone grant nothing.
 Only non-authoritative display summaries belong in Shared Cache.
+
+`AgentBrowserView`, under `pages/agents/components/AgentRightPane/`, owns the Agent runtime
+subscription, navigation requests, reload updates and presentation anchor. `WebviewBrowser` owns
+local guests for standalone browser tabs and HTML artifacts and never subscribes to the Agent runtime.
+Both compose `BrowserChrome` (navigation and layout) and `BrowserOverlays` (search and load status).
+The shared UI receives state, callbacks and slots; each caller selects its security profile, history
+capability, import banner and overlay destination. Main-process authorization remains authoritative.
 
 The MCP instance receives trusted `agentId`/`sessionId` from the runtime and resolves the binding on
 each call. Never accept a raw `webContentsId`, profile or owner from model arguments. Missing, stale

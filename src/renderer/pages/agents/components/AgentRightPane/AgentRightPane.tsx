@@ -78,7 +78,6 @@ import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloat
 import { FilePreviewNavigationProvider } from '@renderer/components/FilePreview'
 import Scrollbar from '@renderer/components/Scrollbar'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
-import { WebviewBrowser } from '@renderer/components/WebviewBrowser'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
@@ -110,6 +109,7 @@ import { formatAgentWebviewAnnotationPrompt } from '@shared/utils/webviewAnnotat
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
+import { AgentBrowserView } from './AgentBrowserView'
 import {
   type AgentArtifactFile,
   type AgentPreviewUrlCandidate,
@@ -977,11 +977,13 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
     [sessionId]
   )
 
+  if (!sessionId) return null
+
   return (
-    <WebviewBrowser
+    <AgentBrowserView
       initialUrl={runtime.browserUrl ?? undefined}
       securityProfile={runtime.browserProfile}
-      agentSessionId={sessionId}
+      sessionId={sessionId}
       onNavigate={runtime.openBrowserUrl}
       target={target}
       isHostActive={active}
