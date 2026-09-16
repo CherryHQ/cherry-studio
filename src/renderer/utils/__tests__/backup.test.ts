@@ -1,5 +1,6 @@
-import { BACKUP_ACTIVE_WRITERS_ERROR_CODE, BACKUP_DISK_FULL_ERROR_CODE } from '@shared/types/backup'
 import { describe, expect, it, vi } from 'vitest'
+
+import { BACKUP_ACTIVE_WRITERS_ERROR_CODE, BACKUP_DISK_FULL_ERROR_CODE } from '@shared/types/backup'
 
 import { getLocalizedBackupErrorMessage } from '../backup'
 

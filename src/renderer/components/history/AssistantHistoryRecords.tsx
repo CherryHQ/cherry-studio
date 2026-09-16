@@ -1,9 +1,10 @@
+import { Bot } from 'lucide-react'
+import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import type {
-  TopicActionContext,
-  TopicExportMenuOptions
-} from '@renderer/components/chat/actions/topicContextMenuActions'
+import type { TopicActionContext } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -30,9 +31,6 @@ import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { Bot } from 'lucide-react'
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'
@@ -54,7 +52,8 @@ type HistoryTopicItem = ApiTopic & { assistantId: string | undefined; pinned: bo
 interface AssistantHistoryRecordsProps {
   activeRecordId?: string | null
   onClose: () => void
-  onRecordSelect?: (topic: RendererTopic | null) => void
+  onRecordSelect?: (topic: RendererTopic) => void
+  onActiveRecordChange?: (topic: RendererTopic | null) => void
   toolbarLeading?: ReactNode
 }
 
@@ -62,6 +61,7 @@ const AssistantHistoryRecords = ({
   activeRecordId,
   onClose,
   onRecordSelect,
+  onActiveRecordChange: onActiveTopicChange,
   toolbarLeading
 }: AssistantHistoryRecordsProps) => {
   const { t } = useTranslation()
@@ -221,10 +221,10 @@ const AssistantHistoryRecords = ({
           topic.id,
           (candidate) => candidate.id
         )
-        onRecordSelect?.(nextTopic ? getRendererTopic(nextTopic) : null)
+        onActiveTopicChange?.(nextTopic ? getRendererTopic(nextTopic) : null)
       }
     },
-    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, t, timeSortedTopics]
+    [activeRecordId, deleteTopicById, getRendererTopic, onActiveTopicChange, t, timeSortedTopics]
   )
 
   const handleBulkDeleteTopics = useCallback(
@@ -340,7 +340,7 @@ const AssistantHistoryRecords = ({
       const topic = getRendererTopic(apiTopic)
 
       return createTopicActionContext({
-        exportMenuOptions: exportMenuOptions as TopicExportMenuOptions,
+        exportMenuOptions: exportMenuOptions,
         isActiveInCurrentTab: false,
         isRenaming: isTopicRenaming(topic.id),
         onAutoRename: handleAutoRename,
@@ -379,8 +379,8 @@ const AssistantHistoryRecords = ({
     [t]
   )
   const onActiveRecordChange = useCallback(
-    (topic: HistoryTopicItem | null) => onRecordSelect?.(topic ? getRendererTopic(topic) : null),
-    [getRendererTopic, onRecordSelect]
+    (topic: HistoryTopicItem | null) => onActiveTopicChange?.(topic ? getRendererTopic(topic) : null),
+    [getRendererTopic, onActiveTopicChange]
   )
   const rowDescriptor = useMemo(
     () => ({

@@ -1,6 +1,7 @@
-import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
 import { Compass } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 
@@ -33,6 +34,7 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/settings/mcp': { icon: '🔌', labelKey: 'agent.settings.toolsMcp.mcp.tab' },
   '/settings/websearch': { icon: '🔍', labelKey: 'settings.tool.websearch.title' },
   '/settings/api-gateway': { icon: '🌐', labelKey: 'apiGateway.title' },
+  '/settings/device-connections': { icon: '📱', labelKey: 'deviceConnections.title' },
   '/settings/file-processing': {
     icon: '📄',
     labelKey: 'settings.tool.file_processing.features.document_to_markdown.title'
@@ -145,7 +147,7 @@ export function NavigateToolInline({
     <button
       onClick={handleClick}
       disabled={!basePath || !navigateToRoute}
-      className="my-1 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border border-solid bg-muted px-3 py-1.5 text-foreground text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-muted"
+      className="my-1 inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-solid border-border bg-muted px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-muted"
       type="button">
       <Compass className="h-3.5 w-3.5 opacity-60" />
       <span>

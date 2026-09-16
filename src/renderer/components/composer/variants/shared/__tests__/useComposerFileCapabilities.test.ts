@@ -1,7 +1,8 @@
-import type { Model } from '@shared/data/types/model'
-import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
+import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 
 import { useComposerFileCapabilities } from '../useComposerFileCapabilities'
 

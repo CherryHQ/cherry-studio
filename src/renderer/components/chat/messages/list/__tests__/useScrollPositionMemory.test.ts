@@ -1,9 +1,9 @@
-import { cacheService } from '@data/CacheService'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, renderHook } from '@testing-library/react'
-import type { RefObject } from 'react'
 import type { VListHandle } from 'virtua'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@data/CacheService'
 
 import {
   computeScrollAnchor,
@@ -105,17 +105,17 @@ describe('useScrollPositionMemory', () => {
     scrollToIndex: ReturnType<typeof vi.fn>
   }
   let following: boolean
-  let enterFollowingAfterRestore: ReturnType<typeof vi.fn>
-  let enterReadingForRestore: ReturnType<typeof vi.fn>
-  let settleReadingRestore: ReturnType<typeof vi.fn>
+  let enterFollowingAfterRestore: ReturnType<typeof vi.fn<() => void>>
+  let enterReadingForRestore: ReturnType<typeof vi.fn<() => void>>
+  let settleReadingRestore: ReturnType<typeof vi.fn<() => void>>
   let keysByIndex: Record<number, string>
 
   const buildInputs = (overrides: Partial<ScrollPositionMemoryInputs> = {}): ScrollPositionMemoryInputs => ({
     topicId: 't1',
     itemCount: 3,
     bottomPadding: 24,
-    scrollerRef: { current: scroller as unknown as HTMLElement } as RefObject<HTMLElement | null>,
-    vlistHandleRef: { current: handle as unknown as VListHandle } as RefObject<VListHandle | null>,
+    scrollerRef: { current: scroller as unknown as HTMLElement },
+    vlistHandleRef: { current: handle as unknown as VListHandle },
     getDataKeyAtIndex: (index) => keysByIndex[index] ?? null,
     findDataIndexByKey: (key) => {
       const found = Object.entries(keysByIndex).find(([, k]) => k === key)
@@ -143,9 +143,9 @@ describe('useScrollPositionMemory', () => {
     scroller = { scrollTop: 0, scrollHeight: 1000, clientHeight: 400 }
     handle = { findItemIndex: vi.fn(), getItemOffset: vi.fn(), scrollToIndex: vi.fn() }
     following = false
-    enterFollowingAfterRestore = vi.fn()
-    enterReadingForRestore = vi.fn()
-    settleReadingRestore = vi.fn()
+    enterFollowingAfterRestore = vi.fn<() => void>()
+    enterReadingForRestore = vi.fn<() => void>()
+    settleReadingRestore = vi.fn<() => void>()
     keysByIndex = { 0: 'g0', 1: 'g1', 2: 'g2' }
   })
 
@@ -176,9 +176,7 @@ describe('useScrollPositionMemory', () => {
   })
 
   it('falls back to scrollTop when no virtua handle is available', () => {
-    renderHook(() =>
-      useScrollPositionMemory(buildInputs({ vlistHandleRef: { current: null } as RefObject<VListHandle | null> }))
-    )
+    renderHook(() => useScrollPositionMemory(buildInputs({ vlistHandleRef: { current: null } })))
     flushRaf()
 
     expect(scroller.scrollTop).toBe(600) // scrollHeight - clientHeight

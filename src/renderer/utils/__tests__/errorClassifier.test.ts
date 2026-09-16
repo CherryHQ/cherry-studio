@@ -1,5 +1,6 @@
-import type { SerializedError } from '@renderer/types/error'
 import { describe, expect, it } from 'vitest'
+
+import type { SerializedError } from '@renderer/types/error'
 
 import { classifyError } from '../errorClassifier'
 

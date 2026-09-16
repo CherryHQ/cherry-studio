@@ -1,7 +1,8 @@
-import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 
 const mockUseInvalidateCache = vi.fn()
 const mockInvalidateCache = vi.fn()

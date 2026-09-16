@@ -1,11 +1,12 @@
 import { tmpdir } from 'node:os'
 
+import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import type * as LegacyFile from '@main/utils/legacyFile'
 import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
-import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AutoBackupService } from '../AutoBackupService'
 import { BackupOperationBusyError, legacyBackupManager } from '../LegacyBackupManager'

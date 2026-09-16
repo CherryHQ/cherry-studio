@@ -902,7 +902,7 @@ export class JobManager extends BaseService {
       })
     }
 
-    const queueName = opts.queue ?? handler.defaultQueue?.(input as never) ?? type
+    const queueName = opts.queue ?? handler.defaultQueue?.(input) ?? type
     const now = Date.now()
     const scheduledAt = opts.scheduledAt ?? now
     const status = scheduledAt > now ? 'delayed' : 'pending'
@@ -2141,6 +2141,7 @@ export class JobManager extends BaseService {
       } catch (err) {
         const e = err as Error & { code?: string }
         logger.error('Schedule fire failed', {
+          operation: 'job.schedule.fire',
           scheduleId: currentSchedule.id,
           type: currentSchedule.type,
           code: e.code,

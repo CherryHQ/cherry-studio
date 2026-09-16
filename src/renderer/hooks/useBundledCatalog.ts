@@ -1,7 +1,8 @@
-import { useCache } from '@data/hooks/useCache'
-import { loggerService } from '@logger'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useCache } from '@data/hooks/useCache'
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('useBundledCatalog')
 

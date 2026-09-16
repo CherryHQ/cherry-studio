@@ -1,8 +1,9 @@
-import type { Provider } from '@shared/data/types/provider'
-import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { CSSProperties, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import { ConfigList } from '../ConfigList'
 

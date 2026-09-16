@@ -2,13 +2,14 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { applyMigrations } from '@data/db/applyMigrations'
-import { LegacyFileCleanupPolicySeeder } from '@data/db/seeding/seeders/legacyFileCleanupPolicySeeder'
-import type { DbType } from '@data/db/types'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import { applyMigrations } from '@data/db/applyMigrations'
+import { LegacyFileCleanupPolicySeeder } from '@data/db/seeding/seeders/legacyFileCleanupPolicySeeder'
+import type { DbType } from '@data/db/types'
 
 /**
  * Do migrations that rebuild populated tables preserve real data and derive
@@ -1049,7 +1050,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills cancel_requested_at from updated_at only for cancel-requested job rows', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0020_wooden_fat_cobra'))
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO job

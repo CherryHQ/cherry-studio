@@ -1,8 +1,9 @@
+import * as z from 'zod'
+
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
-import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
 

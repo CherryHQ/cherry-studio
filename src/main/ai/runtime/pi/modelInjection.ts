@@ -10,11 +10,12 @@
  * `AuthStorage.setRuntimeApiKey(providerName, apiKey)` (Phase 2).
  */
 
+import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
+
 import { application } from '@application'
 import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
@@ -289,10 +290,8 @@ function formatPiBaseUrl(baseUrl: string, api: PiApi): string {
  */
 export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): Promise<PiDirectProviderInjection> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const [provider, model] = await Promise.all([
-    providerService.getByProviderId(providerId),
-    modelService.getByKey(providerId, modelId)
-  ])
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
 
   return resolvePiProviderInjectionFromSnapshot(provider, model)
 }
@@ -347,10 +346,8 @@ export async function resolvePiProviderInjectionForSession(
  */
 export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Promise<void> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const [provider, model] = await Promise.all([
-    providerService.getByProviderId(providerId),
-    modelService.getByKey(providerId, modelId)
-  ])
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
 
   // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
   if (usesPiGateway(provider)) {

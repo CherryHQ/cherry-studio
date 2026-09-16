@@ -1,9 +1,10 @@
-import { preferenceTable } from '@data/db/schemas/preference'
-import { seeders } from '@data/db/seeding/seederRegistry'
-import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { preferenceTable } from '@data/db/schemas/preference'
+import { seeders } from '@data/db/seeding/seederRegistry'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
 
 const PASTE_AS_FILE_KEY = 'chat.input.paste_long_text_as_file'
 const PASTE_THRESHOLD_KEY = 'chat.input.paste_long_text_threshold'

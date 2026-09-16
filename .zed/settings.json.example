@@ -1,6 +1,6 @@
 // Cherry Studio Zed Settings Example
 //
-// NOTE: Please install extensions: biome, oxc
+// NOTE: Please install the Oxc extension.
 //
 // Folder-specific settings
 //
@@ -9,61 +9,53 @@
 {
   "languages": {
     "JSON": {
-      "code_actions_on_format": {
-        "source.fixAll.biome": true
-      },
       "format_on_save": "on",
       "formatter": {
         "language_server": {
-          "name": "biome"
+          "name": "oxfmt"
         }
       }
     },
     "JSONC": {
-      "code_actions_on_format": {
-        "source.fixAll.biome": true
-      },
       "format_on_save": "on",
       "formatter": {
         "language_server": {
-          "name": "biome"
+          "name": "oxfmt"
         }
       }
     },
     "TSX": {
       "code_actions_on_format": {
-        "source.fixAll.biome": true,
         "source.fixAll.eslint": true,
-        "source.fixAll.oxc": true,
-        "source.organizeImports.biome": true
+        "source.fixAll.oxc": true
       },
       "format_on_save": "on",
       "formatter": {
         "language_server": {
-          "name": "biome"
+          "name": "oxfmt"
         }
       }
     },
     "TypeScript": {
       "code_actions_on_format": {
-        "source.fixAll.biome": true,
         "source.fixAll.eslint": true,
-        "source.fixAll.oxc": true,
-        "source.organizeImports.biome": true
+        "source.fixAll.oxc": true
       },
       "format_on_save": "on",
       "formatter": {
         "language_server": {
-          "name": "biome"
+          "name": "oxfmt"
         }
       }
     }
   },
   "lsp": {
-    "biome": {
-      "settings": {
-        "config_path": "biome.jsonc",
-        "require_config_file": true
+    "oxfmt": {
+      "initialization_options": {
+        "settings": {
+          "fmt.configPath": ".oxfmtrc.json",
+          "run": "onSave"
+        }
       }
     }
   }

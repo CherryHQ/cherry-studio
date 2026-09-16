@@ -1,6 +1,7 @@
-import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 
 import CompactionAnchorBlock from '../CompactionAnchorBlock'
 
@@ -23,8 +24,11 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-const anchor = (data: Partial<CompactionAnchorData>): CompactionAnchorData =>
-  ({ status: 'done', phase: 'in-loop', ...data }) as CompactionAnchorData
+const anchor = (data: Partial<CompactionAnchorData>): CompactionAnchorData => ({
+  status: 'done',
+  phase: 'in-loop',
+  ...data
+})
 
 describe('CompactionAnchorBlock', () => {
   it('shows a spinner label while compacting', () => {

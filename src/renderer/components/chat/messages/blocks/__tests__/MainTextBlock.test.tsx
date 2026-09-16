@@ -1,3 +1,8 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as CherryUI from '@cherrystudio/ui'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import type { Citation } from '@renderer/types/message'
@@ -5,10 +10,6 @@ import type { Model } from '@renderer/types/model'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import type * as CitationUtils from '@renderer/utils/citation'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MainTextBlock from '../MainTextBlock'
 

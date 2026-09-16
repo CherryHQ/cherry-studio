@@ -1,5 +1,6 @@
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import * as z from 'zod'
+
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 import { defineRoute } from '../define'
 
@@ -47,6 +48,7 @@ export const systemRequestSchemas = {
   // OS-shell integration — fire-and-forget delegations to Electron's `shell` module.
   // `open_website` screens the URL scheme in the handler before opening it externally.
   'system.shell.open_path': defineRoute({ input: z.string(), output: z.void() }),
+  'system.shell.open_external_website': defineRoute({ input: z.string(), output: z.void() }),
   'system.shell.open_website': defineRoute({ input: z.string(), output: z.void() })
 }
 

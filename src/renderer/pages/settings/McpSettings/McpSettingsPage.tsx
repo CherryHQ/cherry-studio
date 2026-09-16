@@ -1,3 +1,8 @@
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
+import { FolderCog, Server, ShoppingBag } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Flex, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -9,10 +14,6 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
-import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { FolderCog, Server, ShoppingBag } from 'lucide-react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { getMcpProviderLogo, getProviderDisplayName, providers } from './providers/config'
 

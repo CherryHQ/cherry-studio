@@ -1,3 +1,4 @@
+import fs from 'fs'
 /**
  * BuiltinAgentProvisioner
  *
@@ -6,11 +7,10 @@
  * resources directory and are injected as a local Claude plugin.
  */
 import { createHash } from 'node:crypto'
+import path from 'path'
 
 import { loggerService } from '@logger'
 import { toAsarUnpackedPath } from '@main/utils/asar'
-import fs from 'fs'
-import path from 'path'
 
 import {
   type BuiltinAgentDefinition,

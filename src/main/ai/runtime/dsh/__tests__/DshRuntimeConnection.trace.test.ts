@@ -1,3 +1,6 @@
+import path from 'node:path'
+
+import { SessionSeq } from '@deepseek-ai/dsh-session'
 import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,7 +36,8 @@ const runtimeMocks = vi.hoisted(() => ({
   resolveInjection: vi.fn(),
   usesDshGateway: vi.fn(),
   harnessOptions: undefined as Record<string, any> | undefined,
-  getShellEnv: vi.fn()
+  getShellEnv: vi.fn(),
+  resolveBun: vi.fn()
 }))
 
 const baseSnapshot = () => ({
@@ -111,15 +115,18 @@ vi.mock('../compositionBuilder', () => ({
   buildDshCompositionYaml: vi.fn(() => 'plugins: []'),
   resolveDshRuntimeBinPath: vi.fn(() => '/dsh/bin')
 }))
+vi.mock('../bunRuntime', () => ({ resolveDshBunRuntime: runtimeMocks.resolveBun }))
 vi.mock('../DshBridgeServer', () => ({
-  DshBridgeServer: vi.fn(() => ({
-    socketPath: '/tmp/dsh.sock',
-    authenticationToken: 'bridge-token',
-    listen: vi.fn().mockResolvedValue(undefined),
-    whenReady: vi.fn().mockResolvedValue(undefined),
-    request: runtimeMocks.bridgeRequest,
-    close: vi.fn().mockResolvedValue(undefined)
-  }))
+  DshBridgeServer: vi.fn(function DshBridgeServerMock() {
+    return {
+      socketPath: '/tmp/dsh.sock',
+      authenticationToken: 'bridge-token',
+      listen: vi.fn().mockResolvedValue(undefined),
+      whenReady: vi.fn().mockResolvedValue(undefined),
+      request: runtimeMocks.bridgeRequest,
+      close: vi.fn().mockResolvedValue(undefined)
+    }
+  })
 }))
 vi.mock('../DshCherryToolBridge', () => ({
   buildDshCherryToolBridge: vi.fn().mockResolvedValue({
@@ -135,7 +142,7 @@ vi.mock('../DshCherryToolBridge', () => ({
 }))
 vi.mock('../dshSdk', () => ({
   loadDshSdk: vi.fn().mockResolvedValue({
-    HarnessClient: vi.fn((options: Record<string, unknown>) => {
+    HarnessClient: vi.fn(function HarnessClientMock(options: Record<string, unknown>) {
       runtimeMocks.harnessOptions = options
       return {
         start: vi.fn(),
@@ -185,8 +192,9 @@ const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 beforeEach(() => {
   runtimeMocks.snapshot = baseSnapshot()
   runtimeMocks.harnessOptions = undefined
+  runtimeMocks.resolveBun.mockReset().mockResolvedValue('/bundled/bun')
   runtimeMocks.getShellEnv.mockReset().mockResolvedValue({
-    PATH: '/opt/homebrew/bin:/usr/bin',
+    PATH: ['/opt/homebrew/bin', '/usr/bin'].join(path.delimiter),
     HOME: '/Users/tester',
     SECRET: 'do-not-forward'
   })
@@ -203,6 +211,12 @@ afterEach(() => {
 })
 
 describe('DshRuntimeConnection tracing', () => {
+  it('fails before materializing a connection when bundled Bun is unavailable', async () => {
+    runtimeMocks.resolveBun.mockRejectedValueOnce(new Error('Bundled Bun is unavailable'))
+    await expect(new DshRuntimeConnection(connectInput).start()).rejects.toThrow('Bundled Bun is unavailable')
+    expect(runtimeMocks.harnessOptions).toBeUndefined()
+  })
+
   it('establishes the gateway baseline after starting the gateway', async () => {
     runtimeMocks.snapshot = { ...baseSnapshot(), signature: 'gateway-stopped' }
     runtimeMocks.usesDshGateway.mockReturnValue(true)
@@ -220,18 +234,29 @@ describe('DshRuntimeConnection tracing', () => {
   it('combines the login-shell PATH with managed CLIs without leaking the main-process environment', async () => {
     vi.stubEnv('PATH', '/usr/bin')
     vi.stubEnv('CHERRY_TEST_SECRET', 'do-not-copy')
+    vi.stubEnv('ELECTRON_RUN_AS_NODE', '1')
 
     const connection = await new DshRuntimeConnection(connectInput).start()
     const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
+    expect(runtimeMocks.harnessOptions).toMatchObject({
+      runtimeExecutable: '/bundled/bun',
+      runtimeArgs: ['--no-env-file'],
+      processCwd: '/dsh'
+    })
+    expect(env).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
 
-    expect(env.PATH?.split(':')).toEqual(['/mock/feature.binary.data/shims', '/opt/homebrew/bin', '/usr/bin'])
+    expect(env.PATH?.split(path.delimiter)).toEqual([
+      path.normalize('/mock/feature.binary.data/shims'),
+      '/opt/homebrew/bin',
+      '/usr/bin'
+    ])
     expect(env).toMatchObject({
       HOME: '/Users/tester',
       MISE_DATA_DIR: '/mock/feature.binary.data',
-      MISE_CONFIG_DIR: '/mock/feature.binary.data/config',
-      MISE_CACHE_DIR: '/mock/feature.binary.data/cache',
-      MISE_STATE_DIR: '/mock/feature.binary.data/state',
-      MISE_SHIMS_DIR: '/mock/feature.binary.data/shims'
+      MISE_CONFIG_DIR: path.normalize('/mock/feature.binary.data/config'),
+      MISE_CACHE_DIR: path.normalize('/mock/feature.binary.data/cache'),
+      MISE_STATE_DIR: path.normalize('/mock/feature.binary.data/state'),
+      MISE_SHIMS_DIR: path.normalize('/mock/feature.binary.data/shims')
     })
     expect(env).not.toHaveProperty('CHERRY_TEST_SECRET')
     expect(env).not.toHaveProperty('SECRET')
@@ -358,7 +383,7 @@ describe('DshRuntimeConnection tracing', () => {
             presentation: 'stream'
           }
         },
-        { sessionId: 'session-1', seq: 4 }
+        { sessionId: 'session-1', seq: SessionSeq(4) }
       )
       await drain()
       expect(events).toEqual([])
@@ -422,7 +447,7 @@ describe('DshRuntimeConnection tracing', () => {
             presentation: 'stream'
           }
         },
-        { sessionId: 'session-1', seq: 4 }
+        { sessionId: 'session-1', seq: SessionSeq(4) }
       )
       await drain()
       expect(events).toEqual([expect.objectContaining({ type: 'tool-approval-request' })])

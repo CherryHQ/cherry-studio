@@ -1,7 +1,8 @@
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { TranslateLanguage } from '@shared/data/types/translate'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 
 // `application.get('PreferenceService')` is mocked globally via
 // tests/main.setup.ts. We only need to override `AiStreamManager` so we can
@@ -33,12 +34,14 @@ vi.mock('@main/data/services/TranslateLanguageService', () => ({
 // `WebContentsListener` writes to `event.sender.send(...)` — stub it so the
 // test doesn't need a real WebContents.
 vi.mock('../../../ai/streamManager/listeners/WebContentsListener', () => ({
-  WebContentsListener: vi.fn().mockImplementation((sender: unknown, streamId: string) => ({
-    id: `wc:test:${streamId}`,
-    sender,
-    streamId,
-    onError: vi.fn()
-  }))
+  WebContentsListener: vi.fn().mockImplementation(function WebContentsListenerMock(sender: unknown, streamId: string) {
+    return {
+      id: `wc:test:${streamId}`,
+      sender,
+      streamId,
+      onError: vi.fn()
+    }
+  })
 }))
 
 const { makeModel } = await import('../../../ai/__tests__/fixtures')
@@ -117,7 +120,7 @@ describe('translateService.resolveTranslatePayload', () => {
   })
 
   it('throws translate.error.not_configured when the translate model preference is unset', async () => {
-    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', '' as any)
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', '')
 
     expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')
     expect(getByKeyMock).not.toHaveBeenCalled()

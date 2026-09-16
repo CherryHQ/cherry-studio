@@ -1,10 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
-import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
-import SendMessageButton from '@renderer/components/SendMessageButton'
-import { toast } from '@renderer/services/toast'
-import { getAppEdition } from '@renderer/utils/appEdition'
-import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
 import { CirclePause } from 'lucide-react'
 import {
   type ComponentType,
@@ -16,6 +9,14 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
+import SendMessageButton from '@renderer/components/SendMessageButton'
+import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
+import { matchesComposerShortcut, resolveNewlineShortcut, resolveSendShortcut } from '@renderer/utils/input'
 
 import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { getComposerEditorMinHeight } from './composerSizing'
@@ -157,10 +158,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       removeToken: (tokenId) => updateTokens((props.draftTokens ?? []).filter((token) => token.id !== tokenId)),
       // A token needs its prompt text woven into the document at the caret, which only the rich
       // editor can do; the whole range travels along so the runtime still replaces a selection.
-      insertToken: (token) => {
+      insertToken: (token, updateOnly) => {
         const input = textareaRef.current
         intentRef.current.insertToken = {
           token,
+          updateOnly,
           selection: {
             start: input?.selectionStart ?? props.text.length,
             end: input?.selectionEnd ?? props.text.length

@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { Input } from './input'
 
@@ -54,8 +55,10 @@ import { Input } from './input'
  * already been told the typed value — and does not bubble, because the app exits
  * fullscreen on any Escape reaching `window` and this one is already spent.
  */
-interface InputNumberProps
-  extends Omit<React.ComponentProps<typeof Input>, 'type' | 'inputMode' | 'value' | 'onChange' | 'onBlur' | 'size'> {
+interface InputNumberProps extends Omit<
+  React.ComponentProps<typeof Input>,
+  'type' | 'inputMode' | 'value' | 'onChange' | 'onBlur' | 'size'
+> {
   value: number | null
   /**
    * Fires when the text becomes a value, un-normalized — clamping mid-edit would

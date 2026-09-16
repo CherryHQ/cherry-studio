@@ -1,9 +1,11 @@
-import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import type * as LucideReact from 'lucide-react'
 import { Globe2, Settings2 } from 'lucide-react'
 import { isValidElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import type { QuickPanelCallBackOptions, QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 
 import { QuickPhrasesToolRuntime } from '../QuickPhrasesButton'
 
@@ -103,6 +105,29 @@ vi.mock('react-i18next', () => ({
 const createLauncherApi = (): ToolLauncherApi => ({
   registerLaunchers: vi.fn(() => vi.fn())
 })
+
+const actionOptions: QuickPanelCallBackOptions = {
+  context: {
+    open: vi.fn(),
+    close: vi.fn(),
+    updateItemSelection: vi.fn(),
+    updateList: vi.fn(),
+    updateFooterActions: vi.fn(),
+    isVisible: true,
+    symbol: '/',
+    list: [],
+    defaultIndex: 0,
+    pageSize: 7,
+    multiple: false,
+    fillToAvailableHeight: false,
+    setFillToAvailableHeight: vi.fn(),
+    dispatchKeyDown: vi.fn(() => false),
+    getPanelGeneration: vi.fn(() => 0),
+    registerKeyDownHandler: vi.fn(() => vi.fn())
+  },
+  action: 'click',
+  item: { label: 'test', icon: null }
+}
 
 function getRegisteredFooterActions(launcher: ToolLauncherApi) {
   const actions = vi.mocked(launcher.registerLaunchers).mock.calls[0][1]
@@ -234,7 +259,7 @@ describe('QuickPhrasesToolRuntime', () => {
     expect(isValidElement(manageCurrentItem.icon) && manageCurrentItem.icon.type === Settings2).toBe(true)
     expect(isValidElement(manageGlobalItem.icon) && manageGlobalItem.icon.type === Globe2).toBe(true)
     act(() => {
-      manageCurrentItem.action({} as never)
+      manageCurrentItem.action(actionOptions)
     })
 
     expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
@@ -244,7 +269,7 @@ describe('QuickPhrasesToolRuntime', () => {
     })
 
     act(() => {
-      manageGlobalItem.action({} as never)
+      manageGlobalItem.action(actionOptions)
     })
 
     expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/prompts')
@@ -288,7 +313,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const footerActions = getRegisteredFooterActions(launcher)
     const addItem = footerActions.find((item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.add')!
     act(() => {
-      addItem.action({} as never)
+      addItem.action(actionOptions)
     })
     screen.getByRole('button', { name: 'save prompt' }).click()
 
@@ -341,7 +366,7 @@ describe('QuickPhrasesToolRuntime', () => {
       (item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.manageCurrentAgent'
     )!
     act(() => {
-      manageItem.action({} as never)
+      manageItem.action(actionOptions)
     })
 
     expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
@@ -353,7 +378,12 @@ describe('QuickPhrasesToolRuntime', () => {
 
   it('restores composer focus after closing the add prompt dialog opened from quick panel', async () => {
     const launcher = createLauncherApi()
-    const inputAdapter = { focus: vi.fn() }
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => '',
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
 
     render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
 
@@ -374,7 +404,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const addItem = footerActions.find((item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.add')!
 
     act(() => {
-      addItem.action({ inputAdapter } as never)
+      addItem.action({ ...actionOptions, inputAdapter })
     })
     act(() => {
       screen.getByText('close prompt edit').click()
@@ -405,7 +435,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const addItem = footerActions.find((item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.add')!
 
     act(() => {
-      addItem.action({} as never)
+      addItem.action(actionOptions)
     })
     screen.getByRole('button', { name: 'save prompt' }).click()
 

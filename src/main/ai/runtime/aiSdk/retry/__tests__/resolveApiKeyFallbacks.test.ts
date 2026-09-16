@@ -1,5 +1,6 @@
-import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
 import { describe, expect, it } from 'vitest'
+
+import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
 
 import { resolveApiKeyFallbacks } from '../resolveApiKeyFallbacks'
 
