@@ -1,4 +1,5 @@
-import { useCallback, useRef } from 'react'
+import { omit } from 'es-toolkit'
+import { useCallback, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -21,16 +22,15 @@ interface UsePaintingListInput {
 /**
  * Owns the painting list-item write-side lifecycle: add / remove.
  *
- * - `add()` seeds a fresh in-memory draft from the configured defaults. It is NOT
+ * - `add()` saves the current edits, then seeds a fresh draft. The draft is NOT
  *   persisted — like the page's mount-time draft, it only reaches DataApi when
  *   the user generates (`usePaintingGeneration` creates the row for an unsaved
  *   draft). This keeps blank paintings from piling up in the strip on every click.
  * - `remove(painting)` cancels any in-flight generation, deletes attached files,
  *   removes the DB record, and (if the deleted item is the current one) selects
- *   the next available painting or falls back to a fresh draft via `add()`.
+ *   the next available painting or falls back to a fresh draft without saving the deleted record.
  *
- * Selection (`setCurrentPainting`) is a trivial setter passthrough and is wired
- * directly at the call site instead of being re-exposed here.
+ * Selection saves the current record before opening the target.
  */
 export function usePaintingList({
   painting,
@@ -42,6 +42,8 @@ export function usePaintingList({
   const { updatePainting, deletePainting, refresh } = usePaintings()
   const historyItemsRef = useRef<PaintingData[]>([])
   const paintingRef = useRef(painting)
+  const savingRef = useRef(false)
+  const [saving, setSaving] = useState(false)
   historyItemsRef.current = historyItems
   paintingRef.current = painting
 
@@ -52,7 +54,7 @@ export function usePaintingList({
     }
 
     try {
-      await updatePainting(current.id, paintingDataToUpdateDto(current))
+      await updatePainting(current.id, omit(paintingDataToUpdateDto(current), ['files']))
       return true
     } catch (error) {
       presentPaintingGenerateError(error)
@@ -70,9 +72,21 @@ export function usePaintingList({
     [saveCurrent, setCurrentPainting]
   )
 
-  const add = useCallback(() => {
+  const resetDraft = useCallback(() => {
     setCurrentPainting(createDefaultPainting(draftDefaults))
   }, [draftDefaults, setCurrentPainting])
+
+  const add = useCallback(async () => {
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
+    try {
+      if (await saveCurrent()) resetDraft()
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
+  }, [resetDraft, saveCurrent])
 
   const selectNextAfterDelete = useCallback(
     async (deletedId: string) => {
@@ -89,9 +103,9 @@ export function usePaintingList({
         setCurrentPainting(nextPainting)
         return
       }
-      add()
+      resetDraft()
     },
-    [add, refresh, setCurrentPainting]
+    [resetDraft, refresh, setCurrentPainting]
   )
 
   const remove = useCallback(
@@ -116,5 +130,5 @@ export function usePaintingList({
     [cancelGeneration, deletePainting, painting.id, refresh, selectNextAfterDelete]
   )
 
-  return { add, remove, select, saveCurrent }
+  return { add, remove, select, saveCurrent, saving }
 }
