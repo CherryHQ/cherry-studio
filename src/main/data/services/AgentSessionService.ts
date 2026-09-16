@@ -83,6 +83,10 @@ export type AgentSessionDeletionOutcome = {
   deliveryResults: AgentSessionMessageEntity[]
 }
 
+export type AgentSessionBatchDeletionOutcome = AgentSessionDeletionOutcome & {
+  purgedSystemWorkspacePaths: string[]
+}
+
 export type ReuseOrCreateAgentSessionOutcome = ReusableAgentSessionPlaceholdersResponse & {
   deliveryResults: AgentSessionMessageEntity[]
 }
@@ -936,14 +940,16 @@ export class AgentSessionService {
     return { deletedIds: result.deletedIds }
   }
 
-  deleteByIdsForDelivery(ids: string[], options: { permanent?: boolean } = {}): AgentSessionDeletionOutcome {
+  deleteByIdsForDelivery(ids: string[], options: { permanent?: boolean } = {}): AgentSessionBatchDeletionOutcome {
     const uniqueIds = Array.from(new Set(ids))
-    if (uniqueIds.length === 0) return { deletedIds: [], taskScheduleIds: [], deliveryResults: [] }
+    if (uniqueIds.length === 0) {
+      return { deletedIds: [], taskScheduleIds: [], deliveryResults: [], purgedSystemWorkspacePaths: [] }
+    }
 
     const result = application.get('DbService').withWriteTx((tx) => {
       if (options.permanent !== true) {
         const { trashedIds, taskScheduleIds, deliveryResults } = this.trashByIdsTx(tx, uniqueIds)
-        return { deletedIds: trashedIds, taskScheduleIds, deliveryResults }
+        return { deletedIds: trashedIds, taskScheduleIds, deliveryResults, purgedSystemWorkspacePaths: [] }
       }
 
       const rows = tx
@@ -953,7 +959,12 @@ export class AgentSessionService {
         .where(and(inArray(sessionsTable.id, uniqueIds), isNotNull(sessionsTable.deletedAt)))
         .all()
 
-      return this.cascadeDeleteSessionRowsTx(tx, rows)
+      return {
+        ...this.cascadeDeleteSessionRowsTx(tx, rows),
+        purgedSystemWorkspacePaths: rows
+          .filter((row) => row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM)
+          .map((row) => row.workspace.path)
+      }
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
