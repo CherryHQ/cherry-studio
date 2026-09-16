@@ -23,7 +23,6 @@ const mocks = vi.hoisted(() => ({
   restoreAssistant: vi.fn(),
   restoreSession: vi.fn(),
   restoreTopic: vi.fn(),
-  showRecycleBinBatchUndo: vi.fn(),
   showRecycleBinUndo: vi.fn(),
   toastError: vi.fn(),
   toastInfo: vi.fn(),
@@ -92,7 +91,6 @@ vi.mock('@renderer/ipc', () => ({
 }))
 vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
   ...(await importOriginal<typeof RecycleBinFeedback>()),
-  showRecycleBinBatchUndo: mocks.showRecycleBinBatchUndo,
   showRecycleBinUndo: mocks.showRecycleBinUndo
 }))
 vi.mock('@renderer/services/toast', () => ({
@@ -113,17 +111,6 @@ function createResource(type: ResourceItem['type']): ResourceItem {
     updatedAt: '2026-06-01T00:00:00.000Z',
     raw: {} as ResourceItem['raw']
   } as ResourceItem
-}
-
-function createProtectedAgentResource(): Extract<ResourceItem, { type: 'agent' }> {
-  const resource = createResource('agent') as Extract<ResourceItem, { type: 'agent' }>
-  return {
-    ...resource,
-    raw: {
-      ...resource.raw,
-      configuration: { ...resource.raw.configuration, builtin_role: 'assistant' }
-    }
-  }
 }
 
 describe('ResourceDeleteConfirmDialog', () => {
@@ -220,52 +207,6 @@ describe('ResourceDeleteConfirmDialog', () => {
     expect(mocks.getActiveResource).toHaveBeenCalledWith('/agents/agent-1')
   })
 
-  it('moves only protected Agent Sessions and restores the exact deleted Session IDs', async () => {
-    const user = userEvent.setup()
-    mocks.ipcRequest.mockResolvedValueOnce({ deletedIds: ['session-1', 'session-2'] })
-
-    render(<ResourceDeleteConfirmDialog resource={createProtectedAgentResource()} onClose={vi.fn()} />)
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete all sessions without deleting the Agent.')
-    await user.click(screen.getByRole('button', { name: 'Delete all sessions' }))
-
-    await waitFor(() =>
-      expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.sessions.delete', { agentId: 'agent-1' })
-    )
-    expect(mocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-2'])
-    expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
-    expect(mocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
-      itemCount: 2,
-      onUndo: expect.any(Function)
-    })
-
-    await expect(mocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
-      restored: ['session-1', 'session-2'],
-      failed: []
-    })
-
-    expect(mocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-1' })
-    expect(mocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-2' })
-    expect(mocks.restoreAgent).not.toHaveBeenCalled()
-    expect(mocks.invalidate).toHaveBeenCalledWith('/agent-sessions')
-  })
-
-  it('refreshes an empty protected Agent Session delete without offering Undo', async () => {
-    const user = userEvent.setup()
-    mocks.ipcRequest.mockResolvedValueOnce({ deletedIds: [] })
-
-    render(<ResourceDeleteConfirmDialog resource={createProtectedAgentResource()} onClose={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Delete all sessions' }))
-
-    await waitFor(() => expect(mocks.toastInfo).toHaveBeenCalledWith('Already in Recycle Bin'))
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.sessions.delete', { agentId: 'agent-1' })
-    expect(mocks.closeConversationTabs).not.toHaveBeenCalled()
-    expect(mocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
-    expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
-    expect(mocks.restoreAgent).not.toHaveBeenCalled()
-    expect(mocks.invalidate).toHaveBeenCalledWith('/agent-sessions')
-  })
-
   it('moves an Assistant without its Topics by default and offers a refreshing Undo', async () => {
     const user = userEvent.setup()
     mocks.deleteAssistant.mockResolvedValueOnce({ deleted: true, deletedTopicIds: [] })
@@ -349,30 +290,6 @@ describe('ResourceDeleteConfirmDialog', () => {
     await waitFor(() => expect(mocks.showRecycleBinUndo).toHaveBeenCalled())
 
     await expect(mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).rejects.toBe(restoreError)
-  })
-
-  it('counts active protected Sessions as restored after restore NOT_FOUND and keeps missing Sessions failed', async () => {
-    const user = userEvent.setup()
-    const firstError = new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session active')
-    const secondError = new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session purged')
-    mocks.ipcRequest.mockResolvedValueOnce({ deletedIds: ['session-active', 'session-purged'] })
-    mocks.restoreSession.mockRejectedValueOnce(firstError).mockRejectedValueOnce(secondError)
-    mocks.getActiveResource.mockImplementation((path: string) =>
-      path === '/agent-sessions/session-active'
-        ? Promise.resolve({ id: 'session-active' })
-        : Promise.reject(DataApiErrorFactory.notFound('Session', 'session-purged'))
-    )
-
-    render(<ResourceDeleteConfirmDialog resource={createProtectedAgentResource()} onClose={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Delete all sessions' }))
-    await waitFor(() => expect(mocks.showRecycleBinBatchUndo).toHaveBeenCalled())
-
-    await expect(mocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
-      restored: ['session-active'],
-      failed: [{ id: 'session-purged', error: secondError.message }]
-    })
-    expect(mocks.getActiveResource).toHaveBeenCalledWith('/agent-sessions/session-active')
-    expect(mocks.getActiveResource).toHaveBeenCalledWith('/agent-sessions/session-purged')
   })
 
   it('refreshes a stale Agent result without offering Undo', async () => {

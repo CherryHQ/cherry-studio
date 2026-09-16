@@ -22,7 +22,6 @@ import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
-import { popup } from '@renderer/services/popup'
 import {
   restoreRecycleBinItems,
   restoreRecycleBinUndoGroup,
@@ -352,25 +351,6 @@ export function AssistantResourceList({
 
       setClearingTopicsAssistantId(assistantId)
       try {
-        const confirmed = await popup.confirm({
-          title: t('recycle_bin.move.confirm_title'),
-          okText: t('recycle_bin.move.confirm_action'),
-          cancelText: t('common.cancel'),
-          centered: true,
-          okButtonProps: {
-            danger: true
-          }
-        })
-        if (!confirmed) return
-
-        // Re-validate against the latest topics after the confirm dialog: the list may
-        // have changed while it was open, and TopicService.deleteByAssistantId() has no
-        // at-least-one guard of its own, so bail out if nothing is left to clear.
-        const latestTargetTopicIds = new Set(
-          topicsRef.current.filter((topic) => topic.assistantId === assistantId).map((topic) => topic.id)
-        )
-        if (latestTargetTopicIds.size === 0) return
-
         const result = await deleteTopicsByAssistantId(assistantId)
         if (result.deletedIds.length === 0) {
           await refreshTopics().catch((err) => {

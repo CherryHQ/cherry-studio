@@ -462,6 +462,13 @@ function setupAssistantHistory({
 
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
 const flushCommandMenuAction = flushAnimationFrame
+
+async function clickBulkDelete() {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    await flushAnimationFrame()
+  })
+}
 let assistantHistoryLoaded = false
 
 describe('HistoryRecordsView assistant mode', () => {
@@ -790,15 +797,9 @@ describe('HistoryRecordsView assistant mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
 
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    await clickBulkDelete()
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
-    expect(screen.getByRole('dialog')).not.toHaveTextContent('Delete 2 selected conversation(s)?')
-    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
     expect(hookMocks.deleteTopics).toHaveBeenCalledExactlyOnceWith(['topic-alpha', 'topic-beta'])
@@ -843,11 +844,7 @@ describe('HistoryRecordsView assistant mode', () => {
     const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    await clickBulkDelete()
 
     expect(refetch).toHaveBeenCalledOnce()
     expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
@@ -885,11 +882,7 @@ describe('HistoryRecordsView assistant mode', () => {
     const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    await clickBulkDelete()
 
     expect(refetch).toHaveBeenCalledOnce()
     expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
@@ -928,11 +921,7 @@ describe('HistoryRecordsView assistant mode', () => {
     const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    await clickBulkDelete()
 
     expect(refetch).toHaveBeenCalledOnce()
     expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
@@ -973,11 +962,7 @@ describe('HistoryRecordsView assistant mode', () => {
     const gammaRow = screen.getByText('Gamma topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(betaRow).getByRole('checkbox'))
     fireEvent.click(within(gammaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    await clickBulkDelete()
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledExactlyOnceWith(['topic-beta', 'topic-gamma'])
     expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
@@ -1005,13 +990,9 @@ describe('HistoryRecordsView assistant mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
 
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    await clickBulkDelete()
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledExactlyOnceWith(['topic-alpha'])
     expect(onRecordSelect).not.toHaveBeenCalled()
@@ -1386,7 +1367,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(checkbox).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('confirms deletion from the history row action column and offers Undo', async () => {
+  it('deletes from the history row action column without confirmation and offers Undo', async () => {
     hookMocks.restoreTopic.mockRejectedValueOnce(DataApiErrorFactory.notFound('Topic', 'topic-alpha'))
     const getActiveTopic = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-alpha' })
     hookMocks.useTopics.mockReturnValue({
@@ -1403,15 +1384,13 @@ describe('HistoryRecordsView assistant mode', () => {
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]')
     expect(alphaRow).not.toBeNull()
     fireEvent.click(within(alphaRow as HTMLElement).getByTestId('history-delete-button'))
-    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
-    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
 
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
       await flushAnimationFrame()
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
@@ -1580,7 +1559,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
   })
 
-  it('confirms topic deletion from the history row context menu', async () => {
+  it('deletes a topic from the history row context menu without confirmation', async () => {
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
@@ -1597,13 +1576,7 @@ describe('HistoryRecordsView assistant mode', () => {
       await flushCommandMenuAction()
     })
 
-    expect(confirmActionShow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: undefined,
-        okText: 'Move to Recycle Bin',
-        title: 'Move to Recycle Bin?'
-      })
-    )
+    expect(confirmActionShow).not.toHaveBeenCalled()
 
     await act(async () => {
       await flushAnimationFrame()
@@ -1651,10 +1624,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    await clickBulkDelete()
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
     expect(onRecordSelect).toHaveBeenCalledWith(null)

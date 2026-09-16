@@ -1,9 +1,9 @@
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import type { FC, UIEventHandler } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import type { PaintingStripEntry } from '../hooks/usePaintingHistory'
@@ -96,8 +96,6 @@ const PaintingStrip: FC<PaintingStripProps> = ({
   adding = false
 }) => {
   const { t } = useTranslation()
-  const [pendingDelete, setPendingDelete] = useState<PaintingStripEntry | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
   const stripRef = useRef<HTMLDivElement>(null)
   const handleScroll: UIEventHandler<HTMLDivElement> = (event) => {
     const target = event.currentTarget
@@ -135,7 +133,7 @@ const PaintingStrip: FC<PaintingStripProps> = ({
             painting={painting}
             selected={painting.id === selectedPaintingId}
             loading={painting.id === runningPaintingId}
-            onDelete={setPendingDelete}
+            onDelete={(painting) => void onDeletePainting(painting)}
             onSelect={onSelectPainting}
             selectLabel={t('paintings.button.select.image')}
             deleteLabel={t('paintings.button.delete.image.label')}
@@ -150,30 +148,6 @@ const PaintingStrip: FC<PaintingStripProps> = ({
           100% { transform: translateX(260%); }
         }
       `}</style>
-
-      <ConfirmDialog
-        open={Boolean(pendingDelete)}
-        onOpenChange={(open) => {
-          if (!open && !isDeleting) {
-            setPendingDelete(null)
-          }
-        }}
-        title={t('recycle_bin.move.confirm_title')}
-        confirmText={t('recycle_bin.move.confirm_action')}
-        cancelText={t('common.cancel')}
-        destructive
-        confirmLoading={isDeleting}
-        onConfirm={async () => {
-          if (!pendingDelete) return
-
-          setIsDeleting(true)
-          try {
-            await onDeletePainting(pendingDelete)
-          } finally {
-            setIsDeleting(false)
-          }
-        }}
-      />
     </>
   )
 }

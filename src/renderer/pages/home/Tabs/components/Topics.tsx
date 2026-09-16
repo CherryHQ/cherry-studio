@@ -68,7 +68,6 @@ import {
 } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
-import { popup } from '@renderer/services/popup'
 import {
   restoreRecycleBinItem,
   restoreRecycleBinItems,
@@ -914,17 +913,6 @@ export function Topics({
       setDeletingAssistantGroupId(assistantId)
 
       try {
-        const confirmed = await popup.confirm({
-          title: t('recycle_bin.move.confirm_title'),
-          okText: t('recycle_bin.move.confirm_action'),
-          cancelText: t('common.cancel'),
-          centered: true,
-          okButtonProps: {
-            danger: true
-          }
-        })
-        if (!confirmed) return
-
         const latestTargetTopicIds = new Set(
           topicsRef.current.filter((topic) => topic.assistantId === assistantId).map((topic) => topic.id)
         )

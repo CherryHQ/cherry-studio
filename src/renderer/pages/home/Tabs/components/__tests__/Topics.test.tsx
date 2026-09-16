@@ -3535,16 +3535,8 @@ describe('Topics', () => {
     })
     fireEvent.click(deleteAssistantChatsButton)
 
-    await vi.waitFor(() =>
-      expect(popup.confirm).toHaveBeenCalledWith(
-        expect.objectContaining({
-          okText: 'Move to Recycle Bin',
-          title: 'Move to Recycle Bin?'
-        })
-      )
-    )
-    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).not.toHaveProperty('content')
     await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
+    expect(popup.confirm).not.toHaveBeenCalled()
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-e' }))
@@ -3790,17 +3782,13 @@ describe('Topics', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('blocks concurrent assistant group delete confirmations', async () => {
-    let resolveConfirm!: (value: boolean) => void
-    const confirmPromise = new Promise<boolean>((resolve) => {
-      resolveConfirm = resolve
+  it('blocks concurrent assistant group deletes while one is pending', async () => {
+    let resolveDelete!: (value: { deletedIds: string[]; deletedCount: number }) => void
+    const deletePromise = new Promise<{ deletedIds: string[]; deletedCount: number }>((resolve) => {
+      resolveDelete = resolve
     })
-    vi.mocked(popup.confirm).mockReturnValue(confirmPromise)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
-      deletedIds: ['topic-a', 'topic-b'],
-      deletedCount: 2
-    })
+    topicDataMocks.deleteTopicsByAssistantId.mockReturnValueOnce(deletePromise)
 
     renderTopicList()
 
@@ -3813,7 +3801,7 @@ describe('Topics', () => {
       within(alphaHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
     )
 
-    await vi.waitFor(() => expect(popup.confirm).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledTimes(1))
     fireEvent.click(within(betaHeader as HTMLElement).getByRole('button', { name: 'More' }))
     const betaDeleteButton = within(betaHeader as HTMLElement).getByRole('button', {
       name: 'Delete all assistant conversations'
@@ -3821,12 +3809,12 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(betaDeleteButton).toBeDisabled())
     fireEvent.click(betaDeleteButton)
 
-    expect(popup.confirm).toHaveBeenCalledTimes(1)
-    expect(topicDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
+    expect(popup.confirm).not.toHaveBeenCalled()
+    expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledTimes(1)
 
     await act(async () => {
-      resolveConfirm(true)
-      await confirmPromise
+      resolveDelete({ deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 })
+      await deletePromise
     })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledTimes(1))
@@ -3948,7 +3936,6 @@ describe('Topics', () => {
       within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
     )
 
-    await vi.waitFor(() => expect(popup.confirm).toHaveBeenCalled())
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())

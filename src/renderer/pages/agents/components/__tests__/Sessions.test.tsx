@@ -3909,14 +3909,7 @@ describe('Sessions', () => {
     )
     expect(dataApiMocks.deleteAgent).not.toHaveBeenCalled()
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a', 'session-not-loaded'])
-    expect(popup.confirm).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cancelText: 'Cancel',
-        content: 'Delete all sessions for this agent. The agent itself will not be deleted.',
-        okText: 'Delete all sessions',
-        title: 'Delete all sessions'
-      })
-    )
+    expect(popup.confirm).not.toHaveBeenCalled()
     expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({

@@ -335,6 +335,13 @@ function flushCommandMenuAction() {
   return flushAnimationFrame()
 }
 
+async function clickBulkDelete() {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    await flushAnimationFrame()
+  })
+}
+
 function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace']> {
   return {
     id: `ws-${path}`,
@@ -786,15 +793,9 @@ describe('HistoryRecordsView agent mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
 
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    await clickBulkDelete()
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
-    expect(screen.getByRole('dialog')).not.toHaveTextContent('Delete 2 selected task(s)?')
-    expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     expect(hookMocks.deleteSessionWithOutcome).toHaveBeenCalledTimes(2)
     expect(hookMocks.deleteSessionWithOutcome).toHaveBeenNthCalledWith(1, 'session-alpha', { showFeedback: false })
@@ -824,11 +825,7 @@ describe('HistoryRecordsView agent mode', () => {
     const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    await clickBulkDelete()
 
     expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
     expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
@@ -849,11 +846,7 @@ describe('HistoryRecordsView agent mode', () => {
     const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    await clickBulkDelete()
 
     expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
     expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
@@ -870,11 +863,7 @@ describe('HistoryRecordsView agent mode', () => {
     const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    await clickBulkDelete()
 
     expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
     expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
@@ -893,11 +882,7 @@ describe('HistoryRecordsView agent mode', () => {
     const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    await clickBulkDelete()
 
     expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
     expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
@@ -934,13 +919,9 @@ describe('HistoryRecordsView agent mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
 
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    await clickBulkDelete()
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     expect(hookMocks.deleteSessionWithOutcome).toHaveBeenCalledExactlyOnceWith('session-alpha', {
       showFeedback: false
@@ -1208,15 +1189,12 @@ describe('HistoryRecordsView agent mode', () => {
     expect(alphaRow).not.toBeNull()
     fireEvent.click(within(alphaRow as HTMLElement).getByTestId('history-delete-button'))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
-    expect(hookMocks.deleteSession).not.toHaveBeenCalled()
-
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
       await flushAnimationFrame()
     })
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
@@ -1230,7 +1208,7 @@ describe('HistoryRecordsView agent mode', () => {
     getActiveSession.mockRestore()
   })
 
-  it('confirms session deletion and moves the active session when needed', async () => {
+  it('deletes a session without confirmation and moves the active session when needed', async () => {
     const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
@@ -1240,9 +1218,7 @@ describe('HistoryRecordsView agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    expect(confirmActionShow).toHaveBeenCalledWith(
-      expect.objectContaining({ content: undefined, title: 'Move to Recycle Bin?', okText: 'Move to Recycle Bin' })
-    )
+    expect(confirmActionShow).not.toHaveBeenCalled()
 
     await act(async () => {
       await flushAnimationFrame()
