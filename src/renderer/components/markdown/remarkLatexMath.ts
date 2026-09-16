@@ -8,6 +8,7 @@ import { visit } from 'unist-util-visit'
 declare module 'micromark-util-types' {
   interface TokenTypeMap {
     latexDelimitedMath: 'latexDelimitedMath'
+    latexDisplayMath: 'latexDisplayMath'
     latexDirectMath: 'latexDirectMath'
     latexDirectMathData: 'latexDirectMathData'
     latexEnvironmentMath: 'latexEnvironmentMath'
@@ -91,71 +92,93 @@ function removeNestedDelimiters(value: string, kind: Exclude<LatexMathKind, 'env
   return result
 }
 
-const latexDelimitedMath: Construct = {
-  name: 'latexDelimitedMath',
-  tokenize: function tokenizeLatexDelimitedMath(effects, ok, nok) {
-    let open = 0
-    let close = 0
-    let depth = 1
+function createLatexDelimitedMath(display: boolean): Construct {
+  const tokenType = display ? 'latexDisplayMath' : 'latexDelimitedMath'
+  const dataType = display ? 'latexDirectMathData' : 'latexMathData'
+  return {
+    name: tokenType,
+    concrete: display,
+    tokenize: function tokenizeLatexDelimitedMath(effects, ok, nok) {
+      let open = 0
+      let close = 0
+      let depth = 1
+      let multiline = false
 
-    return start
+      return start
 
-    function start(code: number | null): State | undefined {
-      if (code !== BACKSLASH) return nok(code)
-      effects.enter('latexDelimitedMath')
-      effects.consume(code)
-      return openingMarker
-    }
-
-    function openingMarker(code: number | null): State | undefined {
-      if (code === OPEN_PAREN) {
-        open = OPEN_PAREN
-        close = CLOSE_PAREN
-      } else if (code === OPEN_BRACKET) {
-        open = OPEN_BRACKET
-        close = CLOSE_BRACKET
-      } else {
-        return nok(code)
-      }
-      effects.consume(code)
-      return contentStart
-    }
-
-    function contentStart(code: number | null): State | undefined {
-      if (code === null) return nok(code)
-      if (code <= -3) {
-        effects.enter('lineEnding')
+      function start(code: number | null): State | undefined {
+        if (code !== BACKSLASH) return nok(code)
+        effects.enter(tokenType)
         effects.consume(code)
-        effects.exit('lineEnding')
+        return openingMarker
+      }
+
+      function openingMarker(code: number | null): State | undefined {
+        if (code === OPEN_PAREN && !display) {
+          open = OPEN_PAREN
+          close = CLOSE_PAREN
+        } else if (code === OPEN_BRACKET) {
+          open = OPEN_BRACKET
+          close = CLOSE_BRACKET
+        } else {
+          return nok(code)
+        }
+        effects.consume(code)
         return contentStart
       }
-      effects.enter('latexMathData')
-      return content(code)
-    }
 
-    function content(code: number | null): State | undefined {
-      if (code === null || code <= -3) {
-        effects.exit('latexMathData')
-        return code === null ? nok(code) : contentStart(code)
+      function contentStart(code: number | null): State | undefined {
+        if (code === null) return nok(code)
+        if (code <= -3) {
+          multiline = true
+          if (display) return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
+          effects.enter('lineEnding')
+          effects.consume(code)
+          effects.exit('lineEnding')
+          return contentStart
+        }
+        effects.enter(dataType)
+        return content(code)
       }
-      effects.consume(code)
-      return code === BACKSLASH ? afterBackslash : content
-    }
 
-    function afterBackslash(code: number | null): State | undefined {
-      if (code === null) return nok(code)
-      effects.consume(code)
-      if (code === open) depth += 1
-      if (code === close) depth -= 1
-      if (depth === 0) {
-        effects.exit('latexMathData')
-        effects.exit('latexDelimitedMath')
-        return ok
+      function content(code: number | null): State | undefined {
+        if (code === null || code <= -3) {
+          effects.exit(dataType)
+          return code === null ? nok(code) : contentStart(code)
+        }
+        effects.consume(code)
+        return code === BACKSLASH ? afterBackslash : content
       }
-      return content
-    }
-  } satisfies Tokenizer
+
+      function afterBackslash(code: number | null): State | undefined {
+        if (code === null) return nok(code)
+        effects.consume(code)
+        if (code === open) depth += 1
+        if (code === close) depth -= 1
+        if (depth === 0) {
+          effects.exit(dataType)
+          if (display) return multiline ? closingTail : nok
+          effects.exit(tokenType)
+          return ok
+        }
+        return content
+      }
+
+      function closingTail(code: number | null): State | undefined {
+        if (code === SPACE || code === 9) {
+          effects.consume(code)
+          return closingTail
+        }
+        if (code !== null && code > -3) return nok(code)
+        effects.exit(tokenType)
+        return ok(code)
+      }
+    } satisfies Tokenizer
+  }
 }
+
+const latexDelimitedMath = createLatexDelimitedMath(false)
+const latexDisplayMath = createLatexDelimitedMath(true)
 
 const latexNonLazyContinuation: Construct = {
   partial: true,
@@ -512,6 +535,9 @@ const latexEnvironmentMath: Construct = {
 }
 
 const latexMathSyntax: MicromarkExtension = {
+  flow: {
+    [BACKSLASH]: latexDisplayMath
+  },
   flowInitial: {
     [DOLLAR]: [latexDirectMath, latexMultilineDollarMath],
     [SPACE]: [latexDirectMath, latexMultilineDollarMath]
@@ -574,8 +600,13 @@ function exitInlineMath(token: Token, context: CompileContext): void {
 }
 
 const latexMathFromMarkdown: FromMarkdownExtension = {
-  canContainEols: ['latexDelimitedMath', 'latexDirectMath', 'latexEnvironmentMath'],
+  canContainEols: ['latexDelimitedMath', 'latexDisplayMath', 'latexDirectMath', 'latexEnvironmentMath'],
   enter: {
+    latexDisplayMath(this: CompileContext, token: Token) {
+      const raw = this.sliceSerialize(token).trimEnd()
+      const value = removeNestedDelimiters(raw.slice(2, -2), 'bracket')
+      this.enter(createDisplayMath({ type: 'inlineMath', value }), token)
+    },
     latexDelimitedMath(this: CompileContext, token: Token) {
       createInlineMath(token, this)
     },
@@ -587,6 +618,9 @@ const latexMathFromMarkdown: FromMarkdownExtension = {
     }
   },
   exit: {
+    latexDisplayMath(this: CompileContext, token: Token) {
+      this.exit(token)
+    },
     latexMathData(this: CompileContext, token: Token) {
       this.config.enter.data.call(this, token)
       this.config.exit.data.call(this, token)
