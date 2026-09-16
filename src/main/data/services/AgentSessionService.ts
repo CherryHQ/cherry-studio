@@ -1211,6 +1211,18 @@ export class AgentSessionService {
       .map((row) => row.id)
   }
 
+  listActiveIdsByAgent(agentId: string): string[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.agentId, agentId), isNull(sessionsTable.deletedAt)))
+      .orderBy(asc(sessionsTable.id))
+      .all()
+      .map((row) => row.id)
+  }
+
   private cascadeDeleteSessionRowsTx(tx: DbOrTx, rows: JoinedSessionRow[]): AgentSessionDeletionOutcome {
     const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(
       tx,

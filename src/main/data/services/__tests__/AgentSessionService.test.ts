@@ -1372,6 +1372,15 @@ describe('AgentSessionService', () => {
     ).toEqual(['msg-trash-1', 'msg-trash-2'])
   })
 
+  it('lists only active Session ids for an Agent in stable id order', async () => {
+    const first = await createSession('Active B')
+    const second = await createSession('Active A')
+    const trashed = await createSession('Trashed')
+    agentSessionService.delete(trashed.id)
+
+    expect(agentSessionService.listActiveIdsByAgent('agent-session-test')).toEqual([first.id, second.id].sort())
+  })
+
   it('restores a session independently while its owner remains in the Recycle Bin', async () => {
     const workspace = await createWorkspace('independent-session-restore')
     await dbh.db.update(agentTable).set({ deletedAt: 500 }).where(eq(agentTable.id, 'agent-session-test'))

@@ -22,8 +22,16 @@ const logger = loggerService.withContext('AgentSessionDeliveryService')
 // Filesystem availability has no app event (for example, an external workspace volume remount).
 // Keep this low-frequency fallback; move to path-specific events if the platform exposes them.
 const DELIVERY_RETRY_SWEEP_MS = 60_000
+const RETRY_AGENT_SESSION_ARCHIVE = Symbol('retry-agent-session-archive')
 
 class DeliveryClaimLostError extends Error {}
+
+export class AgentSessionArchiveBusyError extends Error {
+  constructor(readonly sessionIds: string[]) {
+    super(`Cannot archive Agent Sessions with unsettled work: ${sessionIds.join(', ')}`)
+    this.name = 'AgentSessionArchiveBusyError'
+  }
+}
 
 class AgentSessionDeliverySubscriber implements StreamListener {
   readonly id: string
@@ -310,9 +318,18 @@ export class AgentSessionDeliveryService extends BaseService {
 
   private async deleteSessionsInternal(ids: string[], permanent: boolean): Promise<{ deletedIds: string[] }> {
     this.assertWritesAvailable()
-    const result = agentSessionService.deleteByIdsForDelivery(ids, { permanent })
-    await this.finishDeletion(result.deletedIds, result.deliveryResults)
-    return { deletedIds: result.deletedIds }
+    const deleteSessions = async () => {
+      this.assertWritesAvailable()
+      const result = agentSessionService.deleteByIdsForDelivery(ids, { permanent })
+      await this.finishDeletion(result.deletedIds, result.deliveryResults)
+      return { deletedIds: result.deletedIds }
+    }
+    if (permanent) return deleteSessions()
+
+    return this.withSessionLocks(ids, async () => {
+      this.assertSessionsSettled(ids)
+      return deleteSessions()
+    })
   }
 
   private async reuseOrCreateSessionInternal(
@@ -334,30 +351,38 @@ export class AgentSessionDeliveryService extends BaseService {
     permanent: boolean
   ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
     this.assertWritesAvailable()
-    const result = agentService.deleteAgentForDelivery(agentId, { deleteSessions, permanent })
-    const manager = application.get('AiStreamManager')
-    result.affectedSessionIds.forEach((sessionId) =>
-      manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
-    )
-    // Sessions that outlive the agent (trashed or permanently deleted) keep
-    // their queue — kick it so pending deliveries re-evaluate against the gone agent.
-    await this.finishDeletion(
-      result.affectedSessionIds,
-      result.deliveryResults,
-      deleteSessions && !permanent ? [] : result.affectedSessionIds
-    )
-    return {
-      deleted: result.deleted,
-      ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
+    const deleteAgent = async () => {
+      this.assertWritesAvailable()
+      const result = agentService.deleteAgentForDelivery(agentId, { deleteSessions, permanent })
+      const manager = application.get('AiStreamManager')
+      result.affectedSessionIds.forEach((sessionId) =>
+        manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
+      )
+      // Sessions that outlive the agent (trashed or permanently deleted) keep
+      // their queue — kick it so pending deliveries re-evaluate against the gone agent.
+      await this.finishDeletion(
+        result.affectedSessionIds,
+        result.deliveryResults,
+        deleteSessions && !permanent ? [] : result.affectedSessionIds
+      )
+      return {
+        deleted: result.deleted,
+        ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
+      }
     }
+
+    return deleteSessions && !permanent ? this.withStableAgentSessions(agentId, deleteAgent) : deleteAgent()
   }
 
   private async deleteAgentSessionsInternal(agentId: string): Promise<{ deletedIds: string[] }> {
     this.assertWritesAvailable()
-    // Recycle Bin moves: the only caller is the "clear this agent's sessions" command, which is undoable.
-    const result = agentSessionService.deleteByAgentIdForDelivery(agentId, { permanent: false })
-    await this.finishDeletion(result.deletedIds, result.deliveryResults)
-    return { deletedIds: result.deletedIds }
+    return this.withStableAgentSessions(agentId, async () => {
+      this.assertWritesAvailable()
+      // Recycle Bin moves: the only caller is the "clear this agent's sessions" command, which is undoable.
+      const result = agentSessionService.deleteByAgentIdForDelivery(agentId, { permanent: false })
+      await this.finishDeletion(result.deletedIds, result.deliveryResults)
+      return { deletedIds: result.deletedIds }
+    })
   }
 
   private async deleteWorkspaceInternal(workspaceId: string): Promise<{ deletedIds: string[] }> {
@@ -385,6 +410,45 @@ export class AgentSessionDeliveryService extends BaseService {
         error: result.reason
       })
     })
+  }
+
+  private async withStableAgentSessions<T>(agentId: string, archive: () => T | Promise<T>): Promise<T> {
+    for (;;) {
+      const sessionIds = agentSessionService.listActiveIdsByAgent(agentId)
+      const result = await this.withSessionLocks(sessionIds, async () => {
+        const currentSessionIds = agentSessionService.listActiveIdsByAgent(agentId)
+        if (!this.sameIds(sessionIds, currentSessionIds)) return RETRY_AGENT_SESSION_ARCHIVE
+
+        this.assertSessionsSettled(sessionIds)
+        return archive()
+      })
+      if (result !== RETRY_AGENT_SESSION_ARCHIVE) return result
+    }
+  }
+
+  private withSessionLocks<T>(sessionIds: string[], operation: () => T | Promise<T>): Promise<T> {
+    const manager = application.get('AiStreamManager')
+    const ids = [...new Set(sessionIds)].sort()
+    const acquire = (index: number): Promise<T> => {
+      const sessionId = ids[index]
+      if (!sessionId) return Promise.resolve(operation())
+      return manager.withDispatchLock(buildAgentSessionTopicId(sessionId), () => acquire(index + 1))
+    }
+    return acquire(0)
+  }
+
+  private assertSessionsSettled(sessionIds: string[]): void {
+    const manager = application.get('AiStreamManager')
+    const runtime = application.get('AgentSessionRuntimeService')
+    const busySessionIds = sessionIds.filter(
+      (sessionId) =>
+        manager.hasUnsettledTopicWork(buildAgentSessionTopicId(sessionId)) || runtime.isSessionBusy(sessionId)
+    )
+    if (busySessionIds.length > 0) throw new AgentSessionArchiveBusyError(busySessionIds)
+  }
+
+  private sameIds(first: string[], second: string[]): boolean {
+    return first.length === second.length && first.every((id, index) => id === second[index])
   }
 
   private assertWritesAvailable(): void {

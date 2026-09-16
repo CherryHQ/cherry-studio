@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   resolveCrash: vi.fn(),
   reuseOrCreate: vi.fn(),
   deleteByIds: vi.fn(),
+  listActiveIdsByAgent: vi.fn(),
   restore: vi.fn(),
   isExpiredTrash: vi.fn(),
   listExpiredTrashIds: vi.fn(),
@@ -36,6 +38,8 @@ const mocks = vi.hoisted(() => ({
   whenTerminalDispatchSettled: vi.fn(),
   runtimeBusy: vi.fn(),
   closeSession: vi.fn(),
+  withDispatchLock: vi.fn(),
+  hasUnsettledTopicWork: vi.fn(),
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -85,6 +89,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     reuseOrCreatePlaceholderForDelivery: mocks.reuseOrCreate,
     deleteByIdsForDelivery: mocks.deleteByIds,
+    listActiveIdsByAgent: mocks.listActiveIdsByAgent,
     restore: mocks.restore,
     isExpiredTrash: mocks.isExpiredTrash,
     listExpiredTrashIds: mocks.listExpiredTrashIds,
@@ -120,7 +125,8 @@ const runtime = {
 }
 const manager = {
   isWriteQuiesced: false,
-  withDispatchLock: (_topicId: string, fn: () => Promise<void>) => fn(),
+  withDispatchLock: mocks.withDispatchLock,
+  hasUnsettledTopicWork: mocks.hasUnsettledTopicWork,
   hasLiveStream: mocks.hasLiveStream,
   pauseRuntimeTurn: mocks.pauseRuntimeTurn,
   abortAndDrain: mocks.abortAndDrain,
@@ -178,6 +184,8 @@ describe('AgentSessionDeliveryService', () => {
     mocks.listAccepted.mockReturnValue([])
     mocks.listRecoverable.mockReturnValue([])
     mocks.hasLiveStream.mockReturnValue(false)
+    mocks.hasUnsettledTopicWork.mockReturnValue(false)
+    mocks.withDispatchLock.mockImplementation((_topicId: string, fn: () => Promise<unknown>) => fn())
     mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
     mocks.whenTerminalDispatchSettled.mockResolvedValue(undefined)
     mocks.runtimeBusy.mockReturnValue(false)
@@ -207,6 +215,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.finalize.mockReturnValue(null)
     mocks.findByTurnRef.mockReturnValue(null)
     mocks.deleteByIds.mockReturnValue({ deletedIds: [], taskScheduleIds: [], deliveryResults: [] })
+    mocks.listActiveIdsByAgent.mockReturnValue([])
     mocks.restore.mockReturnValue({ id: 'restored-session' })
     mocks.isExpiredTrash.mockReturnValue(true)
     mocks.listExpiredTrashIds.mockReturnValue([])
@@ -652,27 +661,77 @@ describe('AgentSessionDeliveryService', () => {
     }
   })
 
-  it('commits deletion, closes target runtimes, then schedules the exact durable results', async () => {
-    const result = { ...accepted, id: 'result-1', sessionId: 'sender' }
-    const order: string[] = []
-    mocks.deleteByIds.mockImplementation(() => {
-      order.push('commit')
-      return { deletedIds: ['target'], taskScheduleIds: [], deliveryResults: [result] }
-    })
-    mocks.closeSession.mockImplementation(async () => {
-      order.push('close')
-    })
-    mocks.listAccepted.mockImplementation((sessionId?: string) => {
-      if (sessionId === 'sender') order.push('kick-result')
-      return []
-    })
+  it('rejects Session archive before the DB write while its turn is unsettled', async () => {
+    mocks.hasUnsettledTopicWork.mockReturnValue(true)
     const service = new AgentSessionDeliveryService()
     await service._doInit()
 
-    await expect(service.deleteSessions(['target'])).resolves.toEqual({ deletedIds: ['target'] })
-    await flush()
+    await expect(service.deleteSessions(['target'])).rejects.toMatchObject({
+      name: 'AgentSessionArchiveBusyError',
+      sessionIds: ['target']
+    })
 
-    expect(order).toEqual(['commit', 'close', 'kick-result'])
+    expect(mocks.deleteByIds).not.toHaveBeenCalled()
+    expect(mocks.closeSession).not.toHaveBeenCalled()
+  })
+
+  it('holds Session dispatch admission until archive runtime teardown settles', async () => {
+    const dispatchLocks = new KeyedMutex()
+    let releaseRuntime!: () => void
+    const runtimeClosed = new Promise<void>((resolve) => {
+      releaseRuntime = resolve
+    })
+    mocks.withDispatchLock.mockImplementation((topicId: string, fn: () => Promise<unknown>) =>
+      dispatchLocks.runExclusive(topicId, fn)
+    )
+    mocks.deleteByIds.mockReturnValue({ deletedIds: ['target'], taskScheduleIds: [], deliveryResults: [] })
+    mocks.closeSession.mockReturnValue(runtimeClosed)
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    const deleting = service.deleteSessions(['target'])
+    await vi.waitFor(() => expect(mocks.closeSession).toHaveBeenCalledWith('target'))
+
+    let competingAdmissionEntered = false
+    const competingAdmission = dispatchLocks.runExclusive('agent-session:target', async () => {
+      competingAdmissionEntered = true
+    })
+    await flush()
+    expect(competingAdmissionEntered).toBe(false)
+
+    releaseRuntime()
+
+    await expect(deleting).resolves.toEqual({ deletedIds: ['target'] })
+    await competingAdmission
+    expect(competingAdmissionEntered).toBe(true)
+  })
+
+  it('rejects Agent cascade archive when one of its Sessions is unsettled', async () => {
+    mocks.listActiveIdsByAgent.mockReturnValue(['target'])
+    mocks.hasUnsettledTopicWork.mockReturnValue(true)
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    await expect(service.deleteAgent('agent-1', true)).rejects.toMatchObject({
+      name: 'AgentSessionArchiveBusyError',
+      sessionIds: ['target']
+    })
+
+    expect(mocks.deleteAgent).not.toHaveBeenCalled()
+  })
+
+  it("rejects clearing an Agent's Sessions when one is unsettled", async () => {
+    mocks.listActiveIdsByAgent.mockReturnValue(['target'])
+    mocks.hasUnsettledTopicWork.mockReturnValue(true)
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+
+    await expect(service.deleteAgentSessions('agent-1')).rejects.toMatchObject({
+      name: 'AgentSessionArchiveBusyError',
+      sessionIds: ['target']
+    })
+
+    expect(mocks.deleteByAgentId).not.toHaveBeenCalled()
   })
 
   it('drains expired Session runtimes before hard-deleting their rows', async () => {

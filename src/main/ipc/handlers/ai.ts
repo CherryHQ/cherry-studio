@@ -9,6 +9,7 @@ import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
+import { AgentSessionArchiveBusyError } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
@@ -163,6 +164,19 @@ async function restoreAgentSession(sessionId: string) {
   }
 }
 
+async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>): Promise<T> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (error instanceof AgentSessionArchiveBusyError) {
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_ARCHIVE_BUSY, error.message, {
+        sessionIds: error.sessionIds
+      })
+    }
+    throw error
+  }
+}
+
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── One-shot model calls — AiService owns the provider clients. ──
   // A renderer one-shot call has no topic; it is its own conversation.
@@ -226,9 +240,11 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
   'ai.agent.delete': ({ agentId, deleteSessions, permanent }) =>
-    application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions, permanent),
+    exposeAgentSessionArchiveError(() =>
+      application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions, permanent)
+    ),
   'ai.agent.sessions.delete': ({ agentId }) =>
-    application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId),
+    exposeAgentSessionArchiveError(() => application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId)),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the
@@ -244,7 +260,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
   'ai.agent.session.delete': ({ sessionIds, permanent }) =>
-    application.get('AgentSessionDeliveryService').deleteSessions(sessionIds, permanent),
+    exposeAgentSessionArchiveError(() =>
+      application.get('AgentSessionDeliveryService').deleteSessions(sessionIds, permanent)
+    ),
   'ai.agent.session.restore': ({ sessionId }) => restoreAgentSession(sessionId),
   'ai.agent.session.reuse_or_create': (input) =>
     application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
