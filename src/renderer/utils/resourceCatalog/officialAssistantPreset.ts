@@ -3,7 +3,7 @@ import { type IconRef, modelIconRef, providerIconRef } from '@cherrystudio/ui/ic
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getRawModelId, isNonChatModel } from '@shared/utils/model'
-import { hasApiKeys, isExternalCliProvider } from '@shared/utils/provider'
+import { hasApiKeys, isExternalCliProvider, matchesPreset } from '@shared/utils/provider'
 
 export type OfficialAssistantVendor = 'anthropic' | 'openai' | 'gemini' | 'deepseek' | 'kimi' | 'doubao'
 
@@ -52,22 +52,27 @@ function isProviderReady(provider: Provider) {
   }
 }
 
-function preferredTierRank(vendor: OfficialAssistantVendor, modelId: string) {
+function isPreferredChatTier(vendor: OfficialAssistantVendor, model: Model, modelId: string) {
   switch (vendor) {
     case 'anthropic':
-      return modelId.includes('sonnet') ? 0 : 1
+      return modelId.includes('sonnet')
     case 'openai':
-      return /^gpt-5(?:-\d+)?(?:-\d{4}-\d{2}-\d{2})?(?:-chat(?:-latest)?)?$/.test(modelId) ? 0 : 1
+      return /^gpt-5(?:-\d+)?(?:-\d{4}-\d{2}-\d{2})?(?:-chat(?:-latest)?)?$/.test(modelId)
     case 'gemini':
-      return modelId.includes('pro') ? 0 : 1
+      return modelId.includes('pro')
     case 'deepseek':
-      return modelId === 'deepseek-chat' ? 0 : 1
+      if (model.family) return model.family === 'deepseek-flash'
+      return /^deepseek-(?:v\d+(?:[.-]\d+)?-)?flash(?:-|$)/.test(modelId)
     case 'kimi':
-      if (/^kimi-k2(?:-\d+)?(?:-\d{4}-preview)?$/.test(modelId)) return 0
-      return modelId.startsWith('kimi-k2') && !modelId.includes('thinking') ? 1 : 2
+      return modelId.startsWith('kimi-k2') && !modelId.includes('thinking')
     case 'doubao':
-      return 0
+      return true
   }
+}
+
+function preferredProviderRank(vendor: OfficialAssistantVendor, provider: Provider) {
+  if (matchesPreset(provider, 'cherryin')) return 0
+  return matchesPreset(provider, OFFICIAL_PROVIDER_IDS[vendor]) ? 1 : 2
 }
 
 function getOfficialAssistantProviderId(vendor: OfficialAssistantVendor) {
@@ -97,7 +102,7 @@ export function resolveOfficialAssistantModel({
       if (!model.isEnabled || model.isHidden || model.isDeprecated || isNonChatModel(model)) return []
 
       const canonicalModelId = normalizeModelId(model.presetModelId ?? getRawModelId(model))
-      return matchVendor(canonicalModelId) === vendor ? [{ model, canonicalModelId }] : []
+      return matchVendor(canonicalModelId) === vendor ? [{ model, provider, canonicalModelId }] : []
     })
   })
 
@@ -106,7 +111,11 @@ export function resolveOfficialAssistantModel({
 
   const preferred = candidates.reduce<(typeof candidates)[number] | undefined>((best, candidate) => {
     if (!best) return candidate
-    return preferredTierRank(vendor, candidate.canonicalModelId) < preferredTierRank(vendor, best.canonicalModelId)
+    const candidateIsPreferred = isPreferredChatTier(vendor, candidate.model, candidate.canonicalModelId)
+    const bestIsPreferred = isPreferredChatTier(vendor, best.model, best.canonicalModelId)
+    if (candidateIsPreferred !== bestIsPreferred) return candidateIsPreferred ? candidate : best
+
+    return preferredProviderRank(vendor, candidate.provider) < preferredProviderRank(vendor, best.provider)
       ? candidate
       : best
   }, undefined)

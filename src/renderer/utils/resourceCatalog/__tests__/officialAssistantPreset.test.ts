@@ -63,8 +63,8 @@ const preferredTierCases: Array<{
   {
     vendor: 'deepseek',
     providers: [provider('deepseek')],
-    models: [model('deepseek', 'deepseek-reasoner'), model('deepseek', 'deepseek-chat')],
-    expectedModelId: 'deepseek::deepseek-chat'
+    models: [model('deepseek', 'deepseek-reasoner'), model('deepseek', 'deepseek-v4-flash')],
+    expectedModelId: 'deepseek::deepseek-v4-flash'
   },
   {
     vendor: 'kimi',
@@ -111,6 +111,64 @@ describe('official assistant model resolution', () => {
         defaultModelId: null
       })
     ).toEqual({ status: 'resolved', modelId: 'openai::gpt-5.2-2025-12-11-chat-latest' })
+  })
+
+  it('prefers the current DeepSeek Flash tier over a legacy chat alias from an earlier provider', () => {
+    expect(
+      resolveOfficialAssistantModel({
+        vendor: 'deepseek',
+        providers: [provider('openrouter'), provider('cherryin')],
+        models: [model('openrouter', 'deepseek-chat'), model('cherryin', 'deepseek-v4-flash')],
+        defaultModelId: null
+      })
+    ).toEqual({ status: 'resolved', modelId: 'cherryin::deepseek-v4-flash' })
+  })
+
+  it('uses the declared DeepSeek family before inferring a tier from the model id', () => {
+    expect(
+      resolveOfficialAssistantModel({
+        vendor: 'deepseek',
+        providers: [provider('cherryin'), provider('openrouter')],
+        models: [
+          model('cherryin', 'deepseek-v4-flash', { family: 'deepseek-thinking' }),
+          model('openrouter', 'deepseek-chat', { family: 'deepseek-flash' })
+        ],
+        defaultModelId: null
+      })
+    ).toEqual({ status: 'resolved', modelId: 'openrouter::deepseek-chat' })
+  })
+
+  it('treats non-Flash DeepSeek models as one fallback tier', () => {
+    expect(
+      resolveOfficialAssistantModel({
+        vendor: 'deepseek',
+        providers: [provider('openrouter'), provider('cherryin')],
+        models: [model('openrouter', 'deepseek-v3.2'), model('cherryin', 'deepseek-chat')],
+        defaultModelId: null
+      })
+    ).toEqual({ status: 'resolved', modelId: 'cherryin::deepseek-chat' })
+  })
+
+  it('treats non-thinking K2 variants as one preferred tier', () => {
+    expect(
+      resolveOfficialAssistantModel({
+        vendor: 'kimi',
+        providers: [provider('openrouter'), provider('cherryin')],
+        models: [model('openrouter', 'kimi-k2.5'), model('cherryin', 'kimi-k2-instruct')],
+        defaultModelId: null
+      })
+    ).toEqual({ status: 'resolved', modelId: 'cherryin::kimi-k2-instruct' })
+  })
+
+  it('prefers CherryIN when multiple providers expose the same preferred tier', () => {
+    expect(
+      resolveOfficialAssistantModel({
+        vendor: 'deepseek',
+        providers: [provider('openrouter'), provider('cherryin')],
+        models: [model('openrouter', 'deepseek-v4-flash'), model('cherryin', 'deepseek-v4-flash')],
+        defaultModelId: null
+      })
+    ).toEqual({ status: 'resolved', modelId: 'cherryin::deepseek-v4-flash' })
   })
 
   it('uses an explicit same-vendor default before the preferred tier', () => {
