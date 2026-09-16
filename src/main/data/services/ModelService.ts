@@ -707,8 +707,10 @@ class ModelService {
    * capabilities while recognized models receive narrow metadata/reasoning
    * enrichment plus missing limits and pricing. Nothing is written back.
    */
-  private enrichRowsFromRegistry(rows: UserModelRow[]): Model[] {
-    const reasoningConfigCache = new Map<string, ReasoningProviderContext>()
+  private enrichRowsFromRegistry(
+    rows: UserModelRow[],
+    reasoningConfigCache = new Map<string, ReasoningProviderContext>()
+  ): Model[] {
     return rows.map((row) => {
       if (row.presetModelId) {
         try {
@@ -830,7 +832,12 @@ class ModelService {
    */
   findByIdTx(tx: Pick<DbType, 'select'>, id: string): Model | null {
     const [row] = selectWithProviderIdentity(tx).where(eq(userModelTable.id, id)).limit(1).all()
-    return row && isProviderIdentityAvailable(row) ? this.enrichRowsFromRegistry([row.model])[0] : null
+    if (!row) return null
+
+    const reasoningConfigCache = providerService.getReasoningContextsByProviderIdsTx(tx, [row.providerId])
+    return reasoningConfigCache.has(row.providerId)
+      ? this.enrichRowsFromRegistry([row.model], reasoningConfigCache)[0]
+      : null
   }
 
   /** Check model existence under a provider available in the current edition. */
@@ -864,8 +871,14 @@ class ModelService {
 
     const rows = selectWithProviderIdentity(tx).where(inArray(userModelTable.id, ids)).all()
 
-    const available = rows.filter(isProviderIdentityAvailable).map((row) => row.model)
-    for (const model of this.enrichRowsFromRegistry(available)) {
+    const reasoningConfigCache = providerService.getReasoningContextsByProviderIdsTx(
+      tx,
+      rows.map((row) => row.providerId)
+    )
+    for (const model of this.enrichRowsFromRegistry(
+      rows.filter((row) => reasoningConfigCache.has(row.providerId)).map((row) => row.model),
+      reasoningConfigCache
+    )) {
       if (model.name) result.set(model.id, model.name)
     }
     return result
