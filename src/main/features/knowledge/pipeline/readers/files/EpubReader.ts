@@ -9,10 +9,14 @@ const logger = loggerService.withContext('KnowledgeEpubReader')
 export class EpubReader extends FileReader<Document<Metadata>> {
   /**
    * An EPUB chapter is XHTML, so it is read with the same reader a standalone
-   * .html file gets. Stripping tags with a regex instead kept whatever sat
-   * inside `<style>` and `<script>` - an inline stylesheet is ordinary in an
-   * EPUB chapter - and left entities undecoded, so `it&#8217;s` was indexed
-   * instead of `it's`.
+   * .html file gets, and with that reader's own options. Stripping tags with a
+   * regex instead kept whatever sat inside `<style>` and `<script>` - an inline
+   * stylesheet is ordinary in an EPUB chapter - so a chapter was indexed with
+   * its CSS rules in the text.
+   *
+   * `getOptions()` matters: without it `parseContent` decodes entities before
+   * it strips, which turns an escaped `&lt;div&gt;` in the prose into a tag and
+   * deletes it. Entities stay encoded, as they do for a standalone .html file.
    */
   private readonly htmlReader = new HTMLReader()
 
@@ -27,7 +31,7 @@ export class EpubReader extends FileReader<Document<Metadata>> {
     for (const chapter of chapters) {
       try {
         const content = await epub.getChapter(chapter.id)
-        const text = (await this.htmlReader.parseContent(content)).trim()
+        const text = (await this.htmlReader.parseContent(content, this.htmlReader.getOptions())).trim()
 
         if (!text) {
           continue

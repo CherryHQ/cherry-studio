@@ -76,13 +76,16 @@ describe('EpubReader', () => {
     expect(docs[0]?.text).not.toContain('var a')
   })
 
-  it('decodes html entities', async () => {
-    getChapterMock.mockImplementation(async () => '<p>Caf&#233; &amp; bar&#8212;it&#8217;s open</p>')
+  it('keeps markup the chapter escaped on purpose', async () => {
+    // parseContent decodes entities before it strips when it is called without
+    // the reader's own options, so `&lt;div&gt;` becomes a tag and is deleted.
+    getChapterMock.mockImplementation(async () => '<p>To open a block write &lt;div&gt; first.</p>')
 
     const reader = new EpubReader()
     const docs = await reader.loadDataAsContent(new Uint8Array([1, 2, 3]), 'book.epub')
 
-    expect(docs[0]?.text).toBe('Café & bar—it’s open')
+    expect(docs[0]?.text).toContain('div')
+    expect(docs[0]?.text).toBe('To open a block write &lt;div&gt; first.')
   })
 
   it('skips a chapter that carries no text of its own', async () => {
