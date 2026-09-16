@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { defaultMarkdownPlugins, Markdown, StreamingMarkdown, withMath } from '@cherrystudio/ui'
 
-import { parseLatexMarkdownBlocks } from '../parseLatexMarkdownBlocks'
+import { createLatexMarkdownBlockParser } from '../parseLatexMarkdownBlocks'
 import { remarkLatexMath } from '../remarkLatexMath'
 
 vi.unmock('@cherrystudio/ui')
@@ -118,7 +118,7 @@ describe('remarkLatexMath', () => {
         id: 'split-line-equation',
         plugins: { ...defaultMarkdownPlugins, math: withMath({ singleDollar: true }) },
         remarkPlugins: [remarkLatexMath],
-        parseMarkdownIntoBlocksFn: parseLatexMarkdownBlocks,
+        parseMarkdownIntoBlocksFn: createLatexMarkdownBlockParser(),
         children: `## Before formula\n\n\\[${value}\\]\n\n## Next section`.replaceAll('\n', eol)
       })
     )

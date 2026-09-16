@@ -42,6 +42,9 @@ describe('LaTeX code block preview', () => {
     expect(await screen.findByRole('math', { hidden: true })).toHaveTextContent('ab')
     expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Download Source Code' })).toBeInTheDocument()
+    const more = screen.queryByRole('button', { name: 'More' })
+    if (more) await user.click(more)
+    expect(screen.queryByRole('button', { name: 'Copy as image' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Copy Source Code' }))
     expect(writeText).toHaveBeenCalledWith(source)
@@ -68,6 +71,35 @@ describe('LaTeX code block preview', () => {
       expect(screen.getByRole('math', { hidden: true })).toHaveTextContent('b')
     }
   )
+
+  it.each([
+    ['    \\[\n    \\frac{a}{b}\n    \\]', 'ab'],
+    ['    x\\ ', 'x']
+  ])('previews indented LaTeX and preserves source whitespace: %s', async (source, formula) => {
+    const user = userEvent.setup()
+    render(
+      <CodeBlockView language="latex" editable={false}>
+        {source}
+      </CodeBlockView>
+    )
+
+    expect(await screen.findByRole('math', { hidden: true })).toHaveTextContent(formula)
+    expect(screen.queryByTitle(/ParseError/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'View Source Code' }))
+    expect(screen.getByLabelText('Code viewer').textContent).toBe(source)
+  })
+
+  it('keeps image actions available for SVG previews', async () => {
+    const user = userEvent.setup()
+    render(
+      <CodeBlockView language="svg" editable={false}>
+        {'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><circle cx="5" cy="5" r="4" /></svg>'}
+      </CodeBlockView>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    expect(await screen.findByRole('button', { name: 'Copy as image' })).toBeInTheDocument()
+  })
 
   it('recovers from incomplete streamed LaTeX without overriding the selected source view', async () => {
     const user = userEvent.setup()

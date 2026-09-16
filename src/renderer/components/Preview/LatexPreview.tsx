@@ -32,7 +32,7 @@ const LatexPreview = ({ children, isStreaming }: BasicPreviewProps) => {
       plugins={isStreaming ? STREAMING_MATH_PLUGINS : MATH_PLUGINS}
       remarkPlugins={REMARK_PLUGINS}
       className="latex-preview special-preview min-w-0 overflow-x-auto px-4 py-3 text-foreground [&_.katex-display]:m-0">
-      {children}
+      {children.trimStart()}
     </Markdown>
   )
 }

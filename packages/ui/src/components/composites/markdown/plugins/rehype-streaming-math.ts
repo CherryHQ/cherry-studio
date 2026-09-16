@@ -6,7 +6,6 @@ import { SKIP, visit } from 'unist-util-visit'
 function closedBoundaries(source: string): number[] {
   const boundaries = [0]
   let groups = 0
-  let brackets = 0
   let delimiters = 0
   let awaitingDelimiter = false
   const environments: string[] = []
@@ -19,8 +18,6 @@ function closedBoundaries(source: string): number[] {
     if (groups === 0) {
       const delimiterToken = awaitingDelimiter && token.trim() !== '' && !token.startsWith('%')
       if (delimiterToken) awaitingDelimiter = false
-      if (!delimiterToken && token === '[') brackets += 1
-      if (!delimiterToken && token === ']') brackets -= 1
       if (match[1] !== undefined) {
         if (token.startsWith('\\begin')) environments.push(match[1])
         else if (environments.at(-1) === match[1]) environments.pop()
@@ -29,14 +26,7 @@ function closedBoundaries(source: string): number[] {
       if (token === '\\right') delimiters -= 1
       if (token === '\\left' || token === '\\right') awaitingDelimiter = true
     }
-    if (
-      groups === 0 &&
-      brackets === 0 &&
-      delimiters === 0 &&
-      !awaitingDelimiter &&
-      environments.length === 0 &&
-      token !== '\\'
-    ) {
+    if (groups === 0 && delimiters === 0 && !awaitingDelimiter && environments.length === 0 && token !== '\\') {
       boundaries.push(match.index + token.length)
     }
   }
@@ -86,7 +76,8 @@ export const rehypeStreamingMath: Plugin<[Pluggable], Root> = function (mathRend
         // KaTeX's error position skips suffixes that cannot repair an earlier invalid token.
         const cause = failure.cause as ParseError | undefined
         const limit = cause?.name === 'ParseError' && Number.isFinite(cause.position) ? cause.position : end
-        end = boundaries.findLast((boundary) => boundary < end && boundary <= limit) ?? 0
+        while (boundaries.length && (boundaries.at(-1)! >= end || boundaries.at(-1)! > limit)) boundaries.pop()
+        end = boundaries.pop() ?? 0
       }
 
       parent.children.splice(index, 1, ...output)

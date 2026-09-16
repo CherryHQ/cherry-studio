@@ -7,6 +7,6 @@
 
 export { MarkdownHostProvider } from './MarkdownHostProvider'
 export { MarkdownImageRenderer, scrollToMarkdownAnchor, shouldShowMarkdownLinkFavicon } from './MarkdownRenderers'
-export { parseLatexMarkdownBlocks } from './parseLatexMarkdownBlocks'
+export { createLatexMarkdownBlockParser } from './parseLatexMarkdownBlocks'
 export { remarkLatexMath } from './remarkLatexMath'
 export { StaticMarkdown } from './StaticMarkdown'
