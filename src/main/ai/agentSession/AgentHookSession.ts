@@ -69,7 +69,7 @@ export class AgentHookSession {
 
   private async invokeOnce(input: AgentRuntimeHookInput, signal: AbortSignal) {
     if (signal.aborted) return { denied: input.event === 'preToolUse', reason: 'Hook execution was cancelled.' }
-    this.started ??= this.run({ event: 'sessionStart', messageId: input.messageId }, signal)
+    this.started ??= this.run({ event: 'sessionStart', messageId: input.messageId }, this.controller.signal)
     await this.started
     if (signal.aborted) return { denied: input.event === 'preToolUse', reason: 'Hook execution was cancelled.' }
     if (input.event === 'sessionStart') return {}

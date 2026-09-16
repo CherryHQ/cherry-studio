@@ -306,6 +306,26 @@ describe('Agent Hook commands', () => {
     expect(spawnSpy).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps shared session startup alive when its first caller is cancelled before command launch', async () => {
+    configure('exit 0', 'sessionStart', 30_000)
+    configure('exit 7', 'preToolUse', 30_000)
+    const session = create()
+    const env = await shellEnv.getShellEnv()
+    const envReady = createDeferred<typeof env>()
+    vi.mocked(shellEnv.getShellEnv).mockReturnValueOnce(envReady.promise)
+    const controller = new AbortController()
+    const first = session.invoke({ event: 'preToolUse' }, controller.signal)
+    const next = session.invoke({ event: 'preToolUse' })
+    controller.abort()
+    envReady.resolve(env)
+
+    expect(await first).toMatchObject({ denied: true, reason: expect.stringContaining('cancelled') })
+    expect(await next).toMatchObject({ denied: true, reason: expect.stringContaining('exit 7') })
+    expect(spawnSpy.mock.results.map(({ value }) => value.exitCode)).toEqual([0, 7])
+    await session.invoke({ event: 'sessionStart' })
+    expect(spawnSpy).toHaveBeenCalledTimes(2)
+  }, 75_000)
+
   it('fails closed on timeout and oversized output', async () => {
     configure(windows ? 'Start-Sleep -Seconds 30' : 'sleep 30', 'preToolUse', 100)
     const session = create()
@@ -380,17 +400,20 @@ describe('Agent Hook commands', () => {
     }
   )
 
-  it('kills an active command on close and refuses all later executions', async () => {
-    configure(windows ? 'Start-Sleep -Seconds 30' : 'sleep 30')
-    const session = create()
-    const pending = session.invoke({ event: 'preToolUse' })
-    await expect.poll(() => spawnSpy.mock.results[0]?.value?.pid).toBeDefined()
-    await session.close()
-    expect(await pending).toMatchObject({ denied: true, reason: expect.stringContaining('cancelled') })
-    expect(await processRunner.waitForProcessExit(spawnSpy.mock.results[0].value, 1000)).toBe(true)
-    await session.invoke({ event: 'preToolUse' })
-    expect(spawnSpy).toHaveBeenCalledTimes(1)
-  })
+  it.each(['sessionStart', 'preToolUse'] as const)(
+    'kills an active %s on close and refuses all later executions',
+    async (event) => {
+      configure(windows ? 'Start-Sleep -Seconds 30' : 'sleep 30', event)
+      const session = create()
+      const pending = session.invoke({ event: 'preToolUse' })
+      await expect.poll(() => spawnSpy.mock.results[0]?.value?.pid).toBeDefined()
+      await session.close()
+      expect(await pending).toMatchObject({ denied: true, reason: expect.stringContaining('cancelled') })
+      expect(await processRunner.waitForProcessExit(spawnSpy.mock.results[0].value, 1000)).toBe(true)
+      await session.invoke({ event: 'preToolUse' })
+      expect(spawnSpy).toHaveBeenCalledTimes(1)
+    }
+  )
 })
 
 describe('AgentSessionRuntimeService', () => {

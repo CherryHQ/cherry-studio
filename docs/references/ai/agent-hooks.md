@@ -51,6 +51,10 @@ arguments or model text into the configured command line takes place.
 | `approvalRequested` | A permission or plan-review request has been presented | Notify only; never approve or reject the request |
 | `turnEnd` | A complete runtime reply | Log and continue |
 
+Once started, `sessionStart` belongs to the connection, not its first caller. Cancelling
+one turn or tool call does not cancel shared startup or skip it for later calls. Startup
+still obeys command timeouts and is cancelled and drained when the connection closes.
+
 `turnEnd` runs asynchronously after the host marks the runtime reply complete. It does not
 delay stream completion, persistence, or the next turn. Its message ID stays bound to the
 completed reply; it is not a barrier for subsequent tools or file operations. Connection
