@@ -8,9 +8,13 @@ test('composer keeps focus and protects the draft across a read-only interval', 
     .locator(uiSelector({ parts: ['composer-input'] }))
     .filter({ visible: true })
     .first()
-  const skipSetup = mainWindow.getByRole('button', { name: /^(稍后设置|Set up later)$/ })
-  await expect(input.or(skipSetup).first()).toBeVisible()
-  if (await skipSetup.isVisible()) await skipSetup.click()
+  const languageSelect = mainWindow.locator('[data-onboarding-language-select]')
+  await expect(input.or(languageSelect).first()).toBeVisible()
+  if (await languageSelect.isVisible()) {
+    await languageSelect.getByRole('combobox').click()
+    await mainWindow.getByRole('option', { name: 'English', exact: false }).click()
+    await mainWindow.getByRole('button', { name: 'Set up later', exact: true }).click()
+  }
   await input.click()
   const editor = input.locator('[contenteditable]')
   await expect(editor).toHaveAttribute('contenteditable', 'true')

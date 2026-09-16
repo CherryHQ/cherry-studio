@@ -711,7 +711,7 @@ export default function ComposerSurfaceRuntime({
         )
         .run()
     },
-    enabled: enableDragDrop,
+    enabled: editable !== false && enableDragDrop,
     t
   })
 
