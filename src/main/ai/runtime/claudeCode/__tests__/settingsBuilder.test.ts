@@ -13,6 +13,7 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { BrowserSessionService } from '@main/features/browser'
+import type * as FileUtils from '@main/utils/file'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
@@ -214,7 +215,8 @@ vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: (input: string) => input
 }))
 
-vi.mock('@main/utils/file', () => ({
+vi.mock('@main/utils/file', async (importOriginal) => ({
+  ...(await importOriginal<typeof FileUtils>()),
   getPathStatus: mocks.getPathStatus,
   isPathInside: (child: string, parent: string) => {
     const relative = path.relative(path.resolve(parent), path.resolve(child))
