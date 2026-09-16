@@ -36,7 +36,14 @@ function getUserSystemPath(name: UserSystemPathName, fallback: string): string {
 function normalizePiAgentDir(input: string, home: string): string {
   if (input === '~') return home
   if (input.startsWith('~/') || (isWin && input.startsWith('~\\'))) return path.join(home, input.slice(2))
-  if (input.startsWith('file://')) return fileURLToPath(input)
+  if (input.startsWith('file://')) {
+    try {
+      return fileURLToPath(input)
+    } catch (error) {
+      logger.warn('Invalid PI_CODING_AGENT_DIR file URL; using the default Pi agent directory', error as Error)
+      return path.join(home, '.pi', 'agent')
+    }
+  }
   return input
 }
 

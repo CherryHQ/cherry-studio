@@ -212,6 +212,20 @@ describe('buildPathRegistry', () => {
     }
   })
 
+  it.each(['file://[', 'file:///C:/pi/%ZZ'])(
+    'keeps startup paths available when PI_CODING_AGENT_DIR is malformed: %s',
+    (agentDir) => {
+      vi.stubEnv('PI_CODING_AGENT_DIR', agentDir)
+      try {
+        const registry = buildPathRegistry()
+        expect(registry['external.pi.settings_file']).toBe(path.join(os.homedir(), '.pi', 'agent', 'settings.json'))
+        expect(registry['app.database.file']).toBe(path.join('/mock/userData', 'Data', 'cherrystudio.sqlite'))
+      } finally {
+        vi.unstubAllEnvs()
+      }
+    }
+  )
+
   it('registers the platform-native default Hermes home as external data', () => {
     const registry = buildPathRegistry()
     const windowsBase = process.env.LOCALAPPDATA?.trim() || path.join(os.homedir(), 'AppData', 'Local')
