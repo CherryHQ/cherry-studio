@@ -20,7 +20,6 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { ipcApi } from '@renderer/ipc'
-import { popup } from '@renderer/services/popup'
 import {
   restoreRecycleBinItems,
   restoreRecycleBinUndoGroup,
@@ -380,17 +379,6 @@ export function AgentResourceList({
       }
 
       if (deleteSessionsOnly) {
-        const confirmed = await popup.confirm({
-          title: t('agent.session.agent.delete.title'),
-          content: t('agent.session.agent.delete.content'),
-          okText: t('agent.session.agent.delete.trigger'),
-          cancelText: t('common.cancel'),
-          centered: true,
-          okButtonProps: {
-            danger: true
-          }
-        })
-        if (!confirmed) return
         await performDelete(true)
         return
       }

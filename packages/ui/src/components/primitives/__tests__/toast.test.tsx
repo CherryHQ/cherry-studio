@@ -50,7 +50,11 @@ describe('Toast', () => {
       })
     })
 
-    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    const actionButton = screen.getByRole('button', { name: 'Undo' })
+    expect(actionButton).toHaveAttribute('data-variant', 'outline')
+    expect(actionButton).toHaveClass('min-h-7', 'text-xs')
+
+    await user.click(actionButton)
 
     expect(screen.queryByText('Item deleted')).not.toBeInTheDocument()
     expect(onToastClick).not.toHaveBeenCalled()

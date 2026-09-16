@@ -66,7 +66,6 @@ const HistoryTopBar = ({
   onBulkMove
 }: HistoryTopBarProps) => {
   const { t } = useTranslation()
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [moveDialogOpen, setMoveDialogOpen] = useState(false)
   const [moveTargetId, setMoveTargetId] = useState('')
   const moveTargets = useMemo(() => Array.from(bulkMoveTargets), [bulkMoveTargets])
@@ -176,7 +175,7 @@ const HistoryTopBar = ({
           variant="outline"
           className="h-8 gap-1.5 rounded-md px-2.5 text-xs text-destructive shadow-none hover:text-destructive"
           disabled={!canBulkDelete}
-          onClick={() => setDeleteDialogOpen(true)}>
+          onClick={() => void onBulkDelete?.()}>
           <Trash2 className="size-3.5" />
           <span>
             {t('history.records.bulkDelete')}
@@ -185,18 +184,6 @@ const HistoryTopBar = ({
         </Button>
       </div>
 
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        title={t('recycle_bin.move.confirm_title')}
-        confirmText={t('recycle_bin.move.confirm_action')}
-        cancelText={t('common.cancel')}
-        destructive
-        onConfirm={async () => {
-          await onBulkDelete?.()
-          setDeleteDialogOpen(false)
-        }}
-      />
       <ConfirmDialog
         open={moveDialogOpen}
         onOpenChange={setMoveDialogOpen}

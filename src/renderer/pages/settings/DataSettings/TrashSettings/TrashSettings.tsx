@@ -35,10 +35,10 @@ const logger = loggerService.withContext('TrashSettings')
 type TrashCategory = 'topics' | 'agents' | 'sessions' | 'assistants' | 'paintings' | 'files'
 
 const CATEGORIES: { id: TrashCategory; labelKey: string; Icon: LucideIcon }[] = [
+  { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants', Icon: Sparkles },
   { id: 'topics', labelKey: 'settings.data.trash.domain.topics', Icon: MessageSquare },
   { id: 'agents', labelKey: 'settings.data.trash.domain.agents', Icon: Bot },
   { id: 'sessions', labelKey: 'settings.data.trash.domain.sessions', Icon: MessagesSquare },
-  { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants', Icon: Sparkles },
   { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings', Icon: Image },
   { id: 'files', labelKey: 'settings.data.trash.domain.files', Icon: File }
 ]

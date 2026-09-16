@@ -1,10 +1,9 @@
 import { PinIcon, Trash2 } from 'lucide-react'
 import type { MouseEvent } from 'react'
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
-import { ActionConfirmDialog } from '@renderer/components/chat/actions/ActionConfirmDialog'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import type {
   SessionActionContext,
@@ -126,8 +125,6 @@ const SessionItem = ({
   const hasStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming && !!onTogglePin
   const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
   const startMenuEdit = useCallback(() => onOpenRenameDialog(session), [onOpenRenameDialog, session])
   const handleDelete = useCallback(() => onDelete(session.id), [onDelete, session.id])
@@ -295,7 +292,7 @@ const SessionItem = ({
         />
       )}
 
-      <ResourceList.ItemActions active={deleteDialogOpen} pinned={pinned && showPinAction}>
+      <ResourceList.ItemActions pinned={pinned && showPinAction}>
         {showPinAction && (
           <Tooltip title={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')} delay={500}>
             <ResourceList.ItemAction
@@ -313,7 +310,7 @@ const SessionItem = ({
               aria-label={t('common.delete')}
               onClick={(event) => {
                 event.stopPropagation()
-                setDeleteDialogOpen(true)
+                if (deleteAction) void handleMenuAction(deleteAction)
               }}>
               <Trash2 size={14} className="size-3.5!" />
             </ResourceList.ItemAction>
@@ -324,21 +321,9 @@ const SessionItem = ({
   )
 
   return (
-    <>
-      <ResourceListActionContextMenu item={session} getActions={getMenuActions} onAction={handleMenuAction}>
-        {row}
-      </ResourceListActionContextMenu>
-      <ActionConfirmDialog
-        open={deleteDialogOpen}
-        confirm={deleteAction?.confirm}
-        onOpenChange={setDeleteDialogOpen}
-        onConfirm={async () => {
-          if (!deleteAction) return
-          await handleMenuAction(deleteAction)
-          setDeleteDialogOpen(false)
-        }}
-      />
-    </>
+    <ResourceListActionContextMenu item={session} getActions={getMenuActions} onAction={handleMenuAction}>
+      {row}
+    </ResourceListActionContextMenu>
   )
 }
 

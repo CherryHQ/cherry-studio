@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@cherrystudio/ui'
@@ -14,15 +14,9 @@ import {
 } from '@renderer/hooks/resourceCatalog'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
-import {
-  restoreRecycleBinUndoGroup,
-  showRecycleBinBatchUndo,
-  showRecycleBinUndo
-} from '@renderer/services/recycleBinFeedback'
+import { restoreRecycleBinUndoGroup, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
-import { getErrorMessage } from '@renderer/utils/error'
-import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
 
@@ -129,7 +123,6 @@ const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
-  const deleteSessionsOnly = isProtectedBuiltinAgentRole(resource.raw.configuration?.builtin_role)
   const { trigger: restoreAgent } = useMutation('POST', '/agents/:agentId/restore', {
     refresh: ['/agents', '/agents/*']
   })
@@ -147,46 +140,6 @@ const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>
   }, [invalidate])
   const onDelete = useCallback(
     async (deleteSessions: boolean) => {
-      if (deleteSessionsOnly) {
-        const result = await ipcApi.request('ai.agent.sessions.delete', { agentId: resource.id })
-        const deletedSessionIds = [...result.deletedIds]
-        await refreshAffected()
-        if (deletedSessionIds.length === 0) {
-          toast.info(t('recycle_bin.already_moved'))
-          return
-        }
-
-        closeConversationTabs('agents', deletedSessionIds)
-        showRecycleBinBatchUndo({
-          itemCount: deletedSessionIds.length,
-          onUndo: async () => {
-            const outcomes = await Promise.allSettled(deletedSessionIds.map((sessionId) => restoreSession(sessionId)))
-            await refreshAffected()
-            const activeAfterNotFound = await Promise.all(
-              outcomes.map(async (outcome, index) => {
-                if (outcome.status === 'fulfilled' || !isAgentSessionNotFoundError(outcome.reason)) return false
-                try {
-                  await dataApiService.get(`/agent-sessions/${deletedSessionIds[index]}`)
-                  return true
-                } catch {
-                  return false
-                }
-              })
-            )
-            return outcomes.reduce(
-              (summary, outcome, index) => {
-                const sessionId = deletedSessionIds[index]
-                if (outcome.status === 'fulfilled' || activeAfterNotFound[index]) summary.restored.push(sessionId)
-                else summary.failed.push({ id: sessionId, error: getErrorMessage(outcome.reason) })
-                return summary
-              },
-              { restored: [] as string[], failed: [] as Array<{ id: string; error: string }> }
-            )
-          }
-        })
-        return
-      }
-
       const result = await ipcApi.request('ai.agent.delete', { agentId: resource.id, deleteSessions })
       await refreshAffected()
       if (!result.deleted) {
@@ -215,30 +168,8 @@ const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>
           })
       })
     },
-    [
-      closeConversationTabs,
-      deleteSessionsOnly,
-      refreshAffected,
-      resource.id,
-      resource.name,
-      restoreAgent,
-      restoreSession,
-      t
-    ]
+    [closeConversationTabs, refreshAffected, resource.id, resource.name, restoreAgent, restoreSession, t]
   )
-
-  if (deleteSessionsOnly) {
-    return (
-      <DeleteDialogContent
-        resource={resource}
-        onClose={onClose}
-        onDelete={() => onDelete(true)}
-        title={t('agent.session.agent.delete.title')}
-        description={t('agent.session.agent.delete.content')}
-        confirmText={t('agent.session.agent.delete.trigger')}
-      />
-    )
-  }
 
   return <ConversationOwnerDeleteDialogContent resource={resource} onClose={onClose} onDelete={onDelete} />
 }
@@ -260,20 +191,10 @@ const PromptDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'prompt' 
 }
 
 const DeleteDialogContent: FC<{
-  resource: ResourceItem
+  resource: Extract<ResourceItem, { type: 'skill' | 'prompt' }>
   onClose: () => void
   onDelete: () => Promise<void>
-  title?: string
-  description?: string
-  confirmText?: string
-}> = ({
-  resource,
-  onClose,
-  onDelete,
-  title: titleOverride,
-  description: descriptionOverride,
-  confirmText: confirmTextOverride
-}) => {
+}> = ({ resource, onClose, onDelete }) => {
   const { t } = useTranslation()
   const [pending, setPending] = useState(false)
 
@@ -289,33 +210,9 @@ const DeleteDialogContent: FC<{
     }
   }, [onDelete, t])
 
-  const { title, description, confirmText } = useMemo(() => {
-    if (titleOverride && confirmTextOverride) {
-      return { title: titleOverride, description: descriptionOverride, confirmText: confirmTextOverride }
-    }
-    if (resource.type === 'agent' || resource.type === 'assistant') {
-      return {
-        title: t('recycle_bin.move.confirm_title'),
-        description: undefined,
-        confirmText: t('recycle_bin.move.confirm_action')
-      }
-    }
-    if (resource.type === 'skill') {
-      return {
-        title: t('library.delete.skill.title'),
-        description: t('library.delete.skill.content'),
-        confirmText: t('library.action.uninstall')
-      }
-    }
-    if (resource.type === 'prompt') {
-      return {
-        title: t('settings.prompts.delete'),
-        description: t('settings.prompts.deleteConfirm'),
-        confirmText: t('common.delete')
-      }
-    }
-    return { title: '', description: undefined, confirmText: '' }
-  }, [confirmTextOverride, descriptionOverride, resource.type, t, titleOverride])
+  const title = t(resource.type === 'skill' ? 'library.delete.skill.title' : 'settings.prompts.delete')
+  const description = t(resource.type === 'skill' ? 'library.delete.skill.content' : 'settings.prompts.deleteConfirm')
+  const confirmText = t(resource.type === 'skill' ? 'library.action.uninstall' : 'common.delete')
 
   return (
     <ConfirmDialog

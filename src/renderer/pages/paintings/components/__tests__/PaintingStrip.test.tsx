@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -44,15 +44,9 @@ describe('PaintingStrip', () => {
     expect(screen.getByTestId('painting-skeleton-surface')).toBeInTheDocument()
   })
 
-  it('awaits the Move to Recycle Bin confirmation before closing it', async () => {
+  it('moves a painting to the Recycle Bin without opening a confirmation', async () => {
     const user = userEvent.setup()
-    let resolveDelete!: () => void
-    const onDeletePainting = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveDelete = resolve
-        })
-    )
+    const onDeletePainting = vi.fn().mockResolvedValue(undefined)
 
     render(
       <PaintingStrip
@@ -66,17 +60,7 @@ describe('PaintingStrip', () => {
     )
 
     await user.click(screen.getByRole('button', { name: 'paintings.button.delete.image.label' }))
-    expect(screen.getByRole('dialog')).toHaveTextContent('recycle_bin.move.confirm_title')
-    expect(screen.queryByText('paintings.button.delete.image.confirm')).not.toBeInTheDocument()
-
-    const confirm = screen.getByRole('button', { name: 'recycle_bin.move.confirm_action' })
-    await user.click(confirm)
     expect(onDeletePainting).toHaveBeenCalledWith(painting)
-    expect(confirm).toBeDisabled()
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-
-    await act(async () => resolveDelete())
-
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

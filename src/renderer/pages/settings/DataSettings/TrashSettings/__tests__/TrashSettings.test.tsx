@@ -112,6 +112,24 @@ beforeEach(async () => {
 })
 
 describe('TrashSettings', () => {
+  it('lists trash categories in product order with localized Chinese labels', async () => {
+    const user = userEvent.setup()
+    await i18n.changeLanguage('zh-CN')
+    render(<TrashSettings />)
+
+    await user.click(screen.getByRole('button', { name: '话题' }))
+
+    const categoryOptions = within(screen.getByRole('dialog')).getAllByRole('button')
+    expect(categoryOptions.map((option) => option.textContent)).toEqual([
+      '助手',
+      '话题',
+      '智能体',
+      '会话',
+      '绘图',
+      '文件'
+    ])
+  })
+
   it('shows the automatic cleanup interval without explanatory copy', async () => {
     await i18n.changeLanguage('zh-CN')
     render(<TrashSettings />)

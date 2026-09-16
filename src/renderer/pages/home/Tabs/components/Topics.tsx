@@ -9,7 +9,6 @@ import { dataApiService } from '@data/DataApiService'
 import { useCache, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ActionConfirmDialog } from '@renderer/components/chat/actions/ActionConfirmDialog'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import type {
@@ -69,7 +68,6 @@ import {
 } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
-import { popup } from '@renderer/services/popup'
 import {
   restoreRecycleBinItem,
   restoreRecycleBinItems,
@@ -915,17 +913,6 @@ export function Topics({
       setDeletingAssistantGroupId(assistantId)
 
       try {
-        const confirmed = await popup.confirm({
-          title: t('recycle_bin.move.confirm_title'),
-          okText: t('recycle_bin.move.confirm_action'),
-          cancelText: t('common.cancel'),
-          centered: true,
-          okButtonProps: {
-            danger: true
-          }
-        })
-        if (!confirmed) return
-
         const latestTargetTopicIds = new Set(
           topicsRef.current.filter((topic) => topic.assistantId === assistantId).map((topic) => topic.id)
         )
@@ -1869,7 +1856,6 @@ const TopicRow = memo(function TopicRow({
   const showLeadingSlot = displayMode !== 'time'
   const canDeleteTopic = !topic.pinned
   const isArchiveBlocked = isTopicStreamPending || isTopicAwaitingApproval
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
@@ -1943,7 +1929,7 @@ const TopicRow = memo(function TopicRow({
           status={conversationRowStatus}
         />
       )}
-      <ResourceList.ItemActions active={deleteDialogOpen} pinned={topic.pinned && showPinAction}>
+      <ResourceList.ItemActions pinned={topic.pinned && showPinAction}>
         {showPinAction && (
           <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
             <ResourceList.ItemAction
@@ -1965,7 +1951,7 @@ const TopicRow = memo(function TopicRow({
               disabled={isArchiveBlocked}
               onClick={(event) => {
                 event.stopPropagation()
-                setDeleteDialogOpen(true)
+                if (deleteAction) void handleMenuAction(deleteAction)
               }}>
               <Trash2 size={14} className="size-3.5!" />
             </ResourceList.ItemAction>
@@ -1980,16 +1966,6 @@ const TopicRow = memo(function TopicRow({
       <ResourceListActionContextMenu item={topic} getActions={getMenuActions} onAction={handleMenuAction}>
         {row}
       </ResourceListActionContextMenu>
-      <ActionConfirmDialog
-        open={deleteDialogOpen}
-        confirm={deleteAction?.confirm}
-        onOpenChange={setDeleteDialogOpen}
-        onConfirm={async () => {
-          if (!deleteAction) return
-          await handleMenuAction(deleteAction)
-          setDeleteDialogOpen(false)
-        }}
-      />
       <EditNameDialog
         open={renameDialogOpen}
         title={t('chat.topics.edit.title')}

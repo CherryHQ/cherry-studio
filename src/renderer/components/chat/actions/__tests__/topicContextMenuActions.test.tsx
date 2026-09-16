@@ -65,7 +65,7 @@ function createTopicActionFixture(overrides: Partial<TopicActionContext> = {}): 
 }
 
 describe('topic context menu actions', () => {
-  it('exposes one recoverable Delete action with the Recycle Bin confirmation', async () => {
+  it('exposes one recoverable Delete action without a confirmation', async () => {
     const onDelete = vi.fn()
     const context = createTopicActionFixture({ onDelete })
     const actions = resolveTopicMenuActions(context)
@@ -73,12 +73,7 @@ describe('topic context menu actions', () => {
 
     expect(actions.filter((action) => action.danger).map((action) => action.id)).toEqual(['topic.delete'])
     expect(deleteAction?.label).toBe('common.delete')
-    expect(deleteAction?.confirm).toEqual({
-      title: 'recycle_bin.move.confirm_title',
-      confirmText: 'recycle_bin.move.confirm_action',
-      cancelText: 'common.cancel',
-      destructive: true
-    })
+    expect(deleteAction?.confirm).toBeUndefined()
 
     await executeTopicMenuAction(deleteAction!, context)
 

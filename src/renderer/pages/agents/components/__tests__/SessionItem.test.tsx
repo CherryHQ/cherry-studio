@@ -100,7 +100,7 @@ sessionMenuActions.exportMenuOptions = {
 }
 
 describe('SessionItem', () => {
-  it('requires the shared Recycle Bin confirmation before deleting', async () => {
+  it('deletes immediately without opening a confirmation dialog', async () => {
     const user = userEvent.setup()
     const onDelete = vi.fn()
     const Provider = ResourceList.Provider<AgentSessionEntity>
@@ -119,11 +119,7 @@ describe('SessionItem', () => {
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))
 
-    expect(onDelete).not.toHaveBeenCalled()
-    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
-
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
-
     expect(onDelete).toHaveBeenCalledWith('session-a')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

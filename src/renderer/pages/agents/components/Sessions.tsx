@@ -1355,17 +1355,6 @@ const Sessions = ({
       }
 
       if (deleteSessionsOnly) {
-        const confirmed = await popup.confirm({
-          title: t('agent.session.agent.delete.title'),
-          content: t('agent.session.agent.delete.content'),
-          okText: t('agent.session.agent.delete.trigger'),
-          cancelText: t('common.cancel'),
-          centered: true,
-          okButtonProps: {
-            danger: true
-          }
-        })
-        if (!confirmed) return
         await performDelete(true)
         return
       }
