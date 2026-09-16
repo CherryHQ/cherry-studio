@@ -503,9 +503,9 @@ describe('TopicStreamSubscription', () => {
     const chunks = await readAll(sa)
     // Bare deltas in the retained tail get a synthesized start so the overlay
     // stream isn't fed orphaned deltas without their protocol opener.
-    expect(chunks.length).toBe(1001)
+    expect(chunks.length).toBe(1000)
     expect(chunks[0]).toEqual({ type: 'text-start', id: 't' })
-    expect(chunks[1]).toEqual(textChunk('chunk-200'))
+    expect(chunks[1]).toEqual(textChunk('chunk-201'))
     expect(chunks[chunks.length - 1]).toEqual(textChunk('chunk-1199'))
     sub.dispose()
   })
@@ -527,10 +527,10 @@ describe('TopicStreamSubscription', () => {
     await tick()
     mock.emitDone(TOPIC, A, 'success')
     const chunks = await readAll(sa)
-    // Tail (1000 deltas) lost its start; cap helper synthesizes one so the
+    // Tail (999 deltas) lost its start; cap helper synthesizes one so the
     // reader receives a valid start→delta sequence.
     expect(chunks[0]).toEqual({ type: 'text-start', id: 't' })
-    expect(chunks[1]).toEqual(textChunk('delta-200'))
+    expect(chunks[1]).toEqual(textChunk('delta-201'))
     sub.dispose()
   })
 

@@ -340,10 +340,10 @@ describe('IpcChatTransport', () => {
       if (done) break
       chunks.push(value)
     }
-    // Synthesis adds a start for the orphaned delta run
-    expect(chunks.length).toBe(1001)
+    // Synthesis adds a start for the orphaned delta run without exceeding the cap
+    expect(chunks.length).toBe(1000)
     expect(chunks[0]).toEqual({ type: 'text-start', id: 't' })
-    expect(chunks[1]).toEqual({ type: 'text-delta', id: 't', delta: 'chunk-200' })
+    expect(chunks[1]).toEqual({ type: 'text-delta', id: 't', delta: 'chunk-201' })
     expect(chunks[chunks.length - 1]).toEqual({ type: 'text-delta', id: 't', delta: 'chunk-1199' })
     reader.releaseLock()
     await stream!.cancel().catch(() => {})

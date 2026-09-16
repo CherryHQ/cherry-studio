@@ -19,6 +19,7 @@ function scopedPartKey(payload: StreamChunkPayload, kind: 'text' | 'reasoning' |
 }
 
 function buildTail(chunks: readonly StreamChunkPayload[], max: number): StreamChunkPayload[] {
+  if (max <= 0) return []
   if (chunks.length <= max) return [...chunks]
 
   const indicesByScope = new Map<string, number[]>()
@@ -74,8 +75,6 @@ export function capAttachReplayChunks(
 ): StreamChunkPayload[] {
   if (chunks.length <= max) return [...chunks]
 
-  const tail = buildTail(chunks, max)
-
   // Collect authoritative tool identity per toolCallId. Scanning the full
   // buffer (not just the retained tail) keeps the attach→live handoff from
   // losing its opener when the cap falls inside an active tool-input run: a
@@ -91,6 +90,22 @@ export function capAttachReplayChunks(
     }
   }
 
+  // Synthesized openers sit outside the tail budget, so a boundary cut can
+  // deliver more than `max`. Shrink the fair budget until the total fits.
+  let budget = max
+  let out = replayTail(buildTail(chunks, budget), toolInfoByKey)
+  while (out.length > max && budget > 0) {
+    budget = Math.max(0, budget - (out.length - max))
+    out = replayTail(buildTail(chunks, budget), toolInfoByKey)
+  }
+
+  return out
+}
+
+function replayTail(
+  tail: readonly StreamChunkPayload[],
+  toolInfoByKey: ReadonlyMap<string, { toolName: string; dynamic?: boolean }>
+): StreamChunkPayload[] {
   const openParts = new Set<string>()
   const seenToolInput = new Set<string>()
   const out: StreamChunkPayload[] = []
