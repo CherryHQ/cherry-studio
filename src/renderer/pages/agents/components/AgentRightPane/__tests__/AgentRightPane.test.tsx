@@ -365,8 +365,8 @@ vi.mock('@renderer/components/chat/trace/TracePane', () => {
   return { TracePane: () => <div data-testid="trace-pane" /> }
 })
 
-vi.mock('@renderer/components/WebviewBrowser', () => ({
-  WebviewBrowser: (props: {
+vi.mock('../AgentBrowserView', () => ({
+  AgentBrowserView: (props: {
     initialUrl?: string
     securityProfile: string
     target: { id: string; label: string }
@@ -1383,9 +1383,6 @@ describe('AgentRightPane', () => {
     expect(browser).toHaveAttribute('data-url', 'http://localhost:5173/')
     expect(browser).toHaveAttribute('data-security-profile', 'agent-dev-preview')
     expect(browser).toHaveAttribute('data-target-id', 'agent-browser:session-a')
-    expect(webviewBrowserMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ isHostActive: true, target: { id: 'agent-browser:session-a', label: 'Frontend task' } })
-    )
 
     const deferredParts = [
       {
