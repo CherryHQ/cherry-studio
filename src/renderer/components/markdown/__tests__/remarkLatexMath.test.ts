@@ -123,6 +123,55 @@ describe('remarkLatexMath', () => {
     ])
   })
 
+  it('parses a bracket display formula split by a blank line', () => {
+    const source = [
+      'Before formula.',
+      '',
+      '\\[',
+      'h_{i}(\\mathbf{p})',
+      '=',
+      '',
+      '\\frac{a}{c}',
+      '\\]',
+      '',
+      'After formula.'
+    ].join('\n')
+    const tree = parse(source)
+
+    expect(mathNodes(source)).toMatchObject([{ type: 'math', value: '\nh_{i}(\\mathbf{p})\n=\n\n\\frac{a}{c}\n' }])
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'math', 'paragraph'])
+    expect(textValue(tree)).toContain('After formula.')
+  })
+
+  it('parses a blank-line bracket formula inside a block quote', () => {
+    const source = ['> \\[', '> a', '>', '> b', '> \\]'].join('\n')
+
+    expect(mathNodes(source)).toMatchObject([{ type: 'math', value: '\na\n\nb\n' }])
+  })
+
+  it('keeps a bracket formula inline when its line continues past the closing delimiter', () => {
+    const source = '\\[a+b=c\\] and more text'
+    const tree = parse(source)
+
+    expect(mathNodes(source)).toMatchObject([{ type: 'inlineMath', value: 'a+b=c' }])
+    expect(textValue(tree)).toContain('and more text')
+  })
+
+  it('renders a blank-line bracket formula through the real Markdown and KaTeX pipeline', () => {
+    const math = withMath({ singleDollar: true })
+    const { container } = render(
+      createElement(Markdown, {
+        id: 'bracket-blank-line',
+        plugins: { ...defaultMarkdownPlugins, math },
+        remarkPlugins: [remarkLatexMath],
+        children: '\\[\nE\n=\n\nmc^2\n\\]'
+      })
+    )
+
+    expect(container.querySelector('.katex-error')).toBeNull()
+    expect(container.querySelector('annotation[encoding="application/x-tex"]')?.textContent).toBe('\nE\n=\n\nmc^2\n')
+  })
+
   it('leaves code and links outside math parsing', () => {
     const source = [
       '`\\(inline\\)`',
@@ -211,6 +260,119 @@ describe('remarkLatexMath', () => {
     expect(container.querySelector('.katex-error')).toBeNull()
     expect(container.textContent).toContain('After formula.')
     expect(container.textContent).toContain('link')
+  })
+
+  it('bounds a multiline display fence whose opening line contains math', () => {
+    const source = [
+      "$$f(2h)=f(0)+f'(0)(2h)+\\frac{f''(0)}{2}(2h)^2+o(h^2)",
+      "=f(0)+2f'(0)h+2f''(0)h^2+o(h^2)$$",
+      '',
+      'Text after the formula with $x$.',
+      '',
+      '$$',
+      '\\begin{cases}',
+      'x+y=1\\\\',
+      'x+2y=0',
+      '\\end{cases}',
+      '$$',
+      '',
+      '# Heading',
+      '',
+      '[link](https://example.com)',
+      '',
+      '| a | b |',
+      '| - | - |',
+      '| 1 | 2 |',
+      '',
+      '<span>html</span>'
+    ].join('\n')
+    const tree = parse(source)
+
+    expect(mathNodes(source)).toMatchObject([
+      {
+        type: 'math',
+        meta: null,
+        value: expect.stringContaining("=f(0)+2f'(0)h+2f''(0)h^2+o(h^2)")
+      },
+      { type: 'inlineMath', value: 'x' },
+      { type: 'math', value: expect.stringContaining('\\begin{cases}') }
+    ])
+    expect(tree.children.slice(0, 5).map((child) => child.type)).toEqual([
+      'math',
+      'paragraph',
+      'math',
+      'heading',
+      'paragraph'
+    ])
+    expect(tree.children[1]).toMatchObject({
+      type: 'paragraph',
+      children: [
+        { type: 'text', value: 'Text after the formula with ' },
+        { type: 'inlineMath', value: 'x' },
+        { type: 'text', value: '.' }
+      ]
+    })
+    expect(textValue(tree)).toContain('link')
+    expect(textValue(tree)).toContain('| a | b |')
+    expect(textValue(tree)).toContain('html')
+  })
+
+  it.each([
+    ['$$x$$', 'inlineMath', 'x'],
+    ['$$\nx\n$$', 'math', 'x'],
+    ['$$x\ny$$', 'math', 'x\ny'],
+    ['$$x\r\ny$$', 'math', 'x\r\ny']
+  ])('keeps dollar math bounded for %s', (source, type, value) => {
+    const tree = parse(`${source}\n\nAfter formula.`)
+
+    expect(mathNodes(source)).toMatchObject([{ type, value }])
+    expect(tree.children.at(-1)).toMatchObject({ type: 'paragraph' })
+    expect(textValue(tree)).toContain('After formula.')
+  })
+
+  it.each([
+    ['LF', '$$x$$\n\nText with $$y$$'],
+    ['CRLF', '$$x$$\r\n\r\nText with $$y$$'],
+    ['trailing spaces', '$$x$$  \n\nText with $$y$$'],
+    ['trailing tab', '$$x$$\t\n\nText with $$y$$']
+  ])('leaves a first-line closing fence to the existing parser (%s)', (_label, source) => {
+    const tree = parse(source)
+
+    expect(mathNodes(source)).toMatchObject([
+      { type: 'inlineMath', value: 'x' },
+      { type: 'inlineMath', value: 'y' }
+    ])
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'paragraph',
+      children: [
+        { type: 'text', value: 'Text with ' },
+        { type: 'inlineMath', value: 'y' }
+      ]
+    })
+  })
+
+  it('preserves text and headings after math closed on its opening line', () => {
+    const source = '$$x=1$$，这是说明文字。\n\n## Next section\n\nText with $$y=2$$'
+    const tree = parse(source)
+
+    expect(tree.children).toMatchObject([
+      {
+        type: 'paragraph',
+        children: [
+          { type: 'inlineMath', value: 'x=1' },
+          { type: 'text', value: '，这是说明文字。' }
+        ]
+      },
+      { type: 'heading', depth: 2, children: [{ type: 'text', value: 'Next section' }] },
+      {
+        type: 'paragraph',
+        children: [
+          { type: 'text', value: 'Text with ' },
+          { type: 'inlineMath', value: 'y=2' }
+        ]
+      }
+    ])
   })
 
   it('preserves a leading tag in existing multiline display math', () => {

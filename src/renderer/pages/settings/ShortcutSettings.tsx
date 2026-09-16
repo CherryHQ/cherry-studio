@@ -66,7 +66,7 @@ const isBindingEqual = (a: ShortcutBinding, b: ShortcutBinding): boolean =>
 const keyCodeToAccelerator: Record<string, ShortcutToken> = {
   Backquote: '`',
   Period: '.',
-  NumpadEnter: 'Enter',
+  NumpadEnter: 'numenter',
   NumpadAdd: 'numadd',
   NumpadSubtract: 'numsub',
   Space: 'Space',

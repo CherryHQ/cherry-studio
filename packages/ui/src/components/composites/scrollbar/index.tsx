@@ -5,15 +5,24 @@ import * as React from 'react'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
+  /**
+   * Hide the scrollbar when scrolling stops.
+   *
+   * @default true
+   */
+  autoHideScrollbar?: boolean
   onScroll?: () => void
+  showOnHover?: boolean
 }
 
 const Scrollbar = ({
   ref,
+  autoHideScrollbar = true,
   children,
   className,
   onScroll: externalOnScroll,
   style,
+  showOnHover = false,
   ...htmlProps
 }: ScrollbarProps & { ref?: React.Ref<HTMLDivElement> }) => {
   const [isScrolling, setIsScrolling] = React.useState(false)
@@ -27,13 +36,15 @@ const Scrollbar = ({
   }, [])
 
   const handleScroll = React.useCallback(() => {
+    if (!autoHideScrollbar) return
+
     setIsScrolling(true)
     clearScrollingTimeout()
     timeoutRef.current = setTimeout(() => {
       setIsScrolling(false)
       timeoutRef.current = null
     }, 1500)
-  }, [clearScrollingTimeout])
+  }, [autoHideScrollbar, clearScrollingTimeout])
 
   const throttledInternalScrollHandler = React.useMemo(
     () => throttle(handleScroll, 100, { leading: true, trailing: true }),
@@ -52,16 +63,32 @@ const Scrollbar = ({
     }
   }, [clearScrollingTimeout, throttledInternalScrollHandler])
 
+  const isScrollbarVisible = !autoHideScrollbar || isScrolling
+  const useHoverVisibility = showOnHover && autoHideScrollbar
+
   return (
     <div
       {...htmlProps}
       ref={ref}
-      className={cn('overflow-y-auto [scrollbar-gutter:stable]', className)}
+      className={cn(
+        'overflow-y-auto [scrollbar-gutter:stable]',
+        useHoverVisibility &&
+          '[scrollbar-color:transparent_transparent] hover:[scrollbar-color:var(--scrollbar-thumb-hover)_transparent] data-[scrolling=true]:[scrollbar-color:var(--scrollbar-thumb)_transparent]',
+        !useHoverVisibility &&
+          '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-[2000ms] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)]',
+        !useHoverVisibility &&
+          (isScrollbarVisible
+            ? '[&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]'
+            : '[&::-webkit-scrollbar-thumb]:bg-transparent'),
+        className
+      )}
       data-scrolling={isScrolling ? 'true' : 'false'}
       onScroll={combinedOnScroll}
       style={{
         ...style,
-        scrollbarColor: isScrolling ? 'var(--scrollbar-thumb) transparent' : 'transparent transparent'
+        ...(!useHoverVisibility && {
+          scrollbarColor: isScrollbarVisible ? 'var(--scrollbar-thumb) transparent' : 'transparent transparent'
+        })
       }}>
       {children}
     </div>

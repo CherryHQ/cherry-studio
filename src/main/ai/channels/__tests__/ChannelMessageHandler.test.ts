@@ -1,4 +1,7 @@
 import { EventEmitter } from 'events'
+import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -364,6 +367,39 @@ describe('ChannelMessageHandler', () => {
     )
     expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing', { replyToMessageId: undefined })
+  })
+
+  it('confines an image with a hostile media type to channel-images as .png', async () => {
+    const workDir = await mkdtemp(path.join(os.tmpdir(), 'channel-images-'))
+    try {
+      const adapter = createMockAdapter()
+      const session = {
+        id: 'session-1',
+        agentId: 'agent-1',
+        agentType: 'claude-code',
+        model: 'openai::gpt-4',
+        workspace: { path: workDir },
+        configuration: {}
+      }
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(session as any)
+      simulateStream([{ type: 'text-delta', delta: 'ok' }])
+
+      await handleIncomingAndFlush(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'Hi',
+        images: [{ media_type: 'image/a\\..\\..\\..\\evil', data: Buffer.from('img').toString('base64') }]
+      })
+
+      const written = await readdir(path.join(workDir, '.cherry-studio', 'channel-images'))
+      expect(written).toHaveLength(1)
+      expect(written[0]).toMatch(/\.png$/)
+      expect(await readdir(workDir)).toEqual(['.cherry-studio'])
+      expect(await readdir(path.join(workDir, '.cherry-studio'))).toEqual(['channel-images'])
+    } finally {
+      await rm(workDir, { recursive: true, force: true })
+    }
   })
 
   it('skips final send when adapter handles stream completion', async () => {

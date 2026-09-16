@@ -236,7 +236,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [Testing Reference](./references/testing/README.md) | Home for testing reference docs covering frontend test policy and the SQLite database test harness |
+| [Testing Reference](./references/testing/README.md) | Home for testing references covering frontend policy and the SQLite harness |
 | [Database Testing Guide](./references/testing/database-testing.md) | How to test SQLite-backed main-process code with the setupTestDatabase harness and production migrations |
 | [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Normative test rules for renderer, packages/ui, and E2E code covering layer choice, mocking, and review gates |
 
