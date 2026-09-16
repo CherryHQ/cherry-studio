@@ -30,6 +30,8 @@ Actions and snapshots use separate `async-mutex` locks so an action can capture 
 snapshot without locking itself out. Synchronous guest disposal cancels queued
 work and interrupts pending commands; it does not await arbitrary running callbacks
 or promise that Chromium has cancelled an already-dispatched command.
+Native WebMCP retains the debugger for bounded invocation acknowledgements and cancellation
+before detaching; `settleWebTools()` awaits this cleanup, including IDs returned after disposal.
 
 Snapshots combine main-frame AX and DOM data. References remain stable within a
 live document and are never reused during a session, including after navigation

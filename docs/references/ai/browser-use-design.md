@@ -17,8 +17,8 @@ Implementation detail (files, APIs, commit split, test plan) for P0/P1 and the e
 [`browser-use-implementation.md`](./browser-use-implementation.md).
 
 Current runtime baseline: Electron 44.2.0 / Chromium 152.0.7977.76, inherited from `main`.
-The Electron 41 observations below are historical test evidence; the upgrade alone does not
-implement the deferred WebMCP, freezing or WebContentsView work.
+The Electron 41 observations below are historical test evidence. Native WebMCP is implemented
+in C3 on this baseline; retained-tab freezing and WebContentsView migration remain deferred.
 
 ## Delivery status
 
@@ -36,18 +36,26 @@ plan for the remaining PR C/D boundaries.
 
 PR3 (C1–C2), [#20139](https://github.com/CherryHQ/cherry-studio/pull/20139), is open on
 `browser-use-inspection`, based on PR2: same-document
-ref recovery, `find`, `console_messages` and `network_requests`. WebMCP remains a separate follow-up.
+ref recovery, `find`, `console_messages` and `network_requests`. WebMCP is delivered by the separate C3 layer below.
 
-### Next delivery — connect the existing Agent browser
+C3, [#20582](https://github.com/CherryHQ/cherry-studio/pull/20582), implements native
+`list_web_tools` / `call_web_tool` on `browser-use-webmcp`, based on `browser-use-cursor`.
+It covers main-document imperative tools in managed and Agent-bound guests. See
+[WebMCP integration boundary](#webmcp-integration-boundary) for runtime support and deferred capabilities.
+
+### Historical delivery plan — connect the existing Agent browser
+
+The following records the initial Agent integration scope, before the inherited Electron 44 upgrade
+and the C3 WebMCP implementation.
 
 The Agent right pane already has `AgentBrowserRightPanel` → `WebviewBrowser` → `WebviewHost`,
 with navigation, search and annotations. The `agent-browser-integration` stack layer extends this surface; it does not
 create another browser UI. It builds on PR3 and combines visible-page control, ordinary website
 browsing, persistent browser data, history/import settings and a bundled `cherry-browser` skill.
 Implementation is on `agent-browser-integration`, based on PR3. Its GitHub PR number is pending publication.
-Ordinary HTTP(S) browsing explicitly permits LAN and loopback access; Electron remains at 41.8.0.
+Ordinary HTTP(S) browsing explicitly permits LAN and loopback access; this initial plan used Electron 41.8.0.
 
-The current gaps are concrete:
+The gaps at that planning stage were:
 
 - MCP actions target the controller's separate `BrowserView` guests, not the right-pane guest.
 - The right pane's `AgentDevPreview` policy permits an authorized loopback origin; HTML artifacts
@@ -76,12 +84,14 @@ counts separately. System helpers and key buffers end with the tracked import op
 never reads keys. See [delivered support](./browser-use-implementation.md#127-delivered-import-support-and-validation)
 for supported formats, Linux prerequisites and OS validation limits.
 
-Keep Electron at 41.8.0 because an upgrade needs a separate operating-system compatibility decision.
-WebMCP is deferred. Multiple visible tabs, retained-tab freezing, a full handoff protocol and
+The initial integration kept Electron at 41.8.0 and excluded WebMCP; the current baseline and C3 delivery are listed above.
+Multiple visible tabs, retained-tab freezing, a full handoff protocol and
 `WebContentsView` migration are not prerequisites for this PR. The file-level plan, tool compatibility
 boundary and acceptance cases are in [implementation §12](./browser-use-implementation.md#12-existing-agent-browser-integration).
 
-## Current state — `src/main/features/browser/mcp/`
+## PR3 baseline — `src/main/features/browser/mcp/`
+
+This table records the inspection layer before Agent integration and C3, not the current tool surface.
 
 | Dimension | PR3 behavior |
 |---|---|
@@ -120,8 +130,8 @@ permission handlers.
 Not available to us: Chromium's built-in **Actor** framework (`chrome/browser/actor/`, the
 Gemini-in-Chrome agent — `chrome/` layer, Glic-only, no extension API) and its
 **AnnotatedPageContent** page representation (Blink code is present but has no CDP exposure);
-Chrome extension APIs (`chrome.debugger`). The running Electron 41.8.0 / Chromium 146.0.7680.216
-instance's `/json/protocol` does not advertise **`WebMCP`** (checked 2026-09-07).
+Chrome extension APIs (`chrome.debugger`). The historical Electron 41.8.0 / Chromium 146.0.7680.216
+instance's `/json/protocol` did not advertise **`WebMCP`** (checked 2026-09-07).
 The experimental [CDP WebMCP domain](https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/)
 exists in tip-of-tree and our protocol types; neither guarantees runtime availability or a particular
 Electron release. Actor is still the best reference design: `PageTarget = variant<Point, DomNode{id, document token}>`,
@@ -263,9 +273,9 @@ pre-warmed pools (unlike mini apps, agent tabs should be released when done).
   `upload_file` waits for trusted runtime working-directory context; model-provided roots are not authority.
 - Dialog watchdog (`Page.javascriptDialogOpening`) so `execute` can never hang; downloads via
   `will-download` reported in the response.
-- WebMCP is a separate follow-up (C3), outside the proposed PR3 inspection/ref-recovery scope.
-  Probe native CDP support first, then a compatible page API; report unsupported when neither works.
-  A bundled polyfill needs a separate compatibility decision, not unconditional injection.
+- WebMCP is implemented in the separate C3 layer, outside PR3's inspection/ref-recovery scope.
+  The adapter uses native CDP and reports unsupported when native capability is unavailable.
+  Page-API fallback and a bundled polyfill remain deferred.
 
 **P1 — real input and stability**
 - `Input.*` execution: centre point from `getContentQuads`, occlusion hit-test, JS fallback;
@@ -332,9 +342,9 @@ for limits, cleanup and real-runtime acceptance.
   annotation-target handoff contract before adding document/node identifiers to saved locators.
 - Upload authorization and per-turn retention require trusted context from the MCP runtime first;
   a connection-scoped owner is not an agent session, working directory or turn.
-- WebMCP delivery depends on a verified runtime/API combination. The current Electron runtime
-  lacks the advertised CDP domain; compatible page API availability still needs a real-page test.
-  Do not treat a dependency type update or a future Electron major version as the compatibility gate.
+- WebMCP remains experimental. C3 uses native CDP on Electron 44.2.0 / Chromium 152.0.7977.76;
+  see [implementation §5.7](./browser-use-implementation.md#57-native-webmcp-tools) for capability checks and acceptance.
+  Revalidate the runtime/API combination on upgrades; protocol types alone do not prove support.
 - Full working notes (project-by-project source refs) live in
   `.context/research/browser-use-gap-analysis.md` on the `webview-agent-pane-browser` workspace.
 

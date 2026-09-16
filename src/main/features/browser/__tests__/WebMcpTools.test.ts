@@ -213,7 +213,50 @@ describe('native website tools', () => {
     }
   )
 
-  it('cancels a late acknowledgement without repeating the invocation', async () => {
+  it.each(['abort', 'dispose', 'abort-then-dispose'])(
+    'cancels a late acknowledgement before releasing the debugger on %s',
+    async (reason) => {
+      const f = setup()
+      const { tools } = await f.session.webTools.list()
+      const ack = new Signal<{ invocationId: string }>()
+      const started = new Signal<void>()
+      f.mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+        if (!f.mock.debugger.isAttached()) throw new Error('Debugger detached before cancellation')
+        if (method === 'WebMCP.invokeTool') {
+          f.calls.push('late')
+          started.resolve()
+          return ack
+        }
+        return f.send(method, params)
+      })
+      const abort = new AbortController()
+      const result = expect(
+        f.session.webTools.call(tools[0].toolId, { sku: '123' }, { signal: abort.signal })
+      ).rejects.toThrow()
+      await started
+      if (reason !== 'dispose') abort.abort()
+      if (reason !== 'abort') f.session.dispose()
+      await result
+      let settled = false
+      const cleanup = f.session.settleWebTools().then(() => {
+        settled = true
+      })
+      await Promise.resolve()
+      const retainedUntilAcknowledgement = f.mock.debugger.isAttached() && !settled
+      ack.resolve({ invocationId: 'late' })
+      await cleanup
+      expect(retainedUntilAcknowledgement).toBe(true)
+      expect(f.canceled).toEqual(['late'])
+      expect(f.calls).toEqual(['late'])
+      expect(f.mock.debugger.isAttached()).toBe(reason === 'abort')
+      if (reason !== 'abort') {
+        await expect(f.session.send('Runtime.enable')).rejects.toMatchObject({ code: 'debugger_unavailable' })
+      }
+    }
+  )
+
+  it.each(['acknowledgement', 'cancellation'])('bounds disposal when the %s never arrives', async (stage) => {
+    vi.useFakeTimers()
     const f = setup()
     const { tools } = await f.session.webTools.list()
     const ack = new Signal<{ invocationId: string }>()
@@ -223,17 +266,31 @@ describe('native website tools', () => {
         started.resolve()
         return ack
       }
+      if (method === 'WebMCP.cancelInvocation') {
+        await f.send(method, params)
+        return new Promise(() => undefined)
+      }
       return f.send(method, params)
     })
-    const abort = new AbortController()
-    const result = expect(
-      f.session.webTools.call(tools[0].toolId, { sku: '123' }, { signal: abort.signal })
-    ).rejects.toThrow()
+    const result = expect(f.session.webTools.call(tools[0].toolId, { sku: '123' })).rejects.toThrow()
     await started
-    abort.abort()
+    f.session.dispose()
     await result
-    ack.resolve({ invocationId: 'late' })
-    await vi.waitFor(() => expect(f.canceled).toEqual(['late']))
+    let settled = false
+    const cleanup = f.session.settleWebTools().then(() => {
+      settled = true
+    })
+    if (stage === 'cancellation') ack.resolve({ invocationId: 'late' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(stage === 'acknowledgement' ? 5000 : 1000)
+    await cleanup
+    expect(f.mock.debugger.isAttached()).toBe(false)
+    expect(f.mock.debugger.listenerCount('message')).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+    if (stage === 'acknowledgement') ack.resolve({ invocationId: 'late' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(f.canceled).toEqual(stage === 'acknowledgement' ? [] : ['late'])
   })
 
   it.each(['Canceled', 'Error'])('keeps native %s distinct from successful completion', async (status) => {

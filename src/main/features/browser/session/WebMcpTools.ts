@@ -163,19 +163,21 @@ export class WebMcpTools {
     signal.addEventListener('abort', cancel, { once: true })
     this.awaitingIds++
     // Keep the short acknowledgement alive so cancellation can address a late invocation ID.
-    const command = this.session
-      .invokeWebTool({ frameId: this.session.mainFrameId, toolName: entry.tool.name, input: args })
-      .then(({ invocationId: id }) => {
+    const command = this.session.invokeWebTool(
+      { frameId: this.session.mainFrameId, toolName: entry.tool.name, input: args },
+      (id) => {
         invocationId = id
         if (canceled) {
           cancel()
-          return
+          return cancellation
         }
         const early = this.earlyResponses.get(id)
         this.earlyResponses.delete(id)
         if (early) response.resolve(early)
         else this.responses.set(id, response)
-      })
+        return undefined
+      }
+    )
     const invocation = this.session.wait(command, { deadline: Math.min(deadline, Date.now() + 5000) }).finally(() => {
       this.awaitingIds--
       if (!this.awaitingIds) this.earlyResponses.clear()

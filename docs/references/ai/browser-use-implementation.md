@@ -286,7 +286,7 @@ guests remain lazy. Diagnostic URLs redact credential query values while retaini
 Text fields cap at 2,000 characters; entry-array output caps at 40,000 serialized
 characters, returning the newest entries with `truncated` when needed. `clear` removes all selected
 entries, including ones omitted by the output cap, without touching the separate settling state.
-`freeze`/`thaw` and WebMCP (§5.7) remain follow-ups. Download events must be attributed to their originating guest on the shared Electron
+`freeze`/`thaw` remains deferred; WebMCP is implemented in C3 (§5.7). Download events must be attributed to their originating guest on the shared Electron
 session; unrelated guests' downloads must never enter a tab's result.
 
 `cdpAllowList.ts` permits the delivered capture, action and dialog methods. Its literal list is checked
@@ -334,7 +334,7 @@ becomes the primary policy and the model only sees the reported dialog.
    `[e12] button "Submit" (disabled)` / `heading "Pricing" (level=2)` / `[e13] link "Docs" (href=/docs)`; textbox values as `value="…"` truncated at 80 chars. Header line `url · title · N interactive / M total`. Cap 40 000 chars, closing with `… (K more nodes below; use scroll, scope, or find)`.
 4. `diffSnapshot`: key each line by `backendNodeId`. Output = header + lines that are new (prefixed `*`) or whose text changed, plus `- N nodes removed`. Fall back to the full text when more than 60 % of the lines changed or the `documentId` differs. Unchanged snapshot → `(no change)`.
 
-PR B implements §5.2–§5.6; the WebMCP algorithm in §5.7 remains planned for PR C. PR A also suppresses password
+PR B implements §5.2–§5.6; C3 implements native WebMCP in §5.7. PR A also suppresses password
 values/descendants and sanitizes data URLs and URL credentials in snapshot text and metadata.
 
 ### 5.2 Target resolution (`actions/resolveTarget.ts`)
@@ -421,9 +421,11 @@ omitted and oversized output is truncated explicitly. Registry state is memory-o
 structured output without an automatic screenshot or AX capture; all website data is untrusted.
 
 Caller abort, deadline, navigation, dialogs and disposal settle pending waits. Known invocation IDs
-receive native cancellation; a late acknowledgement is canceled when it becomes available. The
-session dispatches cancellation before detaching and tracks bounded cancellation acknowledgements;
-service shutdown awaits those cleanups. Chromium 152 dispatches `toolcancel` on the page window;
+receive native cancellation; late acknowledgements are tracked for up to five seconds from dispatch.
+Disposal rejects new work immediately but retains the debugger for these acknowledgements and
+their cancellation requests, each bounded by one second, before detaching. Service shutdown awaits
+those cleanups. If the guest is destroyed or the debugger detaches externally, cancellation is no
+longer available. Chromium 152 dispatches `toolcancel` on the page window;
 its imperative callback receives only the input, without the draft's second-argument AbortSignal.
 Page code must cooperate to stop its work. Cancellation does not undo side effects.
 Native failure, timeout or cancellation never triggers automatic execution through another transport.
