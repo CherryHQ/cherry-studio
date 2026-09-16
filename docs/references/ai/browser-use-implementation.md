@@ -900,7 +900,8 @@ which breaks bare `vitest run`; rebuild for Node before running D3/D4 tests.
 
 ## 12. Existing Agent browser integration
 
-**Status: implemented on `agent-browser-integration`, pending PR publication.** This product layer
+**Status: implemented in [#20166](https://github.com/CherryHQ/cherry-studio/pull/20166)
+on `agent-browser-integration`.** This product layer
 is based on PR3 and combines this section with the supported import paths in §10.
 Use Electron 44.2.0 inherited from `main`. No new browser shell, visible multi-tab UI, WebMCP, upload tool, freeze/thaw,
 full handoff protocol or `WebContentsView` migration is required to complete this scope.
@@ -1030,10 +1031,11 @@ delegates to that same data service. Per-category results describe partial compl
 Add a Browser settings entry with Agent control, history management, data import and separate actions
 for clearing history versus cookies/site storage/cache. Clearing history must not log the user out;
 site-data clearing must explain and apply the shared ordinary-profile scope. Persistent toggles use
-Preference (edit classification sources and regenerate), runtime bindings use main-owned resources,
+Preference (edit `scripts/data-classify/data/target-key-definitions.json` and run `pnpm data:generate`), runtime bindings use main-owned resources,
 and commands use IpcApi. Build UI with existing Shadcn/Tailwind components and translated strings.
 
-Keep the settings landing page to one Agent-control toggle and three management rows: import,
+Keep the settings landing page to two toggles (Agent control and opening website links in the built-in
+browser) and three management rows: import,
 history and clearing. Open each task in a focused dialog. Import discovers browsers on entry,
 selects the first detected source, and shows a profile selector only when that browser has multiple
 profiles. Default to readable history and website data; Chromium sources explain that the system
@@ -1178,13 +1180,14 @@ Browser is an Agent built-in capability rather than a selectable third-party MCP
 group switch uses the existing `disabledTools` opt-out (`mcp__browser`). The runtime excludes legacy
 in-memory browser bindings from the Agent MCP set, including when browser control is off.
 
-Browser settings owns one persistent grant, `app.browser.agent_control.enabled`, defaulting to off.
+Browser settings owns one persistent grant, `app.browser.agent_control.enabled`, defaulting to on
+when unset. Existing saved choices are preserved.
 Once enabled, all declared browser tools run without per-action approval in Claude, Pi and DSH.
 The grant stays enabled across sessions until the user turns it off; there is no per-tool permission
 dialog or configuration. Runtime gates and queued dispatch recheck revocation, including in Full Access.
 The Agent browser group opt-out remains independent. Disabling Agent control leaves manual browsing available.
 
-`app.browser.open_links_in_browser` defaults false. When enabled, ordinary HTTP(S) clicks in Agent
+`app.browser.open_links_in_browser` also defaults true when unset. When enabled, ordinary HTTP(S) clicks in Agent
 message links open the current session's right browser pane through the message action provider;
 other website links open `/app/browser` tabs through main-window navigation, sharing the browser profile and history. Shell link
 IPC, host-window link interception, app menu links and external mini-app popups use that policy. Explicit

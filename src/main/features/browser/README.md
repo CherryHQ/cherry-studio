@@ -65,6 +65,8 @@ controllers borrow those guests and share actions with the standalone controller
 controls Agent access; bindings and manual browsing survive control-off. The Agent built-in tool catalog
 exposes a browser group opt-out. Old browser MCP bindings are excluded from the Agent server set;
 The persistent Browser control switch grants all known browser tools without per-action approval.
+Agent control and opening website links in the built-in browser default to enabled; saved choices
+remain unchanged. Configure both in Settings → Browser.
 Runtime gates and queued dispatch recheck the switch, so turning it off revokes Agent access. Ordinary pages use
 `persist:agent-browser` and permit public/LAN/loopback HTTP(S); preview/artifact profiles stay separate.
 The session service owns ordinary guests' popup handlers across all host windows. HTTP(S) popup
