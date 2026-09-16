@@ -85,6 +85,19 @@ describe('detectDelimiter', () => {
 })
 
 describe('CsvReader', () => {
+  it('reads a file larger than the detection sample with the right separator', async () => {
+    // Only the first 64 KB are decoded for detection, and the record the cut
+    // lands in is left out of the counts.
+    const cell = 'x'.repeat(4000)
+    const rows = [...Array(40).keys()].map((index) => `${index};${cell};${cell}`)
+    const text = `${rows.join('\n')}\n`
+    expect(new TextEncoder().encode(text).length).toBeGreaterThan(64 * 1024)
+
+    const docs = await new CsvReader().loadDataAsContent(encode(text))
+
+    expect(docs[0].text.split('\n')[0]).toBe(`0, ${cell}, ${cell}`)
+  })
+
   it.each([',', ';', '\t', '|'])('reads a %j separated file as columns', async (delimiter) => {
     const docs = await new CsvReader().loadDataAsContent(encode(withDelimiter(delimiter)))
 

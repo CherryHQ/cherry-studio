@@ -8,7 +8,7 @@ const logger = loggerService.withContext('KnowledgeCsvReader')
 /** Comma first, so that it wins every tie. */
 const CANDIDATE_DELIMITERS = [',', ';', '\t', '|'] as const
 
-const SAMPLE_CHARS = 64 * 1024
+const SAMPLE_BYTES = 64 * 1024
 const SAMPLE_RECORDS = 20
 
 /**
@@ -70,23 +70,26 @@ function dominantFieldCount(sample: string, delimiter: string, truncated: boolea
 /**
  * The separator `text` was written with, defaulting to a comma.
  *
+ * `truncated` says `text` is only the head of a larger file, so its last
+ * record may be cut in half and is left out of the counts.
+ *
  * Reading a semicolon separated export with a comma does not fail: every row
  * comes back as a single field holding the whole line, separators included.
  */
-export function detectDelimiter(text: string): string {
-  const sample = text.slice(0, SAMPLE_CHARS)
-  const truncated = sample.length < text.length
+export function detectDelimiter(text: string, truncated = false): string {
+  const sample = text.slice(0, SAMPLE_BYTES)
+  const cut = truncated || sample.length < text.length
 
   // A file the comma already lines up is read correctly today. Another
   // candidate can line it up too — a tag list joined with semicolons does —
   // and preferring that one would be a regression, so the comma keeps the file
   // whenever it fits.
-  if (dominantFieldCount(sample, ',', truncated)) return ','
+  if (dominantFieldCount(sample, ',', cut)) return ','
 
   let bestDelimiter = ','
   let bestFields = 0
   for (const delimiter of CANDIDATE_DELIMITERS) {
-    const fields = dominantFieldCount(sample, delimiter, truncated)
+    const fields = dominantFieldCount(sample, delimiter, cut)
     if (fields > bestFields) {
       bestDelimiter = delimiter
       bestFields = fields
@@ -109,8 +112,10 @@ export function detectDelimiter(text: string): string {
  */
 export class CsvReader extends FileReader<Document<Metadata>> {
   async loadDataAsContent(fileContent: Uint8Array, filename?: string): Promise<Document<Metadata>[]> {
-    const text = new TextDecoder('utf-8').decode(fileContent)
-    const delimiter = detectDelimiter(text)
+    // Only the head is decoded: the detector never looks past it, and the file
+    // itself is decoded by the parser below.
+    const sample = new TextDecoder('utf-8').decode(fileContent.subarray(0, SAMPLE_BYTES))
+    const delimiter = detectDelimiter(sample, fileContent.length > SAMPLE_BYTES)
     logger.debug('Reading csv', { filename, delimiter })
 
     const reader = new CSVReader(true, ', ', '\n', {
