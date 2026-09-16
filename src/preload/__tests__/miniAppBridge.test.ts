@@ -37,7 +37,9 @@ const push = (channel: string, payload: unknown) => channels.get(channel)!(undef
 const requestIdOf = (call: number) => (invoke.mock.calls[call][1] as { requestId: string }).requestId
 
 describe('the guest bridge', () => {
-  beforeEach(() => invoke.mockClear())
+  beforeEach(() => {
+    invoke.mockClear()
+  })
 
   it('reports a guest-side refusal through the promise, not the call stack', async () => {
     // `cherry.d.ts` types every method as returning a Promise, and the gates run BEFORE

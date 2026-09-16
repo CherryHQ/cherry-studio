@@ -5,7 +5,11 @@ import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
-import type { MessageListActions, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
+import type {
+  MessageListActions,
+  MessageListSelectAllPagination,
+  MessageStreamingLayers
+} from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { ipcApi } from '@renderer/ipc'
@@ -33,9 +37,12 @@ type Props = {
   hasOlder?: boolean
   /** Trigger fetching the next older page. */
   loadOlder?: () => void
+  /** Load-all handle for the multi-select "select all" action. */
+  selectAllPagination?: MessageListSelectAllPagination
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  openExternalUrl?: MessageListActions['openExternalUrl']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
@@ -52,9 +59,11 @@ const AgentSessionMessages = ({
   isLoading,
   hasOlder = false,
   loadOlder,
+  selectAllPagination,
   onOpenCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
+  openExternalUrl,
   openDiagnosticReport,
   deleteMessage,
   respondToolApproval
@@ -124,9 +133,11 @@ const AgentSessionMessages = ({
     isLoading,
     hasOlder,
     loadOlder,
+    selectAllPagination,
     openCitationsPanel: onOpenCitationsPanel,
     openAgentToolFlow,
     openArtifactFile,
+    openExternalUrl,
     openDiagnosticReport,
     diagnosticReport,
     deleteMessage,

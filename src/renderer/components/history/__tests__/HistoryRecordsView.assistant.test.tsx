@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as PlatformModule from '@renderer/utils/platform'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 
@@ -22,6 +23,7 @@ import zhCN from '../../../i18n/locales/zh-cn.json'
 import zhTW from '../../../i18n/locales/zh-tw.json'
 
 const hookMocks = vi.hoisted(() => ({
+  isMac: false,
   cancelTopicRenaming: vi.fn(),
   clearTopicMessagesTrigger: vi.fn(),
   deleteTopic: vi.fn(),
@@ -45,9 +47,17 @@ const hookMocks = vi.hoisted(() => ({
   useUpdateSession: vi.fn()
 }))
 
+vi.mock('@renderer/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof PlatformModule>()),
+  get isMac() {
+    return hookMocks.isMac
+  }
+}))
+
 vi.mock('@cherrystudio/ui', async () => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
-  return MockCherrystudioUI
+  const { Checkbox } = await import('../../../../../packages/ui/src/components/primitives/checkbox')
+  return { ...MockCherrystudioUI, Checkbox }
 })
 
 vi.mock('@renderer/components/VirtualList', () => ({
@@ -412,6 +422,7 @@ function setupAssistantHistory({
 
   const onClose = vi.fn()
   const onRecordSelect = vi.fn()
+  const onActiveRecordChange = vi.fn()
   const rendered = render(
     <HistoryRecordsView
       mode="assistant"
@@ -419,10 +430,11 @@ function setupAssistantHistory({
       activeRecordId={activeRecordId}
       onClose={onClose}
       onRecordSelect={onRecordSelect}
+      onActiveRecordChange={onActiveRecordChange}
     />
   )
 
-  return { ...rendered, onClose, onRecordSelect }
+  return { ...rendered, onClose, onRecordSelect, onActiveRecordChange }
 }
 
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
@@ -431,6 +443,7 @@ let assistantHistoryLoaded = false
 
 describe('HistoryRecordsView assistant mode', () => {
   beforeEach(async () => {
+    hookMocks.isMac = false
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
     MockUseDataApiUtils.resetMocks()
     hookMocks.clearTopicMessagesTrigger.mockReset().mockResolvedValue({ deletedIds: ['message-alpha'] })
@@ -496,6 +509,148 @@ describe('HistoryRecordsView assistant mode', () => {
       assistantHistoryLoaded = true
     }
   }, 60_000)
+
+  it('selects a checkbox interval without changing selections outside it', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory({
+      topics: ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'].map((name, index) =>
+        createTopic({ id: name, name, updatedAt: `2026-05-${20 - index}T08:00:00.000Z` })
+      )
+    })
+    const boxes = screen.getAllByRole('checkbox').slice(1)
+    await user.click(boxes[4])
+    await user.click(boxes[0])
+    await user.keyboard('{Shift>}')
+    await user.click(boxes[2])
+    await user.keyboard('{/Shift}')
+    expect(boxes.map((box) => box.getAttribute('aria-checked'))).toEqual(['true', 'true', 'true', 'false', 'true'])
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBePartiallyChecked()
+    await user.keyboard('{Shift>}')
+    await user.click(boxes[1])
+    await user.keyboard('{/Shift}')
+    expect(boxes.map((box) => box.getAttribute('aria-checked'))).toEqual(['false', 'false', 'true', 'false', 'true'])
+    await user.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    await user.keyboard('{Shift>}')
+    await user.click(boxes[4])
+    await user.click(boxes[2])
+    await user.keyboard('{/Shift}')
+    expect(boxes.map((box) => box.getAttribute('aria-checked'))).toEqual(['false', 'false', 'true', 'true', 'true'])
+  })
+
+  it('selects all filtered unpinned topics with Ctrl+A while preserving search text selection', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory({
+      pinnedIds: ['pinned'],
+      topics: [
+        createTopic({ id: 'alpha', name: 'Match alpha' }),
+        createTopic({ id: 'beta', name: 'Match beta' }),
+        createTopic({ id: 'pinned', name: 'Match pinned' }),
+        createTopic({ id: 'other', name: 'Other' })
+      ]
+    })
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'Match')
+    await user.keyboard('{Control>}a{/Control}')
+    expect(search).toHaveProperty('selectionStart', 0)
+    expect(search).toHaveProperty('selectionEnd', 5)
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).not.toBeChecked()
+    const boxes = screen.getAllByRole('checkbox').slice(1)
+    await user.click(boxes.find((box) => !box.hasAttribute('disabled'))!)
+    await user.keyboard('{Control>}a{/Control}')
+    expect(
+      boxes.filter((box) => !box.hasAttribute('disabled')).every((box) => box.getAttribute('aria-checked') === 'true')
+    ).toBe(true)
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
+    expect(screen.getByRole('button', { name: /Batch Delete/ })).toHaveTextContent('Batch Delete (2)')
+    await user.keyboard('{Control>}a{/Control}')
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
+  })
+
+  it.each([false, true])('selects all from a focused title using the platform shortcut (isMac=%s)', async (isMac) => {
+    hookMocks.isMac = isMac
+    const user = userEvent.setup()
+    const { onRecordSelect } = setupAssistantHistory()
+    const header = screen.getByRole('checkbox', { name: 'Select all' })
+    header.focus()
+    await user.keyboard('{Control>}{Meta>}a{/Meta}{/Control}')
+    expect(header).not.toBeChecked()
+    await user.keyboard(isMac ? '{Control>}a{/Control}' : '{Meta>}a{/Meta}')
+    expect(header).not.toBeChecked()
+    screen.getByRole('button', { name: 'Alpha topic' }).focus()
+    await user.keyboard(isMac ? '{Meta>}a{/Meta}' : '{Control>}a{/Control}')
+    expect(header).toBeChecked()
+    expect(onRecordSelect).not.toHaveBeenCalled()
+  })
+
+  it('consumes select-all before it reaches the window command dispatcher', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory()
+    const dispatchCommand = vi.fn()
+    window.addEventListener('keydown', dispatchCommand)
+    try {
+      screen.getByRole('button', { name: 'Alpha topic' }).focus()
+      await user.keyboard('{Control>}a{/Control}')
+      expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
+      expect(dispatchCommand.mock.calls.some(([event]) => event.key === 'a')).toBe(false)
+      dispatchCommand.mockClear()
+      await user.click(screen.getByRole('searchbox'))
+      await user.keyboard('{Control>}a{/Control}')
+      expect(dispatchCommand.mock.calls.some(([event]) => event.key === 'a')).toBe(true)
+    } finally {
+      window.removeEventListener('keydown', dispatchCommand)
+    }
+  })
+
+  it('drops a filtered-out range anchor and ignores modified or outside shortcuts', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory({
+      topics: [
+        createTopic({ id: 'a', name: 'Old anchor', updatedAt: '2026-05-20T08:00:00.000Z' }),
+        createTopic({ id: 'b', name: 'Match first', updatedAt: '2026-05-19T08:00:00.000Z' }),
+        createTopic({ id: 'c', name: 'Match last', updatedAt: '2026-05-18T08:00:00.000Z' })
+      ]
+    })
+    await user.click(screen.getAllByRole('checkbox')[1])
+    await user.type(screen.getByRole('searchbox'), 'Match')
+    await user.keyboard('{Shift>}')
+    await user.click(screen.getAllByRole('checkbox')[2])
+    await user.keyboard('{/Shift}')
+    expect(screen.getAllByRole('checkbox')[1]).not.toBeChecked()
+    expect(screen.getAllByRole('checkbox')[2]).toBeChecked()
+    await user.keyboard('{Control>}{Shift>}a{/Shift}{/Control}')
+    await user.keyboard('{Control>}{Alt>}a{/Alt}{/Control}')
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBePartiallyChecked()
+    render(<input aria-label="Outside history" />)
+    await user.click(screen.getByRole('textbox', { name: 'Outside history' }))
+    await user.keyboard('{Control>}a{/Control}')
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBePartiallyChecked()
+    await user.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    await user.keyboard('{Control>}a{/Control}')
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
+  })
+
+  it('keeps the checkbox anchor when another topic is pinned', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory({
+      topics: ['Alpha', 'Beta', 'Gamma', 'Delta'].map((name, index) =>
+        createTopic({ id: name, name, updatedAt: `2026-05-${20 - index}T08:00:00.000Z` })
+      )
+    })
+    hookMocks.togglePin.mockImplementationOnce(async () => {
+      hookMocks.usePins.mockReturnValue({ pinnedIds: ['Beta'], togglePin: hookMocks.togglePin })
+    })
+    await user.click(screen.getByRole('checkbox', { name: 'Select Alpha' }))
+    await user.click(
+      within(screen.getByRole('row', { name: /Select Beta/ })).getByRole('button', { name: 'Pin Conversation' })
+    )
+    await user.keyboard('{Shift>}')
+    await user.click(screen.getByRole('checkbox', { name: 'Select Delta' }))
+    await user.keyboard('{/Shift}')
+    expect(screen.getByRole('checkbox', { name: 'Select Gamma' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).not.toBeChecked()
+  })
 
   it('selects a topic when the history title is clicked', () => {
     const { onClose, onRecordSelect } = setupAssistantHistory({ pinnedIds: ['topic-alpha'] })
@@ -593,7 +748,7 @@ describe('HistoryRecordsView assistant mode', () => {
       deletedCount: 2
     })
     const onClose = vi.fn()
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -601,7 +756,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-alpha"
         onClose={onClose}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -621,7 +776,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha', 'topic-beta'])
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-gamma' }))
+    expect(onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-gamma' }))
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -633,7 +788,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.deleteTopics.mockRejectedValueOnce(new Error('Bulk delete failed'))
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -641,7 +796,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-alpha"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -655,7 +810,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
     expect(toast.error).toHaveBeenCalledWith('Bulk delete failed')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
   })
 
   it('switches to the previous survivor when bulk deleting the last active topics', async () => {
@@ -673,7 +828,7 @@ describe('HistoryRecordsView assistant mode', () => {
       deletedIds: ['topic-beta', 'topic-gamma'],
       deletedCount: 2
     })
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -681,7 +836,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-gamma"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -696,7 +851,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-beta', 'topic-gamma'])
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
+    expect(onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
   })
 
   it('skips pinned topics when bulk deleting from the query toolbar', async () => {
@@ -1323,7 +1478,7 @@ describe('HistoryRecordsView assistant mode', () => {
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -1331,7 +1486,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-alpha"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -1347,13 +1502,31 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta', name: 'Beta topic' }))
+    expect(onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta', name: 'Beta topic' }))
+  })
+
+  it('clears the only active topic through the context menu without opening a conversation', async () => {
+    const user = userEvent.setup()
+    const { onActiveRecordChange, onRecordSelect, onClose } = setupAssistantHistory({ activeRecordId: 'topic-alpha' })
+    const menu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const content = menu?.querySelector('[data-testid="context-menu-content"]')
+    await user.click(within(content as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    await act(async () => {
+      await flushAnimationFrame()
+    })
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(onActiveRecordChange).toHaveBeenCalledWith(null)
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('clears the active topic after bulk deleting the last history topic', async () => {
     hookMocks.deleteTopics.mockResolvedValueOnce({ deletedIds: ['topic-alpha'], deletedCount: 1 })
 
-    const { onRecordSelect } = setupAssistantHistory({ activeRecordId: 'topic-alpha' })
+    const { onActiveRecordChange } = setupAssistantHistory({ activeRecordId: 'topic-alpha' })
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
@@ -1363,7 +1536,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
-    expect(onRecordSelect).toHaveBeenCalledWith(null)
+    expect(onActiveRecordChange).toHaveBeenCalledWith(null)
   })
 
   it('does not switch topics after deleting a non-active history row', async () => {
@@ -1373,7 +1546,7 @@ describe('HistoryRecordsView assistant mode', () => {
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -1381,7 +1554,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-beta"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -1397,7 +1570,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
   })
 
   it('keeps the active topic unchanged when history deletion fails', async () => {
@@ -1408,7 +1581,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.deleteTopic.mockRejectedValueOnce(new Error('Delete failed'))
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -1416,7 +1589,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-alpha"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -1432,7 +1605,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
   })
 })
 
