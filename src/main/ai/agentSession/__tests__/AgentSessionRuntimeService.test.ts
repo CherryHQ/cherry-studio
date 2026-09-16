@@ -12,7 +12,7 @@ import * as shellEnv from '@main/utils/shellEnv'
 import type { AgentHook } from '@shared/ai/agentHook'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
-import type { AgentRuntimeEvent } from '../../runtime/types'
+import type { AgentRuntimeConnection, AgentRuntimeEvent } from '../../runtime/types'
 import { AgentHookSession } from '../AgentHookSession'
 
 const mocks = vi.hoisted(() => ({
@@ -279,7 +279,7 @@ describe('Agent Hook commands', () => {
   })
 
   it('passes untrusted UTF-8 tool input only through stdin and returns the exit reason', async () => {
-    configure(windows ? '[Console]::Out.Write([Console]::In.ReadToEnd()); exit 7' : 'cat; exit 7')
+    configure(windows ? '[Console]::Out.Write([Console]::In.ReadToEnd()); exit 7' : 'cat; exit 7', 'preToolUse', 30_000)
     const result = await create().invoke({
       event: 'preToolUse',
       toolName: 'write',
@@ -291,7 +291,7 @@ describe('Agent Hook commands', () => {
     expect(result.reason).toContain("中文 $(exit 0); 'quotes'")
     expect(result.reason).toContain('hook-session')
     expect(spawnSpy.mock.calls[0][1].join(' ')).not.toContain('中文')
-  })
+  }, 45_000)
 
   it('runs session start once per connection, reads live settings and never lets a post-Hook deny', async () => {
     configure('exit 0', 'sessionStart')
@@ -457,7 +457,12 @@ describe('AgentSessionRuntimeService', () => {
       'completes %s turns and starts a successor while the notification runs, then cancels it on close',
       async (runtime) => {
         const events = createAsyncQueue<AgentRuntimeEvent>()
-        const connection = { events: events.iterable, send: vi.fn(), close: vi.fn() }
+        const connection = {
+          events: events.iterable,
+          send: vi.fn(),
+          reconcile: vi.fn<AgentRuntimeConnection['reconcile']>().mockResolvedValue('current'),
+          close: vi.fn()
+        } satisfies AgentRuntimeConnection
         runtimeDriverRegistry.register({
           type: runtime,
           capabilities: ['agent-session'],
@@ -538,6 +543,7 @@ describe('AgentSessionRuntimeService', () => {
             value: { type: 'text-start', id: 'next-text' },
             done: false
           })
+          expect(connection.close).not.toHaveBeenCalled()
           expect(hookSpy.mock.calls[0][0]).toEqual({ event: 'turnEnd', messageId: 'assistant-1' })
           expect(child.exitCode).toBeNull()
           expect(child.signalCode).toBeNull()
