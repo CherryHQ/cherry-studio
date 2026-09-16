@@ -51,6 +51,11 @@ arguments or model text into the configured command line takes place.
 | `approvalRequested` | A permission or plan-review request has been presented | Notify only; never approve or reject the request |
 | `turnEnd` | A complete runtime reply | Log and continue |
 
+`turnEnd` runs asynchronously after the host marks the runtime reply complete. It does not
+delay stream completion, persistence, or the next turn. Its message ID stays bound to the
+completed reply; it is not a barrier for subsequent tools or file operations. Connection
+teardown still cancels and drains outstanding Hook commands.
+
 Question and approval notifications run after the interaction is visible and do not
 block its response. One approval ID is notified once per connection. Failed presentation,
 automatic permissions, and headless denials do not trigger these events. Question requests

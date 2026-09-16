@@ -12,6 +12,7 @@ import * as shellEnv from '@main/utils/shellEnv'
 import type { AgentHook } from '@shared/ai/agentHook'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
+import type { AgentRuntimeEvent } from '../../runtime/types'
 import { AgentHookSession } from '../AgentHookSession'
 
 const mocks = vi.hoisted(() => ({
@@ -449,6 +450,110 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       throw new Error(`Unexpected application.get(${name})`)
     })
+  })
+
+  describe('turnEnd Hooks', () => {
+    it.each(['pi', 'claude-code', 'dsh'])(
+      'completes %s turns and starts a successor while the notification runs, then cancels it on close',
+      async (runtime) => {
+        const events = createAsyncQueue<AgentRuntimeEvent>()
+        const connection = { events: events.iterable, send: vi.fn(), close: vi.fn() }
+        runtimeDriverRegistry.register({
+          type: runtime,
+          capabilities: ['agent-session'],
+          connect: vi.fn().mockResolvedValue(connection),
+          validateSession: vi.fn(),
+          listAvailableTools: vi.fn().mockResolvedValue([])
+        })
+        mocks.getAgent.mockReturnValue({ id: 'agent-1', type: runtime, model: baseTurnInput.modelId })
+        const service = new AgentSessionRuntimeService()
+        const hooks = new AgentHookSession({
+          sessionId: 'session-1',
+          agentId: 'agent-1',
+          runtime,
+          getCwd: tmpdir,
+          getConfiguration: () => ({
+            hooks: [
+              {
+                id: randomUUID(),
+                name: 'slow-turn-end',
+                event: 'turnEnd',
+                enabled: true,
+                command: process.platform === 'win32' ? 'Start-Sleep -Seconds 30' : 'sleep 30',
+                timeoutMs: 60_000
+              }
+            ]
+          })
+        })
+        const envSpy = vi
+          .spyOn(shellEnv, 'getShellEnv')
+          .mockResolvedValue(
+            Object.fromEntries(
+              Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+            )
+          )
+        const spawnSpy = vi.spyOn(processRunner, 'crossPlatformSpawn')
+        const hookSpy = vi.spyOn(hooks, 'invoke')
+        try {
+          const handle = service.beginTurn({ ...baseTurnInput, agentType: runtime })
+          const reader = service
+            .openTurnStream({
+              sessionId: 'session-1',
+              turnId: handle.turnId,
+              signal: new AbortController().signal
+            })
+            .getReader()
+          await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+          await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(1))
+          await (service as any).hookSessions.get(connection).close()
+          ;(service as any).hookSessions.set(connection, hooks)
+
+          events.push({ type: 'turn-complete' })
+          let completed = false
+          const completion = reader.read().then((result) => {
+            completed = result.done
+            return result
+          })
+          await expect.poll(() => completed).toBe(true)
+          await expect(completion).resolves.toMatchObject({ done: true })
+          await terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+          expect(service.isSessionBusy('session-1')).toBe(false)
+          await expect.poll(() => spawnSpy.mock.results[0]?.value?.pid).toBeDefined()
+          const child = spawnSpy.mock.results[0].value
+          expect(child.exitCode).toBeNull()
+          expect(child.signalCode).toBeNull()
+
+          const next = service.beginTurn({ ...baseTurnInput, agentType: runtime, assistantMessageId: 'assistant-2' })
+          const nextReader = service
+            .openTurnStream({
+              sessionId: 'session-1',
+              turnId: next.turnId,
+              signal: new AbortController().signal
+            })
+            .getReader()
+          await expect(nextReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+          await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(2))
+          events.push({ type: 'chunk', chunk: { type: 'text-start', id: 'next-text' } })
+          await expect(nextReader.read()).resolves.toMatchObject({
+            value: { type: 'text-start', id: 'next-text' },
+            done: false
+          })
+          expect(hookSpy.mock.calls[0][0]).toEqual({ event: 'turnEnd', messageId: 'assistant-1' })
+          expect(child.exitCode).toBeNull()
+          expect(child.signalCode).toBeNull()
+
+          await service.closeSession('session-1')
+          expect(await processRunner.waitForProcessExit(child, 1000)).toBe(true)
+        } finally {
+          await service.closeSession('session-1')
+          await hooks.close()
+          events.push({ type: 'turn-complete' })
+          hookSpy.mockRestore()
+          spawnSpy.mockRestore()
+          envSpy.mockRestore()
+        }
+      }
+    )
   })
 
   describe('respondToolApproval', () => {

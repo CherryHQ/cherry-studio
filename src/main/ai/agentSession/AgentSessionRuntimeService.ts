@@ -1681,13 +1681,6 @@ export class AgentSessionRuntimeService extends BaseService {
           await this.hookSessions.get(connection)?.invoke({ event: 'sessionStart' })
           if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) break
         }
-        if (event.type === 'turn-complete') {
-          const turn = this.currentTurn(entry)
-          await this.hookSessions
-            .get(connection)
-            ?.invoke({ event: 'turnEnd', messageId: turn?.assistantMessageId }, turn?.abortController.signal)
-          if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) break
-        }
         this.handleRuntimeEvent(entry, event, connection)
       }
     } catch (error) {
@@ -1809,7 +1802,8 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         break
       }
-      case 'turn-complete':
+      case 'turn-complete': {
+        const turn = this.currentTurn(entry)
         this.clearApiRetry(entry)
         if (entry.runtimeState.execution.kind === 'turn') {
           this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
@@ -1819,7 +1813,14 @@ export class AgentSessionRuntimeService extends BaseService {
           outcome: { status: 'success' }
         })
         this.refreshContextUsage(entry)
+        if (connection) {
+          void this.hookSessions
+            .get(connection)
+            ?.invoke({ event: 'turnEnd', messageId: turn?.assistantMessageId }, turn?.abortController.signal)
+            .catch((error) => logger.warn('Turn end Hook failed', { sessionId: entry.sessionId, error }))
+        }
         break
+      }
       case 'error':
         this.handleRuntimeError(entry, event.error)
         break
