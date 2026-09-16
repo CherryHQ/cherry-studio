@@ -26,8 +26,14 @@ const createNoteNode = (name: string, externalPath: string) => ({
   updatedAt: ''
 })
 
-// Native picker returns FileMetadata; only `path` + `origin_name`/`name` are read downstream.
-const createSelectedFile = (name: string, path = `/picked/${name}`) => ({ name, origin_name: name, path }) as never
+// Native picker returns FileMetadata; knowledge admission uses its resolved name, path, and type.
+const createSelectedFile = (name: string, path = `/picked/${name}`, type = 'other') =>
+  ({
+    name,
+    origin_name: name,
+    path,
+    type
+  }) as never
 
 const createMockFile = (name: string, size: number) =>
   new File([new Uint8Array(size)], name, { type: 'application/octet-stream' })
@@ -373,8 +379,7 @@ describe('AddKnowledgeItemDialog', () => {
     })
 
     it('accepts extensionless files classified as text by content', async () => {
-      mockIsTextFile.mockResolvedValueOnce(true)
-      mockFileSelect.mockResolvedValueOnce([createSelectedFile('README')])
+      mockFileSelect.mockResolvedValueOnce([createSelectedFile('README', '/picked/README', 'text')])
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
       await waitFor(() => {
@@ -383,6 +388,7 @@ describe('AddKnowledgeItemDialog', () => {
           'detect'
         )
       })
+      expect(mockIsTextFile).not.toHaveBeenCalled()
     })
 
     it('submits page-level pending files without opening the picker', async () => {
@@ -413,25 +419,6 @@ describe('AddKnowledgeItemDialog', () => {
         )
       })
       expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
-    })
-
-    it('bounds concurrent content checks for unknown native selections', async () => {
-      const pendingChecks: Array<(supported: boolean) => void> = []
-      mockIsTextFile.mockImplementation(() => new Promise<boolean>((resolve) => pendingChecks.push(resolve)))
-      mockFileSelect.mockResolvedValueOnce(
-        Array.from({ length: 12 }, (_, index) => createSelectedFile(`unknown-${index}`))
-      )
-      const onOpenChange = vi.fn()
-      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
-
-      await waitFor(() => expect(mockIsTextFile).toHaveBeenCalledTimes(4))
-      expect(pendingChecks).toHaveLength(4)
-
-      mockIsTextFile.mockResolvedValue(false)
-      pendingChecks.forEach((resolve) => resolve(false))
-      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
-      expect(mockIsTextFile).toHaveBeenCalledTimes(12)
-      expect(toast.warning).toHaveBeenCalledWith('已跳过 12 个不支持的文件')
     })
 
     it('does not count unsupported files toward the per-batch limit', async () => {

@@ -1517,6 +1517,35 @@ describe('KnowledgeService', () => {
     await Promise.all([fileAdd, noteAdd])
   })
 
+  it('rechecks detect conflicts inside the base lock after content classification', async () => {
+    const service = new KnowledgeService()
+    const classification = createDeferred<boolean>()
+    const roots: ReturnType<typeof createFileItem>[] = []
+    isSupportedKnowledgeFilePathMock.mockReturnValue(classification.promise)
+    knowledgeItemGetRootItemsByBaseIdMock.mockImplementation(() => roots)
+    knowledgeItemCreateActiveMock.mockImplementation((baseId: string, input: { data: { source: string } }) => {
+      const item = createFileItem(`file-${roots.length + 1}`, baseId, input.data.source, 'processing')
+      roots.push(item)
+      return item
+    })
+
+    const input = {
+      type: 'file' as const,
+      data: { source: '/Users/me/README', path: '/Users/me/README' as AbsoluteFilePath }
+    }
+    const firstAdd = service.addItems('kb-1', [input], 'detect')
+    const secondAdd = service.addItems('kb-1', [input], 'detect')
+    await vi.waitFor(() => expect(isSupportedKnowledgeFilePathMock).toHaveBeenCalledTimes(2))
+
+    classification.resolve(true)
+
+    await expect(Promise.all([firstAdd, secondAdd])).resolves.toEqual([
+      { status: 'added' },
+      { status: 'conflicts', conflicts: [{ type: 'file', title: 'README' }] }
+    ])
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(1)
+  })
+
   it.each(['/Users/me/analysis.R', '/Users/me/.bashrc'])(
     'accepts app-classified text files with normalized or dotfile extensions: %s',
     async (filePath) => {

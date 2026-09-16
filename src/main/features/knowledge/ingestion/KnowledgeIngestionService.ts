@@ -133,8 +133,16 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     const acceptedItems: KnowledgeItem[] = []
     const copiedFileItems: Array<Pick<CreateKnowledgeItemDto, 'type' | 'data'>> = []
 
-    await this.knowledgeLockManager.runExclusive(base.id, async () => {
+    const detectedConflict = await this.knowledgeLockManager.runExclusive(base.id, async () => {
       try {
+        if (conflictStrategy === 'detect') {
+          const currentRoots = knowledgeItemService.getRootItemsByBaseId(base.id)
+          const { conflicts } = resolveKnowledgeAddConflicts(itemsToAdd, currentRoots)
+          if (conflicts.length > 0) {
+            return { status: 'conflicts' as const, conflicts }
+          }
+        }
+
         if (conflictStrategy === 'replace') {
           // Purge the conflicting existing items synchronously inside the lock and
           // BEFORE reserving paths, so the freed name is claimed by the incoming
@@ -169,7 +177,13 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         })
         throw error
       }
+
+      return undefined
     })
+
+    if (detectedConflict) {
+      return detectedConflict
+    }
 
     const completedSchedulingItemIds = new Set<string>()
     try {

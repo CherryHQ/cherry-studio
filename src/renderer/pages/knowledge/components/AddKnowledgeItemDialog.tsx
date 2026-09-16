@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { toast } from '@renderer/services/toast'
+import { FILE_TYPE } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isTextFile } from '@renderer/utils/file'
 import { resolveKnowledgeFileData, resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
@@ -277,7 +278,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     const { items, skippedCount } = await collectSupportedFileInputs(
       selected,
       async (file) => ({ type: 'file' as const, data: await resolveKnowledgeFileMetadataEntryData(file) }),
-      (file) => isSupportedKnowledgeFile(file.origin_name || file.name, file.path)
+      (file) => isKnowledgeSupportedFileName(file.origin_name || file.name) || file.type === FILE_TYPE.TEXT
     )
     if (skippedCount > 0) {
       toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
