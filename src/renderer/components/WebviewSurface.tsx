@@ -29,9 +29,10 @@ export function WebviewSurface({ anchor, children }: Props) {
       observeAncestors()
       const rect = anchor.getBoundingClientRect()
       const visible = anchor.isConnected && rect.width > 0 && rect.height > 0
+      const resizing = ancestors.some((node) => node.dataset.resizing === 'true')
       surface.style.opacity = visible ? '1' : '0'
-      surface.style.pointerEvents = visible ? 'auto' : 'none'
-      surface.inert = !visible
+      surface.style.pointerEvents = visible && !resizing ? 'auto' : 'none'
+      surface.inert = !visible || resizing
       if (!visible) return
       Object.assign(surface.style, {
         left: `${rect.left}px`,
@@ -44,7 +45,13 @@ export function WebviewSurface({ anchor, children }: Props) {
       frame ??= requestAnimationFrame(update)
     }
     const resize = new ResizeObserver(schedule)
-    const mutation = new MutationObserver(schedule)
+    const mutation = new MutationObserver((records) => {
+      // Yield input before the next event; waiting for rAF can lose mouseup inside the guest.
+      if (records.some((record) => record.attributeName === 'data-resizing')) {
+        if (frame !== undefined) cancelAnimationFrame(frame)
+        update()
+      } else schedule()
+    })
     let ancestors: HTMLElement[] = []
     const observeAncestors = () => {
       const next: HTMLElement[] = []
@@ -55,7 +62,7 @@ export function WebviewSurface({ anchor, children }: Props) {
       mutation.disconnect()
       for (const node of ancestors) {
         resize.observe(node)
-        mutation.observe(node, { attributes: true, attributeFilter: ['style', 'class', 'hidden'] })
+        mutation.observe(node, { attributes: true, attributeFilter: ['style', 'class', 'hidden', 'data-resizing'] })
       }
     }
     const topology = new MutationObserver((records) => {
