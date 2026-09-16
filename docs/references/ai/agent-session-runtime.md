@@ -2,6 +2,9 @@
 description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
 sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/data/services/AgentSessionService.ts
+  - src/main/data/db/schemas/agentSession.ts
+  - src/main/ai/agents/runAgentTask.ts
   - src/main/ai/runtime/types.ts
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
@@ -42,6 +45,32 @@ driver internals behind the same host contract.
 | Runtime drivers | Convert runtime-native events into the common event stream and map opaque resume tokens back into their SDK/session transport. |
 | Usage capture | Each driver exposes provider-invocation capture according to its transport; gateway-backed calls use AiService middleware rather than a runtime aggregate. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
+
+## Background sessions and conversation navigation
+
+`agent_session.type` distinguishes `conversation` from `background`. Heartbeat
+runs create background sessions, including replacements after failed admission;
+ordinary scheduled tasks retain their conversation behavior. The type is internal
+to Main and is not a renderer-controlled visibility flag.
+
+Conversation lists (including pins), latest-session selection, discovery search,
+and empty-session reuse only consider conversation sessions. The ordinary
+`GET /agent-sessions/:sessionId` endpoint also applies that scope, so a saved tab
+cannot restore a background session as an interactive conversation. Runtime
+lookups retain access to all sessions through the internal `getById` method.
+Background activity publishes detail/message changes without invalidating the
+conversation navigation read models.
+
+The appended migration classifies existing sessions only when retained job
+records identify heartbeat execution and no retained job records identify a
+different use of the same session. Unknown history remains a conversation;
+classification never relies on a session name or workspace. Session/message data
+is retained, and subsequent job retention cannot change the classification.
+
+This is a bounded classification within the existing session model. Separating
+execution sessions from user-managed conversation membership is tracked in
+[issue #20635](https://github.com/CherryHQ/cherry-studio/issues/20635); background-session retention and a dedicated activity UI
+also require their own lifecycle and product decisions.
 
 ## System prompt ownership
 

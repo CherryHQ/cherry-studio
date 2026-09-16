@@ -45,7 +45,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
 
   '/agent-sessions/:sessionId': {
     GET: async ({ params }) => {
-      return agentSessionService.getById(params.sessionId)
+      return agentSessionService.getConversationById(params.sessionId)
     },
 
     PATCH: async ({ params, body }) => {

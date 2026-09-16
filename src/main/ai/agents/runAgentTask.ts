@@ -24,6 +24,7 @@
  */
 
 import { application } from '@application'
+import type { AgentSessionType } from '@data/db/schemas/agentSession'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -109,13 +110,14 @@ function loadReusableSession(taskScheduleId: string, agentId: string) {
  * read-side resolution step, so an interactive turn cannot slip through between check and start.
  */
 function resolveTaskSession(params: {
+  sessionType: AgentSessionType
   reuse: TaskSessionReuse
   reuseBinding: { scheduleId: string; reuseRevision: number } | null
   agentId: string
   name: string
   workspace: AgentSessionWorkspaceSource
 }): ReturnType<typeof agentSessionService.create> {
-  const { reuse, reuseBinding, agentId, name, workspace } = params
+  const { reuse, reuseBinding, agentId, name, workspace, sessionType } = params
 
   if (reuse.enabled && reuseBinding) {
     const existing = loadReusableSession(reuseBinding.scheduleId, agentId)
@@ -127,7 +129,7 @@ function resolveTaskSession(params: {
     })
   }
 
-  const session = agentSessionService.create({ agentId, name, workspace })
+  const session = agentSessionService.create({ agentId, name, workspace }, sessionType)
   if (reuse.enabled && reuseBinding) {
     application.get('AgentJobsService').bindTaskSessionReuse({
       ...reuseBinding,
@@ -309,9 +311,14 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   // A queued job captures the reuse epoch at enqueue time. It must not attach
   // to a sticky session selected by a newer task configuration.
   const reuseIsCurrent =
-    scheduleSnapshot?.type === 'agent.task' && currentReuse.enabled && currentReuse.revision === expectedReuseRevision
+    !isHeartbeat &&
+    scheduleSnapshot?.type === 'agent.task' &&
+    currentReuse.enabled &&
+    currentReuse.revision === expectedReuseRevision
   const reuseBinding = reuseIsCurrent && scheduleId ? { scheduleId, reuseRevision: expectedReuseRevision } : null
+  const sessionType = isHeartbeat ? 'background' : 'conversation'
   let session = resolveTaskSession({
+    sessionType,
     reuse: reuseIsCurrent ? currentReuse : { enabled: false, revision: expectedReuseRevision },
     reuseBinding,
     agentId,
@@ -426,7 +433,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
       rebound = true
-      session = agentSessionService.create({ agentId, name: taskName ?? 'Scheduled task', workspace })
+      session = agentSessionService.create({ agentId, name: taskName ?? 'Scheduled task', workspace }, sessionType)
       topicId = buildAgentSessionTopicId(session.id)
       if (reuseBinding) {
         application.get('AgentJobsService').bindTaskSessionReuse({
