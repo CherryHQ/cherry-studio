@@ -7,11 +7,12 @@
  * their tree-shaken build.
  */
 
-import { cjk } from '@streamdown/cjk'
+import { cjk, type CjkPlugin } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { createMathPlugin } from '@streamdown/math'
 import { mermaid } from '@streamdown/mermaid'
 import type { PluginConfig } from 'streamdown'
+import type { Pluggable } from 'unified'
 
 export interface WithMathOptions {
   singleDollar?: boolean
@@ -21,10 +22,22 @@ export interface WithFullMarkdownOptions {
   singleDollarMath?: boolean
 }
 
+const cjkWithLiteralTildes: CjkPlugin = (() => {
+  const remarkPluginsAfter = cjk.remarkPluginsAfter.map((plugin, index, plugins) =>
+    index === plugins.length - 1 ? ([plugin, { singleTilde: false }] as Pluggable) : plugin
+  )
+
+  return {
+    ...cjk,
+    remarkPluginsAfter,
+    remarkPlugins: [...cjk.remarkPluginsBefore, ...remarkPluginsAfter]
+  }
+})()
+
 /** Code (Shiki highlighting) + CJK line-break tweaks. */
 export const defaultMarkdownPlugins: PluginConfig = {
   code,
-  cjk
+  cjk: cjkWithLiteralTildes
 }
 
 /** KaTeX math plugin. `singleDollar` enables `$x$` inline math (off by default). */

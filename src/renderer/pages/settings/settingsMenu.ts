@@ -1,5 +1,3 @@
-import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
-import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import {
   Activity,
   Bell,
@@ -11,6 +9,7 @@ import {
   FileCode,
   HardDrive,
   Info,
+  MonitorSmartphone,
   Package,
   Palette,
   PictureInPicture2,
@@ -25,6 +24,9 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { createElement } from 'react'
+
+import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 
 export interface SettingsMenuEntry {
   /** Settings section route; also the aggregation key for `.search.ts` leaves */
@@ -121,6 +123,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/channels',
     titleKey: 'settings.channels.title',
     icon: createElement(Radio),
+    groupKey: 'settings.menuGroups.automation'
+  },
+  {
+    route: '/settings/device-connections',
+    titleKey: 'deviceConnections.title',
+    icon: createElement(MonitorSmartphone),
     groupKey: 'settings.menuGroups.automation'
   },
   {

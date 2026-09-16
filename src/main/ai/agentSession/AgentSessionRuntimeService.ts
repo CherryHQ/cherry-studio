@@ -1,3 +1,7 @@
+import { type Span, SpanStatusCode } from '@opentelemetry/api'
+import { readUIMessageStream, type UIMessageChunk } from 'ai'
+import { v7 as uuidv7 } from 'uuid'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -19,7 +23,6 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
@@ -40,6 +43,7 @@ import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
+import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -51,8 +55,6 @@ import {
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { readUIMessageStream, type UIMessageChunk } from 'ai'
-import { v7 as uuidv7 } from 'uuid'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
@@ -698,18 +700,18 @@ export class AgentSessionRuntimeService extends BaseService {
       // Bookkeeping: fresh turns are stamped with (and steers gated on) the entry's latest model. A
       // live turn keeps its captured `turn.modelId` regardless.
       if (agent.model) entry.modelId = agent.model
-      reconciles.push(this.reconcileEntryConnection(entry))
+      reconciles.push(this.reconcileEntryConnection(entry, agent))
     }
     await Promise.all(reconciles)
   }
 
-  private async reconcileEntryConnection(entry: AgentSessionRuntimeEntry): Promise<void> {
+  private async reconcileEntryConnection(entry: AgentSessionRuntimeEntry, agent?: AgentEntity): Promise<void> {
     const connection = this.currentConnection(entry)
     if (!connection) return
 
     let verdict: AgentRuntimeReconcileResult
     try {
-      verdict = await connection.reconcile(this.connectionTarget(entry))
+      verdict = await connection.reconcile(this.connectionTarget(entry, agent))
     } catch (error) {
       logger.error('Connection reconcile threw; failing closed', { sessionId: entry.sessionId, error })
       this.closeFailedPolicyUpdateConnection(entry, connection)
@@ -1418,19 +1420,28 @@ export class AgentSessionRuntimeService extends BaseService {
    * same SDK query keeps streaming the post-steer response on A1a's captured model — retargeting in
    * that gap (e.g. a re-prime re-entering `ensureConnection`) would close the connection and drop the
    * continuation. Mirrors the live-turn test in `applyAgentModelUpdate`. Without a live turn or roll
-   * the connection follows the agent's latest model with the default reasoning selection.
+   * the connection follows the agent's latest model and its configured reasoning effort — the same
+   * fallback a fresh turn takes (`AgentChatContextProvider`), so an idle reconcile finds no drift.
    *
    * The turn's Fast and knowledge selections are frozen for exactly the same reason and on the same schedule.
    * Note the idle branch's `knowledgeBaseIds: []` means "no per-turn composer selection", NOT "no
    * knowledge": it is fed through `resolveKnowledgeBaseScope` against the agent's binding below, so a
    * statically bound agent still serves its full binding while idle. Idle deliberately converges on
-   * the default config — same as `reasoningEffort: 'default'` — so any turn that carried a composer
-   * selection (an unbound agent's whole scope, or a bound agent's narrowing) costs one rebuild once
-   * it goes idle. That is intentional: the next turn's selection is unknowable, and prewarm builds
-   * binding-only scope too, so pinning the last turn's selection would only move the rebuild onto the
-   * next turn that does not repeat it.
+   * the agent's own configuration, so any turn that carried a composer selection (an unbound agent's
+   * whole scope, or a bound agent's narrowing) costs one rebuild once it goes idle. That is
+   * intentional: the next turn's *selection* is unknowable, and prewarm builds binding-only scope
+   * too, so pinning the last turn's selection would only move the rebuild onto the next turn that
+   * does not repeat it. A configured reasoning effort is not a selection — it is what the next turn
+   * uses absent an override — so reading it here is what keeps idle free of permanent drift.
    */
-  private connectionTarget(entry: AgentSessionRuntimeEntry): AgentSessionConnectionTarget {
+  private connectionTarget(
+    entry: AgentSessionRuntimeEntry,
+    // `agentService.getAgent` is four queries (the row, its MCPs, its knowledge bases, the model
+    // name) and is not cached, so a caller that already holds the agent hands it over rather than
+    // paying for it again. The push reconcile is the one that matters: it walks every session of
+    // one agent and already has the updated entity.
+    agent: AgentEntity | null = agentService.getAgent(entry.agentId)
+  ): AgentSessionConnectionTarget {
     const turn =
       this.currentTurn(entry) ??
       (entry.runtimeState.execution.kind === 'autonomous-turn' ? entry.runtimeState.execution.contextTurn : undefined)
@@ -1450,7 +1461,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       : {
           modelId: entry.modelId,
-          reasoningEffort: 'default',
+          reasoningEffort: agent?.configuration?.reasoning_effort ?? 'default',
           serviceTier: 'standard',
           knowledgeBaseIds: [],
           fastMode: false,
@@ -1459,8 +1470,9 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private connectionTargetEquals(entry: AgentSessionRuntimeEntry, target: AgentSessionConnectionTarget): boolean {
-    const current = this.connectionTarget(entry)
-    const configuredKnowledgeBaseIds = agentService.getAgent(entry.agentId)?.knowledgeBaseIds
+    const agent = agentService.getAgent(entry.agentId)
+    const current = this.connectionTarget(entry, agent)
+    const configuredKnowledgeBaseIds = agent?.knowledgeBaseIds
     return (
       current.modelId === target.modelId &&
       current.reasoningEffort === target.reasoningEffort &&
@@ -1682,18 +1694,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // Any content chunk means the retried request succeeded and the stream resumed — clear the
         // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
         this.clearApiRetry(entry)
-        // During a transition A1a is closed, or the receive-only stream is not open yet. Buffer the
-        // chunks so `flush-transition` can replay them into the exact successor stream in order.
-        const execution = entry.runtimeState.execution
-        const turn = this.currentTurn(entry)
-        if (
-          execution.kind === 'steer-transition' ||
-          (execution.kind === 'autonomous-turn' && !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn))
-        ) {
-          this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk: event.chunk })
-          break
-        }
-        if (turn?.controller && this.isTurnLive(entry, turn)) this.enqueueTurnChunk(entry, turn, event.chunk)
+        this.deliverRuntimeChunk(entry, event.chunk)
         break
       }
       case 'tool-approval-request':
@@ -1771,20 +1772,21 @@ export class AgentSessionRuntimeService extends BaseService {
           break
         }
         // Runtime-generated content is already streaming. The autonomous execution state buffers
-        // chunks until its receive-only stream exists and owns any still-unadmitted user turn.
+        // chunks until its receive-only stream exists and owns the current user turn meanwhile — even
+        // an admitted one: dsh runs a queued goal round before the prompt it has already accepted.
         const turn = this.currentTurn(entry)
         const turnLive = turn !== undefined && this.isTurnLive(entry, turn)
-        if (turnLive && turn && isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) break
         if (entry.runtimeState.execution.kind === 'steer-transition') break
         this.applyRuntimeStateEvent(entry, {
           type: 'autonomous-turn-state',
           state: 'started',
+          origin: event.origin,
           deferCurrentTurn: turnLive,
           contextTurn: turn
         })
         this.clearIdleTimer(entry)
         if (turnLive && turn) {
-          this.deferUnadmittedTurnForReceiveOnly(entry, turn)
+          this.deferTurnForReceiveOnly(entry, turn)
         } else {
           this.requestRuntimeLaunch(entry, 'receive-only')
         }
@@ -1881,7 +1883,7 @@ export class AgentSessionRuntimeService extends BaseService {
         type: 'data-compaction-anchor',
         id: crypto.randomUUID(),
         data: anchor
-      } as UIMessageChunk)
+      })
     }
 
     // Completed-run metrics ride the `data-compaction-anchor` chunk above (the UI's source); the cache
@@ -2184,7 +2186,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private publishBackgroundFlowParts(entry: AgentSessionRuntimeEntry, accumulator: BackgroundFlowAccumulator): void {
-    const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+    const parts = accumulator.latest?.parts
     if (!parts || !this.isCurrentEntry(entry)) return
     accumulator.lastPublishedAt = Date.now()
     application
@@ -2212,7 +2214,7 @@ export class AgentSessionRuntimeService extends BaseService {
         const completedMessageIds = new Set<string>()
         const completedFlows: Array<{ messageId: string; parts: CherryMessagePart[] }> = []
         for (const accumulator of accumulators) {
-          const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+          const parts = accumulator.latest?.parts
           if (!parts) continue
           completedMessageIds.add(accumulator.messageId)
           agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
@@ -2310,22 +2312,13 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
-    const turn = this.currentTurn(entry)
     if (request.presentation === 'stream') {
       const chunk: UIMessageChunk = {
         type: 'tool-approval-request',
         approvalId: request.approvalId,
         toolCallId: request.toolCallId
       }
-      if (
-        entry.runtimeState.execution.kind === 'steer-transition' ||
-        (entry.runtimeState.execution.kind === 'autonomous-turn' &&
-          !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn))
-      ) {
-        this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk })
-      } else if (turn?.controller && this.isTurnLive(entry, turn)) {
-        this.enqueueTurnChunk(entry, turn, chunk)
-      } else {
+      if (!this.deliverRuntimeChunk(entry, chunk)) {
         logger.warn('Live tool approval request lost its turn stream', {
           sessionId: entry.sessionId,
           approvalId: request.approvalId
@@ -2442,6 +2435,23 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
+  private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {
+    const execution = entry.runtimeState.execution
+    const turn = this.currentTurn(entry)
+    // Approval cards and content share the same handoff while a successor stream is opening.
+    if (
+      execution.kind === 'steer-transition' ||
+      (execution.kind === 'autonomous-turn' && !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn)) ||
+      (execution.kind === 'turn' && execution.stream === 'unopened' && execution.admission === 'admitted')
+    ) {
+      this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk })
+      return true
+    }
+    if (!turn?.controller || !this.isTurnLive(entry, turn)) return false
+    this.enqueueTurnChunk(entry, turn, chunk)
+    return true
+  }
+
   private enqueueTurnChunk(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn, chunk: UIMessageChunk): void {
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
       turn.activeToolIds.add(chunk.toolCallId)
@@ -2552,11 +2562,13 @@ export class AgentSessionRuntimeService extends BaseService {
             if (this.isCurrentEntry(entry)) {
               this.applyRuntimeStateEvent(entry, { type: 'launch-finished', target })
               if (target === 'receive-only') {
+                // A turn deferred behind this launch (or restored by an abandon) has no stream yet,
+                // whatever its admission: an admitted relaunch reopens the stream without re-sending.
                 const turn = this.currentTurn(entry)
                 if (
                   entry.runtimeState.execution.kind === 'turn' &&
+                  entry.runtimeState.execution.stream === 'unopened' &&
                   turn &&
-                  !isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) &&
                   this.isTurnLive(entry, turn)
                 ) {
                   this.requestRuntimeLaunch(entry, 'deferred-turn')
@@ -2582,7 +2594,7 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
     this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
-    const { message: nextMessage, reasoningEffort, serviceTier, knowledgeBaseIds, fastMode = false } = pendingTurn
+    const { message: nextMessage, reasoningEffort, serviceTier, knowledgeBaseIds, fastMode } = pendingTurn
     const trustedNotifyChannels = pendingTurn.trustedNotifyChannels
 
     // A queued follow-up can outlive the agent's model: deleting the model nulls `agent.model` via the FK
@@ -2678,7 +2690,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: entry.modelId,
       rootSpan,
       request: {
-        chatId: entry.topicId,
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,
@@ -2697,19 +2709,14 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Runtime-generated content can arrive in the narrow window after a user turn's renderer stream
-   * opened but before its prompt was admitted. Detach that empty execution, keep the turn object
+   * Runtime-generated content can arrive after a user turn's renderer stream opened but before the
+   * runtime produced anything for it — the prompt may not be admitted yet, or (dsh) a queued goal
+   * round runs ahead of the admitted prompt. Detach that empty execution, keep the turn object
    * queued, and let the receive-only generation own the connection first.
    */
-  private deferUnadmittedTurnForReceiveOnly(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+  private deferTurnForReceiveOnly(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
     const execution = entry.runtimeState.execution
-    if (
-      execution.kind !== 'autonomous-turn' ||
-      execution.deferredTurn !== turn ||
-      isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)
-    ) {
-      return
-    }
+    if (execution.kind !== 'autonomous-turn' || execution.deferredTurn !== turn) return
     const suspended = application.get('AiStreamManager').suspendUnadmittedRuntimeTurn(entry.topicId)
     try {
       turn.controller?.close()
@@ -2756,7 +2763,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: turn.modelId,
       rootSpan,
       request: {
-        chatId: entry.topicId,
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
         trigger: 'submit-message',
         messageId: turn.assistantMessageId,
         messages,
@@ -2787,7 +2794,13 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       return
     }
-    const { modelId, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } = this.connectionTarget(entry)
+    const { origin } = entry.runtimeState.execution
+    // Every facet of a receive-only turn is whatever the connection is currently targeted at:
+    // reading `reasoningEffort` from anywhere else would make an autonomous wake disagree with
+    // the connection it is already streaming on, and a reconcile racing that wake would report
+    // drift and close a valid warm connection.
+    const { modelId, reasoningEffort, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } =
+      this.connectionTarget(entry)
     const syntheticMessage = createSyntheticUserMessage(entry.sessionId)
 
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)
@@ -2814,13 +2827,17 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const assistantMessageId = assistantMessage.id
+    // No user message explains this turn; the badge reads the origin off the live session cache.
+    application
+      .get('CacheService')
+      .setShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(entry.sessionId, assistantMessageId), origin)
     const turnId = crypto.randomUUID()
     const receiveOnlyTurn: AgentSessionTurn = {
       turnId,
       assistantMessageId,
       userMessage: syntheticMessage,
       modelId,
-      reasoningEffort: 'default',
+      reasoningEffort,
       serviceTier,
       knowledgeBaseIds,
       fastMode,
@@ -2855,11 +2872,11 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId,
       rootSpan,
       request: {
-        chatId: entry.topicId,
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,
-        reasoningEffort: 'default',
+        reasoningEffort,
         serviceTier,
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
@@ -2971,7 +2988,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId,
       rootSpan,
       request: {
-        chatId: entry.topicId,
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,
@@ -3140,7 +3157,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private closeEntry(entry: AgentSessionRuntimeEntry): Promise<void> {
     this.clearIdleTimer(entry)
     for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
-      const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
+      const parts = accumulator.latest?.parts
       if (!parts) continue
       application
         .get('CacheService')
@@ -3216,7 +3233,7 @@ export class AgentSessionRuntimeService extends BaseService {
 }
 
 function isAbortError(error: unknown): boolean {
-  return !!error && typeof error === 'object' && 'name' in error && (error as { name: unknown }).name === 'AbortError'
+  return !!error && typeof error === 'object' && 'name' in error && error.name === 'AbortError'
 }
 
 /**

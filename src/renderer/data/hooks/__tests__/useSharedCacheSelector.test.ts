@@ -1,3 +1,6 @@
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Contract tests for the multi-key shared cache selector hook.
  *
@@ -15,8 +18,6 @@
  */
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheSelector } from '@data/hooks/useCache'
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { installCacheApiMock } from './testUtils'
 

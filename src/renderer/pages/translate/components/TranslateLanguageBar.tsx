@@ -1,4 +1,10 @@
-import { Button, Combobox, type ComboboxOption, Tooltip } from '@cherrystudio/ui'
+import { ArrowLeftRight } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+import stringWidth from 'string-width'
+
+import { Button, Combobox, type ComboboxOption } from '@cherrystudio/ui'
 import { useLanguages } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils/style'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
@@ -7,11 +13,6 @@ import type {
   TranslateLangCode,
   TranslateSourceLanguage
 } from '@shared/data/preference/preferenceTypes'
-import { ArrowLeftRight } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
-import stringWidth from 'string-width'
 
 type Props = {
   className?: string
@@ -23,8 +24,6 @@ type Props = {
   isBidirectional: boolean
   showSourceControls: boolean
   bidirectionalPair: TranslateBidirectionalPair
-  couldExchange: boolean
-  onExchange: () => void
 }
 
 const AUTO_EMOJI = '🌐'
@@ -47,9 +46,7 @@ const TranslateLanguageBar: FC<Props> = ({
   detectedLanguage,
   isBidirectional,
   showSourceControls,
-  bidirectionalPair,
-  couldExchange,
-  onExchange
+  bidirectionalPair
 }) => {
   const { t } = useTranslation()
   const { languages, getLabel, getLanguage } = useLanguages()
@@ -172,18 +169,6 @@ const TranslateLanguageBar: FC<Props> = ({
               )
             }}
           />
-
-          <Tooltip content={t('translate.exchange.label')} placement="bottom">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onExchange}
-              disabled={!couldExchange}
-              aria-label={t('translate.exchange.label')}
-              className="h-8 w-8 shrink-0 rounded-full text-muted-foreground shadow-none transition-all hover:bg-accent hover:text-foreground active:scale-90">
-              <ArrowLeftRight size={14} />
-            </Button>
-          </Tooltip>
         </>
       )}
 
@@ -194,7 +179,7 @@ const TranslateLanguageBar: FC<Props> = ({
           type="button"
           disabled
           aria-label={`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}
-          className="h-8 max-w-70 justify-start gap-2 bg-background-subtle px-3 text-foreground text-sm shadow-none disabled:opacity-100">
+          className="h-8 max-w-70 justify-start gap-2 bg-background-subtle px-3 text-sm text-foreground shadow-none disabled:opacity-100">
           <span className="sr-only">{`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}</span>
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="text-sm leading-none">{bidirectionalSource.emoji}</span>

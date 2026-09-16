@@ -1,10 +1,11 @@
-import enUS from '@renderer/i18n/locales/en-us.json'
-import zhCN from '@renderer/i18n/locales/zh-cn.json'
-import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
 
 import TasksSettings, {
   formStateToTrigger,
@@ -50,7 +51,7 @@ const taskDataMock = vi.hoisted(() => {
     nextRun: null,
     lastRun: null,
     enabled: true,
-    status: 'active' as 'active' | 'paused' | 'completed',
+    status: 'active',
     createdAt: '2026-06-25T00:00:00.000Z',
     updatedAt: '2026-06-25T00:00:00.000Z'
   }
@@ -111,9 +112,9 @@ const channelDataMock = vi.hoisted(() => ({
   isLoading: false
 }))
 
-const translationMock = vi.hoisted(() => ({
+const translationMock = vi.hoisted((): { i18n: { language: string }; t: TranslationFunction } => ({
   i18n: { language: 'en-US' },
-  t: ((key: string) => key) as TranslationFunction
+  t: (key: string) => key
 }))
 
 const promptPolishActionsMock = vi.hoisted(() => vi.fn())
@@ -1420,6 +1421,8 @@ describe('TasksSettings routing and creation', () => {
 describe('TasksSettings detail behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    translationMock.i18n.language = 'en-US'
+    translationMock.t = (key: string) => key
     navigationMocks.taskId = 'task-1'
     navigationMocks.navigate.mockResolvedValue(undefined)
     agentDataMock.agents = [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
@@ -1440,6 +1443,23 @@ describe('TasksSettings detail behavior', () => {
     taskMutationMocks.runTask.mockResolvedValue(true)
     taskMutationMocks.setTaskEnabled.mockResolvedValue(taskDataMock.task)
     taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
+  })
+
+  it('preserves prompt text while allowing unbroken tokens to wrap', async () => {
+    const longToken = `https://example.com/${'a'.repeat(240)}`
+    const prompt = `Keep this newline.\n${longToken}`
+    taskDataMock.task = { ...taskDataMock.defaultTask, prompt }
+    translationMock.t = (key: string) => (key === 'agent.tasks.prompt.label' ? enUS[key] : key)
+
+    render(<TasksSettings />)
+
+    expect(screen.getByRole('tab', { name: 'Prompt' })).toHaveAttribute('aria-selected', 'true')
+    const promptText = await screen.findByText((_, node) => {
+      return node?.getAttribute('data-slot') === 'item-description' && (node.textContent ?? '').includes(longToken)
+    })
+    expect(promptText.textContent).toBe(prompt)
+    // Layout contract: the prompt stays fully visible and long tokens may break at any character.
+    expect(promptText).toHaveClass('line-clamp-none', 'wrap-anywhere', 'whitespace-pre-wrap')
   })
 
   it('keeps task logs searchable and opens the related session', async () => {

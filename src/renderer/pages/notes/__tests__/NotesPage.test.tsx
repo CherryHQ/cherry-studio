@@ -1,7 +1,8 @@
-import { addNote } from '@renderer/services/NotesService'
-import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { addNote } from '@renderer/services/NotesService'
+import { toast } from '@renderer/services/toast'
 
 import type { NotesEditorLoading } from '../NotesEditor'
 
@@ -18,7 +19,7 @@ const mocks = vi.hoisted(() => {
   }
 
   return {
-    sessionStatus: 'ready' as string,
+    sessionStatus: String('ready'),
     sessionIsDirty: false,
     sessionIsSaving: false,
     sessionSaveError: undefined as Error | undefined,
@@ -63,7 +64,7 @@ const mocks = vi.hoisted(() => {
     updateNotesPath: vi.fn(),
     updateSettings: vi.fn(),
     updateSortType: vi.fn(),
-    activeFilePath: '/notes/note.md' as string | undefined,
+    activeFilePath: ['/notes/note.md'].at(0),
     noteNode
   }
 })

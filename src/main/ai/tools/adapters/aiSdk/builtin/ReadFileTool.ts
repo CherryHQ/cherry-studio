@@ -16,6 +16,8 @@
  */
 
 import { isAbortError, type ToolResultOutput } from '@ai-sdk/provider-utils'
+import { type InferToolInput, type InferToolOutput, tool } from 'ai'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { extractDocumentText, noExtractableTextNote } from '@main/ai/messages/attachmentTextExtraction'
@@ -33,7 +35,6 @@ import {
 } from '@shared/ai/builtinTools'
 import { FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 
 import { makeTextFieldCodec } from '../../../outputCodec'
 import { getToolCallContext } from '../context'

@@ -1,3 +1,7 @@
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import * as htmlToImage from 'html-to-image'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { preferenceService } from '@data/PreferenceService'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { addNote } from '@renderer/services/NotesService'
@@ -5,9 +9,8 @@ import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { IMAGE_CAPTURE_ATTRIBUTE } from '@renderer/utils/image'
 import type * as MessageFind from '@renderer/utils/message/find'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks Setup ---
 
@@ -20,6 +23,14 @@ const notionMocks = vi.hoisted(() => ({
   createPage: vi.fn(),
   markdownToBlocks: vi.fn((markdown: string) => [{ markdown }, { markdown: `${markdown}\n` }]),
   appendBlocks: vi.fn()
+}))
+
+const imageCaptureMocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: imageCaptureMocks }))
+
+vi.mock('html-to-image', () => ({
+  toCanvas: vi.fn()
 }))
 
 vi.mock('@notionhq/client', () => {
@@ -64,6 +75,12 @@ vi.mock('@renderer/i18n/resolver', () => ({
 // Mock getProviderLabelKey
 vi.mock('@renderer/i18n/label', () => ({
   getProviderLabelKey: vi.fn((providerId: string) => providerId || 'Unknown Provider')
+}))
+
+vi.mock('i18next', () => ({
+  default: {
+    t: vi.fn((key: string) => key)
+  }
 }))
 
 // Mock the find utility functions - crucial for the test
@@ -150,6 +167,9 @@ import {
   exportMarkdownToObsidian,
   exportMessagesToNotion,
   exportMessageToNotion,
+  exportNote,
+  ExportService,
+  exportService,
   exportTopicToNotes,
   messagesToMarkdown,
   messageToMarkdown,
@@ -289,13 +309,6 @@ beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
 
-  // Mock i18next translation function
-  vi.mock('i18next', () => ({
-    default: {
-      t: vi.fn((key) => key)
-    }
-  }))
-
   mockedMessages = [] // Clear messages for the next describe block
 })
 
@@ -317,13 +330,99 @@ describe('ExportService', () => {
     await preferenceService.set('data.integration.notion.database_id', 'database-id')
     await preferenceService.set('data.integration.notion.page_name_key', 'Name')
     notionMocks.createPage.mockResolvedValue({ id: 'page-id' })
-    notionMocks.appendBlocks.mockResolvedValue(undefined)
+    notionMocks.appendBlocks.mockResolvedValue({ apiResponses: [{ results: [{ id: 'block-id' }] }], apiCallCount: 1 })
 
     await expect(exportMessageToNotion('First', 'First export')).resolves.toBe(true)
     expect(notionMocks.moduleLoads).toEqual(loaded)
 
     await expect(exportMessageToNotion('Second', 'Second export')).resolves.toBe(true)
     expect(notionMocks.moduleLoads).toEqual(loaded)
+  })
+
+  describe.each([
+    ['single message', () => exportMessageToNotion('Message', 'Body')],
+    ['multiple messages', () => exportMessagesToNotion('Topic', [createExportView([{ type: 'text', text: 'Body' }])])]
+  ])('Notion write completion (%s)', (_name, exportToNotion) => {
+    const success = { apiResponses: [{ results: [{ id: 'block-id' }] }], apiCallCount: 1 }
+
+    beforeEach(async () => {
+      await preferenceService.set('data.integration.notion.api_key', 'notion-key')
+      await preferenceService.set('data.integration.notion.database_id', 'database-id')
+      notionMocks.createPage.mockResolvedValue({ id: 'page-id' })
+      notionMocks.appendBlocks.mockResolvedValue(success)
+    })
+
+    afterEach(async () => {
+      await preferenceService.set('data.integration.notion.api_key', '')
+      await preferenceService.set('data.integration.notion.database_id', '')
+    })
+
+    it('keeps the export pending and blocks another export until the body is written', async () => {
+      let finishWrite!: (result: object) => void
+      notionMocks.appendBlocks.mockReturnValueOnce(new Promise<object>((resolve) => (finishWrite = resolve)))
+      let settled = false
+      const exportPromise = exportToNotion().then((result) => {
+        settled = true
+        return result
+      })
+
+      try {
+        await vi.waitFor(() =>
+          expect(toast.loading).toHaveBeenCalledWith(
+            expect.objectContaining({ title: 'message.loading.notion.exporting_progress' })
+          )
+        )
+        expect(settled).toBe(false)
+        expect(toast.success).not.toHaveBeenCalled()
+        await expect(exportToNotion()).resolves.toBe(false)
+        expect(toast.warning).toHaveBeenCalledWith('message.warn.export.exporting')
+        expect(notionMocks.createPage).toHaveBeenCalledTimes(1)
+        expect(toast.closeToast).toHaveBeenCalledWith('notion-export:preparing')
+        expect(toast.closeToast).not.toHaveBeenCalledWith('notion-export:exporting')
+      } finally {
+        finishWrite(success)
+        await exportPromise
+      }
+
+      await expect(exportPromise).resolves.toBe(true)
+      expect(toast.success).toHaveBeenCalledExactlyOnceWith('message.success.notion.export')
+      expect(toast.closeToast).toHaveBeenCalledWith('notion-export:exporting')
+      await expect(exportToNotion()).resolves.toBe(true)
+    })
+
+    it.each([
+      ['first request failure', { apiResponses: null, apiCallCount: 1, error: 'Permission denied' }],
+      ['later chunk failure', { apiResponses: null, apiCallCount: 2, error: 'Rate limited' }],
+      ['empty error message', { apiResponses: null, apiCallCount: 1, error: '' }],
+      ['missing error message', { apiResponses: null, apiCallCount: 1 }],
+      ['error field alone', { error: 'Write failed' }]
+    ])('reports %s as failure and allows a subsequent export', async (_case, result) => {
+      notionMocks.appendBlocks.mockResolvedValueOnce(result)
+
+      await expect(exportToNotion()).resolves.toBe(false)
+      expect(toast.success).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledExactlyOnceWith('message.error.notion.export')
+      expect(toast.closeToast).toHaveBeenCalledWith('notion-export:exporting')
+      await expect(exportToNotion()).resolves.toBe(true)
+    })
+
+    it.each(['createPage', 'appendBlocks'] as const)(
+      'reports a rejected %s and releases the export lock',
+      async (step) => {
+        notionMocks[step].mockRejectedValueOnce(new Error('Network failure'))
+
+        await expect(exportToNotion()).resolves.toBe(false)
+        expect(toast.success).not.toHaveBeenCalled()
+        expect(toast.error).toHaveBeenCalledExactlyOnceWith('message.error.notion.export')
+        if (step === 'createPage') {
+          expect(notionMocks.appendBlocks).not.toHaveBeenCalled()
+          expect(toast.closeToast).toHaveBeenCalledWith('notion-export:preparing')
+        } else {
+          expect(toast.closeToast).toHaveBeenCalledWith('notion-export:exporting')
+        }
+        await expect(exportToNotion()).resolves.toBe(true)
+      }
+    )
   })
 
   describe('exportMessagesToNotion', () => {
@@ -333,7 +432,7 @@ describe('ExportService', () => {
       await preferenceService.set('data.integration.notion.page_name_key', 'Name')
       await preferenceService.set('data.integration.notion.export_reasoning', true)
       notionMocks.createPage.mockResolvedValue({ id: 'page-id' })
-      notionMocks.appendBlocks.mockResolvedValue(undefined)
+      notionMocks.appendBlocks.mockResolvedValue({ apiResponses: [{ results: [{ id: 'block-id' }] }], apiCallCount: 1 })
     })
 
     afterEach(async () => {
@@ -804,7 +903,7 @@ describe('ExportService', () => {
         id: 'topic1_plain',
         name: '# Topic One',
         assistantId: 'asst_test',
-        messages: [msg1, msg2] as any
+        messages: [msg1, msg2]
       })
       // Mock getTopicMessages to return the expected messages
       ;(getTopicMessages as any).mockResolvedValue([msg1, msg2])
@@ -1204,7 +1303,7 @@ describe('Notion export alert callout wiring', () => {
     await preferenceService.set('data.integration.notion.database_id', 'database-id')
     await preferenceService.set('data.integration.notion.page_name_key', 'Name')
     notionMocks.createPage.mockResolvedValue({ id: 'page-id' })
-    notionMocks.appendBlocks.mockResolvedValue(undefined)
+    notionMocks.appendBlocks.mockResolvedValue({ apiResponses: [{ results: [{ id: 'block-id' }] }], apiCallCount: 1 })
     notionMocks.markdownToBlocks.mockImplementation((markdown: string): any[] =>
       typeof markdown === 'string' && markdown.includes('[!WARNING]')
         ? [alertQuoteBlock('[!WARNING]', 'Do not commit secrets')]
@@ -1231,5 +1330,264 @@ describe('Notion export alert callout wiring', () => {
     const toggle = blocks.find((block) => block.type === 'toggle')
     expect(toggle).toBeDefined()
     expect(toggle.toggle.children[0].type).toBe('callout')
+  })
+})
+
+describe('ExportService image capture serialization', () => {
+  let captureService: ExportService
+
+  const createNoteSurface = (noteId: string) => {
+    const editor = document.createElement('div')
+    editor.dataset.noteId = noteId
+    const scrollable = document.createElement('div')
+    scrollable.style.overflowY = 'auto'
+    scrollable.appendChild(Object.assign(document.createElement('div'), { className: 'ProseMirror' }))
+    editor.appendChild(scrollable)
+    return { editor, scrollable }
+  }
+
+  const deferred = <T>() => {
+    let resolve!: (value: T | PromiseLike<T>) => void
+    let reject!: (reason?: unknown) => void
+    const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+      resolve = resolvePromise
+      reject = rejectPromise
+    })
+    return { promise, resolve, reject }
+  }
+
+  const flushMicrotasks = async () => {
+    for (let index = 0; index < 6; index += 1) {
+      await Promise.resolve()
+    }
+  }
+
+  const captureMarker = (root: HTMLElement) => root.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
+
+  const canvasStub = (dataUrl: string) => ({ toDataURL: vi.fn(() => dataUrl) }) as unknown as HTMLCanvasElement
+
+  beforeEach(() => {
+    captureService = new ExportService()
+    vi.mocked(htmlToImage.toCanvas).mockReset()
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => canvasStub('data:image/png;base64,xxx'))
+  })
+
+  it('serializes capture lifecycles across roots and restores each root before the next starts', async () => {
+    const rootA = document.createElement('div')
+    rootA.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-a')
+    const rootB = document.createElement('div')
+    const initialMarkerA = captureMarker(rootA)
+
+    const firstCanvasStarted = deferred<void>()
+    const releaseFirstCanvas = deferred<void>()
+    let canvasCalls = 0
+    let markerAWhenSecondCaptureStarted: string | null | undefined
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+      canvasCalls += 1
+      if (canvasCalls === 1) {
+        firstCanvasStarted.resolve()
+        await releaseFirstCanvas.promise
+      }
+      if (canvasCalls === 3) markerAWhenSecondCaptureStarted = captureMarker(rootA)
+      return canvasStub(`data:image/png;base64,call-${canvasCalls}`)
+    })
+
+    const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
+    await firstCanvasStarted.promise
+
+    const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
+    await flushMicrotasks()
+
+    // The queued capture must not rasterize while the first one is in flight
+    expect(canvasCalls).toBe(1)
+
+    releaseFirstCanvas.resolve()
+    await expect(firstCapture).resolves.toBe('data:image/png;base64,call-2')
+    await expect(secondCapture).resolves.toBe('data:image/png;base64,call-4')
+
+    // rootA's marker was already restored when rootB's rasterization started
+    expect(markerAWhenSecondCaptureStarted).toBe(initialMarkerA)
+    expect(captureMarker(rootA)).toBe(initialMarkerA)
+    expect(captureMarker(rootB)).toBe(null)
+  })
+
+  it('serializes same-root captures and restores the original state after both complete', async () => {
+    const root = document.createElement('div')
+    root.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-capture')
+    const initialMarker = captureMarker(root)
+
+    const firstCanvasStarted = deferred<void>()
+    const releaseFirstCanvas = deferred<void>()
+    let canvasCalls = 0
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+      canvasCalls += 1
+      if (canvasCalls === 1) {
+        firstCanvasStarted.resolve()
+        await releaseFirstCanvas.promise
+      }
+      return canvasStub(`data:image/png;base64,call-${canvasCalls}`)
+    })
+
+    const firstCapture = captureService.captureScrollableAsDataUrl({ current: root })
+    await firstCanvasStarted.promise
+
+    const secondCapture = captureService.captureScrollableAsDataUrl({ current: root })
+    await flushMicrotasks()
+
+    expect(canvasCalls).toBe(1)
+    // The in-flight capture owns the marker; the queued one must not clear it
+    expect(captureMarker(root)).toBe('')
+
+    releaseFirstCanvas.resolve()
+    // Each capture rasterizes twice (resource-cache warmup + final canvas)
+    await expect(firstCapture).resolves.toBe('data:image/png;base64,call-2')
+    await expect(secondCapture).resolves.toBe('data:image/png;base64,call-4')
+    expect(captureMarker(root)).toBe(initialMarker)
+  })
+
+  it('continues with a later capture when an earlier queued capture rejects', async () => {
+    const rootA = document.createElement('div')
+    const rootB = document.createElement('div')
+
+    let canvasCalls = 0
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+      canvasCalls += 1
+      if (canvasCalls === 1) throw new Error('rasterization failed')
+      return canvasStub('data:image/png;base64,c2Vjb25k')
+    })
+
+    const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
+    const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
+
+    await expect(firstCapture).rejects.toThrow('rasterization failed')
+    await expect(secondCapture).resolves.toBe('data:image/png;base64,c2Vjb25k')
+    expect(canvasCalls).toBe(3)
+  })
+
+  it('resolves a queued note surface after a same-note rerender', async () => {
+    const blocker = document.createElement('div')
+    document.body.appendChild(blocker)
+
+    const notesPage = document.createElement('div')
+    notesPage.id = 'notes-page'
+    const originalNote = createNoteSurface('note-a')
+    notesPage.appendChild(originalNote.editor)
+    document.body.appendChild(notesPage)
+
+    const readExternal = vi.fn().mockResolvedValue('')
+    const saveImage = vi.fn().mockResolvedValue(true)
+    Object.defineProperty(window, 'api', {
+      value: {
+        ...window.api,
+        file: { ...window.api.file, readExternal, saveImage }
+      },
+      configurable: true
+    })
+
+    const firstCanvasStarted = deferred<void>()
+    const releaseFirstCanvas = deferred<void>()
+    let canvasCalls = 0
+    let capturedNoteSurface: HTMLElement | undefined
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async (element) => {
+      canvasCalls += 1
+      if (canvasCalls === 1) {
+        firstCanvasStarted.resolve()
+        await releaseFirstCanvas.promise
+      } else {
+        capturedNoteSurface = element
+      }
+      return canvasStub('data:image/png;base64,note')
+    })
+
+    try {
+      const firstCapture = exportService.captureScrollableAsDataUrl({ current: blocker })
+      await firstCanvasStarted.promise
+
+      const noteCapture = exportNote({
+        node: { id: 'note-a', name: 'Note', externalPath: '/notes/note.md' },
+        platform: 'exportImage'
+      })
+      await flushMicrotasks()
+
+      // The note capture stays queued behind the in-flight blocker capture
+      expect(canvasCalls).toBe(1)
+
+      const replacementNote = createNoteSurface('note-a')
+      originalNote.editor.replaceWith(replacementNote.editor)
+
+      releaseFirstCanvas.resolve()
+      await firstCapture
+      await noteCapture
+
+      // The queued capture resolved its ref after the rerender, so it
+      // rasterized the replacement surface, not the detached original
+      expect(capturedNoteSurface).toBe(replacementNote.scrollable)
+      expect(capturedNoteSurface).not.toBe(originalNote.scrollable)
+      expect(saveImage).toHaveBeenCalledWith('Note', 'data:image/png;base64,note')
+    } finally {
+      releaseFirstCanvas.resolve()
+      blocker.remove()
+      notesPage.remove()
+    }
+  })
+
+  it('does not capture a different note when the requested note changes while queued', async () => {
+    const blocker = document.createElement('div')
+    document.body.appendChild(blocker)
+
+    const notesPage = document.createElement('div')
+    notesPage.id = 'notes-page'
+    const requestedNote = createNoteSurface('note-a')
+    notesPage.appendChild(requestedNote.editor)
+    document.body.appendChild(notesPage)
+
+    const readExternal = vi.fn().mockResolvedValue('')
+    const saveImage = vi.fn().mockResolvedValue(true)
+    Object.defineProperty(window, 'api', {
+      value: {
+        ...window.api,
+        file: { ...window.api.file, readExternal, saveImage }
+      },
+      configurable: true
+    })
+
+    const firstCanvasStarted = deferred<void>()
+    const releaseFirstCanvas = deferred<void>()
+    let canvasCalls = 0
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+      canvasCalls += 1
+      if (canvasCalls === 1) {
+        firstCanvasStarted.resolve()
+        await releaseFirstCanvas.promise
+      }
+      return canvasStub('data:image/png;base64,YmxvY2tlcg==')
+    })
+
+    try {
+      const firstCapture = exportService.captureScrollableAsDataUrl({ current: blocker })
+      await firstCanvasStarted.promise
+
+      const noteCapture = exportNote({
+        node: { id: 'note-a', name: 'Note A', externalPath: '/notes/a.md' },
+        platform: 'exportImage'
+      })
+      await flushMicrotasks()
+
+      const activeNote = createNoteSurface('note-b')
+      requestedNote.editor.replaceWith(activeNote.editor)
+
+      releaseFirstCanvas.resolve()
+      await firstCapture
+      await noteCapture
+
+      // Only the blocker capture rasterized; the queued note capture found
+      // its note gone and skipped rasterization and saving entirely
+      expect(canvasCalls).toBe(2)
+      expect(saveImage).not.toHaveBeenCalled()
+    } finally {
+      releaseFirstCanvas.resolve()
+      blocker.remove()
+      notesPage.remove()
+    }
   })
 })

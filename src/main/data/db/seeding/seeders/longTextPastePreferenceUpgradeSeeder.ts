@@ -1,5 +1,6 @@
-import { preferenceTable } from '@data/db/schemas/preference'
 import { and, eq, inArray } from 'drizzle-orm'
+
+import { preferenceTable } from '@data/db/schemas/preference'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'

@@ -6,8 +6,9 @@
 
 import type * as NodeFs from 'node:fs'
 
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const {
   mockFindBySessionId,
@@ -84,10 +85,12 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({
-    buildPromptParts: mockBuildPrompt,
-    buildMemoriesSection: mockBuildMemoriesSection
-  }))
+  PromptBuilder: vi.fn(function () {
+    return {
+      buildPromptParts: mockBuildPrompt,
+      buildMemoriesSection: mockBuildMemoriesSection
+    }
+  })
 }))
 
 vi.mock('@main/utils/prompt', () => ({

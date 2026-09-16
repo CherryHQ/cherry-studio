@@ -1,9 +1,10 @@
 // port https://github.com/zcaceres/fetch-mcp/blob/main/src/index.ts
 
-import { fetchRemoteText } from '@main/utils/remoteFetch'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import * as z from 'zod'
+
+import { fetchRemoteText } from '@main/utils/remoteFetch'
 
 export const RequestPayloadSchema = z.object({
   url: z.url(),

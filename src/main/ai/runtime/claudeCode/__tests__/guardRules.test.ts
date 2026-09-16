@@ -1,6 +1,8 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, symlink } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   listBuiltinToolPolicies,
@@ -10,7 +12,6 @@ import {
 import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } from '@main/ai/toolApproval/toolGuards'
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   checkSkillRuntimeDependencies: vi.fn<() => Promise<{ deny?: string; warning?: string }>>(),
@@ -434,6 +435,23 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       }
     })
 
+    it('denies the UI-backed draft tool on headless Assistant turns', async () => {
+      await expect(
+        evaluate(
+          makeCtx({
+            builtinRole: 'assistant',
+            toolName,
+            permissionMode: 'default',
+            interaction: HEADLESS
+          })
+        )
+      ).resolves.toMatchObject({ effect: 'deny', ruleId: 'support-diagnostic-draft' })
+    })
+
+    it('leaves the draft tool auto-approved on interactive Assistant turns', async () => {
+      await expect(evaluate(makeCtx({ builtinRole: 'assistant', toolName }))).resolves.toBeUndefined()
+    })
+
     it('leaves the draft tool auto-approved on interactive Support turns', async () => {
       await expect(evaluate(makeCtx({ builtinRole: 'support', toolName }))).resolves.toBeUndefined()
     })
@@ -556,6 +574,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
           makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: path.join(agentDataPath, 'b.txt') } })
         )
       ).resolves.toBeUndefined()
+    })
+
+    it.skipIf(process.platform === 'win32')('asks for a dangling symlink that points outside', async () => {
+      const link = path.join(cwd, 'dangling-file')
+      await symlink(path.join(root, 'missing.txt'), link)
+      const decision = await evaluate(makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: link } }))
+      expect(decision?.ruleId).toBe('workspace-escape')
+    })
+
+    it('asks for a new file below a dangling directory symlink that points outside', async () => {
+      const link = path.join(cwd, 'dangling-dir')
+      await symlink(path.join(root, 'missing-dir'), link, process.platform === 'win32' ? 'junction' : 'dir')
+      const decision = await evaluate(
+        makeCtx({ toolName: 'Write', cwd, agentDataPath, input: { file_path: path.join(link, 'new.txt') } })
+      )
+      expect(decision?.ruleId).toBe('workspace-escape')
     })
 
     it('is lifted by bypassPermissions (matches the pierced ask it replaces)', async () => {
