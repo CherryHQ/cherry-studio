@@ -29,13 +29,15 @@ const segmenters = new Map<string, Intl.Segmenter>()
  * `Intl.Segmenter` resolves a single locale for its lifetime — it does not
  * pick one per call based on the text. Build one per app language (cached)
  * and select by the active UI locale so locale-specific word boundaries
- * (Thai has no word spaces) actually apply.
+ * (Thai has no word spaces) actually apply. Word granularity is required for
+ * locale-specific *word* boundaries; the default `granularity: 'grapheme'`
+ * only yields characters.
  */
 export const getSegmenter = (locale?: string): Intl.Segmenter => {
   const key = languages.find((l) => l.toLowerCase() === (locale || '').toLowerCase()) ?? 'en-US'
   let segmenter = segmenters.get(key)
   if (!segmenter) {
-    segmenter = new Intl.Segmenter(key)
+    segmenter = new Intl.Segmenter(key, { granularity: 'word' })
     segmenters.set(key, segmenter)
   }
   return segmenter
@@ -148,13 +150,48 @@ export const useSmoothStream = ({
     onUpdateRef.current = onUpdate
   })
 
+  /**
+   * Word-level segmentation with streaming: a word can be split across two
+   * chunks, so the last word-like segment of each batch is held back and
+   * re-segmented together with the next batch's head (released on stream
+   * completion). Only word-like tails are held — whitespace/punctuation
+   * segments are never partial — and the hold is capped so a single long
+   * unsegmentable run still keeps the queue moving.
+   */
+  const pendingTailRef = useRef<string>('')
+  const MAX_PENDING_TAIL = 24
+  const segmentForQueue = useCallback((text: string, releaseTail: boolean): string[] => {
+    const data = Array.from(getSegmenter(i18n.language).segment(pendingTailRef.current + text))
+    if (releaseTail || data.length === 0) {
+      pendingTailRef.current = ''
+      return data.map((s) => s.segment)
+    }
+    // Hold at most the last word-like segment, and only when at least one
+    // other segment is released — a single-segment batch always plays so the
+    // queue keeps moving. A segment longer than MAX_PENDING_TAIL has no word
+    // boundary in sight (e.g. a long unbroken run); it is split into
+    // graphemes instead of being held, so playout never stalls on it.
+    const lastData = data[data.length - 1]
+    if (data.length > 1 && lastData.isWordLike === true && lastData.segment.length <= MAX_PENDING_TAIL) {
+      pendingTailRef.current = lastData.segment
+      return data.slice(0, -1).map((s) => s.segment)
+    }
+    pendingTailRef.current = ''
+    if (lastData.segment.length > MAX_PENDING_TAIL) {
+      return [...data.slice(0, -1).map((s) => s.segment), ...Array.from(lastData.segment)]
+    }
+    return data.map((s) => s.segment)
+  }, [])
+
   const addChunk = useCallback((chunk: string) => {
-    const chars = Array.from(getSegmenter(i18n.language).segment(chunk)).map((s) => s.segment)
+    const chars = segmentForQueue(chunk, false)
     if (chars.length === 0) return
     const now = performance.now()
     chunkQueueRef.current = [...chunkQueueRef.current, ...chars]
     if (firstChunkTRef.current < 0) firstChunkTRef.current = now
-    totalCharsRef.current += chars.length
+    // The held word tail has already "arrived" — count it toward the rate so
+    // the sustained estimate stays aligned with the true stream.
+    totalCharsRef.current += chars.length + pendingTailRef.current.length
 
     // Stall detection: a gap is a "stall" only if it dwarfs this stream's
     // own recent cadence (relative ARM) — protects slow-but-steady providers.
@@ -190,6 +227,7 @@ export const useSmoothStream = ({
         animationFrameRef.current = null
       }
       chunkQueueRef.current = []
+      pendingTailRef.current = ''
       totalCharsRef.current = 0
       firstChunkTRef.current = -1
       stallEstRef.current = 0
@@ -220,7 +258,23 @@ export const useSmoothStream = ({
       if (accumulated.startsWith(lastAccumulatedRef.current)) {
         const delta = accumulated.slice(lastAccumulatedRef.current.length)
         lastAccumulatedRef.current = accumulated
-        if (delta) addChunk(delta)
+        if (delta) {
+          if (isComplete) {
+            // Completion: release the held word tail along with the delta —
+            // no further chunk can complete it, and the render loop must see
+            // the full remainder even before the streamDone rerender lands.
+            chunkQueueRef.current = [...chunkQueueRef.current, ...segmentForQueue(delta, true)]
+            ensureLoopRef.current()
+          } else {
+            addChunk(delta)
+          }
+        } else if (isComplete && pendingTailRef.current) {
+          // Zero-length completion delta: the held word tail is the whole
+          // remainder — release it so the render loop can play it out.
+          chunkQueueRef.current = [...chunkQueueRef.current, pendingTailRef.current]
+          pendingTailRef.current = ''
+          ensureLoopRef.current()
+        }
       } else {
         // Non-monotonic update (e.g. the caller trims on completion): the
         // prefix-extension assumption broke. Re-base so the final displayed
@@ -228,11 +282,10 @@ export const useSmoothStream = ({
         lastAccumulatedRef.current = accumulated
         const shown = displayedTextRef.current
         if (accumulated.startsWith(shown)) {
-          chunkQueueRef.current = Array.from(getSegmenter(i18n.language).segment(accumulated.slice(shown.length))).map(
-            (s) => s.segment
-          )
+          chunkQueueRef.current = segmentForQueue(accumulated.slice(shown.length), isComplete)
         } else {
           chunkQueueRef.current = []
+          pendingTailRef.current = ''
           displayedTextRef.current = accumulated
           onUpdateRef.current(accumulated)
         }
@@ -240,7 +293,7 @@ export const useSmoothStream = ({
       }
       if (isComplete && externalStreamDone === undefined) setInternalStreamDone(true)
     },
-    [addChunk, externalStreamDone]
+    [addChunk, segmentForQueue, externalStreamDone]
   )
 
   const renderLoop = useCallback(() => {
@@ -263,7 +316,10 @@ export const useSmoothStream = ({
     }
 
     if (streamDone) {
-      displayedTextRef.current += queue.join('')
+      // Release the held word tail so the completed text is shown in full.
+      const fullQueue = [...queue, ...(pendingTailRef.current ? [pendingTailRef.current] : [])]
+      pendingTailRef.current = ''
+      displayedTextRef.current += fullQueue.join('')
       chunkQueueRef.current = []
       onUpdateRef.current(displayedTextRef.current)
       animationFrameRef.current = null
