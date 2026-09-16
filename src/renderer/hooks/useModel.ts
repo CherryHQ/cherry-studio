@@ -71,7 +71,7 @@ export function useModels(
   const fetchEnabledFlag = options?.fetchEnabled
   const hasEnabled = fetchEnabledFlag !== undefined
 
-  const { data, isLoading, refetch } = useQuery(
+  const { data, isLoading, error, refetch } = useQuery(
     '/models',
     hasQuery || hasEnabled
       ? {
@@ -87,7 +87,7 @@ export function useModels(
 
   const models = data ?? EMPTY_MODELS
 
-  return { models, isLoading, refetch }
+  return { models, isLoading, error, refetch }
 }
 
 // ─── Layer 2: Mutations ───────────────────────────────────────────────

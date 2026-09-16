@@ -102,6 +102,17 @@ describe('official assistant model resolution', () => {
     }
   )
 
+  it('selects a dated GPT-5 chat snapshot as the preferred OpenAI tier', () => {
+    expect(
+      resolveOfficialAssistantModel({
+        vendor: 'openai',
+        providers: [provider('openai')],
+        models: [model('openai', 'gpt-4o'), model('openai', 'gpt-5.2-2025-12-11-chat-latest')],
+        defaultModelId: null
+      })
+    ).toEqual({ status: 'resolved', modelId: 'openai::gpt-5.2-2025-12-11-chat-latest' })
+  })
+
   it('uses an explicit same-vendor default before the preferred tier', () => {
     const providers = [provider('anthropic')]
     const models = [model('anthropic', 'claude-sonnet-4-6'), model('anthropic', 'claude-opus-4-1')]
@@ -127,26 +138,109 @@ describe('official assistant model resolution', () => {
     ).toEqual({ status: 'configuration-required', providerId: 'anthropic' })
   })
 
-  it('requires provider configuration before selecting one of its enabled models', () => {
+  it.each([
+    ['api-key', 'gemini', 'gemini-3.1-pro-preview', 'gemini'],
+    ['api-key-aws', 'anthropic', 'global.anthropic.claude-sonnet-4-6-v1:0', 'anthropic'],
+    ['iam-azure', 'openai', 'gpt-5-2', 'openai']
+  ] as const)('requires credentials for a %s provider', (authType, vendor, apiModelId, officialProviderId) => {
     expect(
       resolveOfficialAssistantModel({
-        vendor: 'gemini',
-        providers: [provider('gemini', { apiKeys: [] })],
-        models: [model('gemini', 'gemini-3.1-pro-preview')],
+        vendor,
+        providers: [provider('configured-provider', { apiKeys: [], authType })],
+        models: [model('configured-provider', apiModelId)],
         defaultModelId: null
       })
-    ).toEqual({ status: 'configuration-required', providerId: 'gemini' })
+    ).toEqual({ status: 'configuration-required', providerId: officialProviderId })
+  })
+
+  it('resolves a signed-in OAuth provider without API keys', () => {
+    expect(
+      resolveOfficialAssistantModel({
+        vendor: 'openai',
+        providers: [provider('openai-codex', { apiKeys: [], authMethods: ['oauth'], authType: 'oauth' })],
+        models: [model('openai-codex', 'gpt-5-2')],
+        defaultModelId: null
+      })
+    ).toEqual({ status: 'resolved', modelId: 'openai-codex::gpt-5-2' })
   })
 
   it('does not treat a logged-out OAuth provider as configured', () => {
     expect(
       resolveOfficialAssistantModel({
         vendor: 'openai',
-        providers: [provider('openai-codex', { apiKeys: [], authMethods: ['oauth'] })],
-        models: [model('openai-codex', 'gpt-5.2')],
+        providers: [provider('openai-codex', { apiKeys: [], authMethods: ['oauth'], authType: 'api-key' })],
+        models: [model('openai-codex', 'gpt-5-2')],
         defaultModelId: null
       })
     ).toEqual({ status: 'configuration-required', providerId: 'openai' })
+  })
+
+  it('resolves AWS IAM and normalizes Bedrock model ids before matching vendor and tier', () => {
+    expect(
+      resolveOfficialAssistantModel({
+        vendor: 'anthropic',
+        providers: [provider('aws-bedrock', { apiKeys: [], authType: 'iam-aws' })],
+        models: [
+          model('aws-bedrock', 'global.anthropic.claude-opus-4-1-v1:0'),
+          model('aws-bedrock', 'global.anthropic.claude-sonnet-4-6-v1:0')
+        ],
+        defaultModelId: null
+      })
+    ).toEqual({ status: 'resolved', modelId: 'aws-bedrock::global.anthropic.claude-sonnet-4-6-v1:0' })
+  })
+
+  it('resolves a GCP IAM provider without API keys', () => {
+    expect(
+      resolveOfficialAssistantModel({
+        vendor: 'gemini',
+        providers: [provider('vertex-ai', { apiKeys: [], authType: 'iam-gcp' })],
+        models: [model('vertex-ai', 'gemini-3.1-pro-preview')],
+        defaultModelId: null
+      })
+    ).toEqual({ status: 'resolved', modelId: 'vertex-ai::gemini-3.1-pro-preview' })
+  })
+
+  it('normalizes a vendor-qualified raw Kimi model id before selecting its tier', () => {
+    expect(
+      resolveOfficialAssistantModel({
+        vendor: 'kimi',
+        providers: [provider('aggregator')],
+        models: [model('aggregator', 'moonshot-v1-128k'), model('aggregator', 'moonshotai.kimi-k2.5')],
+        defaultModelId: null
+      })
+    ).toEqual({ status: 'resolved', modelId: 'aggregator::moonshotai.kimi-k2.5' })
+  })
+
+  it('uses a canonical Kimi preset model link for vendor matching and tier selection', () => {
+    expect(
+      resolveOfficialAssistantModel({
+        vendor: 'kimi',
+        providers: [provider('aggregator')],
+        models: [
+          model('aggregator', 'moonshot-v1-128k'),
+          model('aggregator', 'deployment-42', { presetModelId: 'kimi-k2-5' })
+        ],
+        defaultModelId: null
+      })
+    ).toEqual({ status: 'resolved', modelId: 'aggregator::deployment-42' })
+  })
+
+  it('excludes external-CLI providers even when authentication is optional', () => {
+    expect(
+      resolveOfficialAssistantModel({
+        vendor: 'anthropic',
+        providers: [
+          provider('claude-code', {
+            apiKeys: [],
+            authMethods: ['external-cli'],
+            authOptional: true,
+            authType: 'oauth'
+          })
+        ],
+        models: [model('claude-code', 'claude-sonnet-4-6')],
+        defaultModelId: null
+      })
+    ).toEqual({ status: 'configuration-required', providerId: 'anthropic' })
   })
 
   it('requires configuration when the provider has no enabled vendor model', () => {

@@ -59,7 +59,12 @@ export function AssistantConversationPickerDialog({
 }: AssistantConversationPickerDialogProps) {
   const { t } = useTranslation()
   const { presets, isLoading: catalogLoading } = useAssistantCatalogPresets({ enabled: open })
-  const { createFromPreset, isLoading: creationDependenciesLoading } = useAssistantPresetCreation({ enabled: open })
+  const {
+    createFromPreset,
+    isLoading: creationDependenciesLoading,
+    error: creationDependenciesError,
+    refetch: refetchCreationDependencies
+  } = useAssistantPresetCreation({ enabled: open })
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   // Seeded from the search query so creating after a fruitless search does not mean retyping the name.
   const [createInitialName, setCreateInitialName] = useState('')
@@ -68,6 +73,7 @@ export function AssistantConversationPickerDialog({
   const [configuration, setConfiguration] = useState<{ presetName: string; providerId: string }>()
   const [isCreatingPreset, setIsCreatingPreset] = useState(false)
   const isCreatingPresetRef = useRef(false)
+  const creationDependenciesPending = !creationDependenciesError && creationDependenciesLoading
   const { trigger: createAssistant, isLoading: isCreatingAssistant } = useMutation('POST', '/assistants', {
     refresh: ['/assistants']
   })
@@ -116,9 +122,9 @@ export function AssistantConversationPickerDialog({
 
   const handleSelect = useCallback(
     async (item: AssistantConversationPickerItem) => {
+      if (isCreatingPresetRef.current) return
       setConfiguration(undefined)
       if (item.selection.type === 'assistant') return onSelect(item.selection)
-      if (isCreatingPresetRef.current) return
 
       isCreatingPresetRef.current = true
       setIsCreatingPreset(true)
@@ -142,6 +148,14 @@ export function AssistantConversationPickerDialog({
     [createFromPreset, onSelect, t]
   )
 
+  const handlePickerOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen && isCreatingPresetRef.current) return
+      onOpenChange(nextOpen)
+    },
+    [onOpenChange]
+  )
+
   const handleConfigureProvider = useCallback(() => {
     if (!configuration) return
     onOpenChange(false)
@@ -152,6 +166,7 @@ export function AssistantConversationPickerDialog({
   // the user had typed as the new assistant's name.
   const handleCreateNew = useCallback(
     (query: string) => {
+      if (isCreatingPresetRef.current) return
       setCreateInitialName(query)
       onOpenChange(false)
       setCreateDialogOpen(true)
@@ -184,12 +199,17 @@ export function AssistantConversationPickerDialog({
     { value: 'catalog', label: t('assistants.presets.title') }
   ]
   const toolbar = (
-    <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+    <Popover
+      open={filterOpen}
+      onOpenChange={(nextOpen) => {
+        if (!isCreatingPresetRef.current) setFilterOpen(nextOpen)
+      }}>
       <PopoverTrigger asChild>
         <button
           type="button"
+          disabled={isCreatingPreset}
           aria-label={t('selector.assistant.filter')}
-          className="group flex size-7 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent">
+          className="group flex size-7 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50">
           <Filter
             size={15}
             className={cn(
@@ -205,9 +225,11 @@ export function AssistantConversationPickerDialog({
             <MenuItem
               key={option.value ?? 'all'}
               label={option.label}
+              disabled={isCreatingPreset}
               className="h-8 rounded-lg px-2.5 text-sm"
               icon={<Check className={cn('size-3.5', activeTab === option.value ? 'opacity-100' : 'opacity-0')} />}
               onClick={() => {
+                if (isCreatingPresetRef.current) return
                 setActiveTab(option.value)
                 setFilterOpen(false)
               }}
@@ -217,7 +239,20 @@ export function AssistantConversationPickerDialog({
       </PopoverContent>
     </Popover>
   )
-  const notice = configuration ? (
+  const notice = creationDependenciesError ? (
+    <Alert
+      type="error"
+      showIcon
+      message={t('common.error')}
+      description={creationDependenciesError.message}
+      action={
+        <Button variant="outline" size="sm" onClick={() => void refetchCreationDependencies()}>
+          {t('common.retry')}
+        </Button>
+      }
+      className="rounded-md px-3 py-2 shadow-none"
+    />
+  ) : configuration ? (
     <Alert
       type="warning"
       showIcon
@@ -236,7 +271,7 @@ export function AssistantConversationPickerDialog({
     <>
       <ConversationPickerDialog
         open={open}
-        onOpenChange={onOpenChange}
+        onOpenChange={handlePickerOpenChange}
         items={items}
         labels={{
           title: t('chat.add.assistant.title'),
@@ -274,11 +309,12 @@ export function AssistantConversationPickerDialog({
         }
         pageSize={ASSISTANT_CATALOG_PAGE_SIZE}
         isLoading={
-          activeTab === 'catalog'
-            ? catalogLoading || creationDependenciesLoading || isCreatingPreset
+          isCreatingPreset ||
+          (activeTab === 'catalog'
+            ? catalogLoading || creationDependenciesPending
             : activeTab === 'mine'
               ? assistantsLoading
-              : assistantsLoading || catalogLoading || creationDependenciesLoading || isCreatingPreset
+              : assistantsLoading || catalogLoading || creationDependenciesPending)
         }
         showCloseButton={false}
         onSelect={handleSelect}

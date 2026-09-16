@@ -5,9 +5,13 @@ const mocks = vi.hoisted(() => ({
   createAssistant: vi.fn(),
   defaultModelId: null as string | null,
   models: [] as any[],
+  modelsError: undefined as Error | undefined,
   modelsLoading: false,
+  modelsRefetch: vi.fn(),
   providers: [] as any[],
-  providersLoading: false
+  providersError: undefined as Error | undefined,
+  providersLoading: false,
+  providersRefetch: vi.fn()
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -15,11 +19,21 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModels: () => ({ models: mocks.models, isLoading: mocks.modelsLoading })
+  useModels: () => ({
+    models: mocks.models,
+    isLoading: mocks.modelsLoading,
+    error: mocks.modelsError,
+    refetch: mocks.modelsRefetch
+  })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: mocks.providers, isLoading: mocks.providersLoading })
+  useProviders: () => ({
+    providers: mocks.providers,
+    isLoading: mocks.providersLoading,
+    error: mocks.providersError,
+    refetch: mocks.providersRefetch
+  })
 }))
 
 vi.mock('../assistantAdapter', () => ({
@@ -58,8 +72,10 @@ describe('useAssistantPresetCreation', () => {
     vi.clearAllMocks()
     mocks.defaultModelId = null
     mocks.models = []
+    mocks.modelsError = undefined
     mocks.modelsLoading = false
     mocks.providers = []
+    mocks.providersError = undefined
     mocks.providersLoading = false
     mocks.createAssistant.mockResolvedValue({ id: 'assistant-created', name: 'Claude' })
   })
@@ -118,6 +134,61 @@ describe('useAssistantPresetCreation', () => {
     })
 
     expect(mocks.createAssistant).toHaveBeenCalledWith({ name: 'Product Manager', prompt: 'Help.' })
+  })
+
+  it.each(['model', 'provider'] as const)(
+    'surfaces the original %s query error without creating an official assistant',
+    async (source) => {
+      const queryError = new Error(`${source} query failed`)
+      if (source === 'model') {
+        mocks.modelsError = queryError
+      } else {
+        mocks.providersError = queryError
+      }
+      const preset = { id: 'official-chatgpt', name: 'ChatGPT', officialVendor: 'openai' as const }
+      const { result } = renderHook(() => useAssistantPresetCreation())
+
+      expect(result.current.error).toBe(queryError)
+      expect(result.current.resolvePreset(preset)).toEqual({ status: 'error', error: queryError })
+      await expect(result.current.createFromPreset(preset)).rejects.toBe(queryError)
+      expect(mocks.createAssistant).not.toHaveBeenCalled()
+    }
+  )
+
+  it('creates a community preset even when model and provider queries failed', async () => {
+    mocks.modelsError = new Error('model query failed')
+    mocks.providersError = new Error('provider query failed')
+    const { result } = renderHook(() => useAssistantPresetCreation())
+
+    await expect(
+      result.current.createFromPreset({ id: 'community', name: ' Product Manager ', prompt: ' Help. ' })
+    ).resolves.toEqual({
+      status: 'created',
+      assistant: { id: 'assistant-created', name: 'Claude' }
+    })
+    expect(mocks.createAssistant).toHaveBeenCalledWith({ name: 'Product Manager', prompt: 'Help.' })
+  })
+
+  it('exposes a stable refetch that starts both dependency refreshes together', async () => {
+    let resolveModelsRefetch: (() => void) | undefined
+    mocks.modelsRefetch.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveModelsRefetch = resolve
+        })
+    )
+    const { result, rerender } = renderHook(() => useAssistantPresetCreation())
+    const refetch = result.current.refetch
+
+    rerender()
+    expect(result.current.refetch).toBe(refetch)
+
+    const refetchPromise = result.current.refetch()
+    expect(mocks.modelsRefetch).toHaveBeenCalledOnce()
+    expect(mocks.providersRefetch).toHaveBeenCalledOnce()
+
+    resolveModelsRefetch?.()
+    await refetchPromise
   })
 
   it('materializes independent assistants when the same preset is added twice', async () => {

@@ -10,6 +10,7 @@ import { AssistantLibraryDialog } from '../AssistantLibraryDialog'
 
 const createFromPresetMock = vi.fn()
 const resolvePresetMock = vi.fn()
+const refetchCreationDependenciesMock = vi.fn()
 
 type VirtualizerOptionsMock = {
   count: number
@@ -48,6 +49,11 @@ const assistantCatalogMocks = vi.hoisted(() => ({
   } as { isLoading: boolean; presets: AssistantCatalogPresetsModule.AssistantCatalogPreset[] }
 }))
 
+const creationDependenciesMock = vi.hoisted(() => ({
+  error: undefined as Error | undefined,
+  isLoading: false
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en-US' } })
 }))
@@ -56,7 +62,9 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
   useAssistantPresetCreation: () => ({
     createFromPreset: createFromPresetMock,
     resolvePreset: resolvePresetMock,
-    isLoading: false
+    error: creationDependenciesMock.error,
+    isLoading: creationDependenciesMock.isLoading,
+    refetch: refetchCreationDependenciesMock
   })
 }))
 
@@ -112,6 +120,13 @@ vi.mock('@cherrystudio/ui', () => {
     },
     DialogHeader: ({ children }: { children?: ReactNode }) => <header>{children}</header>,
     DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
+    Alert: ({ action, description, message }: { action?: ReactNode; description?: ReactNode; message?: ReactNode }) => (
+      <div role="alert">
+        <div>{message}</div>
+        <div>{description}</div>
+        {action}
+      </div>
+    ),
     EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
     Input: (props: ComponentProps<'input'>) => <input {...props} />,
     Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
@@ -137,6 +152,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   createFromPresetMock.mockResolvedValue({ status: 'created', assistant: { id: 'assistant-1' } })
   resolvePresetMock.mockReturnValue({ status: 'not-required' })
+  refetchCreationDependenciesMock.mockResolvedValue(undefined)
+  creationDependenciesMock.error = undefined
+  creationDependenciesMock.isLoading = false
   virtualizerMocks.measureElement.mockClear()
   assistantCatalogMocks.previewProps = undefined
   assistantCatalogMocks.state.isLoading = false
@@ -270,6 +288,22 @@ describe('AssistantLibraryDialog', () => {
 
     expect(await screen.findByTestId('preset-preview')).toHaveAttribute('data-configuration-provider', 'anthropic')
     expect(createFromPresetMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps community presets available while dependency loading is in error and offers retry', async () => {
+    const user = userEvent.setup()
+    creationDependenciesMock.error = new Error('Could not load providers')
+    creationDependenciesMock.isLoading = true
+
+    renderDialog()
+
+    expect(await screen.findByText('Web Generator')).toBeInTheDocument()
+    expect(screen.getByText('common.error')).toBeInTheDocument()
+    expect(screen.getByText('Could not load providers')).toBeInTheDocument()
+    expect(screen.getAllByText('library.assistant_catalog.add')).toHaveLength(2)
+
+    await user.click(screen.getByRole('button', { name: 'common.retry' }))
+    expect(refetchCreationDependenciesMock).toHaveBeenCalledTimes(1)
   })
 
   it('clears added preset actions when the dialog closes', async () => {

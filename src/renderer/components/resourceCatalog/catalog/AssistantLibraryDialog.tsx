@@ -3,7 +3,17 @@ import { Check, Plus, Search, X } from 'lucide-react'
 import { type KeyboardEvent, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, EmptyState, Input, Skeleton } from '@cherrystudio/ui'
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  EmptyState,
+  Input,
+  Skeleton
+} from '@cherrystudio/ui'
 import { AssistantPresetIcon } from '@renderer/components/resourceCatalog/AssistantPresetIcon'
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail'
 import { useAssistantPresetCreation } from '@renderer/hooks/resourceCatalog'
@@ -65,12 +75,14 @@ export function AssistantLibraryDialog({
   const {
     createFromPreset,
     resolvePreset,
-    isLoading: creationDependenciesLoading
+    isLoading: creationDependenciesLoading,
+    error: creationDependenciesError,
+    refetch: refetchCreationDependencies
   } = useAssistantPresetCreation({
     enabled: open
   })
   const { isLoading: catalogLoading, presets: rawPresets } = useAssistantCatalogPresets({ enabled: open })
-  const isLoading = catalogLoading || creationDependenciesLoading
+  const isLoading = catalogLoading || (!creationDependenciesError && creationDependenciesLoading)
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<string>(LIBRARY_ALL_TAB)
   const [addingPresetKeys, setAddingPresetKeys] = useState<Set<string>>(new Set())
@@ -263,6 +275,21 @@ export function AssistantLibraryDialog({
               )}
             </div>
           </div>
+
+          {creationDependenciesError ? (
+            <Alert
+              type="error"
+              showIcon
+              message={t('common.error')}
+              description={creationDependenciesError.message}
+              action={
+                <Button variant="outline" size="sm" onClick={() => void refetchCreationDependencies()}>
+                  {t('common.retry')}
+                </Button>
+              }
+              className="mx-5 mt-3 shrink-0 rounded-md px-3 py-2 shadow-none"
+            />
+          ) : null}
 
           <div
             ref={listScrollRef}

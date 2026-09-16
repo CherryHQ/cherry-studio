@@ -24,7 +24,6 @@ export {
 } from './constants'
 export {
   getOfficialAssistantIconRef,
-  getOfficialAssistantProviderId,
   type OfficialAssistantModelResolution,
   type OfficialAssistantVendor,
   resolveOfficialAssistantModel

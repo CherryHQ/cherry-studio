@@ -1,8 +1,8 @@
-import { matchVendor } from '@cherrystudio/provider-registry'
+import { matchVendor, normalizeModelId } from '@cherrystudio/provider-registry'
 import { type IconRef, modelIconRef, providerIconRef } from '@cherrystudio/ui/icons'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { getLowerBaseModelName, getRawModelId, isNonChatModel } from '@shared/utils/model'
+import { getRawModelId, isNonChatModel } from '@shared/utils/model'
 import { hasApiKeys, isExternalCliProvider } from '@shared/utils/provider'
 
 export type OfficialAssistantVendor = 'anthropic' | 'openai' | 'gemini' | 'deepseek' | 'kimi' | 'doubao'
@@ -38,30 +38,39 @@ type ResolveOfficialAssistantModelOptions = {
 
 function isProviderReady(provider: Provider) {
   if (!provider.isEnabled || isExternalCliProvider(provider)) return false
-  return provider.authOptional === true || hasApiKeys(provider)
+  if (provider.authOptional === true) return true
+
+  switch (provider.authType) {
+    case 'oauth':
+    case 'iam-aws':
+    case 'iam-gcp':
+      return true
+    case 'api-key':
+    case 'api-key-aws':
+    case 'iam-azure':
+      return hasApiKeys(provider)
+  }
 }
 
-function preferredTierRank(vendor: OfficialAssistantVendor, model: Model) {
-  const modelId = getLowerBaseModelName(getRawModelId(model))
-
+function preferredTierRank(vendor: OfficialAssistantVendor, modelId: string) {
   switch (vendor) {
     case 'anthropic':
       return modelId.includes('sonnet') ? 0 : 1
     case 'openai':
-      return /^gpt-5(?:\.\d+)?(?:-\d{4}-\d{2}-\d{2})?(?:-chat(?:-latest)?)?$/.test(modelId) ? 0 : 1
+      return /^gpt-5(?:-\d+)?(?:-\d{4}-\d{2}-\d{2})?(?:-chat(?:-latest)?)?$/.test(modelId) ? 0 : 1
     case 'gemini':
       return modelId.includes('pro') ? 0 : 1
     case 'deepseek':
       return modelId === 'deepseek-chat' ? 0 : 1
     case 'kimi':
-      if (/^kimi-k2(?:[.-]\d+)?(?:-\d{4}-preview)?$/.test(modelId)) return 0
+      if (/^kimi-k2(?:-\d+)?(?:-\d{4}-preview)?$/.test(modelId)) return 0
       return modelId.startsWith('kimi-k2') && !modelId.includes('thinking') ? 1 : 2
     case 'doubao':
       return 0
   }
 }
 
-export function getOfficialAssistantProviderId(vendor: OfficialAssistantVendor) {
+function getOfficialAssistantProviderId(vendor: OfficialAssistantVendor) {
   return OFFICIAL_PROVIDER_IDS[vendor]
 }
 
@@ -84,25 +93,25 @@ export function resolveOfficialAssistantModel({
 
   const candidates = providers.flatMap((provider) => {
     if (!isProviderReady(provider)) return []
-    return (modelsByProvider.get(provider.id) ?? []).filter(
-      (model) =>
-        model.isEnabled &&
-        !model.isHidden &&
-        !model.isDeprecated &&
-        !isNonChatModel(model) &&
-        matchVendor(getLowerBaseModelName(getRawModelId(model))) === vendor
-    )
+    return (modelsByProvider.get(provider.id) ?? []).flatMap((model) => {
+      if (!model.isEnabled || model.isHidden || model.isDeprecated || isNonChatModel(model)) return []
+
+      const canonicalModelId = normalizeModelId(model.presetModelId ?? getRawModelId(model))
+      return matchVendor(canonicalModelId) === vendor ? [{ model, canonicalModelId }] : []
+    })
   })
 
-  const explicitDefault = candidates.find((model) => model.id === defaultModelId)
-  if (explicitDefault) return { status: 'resolved', modelId: explicitDefault.id }
+  const explicitDefault = candidates.find(({ model }) => model.id === defaultModelId)
+  if (explicitDefault) return { status: 'resolved', modelId: explicitDefault.model.id }
 
-  const preferred = candidates.reduce<Model | undefined>((best, candidate) => {
+  const preferred = candidates.reduce<(typeof candidates)[number] | undefined>((best, candidate) => {
     if (!best) return candidate
-    return preferredTierRank(vendor, candidate) < preferredTierRank(vendor, best) ? candidate : best
+    return preferredTierRank(vendor, candidate.canonicalModelId) < preferredTierRank(vendor, best.canonicalModelId)
+      ? candidate
+      : best
   }, undefined)
 
   return preferred
-    ? { status: 'resolved', modelId: preferred.id }
+    ? { status: 'resolved', modelId: preferred.model.id }
     : { status: 'configuration-required', providerId: getOfficialAssistantProviderId(vendor) }
 }

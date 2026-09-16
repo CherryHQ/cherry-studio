@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest'
 import agentsEn from '../../../../resources/data/agents-en.json'
 import agentsZh from '../../../../resources/data/agents-zh.json'
 
-const BRAND_NAMES = ['Claude', 'ChatGPT', 'Gemini', 'DeepSeek', 'Kimi', 'Doubao']
+const EXPECTED_IDENTITIES = [
+  { id: '7a65fb18-8fa8-4b71-9dcb-5b3ce319d0d1', name: 'Claude', officialVendor: 'anthropic' },
+  { id: '87bf2bd5-88c9-4ea7-984f-7c75d4e70244', name: 'ChatGPT', officialVendor: 'openai' },
+  { id: '984168e8-805e-4b43-9018-d4bd0f4c5515', name: 'Gemini', officialVendor: 'gemini' },
+  { id: 'a3b811bc-bd5c-4f55-9d73-18cb53ff404f', name: 'DeepSeek', officialVendor: 'deepseek' },
+  { id: 'b76d4a0f-09a7-48e9-894f-681552a9bca3', name: 'Kimi', officialVendor: 'kimi' },
+  { id: 'c983559a-53fb-4a83-8142-d59c794681ff', name: 'Doubao', officialVendor: 'doubao' }
+] as const
 
 type CatalogEntry = {
   id: string
@@ -21,11 +28,26 @@ describe('official assistant catalog data', () => {
   it('ships the six branded presets with stable identities in both catalogs', () => {
     const english = officialEntries(agentsEn)
     const chinese = officialEntries(agentsZh)
+    const identities = (entries: CatalogEntry[]) =>
+      entries.map(({ id, name, officialVendor }) => ({ id, name, officialVendor }))
 
-    expect(english.map((entry) => entry.name)).toEqual(BRAND_NAMES)
-    expect(chinese.map((entry) => entry.name)).toEqual(BRAND_NAMES)
-    expect(chinese.map((entry) => entry.id)).toEqual(english.map((entry) => entry.id))
-    expect(chinese.map((entry) => entry.description)).not.toEqual(english.map((entry) => entry.description))
+    expect(identities(english)).toEqual(EXPECTED_IDENTITIES)
+    expect(identities(chinese)).toEqual(EXPECTED_IDENTITIES)
+  })
+
+  it('provides a distinct non-empty description for every English and Chinese preset', () => {
+    for (const { id } of EXPECTED_IDENTITIES) {
+      const englishDescription = officialEntries(agentsEn)
+        .find((entry) => entry.id === id)
+        ?.description?.trim()
+      const chineseDescription = officialEntries(agentsZh)
+        .find((entry) => entry.id === id)
+        ?.description?.trim()
+
+      expect(englishDescription).toBeTruthy()
+      expect(chineseDescription).toBeTruthy()
+      expect(chineseDescription).not.toBe(englishDescription)
+    }
   })
 
   it.each([
