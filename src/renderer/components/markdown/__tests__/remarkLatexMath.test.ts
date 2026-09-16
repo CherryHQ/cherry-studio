@@ -123,6 +123,55 @@ describe('remarkLatexMath', () => {
     ])
   })
 
+  it('parses a bracket display formula split by a blank line', () => {
+    const source = [
+      'Before formula.',
+      '',
+      '\\[',
+      'h_{i}(\\mathbf{p})',
+      '=',
+      '',
+      '\\frac{a}{c}',
+      '\\]',
+      '',
+      'After formula.'
+    ].join('\n')
+    const tree = parse(source)
+
+    expect(mathNodes(source)).toMatchObject([{ type: 'math', value: '\nh_{i}(\\mathbf{p})\n=\n\n\\frac{a}{c}\n' }])
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'math', 'paragraph'])
+    expect(textValue(tree)).toContain('After formula.')
+  })
+
+  it('parses a blank-line bracket formula inside a block quote', () => {
+    const source = ['> \\[', '> a', '>', '> b', '> \\]'].join('\n')
+
+    expect(mathNodes(source)).toMatchObject([{ type: 'math', value: '\na\n\nb\n' }])
+  })
+
+  it('keeps a bracket formula inline when its line continues past the closing delimiter', () => {
+    const source = '\\[a+b=c\\] and more text'
+    const tree = parse(source)
+
+    expect(mathNodes(source)).toMatchObject([{ type: 'inlineMath', value: 'a+b=c' }])
+    expect(textValue(tree)).toContain('and more text')
+  })
+
+  it('renders a blank-line bracket formula through the real Markdown and KaTeX pipeline', () => {
+    const math = withMath({ singleDollar: true })
+    const { container } = render(
+      createElement(Markdown, {
+        id: 'bracket-blank-line',
+        plugins: { ...defaultMarkdownPlugins, math },
+        remarkPlugins: [remarkLatexMath],
+        children: '\\[\nE\n=\n\nmc^2\n\\]'
+      })
+    )
+
+    expect(container.querySelector('.katex-error')).toBeNull()
+    expect(container.querySelector('annotation[encoding="application/x-tex"]')?.textContent).toBe('\nE\n=\n\nmc^2\n')
+  })
+
   it('leaves code and links outside math parsing', () => {
     const source = [
       '`\\(inline\\)`',
