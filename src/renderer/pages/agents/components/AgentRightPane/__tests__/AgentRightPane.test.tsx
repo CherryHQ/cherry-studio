@@ -642,6 +642,7 @@ describe('AgentRightPane', () => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
     window.api.file.openPath = openPathMock
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockImplementation(async (route: string) => {
@@ -671,6 +672,24 @@ describe('AgentRightPane', () => {
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
+  })
+
+  it('hides the browser entry when conversation or global browser control is disabled', () => {
+    const pane = (browserEnabled: boolean) => (
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts browserEnabled={browserEnabled} />
+      </TestAgentRightPane>
+    )
+    const view = render(pane(true))
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' })).toBeVisible()
+    view.rerender(pane(false))
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.browser' })).not.toBeInTheDocument()
+    view.rerender(pane(true))
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' })).toBeVisible()
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    view.unmount()
+    render(pane(true))
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.browser' })).not.toBeInTheDocument()
   })
 
   it.each([

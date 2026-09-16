@@ -14,7 +14,7 @@ import {
   Waypoints,
   Workflow
 } from 'lucide-react'
-import { Globe2 } from 'lucide-react'
+import { Globe } from 'lucide-react'
 import type { ReactNode } from 'react'
 import {
   createContext,
@@ -1703,8 +1703,13 @@ function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
   )
 }
 
-const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
+const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts({
+  browserEnabled = true
+}: {
+  browserEnabled?: boolean
+}) {
   const { t } = useTranslation()
+  const [browserControlEnabled] = usePreference('app.browser.agent_control.enabled')
 
   return (
     <>
@@ -1713,11 +1718,13 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
         label={t('agent.right_pane.tabs.files')}
         icon={<FolderOpen className="size-3.5" />}
       />
-      <RightPanelShortcut
-        tab={BROWSER_PANE_ID}
-        label={t('agent.right_pane.tabs.browser')}
-        icon={<Globe2 className="size-3.5" />}
-      />
+      {browserEnabled && browserControlEnabled && (
+        <RightPanelShortcut
+          tab={BROWSER_PANE_ID}
+          label={t('agent.right_pane.tabs.browser')}
+          icon={<Globe className="size-3.5" />}
+        />
+      )}
       <AgentRightPaneStatusShortcut />
       <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />
     </>
