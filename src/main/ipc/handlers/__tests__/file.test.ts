@@ -489,7 +489,7 @@ describe('fileHandlers', () => {
     expect(fileManager.batchCreateInternalEntries).toHaveBeenCalledWith(items)
   })
 
-  it('creates a directory tree addressed to the caller window WebContents', async () => {
+  it('creates a directory tree owned by the caller window', async () => {
     const created = { treeId: 't-1', revision: 0, snapshot: { kind: 'directory', path: '/tmp/ws', basename: 'ws' } }
     directoryTreeManager.create.mockResolvedValueOnce(created)
 
@@ -497,7 +497,11 @@ describe('fileHandlers', () => {
       fileHandlers['file.tree.create']({ rootPath: '/tmp/ws' as AbsoluteFilePath, options: { maxDepth: 1 } }, windowCtx)
     ).resolves.toBe(created)
 
-    expect(directoryTreeManager.create).toHaveBeenCalledWith(senderWebContents, '/tmp/ws', { maxDepth: 1 })
+    expect(directoryTreeManager.create).toHaveBeenCalledWith(
+      { windowId: 'win-1', webContents: senderWebContents },
+      '/tmp/ws',
+      { maxDepth: 1 }
+    )
   })
 
   it('refuses to create a directory tree for a sender that is not a managed window', async () => {
