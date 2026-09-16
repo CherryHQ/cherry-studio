@@ -51,13 +51,20 @@ function recordFieldCounts(sample: string, delimiter: string, truncated: boolean
 }
 
 /**
- * Fields per record under `delimiter`, or 0 when the records disagree — a
- * separator the file was not written with does not line the records up.
+ * Fields per record under `delimiter`, or 0 when the records do not agree on a
+ * width — a separator the file was not written with lines nothing up.
+ *
+ * The header's width is the width, and most records have to share it. A
+ * spreadsheet export with one ragged row is ordinary, which is why the reader
+ * relaxes the column count, so the detector must not reject the file over it.
  */
-function consistentFieldCount(sample: string, delimiter: string, truncated: boolean): number {
+function dominantFieldCount(sample: string, delimiter: string, truncated: boolean): number {
   const counts = recordFieldCounts(sample, delimiter, truncated)
-  if (!counts.length || counts[0] < 2) return 0
-  return counts.every((count) => count === counts[0]) ? counts[0] : 0
+  const width = counts[0] ?? 0
+  if (width < 2) return 0
+
+  const matching = counts.filter((count) => count === width).length
+  return matching * 2 > counts.length ? width : 0
 }
 
 /**
@@ -70,16 +77,16 @@ export function detectDelimiter(text: string): string {
   const sample = text.slice(0, SAMPLE_CHARS)
   const truncated = sample.length < text.length
 
-  // A file whose records already line up under a comma is read correctly
-  // today. Another candidate can line them up too — a tag list joined with
-  // semicolons does — and preferring it over the comma would be a regression,
-  // so the comma keeps the file whenever it fits.
-  if (consistentFieldCount(sample, ',', truncated)) return ','
+  // A file the comma already lines up is read correctly today. Another
+  // candidate can line it up too — a tag list joined with semicolons does —
+  // and preferring that one would be a regression, so the comma keeps the file
+  // whenever it fits.
+  if (dominantFieldCount(sample, ',', truncated)) return ','
 
   let bestDelimiter = ','
   let bestFields = 0
   for (const delimiter of CANDIDATE_DELIMITERS) {
-    const fields = consistentFieldCount(sample, delimiter, truncated)
+    const fields = dominantFieldCount(sample, delimiter, truncated)
     if (fields > bestFields) {
       bestDelimiter = delimiter
       bestFields = fields

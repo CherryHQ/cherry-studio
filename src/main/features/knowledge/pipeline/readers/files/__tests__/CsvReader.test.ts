@@ -59,6 +59,20 @@ describe('detectDelimiter', () => {
     expect(detectDelimiter(text)).toBe(',')
   })
 
+  it('still finds the separator when one record is ragged', () => {
+    // relax_column_count exists because a spreadsheet export with one ragged
+    // row is ordinary; the detector must not send that file back to a comma.
+    const text = 'Name;Region;Units\nWidget;EU;12\nGadget;US;7;extra\nBolt;DE;3\n'
+
+    expect(detectDelimiter(text)).toBe(';')
+  })
+
+  it('keeps the default when no width holds for most records', () => {
+    const text = 'a;b\nc;d;e\nf;g;h;i\n'
+
+    expect(detectDelimiter(text)).toBe(',')
+  })
+
   it('ignores the record the sample boundary cuts in half', () => {
     // The sample stops at 64 KB, so its last record is a fragment of unknown
     // width; counting it makes every separator look inconsistent.
