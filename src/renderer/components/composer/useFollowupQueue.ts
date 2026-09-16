@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { cacheService } from '@data/CacheService'
+import { isComposerTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 
 import type { ComposerSerializedDraft } from './tokens'
@@ -57,16 +58,33 @@ function loadState(scopeKey: string): FollowupQueueState {
           // Null token elements throw on `.kind` access in the dock filter, and the
           // edit-restore path maps `mentionedModels` / reads message parts — non-array
           // shapes there throw or corrupt the restore, so reject them as well. Token
-          // objects additionally need a string id: the skill restore reads
-          // `token.id.startsWith`, and React uses it as the chip key.
+          // objects additionally need a string id (the skill restore reads
+          // `token.id.startsWith`, React uses it as the chip key), a known kind (the
+          // dock renders via a per-kind component map with no fallback, so an
+          // unknown kind crashes), and a string label (rendered as a React child).
+          // Optional display fields must be strings when present — the token views
+          // read them as tooltip/aria text.
+          const isOptionalString = (value: unknown): boolean => value == null || typeof value === 'string'
           if (
-            draft.tokens.some(
-              (token) =>
-                token == null ||
-                typeof token !== 'object' ||
-                Array.isArray(token) ||
-                typeof (token as { id?: unknown }).id !== 'string'
-            )
+            draft.tokens.some((token) => {
+              if (token == null || typeof token !== 'object' || Array.isArray(token)) return true
+              const record = token as {
+                id?: unknown
+                kind?: unknown
+                label?: unknown
+                icon?: unknown
+                description?: unknown
+                promptText?: unknown
+              }
+              return (
+                typeof record.id !== 'string' ||
+                !isComposerTokenKind(record.kind) ||
+                typeof record.label !== 'string' ||
+                !isOptionalString(record.icon) ||
+                !isOptionalString(record.description) ||
+                !isOptionalString(record.promptText)
+              )
+            })
           )
             return false
           const queuePayload = candidate.payload as {

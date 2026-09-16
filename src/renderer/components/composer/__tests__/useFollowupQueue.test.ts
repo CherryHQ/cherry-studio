@@ -956,12 +956,40 @@ describe('useFollowupQueue', () => {
 
   it('discards cached entries with a misshapen draft instead of crashing the dock', () => {
     const validPayload = payload('x')
+    const validToken = { id: 't1', kind: 'skill', label: 'pdf' }
     seedQueue('s1', [
       item('good', 'fine'),
+      { id: 'good-token', draft: { text: 'x', tokens: [validToken] }, payload: payload('x') },
       { id: 'bad-text', draft: { text: 42, tokens: [] }, payload: payload('x') },
       { id: 'bad-tokens', draft: { text: 'x', tokens: 'nope' }, payload: payload('x') },
       { id: 'bad-token-element', draft: { text: 'x', tokens: [null] }, payload: payload('x') },
       { id: 'bad-token-id', draft: { text: 'x', tokens: [{ kind: 'skill', label: 'pdf' }] }, payload: payload('x') },
+      {
+        id: 'bad-token-kind',
+        draft: { text: 'x', tokens: [{ id: 't', kind: 'evil', label: 'x' }] },
+        payload: payload('x')
+      },
+      { id: 'bad-token-kind-missing', draft: { text: 'x', tokens: [{ id: 't', label: 'x' }] }, payload: payload('x') },
+      {
+        id: 'bad-token-label',
+        draft: { text: 'x', tokens: [{ id: 't', kind: 'skill', label: {} }] },
+        payload: payload('x')
+      },
+      {
+        id: 'bad-token-icon',
+        draft: { text: 'x', tokens: [{ ...validToken, icon: {} }] },
+        payload: payload('x')
+      },
+      {
+        id: 'bad-token-description',
+        draft: { text: 'x', tokens: [{ ...validToken, description: 42 }] },
+        payload: payload('x')
+      },
+      {
+        id: 'bad-token-prompt-text',
+        draft: { text: 'x', tokens: [{ ...validToken, promptText: {} }] },
+        payload: payload('x')
+      },
       { id: 'bad-draft', draft: null, payload: payload('x') },
       { id: 'bad-payload', draft: draft('x'), payload: 'nope' },
       { id: 'bad-models', draft: draft('x'), payload: { ...validPayload, mentionedModels: 'nope' } },
@@ -980,9 +1008,9 @@ describe('useFollowupQueue', () => {
       useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
     )
 
-    // Only the well-formed entry survives (the dock calls tokens.some/text.trim,
-    // filters on token.kind, and edit-restore reads part types/text + payload text).
-    expect(result.current.items.map((i) => i.id)).toEqual(['good'])
+    // Only the well-formed entries survive (the dock calls tokens.some/text.trim,
+    // renders tokens via a per-kind component map, and edit-restore reads part types/text + payload text).
+    expect(result.current.items.map((i) => i.id)).toEqual(['good', 'good-token'])
   })
 
   it('switching away and back mid-drain sends the head exactly once on success', async () => {
