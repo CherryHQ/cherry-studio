@@ -423,6 +423,7 @@ function setupAssistantHistory({
 
   const onClose = vi.fn()
   const onRecordSelect = vi.fn()
+  const onActiveRecordChange = vi.fn()
   const rendered = render(
     <HistoryRecordsView
       mode="assistant"
@@ -430,10 +431,11 @@ function setupAssistantHistory({
       activeRecordId={activeRecordId}
       onClose={onClose}
       onRecordSelect={onRecordSelect}
+      onActiveRecordChange={onActiveRecordChange}
     />
   )
 
-  return { ...rendered, onClose, onRecordSelect }
+  return { ...rendered, onClose, onRecordSelect, onActiveRecordChange }
 }
 
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
@@ -747,7 +749,7 @@ describe('HistoryRecordsView assistant mode', () => {
       deletedCount: 2
     })
     const onClose = vi.fn()
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -755,7 +757,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-alpha"
         onClose={onClose}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -775,7 +777,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha', 'topic-beta'])
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-gamma' }))
+    expect(onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-gamma' }))
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -787,7 +789,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.deleteTopics.mockRejectedValueOnce(new Error('Bulk delete failed'))
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -795,7 +797,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-alpha"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -809,7 +811,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
     expect(toast.error).toHaveBeenCalledWith('Bulk delete failed')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
   })
 
   it('switches to the previous survivor when bulk deleting the last active topics', async () => {
@@ -827,7 +829,7 @@ describe('HistoryRecordsView assistant mode', () => {
       deletedIds: ['topic-beta', 'topic-gamma'],
       deletedCount: 2
     })
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -835,7 +837,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-gamma"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -850,7 +852,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-beta', 'topic-gamma'])
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
+    expect(onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
   })
 
   it('skips pinned topics when bulk deleting from the query toolbar', async () => {
@@ -1477,7 +1479,7 @@ describe('HistoryRecordsView assistant mode', () => {
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -1485,7 +1487,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-alpha"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -1501,13 +1503,31 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta', name: 'Beta topic' }))
+    expect(onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta', name: 'Beta topic' }))
+  })
+
+  it('clears the only active topic through the context menu without opening a conversation', async () => {
+    const user = userEvent.setup()
+    const { onActiveRecordChange, onRecordSelect, onClose } = setupAssistantHistory({ activeRecordId: 'topic-alpha' })
+    const menu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const content = menu?.querySelector('[data-testid="context-menu-content"]')
+    await user.click(within(content as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    await act(async () => {
+      await flushAnimationFrame()
+    })
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(onActiveRecordChange).toHaveBeenCalledWith(null)
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('clears the active topic after bulk deleting the last history topic', async () => {
     hookMocks.deleteTopics.mockResolvedValueOnce({ deletedIds: ['topic-alpha'], deletedCount: 1 })
 
-    const { onRecordSelect } = setupAssistantHistory({ activeRecordId: 'topic-alpha' })
+    const { onActiveRecordChange } = setupAssistantHistory({ activeRecordId: 'topic-alpha' })
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
@@ -1517,7 +1537,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
-    expect(onRecordSelect).toHaveBeenCalledWith(null)
+    expect(onActiveRecordChange).toHaveBeenCalledWith(null)
   })
 
   it('does not switch topics after deleting a non-active history row', async () => {
@@ -1527,7 +1547,7 @@ describe('HistoryRecordsView assistant mode', () => {
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -1535,7 +1555,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-beta"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -1551,7 +1571,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
   })
 
   it('keeps the active topic unchanged when history deletion fails', async () => {
@@ -1562,7 +1582,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.deleteTopic.mockRejectedValueOnce(new Error('Delete failed'))
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -1570,7 +1590,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-alpha"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -1586,7 +1606,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
   })
 })
 
