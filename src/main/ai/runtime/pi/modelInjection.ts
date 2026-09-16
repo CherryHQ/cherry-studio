@@ -143,7 +143,7 @@ function omitImplicitOpenAiOutputLimit(
       ...options,
       onPayload: async (payload, payloadModel) => {
         let nextPayload = payload
-        const hasExplicitOutputLimit = options?.maxTokens !== undefined && options.maxTokens !== model.maxTokens
+        const hasExplicitOutputLimit = options?.maxTokens !== undefined
         if (!hasExplicitOutputLimit && typeof payload === 'object' && payload !== null) {
           const payloadWithoutImplicitLimit = { ...(payload as Record<string, unknown>) }
           delete payloadWithoutImplicitLimit.max_tokens

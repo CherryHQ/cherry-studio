@@ -229,7 +229,12 @@ describe('buildPiProviderInjection', () => {
     })
     const injection = buildPiProviderInjection(
       provider,
-      makeModel({ id: 'deepseek::deepseek-v4', apiModelId: 'deepseek-v4', maxOutputTokens: 393_216 }),
+      makeModel({
+        id: 'deepseek::deepseek-v4',
+        apiModelId: 'deepseek-v4',
+        contextWindow: 1_000_000,
+        maxOutputTokens: 393_216
+      }),
       REAL_KEY
     )
     const requestBodies: Record<string, unknown>[] = []
@@ -245,9 +250,7 @@ describe('buildPiProviderInjection', () => {
     const modelRegistry = ModelRegistry.inMemory(authStorage)
     modelRegistry.registerProvider(injection.providerName, {
       ...materialized.providerConfig,
-      // AgentSession may materialize the model default in options before the provider boundary.
-      streamSimple: (model, context, options) =>
-        materialized.streamSimple(model, context, { ...options, maxTokens: options?.maxTokens ?? model.maxTokens })
+      streamSimple: materialized.streamSimple
     })
     const configuredModel = modelRegistry.find(injection.providerName, injection.modelId)
     if (!configuredModel) throw new Error('Pi model configuration is incomplete')
@@ -255,7 +258,8 @@ describe('buildPiProviderInjection', () => {
     const cwd = process.cwd()
     const settingsManager = SettingsManager.inMemory({
       retry: { enabled: false },
-      compaction: { enabled: true, reserveTokens: 16_384, keepRecentTokens: 1 }
+      // Pi computes 80% of this reserve, exactly matching the catalog ceiling.
+      compaction: { enabled: true, reserveTokens: 491_520, keepRecentTokens: 1 }
     })
     const resourceLoader = new DefaultResourceLoader({
       cwd,
@@ -294,7 +298,7 @@ describe('buildPiProviderInjection', () => {
     expect(requestBodies[0]).not.toHaveProperty('max_completion_tokens')
     expect(requestBodies[1]).not.toHaveProperty('max_tokens')
     expect(requestBodies[1]).not.toHaveProperty('max_completion_tokens')
-    expect(requestBodies[2].max_tokens ?? requestBodies[2].max_completion_tokens).toBe(13_107)
+    expect(requestBodies[2].max_tokens ?? requestBodies[2].max_completion_tokens).toBe(393_216)
   })
 
   it('maps a Gemini provider', () => {
