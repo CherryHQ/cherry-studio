@@ -821,7 +821,8 @@ const openAICompatibleFetcher: ModelFetcher = {
 const lmStudioFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.lmstudio),
   fetch: async (provider, signal) => {
-    const baseUrl = getBaseUrl(provider)
+    // formatApiHost trims but isWithTrailingSharp does not; trim once so the fallback below classifies the same URL.
+    const baseUrl = getBaseUrl(provider).trim()
     // Both native and OpenAI-compatible endpoints must resolve from the server root.
     const root = withoutTrailingApiVersion(formatApiHost(baseUrl, false).replace(/\/api\/v[01]$/, ''))
     let response: z.infer<typeof LMStudioModelsResponseSchema>

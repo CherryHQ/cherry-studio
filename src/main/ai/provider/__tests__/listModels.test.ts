@@ -304,20 +304,21 @@ describe('listModels — LM Studio', () => {
     ])
   })
 
-  it('keeps a trailing-# base URL verbatim when falling back to the legacy endpoint', async () => {
-    fetchMock.mockResolvedValueOnce(Response.json({ error: { message: 'Not Found' } }, { status: 404 }))
-    fetchMock.mockResolvedValueOnce(Response.json({ data: [{ id: 'granite-3.0-2b-instruct' }] }))
+  it.each(['https://proxy.test/lmstudio#', ' https://proxy.test/lmstudio# '])(
+    'keeps a trailing-# base URL %j verbatim when falling back to the legacy endpoint',
+    async (baseUrl) => {
+      fetchMock.mockResolvedValueOnce(Response.json({ error: { message: 'Not Found' } }, { status: 404 }))
+      fetchMock.mockResolvedValueOnce(Response.json({ data: [{ id: 'granite-3.0-2b-instruct' }] }))
 
-    const models = await listModels(makeLmStudioProvider('https://proxy.test/lmstudio#'), undefined, {
-      throwOnError: true
-    })
+      const models = await listModels(makeLmStudioProvider(baseUrl), undefined, { throwOnError: true })
 
-    expect(models).toHaveLength(1)
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      'https://proxy.test/lmstudio/api/v1/models',
-      'https://proxy.test/lmstudio/models'
-    ])
-  })
+      expect(models).toHaveLength(1)
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+        'https://proxy.test/lmstudio/api/v1/models',
+        'https://proxy.test/lmstudio/models'
+      ])
+    }
+  )
 })
 
 describe('listModels — Ollama capabilities', () => {
