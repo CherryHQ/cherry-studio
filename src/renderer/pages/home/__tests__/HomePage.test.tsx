@@ -55,7 +55,6 @@ const homeMocks = vi.hoisted(() => ({
       }
     | undefined,
   cacheSetPersist: vi.fn(),
-  addAssistant: vi.fn(),
   createTopic: vi.fn(),
   classicLayoutTopics: [] as Array<{
     id: string
@@ -192,7 +191,6 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     isRefreshing: homeMocks.assistantsRefreshing,
     error: homeMocks.assistantsError,
     refetch: vi.fn(),
-    addAssistant: homeMocks.addAssistant,
     removeAssistant: vi.fn(),
     updateAssistant: vi.fn()
   }),
@@ -685,10 +683,6 @@ describe('HomePage', () => {
     homeMocks.homeTabsTopicsSource = undefined
     homeMocks.topicPanelTopicsSource = undefined
     homeMocks.persistCacheValues.clear()
-    homeMocks.addAssistant.mockResolvedValue({
-      id: 'assistant-created',
-      name: 'Catalog Preset'
-    })
     homeMocks.isActiveTab = false
     homeMocks.createTopic.mockResolvedValue(createdTopic)
     homeMocks.refreshTopics.mockResolvedValue(undefined)
@@ -1279,7 +1273,6 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
-    expect(homeMocks.addAssistant).not.toHaveBeenCalled()
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
