@@ -55,6 +55,12 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
     vi.mocked(which.sync)
       .mockReset()
       .mockReturnValue(null as never)
+    vi.mocked(fs.statSync).mockImplementation((p) => {
+      if (!fs.existsSync(p)) {
+        throw new Error('ENOENT')
+      }
+      return { isFile: () => true } as fs.Stats
+    })
 
     // Mock path.join to concatenate paths with backslashes (Windows-style)
     vi.mocked(path.join).mockImplementation((...args) => args.join('\\'))
@@ -524,6 +530,19 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
         // Should fall back to common paths check
         expect(result).toBeNull()
+      })
+
+      it('should reject an auto-discovered directory named bash.exe', () => {
+        const gitPath = 'C:\\Git\\cmd\\git.exe'
+        const bashPath = 'C:\\Git\\bin\\bash.exe'
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
+        vi.mocked(fs.existsSync).mockImplementation((p) => p === bashPath)
+        vi.mocked(fs.statSync).mockImplementation((p) => {
+          if (p !== bashPath) throw new Error('ENOENT')
+          return { isFile: () => false } as fs.Stats
+        })
+
+        expect(findGitBash()).toBeNull()
       })
     })
 
