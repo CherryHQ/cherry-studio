@@ -66,7 +66,37 @@ vi.mock('@renderer/hooks/agent/useSession', async () => {
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: (id: string | null) => ({ agent: id ? data.agents[id] : undefined })
 }))
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+const localization = vi.hoisted(() => ({ template: '$t(title.settings) - {{section}}' }))
+vi.mock('react-i18next', async () => {
+  const { createInstance } = await import('i18next')
+  const i18n = createInstance()
+  await i18n.init({ lng: 'en', keySeparator: false, resources: { en: { translation: {} } } })
+  return {
+    useTranslation: () => {
+      i18n.addResource('en', 'translation', 'globalSearch.settingsTitle', localization.template)
+      return { t: i18n.t.bind(i18n) }
+    }
+  }
+})
+
+afterEach(() => {
+  localization.template = '$t(title.settings) - {{section}}'
+})
+
+it('lets the locale control settings title order and punctuation', () => {
+  localization.template = '{{section}} ($t(title.settings))'
+  render(
+    <GlobalSearchRow
+      {...props}
+      item={{
+        kind: 'recent',
+        id: 'route:/settings/provider',
+        recent: { kind: 'route', url: '/settings/provider', title: 'Settings', lastAccessTime: 1 }
+      }}
+    />
+  )
+  expect(screen.getByText('settings.provider.title (title.settings)')).toBeInTheDocument()
+})
 
 type RowItem = Exclude<GlobalSearchPanelItem, { kind: 'message' | 'message-parent' }>
 const props = { active: false, language: 'en-US', query: '', onMouseEnter: vi.fn(), onOpen: vi.fn() }

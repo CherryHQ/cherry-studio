@@ -13,12 +13,11 @@ import { useTranslation } from 'react-i18next'
 
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import HighlightText from '@renderer/components/HighlightText'
-import { settingsMenu } from '@renderer/components/settingsMenu'
+import { getSettingsSectionTitleKey } from '@renderer/components/settingsMenu'
 import { cn } from '@renderer/utils/style'
 import { formatRelativeTime } from '@renderer/utils/time'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { AgentSessionMessageSearchRole } from '@shared/data/types/message'
-import { isSettingsPath } from '@shared/data/types/settingsPath'
 
 import { GlobalSearchSessionContext, GlobalSearchTopicContext } from './GlobalSearchEntryContext'
 import type {
@@ -171,11 +170,9 @@ export function GlobalSearchRow({
   const { t } = useTranslation()
   const isRecent = item.kind === 'recent'
   let title = isRecent ? item.recent.title : item.result.title
-  if (isRecent && item.recent.kind === 'route' && isSettingsPath(item.recent.url)) {
-    const pathname = new URL(item.recent.url, 'https://www.cherry-ai.com').pathname
-    const section = settingsMenu.find(({ route }) => pathname === route || pathname.startsWith(`${route}/`))
-    const sectionTitleKey = section?.titleKey ?? (pathname === '/settings/search' ? 'common.search' : undefined)
-    if (sectionTitleKey) title = `${t('title.settings')} - ${t(sectionTitleKey)}`
+  if (isRecent && item.recent.kind === 'route') {
+    const sectionTitleKey = getSettingsSectionTitleKey(item.recent.url)
+    if (sectionTitleKey) title = t('globalSearch.settingsTitle', { section: t(sectionTitleKey) })
   }
   const entryType = isRecent ? item.recent.kind : item.result.type
   const isConversation = entryType === 'topic' || entryType === 'session'
