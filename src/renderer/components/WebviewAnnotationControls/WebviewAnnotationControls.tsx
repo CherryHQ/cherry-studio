@@ -271,7 +271,10 @@ function AnnotationCommentEditor({
 }: AnnotationCommentEditorProps) {
   // Captured once: the parent remounts this component per editor request.
   const [initialContent] = useState(() => createComposerDraftContent({ text: initialComment, tokens: [] }))
-  const extensions = useMemo(() => createComposerEditorPreset({ placeholder }), [placeholder])
+  const extensions = useMemo(
+    () => createComposerEditorPreset({ placeholder: ({ editor }) => (editor.isEmpty ? placeholder : '') }),
+    [placeholder]
+  )
   const editor = useRichTextEditorKernel({
     extensions,
     content: initialContent,
@@ -279,7 +282,7 @@ function AnnotationCommentEditor({
     editorProps: {
       attributes: {
         'aria-label': placeholder,
-        class: 'max-h-40 overflow-y-auto text-sm text-foreground outline-none [--editor-min-height:3rem]'
+        class: 'min-h-20 max-h-40 overflow-y-auto text-sm text-foreground outline-none [--editor-min-height:5rem]'
       },
       handleKeyDown: (_view, event) => {
         if (event.key === 'Escape') {
