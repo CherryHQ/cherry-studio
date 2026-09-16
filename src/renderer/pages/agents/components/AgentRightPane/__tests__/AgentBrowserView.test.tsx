@@ -33,12 +33,21 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 
 describe('AgentBrowserView', () => {
   beforeEach(() => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      }
+    )
     bridge.tabs = [{ id: 'tab-a' }]
     bridge.binding = undefined
   })
   afterEach(() => {
     cleanup()
     browserRuntime.dispose()
+    vi.unstubAllGlobals()
   })
 
   it.each([
