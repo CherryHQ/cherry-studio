@@ -50,27 +50,35 @@ describe('Toast', () => {
       })
     })
 
-    const actionButton = screen.getByRole('button', { name: 'Undo' })
-    expect(actionButton).toHaveAttribute('data-variant', 'outline')
-    expect(actionButton).toHaveClass('min-h-7', 'text-xs')
-
-    await user.click(actionButton)
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
 
     expect(screen.queryByText('Item deleted')).not.toBeInTheDocument()
     expect(onToastClick).not.toHaveBeenCalled()
     expect(onAction).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps actionable toasts in the top-centered viewport', () => {
+  it('aligns actionable toast controls to the primary content row', () => {
     render(<ToastViewport />)
 
     act(() => {
-      toast.info({ action: { label: 'Undo', onClick: vi.fn() }, title: 'Item deleted' })
+      toast.info({
+        action: { label: 'Undo', onClick: vi.fn() },
+        description: 'The item can be restored for 30 days.',
+        title: 'Item deleted'
+      })
     })
 
-    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
-    // top-5 + left-1/2 is the maintained single-viewport placement contract.
-    expect(screen.getByRole('region', { name: 'notifications' })).toHaveClass('top-5', 'left-1/2')
+    const actionButton = screen.getByRole('button', { name: 'Undo' })
+    const closeButton = screen.getByRole('button', { name: 'Close' })
+    const title = screen.getByText('Item deleted')
+
+    expect(actionButton).toHaveAttribute('data-variant', 'outline')
+    // These layout classes keep the 28px action, primary copy, and close control on one row
+    // while the root remains top-aligned so the description stays below that row.
+    expect(screen.getByRole('status')).toHaveClass('items-start')
+    expect(actionButton).toHaveClass('min-h-7')
+    expect(title).toHaveClass('min-h-7', 'py-1')
+    expect(closeButton.parentElement).toHaveClass('flex', 'min-h-7', 'items-center')
   })
 
   it('marks toast items as no-drag so they stay clickable over titlebar drag regions', () => {
