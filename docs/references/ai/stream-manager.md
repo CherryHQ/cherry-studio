@@ -827,8 +827,10 @@ Main's `Aborting stream { topicId, reason }` is the authoritative record: it is 
 the main process and no renderer setting can suppress it. The requester-side lines the
 renderer forwards with `{ logToMain: true }` are a second, best-effort copy naming the
 surface that asked — they land at the default renderer level, but a window whose level has
-been raised past `info`, or a diagnostics run restricted with `CS_SHOW_MODULES`, drops them
-before the forward. Read the origin off main's line, not off theirs.
+been raised past `info`, or a diagnostics run restricted with
+`CSLOGGER_RENDERER_SHOW_MODULES`, drops them before the forward. `processLog` applies those
+filters before it reads the force marker; `LoggerService.test.ts` pins both halves. Read the
+origin off main's line, not off theirs.
 
 > Topic status snapshots need no dedicated IPC: a new window pulls every
 > `topic.stream.statuses.${topicId}` entry via `Cache_GetAllShared` on
