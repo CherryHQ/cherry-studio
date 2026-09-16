@@ -278,7 +278,7 @@ export const DOCTOR_CHECK_CATALOG = {
     tier: 'live',
     scope: ['providerId'],
     fixes: [],
-    details: ['resolved', 'via_proxy', 'unresolved', 'no_response'],
+    details: ['resolved', 'via_proxy', 'unresolved', 'no_response', 'provider_unavailable'],
     requires: ['network-online']
   },
   'network-tls-handshake': {
@@ -286,7 +286,7 @@ export const DOCTOR_CHECK_CATALOG = {
     tier: 'live',
     scope: ['providerId'],
     fixes: [],
-    details: ['ok', 'skipped_proxy', 'certificate', 'unreachable'],
+    details: ['ok', 'skipped_proxy', 'certificate', 'unreachable', 'provider_unavailable'],
     requires: ['network-dns-resolution']
   },
   'network-proxy-applied': {
@@ -294,7 +294,7 @@ export const DOCTOR_CHECK_CATALOG = {
     tier: 'live',
     scope: ['providerId'],
     fixes: [],
-    details: ['direct', 'proxy', 'custom_without_url', 'system_read_failed', 'apply_failed'],
+    details: ['direct', 'proxy', 'custom_without_url', 'system_read_failed', 'apply_failed', 'provider_unavailable'],
     requires: []
   },
   'network-endpoint-update': {
