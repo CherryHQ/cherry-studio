@@ -40,7 +40,7 @@ function IconFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
       aria-label={user.name}
       className="flex size-9 items-center justify-center rounded-full transition-colors hover:bg-accent/60"
       onClick={user.onClick}>
-      <UserAvatar user={user} className="size-7" />
+      <UserAvatar user={user} className="size-6" />
     </button>
   ) : null
 
@@ -70,7 +70,7 @@ function FullFooter({ user, userAction, actions, extensionsLabel, onExtensionsCl
       aria-label={user.name}
       className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors hover:bg-accent/60"
       onClick={user.onClick}>
-      <UserAvatar user={user} className="size-7 shrink-0" />
+      <UserAvatar user={user} className="size-6 shrink-0" />
       <span className="min-w-0 flex-1 truncate text-[13px] text-sidebar-foreground">{user.name}</span>
     </button>
   ) : null

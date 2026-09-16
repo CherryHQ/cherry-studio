@@ -332,6 +332,7 @@ describe('Sidebar resize handle', () => {
     const accountButton = screen.getByRole('button', { name: 'User' })
 
     expect(screen.getByTestId('footer-account-trigger')).toContainElement(accountButton)
+    expect(accountButton.querySelector('.size-6')).toBeTruthy()
     await user.click(accountButton)
     expect(onAccountClick).toHaveBeenCalledOnce()
   })
