@@ -34,7 +34,7 @@ import {
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
-import { autoDiscoverGitBash } from '@main/utils/commandResolver'
+import { autoDiscoverGitBash, validateGitBashPath } from '@main/utils/commandResolver'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -103,18 +103,39 @@ function readPiShellPathSetting(settingsPath: string): string | undefined {
     const settings: unknown = JSON.parse(readFileSync(settingsPath, 'utf8'))
     if (typeof settings !== 'object' || settings === null || Array.isArray(settings)) return undefined
     const shellPath = (settings as Record<string, unknown>).shellPath
-    return typeof shellPath === 'string' && shellPath.length > 0 ? shellPath : undefined
-  } catch {
+    return typeof shellPath === 'string' && shellPath.trim().length > 0 ? shellPath.trim() : undefined
+  } catch (error) {
+    logger.debug('Pi shell settings are unavailable or invalid; using Cherry shell discovery', {
+      settingsPath,
+      error
+    })
     return undefined
   }
 }
 
-function resolvePiShellPath(pi: Awaited<ReturnType<typeof loadPiSdk>>, workspacePath: string): string | undefined {
+function resolvePiShellPath(pi: Awaited<ReturnType<typeof loadPiSdk>>): string | undefined {
   if (process.platform !== 'win32') return undefined
-  const projectShellPath = readPiShellPathSetting(path.join(workspacePath, '.pi', 'settings.json'))
-  if (projectShellPath) return projectShellPath
-  const globalShellPath = readPiShellPathSetting(path.join(pi.getAgentDir(), 'settings.json'))
-  return globalShellPath ?? autoDiscoverGitBash() ?? undefined
+  const settingsPath = path.join(pi.getAgentDir(), 'settings.json')
+  const configuredShellPath = readPiShellPathSetting(settingsPath)
+  if (configuredShellPath) {
+    const shellPath = validateGitBashPath(configuredShellPath)
+    if (!shellPath) {
+      throw new Error(`Configured Pi shellPath is unavailable or is not bash.exe: ${configuredShellPath}`)
+    }
+    logger.debug('Resolved Pi shell path', { source: 'pi-global-settings', shellPath })
+    return shellPath
+  }
+
+  const shellPath = autoDiscoverGitBash() ?? undefined
+  if (shellPath) {
+    const configuredOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
+    const source =
+      configuredOverride && [configuredOverride, path.resolve(configuredOverride)].includes(shellPath)
+        ? 'cherry-environment-override'
+        : 'cherry-discovery'
+    logger.debug('Resolved Pi shell path', { source, shellPath })
+  }
+  return shellPath
 }
 const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
@@ -287,9 +308,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       if (!model)
         throw new Error(`pi model ${runtimeProviderName}/${injection.modelId} could not be resolved after injection`)
 
-      // Cherry trusts the user-selected workspace, but only shellPath may enter Pi's isolated
-      // settings so other standalone Pi configuration cannot affect the managed runtime.
-      const shellPath = resolvePiShellPath(pi, workspacePath)
+      // shellPath is the only standalone Pi setting admitted to the isolated runtime.
+      // Workspace Pi settings remain outside Cherry's executable-resource trust boundary.
+      const shellPath = resolvePiShellPath(pi)
       const settingsManager = pi.SettingsManager.inMemory(shellPath ? { shellPath } : {}, { projectTrusted: true })
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
