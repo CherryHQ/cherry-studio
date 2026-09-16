@@ -422,7 +422,9 @@ class FileStorage {
     if (documentExts.includes(fileExtension)) {
       try {
         if (fileExtension === '.doc') {
-          return extractLegacyDocText(filePath)
+          // Awaited, so a failure reaches the catch below like every other
+          // document read here; returning the promise would settle it outside.
+          return await extractLegacyDocText(filePath)
         }
 
         // Delayed loading: officeparser (and the pdf stack it drags in) stays out of the boot path.
