@@ -458,13 +458,15 @@ export function useChatRuntimeState({
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        return await send({ text, options })
+        const sent = await send({ text, options })
+        if (sent) scrollToBottom()
+        return sent
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [send]
+    [scrollToBottom, send]
   )
 
   return {

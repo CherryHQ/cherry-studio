@@ -23,7 +23,8 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId, isGatewayRoutableModel, isReasoningModel, isVisionModel } from '@shared/utils/model'
-import { isLoginBasedProvider } from '@shared/utils/provider'
+import { isLoginBasedProvider, matchesPreset } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { ApiGatewayNotRunningError, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
@@ -321,13 +322,21 @@ export async function resolveDshProviderInjectionFromSnapshot(
   if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
     throw new Error(`dsh provider credentials changed during materialization: ${provider.id}`)
   }
-  return buildDshProviderInjection(
+  const injection = buildDshProviderInjection(
     provider,
     model,
     resolvedApiKey.value,
     resolvedApiKey.apiKeySelection,
     reasoningEffort
   )
+  // OpenCode Go/Zen reject requests without this header; a header the operator set wins.
+  if (
+    matchesPreset(provider, SystemProviderIds.opencode) &&
+    !Object.keys(injection.headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
+  ) {
+    injection.headers = { ...injection.headers, 'x-opencode-session': sessionId }
+  }
+  return injection
 }
 
 /**
@@ -337,10 +346,8 @@ export async function resolveDshProviderInjectionFromSnapshot(
  */
 export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Promise<void> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const [provider, model] = await Promise.all([
-    providerService.getByProviderId(providerId),
-    modelService.getByKey(providerId, modelId)
-  ])
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
 
   // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
   if (requiresAgentGateway(provider.id)) {

@@ -8,6 +8,7 @@ import zhCN from '@renderer/i18n/locales/zh-cn.json'
 
 import { settingsMenu } from '../../settingsMenu'
 import { settingsSearchSections } from '../aggregate'
+import { rankEntries } from '../searchEngine'
 import { getSettingDomId } from '../types'
 
 /** Resolves a dotted i18n key. Catalogs are flat (#19143): the dotted path is
@@ -111,5 +112,40 @@ describe('settings search index', () => {
         expect(anchorExists(domId), `no JSX anchor found for ${domId}`).toBe(true)
       }
     }
+  })
+})
+
+// Chinese queries must hit their rows via aliases even under the en-US catalog:
+// those titles contain no Chinese, so only an alias can match.
+describe('settings search index aliases', () => {
+  const tEnUs = (key: string) => {
+    const text = lookup(enUS, key)
+    return typeof text === 'string' ? text : key
+  }
+  /** Resolves an indexed row's focus id — honors per-entry route overrides */
+  const focusIdOf = (anchorId: string) => {
+    for (const section of settingsSearchSections) {
+      const entry = section.entries.find((e) => e.anchorId === anchorId)
+      if (entry) return getSettingDomId(entry.route ?? section.route, entry.anchorId)
+    }
+    throw new Error(`anchor ${anchorId} is not indexed`)
+  }
+
+  it.each([
+    ['字体', 'use-serif-font'],
+    ['衬线', 'use-serif-font'],
+    ['serif', 'use-serif-font'],
+    ['气泡', 'message-style'],
+    ['气泡样式', 'message-style'],
+    ['对话样式', 'message-style'],
+    ['thinking', 'thought-auto-collapse'],
+    ['思维链', 'thought-auto-collapse'],
+    ['开机自启', 'launch-onboot'],
+    ['恢复出厂', 'data-reset'],
+    ['侧边栏', 'chat-list-position'],
+    ['上下文数量', 'context-max-messages']
+  ])('query "%s" hits the indexed row via alias', (query, anchorId) => {
+    const focusIds = rankEntries(query, settingsSearchSections, tEnUs).map((r) => r.focusId)
+    expect(focusIds).toContain(focusIdOf(anchorId))
   })
 })

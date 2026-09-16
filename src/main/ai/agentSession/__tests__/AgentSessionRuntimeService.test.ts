@@ -1720,6 +1720,120 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.close).not.toHaveBeenCalled()
   })
 
+  // Sibling sessions of one agent, both idle-warm. `reconcile` stands in for the driver's
+  // rebuildSignature comparison — `reasoningEffort` is one of its facts.
+  function seedIdleSiblings(service: any, baselineEffort: string) {
+    const connections = new Map<string, { close: ReturnType<typeof vi.fn>; reconcile: ReturnType<typeof vi.fn> }>()
+    for (const sessionId of ['session-1', 'session-2']) {
+      service.beginTurn({
+        ...baseTurnInput,
+        sessionId,
+        topicId: `agent-session:${sessionId}`,
+        assistantMessageId: `assistant-${sessionId}`
+      })
+      const entry = service.entries.get(sessionId)
+      entry.runtimeState.execution = { kind: 'idle' }
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        reconcile: vi.fn(async (target: any) => (target.reasoningEffort === baselineEffort ? 'current' : 'rebuild'))
+      }
+      entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} }
+      connections.set(sessionId, connection)
+    }
+    return connections
+  }
+
+  it('keeps idle sibling connections when an agent write changes nothing they serve', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    const connections = seedIdleSiblings(service, 'high')
+
+    // A rename feeds no rebuild fact and no live tool-policy fact, so no session may rebuild.
+    await service.handleAgentUpdated(
+      'agent-1',
+      { name: 'Renamed' },
+      { id: 'agent-1', name: 'Renamed', model: baseTurnInput.modelId, configuration: { reasoning_effort: 'high' } }
+    )
+
+    for (const [sessionId, connection] of connections) {
+      expect(connection.close, sessionId).not.toHaveBeenCalled()
+      expect(connection.reconcile, sessionId).toHaveBeenCalledWith(expect.objectContaining({ reasoningEffort: 'high' }))
+    }
+  })
+
+  it('reads the agent once per session on a push reconcile, not twice', async () => {
+    // `agentService.getAgent` is four uncached queries. `handleAgentUpdated` already holds the
+    // updated entity, so walking every session of that agent must not re-read it per session.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    seedIdleSiblings(service, 'high')
+    mocks.getAgent.mockClear()
+
+    await service.handleAgentUpdated(
+      'agent-1',
+      { name: 'Renamed' },
+      { id: 'agent-1', name: 'Renamed', model: baseTurnInput.modelId, configuration: { reasoning_effort: 'high' } }
+    )
+
+    // None: the target is built from the entity the caller passed in, and a `current` verdict
+    // never reaches the knowledge-scope comparison.
+    expect(mocks.getAgent).not.toHaveBeenCalled()
+  })
+
+  it('compares a target against one agent read, not one per field group', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    seedIdleSiblings(service, 'high')
+    const entry = service.entries.get('session-1')
+    const target = service.connectionTarget(entry)
+    mocks.getAgent.mockClear()
+
+    expect(service.connectionTargetEquals(entry, target)).toBe(true)
+
+    // The target it builds to compare against and the knowledge scope it resolves come from the
+    // same read.
+    expect(mocks.getAgent).toHaveBeenCalledTimes(1)
+  })
+
+  it('rebuilds idle sibling connections when the agent reasoning effort actually changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'low' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    const connections = seedIdleSiblings(service, 'high')
+
+    await service.handleAgentUpdated(
+      'agent-1',
+      { configuration: { reasoning_effort: 'low' } },
+      { id: 'agent-1', model: baseTurnInput.modelId, configuration: { reasoning_effort: 'low' } }
+    )
+
+    for (const [sessionId, connection] of connections) {
+      expect(connection.close, sessionId).toHaveBeenCalled()
+      expect(connection.reconcile, sessionId).toHaveBeenCalledWith(expect.objectContaining({ reasoningEffort: 'low' }))
+    }
+  })
+
   it('queues follow-ups instead of redirecting them into a stale-model live connection', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
