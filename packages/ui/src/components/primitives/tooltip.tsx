@@ -149,8 +149,12 @@ function setupTooltipOrphanSweeper(): void {
             maybeSweep(node) // 刚关闭，重新走 closed 窗口
             return
           }
-          const tooltipId = node.querySelector('[role="tooltip"]')?.getAttribute('id')
-          if (tooltipId && !hasActiveAriaReference(tooltipId)) {
+          // 内容里可能有多个 role=tooltip（用户内容自身可含）：任一 id 被 trigger 引用即活实例；
+          // 无候选（数组为空）时 every 恒真，必须保留 length 判断以免误删
+          const tooltipIds = Array.from(node.querySelectorAll<HTMLElement>('[role="tooltip"][id]'))
+            .map((el) => el.id)
+            .filter(Boolean)
+          if (tooltipIds.length > 0 && tooltipIds.every((id) => !hasActiveAriaReference(id))) {
             pending.delete(node)
             node.remove()
             return

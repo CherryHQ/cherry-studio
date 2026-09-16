@@ -689,6 +689,56 @@ describe('Tooltip', () => {
       }
     })
 
+    it('does not sweep live content containing an unrelated role=tooltip descendant', async () => {
+      vi.useFakeTimers()
+      try {
+        render(
+          <TooltipRoot open>
+            <TooltipTrigger asChild>
+              <button type="button">Trigger</button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <span role="tooltip" id="unrelated-descendant">
+                unrelated
+              </span>
+            </TooltipContent>
+          </TooltipRoot>
+        )
+        await act(async () => {}) // 排空 mutation 微任务，确保 stale-open 重检已登记
+        // 活内容的 Radix span 仍被 trigger 引用；无关的 role=tooltip 不得触发清扫
+        act(() => {
+          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS * 2 + 100)
+        })
+        expect(document.querySelector('[data-slot="tooltip-content"]')).toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('sweeps open remnants whose role=tooltip ids are all unreferenced', async () => {
+      vi.useFakeTimers()
+      try {
+        const ghost = document.createElement('div')
+        ghost.setAttribute('data-slot', 'tooltip-content')
+        ghost.setAttribute('data-tooltip-sweepable', '')
+        ghost.setAttribute('data-state', 'instant-open')
+        for (const id of ['ghost-one', 'ghost-two']) {
+          const span = document.createElement('span')
+          span.setAttribute('role', 'tooltip')
+          span.setAttribute('id', id)
+          ghost.appendChild(span)
+        }
+        document.body.appendChild(ghost)
+        await act(async () => {})
+        act(() => {
+          vi.advanceTimersByTime(STALE_OPEN_SWEEP_MS + 200)
+        })
+        expect(document.body.contains(ghost)).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('renders forceMount content through the TooltipRoot gate even when closed', () => {
       vi.useFakeTimers()
       try {
