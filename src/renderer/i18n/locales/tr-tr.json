@@ -1136,6 +1136,8 @@
   "common.language": "Dil",
   "common.layout.single_column": "Tek sütuna geç",
   "common.layout.two_columns": "İki sütuna geç",
+  "common.link.copy": "Bağlantıyı kopyala",
+  "common.link.open_browser": "Yerleşik tarayıcıda aç",
   "common.loading": "Yükleniyor...",
   "common.maximize": "Ekranı Kapla",
   "common.minimize": "Simge Durumuna Küçült",

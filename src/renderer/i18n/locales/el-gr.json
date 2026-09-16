@@ -1136,6 +1136,8 @@
   "common.language": "Γλώσσα",
   "common.layout.single_column": "Εναλλαγή σε μία στήλη",
   "common.layout.two_columns": "Εναλλαγή σε δύο στήλες",
+  "common.link.copy": "Αντιγραφή συνδέσμου",
+  "common.link.open_browser": "Άνοιγμα στον ενσωματωμένο περιηγητή",
   "common.loading": "Φόρτωση...",
   "common.maximize": "Μεγιστοποίηση",
   "common.minimize": "Ελαχιστοποίηση",

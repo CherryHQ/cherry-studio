@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
@@ -48,14 +48,13 @@ import type { Model } from '@shared/data/types/model'
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
+import AgentCitationsPanel from './components/AgentCitationsPanel'
 import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
 import { ApiGatewayRequiredDialog } from './components/ApiGatewayRequiredDialog'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
 import type { AgentConversationBootstrap } from './useAgentConversationBootstrap'
-
-const CitationsPanel = lazy(() => import('@renderer/components/chat/citations/CitationsPanel'))
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
@@ -478,7 +477,7 @@ const AgentChat = ({
     )
     sidePanel = shouldMountCitationsPanel ? (
       <Suspense fallback={null}>
-        <CitationsPanel
+        <AgentCitationsPanel
           open={citationsPanelOpen}
           onClose={() => setCitationPanelState(null)}
           citations={citationPanelCitations ?? []}
@@ -571,7 +570,7 @@ const AgentChat = ({
             />
             <label
               htmlFor="skip-model-switch-confirmation"
-              className="cursor-pointer text-foreground text-sm leading-none">
+              className="cursor-pointer text-sm leading-none text-foreground">
               {t('agent.session.model_switch_confirm.skip_for_app_run')}
             </label>
           </div>

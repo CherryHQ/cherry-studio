@@ -1136,6 +1136,8 @@
   "common.language": "Sprache",
   "common.layout.single_column": "Zur einspaltigen Ansicht wechseln",
   "common.layout.two_columns": "Zur zweispaltigen Ansicht wechseln",
+  "common.link.copy": "Link kopieren",
+  "common.link.open_browser": "Im integrierten Browser öffnen",
   "common.loading": "Lädt...",
   "common.maximize": "Maximieren",
   "common.minimize": "Minimieren",

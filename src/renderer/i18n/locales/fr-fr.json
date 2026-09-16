@@ -1136,6 +1136,8 @@
   "common.language": "Langue",
   "common.layout.single_column": "Passer à une colonne",
   "common.layout.two_columns": "Passer à deux colonnes",
+  "common.link.copy": "Copier le lien",
+  "common.link.open_browser": "Ouvrir dans le navigateur intégré",
   "common.loading": "Chargement...",
   "common.maximize": "Maximiser",
   "common.minimize": "Minimiser",

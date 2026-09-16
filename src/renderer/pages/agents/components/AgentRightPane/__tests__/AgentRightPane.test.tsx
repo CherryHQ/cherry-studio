@@ -549,10 +549,10 @@ function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
   )
 }
 
-function OpenWebsiteButton({ url }: { url: string }) {
-  const { openExternalUrl } = useAgentRightPaneActions()
+function OpenWebsiteButton({ url, inBrowser = false }: { url: string; inBrowser?: boolean }) {
+  const { openExternalUrl, openBrowserUrl } = useAgentRightPaneActions()
   return (
-    <button type="button" onClick={() => openExternalUrl(url)}>
+    <button type="button" onClick={() => (inBrowser ? openBrowserUrl?.(url) : openExternalUrl(url))}>
       Open website
     </button>
   )
@@ -671,6 +671,29 @@ describe('AgentRightPane', () => {
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
+  })
+
+  it('explicitly opens the session browser pane even when normal links prefer an external browser', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.browser.open_links_in_browser', false)
+    const openWindow = vi.spyOn(window, 'open').mockReturnValue(null)
+    try {
+      const url = 'https://example.com/path?q=hello#section'
+      const user = userEvent.setup()
+      render(
+        <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}} defaultOpen={false}>
+          <OpenWebsiteButton url={url} inBrowser />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      expect(screen.queryByTestId('webview-browser')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Open website' }))
+      const browser = await screen.findByTestId('webview-browser')
+      expect(browser).toHaveAttribute('data-url', url)
+      expect(browser).toHaveAttribute('data-target-id', 'agent-browser:session-a')
+      expect(openWindow).not.toHaveBeenCalled()
+    } finally {
+      openWindow.mockRestore()
+    }
   })
 
   it.each([
