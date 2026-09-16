@@ -330,7 +330,13 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             icon={<Tag size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.display_name.title')}
             description={showDescription ? t('settings.models.display_name.description') : undefined}>
-            <Switch checked={showRawModelId} onCheckedChange={setShowRawModelId} />
+            <Switch
+              checked={showRawModelId}
+              onCheckedChange={setShowRawModelId}
+              // ModelSettingRow renders its title in a plain div, so it contributes no accessible
+              // name — without this the control announces as an unnamed "switch".
+              aria-label={t('settings.models.display_name.title')}
+            />
           </ModelSettingRow>
           {showPaintingModel && (
             <>
