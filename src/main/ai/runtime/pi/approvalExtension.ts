@@ -22,7 +22,7 @@
  * part by the time the approval request references its `toolCallId`.
  */
 import { randomUUID } from 'node:crypto'
-import { lstat, realpath } from 'node:fs/promises'
+import { realpath } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -33,6 +33,7 @@ import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
 import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard, normalizePiNativePathInput } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { canonicalizePathForContainment } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
@@ -309,7 +310,7 @@ async function isToolPathInsideAllowedRoots(
   const [canonicalWorkspace, canonicalAgentData, canonicalTarget] = await Promise.all([
     canonicalizeExistingPath(workspacePath),
     canonicalizeExistingPath(agentDataPath),
-    canonicalizeToolTarget(resolved, allowMissingTarget)
+    canonicalizePathForContainment(resolved, { allowMissing: allowMissingTarget })
   ])
   if (!canonicalWorkspace || !canonicalAgentData || !canonicalTarget) return false
 
@@ -328,40 +329,6 @@ async function canonicalizeExistingPath(target: string): Promise<string | undefi
     return await realpath(target)
   } catch {
     return undefined
-  }
-}
-
-async function canonicalizeToolTarget(target: string, allowMissing: boolean): Promise<string | undefined> {
-  try {
-    return await realpath(target)
-  } catch (error) {
-    if (!allowMissing || (error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-    // A dangling symlink exists but cannot be canonicalized; treat it as ambiguous, not as a new file.
-    try {
-      await lstat(target)
-      return undefined
-    } catch (statError) {
-      if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-    }
-  }
-
-  let parent = path.dirname(target)
-  while (true) {
-    try {
-      const canonicalParent = await realpath(parent)
-      return path.resolve(canonicalParent, path.relative(parent, target))
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-      try {
-        await lstat(parent)
-        return undefined
-      } catch (statError) {
-        if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined
-      }
-      const next = path.dirname(parent)
-      if (next === parent) return undefined
-      parent = next
-    }
   }
 }
 
