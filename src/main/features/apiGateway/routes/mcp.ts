@@ -100,9 +100,7 @@ function resolveServer(idOrName: string): McpServer {
 
 /**
  * `/v1/mcps` — exposes the user's configured MCP servers over HTTP so external
- * clients can use Cherry Studio as a local MCP hub (issue #17992; the v1
- * endpoints this restores are documented in
- * `docs/changelog/2026-06-05-api-gateway-mcp-http-removed.md`).
+ * clients can use Cherry Studio as a local MCP hub (issue #17992).
  *
  * Sessions are **opt-in by the client** (see `handleProxyPost`): one that sends `initialize`
  * gets an `Mcp-Session-Id` and may hold a `GET` stream for server→client push; one that just

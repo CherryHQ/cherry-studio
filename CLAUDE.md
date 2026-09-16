@@ -220,10 +220,6 @@ The v2 refactor has landed. v1 data reaches v2 only through the migrators in `sr
 
 `scripts/data-classify/` is the code generation pipeline for the v2 data layer; `classification.json` is the single source of truth (see its README). Four files are **auto-generated — NEVER edit them by hand**: `src/shared/data/preference/preferenceSchemas.ts`, `src/shared/data/bootConfig/bootConfigSchemas.ts`, and `PreferencesMappings.ts` + `BootConfigMappings.ts` in `src/main/data/migration/v2/migrators/mappings/`. To change them, edit `classification.json` or `target-key-definitions.json` (both in `data/`), then run `cd scripts/data-classify && npm run generate`.
 
-### Breaking Changes Log
-
-When a v2 change is user-perceivable and affects how users use the app, add an entry under `docs/changelog/`. See [docs/changelog/README.md](docs/changelog/README.md) for conventions.
-
 ## Local Instructions
 
 If `CLAUDE.local.md` exists in the repository root (gitignored, may be absent), read it in full before acting on anything in this file — it holds the developer's private instructions and **OVERRIDES this file wherever they conflict**. Tools that auto-load it (e.g. Claude Code) need not re-read it.
