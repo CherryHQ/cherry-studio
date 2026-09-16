@@ -49,7 +49,7 @@ function profileLabel(source: BrowserImportSource): string {
   return [...new Set([source.displayName || source.profile, source.account].filter(Boolean))].join(' · ')
 }
 
-export function BrowserImportDialog({ onDone }: { onDone: () => void }) {
+export function BrowserImportDialog({ onDone, onClosed }: { onDone: () => void; onClosed?: () => void }) {
   const { t } = useTranslation()
   const [sources, setSources] = useState<BrowserImportSource[]>([])
   const [sourceId, setSourceId] = useState('')
@@ -136,6 +136,7 @@ export function BrowserImportDialog({ onDone }: { onDone: () => void }) {
 
   return (
     <DialogContent
+      onCloseAutoFocus={onClosed}
       closeLabel={t('common.close')}
       showCloseButton={!busy}
       closeOnOverlayClick={!busy}

@@ -21,7 +21,7 @@ const categories = [
   { kind: 'cache', label: 'settings.browser.cachedFiles', help: 'settings.browser.clearCacheHelp' }
 ] as const
 
-export function BrowserClearDialog({ onDone }: { onDone: () => void }) {
+export function BrowserClearDialog({ onDone, onClosed }: { onDone: () => void; onClosed?: () => void }) {
   const { t } = useTranslation()
   const [selected, setSelected] = useState({ history: false, site_data: false, cache: true })
   const [busy, setBusy] = useState(false)
@@ -45,6 +45,7 @@ export function BrowserClearDialog({ onDone }: { onDone: () => void }) {
   }
   return (
     <DialogContent
+      onCloseAutoFocus={onClosed}
       closeLabel={t('common.close')}
       showCloseButton={!busy}
       closeOnOverlayClick={!busy}

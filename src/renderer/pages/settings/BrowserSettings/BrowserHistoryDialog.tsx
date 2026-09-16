@@ -26,7 +26,7 @@ import { useTabs } from '@renderer/hooks/tab'
 import { toast } from '@renderer/services/toast'
 import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
 
-export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void }) {
+export function BrowserHistoryDialog({ onOpenPage, onClosed }: { onOpenPage: () => void; onClosed?: () => void }) {
   const { t, i18n } = useTranslation()
   const [search, setSearch] = useState('')
   const pendingLoad = useRef(false)
@@ -115,6 +115,7 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
 
   return (
     <DialogContent
+      onCloseAutoFocus={onClosed}
       size="xl"
       closeLabel={t('common.close')}
       className="flex h-[min(40rem,85dvh)] flex-col gap-0 overflow-hidden border border-border bg-popover p-0 text-popover-foreground">
