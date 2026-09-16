@@ -229,6 +229,7 @@ vi.mock('react-i18next', () => {
       'common.close': '关闭',
       'common.delete': '删除',
       'common.select_all': '全选',
+      'files.all': '所有文件',
       'knowledge.data_source.add_dialog.conflict_dialog.title': '存在同名数据源',
       'knowledge.data_source.add_dialog.conflict_dialog.description': `有 ${options?.count ?? 0} 个数据源与知识库中已存在的项目同名，请选择处理方式。`,
       'knowledge.data_source.add_dialog.conflict_dialog.keep_all': '全部保留',
@@ -308,7 +309,7 @@ describe('AddKnowledgeItemDialog', () => {
         expect(mockFileSelect).toHaveBeenCalledWith(
           expect.objectContaining({
             properties: ['openFile', 'multiSelections'],
-            filters: [{ name: 'Knowledge', extensions: ['*'] }]
+            filters: [{ name: '所有文件', extensions: ['*'] }]
           })
         )
       })
@@ -396,6 +397,54 @@ describe('AddKnowledgeItemDialog', () => {
       })
       expect(mockFileSelect).not.toHaveBeenCalled()
       expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+    })
+
+    it('skips an unresolvable pending file without rejecting the rest of the batch', async () => {
+      const pathless = createMockFile('pathless.pdf', 1024)
+      const resolvable = createMockFile('resolvable.pdf', 1024)
+      mockGetPathForFile.mockImplementation((file: File) => (file === pathless ? '' : `/external/${file.name}`))
+      setPendingAddFiles([pathless, resolvable])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenCalledWith(
+          [{ type: 'file', data: { source: '/external/resolvable.pdf', path: '/external/resolvable.pdf' } }],
+          'detect'
+        )
+      })
+      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+    })
+
+    it('bounds concurrent content checks for unknown native selections', async () => {
+      const pendingChecks: Array<(supported: boolean) => void> = []
+      mockIsTextFile.mockImplementation(() => new Promise<boolean>((resolve) => pendingChecks.push(resolve)))
+      mockFileSelect.mockResolvedValueOnce(
+        Array.from({ length: 12 }, (_, index) => createSelectedFile(`unknown-${index}`))
+      )
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+
+      await waitFor(() => expect(mockIsTextFile).toHaveBeenCalledTimes(4))
+      expect(pendingChecks).toHaveLength(4)
+
+      mockIsTextFile.mockResolvedValue(false)
+      pendingChecks.forEach((resolve) => resolve(false))
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(mockIsTextFile).toHaveBeenCalledTimes(12)
+      expect(toast.warning).toHaveBeenCalledWith('已跳过 12 个不支持的文件')
+    })
+
+    it('does not count unsupported files toward the per-batch limit', async () => {
+      mockFileSelect.mockResolvedValueOnce([
+        ...Array.from({ length: 8 }, (_, index) => createSelectedFile(`image-${index}.png`)),
+        ...Array.from({ length: 20 }, (_, index) => createSelectedFile(`doc-${index}.pdf`))
+      ])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      await waitFor(() => expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1))
+      expect(mockSubmitKnowledgeItems.mock.calls[0][0]).toHaveLength(20)
+      expect(toast.warning).toHaveBeenCalledWith('已跳过 8 个不支持的文件')
+      expect(toast.warning).not.toHaveBeenCalledWith('单次最多添加 20 个数据源，请减少选择后重试')
     })
 
     it('warns and skips submit when the pick exceeds the per-batch limit', async () => {
