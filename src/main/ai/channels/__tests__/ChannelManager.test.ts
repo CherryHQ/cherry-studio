@@ -456,39 +456,28 @@ describe('ChannelManager', () => {
 
   it('disconnects a restored channel whose Agent is trashed while connect is in flight', async () => {
     const channel = makeChannelRow()
-    const connectDeferred = createDeferred()
-    let transportConnected = false
+    let restoredAdapter!: AbortableConnectAdapter
     vi.mocked(channelService.listChannels).mockReturnValueOnce([]).mockReturnValueOnce([channel])
     vi.mocked(channelService.getChannel).mockReturnValue(channel)
     registerAdapterFactory('telegram', (channel, agentId) => {
-      const adapter = new MockAdapter({
+      restoredAdapter = new AbortableConnectAdapter({
         channelId: channel.id,
         channelType: channel.type,
         agentId,
         channelConfig: channel.config
       })
-      adapter.connect.mockImplementation(async () => {
-        await connectDeferred.promise
-        transportConnected = true
-      })
-      adapter.disconnect.mockImplementation(async () => {
-        transportConnected = false
-      })
-      createdAdapters.push(adapter)
-      return adapter
+      return restoredAdapter
     })
     await channelManager._doInit()
 
     for (const listener of mocks.restoredListeners) listener({ agentId: 'agent-1' })
-    await vi.waitFor(() => expect(createdAdapters[0].connect).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(restoredAdapter.connectStarted).toBe(true))
 
     mocks.getLifecycleState.mockReturnValue('trashed')
     for (const listener of mocks.trashedListeners) listener({ agentId: 'agent-1' })
 
-    connectDeferred.resolve()
-    await flush()
-
-    expect(transportConnected).toBe(false)
+    await vi.waitFor(() => expect(restoredAdapter.connectAborted).toBe(true))
+    expect(restoredAdapter.disconnected).toBe(true)
     expect(channelManager.getAdapter('ch-1')).toBeUndefined()
   })
 

@@ -404,7 +404,7 @@ export class ChannelManager extends BaseService {
   private async restoreAgentChannels(agentId: string, guard: ConnectionGuard): Promise<void> {
     if (!this.isConnectionGuardCurrent(guard)) return
     const channels = channelService.listChannels({ agentId })
-    await Promise.all(channels.map((channel) => this.syncChannelWithGuard(channel.id, { awaitConnect: true }, guard)))
+    await Promise.all(channels.map((channel) => this.syncChannelWithGuard(channel.id, { awaitConnect: false }, guard)))
   }
 
   private runAgentLifecycleAction(
