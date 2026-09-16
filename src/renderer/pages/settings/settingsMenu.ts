@@ -7,8 +7,10 @@ import {
   Crop,
   FileBox,
   FileCode,
+  Globe,
   HardDrive,
   Info,
+  MonitorSmartphone,
   Package,
   Palette,
   PictureInPicture2,
@@ -71,6 +73,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     groupKey: 'settings.menuGroups.capabilities'
   },
   {
+    route: '/settings/browser',
+    titleKey: 'settings.browser.title',
+    icon: createElement(Globe),
+    groupKey: 'settings.menuGroups.capabilities'
+  },
+  {
     route: '/settings/websearch',
     titleKey: 'settings.tool.websearch.title',
     icon: createElement(Search),
@@ -122,6 +130,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/channels',
     titleKey: 'settings.channels.title',
     icon: createElement(Radio),
+    groupKey: 'settings.menuGroups.automation'
+  },
+  {
+    route: '/settings/device-connections',
+    titleKey: 'deviceConnections.title',
+    icon: createElement(MonitorSmartphone),
     groupKey: 'settings.menuGroups.automation'
   },
   {

@@ -1050,9 +1050,6 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills cancel_requested_at from updated_at only for cancel-requested job rows', () => {
-    // Pinned to the 0020 backfill migration: the default tip baseline drifts
-    // forward as later migrations land, which would move the backfill ahead of
-    // the seeded rows (same reasoning as the 0007-pinned activity test below).
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0020_wooden_fat_cobra'))
     const now = Date.now()
     const insert = sqlite.prepare(

@@ -230,6 +230,7 @@ const TranslatePage: FC = () => {
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
+  // Every output write goes through smoothReset: a direct setTranslateOutput is replayed over by the queue's next frame.
   const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
   const {
     translate: runTranslate,
@@ -265,6 +266,7 @@ const TranslatePage: FC = () => {
   const pdfHandleRef = useRef<PdfTranslationHandle | null>(null)
   const pdfTextCacheRef = useRef<{ filePath: string; text: string } | null>(null)
   const pdfTextRequestIdRef = useRef(0)
+  const textRequestIdRef = useRef(0)
   const pdfTextFallbackStartedRef = useRef(false)
   const prePdfOutputRef = useRef<string | null>(null)
 
@@ -283,7 +285,7 @@ const TranslatePage: FC = () => {
     pdfHandleRef.current = null
     pdfTextCacheRef.current = null
     if (pdfTextFallbackActive && isTranslating) cancel()
-    if (pdfTextFallbackStartedRef.current) setTranslateOutput(prePdfOutputRef.current ?? '')
+    if (pdfTextFallbackStartedRef.current) smoothReset(prePdfOutputRef.current ?? '')
     pdfTextFallbackStartedRef.current = false
     prePdfOutputRef.current = null
     setPdfHandleReady(false)
@@ -294,7 +296,7 @@ const TranslatePage: FC = () => {
     setIsProcessing(false)
     setPdfFile(null)
     setRestoredPdf(null)
-  }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput])
+  }, [cancel, isTranslating, pdfTextFallbackActive, smoothReset])
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -322,10 +324,10 @@ const TranslatePage: FC = () => {
     (value: string) => {
       setTranslateInput(value)
       if (isEmpty(value)) {
-        setTranslateOutput('')
+        smoothReset('')
       }
     },
-    [setTranslateInput, setTranslateOutput]
+    [setTranslateInput, smoothReset]
   )
 
   const onCopyInput = useCallback(async () => {
@@ -540,7 +542,8 @@ const TranslatePage: FC = () => {
       return
     }
 
-    await translateTextContent(translateInput, true)
+    const requestId = ++textRequestIdRef.current
+    await translateTextContent(translateInput, true, () => textRequestIdRef.current === requestId)
   }, [
     babelDoc.availability,
     babelDoc.installing,
@@ -567,27 +570,6 @@ const TranslatePage: FC = () => {
     toast.info(t('translate.info.aborted'))
   }, [cancel, isTranslating, pdfStatus.running, t])
 
-  const handleExchange = useCallback(() => {
-    if (pdfFile || sourceLanguage === 'auto' || isTranslating || isDetecting) return
-    void safePersist(setSourceLanguage(targetLanguage), 'translate source language')
-    void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
-    setTranslateInput(translateOutput)
-    setTranslateOutput(translateInput)
-  }, [
-    isDetecting,
-    safePersist,
-    setSourceLanguage,
-    setTargetLanguage,
-    setTranslateInput,
-    setTranslateOutput,
-    sourceLanguage,
-    targetLanguage,
-    translateInput,
-    translateOutput,
-    isTranslating,
-    pdfFile
-  ])
-
   const onHistoryItemClick = useCallback(
     (history: TranslateHistory, files?: TranslationFiles) => {
       const nextTargetLanguage =
@@ -606,12 +588,17 @@ const TranslatePage: FC = () => {
           return
         }
         resetPdfMode()
+        textRequestIdRef.current += 1
+        if (isTranslating) cancel()
+        smoothReset('')
         setRestoredPdf({ output: { outputPath: files.target.path, fileName: history.targetText }, key: history.id })
         setPdfFile({ name: history.sourceText, path: files.source.path })
       } else {
         resetPdfMode()
+        textRequestIdRef.current += 1
+        if (isTranslating) cancel()
         setTranslateInput(history.sourceText)
-        setTranslateOutput(history.targetText)
+        smoothReset(history.targetText)
       }
 
       if (history.kind === 'file' || history.sourceLanguage) {
@@ -621,12 +608,14 @@ const TranslatePage: FC = () => {
       setHistoryOpen(false)
     },
     [
+      cancel,
+      isTranslating,
       resetPdfMode,
       safePersist,
       setSourceLanguage,
       setTargetLanguage,
       setTranslateInput,
-      setTranslateOutput,
+      smoothReset,
       t,
       targetLanguage
     ]
@@ -891,14 +880,6 @@ const TranslatePage: FC = () => {
       !isTranslating &&
       !isProcessing
     : !isEmpty(translateInput) && !!selectedModelId && !isTranslating && !isDetecting && !isProcessing && !isOcrRunning
-  const couldExchange =
-    !isPdfMode &&
-    sourceLanguage !== 'auto' &&
-    sourceLanguage !== targetLanguage &&
-    !isTranslating &&
-    !isDetecting &&
-    !isProcessing &&
-    !isOcrRunning
 
   return (
     <div
@@ -925,8 +906,6 @@ const TranslatePage: FC = () => {
             isBidirectional={isPdfMode ? false : isBidirectional}
             showSourceControls={isPdfMode}
             bidirectionalPair={bidirectionalPair}
-            couldExchange={couldExchange}
-            onExchange={handleExchange}
           />
           {isTranslationRunning ? (
             <button
