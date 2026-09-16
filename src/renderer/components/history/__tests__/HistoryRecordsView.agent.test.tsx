@@ -427,6 +427,7 @@ function setupAgentHistory({
 
   const onClose = vi.fn()
   const onRecordSelect = vi.fn()
+  const onActiveRecordChange = vi.fn()
   render(
     <HistoryRecordsView
       mode="agent"
@@ -434,10 +435,11 @@ function setupAgentHistory({
       activeRecordId={activeRecordId}
       onClose={onClose}
       onRecordSelect={onRecordSelect}
+      onActiveRecordChange={onActiveRecordChange}
     />
   )
 
-  return { onClose, onRecordSelect }
+  return { onClose, onRecordSelect, onActiveRecordChange }
 }
 
 let agentHistoryLoaded = false
@@ -765,7 +767,7 @@ describe('HistoryRecordsView agent mode', () => {
   })
 
   it('bulk deletes selected sessions from the query toolbar', async () => {
-    const { onClose, onRecordSelect } = setupAgentHistory({
+    const { onClose, onActiveRecordChange } = setupAgentHistory({
       activeRecordId: 'session-alpha',
       sessions: [
         createSession(),
@@ -801,7 +803,7 @@ describe('HistoryRecordsView agent mode', () => {
     expect(hookMocks.deleteSessionWithOutcome).toHaveBeenNthCalledWith(1, 'session-alpha', { showFeedback: false })
     expect(hookMocks.deleteSessionWithOutcome).toHaveBeenNthCalledWith(2, 'session-beta', { showFeedback: false })
     expect(hookMocks.deleteSessions).not.toHaveBeenCalled()
-    expect(onRecordSelect).toHaveBeenCalledWith('session-gamma')
+    expect(onActiveRecordChange).toHaveBeenCalledWith('session-gamma')
     expect(onClose).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
       itemCount: 2,
@@ -820,7 +822,7 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.deleteSessionWithOutcome
       .mockResolvedValueOnce({ status: 'succeeded' })
       .mockResolvedValueOnce({ status: 'failed', error: 'Beta delete failed' })
-    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
     const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
@@ -829,7 +831,7 @@ describe('HistoryRecordsView agent mode', () => {
 
     expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
     expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
-    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
+    expect(onActiveRecordChange).toHaveBeenCalledWith('session-beta')
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
       itemCount: 1,
       onUndo: expect.any(Function)
@@ -841,7 +843,7 @@ describe('HistoryRecordsView agent mode', () => {
 
   it('reports all stale bulk sessions once without changing selection or active state', async () => {
     hookMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'stale' })
-    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
     const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
@@ -850,7 +852,7 @@ describe('HistoryRecordsView agent mode', () => {
 
     expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
     expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
     expect(toast.info).toHaveBeenCalledExactlyOnceWith('Already in Recycle Bin')
     expect(toast.error).not.toHaveBeenCalled()
@@ -858,7 +860,7 @@ describe('HistoryRecordsView agent mode', () => {
 
   it('reports non-stale bulk session failures once without changing selection or active state', async () => {
     hookMocks.deleteSessionWithOutcome.mockResolvedValue({ status: 'failed', error: 'Delete failed' })
-    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
     const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
@@ -867,7 +869,7 @@ describe('HistoryRecordsView agent mode', () => {
 
     expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
     expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledExactlyOnceWith('Could not move to Recycle Bin')
     expect(toast.info).not.toHaveBeenCalled()
@@ -877,7 +879,7 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.deleteSessionWithOutcome
       .mockResolvedValueOnce({ status: 'succeeded' })
       .mockResolvedValueOnce({ status: 'stale' })
-    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
     const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
@@ -886,7 +888,7 @@ describe('HistoryRecordsView agent mode', () => {
 
     expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
     expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
-    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
+    expect(onActiveRecordChange).toHaveBeenCalledWith('session-beta')
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
       itemCount: 1,
       onUndo: expect.any(Function)
@@ -899,7 +901,7 @@ describe('HistoryRecordsView agent mode', () => {
   })
 
   it('skips pinned sessions when bulk deleting from the query toolbar', async () => {
-    const { onClose, onRecordSelect } = setupAgentHistory({
+    const { onClose, onActiveRecordChange } = setupAgentHistory({
       sessions: [
         createSession(),
         createSession({
@@ -926,7 +928,8 @@ describe('HistoryRecordsView agent mode', () => {
     expect(hookMocks.deleteSessionWithOutcome).toHaveBeenCalledExactlyOnceWith('session-alpha', {
       showFeedback: false
     })
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
+    expect(hookMocks.deleteSessions).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -1183,7 +1186,7 @@ describe('HistoryRecordsView agent mode', () => {
       new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, 'Session active')
     )
     const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-alpha' })
-    const { onClose, onRecordSelect } = setupAgentHistory()
+    const { onClose, onActiveRecordChange } = setupAgentHistory()
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]')
 
     expect(alphaRow).not.toBeNull()
@@ -1195,7 +1198,7 @@ describe('HistoryRecordsView agent mode', () => {
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'Alpha session',
@@ -1209,7 +1212,7 @@ describe('HistoryRecordsView agent mode', () => {
   })
 
   it('deletes a session without confirmation and moves the active session when needed', async () => {
-    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1225,11 +1228,11 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
-    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
+    expect(onActiveRecordChange).toHaveBeenCalledWith('session-beta')
   })
 
   it('clears the active session after deleting the last session from history', async () => {
-    const { onRecordSelect } = setupAgentHistory({
+    const { onActiveRecordChange } = setupAgentHistory({
       activeRecordId: 'session-alpha',
       sessions: [createSession()]
     })
@@ -1246,12 +1249,12 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
-    expect(onRecordSelect).toHaveBeenCalledWith(null)
+    expect(onActiveRecordChange).toHaveBeenCalledWith(null)
   })
 
   it('keeps the active session unchanged when history deletion fails', async () => {
     hookMocks.deleteSession.mockResolvedValueOnce(false)
-    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1265,7 +1268,7 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
   })
 })
