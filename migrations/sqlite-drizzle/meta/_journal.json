@@ -151,22 +151,15 @@
     {
       "idx": 21,
       "version": "6",
-      "when": 1789013267049,
-      "tag": "0021_puzzling_genesis",
+      "when": 1788332276777,
+      "tag": "0021_majestic_molly_hayes",
       "breakpoints": true
     },
     {
       "idx": 22,
       "version": "6",
-      "when": 1789027449845,
-      "tag": "0022_fancy_true_believers",
-      "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "6",
-      "when": 1789459142095,
-      "tag": "0023_shallow_black_widow",
+      "when": 1789542794688,
+      "tag": "0022_wise_tarot",
       "breakpoints": true
     }
   ],

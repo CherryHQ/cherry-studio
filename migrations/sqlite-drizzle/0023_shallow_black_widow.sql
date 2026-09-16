@@ -1,1 +1,0 @@
-DROP TABLE `agent_session_fork_context`;

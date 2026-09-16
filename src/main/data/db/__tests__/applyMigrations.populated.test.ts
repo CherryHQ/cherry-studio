@@ -108,8 +108,8 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
-  it('drops obsolete fork context after 0022 while preserving native forks, visible history and files', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0023_shallow_black_widow'))
+  it('adds native fork metadata without losing existing sessions, files or paired devices', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0022_wise_tarot'))
     seedBaselineRows()
     const now = Date.now()
     sqlite
@@ -120,21 +120,12 @@ describe('applyMigrations over a populated database', () => {
       .run(now, now)
     const insertSession = sqlite.prepare(
       `INSERT INTO agent_session
-        (id, name, workspace_id, forked_from, order_key, last_activity_at, created_at, updated_at)
-       VALUES (?, ?, 'fork-workspace', ?, ?, ?, ?, ?)`
+        (id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+       VALUES (?, ?, 'fork-workspace', ?, ?, ?, ?)`
     )
     const forkedFrom = { sessionId: 'fork-source', messageId: 'source-message', operationId: 'fork-operation' }
-    insertSession.run('fork-source', 'Source', null, 'a0', now, now, now)
-    insertSession.run('native-child', 'Native child', JSON.stringify(forkedFrom), 'a1', now, now, now)
-    insertSession.run(
-      'rebuilt-child',
-      'Previous rebuilt child',
-      JSON.stringify({ ...forkedFrom, historyMessageId: 'rebuilt-message' }),
-      'a2',
-      now,
-      now,
-      now
-    )
+    insertSession.run('fork-source', 'Source', 'a0', now, now, now)
+    insertSession.run('native-child', 'Native child', 'a1', now, now, now)
     const checkpoint = JSON.stringify({
       version: 1,
       status: 'available',
@@ -142,24 +133,14 @@ describe('applyMigrations over a populated database', () => {
     })
     const insertMessage = sqlite.prepare(
       `INSERT INTO agent_session_message
-        (id, session_id, role, data, status, runtime_resume_token, runtime_fork_state, created_at, updated_at)
-       VALUES (?, ?, 'assistant', ?, 'success', ?, ?, ?, ?)`
+        (id, session_id, role, data, status, runtime_resume_token, created_at, updated_at)
+       VALUES (?, ?, 'assistant', ?, 'success', ?, ?, ?)`
     )
     insertMessage.run(
       'native-message',
       'native-child',
       JSON.stringify({ parts: [{ type: 'text', text: 'Native visible history' }] }),
       'native-child-token',
-      checkpoint,
-      now,
-      now
-    )
-    insertMessage.run(
-      'rebuilt-message',
-      'rebuilt-child',
-      JSON.stringify({ parts: [{ type: 'text', text: 'Previous rebuilt visible history' }] }),
-      null,
-      null,
       now,
       now
     )
@@ -169,9 +150,12 @@ describe('applyMigrations over a populated database', () => {
          VALUES ('fork-file-ref', '11111111-1111-7111-8111-111111111111', 'native-message', 'attachment', ?, ?)`
       )
       .run(now, now)
-    const insertContext = sqlite.prepare('INSERT INTO agent_session_fork_context (session_id, document) VALUES (?, ?)')
-    insertContext.run('native-child', JSON.stringify({ version: 2, summaries: [] }))
-    insertContext.run('rebuilt-child', JSON.stringify({ version: 2, summaries: [] }))
+    sqlite
+      .prepare(
+        `INSERT INTO api_gateway_paired_device (id, name, platform, token_hash, created_at, updated_at)
+         VALUES ('paired-device', 'Phone', 'ios', 'paired-token-hash', ?, ?)`
+      )
+      .run(now, now)
     sqlite.prepare('INSERT INTO app_state (key, value, created_at, updated_at) VALUES (?, ?, ?, ?)').run(
       'agent-session-fork:fork-operation',
       JSON.stringify({
@@ -193,14 +177,17 @@ describe('applyMigrations over a populated database', () => {
     )
     const preservedTables = [
       'agent_workspace',
-      'agent_session',
-      'agent_session_message',
       'file_entry',
       'provider_logo_file_ref',
       'agent_session_message_file_ref',
+      'api_gateway_paired_device',
       'app_state'
     ]
     const before = preservedTables.map((table) => sqlite.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all())
+    const sessionsBefore = sqlite.prepare<[], Record<string, unknown>>('SELECT * FROM agent_session ORDER BY id').all()
+    const messagesBefore = sqlite
+      .prepare<[], Record<string, unknown>>('SELECT * FROM agent_session_message ORDER BY id')
+      .all()
 
     applyMigrations(db, resolveMigrationsPath())
 
@@ -210,6 +197,30 @@ describe('applyMigrations over a populated database', () => {
     expect(preservedTables.map((table) => sqlite.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all())).toEqual(
       before
     )
+    expect(sqlite.prepare('SELECT * FROM agent_session ORDER BY id').all()).toEqual(
+      sessionsBefore.map((row) => ({ ...row, forked_from: null }))
+    )
+    expect(sqlite.prepare('SELECT * FROM agent_session_message ORDER BY id').all()).toEqual(
+      messagesBefore.map((row) => ({ ...row, runtime_fork_state: null }))
+    )
+    sqlite
+      .prepare('UPDATE agent_session SET forked_from = ? WHERE id = ?')
+      .run(JSON.stringify(forkedFrom), 'native-child')
+    sqlite
+      .prepare('UPDATE agent_session_message SET runtime_fork_state = ? WHERE id = ?')
+      .run(checkpoint, 'native-message')
+    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare('SELECT forked_from FROM agent_session WHERE id = ?').get('native-child')).toEqual({
+      forked_from: JSON.stringify(forkedFrom)
+    })
+    expect(
+      sqlite
+        .prepare('SELECT runtime_resume_token, runtime_fork_state FROM agent_session_message WHERE id = ?')
+        .get('native-message')
+    ).toEqual({
+      runtime_resume_token: 'native-child-token',
+      runtime_fork_state: checkpoint
+    })
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
     expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
   })

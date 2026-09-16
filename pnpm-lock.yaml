@@ -235,8 +235,8 @@ importers:
         specifier: 1.7.6
         version: 1.7.6
       '@paymoapp/electron-shutdown-handler':
-        specifier: 1.1.2
-        version: 1.1.2
+        specifier: 1.2.0
+        version: 1.2.0
       '@sentry/electron':
         specifier: 7.18.0
         version: 7.18.0(@opentelemetry/core@2.0.0(@opentelemetry/api@1.9.0))(@opentelemetry/exporter-trace-otlp-http@0.200.0(@opentelemetry/api@1.9.0))
@@ -6365,8 +6365,9 @@ packages:
     resolution: {integrity: sha512-1OOyPjuqjdbfXwQEnnN3WPOiL5no0TMK4qHNAig71Z4KzIHaNvEen9QwRZ5o7cyM0DyMfLTb+tA+Q4VWusTYtw==}
     engines: {node: '>=18'}
 
-  '@paymoapp/electron-shutdown-handler@1.1.2':
-    resolution: {integrity: sha512-/MIC+wdRlVw1Sm56qJcT17O/KBpQARP2tOcAgg1OKB4W83B9IyBBtIoLXkRlpCOEJnGEleuv5HiSBryUgwbFvQ==}
+  '@paymoapp/electron-shutdown-handler@1.2.0':
+    resolution: {integrity: sha512-5mQE21J880AI9KWvAAzstaIEPjKBn8iQvM1Hk4H+jwiV5iVHL8N6M7EZXXnOplOnJPul64xY3/TDNp8IfYAkOw==}
+    engines: {node: '>=20.11'}
 
   '@pdf-lib/standard-fonts@1.0.0':
     resolution: {integrity: sha512-hU30BK9IUN/su0Mn9VdlVKsWBS6GyhVfqjwl1FjZN4TxP6cCw0jP2w7V3Hf5uX7M0AZJ16vey9yE0ny7Sa59ZA==}
@@ -21291,10 +21292,9 @@ snapshots:
 
   '@paddleocr/api-sdk@0.2.0': {}
 
-  '@paymoapp/electron-shutdown-handler@1.1.2':
+  '@paymoapp/electron-shutdown-handler@1.2.0':
     dependencies:
-      node-addon-api: 5.1.0
-      prebuild-install: 7.1.3
+      node-gyp-build: 4.8.4
 
   '@pdf-lib/standard-fonts@1.0.0':
     dependencies:

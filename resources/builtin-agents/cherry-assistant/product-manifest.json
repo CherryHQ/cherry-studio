@@ -65,6 +65,7 @@
       "/settings/code-execution",
       "/settings/data",
       "/settings/dependencies",
+      "/settings/device-connections",
       "/settings/file-processing",
       "/settings/general",
       "/settings/local-models",
