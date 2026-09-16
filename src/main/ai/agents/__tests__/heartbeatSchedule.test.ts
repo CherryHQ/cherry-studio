@@ -225,6 +225,44 @@ describe('heartbeatSchedule', () => {
     )
   })
 
+  it('keeps an ordinary task workspace when reaping its orphaned non-heartbeat row', async () => {
+    // The reaper mirrors the deletion sweep's workspace rule: only a
+    // heartbeat's provisioned row goes — a user task's own picked workspace
+    // outlives its producer agent.
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({
+        id: 'ws-user-task',
+        name: 'Project workspace',
+        path: path.join(agentsRoot, 'user-task-ws'),
+        type: 'user',
+        orderKey: 'ws-user-task'
+      })
+      .run()
+    jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: 'task_daily_report',
+      trigger: { kind: 'interval', ms: 3_600_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        prompt: 'Write the daily report',
+        timeoutMinutes: 2,
+        workspace: { type: 'user', workspaceId: 'ws-user-task' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+
+    await repairHeartbeatSchedules()
+
+    expect(
+      jobScheduleService.listAll({ type: 'agent.task' }).filter((s) => s.name === 'task_daily_report')
+    ).toHaveLength(0)
+    expect(
+      dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, 'ws-user-task')).all()
+    ).toHaveLength(1)
+  })
+
   it('pauses an orphaned row the reaper cannot unregister', async () => {
     seedAgent(AGENT_ID)
     await syncHeartbeatSchedule(AGENT_ID)
@@ -985,6 +1023,50 @@ describe('heartbeatSchedule', () => {
     expect(survivors).toHaveLength(1)
     expect(survivors[0].trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
     expect(survivors[0].enabled).toBe(true)
+  })
+
+  it('pauses a duplicate heartbeat row the reconciliation fails to unregister', async () => {
+    // A transient unregister failure must not leave the duplicate armed next
+    // to the canonical row until the next restart — the pause mirrors the
+    // deletion sweep's best-effort fallback.
+    seedAgent(AGENT_ID, { heartbeat_interval: 45 })
+    jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: 'heartbeat_legacy_disambiguated',
+      trigger: { kind: 'interval', ms: 3_600_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        prompt: '__heartbeat__',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: `heartbeat_${AGENT_ID}`,
+      trigger: { kind: 'interval', ms: 7_200_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        prompt: '__heartbeat__',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    const spy = vi.spyOn(jobManager, 'unregisterJobScheduleById').mockRejectedValue(new Error('SQLITE_BUSY'))
+
+    await syncHeartbeatSchedule(AGENT_ID)
+
+    // Whichever sentinel row sync picked as canonical, the OTHER one is the
+    // removal target — it must come out of the failed removal disabled.
+    const removalTarget = spy.mock.calls[0]?.[0]
+    spy.mockRestore()
+    expect(removalTarget).toBeDefined()
+    expect(jobScheduleService.getById(removalTarget)?.enabled).toBe(false)
+    expect(heartbeatRows(AGENT_ID).filter((row) => row.enabled)).toHaveLength(1)
   })
 
   it('repairs a circuit-breaker-paused row without re-enabling it', async () => {

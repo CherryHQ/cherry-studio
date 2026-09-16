@@ -394,7 +394,14 @@ async function runSync(
     const duplicates = rows.filter((row) => row.id !== existing?.id && matchesHeartbeatIdentity(row, agentId))
     const removals = await Promise.allSettled(
       duplicates.map(async (row) => {
-        await jobManager.unregisterJobScheduleById(row.id)
+        try {
+          await jobManager.unregisterJobScheduleById(row.id)
+        } catch (error) {
+          // A transient unregister failure must not leave the duplicate armed
+          // beside the canonical row — pause best-effort, mirroring the sweep.
+          pauseHeartbeatSchedule(agentId, row.id, 'Failed to remove a duplicate heartbeat schedule')
+          throw error
+        }
         logger.info('Removed duplicate heartbeat schedule', { agentId, scheduleId: row.id })
       })
     )
@@ -567,7 +574,13 @@ async function reapOrphanedScheduleRows(rows: JobScheduleSnapshot[]): Promise<vo
     reaped.push(row.id)
     const template = row.jobInputTemplate as { workspace?: { type?: unknown; workspaceId?: unknown } | null } | null
     const workspace = template?.workspace
-    if (workspace?.type === AGENT_WORKSPACE_TYPE.USER && typeof workspace.workspaceId === 'string') {
+    // Mirror the deletion sweep: only a heartbeat's workspace row goes — an
+    // ordinary task's user-picked workspace outlives its producer agent.
+    if (
+      workspace?.type === AGENT_WORKSPACE_TYPE.USER &&
+      typeof workspace.workspaceId === 'string' &&
+      matchesHeartbeatIdentity(row, readTemplateAgentId(row) ?? '')
+    ) {
       dropOrphanWorkspace(row.id, workspace.workspaceId)
     }
   }
