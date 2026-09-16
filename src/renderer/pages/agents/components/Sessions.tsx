@@ -1812,7 +1812,9 @@ const Sessions = ({
         return group.id !== SESSION_NO_WORKDIR_GROUP_ID && group.id !== SESSION_NO_PROJECT_GROUP_ID
       }
 
-      return displayMode === 'agent' && group.id !== SESSION_UNKNOWN_AGENT_GROUP_ID && assistantIconType !== 'none'
+      if (displayMode !== 'agent' || group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return false
+
+      return assistantIconType !== 'none'
     },
     [assistantIconType, displayMode]
   )

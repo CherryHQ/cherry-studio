@@ -166,6 +166,7 @@
   "agent.right_pane.status.tool_uses_other": "{{count}} 次工具调用",
   "agent.right_pane.tabs.files": "文件",
   "agent.right_pane.tabs.status": "状态",
+  "agent.runtime_mode.label": "智能体运行时模式：{{mode}}",
   "agent.session.add.title": "添加会话",
   "agent.session.agent.delete.content": "删除该智能体下的所有任务；智能体本身不会被删除。",
   "agent.session.agent.delete.title": "删除智能体任务",

@@ -166,6 +166,7 @@
   "agent.right_pane.status.tool_uses_other": "{{count}} Tool-Aufrufe",
   "agent.right_pane.tabs.files": "Dateien",
   "agent.right_pane.tabs.status": "Status",
+  "agent.runtime_mode.label": "Agent-Laufzeitmodus: {{mode}}",
   "agent.session.add.title": "Sitzung hinzufügen",
   "agent.session.agent.delete.content": "Das Löschen der Aufgaben dieses Agenten wird alle mit diesem Agenten verknüpften Aufgaben löschen. Der Agent selbst wird nicht gelöscht.",
   "agent.session.agent.delete.title": "Agentenaufgaben löschen",

@@ -166,6 +166,7 @@
   "agent.right_pane.status.tool_uses_other": "{{count}} κλήσεις εργαλείων",
   "agent.right_pane.tabs.files": "Αρχεία",
   "agent.right_pane.tabs.status": "Κατάσταση",
+  "agent.runtime_mode.label": "Λειτουργία χρόνου εκτέλεσης Agent: {{mode}}",
   "agent.session.add.title": "Προσθήκη συνεδρίας",
   "agent.session.agent.delete.content": "Η διαγραφή των εργασιών αυτού του πράκτορα θα διαγράψει όλες τις εργασίες που σχετίζονται με αυτόν τον πράκτορα. Ο ίδιος ο πράκτορας δεν θα διαγραφεί.",
   "agent.session.agent.delete.title": "Διαγραφή εργασιών πράκτορα",
