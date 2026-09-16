@@ -1,9 +1,13 @@
 import { randomUUID } from 'node:crypto'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -20,6 +24,9 @@ import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessi
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import { AgentSessionForkOperations } from '@main/ai/agentSession/AgentSessionForkOperations'
+import type { RuntimeForkInput } from '@main/ai/runtime/forkCheckpoint'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
@@ -94,6 +101,82 @@ describe('AgentSessionMessageService', () => {
   })
 
   describe('native fork persistence', () => {
+    it.each(['cherry-claw', 'claude-code', 'pi'])(
+      'matches a Claude checkpoint against the effective runtime of a stored %s agent',
+      async (storedType) => {
+        await seedAgent('fork-agent', 'Fork Agent')
+        dbh.db.update(agentTable).set({ type: storedType }).where(eq(agentTable.id, 'fork-agent')).run()
+        await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
+        const directory = await mkdtemp(path.join(tmpdir(), 'agent-fork-runtime-'))
+        const getPath = vi.spyOn(application, 'getPath').mockReturnValue(directory)
+        const checkpoint = {
+          runtime: 'claude-code' as const,
+          runtimeSessionId: 'native-parent',
+          messageUuid: ASSISTANT_MESSAGE_ID,
+          configDir: directory,
+          sourceCwd: '/tmp/workspace-fork-source',
+          prefixBytes: 100,
+          prefixHash: 'a'.repeat(64)
+        }
+        const fork = vi.fn(async (input: RuntimeForkInput) => ({
+          resumeToken: 'native-child',
+          checkpoints: input.checkpoints.map((value) => ({ ...value, runtimeSessionId: 'native-child' })),
+          publish: []
+        }))
+        const connect = vi.fn()
+        for (const type of ['claude-code', 'pi']) {
+          runtimeDriverRegistry.register({
+            type,
+            capabilities: ['agent-session'],
+            validateSession: vi.fn(),
+            listAvailableTools: vi.fn().mockResolvedValue([]),
+            connect,
+            fork
+          })
+        }
+        try {
+          agentSessionMessageService.saveMessage({
+            sessionId: 'fork-source',
+            runtimeResumeToken: 'native-parent',
+            runtimeForkState: { version: 1, status: 'available', checkpoint },
+            message: {
+              id: ASSISTANT_MESSAGE_ID,
+              role: 'assistant',
+              status: 'success',
+              data: { parts: [{ type: 'text', text: 'answer' }] }
+            }
+          })
+          const operation = new AgentSessionForkOperations().fork('fork-source', ASSISTANT_MESSAGE_ID)
+          if (storedType === 'pi') {
+            await expect(operation).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+            expect(fork).not.toHaveBeenCalled()
+            expect(agentSessionForkService.journals()).toEqual([])
+          } else {
+            const childId = await operation
+            expect(agentSessionService.getById(childId)).toMatchObject({
+              agentId: 'fork-agent',
+              workspaceId: 'workspace-fork-source',
+              name: 'Source (1)'
+            })
+            const child = agentSessionMessageService.listSessionMessages(childId).items[0]
+            expect(child.id).not.toBe(ASSISTANT_MESSAGE_ID)
+            expect(child.runtimeResumeToken).toBe('native-child')
+            expect(child.forkAvailability).toEqual({ status: 'available' })
+            expect(
+              agentSessionMessageService.readForkPrefixTx(dbh.db, childId, child.id)[0].runtimeForkState
+            ).toMatchObject({ checkpoint: { ...checkpoint, runtimeSessionId: 'native-child' } })
+          }
+          expect(connect).not.toHaveBeenCalled()
+          expect(agentSessionMessageService.getLastRuntimeResumeToken('fork-source')).toBe('native-parent')
+          expect(dbh.db.select().from(agentTable).where(eq(agentTable.id, 'fork-agent')).get()?.type).toBe(storedType)
+        } finally {
+          getPath.mockRestore()
+          runtimeDriverRegistry.clearForTest()
+          await rm(directory, { recursive: true, force: true })
+        }
+      }
+    )
+
     it.each(['edit', 'delete'])('preserves earlier checkpoints at the same timestamp on %s', (operation) => {
       const rows = [
         { id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d009', createdAt: 999 },
@@ -126,6 +209,14 @@ describe('AgentSessionMessageService', () => {
       expect(
         agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, ASSISTANT_MESSAGE_ID).map((row) => row.id)
       ).toEqual(rows.slice(0, 3).map((row) => row.id))
+      notifyDataApiDataChangeMock.mockClear()
+      notifyDataApiDataChangeMock.mockImplementationOnce(() => {
+        expect(dbh.sqlite.inTransaction).toBe(false)
+        expect(agentSessionMessageService.getSessionMessage(SESSION_ID, FILE_ENTRY_ID).forkAvailability).toEqual({
+          status: 'unavailable',
+          reason: 'history_changed'
+        })
+      })
       if (operation === 'edit') {
         agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
           data: { parts: [{ type: 'text', text: 'edited' }] }
@@ -133,6 +224,17 @@ describe('AgentSessionMessageService', () => {
       } else {
         agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
       }
+      expect(notifyDataApiDataChangeMock.mock.calls).toEqual([
+        [
+          [
+            {
+              endpoint: '/agent-sessions/:sessionId/messages',
+              kind: operation === 'edit' ? 'projection' : 'membership',
+              routeParams: { sessionId: SESSION_ID }
+            }
+          ]
+        ]
+      ])
       for (const row of rows.slice(0, 2)) {
         expect(agentSessionMessageService.getSessionMessage(SESSION_ID, row.id).forkAvailability).toEqual({
           status: 'available'
@@ -214,7 +316,7 @@ describe('AgentSessionMessageService', () => {
       expect(metadata).not.toHaveProperty('runtimeForkState')
     })
 
-    it('rolls back checkpoint invalidation and deletion together on a real SQLite failure', () => {
+    it.each(['edit', 'delete'])('rolls back checkpoint invalidation and %s without notifying windows', (operation) => {
       agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
         runtimeForkState: {
@@ -229,17 +331,33 @@ describe('AgentSessionMessageService', () => {
           data: { parts: [{ type: 'text', text: 'answer' }] }
         }
       })
-      const remove = agentSessionMessageService.deleteSessionMessageTx.bind(agentSessionMessageService)
-      vi.spyOn(agentSessionMessageService, 'deleteSessionMessageTx').mockImplementation((...args) => {
-        remove(...args)
-        throw new Error('transaction failed after delete')
-      })
-      expect(() => agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow(
-        'transaction failed'
-      )
+      notifyDataApiDataChangeMock.mockReset()
+      if (operation === 'delete') {
+        const remove = agentSessionMessageService.deleteSessionMessageTx.bind(agentSessionMessageService)
+        vi.spyOn(agentSessionMessageService, 'deleteSessionMessageTx').mockImplementation((...args) => {
+          remove(...args)
+          throw new Error('transaction failed after delete')
+        })
+        expect(() => agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow(
+          'transaction failed'
+        )
+      } else {
+        vi.spyOn(agentSessionService, 'touchUpdatedAtTx').mockImplementation(() => {
+          throw new Error('transaction failed after edit')
+        })
+        expect(() =>
+          agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+            data: { parts: [{ type: 'text', text: 'edited' }] }
+          })
+        ).toThrow('transaction failed')
+      }
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
       expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).forkAvailability).toEqual({
         status: 'available'
       })
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual([
+        { type: 'text', text: 'answer' }
+      ])
     })
 
     it('reads legacy cleanup journals without restoring reservations or losing ownership', () => {

@@ -5,7 +5,9 @@ import path from 'node:path'
 
 import { application } from '@application'
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
+import { agentService } from '@data/services/AgentService'
 import {
+  AgentSessionForkSourceError,
   getAgentSessionForkAvailability,
   type RuntimeForkCheckpoint,
   RuntimeForkMetadataSchema,
@@ -114,9 +116,10 @@ export class AgentSessionForkOperations {
     ]
     const source = agentSessionForkService.read(sourceSessionId, messageId, excludedIds)
     const checkpoint = state.data.checkpoint
-    const driver = runtimeDriverRegistry.getAgentSessionDriver(source.agent.type)
-    if (source.agent.type !== checkpoint.runtime || !driver?.fork)
-      throw new AgentSessionForkError('unsupported_checkpoint')
+    const agent = agentService.getAgent(source.agent.id)
+    if (!agent) throw new AgentSessionForkSourceError('source_missing')
+    const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
+    if (agent.type !== checkpoint.runtime || !driver?.fork) throw new AgentSessionForkError('unsupported_checkpoint')
     const checkpoints: RuntimeForkCheckpoint[] = []
     for (const row of source.messages) {
       const parsed = RuntimeForkStateSchema.safeParse(row.runtimeForkState)

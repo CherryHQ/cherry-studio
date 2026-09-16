@@ -709,6 +709,9 @@ export class AgentSessionMessageService {
     if (result.rowsAffected === 0) {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', routeParams: { sessionId } }
+    ])
   }
 
   getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
@@ -723,7 +726,7 @@ export class AgentSessionMessageService {
     messageId: string,
     dto: UpdateAgentSessionMessageDto
   ): AgentSessionMessageEntity {
-    return application.get('DbService').withWriteTx((tx) => {
+    const message = application.get('DbService').withWriteTx((tx) => {
       const existing = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
 
@@ -742,6 +745,10 @@ export class AgentSessionMessageService {
       agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', routeParams: { sessionId } }
+    ])
+    return message
   }
 
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
