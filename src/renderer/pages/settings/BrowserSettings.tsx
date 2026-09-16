@@ -39,9 +39,7 @@ export function BrowserSettings() {
   const [enabled, setEnabled] = usePreference('app.browser.agent_control.enabled')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
-  const [dialog, setDialog] = useState<{ kind: 'import' | 'history' | 'clear'; open: boolean } | null>(null)
-  const closeDialog = () => setDialog((current) => (current ? { ...current, open: false } : null))
-  const releaseDialog = () => setDialog((current) => (current?.open ? current : null))
+  const [dialog, setDialog] = useState<'import' | 'history' | 'clear' | null>(null)
 
   return (
     <SettingsContentColumn>
@@ -107,13 +105,7 @@ export function BrowserSettings() {
       </SettingGroup>
       <SettingGroup>
         {sections.map(({ kind, title, help, action }) => (
-          <Dialog
-            key={kind}
-            open={dialog?.kind === kind && dialog.open}
-            onOpenChange={(open) => {
-              if (open) setDialog({ kind, open: true })
-              else closeDialog()
-            }}>
+          <Dialog key={kind} open={dialog === kind} onOpenChange={(open) => setDialog(open ? kind : null)}>
             {kind !== 'import' && <SettingDivider />}
             <SettingRow id={`setting-browser-${kind}`} className="scroll-mt-6 flex-nowrap">
               <div className="min-w-0 flex-1">
@@ -126,14 +118,13 @@ export function BrowserSettings() {
                 </Button>
               </DialogTrigger>
             </SettingRow>
-            {dialog?.kind === kind &&
-              (kind === 'import' ? (
-                <BrowserImportDialog onDone={closeDialog} onClosed={releaseDialog} />
-              ) : kind === 'history' ? (
-                <BrowserHistoryDialog onOpenPage={closeDialog} onClosed={releaseDialog} />
-              ) : (
-                <BrowserClearDialog onDone={closeDialog} onClosed={releaseDialog} />
-              ))}
+            {kind === 'import' ? (
+              <BrowserImportDialog onDone={() => setDialog(null)} />
+            ) : kind === 'history' ? (
+              <BrowserHistoryDialog onOpenPage={() => setDialog(null)} />
+            ) : (
+              <BrowserClearDialog onDone={() => setDialog(null)} />
+            )}
           </Dialog>
         ))}
       </SettingGroup>

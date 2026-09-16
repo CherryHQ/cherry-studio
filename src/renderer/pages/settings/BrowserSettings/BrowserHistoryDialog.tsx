@@ -26,7 +26,19 @@ import { useTabs } from '@renderer/hooks/tab'
 import { toast } from '@renderer/services/toast'
 import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
 
-export function BrowserHistoryDialog({ onOpenPage, onClosed }: { onOpenPage: () => void; onClosed?: () => void }) {
+export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <DialogContent
+      size="xl"
+      closeLabel={t('common.close')}
+      className="flex h-[min(40rem,85dvh)] flex-col gap-0 overflow-hidden border border-border bg-popover p-0 text-popover-foreground">
+      <BrowserHistoryContent onOpenPage={onOpenPage} />
+    </DialogContent>
+  )
+}
+
+function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
   const { t, i18n } = useTranslation()
   const [search, setSearch] = useState('')
   const pendingLoad = useRef(false)
@@ -114,11 +126,7 @@ export function BrowserHistoryDialog({ onOpenPage, onClosed }: { onOpenPage: () 
     })
 
   return (
-    <DialogContent
-      onCloseAutoFocus={onClosed}
-      size="xl"
-      closeLabel={t('common.close')}
-      className="flex h-[min(40rem,85dvh)] flex-col gap-0 overflow-hidden border border-border bg-popover p-0 text-popover-foreground">
+    <>
       {isRefreshing && (
         <p role="status" className="absolute top-6 right-14 flex items-center gap-2 text-muted-foreground text-xs">
           <LoaderCircle aria-hidden="true" className="size-4 motion-safe:animate-spin" />
@@ -276,6 +284,6 @@ export function BrowserHistoryDialog({ onOpenPage, onClosed }: { onOpenPage: () 
           />
         )}
       </div>
-    </DialogContent>
+    </>
   )
 }
