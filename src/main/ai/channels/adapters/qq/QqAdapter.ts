@@ -6,7 +6,6 @@ import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { splitMessage } from '../../utils'
 
@@ -802,12 +801,8 @@ class QqAdapter extends ChannelAdapter {
   }
 }
 
-// Self-registration
-registerAdapterFactory('qq', (channel, agentId) => {
+export function createQqAdapter(config: ChannelAdapterConfig<'qq'>) {
   return new QqAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}

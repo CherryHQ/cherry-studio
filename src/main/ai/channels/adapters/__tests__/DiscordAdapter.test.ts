@@ -6,10 +6,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../../ChannelManager', () => ({
-  registerAdapterFactory: vi.fn()
-}))
-
 const { mockNetFetch, mockWebSocket } = vi.hoisted(() => ({
   mockNetFetch: vi.fn(),
   mockWebSocket: vi.fn()
@@ -23,23 +19,15 @@ vi.mock('ws', () => {
   return { default: mockWebSocket, WebSocket: mockWebSocket }
 })
 
-import '../discord/DiscordAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
+import { createDiscordAdapter } from '../discord/DiscordAdapter'
 
-const discordCall = vi.mocked(registerAdapterFactory).mock.calls.find((call) => call[0] === 'discord')
-if (!discordCall) throw new Error('registerAdapterFactory was not called for discord')
-const discordFactory = discordCall[1] as (channel: any, agentId: string) => any
-
-function createAdapter() {
-  return discordFactory(
-    {
-      id: 'ch-discord-1',
-      type: 'discord',
-      enabled: true,
-      config: { bot_token: 'token', allowed_channel_ids: [] }
-    },
-    'agent-1'
-  )
+function createAdapter(): any {
+  return createDiscordAdapter({
+    channelId: 'ch-discord-1',
+    channelType: 'discord',
+    agentId: 'agent-1',
+    channelConfig: { bot_token: 'token', allowed_channel_ids: [] }
+  })
 }
 
 describe('DiscordAdapter connection lifecycle', () => {

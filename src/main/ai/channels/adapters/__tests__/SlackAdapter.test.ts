@@ -8,10 +8,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../../ChannelManager', () => ({
-  registerAdapterFactory: vi.fn()
-}))
-
 // Mock net.fetch for all Slack API calls
 const mockNetFetch = vi.fn()
 
@@ -42,15 +38,7 @@ vi.mock('ws', () => {
   return { default: Ctor, WebSocket: Ctor }
 })
 
-import '../slack/SlackAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
-
-function getFactory() {
-  const calls = vi.mocked(registerAdapterFactory).mock.calls
-  const slackCall = calls.find((c) => c[0] === 'slack')
-  if (!slackCall) throw new Error('registerAdapterFactory was not called for slack')
-  return slackCall[1] as (channel: any, agentId: string) => any
-}
+import { createSlackAdapter } from '../slack/SlackAdapter'
 
 // Helper to build a mock Response
 function mockJsonResponse(data: unknown, ok = true, status = 200): Response {
@@ -111,21 +99,17 @@ describe('SlackAdapter', () => {
     vi.useRealTimers()
   })
 
-  function createAdapter(overrides: Record<string, unknown> = {}) {
-    const factory = getFactory()
-    return factory(
-      {
-        id: (overrides.channelId as string) ?? 'ch-slack-1',
-        type: 'slack',
-        enabled: true,
-        config: {
-          bot_token: (overrides.bot_token as string) ?? 'xoxb-test-token',
-          app_token: (overrides.app_token as string) ?? 'xapp-test-token',
-          allowed_channel_ids: (overrides.allowed_channel_ids as string[]) ?? ['C0ALLOWED']
-        }
-      },
-      (overrides.agentId as string) ?? 'agent-1'
-    )
+  function createAdapter(overrides: Record<string, unknown> = {}): any {
+    return createSlackAdapter({
+      channelId: (overrides.channelId as string) ?? 'ch-slack-1',
+      channelType: 'slack',
+      agentId: (overrides.agentId as string) ?? 'agent-1',
+      channelConfig: {
+        bot_token: (overrides.bot_token as string) ?? 'xoxb-test-token',
+        app_token: (overrides.app_token as string) ?? 'xapp-test-token',
+        allowed_channel_ids: (overrides.allowed_channel_ids as string[]) ?? ['C0ALLOWED']
+      }
+    })
   }
 
   async function connectAdapter(overrides: Record<string, unknown> = {}) {
@@ -157,13 +141,6 @@ describe('SlackAdapter', () => {
     const envelope = { envelope_id: envelopeId, type: 'slash_commands', payload }
     mockWsInstance!.emit('message', Buffer.from(JSON.stringify(envelope)))
   }
-
-  // ─── Registration ─────────────────────────────────────────
-
-  it('registers itself as a slack adapter factory', () => {
-    const calls = vi.mocked(registerAdapterFactory).mock.calls
-    expect(calls.some((c) => c[0] === 'slack')).toBe(true)
-  })
 
   // ─── Constructor & Config ─────────────────────────────────
 

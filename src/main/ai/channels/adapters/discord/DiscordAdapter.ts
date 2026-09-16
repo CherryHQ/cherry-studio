@@ -11,7 +11,6 @@ import {
 import { clampSurrogateBoundary } from '@shared/utils/text'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand, SLASH_COMMANDS } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { splitMessage } from '../../utils'
@@ -818,12 +817,8 @@ class DiscordAdapter extends ChannelAdapter {
   }
 }
 
-// Self-registration
-registerAdapterFactory('discord', (channel, agentId) => {
+export function createDiscordAdapter(config: ChannelAdapterConfig<'discord'>) {
   return new DiscordAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}

@@ -5,7 +5,6 @@ import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '
 import { clampSurrogateBoundary } from '@shared/utils/text'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { splitMessage } from '../../utils'
@@ -707,12 +706,8 @@ class SlackAdapter extends ChannelAdapter {
   }
 }
 
-// Self-registration
-registerAdapterFactory('slack', (channel, agentId) => {
+export function createSlackAdapter(config: ChannelAdapterConfig<'slack'>) {
   return new SlackAdapter({
-    channelId: channel.id,
-    channelType: channel.type,
-    agentId,
-    channelConfig: channel.config
+    ...config
   })
-})
+}
