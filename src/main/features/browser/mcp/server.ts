@@ -28,6 +28,10 @@ export class BrowserServer {
 
   private readonly requests = new Set<Promise<CallToolResult>>()
 
+  get isClosing(): boolean {
+    return this.closing !== undefined
+  }
+
   close(): Promise<void> {
     return (this.closing ??= Promise.resolve().then(async () => {
       try {

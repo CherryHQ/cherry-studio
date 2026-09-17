@@ -6,12 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { topicTable } from '@data/db/schemas/topic'
-import { BaseService } from '@main/core/lifecycle'
+import { BaseService, Signal } from '@main/core/lifecycle'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { WindowId } from '@shared/ipc/types'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { BrowserSessionService } from '../BrowserSessionService'
+import { SessionBrowserController } from '../mcp/SessionBrowserController'
 import { createGuest } from './guestFixture'
 
 const topicId = '22222222-2222-4222-8222-222222222222'
@@ -32,16 +33,18 @@ describe('topic browser ownership and cancellation', () => {
       .values([topicId, secondTopic].map((id, i) => ({ id, assistantId, orderKey: `a${i}` })))
       .run()
     await application.get('PreferenceService').set('app.browser.agent_control.enabled', true)
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
     BaseService.resetInstances()
     service = new BrowserSessionService()
     await service._doInit()
   })
   afterEach(async () => {
     await service._doStop()
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
-  it('confines targets to their topic and window while allowing the topic to move between assistants', async () => {
+  function attachTopicGuest() {
     const host = { getZoomFactor: () => 1 } as Electron.WebContents
     vi.mocked(application.get('WindowManager').getWindow).mockReturnValue({
       webContents: host,
@@ -60,6 +63,11 @@ describe('topic browser ownership and cancellation', () => {
     })
     vi.mocked(webContents.fromId).mockReturnValue(fixture.guest)
     const { tabId } = service.topicBrowser.attach(topicId, 71, windowId)
+    return { fixture, tabId }
+  }
+
+  it('confines targets to their topic and window while allowing the topic to move between assistants', async () => {
+    const { fixture, tabId } = attachTopicGuest()
     expect(service.topicBrowser.get({ sessionId: secondTopic, ownerId: assistantId })).toBeUndefined()
     expect(() => service.topicBrowser.attach(secondTopic, 71, windowId)).toThrow()
     expect(() => service.topicBrowser.getCursor(topicId, tabId, 'other')).toThrow()
@@ -85,6 +93,38 @@ describe('topic browser ownership and cancellation', () => {
     expect(moved.every((result) => !result.isError && JSON.stringify(result).includes(tabId))).toBe(true)
     expect(() => service.topicBrowser.get({ sessionId: topicId, ownerId: assistantId })).toThrow()
     expect(fixture.guest.isDestroyed()).toBe(false)
+  })
+
+  it('waits for idle server cleanup before handling concurrent new calls', async () => {
+    const { fixture, tabId } = attachTopicGuest()
+    const call = () => service.callTopicTool(topicId, assistantId, 'list_tabs', {}, new AbortController().signal)
+    await call()
+    const started = new Signal<void>()
+    const resume = new Signal<void>()
+    const dispose = SessionBrowserController.prototype.dispose
+    vi.spyOn(SessionBrowserController.prototype, 'dispose').mockImplementationOnce(
+      async function (this: SessionBrowserController) {
+        started.resolve()
+        await resume
+        await dispose.call(this)
+      }
+    )
+
+    vi.advanceTimersByTime(5 * 60_000)
+    await started
+    const calls = Promise.allSettled([call(), call()])
+    resume.resolve()
+    const results = await calls
+
+    for (const result of results) {
+      expect(result.status).toBe('fulfilled')
+      if (result.status === 'fulfilled') {
+        expect(result.value.isError).toBe(false)
+        expect(JSON.stringify(result.value)).toContain(tabId)
+      }
+    }
+    expect(fixture.guest.isDestroyed()).toBe(false)
+    await expect(call()).resolves.toMatchObject({ isError: false })
   })
 
   it('aborts a tool waiting for its guest without waiting for the ensure timeout', async () => {

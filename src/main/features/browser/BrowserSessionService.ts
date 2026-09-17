@@ -175,7 +175,7 @@ export class BrowserSessionService extends BaseService {
     }
     assertAvailable()
     let entry = this.topicServers.get(topicId)
-    if (entry && entry.ownerId !== assistantId) {
+    while (entry && (entry.ownerId !== assistantId || entry.server.isClosing)) {
       await entry.server.close()
       assertAvailable()
       entry = this.topicServers.get(topicId)
