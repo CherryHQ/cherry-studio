@@ -23,6 +23,8 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { ContentHash, FileEntryId } from '@shared/data/types/file'
 import type { CanonicalFilePath } from '@shared/utils/file'
 
+import { replaceTransientFileRetention } from '../utils/transientFileRetention'
+
 // `@logger` is mocked globally by tests/main.setup.ts with the unified
 // MockMainLoggerService singleton — assert on `mockMainLoggerService.warn`.
 
@@ -2016,6 +2018,20 @@ describe('FileEntryService', () => {
       // so the truncation above is the limit's doing and not a stricter filter.
       expect(fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 3 })).toHaveLength(3)
       expect(fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 100 })).toHaveLength(5)
+    })
+
+    it('does not let transiently retained rows starve later cleanup candidates', async () => {
+      const held = '019606a0-0000-7000-8000-0000000cd100' as FileEntryId
+      const free = '019606a0-0000-7000-8000-0000000cd101' as FileEntryId
+      await seedEntry(held, 'delete_when_unreferenced', 2 * HOUR)
+      await seedEntry(free, 'delete_when_unreferenced', 2 * HOUR)
+
+      replaceTransientFileRetention('cleanup-starvation', [held])
+      try {
+        expect(fileEntryService.findCleanupCandidates({ graceMs: HOUR, limit: 1 }).map((e) => e.id)).toEqual([free])
+      } finally {
+        replaceTransientFileRetention('cleanup-starvation', [])
+      }
     })
 
     it('excludes candidates referenced by any registered persistent ref table (behavioral coverage)', async () => {
