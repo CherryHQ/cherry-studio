@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentType } from 'react'
+import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -122,7 +124,12 @@ const dataDomainCases: DataDomainCase[] = [
     listPath: '/paintings',
     deletePath: '/paintings/:id',
     paginated: false,
-    makeRecord: (id, name) => ({ id, prompt: name, deletedAt: '2026-08-01T00:00:00.000Z' })
+    makeRecord: (id, name) => ({
+      id,
+      prompt: name,
+      files: { input: [], output: [] },
+      deletedAt: '2026-08-01T00:00:00.000Z'
+    })
   }
 ]
 
@@ -140,10 +147,14 @@ async function runPendingRequest(pending: PendingPermanentDelete | undefined) {
   return outcome
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
 beforeEach(async () => {
   await i18n.changeLanguage('en-US')
+  MockUsePreferenceUtils.resetMocks()
   mocks.pagesByPath.clear()
   mocks.paginatedItemsByPath.clear()
   mocks.mutate.mockReset().mockResolvedValue(undefined)
@@ -155,6 +166,100 @@ beforeEach(async () => {
 })
 
 describe('Trash domain batch adapters', () => {
+  it.each([
+    {
+      path: '/assistants',
+      Component: AssistantTrashSection,
+      preference: 'assistant.icon_type',
+      fields: { emoji: '🔭' }
+    },
+    {
+      path: '/agents',
+      Component: AgentTrashSection,
+      preference: 'agent.icon_type',
+      fields: { configuration: { avatar: '🔭' } }
+    }
+  ] as const)('preserves the original avatar in $path', ({ path, Component, preference, fields }) => {
+    MockUsePreferenceUtils.setPreferenceValue(preference, 'emoji')
+    mocks.paginatedItemsByPath.set(path, [{ ...deletedTopic('owner-1', 'Astronomer'), ...fields }])
+
+    render(<Component retentionDays={30} isBatchMode={false} isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+
+    expect(screen.getByText('Astronomer')).toBeVisible()
+    expect(screen.getAllByText('🔭')[0]).toBeVisible()
+  })
+
+  it('loads only the first output thumbnail of each painting in one batch', async () => {
+    vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true)
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(100)
+    mocks.pagesByPath.set('/paintings', [
+      {
+        items: [
+          {
+            ...deletedTopic('painting-1', ''),
+            prompt: 'Mountains',
+            files: { input: ['input-1'], output: ['output-1', 'output-2'] }
+          },
+          { ...deletedTopic('painting-2', ''), prompt: 'Ocean', files: { input: [], output: ['output-3'] } }
+        ]
+      }
+    ])
+    mocks.ipcRequest.mockResolvedValue({ 'output-1': '/tmp/mountain view.png', 'output-3': '/tmp/ocean.png' })
+
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <PaintingTrashSection
+          retentionDays={30}
+          isBatchMode={false}
+          isPermanentDeleting={false}
+          onRequestDelete={vi.fn()}
+        />
+      </SWRConfig>
+    )
+
+    await waitFor(() => expect(screen.getAllByAltText('')).toHaveLength(2))
+    expect(screen.getAllByAltText('').map((image) => image.getAttribute('src'))).toEqual([
+      'file:///tmp/mountain%20view.png',
+      'file:///tmp/ocean.png'
+    ])
+    expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('file.batch_get_physical_paths', {
+      ids: ['output-1', 'output-3']
+    })
+  })
+
+  it('keeps painting restoration available when thumbnail loading fails', async () => {
+    const user = userEvent.setup()
+    mocks.pagesByPath.set('/paintings', [
+      {
+        items: [
+          { ...deletedTopic('painting-1', ''), prompt: 'Mountains', files: { input: [], output: ['missing-output'] } }
+        ]
+      }
+    ])
+    mocks.ipcRequest.mockRejectedValue(new Error('File unavailable'))
+
+    render(
+      <SWRConfig value={{ provider: () => new Map(), shouldRetryOnError: false }}>
+        <PaintingTrashSection
+          retentionDays={30}
+          isBatchMode={false}
+          isPermanentDeleting={false}
+          onRequestDelete={vi.fn()}
+        />
+      </SWRConfig>
+    )
+
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalled())
+    expect(screen.getByText('Mountains')).toBeVisible()
+    expect(screen.queryByAltText('')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Restore' }))
+    await waitFor(() =>
+      expect(mocks.mutate).toHaveBeenCalledWith('POST', '/paintings/:id/restore', {
+        params: { id: 'painting-1' }
+      })
+    )
+  })
+
   it('refreshes only assistant resources when restoring an assistant', () => {
     render(
       <AssistantTrashSection

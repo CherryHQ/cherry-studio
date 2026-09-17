@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Checkbox } from '@cherrystudio/ui'
+import { Button, Checkbox, EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 
@@ -228,9 +228,7 @@ const TrashSection: FC<TrashSectionProps> = ({
       ) : (
         <>
           {items.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground text-sm">
-              {t('settings.data.trash.empty.section')}
-            </div>
+            <EmptyState title={t('settings.data.trash.empty.section')} />
           ) : (
             items.map((item) => (
               <TrashItemRow

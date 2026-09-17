@@ -1,9 +1,15 @@
-import { Bot, File, Image, MessageSquare, MessagesSquare, Sparkles } from 'lucide-react'
+import { chunk } from 'es-toolkit'
+import { MessageSquare, MessagesSquare } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWR from 'swr'
 
+import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
+import { renderAgentEntityIcon, renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { dataApiService } from '@renderer/data/DataApiService'
 import {
   useDataChange,
@@ -19,6 +25,7 @@ import { toast } from '@renderer/services/toast'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
+import { toFileUrl } from '@shared/utils/file'
 
 import TrashSection, { type PendingPermanentDelete } from './TrashSection'
 import type { TrashBatchOutcome, TrashItem } from './trashUtils'
@@ -27,6 +34,7 @@ import { runPerItem, toEpochMs } from './trashUtils'
 const logger = loggerService.withContext('TrashDomainSections')
 
 const IN_TRASH_QUERY = { inTrash: true } as const
+const PREVIEW_BATCH_SIZE = 500
 
 export interface TrashDomainSectionProps {
   retentionDays: number
@@ -252,9 +260,17 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
     prevPage,
     refresh
   } = usePaginatedQuery('/agents', { query: IN_TRASH_QUERY, limit: 50 })
+  const [iconType] = usePreference('agent.icon_type')
+  const [defaultModelId] = usePreference('chat.default_model_id')
   const items = useMemo<TrashItem[]>(
-    () => agents.map((agent) => ({ id: agent.id, name: agent.name ?? '', deletedAt: toEpochMs(agent.deletedAt) })),
-    [agents]
+    () =>
+      agents.map((agent) => ({
+        id: agent.id,
+        name: agent.name ?? '',
+        deletedAt: toEpochMs(agent.deletedAt),
+        icon: renderAgentEntityIcon(iconType, agent, defaultModelId, 36)
+      })),
+    [agents, iconType, defaultModelId]
   )
   const totalPages = Math.ceil(total / 50)
   useDataChange('/agents', () => void refresh())
@@ -311,7 +327,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
-      icon={Bot}
+      icon={SIDEBAR_ICON_COMPONENTS.agents}
       isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
@@ -450,14 +466,17 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
     prevPage,
     refresh
   } = usePaginatedQuery('/assistants', { query: IN_TRASH_QUERY, limit: 50 })
+  const [iconType] = usePreference('assistant.icon_type')
+  const [defaultModelId] = usePreference('chat.default_model_id')
   const items = useMemo<TrashItem[]>(
     () =>
       assistants.map((assistant) => ({
         id: assistant.id,
         name: assistant.name,
-        deletedAt: toEpochMs(assistant.deletedAt)
+        deletedAt: toEpochMs(assistant.deletedAt),
+        icon: renderAssistantEntityIcon(iconType, assistant, defaultModelId, 36)
       })),
-    [assistants]
+    [assistants, iconType, defaultModelId]
   )
   const totalPages = Math.ceil(total / 50)
   useDataChange('/assistants', () => void refresh())
@@ -491,7 +510,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
-      icon={Sparkles}
+      icon={SIDEBAR_ICON_COMPONENTS.assistants}
       isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
@@ -535,14 +554,37 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
   })
   const paintings = useInfiniteFlatItems(pages)
   useDataChange('/paintings', () => void refresh())
+  const previewIds = [...new Set(paintings.flatMap((painting) => painting.files.output.slice(0, 1)))]
+  const { data: previewPaths } = useSWR(
+    previewIds.length > 0 ? (['trash-painting-previews', previewIds] as const) : null,
+    async ([, ids]) => {
+      const batches = await Promise.all(
+        chunk(ids, PREVIEW_BATCH_SIZE).map((batch) => ipcApi.request('file.batch_get_physical_paths', { ids: batch }))
+      )
+      return Object.assign({}, ...batches) as (typeof batches)[number]
+    },
+    { onError: (error) => logger.warn('Failed to load archived painting previews', error) }
+  )
+  const PaintingIcon = SIDEBAR_ICON_COMPONENTS.paintings
   const items = useMemo<TrashItem[]>(
     () =>
-      paintings.map((painting) => ({
-        id: painting.id,
-        name: painting.prompt,
-        deletedAt: toEpochMs(painting.deletedAt)
-      })),
-    [paintings]
+      paintings.map((painting) => {
+        const path = previewPaths?.[painting.files.output[0]]
+        return {
+          id: painting.id,
+          name: painting.prompt,
+          deletedAt: toEpochMs(painting.deletedAt),
+          icon: (
+            <Avatar className="size-9 rounded-lg">
+              <AvatarImage src={path ? toFileUrl(path) : undefined} alt="" draggable={false} className="object-cover" />
+              <AvatarFallback className="rounded-lg bg-muted text-muted-foreground">
+                <PaintingIcon size={18} />
+              </AvatarFallback>
+            </Avatar>
+          )
+        }
+      }),
+    [paintings, previewPaths, PaintingIcon]
   )
 
   const restoreMutation = useMutation('POST', '/paintings/:id/restore', {
@@ -574,7 +616,7 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
-      icon={Image}
+      icon={SIDEBAR_ICON_COMPONENTS.paintings}
       isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
@@ -687,7 +729,7 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
-      icon={File}
+      icon={SIDEBAR_ICON_COMPONENTS.files}
       isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}

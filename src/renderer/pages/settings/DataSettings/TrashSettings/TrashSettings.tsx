@@ -1,4 +1,4 @@
-import { Bot, Check, File, Image, type LucideIcon, MessageSquare, MessagesSquare, Sparkles } from 'lucide-react'
+import { Check, type LucideIcon, MessageSquare, MessagesSquare } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, ConfirmDialog, SelectDropdown } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
@@ -29,12 +30,12 @@ const logger = loggerService.withContext('TrashSettings')
 type TrashCategory = 'topics' | 'agents' | 'sessions' | 'assistants' | 'paintings' | 'files'
 
 const CATEGORIES: { id: TrashCategory; labelKey: string; Icon: LucideIcon }[] = [
-  { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants', Icon: Sparkles },
+  { id: 'assistants', labelKey: 'settings.data.trash.domain.assistants', Icon: SIDEBAR_ICON_COMPONENTS.assistants },
   { id: 'topics', labelKey: 'settings.data.trash.domain.topics', Icon: MessageSquare },
-  { id: 'agents', labelKey: 'settings.data.trash.domain.agents', Icon: Bot },
+  { id: 'agents', labelKey: 'settings.data.trash.domain.agents', Icon: SIDEBAR_ICON_COMPONENTS.agents },
   { id: 'sessions', labelKey: 'settings.data.trash.domain.sessions', Icon: MessagesSquare },
-  { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings', Icon: Image },
-  { id: 'files', labelKey: 'settings.data.trash.domain.files', Icon: File }
+  { id: 'paintings', labelKey: 'settings.data.trash.domain.paintings', Icon: SIDEBAR_ICON_COMPONENTS.paintings },
+  { id: 'files', labelKey: 'settings.data.trash.domain.files', Icon: SIDEBAR_ICON_COMPONENTS.files }
 ]
 
 const SECTION_BY_CATEGORY: Record<TrashCategory, FC<TrashDomainSectionProps>> = {

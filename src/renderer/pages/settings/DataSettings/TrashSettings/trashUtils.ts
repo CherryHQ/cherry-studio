@@ -3,6 +3,7 @@
  */
 
 import dayjs from 'dayjs'
+import type { ReactNode } from 'react'
 
 import { formatErrorMessage } from '@renderer/utils/error'
 
@@ -10,6 +11,7 @@ export interface TrashItem {
   id: string
   name: string
   deletedAt: number | undefined
+  icon?: ReactNode
 }
 
 export interface TrashBatchOutcome {

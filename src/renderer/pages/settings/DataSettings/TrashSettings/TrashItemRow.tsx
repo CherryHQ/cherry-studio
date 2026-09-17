@@ -2,7 +2,17 @@ import { type LucideIcon, RotateCcw, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Checkbox, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Checkbox,
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+  Tooltip
+} from '@cherrystudio/ui'
 
 import type { TrashItem } from './trashUtils'
 import { computeDaysRemaining, formatDeletedTime } from './trashUtils'
@@ -42,7 +52,7 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
   const isBatchBlocked = isSectionBusy && !isRestoring
 
   return (
-    <div className="flex items-center gap-3 border-border border-b py-4">
+    <Item className="flex-nowrap gap-3 rounded-none border-0 border-border border-b px-0">
       {showSelection && (
         <Checkbox
           checked={selected}
@@ -51,18 +61,19 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
           onCheckedChange={(checked) => onSelectedChange(checked === true)}
         />
       )}
-      {Icon && (
-        <div
-          className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+      {(item.icon || Icon) && (
+        <ItemMedia
+          variant={item.icon ? 'default' : 'icon'}
+          className="size-9 rounded-lg border-0 text-muted-foreground"
           aria-hidden="true">
-          <Icon size={18} />
-        </div>
+          {item.icon || (Icon && <Icon className="size-4.5" />)}
+        </ItemMedia>
       )}
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-foreground text-sm" title={displayName}>
+      <ItemContent className="min-w-0">
+        <ItemTitle className="block w-full truncate font-normal text-foreground" title={displayName}>
           {displayName}
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-muted-foreground text-xs">
+        </ItemTitle>
+        <ItemDescription className="line-clamp-none flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
           <span title={deletedAtLabel} aria-label={deletedAtLabel}>
             {deletedTime}
           </span>
@@ -76,9 +87,9 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
                   : t('settings.data.trash.days_remaining', { count: daysRemaining })}
             </span>
           )}
-        </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions className="shrink-0">
         <Tooltip title={t('settings.data.trash.restore.label')}>
           <Button
             variant="outline"
@@ -108,8 +119,8 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
             <Trash2 size={16} />
           </Button>
         </Tooltip>
-      </div>
-    </div>
+      </ItemActions>
+    </Item>
   )
 }
 
