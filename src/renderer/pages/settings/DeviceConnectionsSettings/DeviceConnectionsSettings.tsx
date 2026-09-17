@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { MonitorSmartphone, QrCode, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowUpRight, MonitorSmartphone, QrCode, Smartphone, Trash2, TriangleAlert } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -26,7 +26,7 @@ const LAN_HOST = '0.0.0.0'
 
 const DeviceConnectionsSettings: FC = () => {
   const { theme } = useTheme()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { apiGatewayConfig, apiGatewayRunning, apiGatewayLoading } = useApiGateway()
   const lanRunning = useSharedCacheValue('feature.api_gateway.lan_running') ?? false
@@ -49,6 +49,12 @@ const DeviceConnectionsSettings: FC = () => {
   const [isUpdatingLan, setIsUpdatingLan] = useState(false)
   const [revokingId, setRevokingId] = useState<string>()
   const pairingRequestId = useRef(0)
+
+  const openMobileDownload = () => {
+    const language = i18n.resolvedLanguage ?? i18n.language
+    const url = language.startsWith('zh') ? 'https://cherryai.com.cn/mobile' : 'https://cherryai.com/mobile'
+    void ipcApi.request('system.shell.open_external_website', url)
+  }
 
   const clearPairingOffer = useCallback(() => {
     pairingRequestId.current += 1
@@ -152,6 +158,25 @@ const DeviceConnectionsSettings: FC = () => {
         </SettingTitle>
         <PageDescription>{t('deviceConnections.description')}</PageDescription>
       </div>
+
+      <Button
+        variant="outline"
+        aria-label={t('deviceConnections.downloadMobile')}
+        className="mt-5 h-auto w-full justify-between gap-4 rounded-xl p-4 text-left whitespace-normal"
+        onClick={openMobileDownload}>
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-background-subtle text-muted-foreground">
+            <Smartphone className="size-5" />
+          </span>
+          <span className="flex min-w-0 flex-col gap-1">
+            <span className="font-medium text-sm">{t('deviceConnections.downloadMobile')}</span>
+            <span className="text-muted-foreground text-xs leading-5">{t('deviceConnections.downloadMobileHint')}</span>
+          </span>
+        </span>
+        <span className="shrink-0 text-muted-foreground">
+          <ArrowUpRight className="size-4" />
+        </span>
+      </Button>
 
       <StatusCard $ready={connectionReady}>
         <div className="flex min-w-0 flex-1 items-center gap-3">

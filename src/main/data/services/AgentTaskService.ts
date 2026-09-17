@@ -33,7 +33,7 @@ import {
   type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { ListOptions } from '@shared/data/api/types'
+import type { DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 
@@ -152,6 +152,18 @@ function deriveStatus(snapshot: JobScheduleSnapshot): ScheduledTaskEntity['statu
   return 'active'
 }
 
+function taskReadModelEffects(
+  entityIds: string[],
+  kind: 'membership' | 'projection' = 'projection'
+): DataApiDataChangeEffect[] {
+  return [
+    { endpoint: '/agent-tasks', kind, entityIds },
+    { endpoint: '/agents/:agentId/tasks', kind, entityIds },
+    { endpoint: '/agent-tasks/:taskId', entityIds },
+    { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
+  ]
+}
+
 export class AgentTaskService {
   completeMissedRunTx(tx: DbOrTx, taskId: string, jobId: string, finishedAt: number): boolean {
     const schedule = jobScheduleService.getByIdTx(tx, taskId)
@@ -263,11 +275,14 @@ export class AgentTaskService {
   notifyReadModelChange(taskIds: readonly string[], kind: 'membership' | 'projection' = 'projection'): void {
     const entityIds = [...new Set(taskIds)]
     if (entityIds.length === 0) return
+    notifyDataApiDataChange(taskReadModelEffects(entityIds, kind))
+  }
+
+  /** Publish task and run-log projections together: membership on enqueue, projection on state changes. */
+  notifyRunChange(taskId: string, jobId: string, kind: 'membership' | 'projection'): void {
     notifyDataApiDataChange([
-      { endpoint: '/agent-tasks', kind, entityIds },
-      { endpoint: '/agents/:agentId/tasks', kind, entityIds },
-      { endpoint: '/agent-tasks/:taskId', entityIds },
-      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
+      ...taskReadModelEffects([taskId]),
+      { endpoint: '/agents/:agentId/tasks/:taskId/logs', kind, routeParams: { taskId }, entityIds: [jobId] }
     ])
   }
 
