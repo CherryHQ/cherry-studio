@@ -1087,7 +1087,7 @@ const ChatComposerInner = ({
     }
     const draft = actionsRef.current.getDraft()
     writeChatDraftCache(draftCacheScopeKey, {
-      text,
+      text: draft.text,
       tokens: draft.tokens,
       files,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
@@ -1115,7 +1115,7 @@ const ChatComposerInner = ({
     if (editingMessage && !savedDraft) return
     const draft = savedDraft ? { text: savedDraft.text, tokens: savedDraft.draftTokens } : surfaceGetDraftRef.current()
     writeChatDraftCache(draftCacheScopeKey, {
-      text: savedDraft ? draft.text : text,
+      text: draft.text,
       tokens: draft.tokens,
       files: savedDraft?.files ?? filesRef.current,
       knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current,

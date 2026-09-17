@@ -490,15 +490,15 @@ export class BinaryManager extends BaseService {
     const installed: Record<string, MiseInstallEntry[]> = {}
     // Backend state is derived once and drives the independent application fact:
     // a missing backend is `backend_unavailable`, a failed/malformed query is
-    // `query_failed`. Neither may ever collapse a tool to `absent`.
-    let queryFailed = false
+    // `query_failed` with sanitized details. Neither may ever collapse a tool to `absent`.
+    let queryFailureMessage: string | null = null
     if (this.miseBin) {
       try {
         Object.assign(installed, await this.listMiseInstalls())
       } catch (err) {
-        queryFailed = true
+        queryFailureMessage = this.errorMessage(err)
         logger.warn('Failed to query installed versions via mise ls', {
-          error: err instanceof Error ? err.message : String(err)
+          error: queryFailureMessage
         })
       }
     }
@@ -533,8 +533,8 @@ export class BinaryManager extends BaseService {
     // recipe options, `applied` proves package identity, not optional capabilities.
     const backendUnknown: BinaryApplication | null = !this.miseBin
       ? { status: 'unknown', reason: 'backend_unavailable' }
-      : queryFailed
-        ? { status: 'unknown', reason: 'query_failed' }
+      : queryFailureMessage !== null
+        ? { status: 'unknown', reason: 'query_failed', message: queryFailureMessage }
         : null
 
     type DerivedTool = { application?: BinaryApplication; mise?: { path: string; version?: string } }
