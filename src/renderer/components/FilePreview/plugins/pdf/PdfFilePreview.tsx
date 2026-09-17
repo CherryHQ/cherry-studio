@@ -12,7 +12,7 @@ import {
 // oxlint-disable-next-line import/default -- Vite exposes ?url imports as default asset URLs.
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
@@ -23,10 +23,12 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { createSelectionReference } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
 import { PdfFilePreviewToolbar } from './PdfFilePreviewToolbar'
 import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport, PdfRangeTooLargeError } from './PdfFileRangeTransport'
 import { type PdfDestination, PdfOutline, type PdfOutlineItem, type PdfOutlineStatus } from './PdfOutline'
+import { pageToPdfAnchor } from './pdfSelectionAnchor'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -120,7 +122,22 @@ function PdfPreviewTooLarge({ filePath }: { filePath: AbsoluteFilePath }) {
   )
 }
 
-export default function PdfFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
+/**
+ * PDF preview with page-level selection picking. The anchor names a page and the excerpt comes from
+ * the pdf.js document proxy rather than the DOM: text-layer order is not reading order, and a page's
+ * text layer may not be rendered yet. The pick lives in React state and the DOM marker is derived
+ * from it, because pdf.js rebuilds the page elements it renders and a DOM-only truth would be wiped
+ * along with them. `preventDefault` on a click covers external `href` annotations only — pdf.js binds
+ * an internal destination with `link.onclick`, which runs first and jumps instead of picking (known
+ * limitation, see the FilePreview README).
+ */
+export default function PdfFilePreview({
+  filePath,
+  fileName,
+  metadata,
+  refreshKey,
+  onSelectionReference
+}: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const rootRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -138,6 +155,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
   const [isOutlineOpen, setIsOutlineOpen] = useState(false)
   const [outlineItems, setOutlineItems] = useState<PdfOutlineItem[]>([])
   const [outlineStatus, setOutlineStatus] = useState<PdfOutlineStatus>('loading')
+  const [pickedPage, setPickedPage] = useState<number | null>(null)
 
   const applyViewerBackground = useCallback((nextBackground: string | null) => {
     const viewer = viewerRef.current
@@ -182,6 +200,90 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
       focusContainer()
     },
     [focusContainer, pageCount]
+  )
+
+  // The token guards against a slow text fetch reporting a stale pick: a new pick empties the host
+  // while that page's text is in flight, so the chip can never quote the page the marker just left.
+  const pickTokenRef = useRef(0)
+  const handlePick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!onSelectionReference || !(event.target instanceof Element)) return
+      if (event.target.closest('a[href]')) event.preventDefault()
+
+      const resolved = pageToPdfAnchor(event.target)
+      const token = ++pickTokenRef.current
+      if (!resolved || resolved.page === pickedPage || !documentProxy) {
+        setPickedPage(null)
+        onSelectionReference(null)
+        return
+      }
+
+      setPickedPage(resolved.page)
+      onSelectionReference(null)
+      void documentProxy
+        .getPage(resolved.page)
+        .then(async (page) => {
+          const content = await page.getTextContent()
+          if (token !== pickTokenRef.current) return
+          const excerpt = content.items.map((item) => ('str' in item ? item.str : '')).join(' ')
+          const reference = createSelectionReference({
+            filePath,
+            anchor: { format: 'pdf', page: resolved.page },
+            excerpt,
+            metadata
+          })
+          // A page with no text at all: drop the marker the click put on, so no page stays outlined
+          // as picked while the host holds nothing.
+          if (!reference) setPickedPage(null)
+          onSelectionReference(reference)
+        })
+        .catch((error: unknown) => {
+          if (token !== pickTokenRef.current) return
+          setPickedPage(null)
+          logger.warn(`Failed to read PDF page text for a pick: ${filePath}`, error as Error)
+          onSelectionReference(null)
+        })
+    },
+    [documentProxy, filePath, metadata, onSelectionReference, pickedPage]
+  )
+
+  // Sole owner of the marker: pdf.js rebuilds the viewer's page divs, so a childList mutation (or a
+  // `zoom` change, which re-renders in place) repaints it. A rebuild is not a pick — report nothing.
+  useEffect(() => {
+    const viewerElement = viewerRef.current
+    if (!viewerElement) return
+
+    const applyMarker = () => {
+      viewerElement.querySelectorAll('[data-pdf-picked]').forEach((marked) => marked.removeAttribute('data-pdf-picked'))
+      if (pickedPage === null) return
+      viewerElement.querySelector(`.page[data-page-number="${pickedPage}"]`)?.setAttribute('data-pdf-picked', 'true')
+    }
+
+    applyMarker()
+    const observer = new MutationObserver(applyMarker)
+    observer.observe(viewerElement, { childList: true })
+    return () => observer.disconnect()
+  }, [pickedPage, zoom])
+
+  useEffect(() => {
+    if (onSelectionReference) return
+    pickTokenRef.current += 1
+    setPickedPage(null)
+  }, [onSelectionReference])
+
+  // A different document — or the same one reloaded — carries no pick; the host drops its reference
+  // on refresh too.
+  useEffect(() => {
+    pickTokenRef.current += 1
+    setPickedPage(null)
+  }, [filePath, refreshKey])
+
+  // An in-flight page-text fetch must not reach the host after the preview is gone.
+  useEffect(
+    () => () => {
+      pickTokenRef.current += 1
+    },
+    []
   )
 
   const zoomBy = useCallback(
@@ -573,10 +675,12 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
                   <div
                     ref={containerRef}
                     data-testid="pdfjs-viewer-container"
+                    data-picker={onSelectionReference ? 'true' : undefined}
                     role="region"
                     aria-label={fileName}
-                    className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
-                    tabIndex={0}>
+                    className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&[data-picker=true]_.page:not([data-pdf-picked=true]):hover]:outline [&[data-picker=true]_.page:not([data-pdf-picked=true]):hover]:outline-2 [&[data-picker=true]_.page:not([data-pdf-picked=true]):hover]:outline-primary/40 [&[data-picker=true]_.page]:cursor-pointer [&_.page[data-pdf-picked=true]]:outline [&_.page[data-pdf-picked=true]]:outline-2 [&_.page[data-pdf-picked=true]]:outline-primary"
+                    tabIndex={0}
+                    onClick={handlePick}>
                     <div ref={viewerRef} data-testid="pdfjs-viewer" className="pdfViewer selectable" />
                   </div>
                 </div>

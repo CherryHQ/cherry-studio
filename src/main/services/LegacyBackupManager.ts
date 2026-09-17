@@ -45,6 +45,7 @@ import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
+  BACKUP_BACKGROUND_TASKS_ERROR_CODE,
   BACKUP_DISK_FULL_ERROR_CODE,
   BACKUP_NEWER_VERSION_ERROR_CODE,
   BACKUP_OPERATION_BUSY_ERROR_CODE,
@@ -1551,7 +1552,7 @@ class BackupManager {
 
   private assertWritersDrained(verdicts: Array<{ stragglerIds: string[]; startupRecoveryPending?: boolean }>): void {
     if (verdicts.some((verdict) => verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending === true)) {
-      throw new Error('Background data writes did not quiesce in time. Please retry after current tasks finish.')
+      throw new Error(`${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: Background data writes did not quiesce in time.`)
     }
   }
 

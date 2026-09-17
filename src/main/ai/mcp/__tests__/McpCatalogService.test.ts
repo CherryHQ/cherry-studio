@@ -444,6 +444,22 @@ describe('McpCatalogService', () => {
     expect(listener).toHaveBeenCalledExactlyOnceWith({ serverId: 'server-1' })
   })
 
+  it('publishes the replacement catalog after a restart clears the shared cache', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValueOnce({ tools: [sdkTool('search')] }).mockResolvedValueOnce({ tools: [sdkTool('fetch')] })
+
+    const service = new McpCatalogService()
+    const listener = vi.fn()
+    service.onToolsCacheUpdated(listener)
+
+    await service.refreshTools('server-1')
+    service.clearSharedToolsCache('server-1')
+    await service.refreshTools('server-1')
+
+    expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toEqual(['fetch'])
+    expect(listener).toHaveBeenCalledTimes(3)
+  })
+
   it('onToolsCacheUpdated does not fire when a refresh rewrites identical content', async () => {
     getById.mockReturnValue(server())
     listTools.mockResolvedValue({ tools: [sdkTool('search')] })
