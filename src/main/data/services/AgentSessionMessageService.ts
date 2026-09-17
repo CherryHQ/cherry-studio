@@ -60,7 +60,6 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { AgentSessionForkSourceError, RuntimeForkAnchorSchema, type RuntimeForkAnchor } from './agentSessionFork'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -146,7 +145,7 @@ type ListSessionMessagesOptions = {
 
 type SaveAgentSessionMessageParams = {
   sessionId: string
-  runtimeAnchor?: RuntimeForkAnchor
+  runtimeAnchor?: unknown
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
   message: CreateAgentSessionMessageDto & {
@@ -297,7 +296,7 @@ export class AgentSessionMessageService {
     sessionId: string,
     messageId: string,
     excludedIds: readonly string[] = []
-  ): SessionMessageRow[] {
+  ): SessionMessageRow[] | undefined {
     const rows = tx
       .select()
       .from(sessionMessagesTable)
@@ -305,7 +304,7 @@ export class AgentSessionMessageService {
       .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
       .all()
     const end = rows.findIndex((row) => row.id === messageId)
-    if (end < 0) throw new AgentSessionForkSourceError('source_missing')
+    if (end < 0) return undefined
     const excluded = new Set(excludedIds)
     return rows.slice(0, end + 1).filter((row) => !excluded.has(row.id))
   }
@@ -898,7 +897,7 @@ export class AgentSessionMessageService {
 
     const existingRow = this.findExistingMessageRow(db, sessionId, messageId)
     const data: SessionMessageRow['data'] = publicMessageData(message.data)
-    if (params.runtimeAnchor) data.runtimeAnchor = RuntimeForkAnchorSchema.parse(params.runtimeAnchor)
+    if (params.runtimeAnchor) data.runtimeAnchor = params.runtimeAnchor
 
     if (existingRow) {
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null

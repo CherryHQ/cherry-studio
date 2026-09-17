@@ -4,7 +4,7 @@ import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 
 import * as claudeCode from '../claudeCode'
-import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../forkCheckpoint'
+import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../fork'
 import { registerRuntimeDrivers } from '../registerDrivers'
 import { runtimeDriverRegistry } from '../registry'
 

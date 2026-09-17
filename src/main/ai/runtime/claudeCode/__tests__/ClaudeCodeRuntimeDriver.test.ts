@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
-import type { RuntimeForkResult } from '../../forkCheckpoint'
+import type { RuntimeForkResult } from '../../fork'
 import { forkClaudeSession } from '../claudeFork'
 import type * as SettingsBuilderModule from '../settingsBuilder'
 import type * as StreamAdapterModule from '../streamAdapter'
@@ -39,7 +39,7 @@ describe('Claude native forks', () => {
         messageUuid: currentUuid,
         configDir: directory
       }
-      const worker = new Worker(new URL('../../forkWorker.ts', import.meta.url), {
+      const worker = new Worker(new URL('../../fork/worker.ts', import.meta.url), {
         workerData: {
           runtime: 'claude-code',
           entries,
@@ -147,7 +147,6 @@ const externalFileUrl = (name: string) => `file:///${process.platform === 'win32
 
 const mocks = vi.hoisted(() => ({
   buildRequest: vi.fn(),
-  ownsNativeHistory: vi.fn(() => false),
   deriveConfig: vi.fn(),
   getAgent: vi.fn(),
   getModelByKey: vi.fn(),
@@ -170,9 +169,9 @@ vi.mock('@application', () => ({
   application: { get: mocks.applicationGet, getPath: vi.fn(() => '/mock-claude-config') }
 }))
 
-vi.mock('../../forkWorker?nodeWorker', () => ({
+vi.mock('../../fork/worker?nodeWorker', () => ({
   default: (options: ConstructorParameters<typeof Worker>[1]) =>
-    new Worker(new URL('../../forkWorker.ts', import.meta.url), options)
+    new Worker(new URL('../../fork/worker.ts', import.meta.url), options)
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -189,10 +188,6 @@ vi.mock('../agentSessionWarmup', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
-}))
-
-vi.mock('@data/services/AgentSessionForkService', () => ({
-  agentSessionForkService: { ownsNativeHistory: mocks.ownsNativeHistory }
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -485,7 +480,7 @@ function userMessage() {
 describe('ClaudeCodeRuntimeDriver', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.ownsNativeHistory.mockReturnValue(false)
+
     mocks.adapterInstances.length = 0
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeWarmQueryManager') {
@@ -642,79 +637,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     )
     expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toContain('sk-ant-private')
     expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toContain('/missing/claude')
-    void connection.close()
-  })
-
-  it('binds resume recovery process diagnostics to the consumed warm holder', async () => {
-    const staleQueue = createAsyncQueue<any>()
-    const freshQueue = createAsyncQueue<any>()
-    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const warmDiagnostics = { reference: 'warm-retry-ref' }
-    mocks.buildRequest.mockResolvedValue({
-      connectionConfig: {
-        rebuildSignature: 'sig-1',
-        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
-      },
-      key: 'warm-key',
-      options: { model: 'sonnet', resume: 'stale-token' },
-      settings: {},
-      sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
-    })
-    mocks.consumeWarmQuery.mockResolvedValue({
-      warmQuery: { query: vi.fn(() => staleQuery) },
-      processDiagnostics: warmDiagnostics
-    })
-    mocks.createClaudeQuery.mockReturnValue(freshQuery)
-    mocks.processManagerSpawn.mockImplementation((_options, diagnostics) => {
-      Object.assign(diagnostics, {
-        terminalReason: 'Authentication failed: api_key=sk-ant-private',
-        category: 'auth',
-        exitCode: 1
-      })
-      return { once: vi.fn() }
-    })
-
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet',
-      resumeToken: 'stale-token'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-    await connection.send({ message: userMessage() })
-    staleQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'stale-token',
-      usage: {},
-      errors: ['No conversation found with session ID: stale-token']
-    })
-
-    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledOnce())
-    const recoveryOptions = mocks.createClaudeQuery.mock.calls[0][0].options
-    recoveryOptions.spawnClaudeCodeProcess({} as any)
-    freshQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'fresh-session',
-      usage: {},
-      errors: ['Claude Code process exited with code 1']
-    })
-
-    const seen: any[] = []
-    while (!seen.some((event) => event?.type === 'error')) {
-      seen.push((await events.next()).value)
-    }
-    expect(seen).toContainEqual({
-      type: 'error',
-      error: expect.objectContaining({
-        claudeCodeExitCategory: 'auth',
-        diagnosticReference: 'warm-retry-ref'
-      })
-    })
-    expect(mocks.processManagerSpawn).toHaveBeenCalledWith(expect.anything(), warmDiagnostics)
     void connection.close()
   })
 
@@ -3190,186 +3112,56 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('rejects any fork without a native resume token, including a legacy rebuild', async () => {
-    mocks.ownsNativeHistory.mockReturnValue(true)
-    await expect(
-      new ClaudeCodeRuntimeDriver().connect({
+  it.each([
+    ['No conversation found with session ID: stale-token', false],
+    ['No conversation found with session ID: stale-token', true],
+    ['messages.2.content.1: `tool_use` ids must be unique', false],
+    ['messages.2.content.1: `tool_use` ids must be unique', true]
+  ] as const)(
+    'reports a native resume failure without replaying into an empty session: %s (warm=%s)',
+    async (failure, warm) => {
+      const queue = createAsyncQueue<any>()
+      const query = { ...queue.iterable, interrupt: vi.fn(), close: vi.fn() }
+      mocks.createClaudeQuery.mockReturnValue(query)
+      if (warm)
+        mocks.consumeWarmQuery.mockResolvedValue({
+          warmQuery: { query: () => query },
+          processDiagnostics: { exit: undefined }
+        })
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
         sessionId: 'session-1',
         agentId: 'agent-1',
-        modelId: 'claude-code::sonnet'
+        modelId: 'claude-code::sonnet',
+        resumeToken: 'stale-token'
       })
-    ).rejects.toThrow('history_missing')
-    expect(mocks.createClaudeQuery).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    'No conversation found with session ID: stale-token',
-    'messages.2.content.1: `tool_use` ids must be unique'
-  ])('reports a fork resume failure without replaying into an empty session: %s', async (failure) => {
-    mocks.ownsNativeHistory.mockReturnValue(true)
-    const queue = createAsyncQueue<any>()
-    mocks.createClaudeQuery.mockReturnValue({ ...queue.iterable, interrupt: vi.fn(), close: vi.fn() })
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet',
-      resumeToken: 'stale-token'
-    })
-    const seen: any[] = []
-    const consume = (async () => {
-      for await (const event of connection.events) seen.push(event)
-    })()
-    try {
-      await connection.send({ message: userMessage() })
-      queue.push({
-        type: 'result',
-        subtype: 'error_during_execution',
-        session_id: 'stale-token',
-        usage: {},
-        errors: [failure]
-      })
-      await consume
-      expect(seen).toContainEqual(expect.objectContaining({ type: 'error' }))
-      expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
-      expect(seen).not.toContainEqual(
-        expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
-      )
-      expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
-    } finally {
-      await connection.close()
+      const seen: any[] = []
+      const consume = (async () => {
+        for await (const event of connection.events) seen.push(event)
+      })()
+      try {
+        await connection.send({ message: userMessage() })
+        queue.push({
+          type: 'result',
+          subtype: 'error_during_execution',
+          session_id: 'stale-token',
+          usage: {},
+          errors: [failure]
+        })
+        await consume
+        expect(seen).toContainEqual(expect.objectContaining({ type: 'error' }))
+        expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
+        expect(seen).not.toContainEqual(
+          expect.objectContaining({
+            type: 'chunk',
+            chunk: expect.objectContaining({ type: 'data-conversation-reset' })
+          })
+        )
+        expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(warm ? 0 : 1)
+      } finally {
+        await connection.close()
+      }
     }
-  })
-
-  it('degrades a stale resume token by re-spawning without it and replaying the pending message', async () => {
-    const staleQueue = createAsyncQueue<any>()
-    const freshQueue = createAsyncQueue<any>()
-    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    mocks.buildRequest.mockResolvedValue({
-      connectionConfig: {
-        rebuildSignature: 'sig-1',
-        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
-      },
-      key: 'warm-key',
-      options: { model: 'sonnet', resume: 'stale-token' },
-      settings: {},
-      sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
-    })
-    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(freshQuery)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet',
-      resumeToken: 'stale-token'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-
-    await connection.send({ message: userMessage() })
-    // The CLI dies immediately: the persisted token resolves to no local conversation.
-    staleQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'stale-token',
-      usage: {},
-      errors: ['No conversation found with session ID: stale-token']
-    })
-
-    // A second spawn happens WITHOUT the resume token, on a fresh input queue carrying the same
-    // user message with its per-message resume cleared.
-    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
-    const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
-    expect(retrySpawn.options).toMatchObject({
-      model: 'sonnet',
-      resume: undefined,
-      spawnClaudeCodeProcess: expect.any(Function)
-    })
-    const replayed = await retrySpawn.prompt[Symbol.asyncIterator]().next()
-    expect(replayed.value).toMatchObject({ type: 'user', session_id: '' })
-
-    // The recovered conversation reports a NEW session id and completes the SAME turn — no error
-    // event reaches the host, so the stale token self-heals on the next persisted assistant row.
-    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'fresh-1' })
-    freshQueue.push({ type: 'result', subtype: 'success', session_id: 'fresh-1', usage: {} })
-
-    const seen: any[] = []
-    while (true) {
-      const next = await events.next()
-      seen.push(next.value)
-      if (next.value?.type === 'turn-complete' || next.done) break
-    }
-    expect(seen.map((event) => event?.type)).not.toContain('error')
-    expect(seen).toContainEqual(expect.objectContaining({ type: 'resume-token', token: 'fresh-1' }))
-    // The transcript tells the user the prior conversation was lost and this reply starts fresh.
-    expect(seen).toContainEqual(
-      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
-    )
-    void connection.close()
-  })
-
-  it('recovers corrupt resumed tool history before any non-metadata activity', async () => {
-    const corruptQueue = createAsyncQueue<any>()
-    const freshQueue = createAsyncQueue<any>()
-    const corruptQuery = { ...corruptQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    mocks.buildRequest.mockResolvedValue({
-      connectionConfig: {
-        rebuildSignature: 'sig-1',
-        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
-      },
-      key: 'warm-key',
-      options: { model: 'sonnet', resume: 'corrupt-token' },
-      settings: {},
-      sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
-    })
-    mocks.createClaudeQuery.mockReturnValueOnce(corruptQuery).mockReturnValueOnce(freshQuery)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet',
-      resumeToken: 'corrupt-token'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-
-    await connection.send({ message: userMessage() })
-    corruptQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'corrupt-token',
-      usage: {},
-      errors: ['messages.2.content.1: `tool_use` ids must be unique']
-    })
-
-    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
-    const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
-    expect(retrySpawn.options).toMatchObject({
-      model: 'sonnet',
-      resume: undefined,
-      spawnClaudeCodeProcess: expect.any(Function)
-    })
-    await expect(retrySpawn.prompt[Symbol.asyncIterator]().next()).resolves.toMatchObject({
-      value: { type: 'user', session_id: '' },
-      done: false
-    })
-
-    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'fresh-duplicate-recovery' })
-    freshQueue.push({ type: 'result', subtype: 'success', session_id: 'fresh-duplicate-recovery', usage: {} })
-
-    const seen: any[] = []
-    while (true) {
-      const next = await events.next()
-      seen.push(next.value)
-      if (next.value?.type === 'turn-complete' || next.done) break
-    }
-    expect(seen.map((event) => event?.type)).not.toContain('error')
-    expect(seen).toContainEqual(expect.objectContaining({ type: 'resume-token', token: 'fresh-duplicate-recovery' }))
-    expect(seen).toContainEqual(
-      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
-    )
-    expect(seen).toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
-    void connection.close()
-  })
+  )
 
   it('does not replay corrupt tool history after the turn emitted non-metadata activity', async () => {
     const queryQueue = createAsyncQueue<any>()
@@ -3430,87 +3222,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'error' } })
     expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
-    void connection.close()
-  })
-
-  it('shares one recovery budget across stale and duplicate resume failures', async () => {
-    const staleQueue = createAsyncQueue<any>()
-    const corruptQueue = createAsyncQueue<any>()
-    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const corruptQuery = { ...corruptQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(corruptQuery)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet',
-      resumeToken: 'stale-token'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-
-    await connection.send({ message: userMessage() })
-    staleQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'stale-token',
-      usage: {},
-      errors: ['No conversation found with session ID: stale-token']
-    })
-    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
-
-    corruptQueue.push({
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'fresh-corrupt-session',
-      usage: {},
-      errors: ['`tool_use` ids must be unique']
-    })
-
-    const seen: any[] = []
-    while (true) {
-      const next = await events.next()
-      seen.push(next.value)
-      if (next.value?.type === 'error' || next.done) break
-    }
-    expect(seen.map((event) => event?.type)).toContain('error')
-    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2)
-    void connection.close()
-  })
-
-  it('surfaces the error normally when the retry without a resume token also fails', async () => {
-    const staleQueue = createAsyncQueue<any>()
-    const freshQueue = createAsyncQueue<any>()
-    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(freshQuery)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet',
-      resumeToken: 'stale-token'
-    })
-    const events = connection.events[Symbol.asyncIterator]()
-
-    await connection.send({ message: userMessage() })
-    const staleResult = {
-      type: 'result',
-      subtype: 'error_during_execution',
-      session_id: 'stale-token',
-      usage: {},
-      errors: ['No conversation found with session ID: stale-token']
-    }
-    staleQueue.push(staleResult)
-    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
-    // The retry fails too (different launch problem) — one retry only, then the normal error path.
-    freshQueue.push({ ...staleResult, errors: ['spawn failed'] })
-
-    const seen: any[] = []
-    while (true) {
-      const next = await events.next()
-      seen.push(next.value)
-      if (next.value?.type === 'error' || next.done) break
-    }
-    expect(seen.map((event) => event?.type)).toContain('error')
-    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2)
     void connection.close()
   })
 

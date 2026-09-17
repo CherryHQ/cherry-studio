@@ -108,8 +108,6 @@ export interface BridgeHostRequestMap {
       maxTokens?: number
       cwd: string
       resume: boolean
-      /** A fork must never fall back to an empty session with the same id. */
-      requireExistingHistory?: boolean
       policy: BridgePolicy
       tools: BridgeToolDescriptor[]
     }

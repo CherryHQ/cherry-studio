@@ -178,25 +178,9 @@ describe('cherry bridge plugin', () => {
     expect(session.snapshotEvents()).toEqual(sourceEvents)
   })
 
-  it.each([false, true])('never creates empty native fork history when required (resume=%s)', async (resume) => {
+  it('surfaces native resume failure without creating an empty conversation', async () => {
     const host = await startHost()
     const create = vi.fn()
-    const resumeSession = vi.fn().mockRejectedValue(new Error('session "session-1" not found'))
-    const ctx = makeContext({ agents: { resume: resumeSession, create, get: vi.fn() } })
-    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
-    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
-    apply(ctx)
-    await expect.poll(() => host.requests[0]?.method).toBe('ready')
-    await expect(host.request('session/open', { ...openParams, resume, requireExistingHistory: true })).rejects.toThrow(
-      'history_missing'
-    )
-    expect(create).not.toHaveBeenCalled()
-    expect(resumeSession).toHaveBeenCalledTimes(resume ? 1 : 0)
-  })
-
-  it('can recreate missing storage for a non-fork session without required native history', async () => {
-    const host = await startHost()
-    const create = vi.fn().mockResolvedValue(undefined)
     const ctx = makeContext({
       agents: { resume: vi.fn().mockRejectedValue(new Error('session "session-1" not found')), create, get: vi.fn() }
     })
@@ -204,9 +188,12 @@ describe('cherry bridge plugin', () => {
     process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
     apply(ctx)
     await expect.poll(() => host.requests[0]?.method).toBe('ready')
-    await expect(host.request('session/open', { ...openParams, requireExistingHistory: false })).resolves.toEqual({})
-    expect(create).toHaveBeenCalledOnce()
+    await expect(host.request('session/open', { ...openParams, resume: true })).rejects.toThrow(
+      'session "session-1" not found'
+    )
+    expect(create).not.toHaveBeenCalled()
   })
+
   it.each([false, true])(
     'forks the verified prefix through a child and grandchild without an Agent loop (live=%s)',
     async (live) => {

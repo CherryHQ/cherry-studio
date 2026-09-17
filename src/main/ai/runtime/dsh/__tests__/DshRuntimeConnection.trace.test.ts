@@ -4,7 +4,7 @@ import { SessionSeq } from '@deepseek-ai/dsh-session'
 import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AgentSessionForkError, type RuntimeForkInput } from '../../forkCheckpoint'
+import { AgentSessionForkError, type RuntimeForkInput } from '../../fork'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeTraceContext } from '../../types'
 
 interface FakeSpan {
@@ -33,7 +33,6 @@ vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan } as never)
 
 const runtimeMocks = vi.hoisted(() => ({
   snapshot: undefined as any,
-  ownsNativeHistory: vi.fn(),
   bridgeRequest: vi.fn().mockResolvedValue(undefined),
   clientClose: vi.fn().mockResolvedValue(undefined),
   resolveInjection: vi.fn(),
@@ -109,9 +108,6 @@ vi.mock('node:fs/promises', () => ({
 vi.mock('../dshConnectionSignature', () => ({
   DshInvalidConnectionSnapshotError: class extends Error {},
   captureDshConnectionSnapshot: vi.fn(() => Promise.resolve(runtimeMocks.snapshot))
-}))
-vi.mock('@data/services/AgentSessionForkService', () => ({
-  agentSessionForkService: { ownsNativeHistory: runtimeMocks.ownsNativeHistory }
 }))
 vi.mock('../modelInjection', () => ({
   resolveDshProviderInjectionFromSnapshot: runtimeMocks.resolveInjection,
@@ -198,7 +194,6 @@ const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 beforeEach(() => {
   runtimeMocks.snapshot = baseSnapshot()
-  runtimeMocks.ownsNativeHistory.mockReset().mockReturnValue(false)
   runtimeMocks.harnessOptions = undefined
   runtimeMocks.resolveBun.mockReset().mockResolvedValue('/bundled/bun')
   runtimeMocks.getShellEnv.mockReset().mockResolvedValue({
@@ -363,24 +358,18 @@ describe('DshRuntimeConnection tracing', () => {
     }
   })
 
-  it('requires existing native history when resuming a fork', async () => {
-    runtimeMocks.ownsNativeHistory.mockReturnValue(true)
-    const connection = await new DshRuntimeConnection({ ...connectInput, resumeToken: 'session-1' }).start()
+  it('resumes native history using the saved token', async () => {
+    const connection = await new DshRuntimeConnection({
+      ...connectInput,
+      resumeToken: 'session-1'
+    }).start()
     try {
-      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
-        'session/open',
-        expect.objectContaining({ resume: true, requireExistingHistory: true })
-      )
+      expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith('session/open', expect.objectContaining({ resume: true }))
     } finally {
       await connection.close()
     }
   })
 
-  it('rejects any fork without a token, including a legacy rebuild, before creating a runtime', async () => {
-    runtimeMocks.ownsNativeHistory.mockReturnValue(true)
-    await expect(new DshRuntimeConnection(connectInput).start()).rejects.toThrow('history_missing')
-    expect(runtimeMocks.harnessOptions).toBeUndefined()
-  })
   it('reports a bridge disconnect and closes the runtime event stream', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     const events: AgentRuntimeEvent[] = []

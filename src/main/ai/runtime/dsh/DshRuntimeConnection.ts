@@ -14,7 +14,6 @@ import {
   type BridgePermissionMode,
   type BridgePolicy
 } from '@cherrystudio/dsh-bridge'
-import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -242,9 +241,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   async start(): Promise<this> {
     if (this.input.resumeToken) assertValidDshResumeToken(this.input.resumeToken)
-    const requireExistingHistory = agentSessionForkService.ownsNativeHistory(this.input.sessionId)
-    if (requireExistingHistory && !this.input.resumeToken)
-      throw new Error('history_missing: this fork requires its existing native history.')
     const runtimeExecutable = await resolveDshBunRuntime()
     const resolveInjection = async (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> => {
       try {
@@ -452,9 +448,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         provider: injection.providerName,
         model: injection.modelId,
         cwd: workspacePath,
-        // Forks must restore native history; missing storage cannot become an empty session.
         resume: Boolean(this.input.resumeToken),
-        requireExistingHistory,
         policy: this.buildPolicy(),
         tools: toolBridge.tools
       })

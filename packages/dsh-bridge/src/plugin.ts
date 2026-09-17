@@ -189,8 +189,6 @@ export function apply(ctx: Context): void {
   }
 
   async function openSession(params: BridgeHostParams<'session/open'>): Promise<Record<string, never>> {
-    if (params.requireExistingHistory && !params.resume)
-      throw new Error('history_missing: this fork requires its existing native history.')
     policies.set(params.sessionId, params.policy)
     const agentOptions = {
       provider: params.provider,
@@ -200,29 +198,12 @@ export function apply(ctx: Context): void {
     try {
       replaceTools(params.sessionId, params.tools)
       if (params.resume) {
-        try {
-          const resumed = await ctx.agents.resume({ resumeSessionId: SessionId(params.sessionId), agentOptions })
-          if (resumed.agent.session.header.cwd !== params.cwd) {
-            await resumed.dispose()
-            throw new Error(
-              `persisted dsh session cwd ${JSON.stringify(resumed.agent.session.header.cwd)} does not match ${JSON.stringify(params.cwd)}`
-            )
-          }
-        } catch (error) {
-          if (!isMissingSessionError(error)) throw error
-          if (params.requireExistingHistory)
-            throw new Error(
-              'history_missing: the native fork history is unavailable; restore it or create a new fork.',
-              {
-                cause: error
-              }
-            )
-          // No persisted log for this id yet — degrade to a fresh create (pi parity).
-          await ctx.agents.create({
-            sessionId: SessionId(params.sessionId),
-            meta: { cwd: params.cwd },
-            agentOptions
-          })
+        const resumed = await ctx.agents.resume({ resumeSessionId: SessionId(params.sessionId), agentOptions })
+        if (resumed.agent.session.header.cwd !== params.cwd) {
+          await resumed.dispose()
+          throw new Error(
+            `persisted dsh session cwd ${JSON.stringify(resumed.agent.session.header.cwd)} does not match ${JSON.stringify(params.cwd)}`
+          )
         }
       } else {
         await ctx.agents.create({
@@ -510,12 +491,6 @@ export function apply(ctx: Context): void {
       return req.signal?.aborted ? 'cancelled' : 'rejected'
     }
   })
-}
-
-/** dsh has no error code for a missing persisted session; the loop throws `session "<id>" not found`. */
-function isMissingSessionError(error: unknown): boolean {
-  if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') return true
-  return /\bnot found\b/i.test(error instanceof Error ? error.message : String(error))
 }
 
 /** Attach the asked-about call's arguments: latest `tool/call` with the request's callId. */

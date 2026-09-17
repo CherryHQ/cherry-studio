@@ -25,9 +25,28 @@ export const RuntimeForkAnchorSchema = z.strictObject({
 export type RuntimeForkCheckpoint = z.infer<typeof RuntimeForkCheckpointSchema>
 export type RuntimeForkAnchor = z.infer<typeof RuntimeForkAnchorSchema>
 
-export class AgentSessionForkSourceError extends Error {
-  constructor(readonly reason: 'source_missing' | 'source_changed') {
-    super(reason)
-    this.name = 'AgentSessionForkSourceError'
+export interface RuntimeForkInput {
+  sourceSessionId: string
+  checkpoint: RuntimeForkCheckpoint
+  checkpoints: RuntimeForkCheckpoint[]
+  targetSessionId: string
+  targetCwd: string
+  artifactDirectory: string
+  signal: AbortSignal
+}
+
+export interface RuntimeForkResult {
+  resumeToken: string
+  checkpoints: RuntimeForkCheckpoint[]
+  publish: Array<{ source: string; target: string }>
+}
+
+export class AgentSessionForkError extends Error {
+  constructor(
+    readonly reason: string,
+    message: string = reason
+  ) {
+    super(message)
+    this.name = 'AgentSessionForkError'
   }
 }

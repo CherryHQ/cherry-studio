@@ -1,9 +1,8 @@
-import { AgentSessionForkError } from './forkCheckpoint'
-import type { ForkWorkerInput } from './forkWorker'
-// oxlint-disable-next-line import/default -- Electron Vite supplies the worker factory.
-import createForkWorker from './forkWorker?nodeWorker'
+import { AgentSessionForkError } from './checkpoint'
+import type { ForkWorkerInput } from './worker'
 
 export async function runForkWorker<T>(input: ForkWorkerInput, signal: AbortSignal): Promise<T> {
+  const { default: createForkWorker } = await import('./worker?nodeWorker')
   signal.throwIfAborted()
   const worker = createForkWorker({ workerData: input, env: { ...process.env } })
   try {

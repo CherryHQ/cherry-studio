@@ -8,7 +8,6 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -201,7 +200,7 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
-  it.each(['success', 'workspace_changed', 'legacy_history', 'cancelled'] as const)(
+  it.each(['success', 'workspace_changed', 'legacy_history', 'cancelled', 'unexpected'] as const)(
     'offers completed messages without an availability flag and reports native fork errors: %s',
     async (scenario) => {
       let value: MessageListProviderValue | undefined
@@ -222,6 +221,7 @@ describe('useAgentMessageListProviderValue', () => {
       }
       ipcApiRequest.mockReset()
       if (scenario === 'success') ipcApiRequest.mockResolvedValueOnce({ sessionId: 'child' })
+      else if (scenario === 'unexpected') ipcApiRequest.mockRejectedValueOnce(new Error('unexpected failure'))
       else
         ipcApiRequest.mockRejectedValueOnce(
           new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, 'fork failed', {
@@ -248,16 +248,13 @@ describe('useAgentMessageListProviderValue', () => {
       expect(capability.availability({ ...selectedMessage, role: 'user' })).toBe(false)
       expect(ipcApiRequest).not.toHaveBeenCalled()
       const action = value!.actions.forkSession!.run('selected-message')
-      if (scenario !== 'success') {
+      if (scenario === 'unexpected') {
+        await expect(action).rejects.toThrow('unexpected failure')
+        expect(leafCapabilitiesMock.notifyError).not.toHaveBeenCalled()
+      } else if (scenario !== 'success') {
         const message = scenario === 'cancelled' ? 'message.tools.cancelled' : `agent_session_fork.${scenario}`
-        await expect(action).rejects.toMatchObject({
-          code: aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED,
-          data: { reason: scenario },
-          message
-        })
-        await expect(
-          Promise.resolve(action).catch((error) => formatErrorMessageWithPrefix(error, 'Unknown error'))
-        ).resolves.toBe(message)
+        await expect(action).resolves.toBeUndefined()
+        expect(leafCapabilitiesMock.notifyError.mock.calls).toEqual([[message]])
       } else await action
       expect(ipcApiRequest).toHaveBeenNthCalledWith(1, 'ai.agent.session.fork', {
         sourceSessionId: 'source',

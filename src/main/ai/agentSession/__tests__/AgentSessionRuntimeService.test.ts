@@ -8,11 +8,14 @@ import path from 'node:path'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
-import type { AgentSessionForkJournal } from '@data/services/agentSessionForkJournal'
+import type * as ForkDataModule from '@data/services/AgentSessionForkService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import type { AgentSessionForkResources } from '@main/ai/agentSession/fork/resources'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
+
+import type * as ForkResourcesModule from '../fork/resources'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
@@ -21,7 +24,6 @@ const mocks = vi.hoisted(() => ({
   hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
-  ownsNativeHistory: vi.fn(() => false),
   findCrashOrphanedAssistantMessages: vi.fn(),
   resolveCrashOrphanedMessages: vi.fn(),
   updateSessionDeliveryStatus: vi.fn(),
@@ -51,9 +53,9 @@ const mocks = vi.hoisted(() => ({
 
 const forkRecoveryMocks = vi.hoisted(() => ({
   getPath: vi.fn<(key: string) => string>(),
-  journals: vi.fn<() => AgentSessionForkJournal[]>(() => []),
+  journals: vi.fn<() => AgentSessionForkResources[]>(() => []),
   hasPublishedSession: vi.fn(() => false),
-  writeJournal: vi.fn<(journal: AgentSessionForkJournal) => void>(),
+  writeJournal: vi.fn<(journal: AgentSessionForkResources) => void>(),
   removeJournal: vi.fn<(operationId: string) => void>(),
   read: vi.fn()
 }))
@@ -63,15 +65,19 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return { ...actual, rm: vi.fn(actual.rm) }
 })
 
-vi.mock('@data/services/AgentSessionForkService', () => ({
+vi.mock('@data/services/AgentSessionForkService', async (importOriginal) => ({
+  ...(await importOriginal<typeof ForkDataModule>()),
   agentSessionForkService: {
-    ownsNativeHistory: mocks.ownsNativeHistory,
-    journals: forkRecoveryMocks.journals,
     hasPublishedSession: forkRecoveryMocks.hasPublishedSession,
-    writeJournal: forkRecoveryMocks.writeJournal,
-    removeJournal: forkRecoveryMocks.removeJournal,
     read: forkRecoveryMocks.read
   }
+}))
+
+vi.mock('../fork/resources', async (importOriginal) => ({
+  ...(await importOriginal<typeof ForkResourcesModule>()),
+  readForkResources: forkRecoveryMocks.journals,
+  writeForkResources: forkRecoveryMocks.writeJournal,
+  removeForkResources: forkRecoveryMocks.removeJournal
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -119,7 +125,7 @@ vi.mock('@application', () => ({
 }))
 
 const realFs = await vi.importActual<typeof FsPromises>('node:fs/promises')
-const { AgentSessionForkOperations } = await import('../AgentSessionForkOperations')
+const { AgentSessionForkOperations } = await import('../fork')
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
 const { toolApprovalRegistry } = await import('../../toolApproval/ToolApprovalRegistry')
@@ -269,7 +275,7 @@ function createDeferred<T>() {
 }
 
 describe('AgentSessionForkOperations recovery', () => {
-  const journals = new Map<string, AgentSessionForkJournal>()
+  const journals = new Map<string, AgentSessionForkResources>()
   let temporaryDirectory: string | undefined
   let forkRoot: string
   let workspaceRoot: string
@@ -340,8 +346,8 @@ describe('AgentSessionForkOperations recovery', () => {
     await writeFile(path.join(workspace, 'owned.txt'), 'copied workspace content')
     const artifactInfo = await lstat(artifactDirectory, { bigint: true })
     const workspaceInfo = await lstat(workspace, { bigint: true })
-    const journal: AgentSessionForkJournal = {
-      version: 2,
+    const journal: AgentSessionForkResources = {
+      version: 1,
       operationId,
       targetSessionId,
       createdAt,
@@ -349,8 +355,7 @@ describe('AgentSessionForkOperations recovery', () => {
       artifactIdentity: `${artifactInfo.dev}:${artifactInfo.ino}`,
       workspace,
       workspaceIdentity: `${workspaceInfo.dev}:${workspaceInfo.ino}`,
-      published: [],
-      committed: true
+      published: []
     }
     journals.set(operationId, structuredClone(journal))
     return { journal, workspace, artifactDirectory }
@@ -373,17 +378,13 @@ describe('AgentSessionForkOperations recovery', () => {
 
     await new AgentSessionForkOperations().recover()
     expect(journals.get(journal.operationId)).toMatchObject({ workspaceDisposition: 'retained' })
-    expect(journals.get(journal.operationId)?.cleanupComplete).not.toBe(true)
     expect(await readFile(path.join(child, 'user.txt'), 'utf8')).toBe('adopted workspace content')
 
     registeredPaths = []
     await new AgentSessionForkOperations().recover()
     await new AgentSessionForkOperations().recover()
 
-    expect(journals.get(journal.operationId)).toMatchObject({
-      workspaceDisposition: 'retained',
-      cleanupComplete: true
-    })
+    expect(journals.has(journal.operationId)).toBe(false)
     await expect(lstat(artifactDirectory)).rejects.toMatchObject({ code: 'ENOENT' })
     expect(await readFile(path.join(child, 'user.txt'), 'utf8')).toBe('adopted workspace content')
     expect(await readFile(path.join(workspace, 'owned.txt'), 'utf8')).toBe('copied workspace content')
@@ -437,7 +438,6 @@ describe('AgentSessionForkOperations recovery', () => {
 
     await new AgentSessionForkOperations().recover()
     expect(journals.has(journal.operationId)).toBe(true)
-    expect(journals.get(journal.operationId)?.cleanupComplete).not.toBe(true)
     await expect(lstat(workspace)).rejects.toMatchObject({ code: 'ENOENT' })
     expect(await detachedContent(artifactDirectory)).toBe('copied workspace content')
 
@@ -491,7 +491,6 @@ describe('AgentSessionRuntimeService', () => {
     })
     mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-    mocks.ownsNativeHistory.mockReturnValue(false)
     mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
     mocks.resolveCrashOrphanedMessages.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
@@ -4558,7 +4557,6 @@ describe('AgentSessionRuntimeService', () => {
     'resumes a native %s fork and sends only the new user messages',
     async (agentType) => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: agentType, model: baseTurnInput.modelId })
-      mocks.ownsNativeHistory.mockReturnValue(true)
       mocks.getLastRuntimeResumeToken.mockReturnValue('native-child-token')
       const events = createAsyncQueue<any>()
       const connection = {
@@ -4612,39 +4610,6 @@ describe('AgentSessionRuntimeService', () => {
       expect(connection.send.mock.calls[1][0].message).toEqual(secondMessage)
       void service.closeSession('session-1')
       await secondReader.cancel().catch(() => undefined)
-    }
-  )
-
-  it.each(['pi', 'claude-code', 'dsh'])(
-    'rejects a %s fork without native history before the driver can initialize an empty session',
-    async (agentType) => {
-      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: agentType, model: baseTurnInput.modelId })
-      mocks.ownsNativeHistory.mockReturnValue(true)
-      const connect = vi.fn()
-      runtimeDriverRegistry.register({
-        type: agentType,
-        capabilities: ['agent-session'],
-        connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
-      })
-      const service = new AgentSessionRuntimeService()
-      const turn = service.beginTurn({ ...baseTurnInput, agentType, userMessage: userMessage('user-1') })
-      const reader = service
-        .openTurnStream({
-          sessionId: 'session-1',
-          turnId: turn.turnId,
-          signal: new AbortController().signal
-        })
-        .getReader()
-
-      await reader.read()
-      await expect(reader.read()).rejects.toMatchObject({
-        name: 'AgentSessionForkError',
-        reason: 'history_missing'
-      })
-      expect(connect).not.toHaveBeenCalled()
-      await service.closeSession('session-1')
     }
   )
 

@@ -238,10 +238,8 @@
 
 | Document | Description |
 |----------|-------------|
-| [Testing Reference](./references/testing/README.md) | Frontend, SQLite, DSH runtime and Agent fork testing references |
-| [Agent Session Fork Verification](./references/testing/agent-session-fork.md) | Native fork contracts and verification for Pi, Claude and DSH |
+| [Testing Reference](./references/testing/README.md) | Frontend and SQLite testing references |
 | [Database Testing Guide](./references/testing/database-testing.md) | How to test SQLite-backed main-process code with the setupTestDatabase harness and production migrations |
-| [DSH Runtime Upgrade Tests](./references/testing/dsh-runtime-upgrade.md) | Build, packaging and manual verification for DSH runtime upgrades |
 | [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Normative test rules for renderer, packages/ui, and E2E code covering layer choice, mocking, and review gates |
 
 ### Utility Process

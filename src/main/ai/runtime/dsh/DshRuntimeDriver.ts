@@ -7,7 +7,7 @@ import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import { AgentSessionForkError, type RuntimeForkInput } from '../forkCheckpoint'
+import { AgentSessionForkError, type RuntimeForkInput } from '../fork'
 import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
 import { buildDshCherryToolName, DSH_AUTO_APPROVED_BRIDGED_TOOLS } from './DshCherryToolBridge'
 import { forkDshSession } from './dshFork'

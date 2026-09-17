@@ -7,9 +7,9 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
-import type { RuntimeForkAnchor } from '@data/services/agentSessionFork'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
+import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -47,7 +47,8 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     let forkAnchor: RuntimeForkAnchor | undefined
     if (status === 'success') {
       try {
-        forkAnchor = this.opts.forkAnchor?.()
+        const candidate = this.opts.forkAnchor?.()
+        forkAnchor = candidate === undefined ? undefined : RuntimeForkAnchorSchema.parse(candidate)
       } catch (error) {
         logger.warn('Fork checkpoint capture failed; preserving completed answer', { error })
       }

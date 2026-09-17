@@ -2,9 +2,9 @@ import { mkdir, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { readForkPrefix, readNativeForkHistory } from '@main/ai/runtime/fork'
 
-import { readForkPrefix, readNativeForkHistory } from '../../agentSession/forkFiles'
-import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../forkCheckpoint'
+import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../fork'
 import { loadPiSdk } from './piSdk'
 
 export async function forkPiSession(input: RuntimeForkInput): Promise<RuntimeForkResult> {

@@ -16,7 +16,7 @@ import type {
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
-import { agentSessionForkFailureReason, aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
+import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
 
 import { formatErrorDetails } from './errorDetails'
@@ -52,7 +52,6 @@ export function formatErrorMessageWithPrefix(error: unknown, prefix: string): st
   const admissionMessage = getAiStreamAdmissionMessage(error)
   if (admissionMessage) return admissionMessage
   const msg = getErrorMessage(error)
-  if (agentSessionForkFailureReason(error)) return msg
   return `${prefix}: ${msg}`
 }
 

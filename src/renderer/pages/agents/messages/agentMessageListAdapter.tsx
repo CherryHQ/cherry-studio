@@ -37,8 +37,7 @@ import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { agentSessionForkFailureReason, aiErrorCodes } from '@shared/ipc/errors/ai'
-import { IpcError } from '@shared/ipc/errors/IpcError'
+import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
@@ -178,26 +177,6 @@ export function useAgentMessageListProviderValue({
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
-  const forkSession = useCallback(
-    async (messageId: string) => {
-      if (!sessionId) return
-      try {
-        const result = await ipcApi.request('ai.agent.session.fork', {
-          sourceSessionId: sessionId,
-          messageId
-        })
-        openRoute('/app/agents', { sessionId: result.sessionId })
-      } catch (error) {
-        const reason = agentSessionForkFailureReason(error)
-        if (reason)
-          throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, agentSessionForkReasonLabel(t, reason), {
-            reason
-          })
-        throw error
-      }
-    },
-    [sessionId, t]
-  )
   const messageItemCacheRef = useRef(
     new WeakMap<
       CherryUIMessage,
@@ -393,6 +372,27 @@ export function useAgentMessageListProviderValue({
     [sessionId]
   )
 
+  const { notifyError } = leafCapabilities
+  const forkSession = useCallback(
+    async (messageId: string) => {
+      if (!sessionId) return
+      try {
+        const result = await ipcApi.request('ai.agent.session.fork', {
+          sourceSessionId: sessionId,
+          messageId
+        })
+        openRoute('/app/agents', { sessionId: result.sessionId })
+      } catch (error) {
+        const reason = agentSessionForkFailureReason(error)
+        if (reason) {
+          notifyError(agentSessionForkReasonLabel(t, reason))
+          return
+        }
+        throw error
+      }
+    },
+    [sessionId, t, notifyError]
+  )
   const state = useMemo<MessageListState>(
     () => ({
       topic,

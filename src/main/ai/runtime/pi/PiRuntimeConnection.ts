@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync } from 'node:fs'
 import path from 'node:path'
 
 import type { AssistantMessage, AssistantMessageEvent } from '@earendil-works/pi-ai'
@@ -14,7 +14,6 @@ import type {
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
 import { application } from '@application'
-import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -50,7 +49,6 @@ import type { UniqueModelId } from '@shared/data/types/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
-import { AgentSessionForkError } from '../forkCheckpoint'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -422,47 +420,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  /**
-   * Pick the session manager for this connection. A fresh session (no resume token) is created with
-   * the Cherry session id. For a non-fork session, a format-valid missing file falls back
-   * to a fresh session with the SAME id — pi flushes the JSONL lazily (nothing until the first
-   * assistant message), so a token emitted before that flush points at a never-persisted session; a
-   * hard failure here would brick the session forever (e.g. a first turn of `/compact` or a preflight
-   * rejection). Forks require a resume token and its existing native history.
-   * A malformed token still throws — that's the resume-dir attack-surface guard.
-   */
+  /** Pi allocates session IDs before lazily flushing history, so an unflushed ID can still initialize. */
   private resolveSessionManager(pi: Awaited<ReturnType<typeof loadPiSdk>>, workspacePath: string, sessionDir: string) {
-    const isFork = agentSessionForkService.ownsNativeHistory(this.input.sessionId)
-    if (!this.resumeToken) {
-      if (isFork) throw new AgentSessionForkError('history_missing')
-      return pi.SessionManager.create(workspacePath, sessionDir, { id: this.input.sessionId })
+    if (this.resumeToken) {
+      const file = resolveResumeTokenSessionFile(this.resumeToken, sessionDir)
+      if (file) return pi.SessionManager.open(file, sessionDir, workspacePath)
     }
-    const file = resolveResumeTokenSessionFile(this.resumeToken, sessionDir)
-    if (file) {
-      if (!isFork) return pi.SessionManager.open(file, sessionDir, workspacePath)
-      try {
-        // The SDK initializes empty files and skips malformed lines; forks must reject both.
-        const entries = readFileSync(file, 'utf8')
-          .trimEnd()
-          .split('\n')
-          .map((line) => JSON.parse(line))
-        if (entries[0]?.type !== 'session' || entries[0].id !== this.resumeToken || entries.length < 2)
-          throw new AgentSessionForkError('history_corrupt')
-        const manager = pi.SessionManager.open(file, sessionDir, workspacePath)
-        if (manager.getSessionId() !== this.resumeToken || !manager.getLeafId())
-          throw new AgentSessionForkError('history_corrupt')
-        return manager
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') throw new AgentSessionForkError('history_missing')
-        if (error instanceof SyntaxError) throw new AgentSessionForkError('history_corrupt')
-        throw error
-      }
-    }
-    if (isFork) throw new AgentSessionForkError('history_missing')
-    logger.warn('pi resume token has no session file on disk; creating a fresh session with the same id', {
-      sessionId: this.input.sessionId
-    })
-    return pi.SessionManager.create(workspacePath, sessionDir, { id: this.input.sessionId })
+    return pi.SessionManager.create(workspacePath, sessionDir, { id: this.resumeToken ?? this.input.sessionId })
   }
 
   send(input: AgentRuntimeUserInput): void {
@@ -1011,7 +975,7 @@ function setsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boole
 /**
  * Resolve a resume token to its on-disk pi session file. Returns `null` when the token is
  * format-valid but no matching file exists yet (pi persists the JSONL lazily, so a token can point
- * at a session that never flushed). The caller may create a fresh non-fork session; forks fail.
+ * at a session that never flushed). The caller can initialize that ID through the SDK.
  * Throws only on a malformed token (path separators / traversal / illegal chars), which stays
  * fail-closed as the resume-dir attack-surface guard.
  */

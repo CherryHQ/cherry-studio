@@ -4,13 +4,13 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
-import type { RuntimeForkAnchor } from '@data/services/agentSessionFork'
-import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
+import { AgentSessionForkOperations } from '@main/ai/agentSession/fork'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -59,7 +59,6 @@ import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shar
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
-import { AgentSessionForkError } from '../runtime/forkCheckpoint'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
@@ -81,7 +80,6 @@ import {
 } from '../streamManager'
 import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
-import { AgentSessionForkOperations } from './AgentSessionForkOperations'
 import {
   type AgentSessionRuntimeConnectionTarget,
   type AgentSessionRuntimeLaunchTarget,
@@ -393,7 +391,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
     // any agent session runs) instead of relying on an import-time side effect.
     registerRuntimeDrivers()
-    await this.forks.recover(true)
+    await this.forks.recover()
 
     // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
     // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
@@ -1702,9 +1700,6 @@ export class AgentSessionRuntimeService extends BaseService {
   private hydrateResumeToken(entry: AgentSessionRuntimeEntry): void {
     const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
     if (runtimeResumeToken && !entry.lastResumeToken) entry.lastResumeToken = runtimeResumeToken
-    // Validate before a driver can mint a new, empty initialization token.
-    if (agentSessionForkService.ownsNativeHistory(entry.sessionId) && !entry.lastResumeToken?.trim())
-      throw new AgentSessionForkError('history_missing')
   }
 
   private async runConnectionLoop(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): Promise<void> {

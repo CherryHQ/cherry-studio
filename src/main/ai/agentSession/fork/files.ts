@@ -3,17 +3,7 @@ import { type BigIntStats, constants } from 'node:fs'
 import { copyFile, link, lstat, mkdir, open, readdir, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
-import { AgentSessionForkError } from '../runtime/forkCheckpoint'
-
-export async function readNativeForkHistory<T>(read: () => Promise<T>): Promise<T> {
-  try {
-    return await read()
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') throw new AgentSessionForkError('history_missing')
-    if (error instanceof SyntaxError) throw new AgentSessionForkError('history_corrupt')
-    throw error
-  }
-}
+import { AgentSessionForkError } from '@main/ai/runtime/fork'
 
 function identity(stat: BigIntStats) {
   return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].join(':')
@@ -30,12 +20,12 @@ export async function publishForkArtifact(
   source: string,
   target: string,
   signal: AbortSignal,
-  created: (identity: string) => void
+  created: (identity: string) => void | Promise<void>
 ): Promise<void> {
   signal.throwIfAborted()
   try {
     await link(source, target)
-    created(await forkFileIdentity(target))
+    await created(await forkFileIdentity(target))
     return
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error
@@ -44,7 +34,7 @@ export async function publishForkArtifact(
   try {
     const stat = await output.stat({ bigint: true })
     // Persist identity before writing bytes. An interrupted copy can be safely removed.
-    created([stat.dev, stat.ino].join(':'))
+    await created([stat.dev, stat.ino].join(':'))
     const input = await open(source, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
     try {
       const buffer = Buffer.alloc(1024 * 1024)
@@ -120,11 +110,11 @@ export async function copyForkWorkspace(
   source: string,
   target: string,
   signal: AbortSignal,
-  created?: (identity: string) => void
+  created?: (identity: string) => void | Promise<void>
 ): Promise<void> {
   const before = await scan(source, signal)
   await mkdir(target, { recursive: false })
-  created?.(await forkFileIdentity(target))
+  await created?.(await forkFileIdentity(target))
   for (const [relative, version] of before) {
     signal.throwIfAborted()
     if (!relative) continue
@@ -150,31 +140,5 @@ export async function copyForkWorkspace(
     [...before].some(([name, version]) => JSON.stringify(version) !== JSON.stringify(after.get(name)))
   ) {
     throw new AgentSessionForkError('workspace_changed')
-  }
-}
-
-/** Read only a committed prefix. Later appends are allowed; truncation/replacement is not. */
-export async function readForkPrefix(file: string, bytes?: number): Promise<Buffer> {
-  const handle = await open(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
-  try {
-    const before = await handle.stat()
-    const length = bytes ?? before.size
-    if (!before.isFile() || length > before.size || length > 512 * 1024 * 1024) {
-      throw new AgentSessionForkError('history_corrupt')
-    }
-    const result = Buffer.alloc(length)
-    let offset = 0
-    while (offset < length) {
-      const read = await handle.read(result, offset, length - offset, offset)
-      if (!read.bytesRead) throw new AgentSessionForkError('history_changed')
-      offset += read.bytesRead
-    }
-    const after = await lstat(file)
-    if (after.isSymbolicLink() || before.ino !== after.ino || before.dev !== after.dev || after.size < length) {
-      throw new AgentSessionForkError('history_changed')
-    }
-    return bytes === undefined ? result.subarray(0, result.lastIndexOf(10) + 1) : result
-  } finally {
-    await handle.close()
   }
 }

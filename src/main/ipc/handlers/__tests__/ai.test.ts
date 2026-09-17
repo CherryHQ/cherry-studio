@@ -1,8 +1,8 @@
 import { APICallError, RetryError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AgentSessionForkSourceError } from '@data/services/agentSessionFork'
-import { AgentSessionForkError } from '@main/ai/runtime/forkCheckpoint'
+import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
+import { AgentSessionForkError } from '@main/ai/runtime/fork/checkpoint'
 import { AiStreamAdmissionError } from '@main/ai/streamManager'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'

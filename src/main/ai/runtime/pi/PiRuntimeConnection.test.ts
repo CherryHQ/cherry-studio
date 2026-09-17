@@ -39,7 +39,6 @@ interface FakeSpan {
 
 const mocks = vi.hoisted(() => ({
   getById: vi.fn(),
-  ownsNativeHistory: vi.fn(() => false),
   getAgent: vi.fn(),
   broadcast: vi.fn(),
   skillList: vi.fn(),
@@ -128,9 +127,6 @@ vi.mock('@application', async () => {
   }
 })
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
-vi.mock('@data/services/AgentSessionForkService', () => ({
-  agentSessionForkService: { ownsNativeHistory: mocks.ownsNativeHistory }
-}))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { findBySessionId: mocks.findChannelBySessionId }
@@ -305,7 +301,7 @@ async function nextEventWithin(events: AsyncIterable<AgentRuntimeEvent>): Promis
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.ownsNativeHistory.mockReturnValue(false)
+
   toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
   mocks.createOpts = undefined
@@ -837,8 +833,7 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.unregisterApiProviders).toHaveBeenCalledOnce()
   })
 
-  it.each([false, true])('reopens the native session file by resume id (fork=%s)', async (ownsNativeHistory) => {
-    mocks.ownsNativeHistory.mockReturnValue(ownsNativeHistory)
+  it('reopens the native session file by resume id', async () => {
     mocks.readdirSync.mockReturnValue(['2026-07-06T00-00-00-000Z_sess-1.jsonl'])
     mocks.readFileSync.mockReturnValue(
       [
@@ -849,7 +844,10 @@ describe('PiRuntimeConnection', () => {
     )
     mocks.sessionOpen.mockReturnValue({ getSessionId: () => SESSION_ID, getLeafId: () => 'leaf' })
 
-    await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
+    await new PiRuntimeConnection({
+      ...input,
+      resumeToken: SESSION_ID
+    }).start()
     expect(mocks.sessionOpen).toHaveBeenCalledWith(
       path.join(PI_SESSIONS, '2026-07-06T00-00-00-000Z_sess-1.jsonl'),
       PI_SESSIONS,
@@ -886,41 +884,14 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.createAgentSession).not.toHaveBeenCalled()
   })
 
-  it('falls back to a fresh session with the same id when a valid token has no file on disk', async () => {
+  it('initializes an allocated session id whose lazy history has not been written', async () => {
     // pi flushes the JSONL lazily, so a token can point at a session that never persisted. That must
     // degrade to a new empty session (same id) instead of bricking every future turn.
     mocks.readdirSync.mockReturnValue([])
 
     await new PiRuntimeConnection({ ...input, resumeToken: 'missing-id' }).start()
     expect(mocks.sessionOpen).not.toHaveBeenCalled()
-    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: SESSION_ID })
-  })
-
-  it.each([undefined, 'missing-id'])('rejects a fork without native history (token=%s)', async (resumeToken) => {
-    mocks.ownsNativeHistory.mockReturnValue(true)
-    await expect(new PiRuntimeConnection({ ...input, resumeToken }).start()).rejects.toMatchObject({
-      reason: 'history_missing'
-    })
-    expect(mocks.sessionCreate).not.toHaveBeenCalled()
-    expect(mocks.createAgentSession).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    '',
-    'invalid-json\n',
-    JSON.stringify({ type: 'session', id: SESSION_ID }) + '\n',
-    JSON.stringify({ type: 'session', id: SESSION_ID }) + '\ninvalid-json\n',
-    JSON.stringify({ type: 'session', id: 'replaced-id' }) + '\n' + JSON.stringify({ type: 'message', id: 'leaf' })
-  ])('rejects corrupt fork history before the SDK can initialize or truncate it (%j)', async (history) => {
-    mocks.ownsNativeHistory.mockReturnValue(true)
-    mocks.readdirSync.mockReturnValue(['2026-07-06T00-00-00-000Z_sess-1.jsonl'])
-    mocks.readFileSync.mockReturnValue(history)
-    await expect(new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()).rejects.toMatchObject({
-      reason: 'history_corrupt'
-    })
-    expect(mocks.sessionOpen).not.toHaveBeenCalled()
-    expect(mocks.sessionCreate).not.toHaveBeenCalled()
-    expect(mocks.createAgentSession).not.toHaveBeenCalled()
+    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: 'missing-id' })
   })
 
   it('emits turn-complete only on agent_end, not per turn_end, plus a resume token', async () => {

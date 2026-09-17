@@ -6,21 +6,18 @@ import path from 'node:path'
 import { application } from '@application'
 import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
 import { agentService } from '@data/services/AgentService'
-import {
-  AgentSessionForkSourceError,
-  type RuntimeForkCheckpoint,
-  RuntimeForkAnchorSchema
-} from '@data/services/agentSessionFork'
-import { AgentSessionForkJournalSchema } from '@data/services/agentSessionForkJournal'
-import { type AgentSessionForkJournal, agentSessionForkService } from '@data/services/AgentSessionForkService'
+import { AgentSessionForkSourceError, agentSessionForkService } from '@data/services/AgentSessionForkService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
+import { type RuntimeForkCheckpoint, RuntimeForkAnchorSchema } from '@main/ai/runtime/fork'
+import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { t } from '@main/i18n'
 
-import { AgentSessionForkError } from '../runtime/forkCheckpoint'
-import { runtimeDriverRegistry } from '../runtime/registry'
-import { copyForkWorkspace, forkFileIdentity, publishForkArtifact } from './forkFiles'
-import { workspaceHasReferences } from './forkWorkspaceCleanup'
+import { runtimeDriverRegistry } from '../../runtime/registry'
+import { copyForkWorkspace, forkFileIdentity, publishForkArtifact } from './files'
+import { type AgentSessionForkResources, readForkResources, writeForkResources, removeForkResources } from './resources'
+import { workspaceHasReferences } from './workspaceCleanup'
 
 const logger = loggerService.withContext('AgentSessionForkOperations')
 
@@ -38,7 +35,7 @@ export class AgentSessionForkOperations {
   private recoveryChain: Promise<void> = Promise.resolve()
   readonly pending = new Map<
     string,
-    { sourceSessionId: string; promise: Promise<string>; controller: AbortController }
+    { sourceSessionId: string; operationId: string; promise: Promise<string>; controller: AbortController }
   >()
 
   fork(sourceSessionId: string, messageId: string): Promise<string> {
@@ -46,11 +43,12 @@ export class AgentSessionForkOperations {
     const current = this.pending.get(key)
     if (current) return current.promise
     const controller = new AbortController()
+    const operationId = randomUUID()
     // Register before any asynchronous work can escape the host's backup/shutdown drain.
     const promise = Promise.resolve()
-      .then(() => this.run(sourceSessionId, messageId, controller.signal))
+      .then(() => this.run(sourceSessionId, messageId, operationId, controller.signal))
       .finally(() => this.pending.delete(key))
-    this.pending.set(key, { sourceSessionId, promise, controller })
+    this.pending.set(key, { sourceSessionId, operationId, promise, controller })
     return promise
   }
 
@@ -62,32 +60,30 @@ export class AgentSessionForkOperations {
     await Promise.allSettled(operations.map((value) => value.promise))
   }
 
-  recover(includeUncommitted = false): Promise<void> {
-    const recovery = this.recoveryChain.then(() => this.recoverOnce(includeUncommitted))
+  recover(): Promise<void> {
+    const recovery = this.recoveryChain.then(() => this.recoverOnce())
     this.recoveryChain = recovery.catch(() => undefined)
     return recovery
   }
 
-  private async recoverOnce(includeUncommitted: boolean): Promise<void> {
-    for (const value of agentSessionForkService.journals()) {
-      const parsed = AgentSessionForkJournalSchema.safeParse(value)
-      if (!parsed.success) {
-        logger.warn('Invalid fork recovery record retained')
-        continue
-      }
-      if (parsed.data.cleanupComplete) continue
-      if (parsed.data.version === 1) parsed.data.workspaceDisposition = 'retained'
-      if (!includeUncommitted && !parsed.data.committed) continue
-      if (agentSessionForkService.hasPublishedSession(parsed.data)) continue
+  private async recoverOnce(): Promise<void> {
+    for (const resources of await readForkResources()) {
+      if ([...this.pending.values()].some((operation) => operation.operationId === resources.operationId)) continue
+      if (agentSessionForkService.hasPublishedSession(resources.targetSessionId)) continue
       try {
-        await this.cleanup(parsed.data)
+        await this.cleanup(resources)
       } catch (error) {
-        logger.warn('Fork cleanup remains pending', { operationId: parsed.data.operationId, error })
+        logger.warn('Fork cleanup remains pending', { operationId: resources.operationId, error })
       }
     }
   }
 
-  private async run(sourceSessionId: string, messageId: string, signal: AbortSignal): Promise<string> {
+  private async run(
+    sourceSessionId: string,
+    messageId: string,
+    operationId: string,
+    signal: AbortSignal
+  ): Promise<string> {
     signal.throwIfAborted()
     const preliminary = agentSessionForkService.read(sourceSessionId, messageId)
     const selected = preliminary.messages.at(-1)!
@@ -123,37 +119,35 @@ export class AgentSessionForkOperations {
       if (parsed.success) checkpoints.push(parsed.data.checkpoint)
     }
     const root = application.getPath('feature.agents.forks')
-    const operationId = randomUUID()
-    const journal: AgentSessionForkJournal = {
-      version: 2,
+    const resources: AgentSessionForkResources = {
+      version: 1,
       operationId,
       targetSessionId: randomUUID(),
       createdAt: Date.now(),
       artifactDirectory: path.join(root, operationId),
-      published: [],
-      committed: false
+      published: []
     }
     await mkdir(root, { recursive: true })
     let targetCwd = source.workspace.path
     // Record intent before creating anything. A crash before recording inode ownership
     // leaves a recoverable record, never an untracked directory or permission to delete a collision.
-    agentSessionForkService.writeJournal(journal)
+    await writeForkResources(resources)
     try {
-      await mkdir(journal.artifactDirectory, { recursive: false })
-      journal.artifactIdentity = await forkFileIdentity(journal.artifactDirectory)
-      agentSessionForkService.writeJournal(journal)
+      await mkdir(resources.artifactDirectory, { recursive: false })
+      resources.artifactIdentity = await forkFileIdentity(resources.artifactDirectory)
+      await writeForkResources(resources)
       if (source.workspace.type === 'system') {
         targetCwd = agentWorkspaceService.buildSystemWorkspacePath(
           application.getPath('feature.agents.system_workspaces'),
-          journal.targetSessionId,
-          journal.createdAt
+          resources.targetSessionId,
+          resources.createdAt
         )
-        journal.workspace = targetCwd
-        agentSessionForkService.writeJournal(journal)
+        resources.workspace = targetCwd
+        await writeForkResources(resources)
         await mkdir(path.dirname(targetCwd), { recursive: true })
-        await copyForkWorkspace(source.workspace.path, targetCwd, signal, (identity) => {
-          journal.workspaceIdentity = identity
-          agentSessionForkService.writeJournal(journal)
+        await copyForkWorkspace(source.workspace.path, targetCwd, signal, async (identity) => {
+          resources.workspaceIdentity = identity
+          await writeForkResources(resources)
         })
       }
       signal.throwIfAborted()
@@ -161,37 +155,46 @@ export class AgentSessionForkOperations {
         sourceSessionId,
         checkpoint,
         checkpoints,
-        targetSessionId: journal.targetSessionId,
+        targetSessionId: resources.targetSessionId,
         targetCwd,
-        artifactDirectory: journal.artifactDirectory,
+        artifactDirectory: resources.artifactDirectory,
         signal
       })
       if (!result.resumeToken.trim() || result.checkpoints.length !== checkpoints.length)
         throw new AgentSessionForkError('history_corrupt')
       signal.throwIfAborted()
-      const messages = cloneMessages(source.messages, journal.targetSessionId, result.resumeToken, result.checkpoints)
+      const messages = cloneMessages(source.messages, resources.targetSessionId, result.resumeToken, result.checkpoints)
       for (const artifact of result.publish) {
-        if (!isInside(journal.artifactDirectory, artifact.source)) throw new Error('Unowned SDK fork artifact')
+        if (!isInside(resources.artifactDirectory, artifact.source)) throw new Error('Unowned SDK fork artifact')
         await forkFileIdentity(artifact.source)
         await mkdir(path.dirname(artifact.target), { recursive: true })
-        // Journal the intent first. Hard-link publication is exclusive and gives recovery an
-        // inode ownership proof even if the process dies before the next DB write.
+        // Record intent first. Hard-link publication is exclusive and gives recovery an
+        // inode ownership proof even if the process dies before the next resource write.
         const owned = { ...artifact, identity: undefined as string | undefined }
-        journal.published.push(owned)
-        agentSessionForkService.writeJournal(journal)
-        await publishForkArtifact(artifact.source, artifact.target, signal, (identity) => {
+        resources.published.push(owned)
+        await writeForkResources(resources)
+        await publishForkArtifact(artifact.source, artifact.target, signal, async (identity) => {
           owned.identity = identity
-          agentSessionForkService.writeJournal(journal)
+          await writeForkResources(resources)
         })
       }
       signal.throwIfAborted()
-      agentSessionForkService.commit({ journal, source, excludedIds, messages, messageId })
-      journal.committed = true
-      return journal.targetSessionId
+      application.get('DbService').withWriteTx((tx) => {
+        agentSessionForkService.commitTx(tx, {
+          targetSessionId: resources.targetSessionId,
+          createdAt: resources.createdAt,
+          source,
+          excludedIds,
+          messages,
+          messageId
+        })
+      })
+      agentSessionService.notifyReadModelChange([resources.targetSessionId], 'membership')
+      return resources.targetSessionId
     } catch (error) {
-      if (!journal.committed && !agentSessionForkService.hasPublishedSession(journal)) {
+      if (!agentSessionForkService.hasPublishedSession(resources.targetSessionId)) {
         try {
-          await this.cleanup(journal)
+          await this.cleanup(resources)
         } catch (cleanupError) {
           logger.warn('Fork rollback requires recovery', { operationId, error: cleanupError })
         }
@@ -200,25 +203,18 @@ export class AgentSessionForkOperations {
     }
   }
 
-  private async cleanup(journal: AgentSessionForkJournal): Promise<void> {
-    if (journal.cleanupComplete || agentSessionForkService.hasPublishedSession(journal)) return
-    if (journal.version === 1) journal.workspaceDisposition = 'retained'
-    try {
-      await this.cleanupOwned(journal)
-      journal.cleanupComplete = true
-    } finally {
-      if (journal.cleanupComplete && journal.workspaceDisposition !== 'retained')
-        agentSessionForkService.removeJournal(journal.operationId)
-      else agentSessionForkService.writeJournal(journal)
-    }
+  private async cleanup(resources: AgentSessionForkResources): Promise<void> {
+    if (agentSessionForkService.hasPublishedSession(resources.targetSessionId)) return
+    await this.cleanupOwned(resources)
+    await removeForkResources(resources.operationId)
   }
 
-  private async cleanupOwned(journal: AgentSessionForkJournal): Promise<void> {
+  private async cleanupOwned(resources: AgentSessionForkResources): Promise<void> {
     const root = application.getPath('feature.agents.forks')
-    if (path.resolve(journal.artifactDirectory) !== path.resolve(root, journal.operationId))
+    if (path.resolve(resources.artifactDirectory) !== path.resolve(root, resources.operationId))
       throw new Error('Unowned fork directory')
-    for (const artifact of journal.published) {
-      if (!isInside(journal.artifactDirectory, artifact.source)) throw new Error('Unowned fork file')
+    for (const artifact of resources.published) {
+      if (!isInside(resources.artifactDirectory, artifact.source)) throw new Error('Unowned fork file')
       try {
         const targetIdentity = await forkFileIdentity(artifact.target)
         if (targetIdentity !== (artifact.identity ?? (await forkFileIdentity(artifact.source))))
@@ -228,19 +224,19 @@ export class AgentSessionForkOperations {
         if (!isMissing(error)) throw error
       }
     }
-    if (journal.workspace && journal.workspaceDisposition !== 'retained') {
+    if (resources.workspace && resources.workspaceDisposition !== 'retained') {
       const expected = agentWorkspaceService.buildSystemWorkspacePath(
         application.getPath('feature.agents.system_workspaces'),
-        journal.targetSessionId,
-        journal.createdAt
+        resources.targetSessionId,
+        resources.createdAt
       )
-      if (path.resolve(expected) !== path.resolve(journal.workspace)) throw new Error('Unowned fork workspace')
+      if (path.resolve(expected) !== path.resolve(resources.workspace)) throw new Error('Unowned fork workspace')
       const workspaceInfo = lstatSync(expected, { bigint: true, throwIfNoEntry: false })
       if (workspaceInfo) {
         if (
           !workspaceInfo.isDirectory() ||
           workspaceInfo.ino === 0n ||
-          [workspaceInfo.dev, workspaceInfo.ino].join(':') !== journal.workspaceIdentity
+          [workspaceInfo.dev, workspaceInfo.ino].join(':') !== resources.workspaceIdentity
         ) {
           throw new Error('Fork workspace ownership is unproven; retained for recovery')
         }
@@ -251,31 +247,31 @@ export class AgentSessionForkOperations {
           )
         ) {
           // Terminal retention: releasing the other workspace later must never resurrect deletion.
-          journal.workspaceDisposition = 'retained'
-          agentSessionForkService.writeJournal(journal)
+          resources.workspaceDisposition = 'retained'
+          await writeForkResources(resources)
         } else {
-          const artifactInfo = lstatSync(journal.artifactDirectory, { bigint: true })
+          const artifactInfo = lstatSync(resources.artifactDirectory, { bigint: true })
           if (
             !artifactInfo.isDirectory() ||
             artifactInfo.ino === 0n ||
-            [artifactInfo.dev, artifactInfo.ino].join(':') !== journal.artifactIdentity
+            [artifactInfo.dev, artifactInfo.ino].join(':') !== resources.artifactIdentity
           )
             throw new Error('Fork directory ownership is unproven; retained for recovery')
           // No await between the reference check and detach; later cleanup never targets a recreated workspace.
-          const disposal = mkdtempSync(path.join(journal.artifactDirectory, 'workspace-disposal-'))
+          const disposal = mkdtempSync(path.join(resources.artifactDirectory, 'workspace-disposal-'))
           renameSync(expected, path.join(disposal, 'workspace'))
         }
       }
     }
     try {
-      if ((await lstat(journal.artifactDirectory)).isSymbolicLink()) throw new Error('Fork directory is a link')
+      if ((await lstat(resources.artifactDirectory)).isSymbolicLink()) throw new Error('Fork directory is a link')
       if (
-        !journal.artifactIdentity ||
-        (await forkFileIdentity(journal.artifactDirectory)) !== journal.artifactIdentity
+        !resources.artifactIdentity ||
+        (await forkFileIdentity(resources.artifactDirectory)) !== resources.artifactIdentity
       ) {
         throw new Error('Fork directory ownership is unproven; retained for recovery')
       }
-      await rm(journal.artifactDirectory, { recursive: true, force: true })
+      await rm(resources.artifactDirectory, { recursive: true, force: true })
     } catch (error) {
       if (!isMissing(error)) throw error
     }
@@ -297,10 +293,10 @@ function cloneMessages(
     const anchor = RuntimeForkAnchorSchema.safeParse(data.runtimeAnchor)
     delete data.runtimeAnchor
     if (anchor.success) {
-      data.runtimeAnchor = {
+      data.runtimeAnchor = RuntimeForkAnchorSchema.parse({
         checkpoint: checkpoints[checkpointIndex++],
         excludedMessageIds: anchor.data.excludedMessageIds?.flatMap((id) => (ids.has(id) ? [ids.get(id)!] : []))
-      }
+      })
     }
     // Task events are live execution registries, not conversation content.
     data.parts = data.parts

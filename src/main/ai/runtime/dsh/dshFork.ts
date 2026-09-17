@@ -4,8 +4,8 @@ import { pathToFileURL } from 'node:url'
 import { application } from '@application'
 import { resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 
-import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../forkCheckpoint'
-import { runForkWorker } from '../runForkWorker'
+import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../fork'
+import { runForkWorker } from '../fork'
 
 export async function forkDshSession(input: RuntimeForkInput, snapshotEvents?: unknown[]): Promise<RuntimeForkResult> {
   const checkpoint = input.checkpoint

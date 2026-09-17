@@ -3,9 +3,10 @@ import path from 'node:path'
 
 import type { SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
 
-import { readForkPrefix, readNativeForkHistory } from '../../agentSession/forkFiles'
-import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../forkCheckpoint'
-import { runForkWorker } from '../runForkWorker'
+import { readForkPrefix, readNativeForkHistory } from '@main/ai/runtime/fork'
+
+import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../fork'
+import { runForkWorker } from '../fork'
 
 async function findSession(configDir: string, sessionId: string): Promise<string> {
   if (!/^[a-f0-9-]{36}$/i.test(sessionId)) throw new AgentSessionForkError('history_corrupt')
