@@ -101,7 +101,7 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 │  │ BootConfigService                    │                       │
 │  │ - Sync load on import                │                       │
 │  │ - In-memory config map               │◄──── boot-config.json │
-│  │ - Debounced save                     │      (~/.cherrystudio/)│
+│  │ - Debounced save                     │      ({cherryHome}/)   │
 │  └──────────────────────────────────────┘                       │
 └─────────────────────────────────────────────────────────────────┘
 
@@ -118,7 +118,7 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-BootConfig also carries data migrated from v1's `~/.cherrystudio/config/config.json` file (see `BootConfigMigrator`'s file source). The `app.user_data_path` key holds the custom user data directory mapping that the v1 file stored under `appDataPath`; preboot reads it before the path registry is frozen. User-initiated directory changes are first written to `temp.user_data_relocation`, then the next launch executes them during preboot (`src/main/services/userDataRelocation/`), copying or switching the Electron `userData` directory and committing `app.user_data_path`.
+BootConfig also carries data migrated from v1's `{cherryHome}/config/config.json` file (see `BootConfigMigrator`'s file source). The `app.user_data_path` key holds the custom user data directory mapping that the v1 file stored under `appDataPath`; preboot reads it before the path registry is frozen. User-initiated directory changes are first written to `temp.user_data_relocation`, then the next launch executes them during preboot (`src/main/services/userDataRelocation/`), copying or switching the Electron `userData` directory and committing `app.user_data_path`.
 
 ## Access Convention
 
@@ -175,10 +175,11 @@ Utility functions in `src/shared/data/preference/preferenceUtils.ts`:
 
 ## File Storage
 
-- **Path:** `~/.cherrystudio/boot-config.json` (intentionally outside `userData`)
+- **Path:** `{cherryHome}/boot-config.json` (intentionally outside `userData`)
+- **Cherry home:** `~/.cherrystudio` by default; `{profileRoot}/.cherrystudio` for unpackaged runs with `CS_DEV_PROFILE_ROOT`
 - **Format:** Flat JSON object, pretty-printed (2-space indent)
 
-> **Why outside `userData`?** Boot config must be readable *before* the app data directory is determined. Storing it under `userData` would create a chicken-and-egg problem: the file that decides where data lives cannot itself live inside that data. Placing it under `~/.cherrystudio/` keeps it stable across changes to `appDataPath` and ensures it is always available at process start, before `initAppDataDir()` runs.
+> **Why outside `userData`?** Boot config must be readable *before* the app data directory is determined. Storing it under `userData` would create a chicken-and-egg problem: the file that decides where data lives cannot itself live inside that data. Placing it under `{cherryHome}` keeps it stable across changes to `appDataPath` and ensures it is always available at process start, before `initAppDataDir()` runs.
 
 ```json
 {
