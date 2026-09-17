@@ -14,6 +14,7 @@ import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
+import { ModelRoutingService } from '@main/ai/routing/ModelRoutingService'
 import {
   ClaudeCodeProcessManager,
   ClaudeCodeSessionStateService,
@@ -154,6 +155,7 @@ export const services = {
   AgentJobsService,
   ChannelManager,
   AiService,
+  ModelRoutingService,
   ClaudeCodeWarmQueryManager,
   ClaudeCodeSessionStateService,
   AiStreamManager,

@@ -4,10 +4,16 @@ import type { UniqueModelId } from '@shared/data/types/model'
 
 const preferenceGet = vi.fn()
 const getByKey = vi.fn()
+const derivedCandidatesFor = vi.fn<(category: string) => UniqueModelId[]>(() => [])
 let providerEnabled = true
 
 vi.mock('@application', () => ({
-  application: { get: () => ({ get: preferenceGet }) }
+  application: {
+    get: (name: string) =>
+      name === 'ModelRoutingService'
+        ? { candidatesFor: (category: string) => derivedCandidatesFor(category) }
+        : { get: preferenceGet }
+  }
 }))
 vi.mock('@main/data/services/ModelService', () => ({
   modelService: { getByKey: (...args: unknown[]) => getByKey(...args) }
@@ -27,12 +33,15 @@ const textParts = (text: string) => [{ type: 'text', text }]
 function withPreferences({
   enabled = true,
   categoryModels = {},
-  health = {}
+  health = {},
+  derived = {}
 }: {
   enabled?: boolean
   categoryModels?: Record<string, string[]>
   health?: Record<string, { ok: boolean; checkedAt: number }>
+  derived?: Record<string, UniqueModelId[]>
 }) {
+  derivedCandidatesFor.mockImplementation((category: string) => derived[category] ?? [])
   preferenceGet.mockImplementation((key: string) => {
     if (key === 'chat.routing.auto_enabled') return enabled
     if (key === 'chat.routing.category_models') return categoryModels
@@ -89,6 +98,30 @@ describe('routeDefaultModelId', () => {
     withPreferences({ categoryModels: { code: [CODER] } })
 
     expect(routeDefaultModelId(textParts('naber'), FALLBACK)).toBe(FALLBACK)
+  })
+
+  it('routes from the derived ranking when nothing was mapped by hand', () => {
+    // The point of deriving: pasting a key is enough, with no category mapping to fill in.
+    withPreferences({ categoryModels: {}, derived: { code: [CODER] } })
+
+    expect(routeDefaultModelId(textParts('şu fonksiyonu refactor et'), FALLBACK)).toBe(CODER)
+  })
+
+  it('prefers a pinned model over the derived ranking', () => {
+    withPreferences({ categoryModels: { code: [RESEARCHER] }, derived: { code: [CODER] } })
+
+    // Hard work takes the strongest candidate, and a pinned pick is placed ahead of derived ones.
+    expect(routeDefaultModelId(textParts('sıfırdan bir uygulama tasarla'), FALLBACK)).toBe(RESEARCHER)
+  })
+
+  it('falls through to the derived ranking when the pinned model is gone', () => {
+    withPreferences({ categoryModels: { code: ['deleted::model'] }, derived: { code: [CODER] } })
+    getByKey.mockImplementation((_providerId: string, modelId: string) => {
+      if (modelId === 'model') throw new Error('model deleted')
+      return {}
+    })
+
+    expect(routeDefaultModelId(textParts('bu kodu derle'), FALLBACK)).toBe(CODER)
   })
 })
 

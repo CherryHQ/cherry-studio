@@ -259,7 +259,7 @@
     {
       "targetKey": "chat.routing.auto_enabled",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
       "description": "Route each request to the best model for its detected task category"
     },
@@ -268,7 +268,7 @@
       "type": "PreferenceTypes.CategoryModelMap",
       "defaultValue": {},
       "status": "classified",
-      "description": "Preferred models per task category, best first"
+      "description": "Models pinned per task category, tried ahead of the derived ranking"
     },
     {
       "targetKey": "chat.routing.api_key_limits",

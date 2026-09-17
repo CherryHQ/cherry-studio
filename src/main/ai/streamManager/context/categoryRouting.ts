@@ -5,7 +5,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
-import type { ModelHealthMemory } from '@shared/data/preference/preferenceTypes'
+import type { ModelHealthMemory, TaskCategory } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getModelQualityScore } from '@shared/utils/modelQuality'
 import { classifyTaskCategory, estimateTaskDifficulty } from '@shared/utils/taskCategory'
@@ -27,6 +27,20 @@ function bestHealthyModelId(health: ModelHealthMemory): UniqueModelId | undefine
     .filter(([uniqueModelId, entry]) => entry.ok && isUniqueModelId(uniqueModelId) && modelExists(uniqueModelId))
     .map(([uniqueModelId]) => uniqueModelId as UniqueModelId)
     .sort((a, b) => getModelQualityScore(b) - getModelQualityScore(a))[0]
+}
+
+/**
+ * Models to consider for a category: the user's own pinned picks first, then the ranking derived
+ * from what is installed and working. A pinned model whose provider is currently off is skipped
+ * here but deliberately left in preferences, so switching that provider back on restores the pick.
+ */
+function candidatesFor(category: TaskCategory): UniqueModelId[] {
+  const manual = application.get('PreferenceService').get('chat.routing.category_models')[category] ?? []
+  const derived = application.get('ModelRoutingService').candidatesFor(category)
+
+  return [...new Set([...manual, ...derived])].filter(
+    (id): id is UniqueModelId => isUniqueModelId(id) && modelExists(id)
+  )
 }
 
 /** A model is only usable if it still exists *and* its provider is switched on. */
@@ -52,9 +66,7 @@ export function routeDefaultModelId(parts: readonly TextPart[], fallback: Unique
     const promptText = promptTextOf(parts)
     const category = classifyTaskCategory(promptText)
     const health = preferences.get('chat.retry.model_health')
-    const candidates = (preferences.get('chat.routing.category_models')[category] ?? []).filter(
-      (id): id is UniqueModelId => isUniqueModelId(id) && modelExists(id)
-    )
+    const candidates = candidatesFor(category)
 
     // Nothing mapped for this category: rather than do nothing, rescue a default that is known
     // broken. A default that still answers (or was never probed) is left alone.

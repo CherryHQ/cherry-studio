@@ -30,33 +30,57 @@ function requestsSince(from: number): Map<string, number> {
   return counts
 }
 
+/** Keys still under their declared ceiling. Keys with no declared limit always count as available. */
+function keysWithinQuota<T extends Pick<ApiKeyEntry, 'id'>>(providerId: string, keys: readonly T[]): T[] {
+  const limits = application.get('PreferenceService').get('chat.routing.api_key_limits')
+  const countsByPeriod = new Map<keyof typeof PERIOD_MS, Map<string, number>>()
+
+  return keys.filter((key) => {
+    const limit = limits[apiKeyLimitId(providerId, key.id)]
+    if (!limit) return true
+
+    let counts = countsByPeriod.get(limit.period)
+    if (!counts) {
+      counts = requestsSince(Date.now() - PERIOD_MS[limit.period])
+      countsByPeriod.set(limit.period, counts)
+    }
+    return (counts.get(key.id) ?? 0) < limit.limit
+  })
+}
+
 /**
  * Drops credentials that already reached their declared ceiling. Returns the input untouched when
  * every key is exhausted — letting the provider reject the call beats refusing to send one.
  */
 export function filterKeysWithinQuota(providerId: string, keys: readonly ApiKeyEntry[]): ApiKeyEntry[] {
-  const limits = application.get('PreferenceService').get('chat.routing.api_key_limits')
-  const relevant = keys.filter((key) => limits[apiKeyLimitId(providerId, key.id)])
-  if (relevant.length === 0) return [...keys]
-
   try {
-    const countsByPeriod = new Map<keyof typeof PERIOD_MS, Map<string, number>>()
-    const withinQuota = keys.filter((key) => {
-      const limit = limits[apiKeyLimitId(providerId, key.id)]
-      if (!limit) return true
-
-      let counts = countsByPeriod.get(limit.period)
-      if (!counts) {
-        counts = requestsSince(Date.now() - PERIOD_MS[limit.period])
-        countsByPeriod.set(limit.period, counts)
-      }
-      return (counts.get(key.id) ?? 0) < limit.limit
-    })
-
+    const withinQuota = keysWithinQuota(providerId, keys)
     return withinQuota.length > 0 ? withinQuota : [...keys]
   } catch (error) {
     // A quota lookup must never block a request the user asked for.
     logger.warn('quota filter failed, falling back to every key', { providerId, error })
     return [...keys]
+  }
+}
+
+/**
+ * Whether every usable key for this provider is spent. Used to rank the provider down while it is
+ * out of quota — never to exclude it, since the ceiling is the user's own estimate and the provider
+ * may well still answer.
+ */
+export function isProviderQuotaExhausted(
+  providerId: string,
+  // Deliberately narrower than ApiKeyEntry: the runtime Provider carries keys without their secret.
+  keys: readonly Pick<ApiKeyEntry, 'id' | 'isEnabled'>[]
+): boolean {
+  const usable = keys.filter((key) => key.isEnabled)
+  if (usable.length === 0) return false
+
+  try {
+    return keysWithinQuota(providerId, usable).length === 0
+  } catch (error) {
+    // Unknown means available: a failed lookup must not push a working provider down the ranking.
+    logger.warn('quota lookup failed, treating the provider as available', { providerId, error })
+    return false
   }
 }

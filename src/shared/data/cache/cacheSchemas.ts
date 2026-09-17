@@ -4,6 +4,7 @@ import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
 import type { ChannelStatus } from '@shared/data/types/channel'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { Currency } from '@shared/data/types/model'
+import { type DerivedRoutingTable, EMPTY_DERIVED_ROUTING_TABLE } from '@shared/data/types/routing'
 import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
@@ -304,6 +305,9 @@ export type SharedCacheSchema = {
   'feature.hermes_dashboard.status': ManagedToolStatusState
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
+  // Main-owned model ranking per task category. Derived from providers, health and quota, so it is
+  // rebuilt on demand rather than persisted; the renderer reads it to explain routing decisions.
+  'routing.derived_table': DerivedRoutingTable
   // Main-owned, session-only local model status and download progress.
   'local_model.statuses': LocalModelStatusSnapshots
   'feature.binary.latest_versions': Record<string, string>
@@ -363,6 +367,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'feature.deepseek_harness.status': { status: 'stopped' },
   'feature.hermes_dashboard.status': { status: 'stopped' },
   'feature.api_gateway.running': false,
+  'routing.derived_table': EMPTY_DERIVED_ROUTING_TABLE,
   'local_model.statuses': {},
   'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',

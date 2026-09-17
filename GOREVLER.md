@@ -47,14 +47,17 @@ Cherry Studio (51.8k yıldız, TypeScript + Electron, aktif geliştiriliyor) sı
 
 ---
 
-## Faz 0 — Çalışır hâle getirme (kod yok, kurulum)
+> **Tam plan:** `C:\Users\ag\.claude\plans\keen-hugging-glacier.md` — fazlar, mimari kararlar ve
+> doğrulama adımları orada. Bu dosya sadece ilerleme takibi.
+
+## Faz 0 — Çalışır hâle getirme
 
 - [x] 0.1 Bağımlılıklar kuruldu (`.npmrc`: `engine-strict=false`, `manage-package-manager-versions=false`, `verify-deps-before-run=false`)
-- [ ] 0.2 **ENGEL**: `@paymoapp/electron-shutdown-handler` derlenemiyor — makinede Visual Studio C++ derleyicisi yok. `PowerService.ts` bu modülü doğrudan import ettiği için uygulama açılmaz. Çözüm seçenekleri: (a) Visual Studio Build Tools kur, (b) modülü devre dışı bırakan yerel yama. Testler bundan etkilenmiyor, çalışıyor.
-- [ ] 0.3 Arayüz dilini Türkçe yap → doğrula: menüler Türkçe
-- [ ] 0.4 API'leri ekle (OpenRouter + DeepSeek + Groq) → doğrula: model listesi doluyor
-- [ ] 0.5 Varsayılan asistana "her zaman Türkçe cevap ver" sistem talimatı gir → doğrula: Türkçe soruya Türkçe cevap
-- [ ] 0.6 **Madde 3**: MCP dosya sistemi sunucusunu bağla → doğrula: bir klasörde dosya oluşturup değiştirebiliyor
+- [x] 0.2 Önceki oturumun kaydedilmemiş çalışması commit edildi (5 commit) — artık kayıp riski yok
+- [x] 0.3 `@paymoapp/electron-shutdown-handler` yaması kalıcı: `patches/@paymoapp__electron-shutdown-handler@1.1.2.patch`, `pnpm install` artık silmiyor
+- [ ] 0.4 Uygulamayı çalıştır, ana akışı baştan dene (sağlayıcı ekle → model senkronla → mesaj gönder), takıldığı her noktayı yaz
+- [ ] 0.5 Arayüz dilini Türkçe yap + varsayılan asistana "her zaman Türkçe cevap ver" talimatı
+- [ ] 0.6 **Madde 3**: MCP dosya sistemi sunucusuna çalışma klasörü bağla → doğrula: klasörde dosya oluşturabiliyor
 
 ## Faz 1 — Sağlık hafızası ve kaliteye göre sıralama (Madde 2)
 
@@ -76,7 +79,28 @@ Cherry Studio (51.8k yıldız, TypeScript + Electron, aktif geliştiriliyor) sı
 - [x] 3.1 Kategori sınıflandırıcı: kod / araştırma / yazı / görsel / genel (`src/shared/utils/taskCategory.ts`, Türkçe+İngilizce, model çağrısı yapmaz)
 - [x] 3.2 Kategori → model eşleme **veri katmanı**: `chat.routing.category_models` + `chat.routing.auto_enabled` anahtarları
 - [x] 3.3 Otomatik yönlendirme: `routeDefaultModelId` — kategori tespiti + sağlıksız adayı atlama + silinmiş modeli yok sayma. **Elle seçim (`mentionedModelIds`) asla ezilmiyor.** 6 test.
-- [ ] 3.4 "Neden bu model seçildi" açıklaması → doğrula: seçim gerekçesi görünüyor
+- [ ] 3.4 "Neden bu model seçildi" açıklaması → Faz 6'da `TaskRoutingSettings` ile birlikte
+
+## Faz 6 — Kendini optimize eden yönlendirme ⭐ (kullanıcı şartı: key değişince elle ayar yok)
+
+Eşleme tablosu artık **elle doldurulmuyor, türetiliyor**: açık sağlayıcılar × modeller × sağlık ×
+kalite × kota. Elle seçim üstte ayrı katman — ezilmiyor, geçersizse okunurken atlanıyor, silinmiyor.
+
+- [x] 6.1 `src/main/ai/routing/deriveRoutingTable.ts` — saf sıralama fonksiyonu, 8 test
+- [x] 6.2 `src/main/ai/routing/ModelRoutingService.ts` — lifecycle servisi (`WhenReady`), `serviceRegistry.ts`'e kayıtlı. Tetik: sağlık tercihi değişimi (2sn debounce) + 60sn parmak izi taraması
+- [x] 6.3 `routing.derived_table` paylaşılan önbellek anahtarı — main yazar, arayüz okur
+- [x] 6.4 `categoryRouting.ts` adayları servisten alıyor (`elle seçilenler → türetilmiş`), 13 test
+- [x] 6.5 `chat.routing.auto_enabled` varsayılanı `true`
+- [ ] 6.6 `TaskRoutingSettings.tsx` yenile: türetilmiş satırlar "otomatik" etiketli, elle seçilenler sabit, kategori başına "otomatiğe dön" + **"neden bu model"** skor dökümü (Madde 3.4)
+- [ ] 6.7 i18n: yeni metinler 13 katalogda (`pnpm i18n:check` eksik çeviriyi reddeder)
+
+### Sonraki fazlar (plan dosyasında ayrıntılı)
+
+- [ ] **Faz 1** — Dosya/görsel/web yeteneklerini varsayılan aç (çalışma klasörü seçici, onay akışı)
+- [ ] **Faz 3** — Kota paneli: kullanılan / kalan / **yenilenme zamanı**
+- [ ] **Faz 4** — Video üretimi (asenkron iş kuyruğu, ModelScope/DashScope/SiliconFlow)
+- [ ] **Faz 5** — Kitap öğretmeni (müfredat + ders ilerlemesi)
+- [ ] **Faz 7** — Çoklu AI görev dağıtımı + ana sayfa
 
 ## Faz 5 — Ayar arayüzleri (özelliklerin kullanılabilir olması için gerekli)
 
@@ -109,6 +133,10 @@ Motor tarafı bitti ama tercihleri girecek ekran yok; şu an ayarlar sadece veri
 - 3.3: `routeDefaultModelId` `PersistentChatContextProvider` gönderim yoluna bağlandı; sadece varsayılanı değiştiriyor, elle seçimi değil.
 - 3.3 notu: yönlendirme hata verirse (bozuk ayar, silinmiş model) mesaj yine gönderiliyor — optimizasyon bir engele dönüşmemeli.
 - 2.3 notu: tip kontrolü testimin yakalayamadığı gerçek bir hatayı buldu (`buckets` ayrımlı birleşim, `groupBy` ile daraltmak gerekiyordu); taklit veri de gerçeğe uydurularak düzeltildi.
+- 6.1 notu: test gerçek bir tasarım hatası yakaladı — kalite skoru **metin** yeteneğini ölçüyor, görsel üretiminde alakasız. Frontier sohbet modeli adanmış görsel modelini eziyordu; `NATIVE_IMAGE_BONUS = 100` kalite aralığının tamamını aşıyor.
+- 6.1 notu 2: yalnızca görsel üreten model (`outputModalities` içinde `text` yok) sohbet turunu cevaplayamaz. "Kolay iş en zayıf adayı seçer" kuralı yüzünden kod kategorisinde seçilip her seferinde patlardı — kategori bazlı uygunluk filtresi eklendi.
+- 6.2 notu: `ProviderService`/`ModelService` olay yaymıyor, key eklendiğini haber veremiyor. 60sn parmak izi taraması geçici çözüm; kalıcısı bu servislere `Emitter` eklemek.
+- Doğrulama: `typecheck:node` + `typecheck:web` temiz; yönlendirme testleri 8 + 13 geçiyor.
 - Ortam: Visual Studio Build Tools (MSVC 14.44) kuruldu — `better-sqlite3` Electron için derlenebiliyor, kurulum paketi üretimi açıldı.
 - Engel notu: `@paymoapp/electron-shutdown-handler` derlenemediği için `node_modules` içindeki `dist/index.js`'te native yükleme try/catch'e alındı (modülün kendi kodu zaten `addon = null` durumunu karşılıyor). **Yeniden kurulumda tekrar uygulanmalı.**
 
