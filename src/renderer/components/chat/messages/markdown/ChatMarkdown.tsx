@@ -13,6 +13,7 @@ export interface ChatMarkdownProps {
   className?: string
   components?: Partial<Components>
   trustedCitations?: readonly Citation[]
+  linkifyFilePaths?: boolean
 }
 
 export type InlineHtmlPreviewMode = 'generating' | 'ready'
