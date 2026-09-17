@@ -78,6 +78,9 @@ describe('HelpMenu', () => {
     if (layout === 'full') {
       expect(trigger).toHaveClass('min-w-0', 'overflow-hidden')
       expect(trigger.querySelector('span')).toHaveClass('min-w-0', 'truncate')
+    } else {
+      expect(trigger).toHaveClass('hover:bg-transparent', 'hover:opacity-100', 'rounded-none')
+      expect(trigger).not.toHaveClass('rounded-full')
     }
   })
 
