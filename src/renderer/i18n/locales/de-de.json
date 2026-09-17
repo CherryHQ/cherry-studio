@@ -1202,6 +1202,8 @@
   "deviceConnections.devices.revoke": "Zugriff widerrufen",
   "deviceConnections.devices.revoked": "Gerätezugriff widerrufen",
   "deviceConnections.devices.title": "Gekoppelte Geräte",
+  "deviceConnections.downloadMobile": "Mobile App herunterladen",
+  "deviceConnections.downloadMobileHint": "Installieren Sie Cherry Studio auf Ihrem Smartphone und verbinden Sie es mit Ihrem Computer.",
   "deviceConnections.gateway.openSettings": "API-Gateway-Einstellungen öffnen",
   "deviceConnections.gateway.required": "Starten Sie das API-Gateway in seinen Einstellungen, bevor Sie den LAN-Zugriff aktivieren.",
   "deviceConnections.lan.disable": "LAN-Zugriff deaktivieren",

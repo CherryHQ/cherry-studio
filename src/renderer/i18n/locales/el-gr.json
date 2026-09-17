@@ -1202,6 +1202,8 @@
   "deviceConnections.devices.revoke": "Ανάκληση πρόσβασης",
   "deviceConnections.devices.revoked": "Η πρόσβαση της συσκευής ανακλήθηκε",
   "deviceConnections.devices.title": "Συζευγμένες συσκευές",
+  "deviceConnections.downloadMobile": "Λήψη εφαρμογής για κινητά",
+  "deviceConnections.downloadMobileHint": "Εγκαταστήστε το Cherry Studio στο κινητό σας και συνδεθείτε με τον υπολογιστή σας.",
   "deviceConnections.gateway.openSettings": "Άνοιγμα ρυθμίσεων πύλης API",
   "deviceConnections.gateway.required": "Εκκινήστε την πύλη API από τις ρυθμίσεις της πριν ενεργοποιήσετε την πρόσβαση LAN.",
   "deviceConnections.lan.disable": "Απενεργοποίηση πρόσβασης LAN",

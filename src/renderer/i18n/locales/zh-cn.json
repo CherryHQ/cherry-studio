@@ -1202,6 +1202,8 @@
   "deviceConnections.devices.revoke": "撤销访问",
   "deviceConnections.devices.revoked": "已撤销该设备的访问权限",
   "deviceConnections.devices.title": "已配对设备",
+  "deviceConnections.downloadMobile": "下载移动端",
+  "deviceConnections.downloadMobileHint": "在手机上安装 Cherry Studio，连接桌面端。",
   "deviceConnections.gateway.openSettings": "前往 API 网关设置",
   "deviceConnections.gateway.required": "请先前往 API 网关设置启动网关，再开启局域网访问。",
   "deviceConnections.lan.disable": "关闭局域网访问",

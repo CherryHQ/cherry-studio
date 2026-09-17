@@ -1202,6 +1202,8 @@
   "deviceConnections.devices.revoke": "Revocar acceso",
   "deviceConnections.devices.revoked": "Acceso del dispositivo revocado",
   "deviceConnections.devices.title": "Dispositivos emparejados",
+  "deviceConnections.downloadMobile": "Descargar la app móvil",
+  "deviceConnections.downloadMobileHint": "Instala Cherry Studio en tu teléfono y conéctalo a tu ordenador.",
   "deviceConnections.gateway.openSettings": "Abrir los ajustes de la puerta de enlace API",
   "deviceConnections.gateway.required": "Inicia la puerta de enlace API desde sus ajustes antes de habilitar el acceso LAN.",
   "deviceConnections.lan.disable": "Deshabilitar acceso LAN",

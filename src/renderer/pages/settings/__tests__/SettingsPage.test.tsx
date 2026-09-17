@@ -134,8 +134,8 @@ describe('SettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-models' })
   })
 
-  it('exposes device connections as its own settings destination in developer mode', () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+  it('exposes device connections as its own settings destination without developer mode', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', false)
     render(<SettingsPage />)
 
     const deviceConnectionsItem = screen.getByRole('button', { name: '设备互联' })

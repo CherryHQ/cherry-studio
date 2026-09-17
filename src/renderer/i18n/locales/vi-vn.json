@@ -1202,6 +1202,8 @@
   "deviceConnections.devices.revoke": "Thu hồi quyền truy cập",
   "deviceConnections.devices.revoked": "Đã thu hồi quyền truy cập của thiết bị",
   "deviceConnections.devices.title": "Thiết bị đã ghép nối",
+  "deviceConnections.downloadMobile": "Tải ứng dụng di động",
+  "deviceConnections.downloadMobileHint": "Cài đặt Cherry Studio trên điện thoại và kết nối với máy tính của bạn.",
   "deviceConnections.gateway.openSettings": "Mở cài đặt Cổng API",
   "deviceConnections.gateway.required": "Khởi động Cổng API trong phần cài đặt trước khi bật truy cập LAN.",
   "deviceConnections.lan.disable": "Tắt truy cập LAN",

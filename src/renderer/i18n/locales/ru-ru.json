@@ -1202,6 +1202,8 @@
   "deviceConnections.devices.revoke": "Отозвать доступ",
   "deviceConnections.devices.revoked": "Доступ устройства отозван",
   "deviceConnections.devices.title": "Сопряжённые устройства",
+  "deviceConnections.downloadMobile": "Скачать мобильное приложение",
+  "deviceConnections.downloadMobileHint": "Установите Cherry Studio на телефон и подключите его к компьютеру.",
   "deviceConnections.gateway.openSettings": "Открыть настройки API-шлюза",
   "deviceConnections.gateway.required": "Запустите API-шлюз в его настройках, прежде чем включать доступ по локальной сети.",
   "deviceConnections.lan.disable": "Отключить доступ по локальной сети",

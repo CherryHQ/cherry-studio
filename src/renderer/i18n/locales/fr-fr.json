@@ -1202,6 +1202,8 @@
   "deviceConnections.devices.revoke": "Révoquer l'accès",
   "deviceConnections.devices.revoked": "Accès de l'appareil révoqué",
   "deviceConnections.devices.title": "Appareils appairés",
+  "deviceConnections.downloadMobile": "Télécharger l’application mobile",
+  "deviceConnections.downloadMobileHint": "Installez Cherry Studio sur votre téléphone et connectez-le à votre ordinateur.",
   "deviceConnections.gateway.openSettings": "Ouvrir les paramètres de la passerelle API",
   "deviceConnections.gateway.required": "Démarrez la passerelle API dans ses paramètres avant d’activer l’accès au réseau local.",
   "deviceConnections.lan.disable": "Désactiver l’accès au réseau local",

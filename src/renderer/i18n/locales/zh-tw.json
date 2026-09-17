@@ -1202,6 +1202,8 @@
   "deviceConnections.devices.revoke": "撤銷存取",
   "deviceConnections.devices.revoked": "已撤銷該裝置的存取權限",
   "deviceConnections.devices.title": "已配對裝置",
+  "deviceConnections.downloadMobile": "下載行動版",
+  "deviceConnections.downloadMobileHint": "在手機上安裝 Cherry Studio，連接桌面版。",
   "deviceConnections.gateway.openSettings": "前往 API 閘道設定",
   "deviceConnections.gateway.required": "請先前往 API 閘道設定啟動閘道，再開啟區域網路存取。",
   "deviceConnections.lan.disable": "關閉區域網路存取",

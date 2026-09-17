@@ -1202,6 +1202,8 @@
   "deviceConnections.devices.revoke": "Revoke access",
   "deviceConnections.devices.revoked": "Device access revoked",
   "deviceConnections.devices.title": "Paired devices",
+  "deviceConnections.downloadMobile": "Download mobile app",
+  "deviceConnections.downloadMobileHint": "Install Cherry Studio on your phone and connect to your desktop.",
   "deviceConnections.gateway.openSettings": "Open API Gateway settings",
   "deviceConnections.gateway.required": "Start the API Gateway in its settings before enabling LAN access.",
   "deviceConnections.lan.disable": "Disable LAN access",

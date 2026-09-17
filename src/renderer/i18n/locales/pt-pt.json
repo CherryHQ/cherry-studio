@@ -1202,6 +1202,8 @@
   "deviceConnections.devices.revoke": "Revogar acesso",
   "deviceConnections.devices.revoked": "Acesso do dispositivo revogado",
   "deviceConnections.devices.title": "Dispositivos emparelhados",
+  "deviceConnections.downloadMobile": "Descarregar a aplicação móvel",
+  "deviceConnections.downloadMobileHint": "Instale o Cherry Studio no seu telemóvel e ligue-o ao seu computador.",
   "deviceConnections.gateway.openSettings": "Abrir as definições do gateway API",
   "deviceConnections.gateway.required": "Inicie o gateway API nas respetivas definições antes de ativar o acesso à rede local.",
   "deviceConnections.lan.disable": "Desativar o acesso à rede local",

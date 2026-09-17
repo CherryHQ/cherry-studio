@@ -1202,6 +1202,8 @@
   "deviceConnections.devices.revoke": "Erişimi iptal et",
   "deviceConnections.devices.revoked": "Cihaz erişimi iptal edildi",
   "deviceConnections.devices.title": "Eşleştirilmiş cihazlar",
+  "deviceConnections.downloadMobile": "Mobil uygulamayı indir",
+  "deviceConnections.downloadMobileHint": "Cherry Studio’yu telefonunuza yükleyin ve bilgisayarınıza bağlayın.",
   "deviceConnections.gateway.openSettings": "API Ağ Geçidi ayarlarını aç",
   "deviceConnections.gateway.required": "LAN erişimini etkinleştirmeden önce API Ağ Geçidini ayarlarından başlatın.",
   "deviceConnections.lan.disable": "LAN erişimini devre dışı bırak",
