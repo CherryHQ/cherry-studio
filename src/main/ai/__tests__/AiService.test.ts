@@ -571,7 +571,7 @@ describe('AiService', () => {
         size: '1024x1024',
         aspectRatio: '9:19.5',
         seed: 7,
-        maxRetries: 0,
+        maxRetries: 2,
         providerOptions: {
           'test-provider': {
             negative_prompt: 'blurry',
