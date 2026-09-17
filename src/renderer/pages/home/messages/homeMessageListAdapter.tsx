@@ -221,8 +221,8 @@ export function useHomeMessageListProviderValue({
   }, [])
 
   const diagnosticReport = useMemo(
-    () => (normalInteractionsEnabled ? { location: t('error.diagnostic_report.locations.home') } : undefined),
-    [normalInteractionsEnabled, t]
+    () => (normalInteractionsEnabled ? { location: 'home' } : undefined),
+    [normalInteractionsEnabled]
   )
 
   const {

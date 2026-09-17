@@ -158,6 +158,8 @@ const translations: Record<string, string> = {
   'error.diagnosis.view_details': 'View Details',
   'error.diagnostic_report.action': 'Report a problem',
   'error.diagnostic_report.location': 'Location',
+  'error.diagnostic_report.locations.home': 'Home conversation',
+  'error.diagnostic_report.locations.work': 'Work conversation',
   'error.diagnostics.action_required': 'Action required',
   'error.diagnostics.action_required_tag': 'Needs action',
   'error.diagnostics.back_to_overview': 'Back to diagnostic overview',
@@ -407,6 +409,15 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(writeText).toHaveBeenCalledWith(
       ['Error name: ProviderError', 'Error message: failed', 'Stack: private stack'].join('\n')
     )
+  })
+
+  it('titles Agent basic information as a work conversation', () => {
+    renderErrorDetailContent({
+      diagnosticReport: { location: 'agent' },
+      error: providerError
+    })
+
+    expect(screen.getByRole('region', { name: 'Basic information (Work conversation)' })).toBeInTheDocument()
   })
 
   it('returns from nested error details through the localized header action without unmounting diagnostics', async () => {

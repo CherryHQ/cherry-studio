@@ -1255,6 +1255,7 @@
   "error.diagnostic_report.action": "Sorun bildir",
   "error.diagnostic_report.location": "Konum",
   "error.diagnostic_report.locations.agent": "Ajan konuşması",
+  "error.diagnostic_report.locations.work": "İş konuşması",
   "error.diagnostic_report.locations.home": "Ana sayfa konuşması",
   "error.diagnostics.action_required": "İşlem gerekli",
   "error.diagnostics.action_required_tag": "Beklemede",

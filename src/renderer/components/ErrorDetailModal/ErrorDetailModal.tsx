@@ -43,7 +43,7 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 import { doctorScopeKey } from '@shared/utils/doctor'
 
 import Scrollbar from '../Scrollbar'
-import { buildDiagnosticReportDescription, type DiagnosticReportConfig } from './diagnosticReportDescription'
+import { buildDiagnosticReportDescription, type DiagnosticReportConfig, resolveDiagnosticReportLocation } from './diagnosticReportDescription'
 import { ErrorBasicInformation } from './ErrorBasicInformation'
 import { ErrorDoctorDiagnostics } from './ErrorDoctorDiagnostics'
 
@@ -554,7 +554,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
           location: t('error.diagnostic_report.location'),
           model: t('error.modelId')
         },
-        location: diagnosticReport.location
+        location: resolveDiagnosticReportLocation(t, diagnosticReport.location, i18n.language)
       })
     )
   }, [diagnosticReport, diagnosisContext, doctorCloseBlocked, error, localizedErrorMessage, onOpenDiagnosticReport, t])
