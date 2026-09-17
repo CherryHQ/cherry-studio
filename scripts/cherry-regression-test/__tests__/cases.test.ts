@@ -35,44 +35,11 @@ describe('regression execution plan', () => {
     }
   })
 
-  it('resolves a push without installing or invoking the controller toolchain', () => {
+  it('allows only manual runs from the trusted main controller', () => {
     const workflow = parse(readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8'))
-    const steps = workflow.jobs.resolve.steps as Array<{ name: string; if?: string; run?: string }>
-    for (const name of ['Set up pnpm', 'Set up Node.js', 'Install controller dependencies']) {
-      expect(steps.find((step) => step.name === name)?.if).toBe("github.event_name == 'workflow_dispatch'")
-    }
-    const directory = mkdtempSync(join(tmpdir(), 'cherry-push-ref-'))
-    const output = join(directory, 'output')
-    try {
-      execFileSync(
-        'bash',
-        [
-          '-e',
-          '-c',
-          `pnpm() { return 97; }\n${steps.find((step) => step.name === 'Resolve and validate test reference')!.run}`
-        ],
-        {
-          cwd: directory,
-          env: {
-            ...process.env,
-            EVENT_NAME: 'push',
-            PUSH_REF: 'refs/heads/regression',
-            PUSH_REF_NAME: 'regression',
-            PUSH_SHA: 'a'.repeat(40),
-            GITHUB_OUTPUT: output
-          }
-        }
-      )
-      expect(readFileSync(output, 'utf8').trim().split('\n')).toEqual([
-        'mode=branch',
-        'name=regression',
-        'ref=refs/heads/regression',
-        `sha=${'a'.repeat(40)}`,
-        'task=all'
-      ])
-    } finally {
-      rmSync(directory, { recursive: true, force: true })
-    }
+    expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch'])
+    expect(workflow.jobs.resolve.if).toBe("github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'")
+    expect(workflow.concurrency['cancel-in-progress']).toBe(false)
   })
 
   it('prepares native and utility-process dependencies before the first branch launch only', () => {
