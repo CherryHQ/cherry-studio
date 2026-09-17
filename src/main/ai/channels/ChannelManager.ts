@@ -10,7 +10,7 @@ import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
-import { loadChannelAdapter, type ChannelAdapterLoader } from './channelAdapterLoader'
+import { loadChannelAdapter } from './channelAdapterLoader'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
 import { channelMessageHandler } from './ChannelMessageHandler'
 import { ChannelRuntime, type ChannelRuntimeDesired } from './ChannelRuntime'
@@ -25,10 +25,6 @@ export class ChannelManager extends BaseService {
   private readonly runtimes = new Map<string, ChannelRuntime>()
   private readonly channelLogs = new ChannelLogBuffer()
   private acceptingConnections = false
-
-  constructor(private readonly adapterLoader: ChannelAdapterLoader = loadChannelAdapter) {
-    super()
-  }
 
   protected async onReady(): Promise<void> {
     await this.start()
@@ -133,7 +129,7 @@ export class ChannelManager extends BaseService {
 
     const runtime = new ChannelRuntime(channelId, {
       readDesired: (id) => this.readDesired(id),
-      loadAdapter: this.adapterLoader,
+      loadAdapter: loadChannelAdapter,
       onMessage: (adapter, event) => this.handleMessage(adapter, event),
       onCommand: (adapter, event) => this.handleCommand(adapter, event),
       onCredentials: (agentId, id, credentials) => this.saveCredentials(agentId, id, credentials),

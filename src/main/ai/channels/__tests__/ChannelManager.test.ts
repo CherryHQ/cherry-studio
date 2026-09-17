@@ -1,16 +1,27 @@
+import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
-import { BaseService } from '@main/core/lifecycle/BaseService'
+import { BaseService, Injectable, ServiceContainer } from '@main/core/lifecycle'
 
 import { ChannelAdapter, type ChannelAdapterConfig } from '../ChannelAdapter'
+import { loadChannelAdapter } from '../channelAdapterLoader'
 import { ChannelManager } from '../ChannelManager'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 
 const mocks = vi.hoisted(() => ({
   getLifecycleState: vi.fn()
 }))
+
+vi.mock('../channelAdapterLoader', () => ({ loadChannelAdapter: vi.fn() }))
+
+@Injectable('WindowManager')
+class TestWindowManager {
+  constructor() {
+    Object.assign(this, defaultServiceInstances.WindowManager)
+  }
+}
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -83,6 +94,7 @@ describe('ChannelManager', () => {
 
   beforeEach(() => {
     BaseService.resetInstances()
+    ServiceContainer.reset()
     vi.clearAllMocks()
     mocks.getLifecycleState.mockReturnValue('active')
     rows = []
@@ -94,7 +106,7 @@ describe('ChannelManager', () => {
     vi.mocked(channelService.getChannel).mockImplementation(
       (channelId) => rows.find((row) => row.id === channelId) ?? null
     )
-    manager = new ChannelManager(async (channel, agentId) => {
+    vi.mocked(loadChannelAdapter).mockImplementation(async (channel, agentId) => {
       const adapter = new MockAdapter({
         channelId: channel.id,
         channelType: channel.type,
@@ -107,11 +119,16 @@ describe('ChannelManager', () => {
       adapters.push(adapter)
       return adapter
     })
+    const container = ServiceContainer.getInstance()
+    container.register(TestWindowManager)
+    container.register(ChannelManager)
+    manager = container.get(ChannelManager)
   })
 
   afterEach(async () => {
     await manager._doStop()
     BaseService.resetInstances()
+    ServiceContainer.reset()
   })
 
   it('connects only when both channel intent and Agent lifecycle are active', async () => {
