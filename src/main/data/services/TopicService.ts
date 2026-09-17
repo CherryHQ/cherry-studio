@@ -871,7 +871,7 @@ export class TopicService {
   deleteByAssistantIdTx(
     tx: DbOrTx,
     assistantId: string,
-    options: { validateAssistant?: boolean; deletedAt?: number } = {}
+    options: { validateAssistant?: boolean; deletedAt?: number; permanent?: boolean } = {}
   ): string[] {
     if (options.validateAssistant ?? true) {
       assertActiveAssistantTx(tx, assistantId)
@@ -880,8 +880,16 @@ export class TopicService {
     const rows = tx
       .select({ id: topicTable.id })
       .from(topicTable)
-      .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+      .where(and(eq(topicTable.assistantId, assistantId), options.permanent ? undefined : isNull(topicTable.deletedAt)))
       .all()
+
+    if (options.permanent) {
+      const ids = rows.map((row) => row.id)
+      return [
+        ...this.purgeManyByIdsTx(tx, ids, { targetState: 'active' }),
+        ...this.purgeManyByIdsTx(tx, ids, { targetState: 'trashed' })
+      ]
+    }
 
     return this.trashManyByIdsTx(
       tx,

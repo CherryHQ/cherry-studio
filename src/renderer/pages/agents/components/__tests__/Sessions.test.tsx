@@ -3719,7 +3719,7 @@ describe('Sessions', () => {
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     expect(screen.queryByRole('menuitem', { name: 'Delete all sessions' })).not.toBeInTheDocument()
     const deleteAgentMenuItem = screen
-      .getAllByRole('menuitem', { name: 'Delete Agent' })
+      .getAllByRole('menuitem', { name: 'Archive' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     expect(deleteAgentMenuItem).toBeDefined()
 
@@ -3799,7 +3799,7 @@ describe('Sessions', () => {
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     fireEvent.click(
       screen
-        .getAllByRole('menuitem', { name: 'Delete Agent' })
+        .getAllByRole('menuitem', { name: 'Archive' })
         .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item') as HTMLElement
     )
 
@@ -3841,7 +3841,7 @@ describe('Sessions', () => {
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
     const deleteAgentMenuItem = screen
-      .getAllByRole('menuitem', { name: 'Delete Agent' })
+      .getAllByRole('menuitem', { name: 'Archive' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     fireEvent.click(deleteAgentMenuItem as HTMLElement)
     await act(async () => {
@@ -3856,7 +3856,7 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(toast.info).toHaveBeenCalledWith('Already in Recycle Bin'))
     await vi.waitFor(() => {
       const restoredDeleteAgentMenuItem = screen
-        .getAllByRole('menuitem', { name: 'Delete Agent' })
+        .getAllByRole('menuitem', { name: 'Archive' })
         .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
       expect(restoredDeleteAgentMenuItem).toBeEnabled()
     })
@@ -3900,7 +3900,7 @@ describe('Sessions', () => {
       .getAllByRole('menuitem', { name: 'Delete all sessions' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     expect(deleteSessionsMenuItem).toBeDefined()
-    expect(screen.queryByRole('menuitem', { name: 'Delete Agent' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Archive' })).not.toBeInTheDocument()
 
     fireEvent.click(deleteSessionsMenuItem as HTMLElement)
 

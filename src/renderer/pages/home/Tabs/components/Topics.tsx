@@ -214,7 +214,7 @@ function AssistantGroupMoreMenu({
   isGroupGrouping: boolean
   pinned: boolean
   sidebarPinned: boolean
-  onDeleteAssistant: (assistantId: string) => void | Promise<void>
+  onDeleteAssistant: (assistantId: string, permanent?: boolean) => void | Promise<void>
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
   onEdit: (assistantId: string) => void
   onSetAssistantIconType: (iconType: AssistantIconType) => void | Promise<void>
@@ -987,7 +987,7 @@ export function Topics({
   }, [refreshAssistants, refreshTopics])
 
   const handleDeleteAssistant = useCallback(
-    async (assistantId: string) => {
+    async (assistantId: string, permanent = false) => {
       if (deletingAssistantId) return
 
       const assistantName = assistantById.get(assistantId)?.name ?? t('common.unnamed')
@@ -997,9 +997,9 @@ export function Topics({
         try {
           let result
           try {
-            result = await deleteAssistant(assistantId, { deleteTopics })
+            result = await deleteAssistant(assistantId, { deleteTopics, permanent })
           } catch (err) {
-            if (!isTrashTargetNotFoundError(err)) throw err
+            if (permanent || !isTrashTargetNotFoundError(err)) throw err
             await refreshAssistantResources()
             toast.info(t('recycle_bin.already_moved'))
             return
@@ -1011,23 +1011,24 @@ export function Topics({
           }
 
           const deletedTopicIds = result.deletedTopicIds ?? []
-          showRecycleBinUndo({
-            itemName: assistantName,
-            onUndo: () =>
-              restoreRecycleBinUndoGroup({
-                primary: {
-                  id: assistantId,
-                  restore: restoreAssistant,
-                  getActive: (id) => dataApiService.get(`/assistants/${id}`)
-                },
-                related: {
-                  ids: deletedTopicIds,
-                  restore: restoreTopic,
-                  getActive: (id) => dataApiService.get(`/topics/${id}`)
-                },
-                refresh: refreshAssistantResources
-              })
-          })
+          if (!permanent)
+            showRecycleBinUndo({
+              itemName: assistantName,
+              onUndo: () =>
+                restoreRecycleBinUndoGroup({
+                  primary: {
+                    id: assistantId,
+                    restore: restoreAssistant,
+                    getActive: (id) => dataApiService.get(`/assistants/${id}`)
+                  },
+                  related: {
+                    ids: deletedTopicIds,
+                    restore: restoreTopic,
+                    getActive: (id) => dataApiService.get(`/topics/${id}`)
+                  },
+                  refresh: refreshAssistantResources
+                })
+            })
           if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
           if (currentActiveTopicId && deletedTopicIds.includes(currentActiveTopicId)) {
             try {
@@ -1041,9 +1042,10 @@ export function Topics({
           }
 
           await refreshAssistantResources()
+          if (permanent) toast.success(t('settings.data.trash.permanent_delete.success'))
         } catch (err) {
           logger.error('Failed to delete assistant from topic group', { assistantId, err })
-          if (isTrashTopicBusyError(err)) {
+          if (!permanent && isTrashTopicBusyError(err)) {
             toast.info(t('recycle_bin.move.blocked_generation'))
             return
           }
@@ -1055,6 +1057,7 @@ export function Topics({
 
       await deleteConversationOwnerPopup.show({
         type: 'assistant',
+        permanent,
         action: performDelete
       })
     },

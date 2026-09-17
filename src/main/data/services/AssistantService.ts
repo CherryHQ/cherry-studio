@@ -612,25 +612,29 @@ export class AssistantDataService {
     }
   }
 
-  /** Move an active assistant to the Recycle Bin by default; permanently remove only one already there. */
+  /** Archive by default; active permanent deletion must explicitly select the active state. */
   delete(
     id: string,
-    options: { deleteTopics?: boolean; permanent?: boolean } = {}
+    options: { deleteTopics?: boolean; permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
   ): { deleted: boolean; deletedTopicIds?: string[] } {
-    const shouldDeleteTopics = options.permanent !== true && options.deleteTopics === true
+    const shouldDeleteTopics =
+      options.deleteTopics === true && (options.permanent !== true || options.targetState === 'active')
     const { deleted, deletedTopicIds, projectedTopicIds } = application.get('DbService').withWriteTx((tx) => {
       const predicate =
-        options.permanent === true
+        options.permanent === true && options.targetState !== 'active'
           ? and(eq(assistantTable.id, id), isNotNull(assistantTable.deletedAt))
           : and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt))
       const [existing] = tx.select({ id: assistantTable.id }).from(assistantTable).where(predicate).limit(1).all()
       if (!existing) throw DataApiErrorFactory.notFound('Assistant', id)
 
       if (options.permanent === true) {
+        const deletedTopicIds = shouldDeleteTopics
+          ? topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false, permanent: true })
+          : undefined
         const projectedTopicIds = topicService.listIdsByAssistantTx(tx, id)
         return {
           deleted: this.permanentlyDeleteTx(tx, id),
-          deletedTopicIds: undefined,
+          deletedTopicIds,
           projectedTopicIds
         }
       }
@@ -652,9 +656,8 @@ export class AssistantDataService {
     }
     if (options.permanent === true) {
       topicService.notifyReadModelChange(projectedTopicIds ?? [], 'projection')
-    } else {
-      topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership', { deleted: true })
     }
+    topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership', { deleted: true })
     this.notifyReadModelChange([id], 'membership')
     pinService.notifyPurged()
 

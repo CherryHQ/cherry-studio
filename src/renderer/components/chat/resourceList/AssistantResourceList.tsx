@@ -1,4 +1,4 @@
-import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
+import { Archive, BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -52,6 +52,7 @@ const ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID = 'assistant-entity.clear-topics'
 const ASSISTANT_ENTITY_TOGGLE_GROUPING_ACTION_ID = 'assistant-entity.toggle-grouping'
 const ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID = 'assistant-entity.icon-type'
 const ASSISTANT_ENTITY_DELETE_ACTION_ID = 'assistant-entity.delete'
+const ASSISTANT_ENTITY_ARCHIVE_ACTION_ID = 'assistant-entity.archive'
 const ASSISTANT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'assistant-entity.toggle-sidebar'
 const UNLINKED_ASSISTANT_ENTITY_ID = 'assistant-entity:unlinked'
 
@@ -421,7 +422,7 @@ export function AssistantResourceList({
   }, [refreshAssistants, refreshTopics])
 
   const handleDeleteAssistant = useCallback(
-    async (assistantId: string) => {
+    async (assistantId: string, permanent = false) => {
       if (deletingAssistantId) return
 
       const assistantName = assistants.find((assistant) => assistant.id === assistantId)?.name ?? t('common.unnamed')
@@ -430,9 +431,9 @@ export function AssistantResourceList({
         try {
           let result
           try {
-            result = await deleteAssistant(assistantId, { deleteTopics })
+            result = await deleteAssistant(assistantId, { deleteTopics, permanent })
           } catch (err) {
-            if (!isTrashTargetNotFoundError(err)) throw err
+            if (permanent || !isTrashTargetNotFoundError(err)) throw err
             await Promise.allSettled([refreshAssistants(), refreshTopics()])
             toast.info(t('recycle_bin.already_moved'))
             return
@@ -468,6 +469,10 @@ export function AssistantResourceList({
               err
             })
           }
+          if (permanent) {
+            toast.success(t('settings.data.trash.permanent_delete.success'))
+            return
+          }
           showRecycleBinUndo({
             itemName: assistantName,
             onUndo: () =>
@@ -487,7 +492,7 @@ export function AssistantResourceList({
           })
         } catch (err) {
           logger.error('Failed to delete assistant from classic-layout rail', { assistantId, err })
-          if (isTrashTopicBusyError(err)) {
+          if (!permanent && isTrashTopicBusyError(err)) {
             toast.info(t('recycle_bin.move.blocked_generation'))
             return
           }
@@ -497,7 +502,7 @@ export function AssistantResourceList({
         }
       }
 
-      await deleteConversationOwnerPopup.show({ type: 'assistant', action: performDelete })
+      await deleteConversationOwnerPopup.show({ type: 'assistant', permanent, action: performDelete })
     },
     [
       activeTopicId,
@@ -564,11 +569,19 @@ export function AssistantResourceList({
           order: 35
         }),
         buildResolvedResourceEntityMenuAction({
-          id: ASSISTANT_ENTITY_DELETE_ACTION_ID,
-          label: t('assistants.delete.title'),
-          icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
+          id: ASSISTANT_ENTITY_ARCHIVE_ACTION_ID,
+          label: t('common.archive'),
+          icon: <Archive size={14} />,
           group: 'danger',
           order: 30,
+          availability: { visible: true, enabled: deletingAssistantId === null }
+        }),
+        buildResolvedResourceEntityMenuAction({
+          id: ASSISTANT_ENTITY_DELETE_ACTION_ID,
+          label: t('common.delete_permanently'),
+          icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
+          group: 'danger',
+          order: 40,
           danger: true,
           availability: { visible: true, enabled: deletingAssistantId === null }
         })
@@ -613,8 +626,8 @@ export function AssistantResourceList({
         void setAssistantIconType(action.id.slice(ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID.length + 1) as AssistantIconType)
         return
       }
-      if (action.id === ASSISTANT_ENTITY_DELETE_ACTION_ID) {
-        void handleDeleteAssistant(item.id)
+      if (action.id === ASSISTANT_ENTITY_DELETE_ACTION_ID || action.id === ASSISTANT_ENTITY_ARCHIVE_ACTION_ID) {
+        void handleDeleteAssistant(item.id, action.id === ASSISTANT_ENTITY_DELETE_ACTION_ID)
       }
     },
     [

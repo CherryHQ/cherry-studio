@@ -807,8 +807,13 @@ export class AgentService {
     }
   }
 
-  deleteAgentStateTx(tx: DbOrTx, id: string, options: { deleteSessions?: boolean; permanent?: boolean } = {}) {
+  deleteAgentStateTx(
+    tx: DbOrTx,
+    id: string,
+    options: { deleteSessions?: boolean; permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
+  ) {
     const permanent = options.permanent === true
+    const deleteSessions = options.deleteSessions === true && (!permanent || options.targetState === 'active')
     const affectedChannelIds = permanent
       ? tx
           .select({ id: agentChannelTable.id })
@@ -822,7 +827,7 @@ export class AgentService {
         .select({ id: agentsTable.id })
         .from(agentsTable)
         .where(
-          permanent
+          permanent && options.targetState !== 'active'
             ? and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt))
             : and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt))
         )
@@ -832,9 +837,15 @@ export class AgentService {
 
       if (permanent) {
         const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
-          deleteSessions: false
+          deleteSessions
         })
-        return { ...this.deleteAgentTx(tx, id), sessionImpact }
+        return {
+          ...this.deleteAgentTx(tx, id),
+          sessionImpact: {
+            ...sessionImpact,
+            deletedSessionIds: deleteSessions ? sessionImpact.sessionIds : []
+          }
+        }
       }
 
       const trashedAt = Date.now()
@@ -875,17 +886,18 @@ export class AgentService {
     return {
       deleted: result.rowsAffected > 0,
       deletedSessionIds:
-        !permanent &&
-        options.deleteSessions === true &&
-        result.sessionImpact &&
-        'deletedSessionIds' in result.sessionImpact
+        deleteSessions && result.sessionImpact && 'deletedSessionIds' in result.sessionImpact
           ? result.sessionImpact.deletedSessionIds
           : undefined,
       affectedSessionIds: result.sessionImpact?.sessionIds ?? [],
       affectedChannelIds,
       taskScheduleIds: result.sessionImpact?.taskScheduleIds ?? [],
       changeKind: result.sessionImpact?.changeKind ?? 'projection',
-      deliveryResults: result.sessionImpact?.deliveryResults ?? []
+      deliveryResults: result.sessionImpact?.deliveryResults ?? [],
+      purgedSystemWorkspacePaths:
+        result.sessionImpact && 'purgedSystemWorkspacePaths' in result.sessionImpact
+          ? result.sessionImpact.purgedSystemWorkspacePaths
+          : []
     }
   }
 

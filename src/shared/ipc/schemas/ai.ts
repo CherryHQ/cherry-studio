@@ -322,6 +322,10 @@ export const aiRequestSchemas = {
     }),
     output: z.strictObject({ deleted: z.boolean(), deletedSessionIds: z.array(z.string()).optional() })
   }),
+  'ai.agent.delete_permanently': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1), deleteSessions: z.boolean() }),
+    output: z.strictObject({ deleted: z.boolean(), deletedSessionIds: z.array(z.string()).optional() })
+  }),
   'ai.agent.sessions.delete': defineRoute({
     input: z.strictObject({ agentId: z.string().min(1) }),
     output: z.strictObject({ deletedIds: z.array(z.string()) })

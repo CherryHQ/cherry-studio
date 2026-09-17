@@ -422,6 +422,7 @@ export class AgentSessionService {
     taskScheduleIds: string[]
     changeKind: 'membership' | 'projection'
     deliveryResults: AgentSessionMessageEntity[]
+    purgedSystemWorkspacePaths: string[]
   } {
     const sessions = tx
       .select({ id: sessionsTable.id, taskScheduleId: sessionsTable.taskScheduleId })
@@ -432,11 +433,19 @@ export class AgentSessionService {
 
     if (options.deleteSessions) {
       const deliveryResults: AgentSessionMessageEntity[] = []
+      const purgedSystemWorkspacePaths = tx
+        .select({ path: agentWorkspaceTable.path })
+        .from(sessionsTable)
+        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .where(and(eq(sessionsTable.agentId, agentId), eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM)))
+        .all()
+        .map((row) => row.path)
       return {
         sessionIds: this.deleteByAgentIdTx(tx, agentId, { validateAgent: false, deliveryResults }),
         taskScheduleIds,
         changeKind: 'membership',
-        deliveryResults
+        deliveryResults,
+        purgedSystemWorkspacePaths
       }
     }
 
@@ -452,6 +461,7 @@ export class AgentSessionService {
       sessionIds,
       taskScheduleIds,
       changeKind: 'projection',
+      purgedSystemWorkspacePaths: [],
       deliveryResults: getDataService('AgentSessionMessageService').prepareRetainedSessionAgentDeletionTx(
         tx,
         sessionIds

@@ -123,6 +123,12 @@ export class TrashService extends BaseService {
     )
   }
 
+  async deleteActiveAssistantPermanently(assistantId: string, deleteTopics: boolean): Promise<DeleteAssistantResult> {
+    return this.withStableAssistantTopics(assistantId, () =>
+      assistantDataService.delete(assistantId, { permanent: true, targetState: 'active', deleteTopics })
+    )
+  }
+
   private async withStableAssistantTopics<T>(assistantId: string, archive: () => T): Promise<T> {
     for (;;) {
       const topicIds = topicService.listActiveIdsByAssistant(assistantId)

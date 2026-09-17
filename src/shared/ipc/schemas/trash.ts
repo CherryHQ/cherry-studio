@@ -8,6 +8,13 @@ import { defineRoute } from '../define'
 
 /** Trash lifecycle commands that coordinate runtime state with persisted data. */
 export const trashRequestSchemas = {
+  'trash.assistant.delete_permanently': defineRoute({
+    input: z.strictObject({ assistantId: z.string().min(1), deleteTopics: z.boolean() }),
+    output: z.strictObject({
+      deleted: z.boolean(),
+      deletedTopicIds: z.array(z.string()).optional()
+    }) satisfies z.ZodType<DeleteAssistantResult>
+  }),
   'trash.topic.delete_permanently': defineRoute({
     input: z.strictObject({ topicIds: z.array(z.string().min(1)).min(1) }),
     output: z.strictObject({

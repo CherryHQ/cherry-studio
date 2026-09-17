@@ -62,6 +62,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
   const [search, setSearch] = useState('')
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
+  const [deletePermanently, setDeletePermanently] = useState(false)
   const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateWizardKind | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -257,11 +258,13 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
   )
 
   const handleDelete = useCallback(
-    (resource: ResourceItem) => {
+    (resource: ResourceItem, permanent = false) => {
       if (resource.type === 'agent' && isProtectedBuiltinAgentRole(resource.raw.configuration?.builtin_role)) {
+        if (permanent) return
         void handleDeleteProtectedAgentSessions(resource)
         return
       }
+      setDeletePermanently(permanent)
       setDeleteConfirm(resource)
     },
     [handleDeleteProtectedAgentSessions]
@@ -302,6 +305,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       createDialogOpen,
       creatingResource,
       deleteConfirm,
+      deletePermanently,
       editDialogTarget,
       selectedSkill,
       skillImportOpen,

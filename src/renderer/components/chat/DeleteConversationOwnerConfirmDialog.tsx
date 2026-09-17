@@ -8,6 +8,7 @@ import { formatErrorMessage } from '@renderer/utils/error'
 
 export interface DeleteConversationOwnerConfirmDialogProps {
   type: 'agent' | 'assistant'
+  permanent?: boolean
   open: boolean
   pending: boolean
   onOpenChange: (open: boolean) => void
@@ -16,6 +17,7 @@ export interface DeleteConversationOwnerConfirmDialogProps {
 
 export function DeleteConversationOwnerConfirmDialog({
   type,
+  permanent = false,
   open,
   pending,
   onOpenChange,
@@ -25,7 +27,9 @@ export function DeleteConversationOwnerConfirmDialog({
   const checkboxId = useId()
   const [deleteChildren, setDeleteChildren] = useState(false)
   const preventNextCloseRef = useRef(false)
-  const checkboxLabel = t(type === 'agent' ? 'recycle_bin.move.related_sessions' : 'recycle_bin.move.related_topics')
+  const checkboxLabel = permanent
+    ? t(type === 'agent' ? 'conversation_owner.delete.related_sessions' : 'conversation_owner.delete.related_topics')
+    : t(type === 'agent' ? 'conversation_owner.archive.related_sessions' : 'conversation_owner.archive.related_topics')
 
   const handleConfirm = async () => {
     try {
@@ -51,24 +55,27 @@ export function DeleteConversationOwnerConfirmDialog({
   return (
     <ConfirmDialog
       open={open}
-      title={t('recycle_bin.move.confirm_title')}
-      confirmText={t('recycle_bin.move.confirm_action')}
+      title={t(permanent ? 'settings.data.trash.permanent_delete.confirm_title' : 'common.archive')}
+      confirmText={t(permanent ? 'common.delete_permanently' : 'common.archive')}
       cancelText={t('common.cancel')}
       cancelDisabled={pending}
-      destructive
+      destructive={permanent}
       confirmLoading={pending}
       confirmDisabled={pending}
       onOpenChange={handleOpenChange}
       onConfirm={handleConfirm}
       content={
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={checkboxId}
-            checked={deleteChildren}
-            disabled={pending}
-            onCheckedChange={(checked) => setDeleteChildren(checked === true)}
-          />
-          <Label htmlFor={checkboxId}>{checkboxLabel}</Label>
+        <div className="space-y-3">
+          {permanent && <p>{t('settings.data.trash.permanent_delete.confirm_content')}</p>}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={checkboxId}
+              checked={deleteChildren}
+              disabled={pending}
+              onCheckedChange={(checked) => setDeleteChildren(checked === true)}
+            />
+            <Label htmlFor={checkboxId}>{checkboxLabel}</Label>
+          </div>
         </div>
       }
     />
@@ -77,6 +84,7 @@ export function DeleteConversationOwnerConfirmDialog({
 
 export interface DeleteConversationOwnerPopupParams {
   type: 'agent' | 'assistant'
+  permanent?: boolean
   action: (deleteChildren: boolean) => void | Promise<void>
 }
 
@@ -84,6 +92,7 @@ function PopupContainer({
   open,
   resolve,
   type,
+  permanent,
   action
 }: DeleteConversationOwnerPopupParams & PopupInjectedProps<boolean>) {
   const { t } = useTranslation()
@@ -110,6 +119,7 @@ function PopupContainer({
   return (
     <DeleteConversationOwnerConfirmDialog
       type={type}
+      permanent={permanent}
       open={open}
       pending={pending}
       onOpenChange={handleOpenChange}

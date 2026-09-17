@@ -3670,7 +3670,7 @@ describe('Topics', () => {
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.click(moreButton)
     const deleteAssistantButton = within(assistantHeader as HTMLElement).getByRole('button', {
-      name: 'Delete Assistant'
+      name: 'Archive'
     })
 
     fireEvent.click(deleteAssistantButton)
@@ -3724,7 +3724,7 @@ describe('Topics', () => {
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete Assistant' }))
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Archive' }))
 
     await vi.waitFor(() =>
       expect(assistantMutationMocks.deleteAssistant).toHaveBeenCalledWith({
@@ -3760,7 +3760,7 @@ describe('Topics', () => {
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete Assistant' }))
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Archive' }))
 
     await vi.waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledTimes(1))
     expect(toast.error).not.toHaveBeenCalled()
@@ -3775,7 +3775,7 @@ describe('Topics', () => {
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete Assistant' }))
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Archive' }))
 
     await vi.waitFor(() => expect(toast.info).toHaveBeenCalledExactlyOnceWith('Already in Recycle Bin'))
     expect(assistantQueryMocks.refetchAssistants).toHaveBeenCalledOnce()

@@ -114,9 +114,12 @@ export function useAssistantMutationsById(id: string) {
     [updateTrigger]
   )
   const deleteAssistant = useCallback(
-    async (options: { deleteTopics?: boolean } = {}): Promise<DeleteAssistantResult> => {
+    async (options: { deleteTopics?: boolean; permanent?: boolean } = {}): Promise<DeleteAssistantResult> => {
       const deleteTopics = options.deleteTopics === true
-      const result = await ipcApi.request('trash.assistant.archive', { assistantId: id, deleteTopics })
+      const result = await ipcApi.request(
+        options.permanent ? 'trash.assistant.delete_permanently' : 'trash.assistant.archive',
+        { assistantId: id, deleteTopics }
+      )
       await invalidate(
         deleteTopics ? ['/assistants', '/assistants/*', '/pins', '/topics'] : ['/assistants', '/assistants/*', '/pins']
       )

@@ -78,6 +78,18 @@ while generating or awaiting approval; main-process admission remains authoritat
 The existing Recycle Bin purge still accepts only archived Sessions, so a stale
 Recycle Bin page cannot delete a Session that has already been restored.
 
+Agent menus use the same distinction. `ai.agent.delete_permanently` removes an
+active Agent directly, with the same Agent/Session locks and busy checks as archive.
+Related Sessions are retained by default. The explicit cascade option permanently
+deletes all related Sessions, including archived ones, in the Agent transaction;
+unrelated Sessions and user workspace directories are preserved. There is no Undo
+for permanent deletion. Archived-Agent purge still retains related Sessions.
+
+Assistant menus follow the same product contract through
+`trash.assistant.delete_permanently`: `TrashService` owns topic dispatch locks and
+busy checks, and `AssistantService` commits owner and optional topic deletion
+atomically. Runtime coordination does not move into DataApi.
+
 - Agent commands serialize by Agent ID.
 - Session lifecycle operations serialize by Session ID, acquiring multiple IDs
   in sorted order. Restore and purge share these locks.

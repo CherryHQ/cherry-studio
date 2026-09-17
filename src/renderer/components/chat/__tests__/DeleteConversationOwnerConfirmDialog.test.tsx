@@ -79,11 +79,11 @@ describe('DeleteConversationOwnerConfirmDialog', () => {
     )
 
     const checkbox = screen.getByRole('checkbox', {
-      name: 'Also move related sessions to the Recycle Bin'
+      name: 'Also archive related sessions'
     })
     expect(checkbox).not.toBeChecked()
 
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     expect(onConfirm).toHaveBeenCalledWith(false)
   })
@@ -104,10 +104,10 @@ describe('DeleteConversationOwnerConfirmDialog', () => {
 
     await user.click(
       screen.getByRole('checkbox', {
-        name: 'Also move related sessions to the Recycle Bin'
+        name: 'Also archive related sessions'
       })
     )
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     expect(onConfirm).toHaveBeenCalledWith(true)
   })
@@ -125,12 +125,12 @@ describe('DeleteConversationOwnerConfirmDialog', () => {
 
     expect(
       screen.getByRole('checkbox', {
-        name: 'Also move related topics to the Recycle Bin'
+        name: 'Also archive related topics'
       })
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('checkbox', {
-        name: 'Also move related sessions to the Recycle Bin'
+        name: 'Also archive related sessions'
       })
     ).not.toBeInTheDocument()
   })
@@ -140,7 +140,7 @@ describe('DeleteConversationOwnerConfirmDialog', () => {
     render(<ControlledHarness />)
 
     const checkbox = screen.getByRole('checkbox', {
-      name: 'Also move related sessions to the Recycle Bin'
+      name: 'Also archive related sessions'
     })
     await user.click(checkbox)
     expect(checkbox).toBeChecked()
@@ -150,7 +150,7 @@ describe('DeleteConversationOwnerConfirmDialog', () => {
 
     expect(
       screen.getByRole('checkbox', {
-        name: 'Also move related sessions to the Recycle Bin'
+        name: 'Also archive related sessions'
       })
     ).not.toBeChecked()
   })
@@ -168,7 +168,7 @@ describe('DeleteConversationOwnerConfirmDialog', () => {
 
     await user.click(
       screen.getByRole('checkbox', {
-        name: 'Also move related sessions to the Recycle Bin'
+        name: 'Also archive related sessions'
       })
     )
 
@@ -176,7 +176,7 @@ describe('DeleteConversationOwnerConfirmDialog', () => {
 
     expect(
       screen.getByRole('checkbox', {
-        name: 'Also move related sessions to the Recycle Bin'
+        name: 'Also archive related sessions'
       })
     ).not.toBeChecked()
   })
@@ -197,10 +197,10 @@ describe('DeleteConversationOwnerConfirmDialog', () => {
     )
 
     const checkbox = screen.getByRole('checkbox', {
-      name: 'Also move related sessions to the Recycle Bin'
+      name: 'Also archive related sessions'
     })
     expect(checkbox).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Move to Recycle Bin' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Archive' })).toBeDisabled()
     const cancelButton = screen.getByRole('button', { name: 'Cancel' })
     expect(cancelButton).toBeDisabled()
 
@@ -219,6 +219,42 @@ describe('DeleteConversationOwnerConfirmDialog', () => {
 })
 
 describe('deleteConversationOwnerPopup', () => {
+  it.each(['agent', 'assistant'] as const)(
+    'requires explicit confirmation for permanently deleting an %s',
+    async (type) => {
+      const user = userEvent.setup()
+      const action = vi.fn()
+      render(<PopupHost />)
+      let result!: Promise<boolean>
+      act(() => {
+        result = deleteConversationOwnerPopup.show({ type, permanent: true, action })
+      })
+      const checkbox = await screen.findByRole('checkbox')
+      expect(checkbox).not.toBeChecked()
+      expect(checkbox).toHaveAccessibleName(/including archived/)
+      expect(screen.getByRole('dialog')).toHaveTextContent('This action cannot be undone.')
+      expect(action).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      await expect(result).resolves.toBe(false)
+      expect(action).not.toHaveBeenCalled()
+    }
+  )
+
+  it('submits the permanent cascade only after it is explicitly checked and confirmed', async () => {
+    const user = userEvent.setup()
+    const action = vi.fn()
+    render(<PopupHost />)
+    let result!: Promise<boolean>
+    act(() => {
+      result = deleteConversationOwnerPopup.show({ type: 'agent', permanent: true, action })
+    })
+    await user.click(await screen.findByRole('checkbox'))
+    expect(action).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Delete Permanently' }))
+    await expect(result).resolves.toBe(true)
+    expect(action).toHaveBeenCalledExactlyOnceWith(true)
+  })
+
   it('resolves false without running the action when cancelled', async () => {
     const user = userEvent.setup()
     const action = vi.fn()
@@ -250,7 +286,7 @@ describe('deleteConversationOwnerPopup', () => {
     })
     expect(duplicate).toBe(result)
 
-    await user.click(await screen.findByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(await screen.findByRole('button', { name: 'Archive' }))
 
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith({
@@ -261,7 +297,7 @@ describe('deleteConversationOwnerPopup', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(ignoredAction).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     expect(action).toHaveBeenCalledTimes(2)
     await expect(result).resolves.toBe(true)

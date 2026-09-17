@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   showRecycleBinUndo: vi.fn(),
   toastError: vi.fn(),
   toastInfo: vi.fn(),
+  toastSuccess: vi.fn(),
   uninstallSkill: vi.fn()
 }))
 
@@ -37,6 +38,7 @@ vi.mock('react-i18next', () => ({
       (
         ({
           'common.cancel': 'Cancel',
+          'common.archive': 'Archive',
           'common.delete': 'Delete',
           'library.action.uninstall': 'Uninstall',
           'library.delete.skill.content': 'Uninstall skill content',
@@ -46,10 +48,10 @@ vi.mock('react-i18next', () => ({
           'agent.session.agent.delete.trigger': 'Delete all sessions',
           'recycle_bin.already_moved': 'Already in Recycle Bin',
           'recycle_bin.move.blocked_generation': 'Stop generation before moving this conversation to the Recycle Bin.',
-          'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
-          'recycle_bin.move.confirm_title': 'Move to Recycle Bin?',
-          'recycle_bin.move.related_sessions': 'Also move related sessions to the Recycle Bin',
-          'recycle_bin.move.related_topics': 'Also move related topics to the Recycle Bin',
+          'recycle_bin.move.confirm_action': 'Archive',
+          'recycle_bin.move.confirm_title': 'Archive',
+          'conversation_owner.archive.related_sessions': 'Also archive related sessions',
+          'conversation_owner.archive.related_topics': 'Also archive related topics',
           'settings.prompts.delete': 'Delete prompt',
           'settings.prompts.deleteConfirm': 'Delete prompt content'
         }) satisfies Record<string, string>
@@ -95,7 +97,8 @@ vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
 vi.mock('@renderer/services/toast', () => ({
   toast: {
     error: mocks.toastError,
-    info: mocks.toastInfo
+    info: mocks.toastInfo,
+    success: mocks.toastSuccess
   }
 }))
 
@@ -133,6 +136,28 @@ describe('ResourceDeleteConfirmDialog', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it.each(['agent', 'assistant'] as const)(
+    'permanently deletes an %s without offering a restore action',
+    async (type) => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      render(<ResourceDeleteConfirmDialog resource={createResource(type)} permanent onClose={onClose} />)
+      expect(screen.getByRole('checkbox')).not.toBeChecked()
+      await user.click(screen.getByRole('button', { name: 'common.delete_permanently' }))
+      await waitFor(() => expect(onClose).toHaveBeenCalledExactlyOnceWith())
+      if (type === 'agent') {
+        expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('ai.agent.delete_permanently', {
+          agentId: 'agent-1',
+          deleteSessions: false
+        })
+      } else {
+        expect(mocks.deleteAssistant).toHaveBeenCalledExactlyOnceWith({ deleteTopics: false, permanent: true })
+      }
+      expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
+      expect(mocks.toastSuccess).toHaveBeenCalledWith('settings.data.trash.permanent_delete.success')
+    }
+  )
+
   it('moves an Agent without its Sessions by default and offers a refreshing Undo', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
@@ -140,9 +165,9 @@ describe('ResourceDeleteConfirmDialog', () => {
 
     render(<ResourceDeleteConfirmDialog resource={createResource('agent')} onClose={onClose} />)
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Archive')
     expect(screen.getByRole('dialog')).not.toHaveTextContent(/tasks|subscriptions/i)
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     await waitFor(() =>
       expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.delete', {
@@ -173,8 +198,8 @@ describe('ResourceDeleteConfirmDialog', () => {
 
     render(<ResourceDeleteConfirmDialog resource={createResource('agent')} onClose={vi.fn()} />)
 
-    await user.click(screen.getByLabelText('Also move related sessions to the Recycle Bin'))
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByLabelText('Also archive related sessions'))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     await waitFor(() =>
       expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.delete', {
@@ -196,7 +221,7 @@ describe('ResourceDeleteConfirmDialog', () => {
     mocks.restoreAgent.mockRejectedValueOnce(new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, 'Agent missing'))
 
     render(<ResourceDeleteConfirmDialog resource={createResource('agent')} onClose={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
     await waitFor(() => expect(mocks.showRecycleBinUndo).toHaveBeenCalled())
     mocks.invalidate.mockClear()
 
@@ -211,9 +236,9 @@ describe('ResourceDeleteConfirmDialog', () => {
     mocks.deleteAssistant.mockResolvedValueOnce({ deleted: true, deletedTopicIds: [] })
 
     render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
 
-    await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: false }))
+    await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: false, permanent: false }))
     expect(mocks.closeConversationTabs).not.toHaveBeenCalled()
     expect(mocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'assistant name',
@@ -232,10 +257,10 @@ describe('ResourceDeleteConfirmDialog', () => {
 
     render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
 
-    await user.click(screen.getByLabelText('Also move related topics to the Recycle Bin'))
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByLabelText('Also archive related topics'))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
 
-    await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: true }))
+    await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: true, permanent: false }))
     expect(mocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1'])
 
     await mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
@@ -253,13 +278,13 @@ describe('ResourceDeleteConfirmDialog', () => {
     const onClose = vi.fn()
 
     render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={onClose} />)
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalled())
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
 
@@ -268,7 +293,7 @@ describe('ResourceDeleteConfirmDialog', () => {
     mocks.restoreAssistant.mockRejectedValueOnce(DataApiErrorFactory.notFound('Assistant', 'assistant-1'))
 
     render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
     await waitFor(() => expect(mocks.showRecycleBinUndo).toHaveBeenCalled())
     mocks.invalidate.mockClear()
 
@@ -285,7 +310,7 @@ describe('ResourceDeleteConfirmDialog', () => {
     mocks.getActiveResource.mockRejectedValueOnce(DataApiErrorFactory.notFound('Assistant', 'assistant-1'))
 
     render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
     await waitFor(() => expect(mocks.showRecycleBinUndo).toHaveBeenCalled())
 
     await expect(mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).rejects.toBe(restoreError)
@@ -296,7 +321,7 @@ describe('ResourceDeleteConfirmDialog', () => {
     mocks.ipcRequest.mockResolvedValueOnce({ deleted: false, deletedSessionIds: [] })
 
     render(<ResourceDeleteConfirmDialog resource={createResource('agent')} onClose={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     await waitFor(() => expect(mocks.toastInfo).toHaveBeenCalledWith('Already in Recycle Bin'))
     expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
@@ -311,7 +336,7 @@ describe('ResourceDeleteConfirmDialog', () => {
     )
 
     render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     await waitFor(() => expect(mocks.toastInfo).toHaveBeenCalledWith('Already in Recycle Bin'))
     expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
@@ -327,8 +352,8 @@ describe('ResourceDeleteConfirmDialog', () => {
     )
 
     render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={onClose} />)
-    await user.click(screen.getByLabelText('Also move related topics to the Recycle Bin'))
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByLabelText('Also archive related topics'))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     await waitFor(() =>
       expect(mocks.toastInfo).toHaveBeenCalledWith(

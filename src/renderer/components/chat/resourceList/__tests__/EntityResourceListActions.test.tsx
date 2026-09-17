@@ -546,7 +546,53 @@ describe('classic layout entity resource list actions', () => {
     )
   })
 
-  it('uses delete-assistant actions for the classic layout assistant context and more menus', async () => {
+  it('permanently deletes an Assistant through confirmation without offering an archive undo', async () => {
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('settings.data.trash.permanent_delete.success'))
+    expect(conversationOwnerPopupMocks.show).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'assistant', permanent: true })
+    )
+    expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledExactlyOnceWith('assistant-1', {
+      deleteTopics: false,
+      permanent: true
+    })
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+  })
+
+  it('permanently deletes an Agent through its dedicated command without offering an archive undo', async () => {
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.delete_permanently' })[0])
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('settings.data.trash.permanent_delete.success'))
+    expect(conversationOwnerPopupMocks.show).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'agent', permanent: true })
+    )
+    expect(agentDataMocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('ai.agent.delete_permanently', {
+      agentId: 'agent-1',
+      deleteSessions: false
+    })
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+  })
+
+  it('uses archive-assistant actions for the classic layout assistant context and more menus', async () => {
     const onCreateTopic = vi.fn()
     const onActiveAssistantDeleted = vi.fn()
 
@@ -560,15 +606,18 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.delete.title')
-    expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('assistants.delete.title')
+    expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('common.archive')
+    expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('common.archive')
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.clear.menu_title')
     expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('assistants.clear.menu_title')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
 
     await waitFor(() =>
-      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', { deleteTopics: false })
+      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
+        deleteTopics: false,
+        permanent: false
+      })
     )
     expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
     expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
@@ -607,10 +656,13 @@ describe('classic layout entity resource list actions', () => {
         onActiveAssistantDeleted={onActiveAssistantDeleted}
       />
     )
-    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
 
     await waitFor(() =>
-      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', { deleteTopics: true })
+      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', {
+        deleteTopics: true,
+        permanent: false
+      })
     )
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1', 'topic-not-loaded'])
     expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
@@ -651,7 +703,7 @@ describe('classic layout entity resource list actions', () => {
         />
       )
 
-      fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
+      fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
 
       await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
       expect(assistantDataMocks.refetchAssistants).toHaveBeenCalled()
@@ -672,7 +724,7 @@ describe('classic layout entity resource list actions', () => {
     render(
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
     )
-    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
     await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
 
     await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
@@ -687,7 +739,7 @@ describe('classic layout entity resource list actions', () => {
     render(
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
     )
-    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
     await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
 
     await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
@@ -1277,12 +1329,12 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.delete.title')
-    expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('agent.delete.title')
+    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('common.archive')
+    expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('common.archive')
     expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('agent.session.agent.delete.trigger')
     expect(screen.getByTestId('agent-1-more-menu')).not.toHaveTextContent('agent.session.agent.delete.trigger')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
 
     await waitFor(() =>
       expect(agentDataMocks.deleteAgent).toHaveBeenCalledWith({
@@ -1328,7 +1380,7 @@ describe('classic layout entity resource list actions', () => {
         onActiveAgentDeleted={onActiveAgentDeleted}
       />
     )
-    fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
 
     await waitFor(() =>
       expect(agentDataMocks.deleteAgent).toHaveBeenCalledWith({
@@ -1361,7 +1413,7 @@ describe('classic layout entity resource list actions', () => {
         onShowMissingAgentSelection={vi.fn()}
       />
     )
-    fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
     await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
 
     await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
@@ -1382,7 +1434,7 @@ describe('classic layout entity resource list actions', () => {
         onShowMissingAgentSelection={vi.fn()}
       />
     )
-    fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
     await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
 
     await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
@@ -1417,7 +1469,7 @@ describe('classic layout entity resource list actions', () => {
     )
 
     expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.session.agent.delete.trigger')
-    expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('agent.delete.title')
+    expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('common.archive')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.agent.delete.trigger' })[0])
 
@@ -1496,7 +1548,7 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
 
     await waitFor(() => expect(toast.info).toHaveBeenCalledWith('recycle_bin.already_moved'))
     expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
@@ -1520,7 +1572,7 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
 
     await waitFor(() => expect(toast.info).toHaveBeenCalledWith('recycle_bin.already_moved'))
     expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()

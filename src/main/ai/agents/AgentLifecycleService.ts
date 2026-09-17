@@ -66,6 +66,12 @@ export class AgentLifecycleService extends BaseService {
     )
   }
 
+  deleteActiveAgentPermanently(agentId: string, deleteSessions: boolean) {
+    return this.runOperation('delete-active-agent:' + agentId, () =>
+      this.agentLocks.runExclusive(agentId, () => this.deleteAgentInternal(agentId, deleteSessions, true, 'active'))
+    )
+  }
+
   restoreAgent(agentId: string) {
     return this.runOperation('restore-agent:' + agentId, () =>
       this.agentLocks.runExclusive(agentId, () => {
@@ -311,16 +317,7 @@ export class AgentLifecycleService extends BaseService {
         ...(targetState === 'active' ? { targetState } : {})
       })
       await this.finishDeletion(result.deletedIds, result.deliveryResults)
-      if (permanent && result.purgedSystemWorkspacePaths.length > 0) {
-        const systemWorkspacesRoot = application.getPath('feature.agents.system_workspaces')
-        for (const workspacePath of result.purgedSystemWorkspacePaths) {
-          try {
-            await removeAgentStorageSubdirectory(systemWorkspacesRoot, workspacePath)
-          } catch (error) {
-            logger.warn('Failed to remove purged Agent Session workspace', { workspacePath, error })
-          }
-        }
-      }
+      await this.removePurgedSystemWorkspaces(result.purgedSystemWorkspacePaths)
       return { deletedIds: result.deletedIds }
     }
     if (permanent && targetState === 'trashed')
@@ -352,12 +349,13 @@ export class AgentLifecycleService extends BaseService {
   private async deleteAgentInternal(
     agentId: string,
     deleteSessions: boolean,
-    permanent: boolean
+    permanent: boolean,
+    targetState: 'active' | 'trashed' = 'trashed'
   ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
-    if (permanent && agentService.getLifecycleState(agentId) !== 'trashed') return { deleted: false }
+    if (permanent && agentService.getLifecycleState(agentId) !== targetState) return { deleted: false }
     const deleteAgent = async () => {
       const { result, scheduleIds } = application.get('DbService').withWriteTx((tx) => {
-        const result = agentService.deleteAgentStateTx(tx, agentId, { deleteSessions, permanent })
+        const result = agentService.deleteAgentStateTx(tx, agentId, { deleteSessions, permanent, targetState })
         const scheduleIds = result.deleted
           ? agentTaskService.setOwnerStateTx(tx, agentId, permanent ? 'missing' : 'trashed', Date.now())
           : []
@@ -375,15 +373,32 @@ export class AgentLifecycleService extends BaseService {
       await this.finishDeletion(
         result.affectedSessionIds,
         result.deliveryResults,
-        deleteSessions && !permanent ? [] : result.affectedSessionIds
+        deleteSessions ? [] : result.affectedSessionIds
       )
+      await this.removePurgedSystemWorkspaces(result.purgedSystemWorkspacePaths)
       return {
         deleted: result.deleted,
         ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
       }
     }
 
-    return this.withStableSessions(() => agentSessionService.listIdsByAgent(agentId), deleteAgent, permanent)
+    return this.withStableSessions(
+      () => agentSessionService.listIdsByAgent(agentId),
+      deleteAgent,
+      permanent && targetState === 'trashed'
+    )
+  }
+
+  private async removePurgedSystemWorkspaces(paths: string[]): Promise<void> {
+    if (paths.length === 0) return
+    const root = application.getPath('feature.agents.system_workspaces')
+    for (const workspacePath of paths) {
+      try {
+        await removeAgentStorageSubdirectory(root, workspacePath)
+      } catch (error) {
+        logger.warn('Failed to remove purged Agent Session workspace', { workspacePath, error })
+      }
+    }
   }
 
   private async deleteAgentSessionsInternal(agentId: string): Promise<{ deletedIds: string[] }> {
