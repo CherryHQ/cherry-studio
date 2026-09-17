@@ -37,6 +37,7 @@ import { meta as cherryinMeta } from './cherryin/meta'
 import { meta as claudeCodeMeta } from './claude-code/meta'
 import { meta as cloudflareMeta } from './cloudflare/meta'
 import { meta as cohereMeta } from './cohere/meta'
+import { meta as comfyuiMeta } from './comfyui/meta'
 import { meta as composioMeta } from './composio/meta'
 import { meta as cozeMeta } from './coze/meta'
 import { meta as dangbeiMeta } from './dangbei/meta'
@@ -200,6 +201,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   'claude-code': claudeCodeMeta,
   cloudflare: cloudflareMeta,
   cohere: cohereMeta,
+  comfyui: comfyuiMeta,
   composio: composioMeta,
   coze: cozeMeta,
   dangbei: dangbeiMeta,
