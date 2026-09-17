@@ -39,7 +39,8 @@ const runtimeMocks = vi.hoisted(() => ({
   resolveInjection: vi.fn(),
   usesDshGateway: vi.fn(),
   harnessOptions: undefined as Record<string, any> | undefined,
-  getShellEnv: vi.fn()
+  getShellEnv: vi.fn(),
+  resolveBun: vi.fn()
 }))
 
 const baseSnapshot = () => ({
@@ -120,6 +121,7 @@ vi.mock('../compositionBuilder', () => ({
   buildDshCompositionYaml: vi.fn(() => 'plugins: []'),
   resolveDshRuntimeBinPath: vi.fn(() => '/dsh/bin')
 }))
+vi.mock('../bunRuntime', () => ({ resolveDshBunRuntime: runtimeMocks.resolveBun }))
 vi.mock('../DshBridgeServer', () => ({
   DshBridgeServer: vi.fn(function DshBridgeServerMock() {
     return {
@@ -198,6 +200,7 @@ beforeEach(() => {
   runtimeMocks.snapshot = baseSnapshot()
   runtimeMocks.ownsNativeHistory.mockReset().mockReturnValue(false)
   runtimeMocks.harnessOptions = undefined
+  runtimeMocks.resolveBun.mockReset().mockResolvedValue('/bundled/bun')
   runtimeMocks.getShellEnv.mockReset().mockResolvedValue({
     PATH: ['/opt/homebrew/bin', '/usr/bin'].join(path.delimiter),
     HOME: '/Users/tester',
@@ -392,6 +395,11 @@ describe('DshRuntimeConnection tracing', () => {
       error: new Error('dsh bridge disconnected; runtime execution is stopping')
     })
   })
+  it('fails before materializing a connection when bundled Bun is unavailable', async () => {
+    runtimeMocks.resolveBun.mockRejectedValueOnce(new Error('Bundled Bun is unavailable'))
+    await expect(new DshRuntimeConnection(connectInput).start()).rejects.toThrow('Bundled Bun is unavailable')
+    expect(runtimeMocks.harnessOptions).toBeUndefined()
+  })
 
   it('establishes the gateway baseline after starting the gateway', async () => {
     runtimeMocks.snapshot = { ...baseSnapshot(), signature: 'gateway-stopped' }
@@ -410,9 +418,16 @@ describe('DshRuntimeConnection tracing', () => {
   it('combines the login-shell PATH with managed CLIs without leaking the main-process environment', async () => {
     vi.stubEnv('PATH', '/usr/bin')
     vi.stubEnv('CHERRY_TEST_SECRET', 'do-not-copy')
+    vi.stubEnv('ELECTRON_RUN_AS_NODE', '1')
 
     const connection = await new DshRuntimeConnection(connectInput).start()
     const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
+    expect(runtimeMocks.harnessOptions).toMatchObject({
+      runtimeExecutable: '/bundled/bun',
+      runtimeArgs: ['--no-env-file'],
+      processCwd: '/dsh'
+    })
+    expect(env).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
 
     expect(env.PATH?.split(path.delimiter)).toEqual([
       path.normalize('/mock/feature.binary.data/shims'),

@@ -23,6 +23,7 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { getAutoApprovedBrowserTools, resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -50,6 +51,7 @@ import type {
   AgentRuntimeTraceContext,
   AgentSessionUsageCapture
 } from '../types'
+import { resolveDshBunRuntime } from './bunRuntime'
 import { buildDshCompositionYaml, resolveDshRuntimeBinPath } from './compositionBuilder'
 import { DshBridgeServer, type DshBridgeServerOptions } from './DshBridgeServer'
 import {
@@ -243,6 +245,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     const requireExistingHistory = agentSessionForkService.ownsNativeHistory(this.input.sessionId)
     if (requireExistingHistory && !this.input.resumeToken)
       throw new Error('history_missing: this fork requires its existing native history.')
+    const runtimeExecutable = await resolveDshBunRuntime()
     const resolveInjection = async (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> => {
       try {
         return await resolveDshProviderInjectionFromSnapshot(
@@ -348,7 +351,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     await writeFile(this.compositionPath, yaml, { encoding: 'utf8', mode: 0o600 })
 
     try {
-      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: snapshot.linkedChannel !== null })
+      const mountedServers = resolveMountedMcpServers(agent, {
+        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+        channelLinked: snapshot.linkedChannel !== null
+      })
       const toolBridge = await buildDshCherryToolBridge(
         buildAgentMcpServers(
           session,
@@ -387,6 +393,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           void this.close().catch((error) => logger.warn('dsh disconnected runtime close failed', { error }))
         },
         onGuardCheck: async (toolName, args, cwd) => {
+          const browserPermission = resolveBrowserToolPermission(toolName)
+          if (browserPermission === 'deny')
+            return {
+              kind: 'deny',
+              ruleId: 'browser-tool-disabled',
+              reason: 'Agent browser control is disabled in Browser settings.'
+            }
           const decision = await evaluateUserDataSqliteGuard({
             runtime: 'dsh',
             toolName,
@@ -408,10 +421,14 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
       // Complete replacement env — deliberate credential scope: the child sees
       // only managed binary locations, the routed API key, and the bridge socket.
+      const dshBin = resolveDshRuntimeBinPath()
       const client = new sdk.HarnessClient({
-        dshBin: resolveDshRuntimeBinPath(),
+        runtimeExecutable,
+        runtimeArgs: ['--no-env-file'],
+        dshBin,
         profile: 'cherry',
-        processCwd: workspacePath,
+        // Bun must not discover workspace preloads before DSH's permission gates exist.
+        processCwd: path.dirname(dshBin),
         env: {
           ...binaryExecutionEnv,
           ...(loginShellEnv.HOME !== undefined
@@ -419,7 +436,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
             : process.env.HOME !== undefined
               ? { HOME: process.env.HOME }
               : {}),
-          ELECTRON_RUN_AS_NODE: '1',
           CHERRY_DSH_API_KEY: injection.apiKey,
           CHERRY_DSH_CONFIG: this.compositionPath,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
@@ -721,7 +737,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       allowedRoots: [this.workspacePath, this.agentDataPath],
       readTools: DSH_READ_TOOLS,
       editTools: DSH_EDIT_TOOLS,
-      autoApprovedTools: [...DSH_AUTO_APPROVED_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS],
+      autoApprovedTools: [
+        ...DSH_AUTO_APPROVED_BUILTIN_TOOLS,
+        ...DSH_AUTO_APPROVED_BRIDGED_TOOLS,
+        ...getAutoApprovedBrowserTools()
+      ],
       approvalRequiredTools: [...DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS],
       nonBypassableApprovalTools: [...DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS],
       // Closed plan-mode allow-list: plan-safe builtins plus Cherry's auto-approved

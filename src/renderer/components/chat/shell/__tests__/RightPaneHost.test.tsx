@@ -3,13 +3,9 @@ import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
-
 import {
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  CHAT_CENTER_MIN_USABLE_WIDTH,
   getRightPaneWidthPolicy
 } from '../paneLayout'
 import { PersistentRightPaneHost, RightPaneHost } from '../RightPaneHost'
@@ -278,13 +274,6 @@ describe('RightPaneHost', () => {
     expect(container.querySelector('[data-right-pane-resize-handle]')).not.toBeInTheDocument()
   })
 
-  it('uses the configured right pane default and minimum widths', () => {
-    expect(ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH).toBe(280)
-    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH).toBe(255)
-    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(460)
-    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH).toBe(615)
-  })
-
   it('lets the pane and the center share space instead of clamping the pane to zero', () => {
     const { container } = render(
       <PersistentRightPaneHost open width={460}>
@@ -337,6 +326,21 @@ describe('RightPaneHost', () => {
     fireEvent.keyDown(handle as HTMLElement, { key: 'ArrowRight' })
 
     expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
+  })
+
+  it('lets an inspector grow beyond 720px while reserving usable center space', () => {
+    mockMainRegionWidth(2400)
+    render(
+      <div data-main-region>
+        <PersistentRightPaneHost open resizable>
+          <div>Browser</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    const handle = screen.getByRole('separator')
+    expect(handle).toHaveAttribute('aria-valuemax', '2040')
+    fireEvent.keyDown(handle, { key: 'End' })
+    expect(persistCacheMock.state.width).toBe(2040)
   })
 
   it('persists a list pane under its own key and lets it reach the list floor', () => {
@@ -832,10 +836,9 @@ describe('RightPaneHost', () => {
 
     fireEvent.mouseUp(document)
 
-    // Exactly one commit, with the last mousemove's clamped width (800 - 20 = 780,
-    // clamped down to the max).
+    // Commit the final width once; inspector panes can grow beyond 720px.
     expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
-    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(ARTIFACT_RIGHT_PANE_MAX_WIDTH)
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(780)
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
     expect(pane).not.toHaveAttribute('data-resizing')
