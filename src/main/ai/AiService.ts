@@ -1410,6 +1410,8 @@ export class AiService extends BaseService {
         } else {
           probe = this.generateImage({
             ...probeRequest,
+            // Health checks are single-shot: never spend billable retries on a probe.
+            requestOptions: { ...probeRequest.requestOptions, maxRetries: 0 },
             prompt: 'a red circle',
             ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
             paramValues: probeParams,

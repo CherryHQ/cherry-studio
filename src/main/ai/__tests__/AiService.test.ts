@@ -1945,6 +1945,9 @@ describe('AiService tool approval', () => {
     await service.checkModel({ uniqueModelId: 'test-provider::test-image' })
 
     expect(imageSpy).toHaveBeenCalledWith(expect.objectContaining({ prompt: expect.any(String) }))
+    expect(imageSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ requestOptions: expect.objectContaining({ maxRetries: 0 }) })
+    )
     expect(generateSpy).not.toHaveBeenCalled()
   })
 

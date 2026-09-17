@@ -65,6 +65,36 @@ describe('runPainting error surfacing', () => {
     })
   })
 
+  it('maps an exhausted-retry 504 nested in lastError to the friendly timeout string', async () => {
+    const detail = {
+      name: 'AI_RetryError',
+      message: 'Failed after 3 attempts',
+      stack: null,
+      lastError: { name: 'AI_APICallError', message: 'Gateway Timeout', stack: null, statusCode: 504 }
+    }
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
+
+    await expect(fail(err)).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: i18n.t('error.http.504')
+    })
+  })
+
+  it('maps an exhausted-retry 504 nested in errors to the friendly timeout string', async () => {
+    const detail = {
+      name: 'AI_RetryError',
+      message: 'Failed after 3 attempts',
+      stack: null,
+      errors: [{ name: 'AI_APICallError', message: '', stack: null, statusCode: 504 }]
+    }
+    const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '', detail)
+
+    await expect(fail(err)).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: i18n.t('error.http.504')
+    })
+  })
+
   it('normalizes a plain (non-AI) error without inventing detail', async () => {
     await expect(fail(new Error('network down'))).rejects.toMatchObject({
       name: 'PaintingGenerateError',
