@@ -1,4 +1,4 @@
-import { realpath } from 'node:fs/promises'
+import { lstat, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -13,6 +13,17 @@ async function nearestExistingRealPath(candidate: string): Promise<string> {
   let probe = resolved
   for (;;) {
     try {
+      const stats = await lstat(probe)
+
+      // `realpath` can report EISDIR for an ordinary file on redirected Windows
+      // temp volumes. Resolve the physical parent and append the file name instead;
+      // symlinks, junctions, and directories still need full realpath resolution.
+      if (!stats.isSymbolicLink() && !stats.isDirectory()) {
+        const parent = path.dirname(probe)
+        const physicalParent = await realpath(parent)
+        return path.resolve(physicalParent, path.relative(parent, resolved))
+      }
+
       const physical = await realpath(probe)
       return path.resolve(physical, path.relative(probe, resolved))
     } catch (error) {
