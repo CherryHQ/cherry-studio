@@ -750,6 +750,30 @@
       "name": "TokenDance"
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "API Route - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://global.api-route.com/v1",
+          "modelsApiUrls": {
+            "default": "https://global.api-route.com/v1/models"
+          }
+        }
+      },
+      "id": "api-route",
+      "metadata": {
+        "website": {
+          "apiKey": "https://www.api-route.com",
+          "docs": "https://www.api-route.com",
+          "models": "https://global.api-route.com/v1/models",
+          "official": "https://www.api-route.com"
+        }
+      },
+      "name": "API Route"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "description": "New API - AI model provider",
       "endpointConfigs": {
@@ -2529,5 +2553,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e47c80cffa19d83b"
+  "version": "bef27479f490386f"
 }
