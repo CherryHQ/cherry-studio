@@ -1,20 +1,20 @@
 # System Doctor
 
-Runs health checks in main and publishes progress + the final report on the shared cache key
-`doctor.state.${scope}`. Product spec (Feishu): System Doctor PRD.
+Runs health checks in main and publishes progress + terminal state on the shared cache key returned by
+`doctorStateCacheKey(scope)`. Product spec (Feishu): System Doctor PRD.
 
 ## Layout
 
 | File | Role |
 |------|------|
 | `@shared/types/doctor.ts` | **Source of truth.** `DOCTOR_CHECK_CATALOG` declares every check (domain, tier, scope, execution policy, fixes, detail variants, prerequisites); all other types derive from it |
-| `@shared/ipc/schemas/doctor.ts` | Routes `diagnostics.doctor.run` / `.cancel` / `.fix` / `.connectivity` / `.confirm_check` |
+| `@shared/ipc/schemas/doctor.ts` | Routes `diagnostics.doctor.run` / `.run_contextual` / `.cancel` / `.fix` / `.connectivity` / `.confirm_check` |
 | `types.ts` | `DoctorCheckDefinition<Id>` — what a check implementation must provide |
 | `checks/<domain>.ts` | One file per domain, `defineDoctorCheck({...})` per check |
 | `registry.ts` | `{ [Id in DoctorCheckId]: DoctorCheckDefinition<Id> }` — exhaustive and closed |
 | `engine.ts` | Pure runner: prerequisite layering, timeout, cancel, skip cascade, lane concurrency |
 | `execution.ts` | Per-run results, prepared confirmations and engine admission |
-| `DoctorService.ts` | Lifecycle service: run / cancel / fix, publishes `doctor.state.${scope}` |
+| `DoctorService.ts` | Lifecycle service: run / contextual diagnosis / cancel / fix, publishes shared state |
 
 ## Adding a check (three edits, all compile-checked)
 
@@ -69,13 +69,16 @@ Paths and hostnames are `local_only`; raw error bodies are `consent_required`.
 ```ts
 const subject = { kind: 'chat', providerId, modelId } as const // or { kind: 'global' } / { kind: 'agent', agentId }
 const scope = doctorScopeKey(subject)
-const state = useSharedCacheValue(`doctor.state.${scope}`)
+const state = useSharedCacheValue(doctorStateCacheKey(scope))
 await ipcApi.request('diagnostics.doctor.run', { tier: 'quick', subject })
 await ipcApi.request('diagnostics.doctor.run', { tier: 'live', subject })
+await ipcApi.request('diagnostics.doctor.run_contextual', { subject })
 await ipcApi.request('diagnostics.doctor.cancel', { scope, runId })
 await ipcApi.request('diagnostics.doctor.fix', { scope, runId, checkId: 'mcp-servers-connected', fixId: 'restart', target: serverId })
 ```
 
+`run_contextual` selects the applicable quick checks and contextual connectivity checks in main; generic `run`
+does not carry domain-selection flags. Running and terminal states expose Main's authoritative selected check IDs.
 `run` returns `busy` with the in-flight `runId` while a run is active. `fix` is bound to the report's `runId`
 and re-probes before executing; it answers `stale` when the run was superseded or the finding changed.
 Only MCP restart requires a target; other fixes reject one. Passing checks never offer actions.
@@ -144,5 +147,6 @@ resolved target information and snapshot validity. It imports no Doctor contract
 `AiService.checkModel` in chat-only mode without history, tools, retry or fallback. Ollama sends a real
 chat request; non-chat models skip without prompting. NetworkService retains ownership of reachability.
 
-The contextual API does not replace the existing Doctor report cache. Renderer confirmation buttons
-and context-based AI error analysis are separate work.
+The contextual API does not replace the existing Doctor report cache. Error Details uses the contextual run route,
+renders the three connectivity steps, supports confirmation, cancellation and in-place retry, and can open the
+separate global full-system Doctor without replacing the contextual report.
