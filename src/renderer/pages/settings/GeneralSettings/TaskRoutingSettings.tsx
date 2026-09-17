@@ -1,8 +1,9 @@
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, RotateCcw } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Switch } from '@cherrystudio/ui'
+import { Badge, Button, Switch } from '@cherrystudio/ui'
+import { useSharedCacheValue } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import {
@@ -13,9 +14,11 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useModels } from '@renderer/hooks/useModel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { TASK_CATEGORIES } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { EMPTY_DERIVED_ROUTING_TABLE } from '@shared/data/types/routing'
 import { isNonChatModel } from '@shared/utils/model'
 
 export const TaskRoutingSettings = () => {
@@ -24,6 +27,10 @@ export const TaskRoutingSettings = () => {
   const [autoEnabled, setAutoEnabled] = usePreference('chat.routing.auto_enabled')
   const [categoryModels, setCategoryModels] = usePreference('chat.routing.category_models')
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
+  const derivedTable = useSharedCacheValue('routing.derived_table') ?? EMPTY_DERIVED_ROUTING_TABLE
+  const { models } = useModels()
+
+  const getModelName = (id: UniqueModelId) => models.find((m) => m.id === id)?.name ?? id
 
   const label = t('settings.models.routing.label')
 
@@ -43,35 +50,72 @@ export const TaskRoutingSettings = () => {
       {autoEnabled &&
         TASK_CATEGORIES.map((category) => {
           const selected = categoryModels[category] ?? []
+          const isManual = selected.length > 0
           const categoryLabel = t(`settings.models.routing.category.${category}`)
+          const topCandidate = derivedTable[category]?.[0]
+
           return (
             <div key={category}>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{categoryLabel}</SettingRowTitle>
-                <div className="flex w-[220px] min-w-0 shrink-0 items-center">
-                  <ModelSelector
-                    multiple={true}
-                    selectionType="id"
-                    value={selected}
-                    onSelect={(modelIds: UniqueModelId[]) =>
-                      void setCategoryModels({ ...categoryModels, [category]: modelIds })
-                    }
-                    filter={chatModelFilter}
-                    trigger={
+                <div className="flex min-w-0 shrink-0 items-center gap-2">
+                  {isManual ? (
+                    <>
+                      <div className="w-[180px] min-w-0">
+                        <ModelSelector
+                          multiple={true}
+                          selectionType="id"
+                          value={selected}
+                          onSelect={(modelIds: UniqueModelId[]) =>
+                            void setCategoryModels({ ...categoryModels, [category]: modelIds })
+                          }
+                          filter={chatModelFilter}
+                          trigger={
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-7.5 min-w-0 flex-1 justify-between px-2.5 text-left font-normal">
+                              <span className="min-w-0 flex-1 truncate">
+                                {t('settings.models.routing.category_count', { count: selected.length })}
+                              </span>
+                              <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+                            </Button>
+                          }
+                        />
+                      </div>
                       <Button
                         type="button"
-                        variant="outline"
-                        className="h-7.5 min-w-0 flex-1 justify-between px-2.5 text-left font-normal">
-                        <span className="min-w-0 flex-1 truncate">
-                          {selected.length > 0
-                            ? t('settings.models.routing.category_count', { count: selected.length })
-                            : t('settings.models.empty')}
-                        </span>
-                        <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        title={t('settings.models.routing.reset_to_auto')}
+                        onClick={() => void setCategoryModels({ ...categoryModels, [category]: [] })}>
+                        <RotateCcw size={13} />
                       </Button>
-                    }
-                  />
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-end gap-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="secondary" className="h-5 text-xs">
+                          {t('settings.models.routing.mode_auto')}
+                        </Badge>
+                        <span className="max-w-[160px] truncate text-sm">
+                          {topCandidate ? getModelName(topCandidate.id) : t('settings.models.routing.no_candidate')}
+                        </span>
+                      </div>
+                      {topCandidate && (
+                        <span className="text-muted-foreground text-xs">
+                          {t('settings.models.routing.why', {
+                            q: topCandidate.quality,
+                            a: topCandidate.affinity,
+                            h: topCandidate.healthDelta,
+                            c: topCandidate.quotaDelta
+                          })}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </SettingRow>
             </div>

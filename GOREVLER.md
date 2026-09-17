@@ -57,7 +57,7 @@ Cherry Studio (51.8k yıldız, TypeScript + Electron, aktif geliştiriliyor) sı
 - [x] 0.3 `@paymoapp/electron-shutdown-handler` yaması kalıcı: `patches/@paymoapp__electron-shutdown-handler@1.1.2.patch`, `pnpm install` artık silmiyor
 - [x] 0.4 Uygulamayı çalıştır, ana akışı baştan dene (sağlayıcı ekle → model senkronla → mesaj gönder), takıldığı her noktayı yaz
 - [x] 0.5 Arayüz dilini Türkçe yap + varsayılan asistana "her zaman Türkçe cevap ver" talimatı
-- [ ] 0.6 **Madde 3**: MCP dosya sistemi sunucusuna çalışma klasörü bağla → doğrula: klasörde dosya oluşturabiliyor
+- [x] 0.6 **Madde 3**: MCP dosya sistemi sunucusuna çalışma klasörü bağla → doğrula: klasörde dosya oluşturabiliyor
 
 ## Faz 1 — Sağlık hafızası ve kaliteye göre sıralama (Madde 2)
 
@@ -65,21 +65,21 @@ Cherry Studio (51.8k yıldız, TypeScript + Electron, aktif geliştiriliyor) sı
 - [x] 1.2 Kalıcı sağlık hafızası: `chat.retry.model_health` tercih anahtarı üretildi
 - [x] 1.3 `AiService.checkModel` sonucu kalıcı hafızaya yazılıyor (başarı + hata)
 - [x] 1.4 Yedek model zinciri sağlık + kalite skoruna göre sıralanıyor (`orderFallbackModels`)
-- [ ] 1.5 Aç/kapa anahtarı için **ayar arayüzü** (anahtar `chat.retry.health_priority_enabled` hazır, varsayılan açık) → doğrula: kapatınca elle sıra korunuyor
+- [x] 1.5 Aç/kapa anahtarı için **ayar arayüzü** (anahtar `chat.retry.health_priority_enabled` hazır, varsayılan açık) → doğrula: kapatınca elle sıra korunuyor
 
 ## Faz 2 — Kota ve çoklu key muhasebesi (Madde 5)
 
 - [x] 2.1 Key başına kullanım sayacı — **zaten var**: `AiUsageRecordService` + `aiUsageRecordTable` (apiKeyId bazlı, maliyet dahil). Yeniden yazılmadı.
 - [x] 2.2 Key başına limit: `chat.routing.api_key_limits` tercih anahtarı (günlük/aylık)
 - [x] 2.3 `filterKeysWithinQuota` — limiti dolan key seçimden çıkarılıyor; hepsi doluysa hiçbiri elenmiyor (istek reddedilmez), kullanım sorgusu patlarsa da istek engellenmiyor. 5 test.
-- [ ] 2.4 Panelde key başına "kalan kota" göstergesi → doğrula: ekranda görünüyor
+- [x] 2.4 Panelde key başına "kalan kota" göstergesi → doğrula: ekranda görünüyor
 
 ## Faz 3 — Beyin: kategorize et, alanında en iyiye yaptır (Madde 1)
 
 - [x] 3.1 Kategori sınıflandırıcı: kod / araştırma / yazı / görsel / genel (`src/shared/utils/taskCategory.ts`, Türkçe+İngilizce, model çağrısı yapmaz)
 - [x] 3.2 Kategori → model eşleme **veri katmanı**: `chat.routing.category_models` + `chat.routing.auto_enabled` anahtarları
 - [x] 3.3 Otomatik yönlendirme: `routeDefaultModelId` — kategori tespiti + sağlıksız adayı atlama + silinmiş modeli yok sayma. **Elle seçim (`mentionedModelIds`) asla ezilmiyor.** 6 test.
-- [ ] 3.4 "Neden bu model seçildi" açıklaması → Faz 6'da `TaskRoutingSettings` ile birlikte
+- [x] 3.4 "Neden bu model seçildi" açıklaması → Faz 6'da `TaskRoutingSettings` ile birlikte
 
 ## Faz 6 — Kendini optimize eden yönlendirme ⭐ (kullanıcı şartı: key değişince elle ayar yok)
 
@@ -91,8 +91,8 @@ kalite × kota. Elle seçim üstte ayrı katman — ezilmiyor, geçersizse okunu
 - [x] 6.3 `routing.derived_table` paylaşılan önbellek anahtarı — main yazar, arayüz okur
 - [x] 6.4 `categoryRouting.ts` adayları servisten alıyor (`elle seçilenler → türetilmiş`), 13 test
 - [x] 6.5 `chat.routing.auto_enabled` varsayılanı `true`
-- [ ] 6.6 `TaskRoutingSettings.tsx` yenile: türetilmiş satırlar "otomatik" etiketli, elle seçilenler sabit, kategori başına "otomatiğe dön" + **"neden bu model"** skor dökümü (Madde 3.4)
-- [ ] 6.7 i18n: yeni metinler 13 katalogda (`pnpm i18n:check` eksik çeviriyi reddeder)
+- [x] 6.6 `TaskRoutingSettings.tsx` yenile: türetilmiş satırlar "otomatik" etiketli, elle seçilenler sabit, kategori başına "otomatiğe dön" + **"neden bu model"** skor dökümü (Madde 3.4)
+- [x] 6.7 i18n: yeni metinler 13 katalogda (`pnpm i18n:check` eksik çeviriyi reddeder)
 
 ### Sonraki fazlar (plan dosyasında ayrıntılı)
 
@@ -107,7 +107,7 @@ kalite × kota. Elle seçim üstte ayrı katman — ezilmiyor, geçersizse okunu
 Motor tarafı bitti ama tercihleri girecek ekran yok; şu an ayarlar sadece veritabanında.
 
 - [x] 5.1 Kategori → model eşleme ekranı: `TaskRoutingSettings.tsx`, Ayarlar > Genel içinde; aç/kapa + 5 kategori için model seçici
-- [ ] 5.2 Key başına limit girişi ekranı (Madde 5'in kullanılabilir hâli)
+- [x] 5.2 Key başına limit girişi ekranı (Madde 5'in kullanılabilir hâli)
 - [x] 5.3 `chat.retry.health_priority_enabled` aç/kapa — yeniden deneme bölümüne eklendi
 - [x] 5.4 i18n: `en-us.json` + `tr-tr.json` yazıldı (diğer diller İngilizceye düşer)
 
@@ -133,12 +133,17 @@ Motor tarafı bitti ama tercihleri girecek ekran yok; şu an ayarlar sadece veri
 - 3.3: `routeDefaultModelId` `PersistentChatContextProvider` gönderim yoluna bağlandı; sadece varsayılanı değiştiriyor, elle seçimi değil.
 - 3.3 notu: yönlendirme hata verirse (bozuk ayar, silinmiş model) mesaj yine gönderiliyor — optimizasyon bir engele dönüşmemeli.
 - 2.3 notu: tip kontrolü testimin yakalayamadığı gerçek bir hatayı buldu (`buckets` ayrımlı birleşim, `groupBy` ile daraltmak gerekiyordu); taklit veri de gerçeğe uydurularak düzeltildi.
+- 0.6: `@cherry/filesystem` MCP sunucusu `C:\Users\ag\Desktop\cherry-studio` kök dizini ile eklendi, aktif, bağlantı ve yazma doğrulandı.
 - 0.5: CDP üzerinden `app.language=tr-tr` + "Cherry Assistant" prompt="Her zaman Türkçe cevap ver." — uygulama çalışırken uygulandı.
 - 0.4: Tam akış doğrulandı. Tek engel: dev modunda ilk çalışmada Vite optimizatör bitince sayfa splash'ta kalıyor, tek `Page.reload()` çözüyor (production'da yok). API key olmadan sync models çalışıyor; mesaj gönderilince "API Key is invalid + Go to Settings" hatası düzgün gösteriliyor.
 - 6.1 notu: test gerçek bir tasarım hatası yakaladı — kalite skoru **metin** yeteneğini ölçüyor, görsel üretiminde alakasız. Frontier sohbet modeli adanmış görsel modelini eziyordu; `NATIVE_IMAGE_BONUS = 100` kalite aralığının tamamını aşıyor.
 - 6.1 notu 2: yalnızca görsel üreten model (`outputModalities` içinde `text` yok) sohbet turunu cevaplayamaz. "Kolay iş en zayıf adayı seçer" kuralı yüzünden kod kategorisinde seçilip her seferinde patlardı — kategori bazlı uygunluk filtresi eklendi.
 - 6.2 notu: `ProviderService`/`ModelService` olay yaymıyor, key eklendiğini haber veremiyor. 60sn parmak izi taraması geçici çözüm; kalıcısı bu servislere `Emitter` eklemek.
 - Doğrulama: `typecheck:node` + `typecheck:web` temiz; yönlendirme testleri 8 + 13 geçiyor.
+- 2.4: `ApiKeyQuotaLimit` bileşenine kullanım çubuğu eklendi — `useQuery('/ai-usage-records/stats')` ile dönem içi istek sayısını çekiyor, görsel doluluk çubuğuyla gösteriyor. 13 dilde çevrildi.
+- 5.2: Key başına limit girişi `ApiKeyQuotaLimit.tsx` olarak zaten uygulanmıştı; tamamlandı işaretlendi.
+- 6.6/3.4: `TaskRoutingSettings.tsx` yenilendi — otomatik mod: "Auto" badge + türetilmiş tablonun en iyi adayı + skor dökümü (kalite/uyumluluk/sağlık/kota); elle seçim: model seçici + "otomatiğe dön" butonu.
+- 6.7: 4 yeni routing i18n anahtarı 13 kataloga eklendi (`pnpm i18n:sync` + i18n-translator).
 - Ortam: Visual Studio Build Tools (MSVC 14.44) kuruldu — `better-sqlite3` Electron için derlenebiliyor, kurulum paketi üretimi açıldı.
 - Engel notu: `@paymoapp/electron-shutdown-handler` derlenemediği için `node_modules` içindeki `dist/index.js`'te native yükleme try/catch'e alındı (modülün kendi kodu zaten `addon = null` durumunu karşılıyor). **Yeniden kurulumda tekrar uygulanmalı.**
 
