@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
-vi.mock('../ErrorDiagnosticsPanel', () => ({ ErrorDiagnosticsPanel: () => null }))
 
 vi.mock('@renderer/utils/errorDiagnosis', () => {
   mocks.diagnosisModuleEvaluated()

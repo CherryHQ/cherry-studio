@@ -31,7 +31,11 @@ import {
   type DoctorSubjectRef,
   type DoctorTier
 } from '@shared/types/doctor'
-import type { DoctorConnectivityResult, DoctorConnectivitySubject } from '@shared/types/doctorConnectivity'
+import {
+  DOCTOR_CONNECTIVITY_CHECK_IDS,
+  type DoctorConnectivityResult,
+  type DoctorConnectivitySubject
+} from '@shared/types/doctorConnectivity'
 import { doctorScopeKey } from '@shared/utils/doctor'
 
 import { collectDiagnosticSystemInfo } from '../systemInfo'
@@ -41,6 +45,7 @@ import { doctorCheckRegistry } from './registry'
 import type { DoctorContext, DoctorFixOutcome } from './types'
 
 const TIERS_FOR_RUN: Record<DoctorRunTier, readonly DoctorTier[]> = { quick: ['quick'], live: ['quick', 'live'] }
+const CONNECTIVITY_CHECK_IDS = new Set<DoctorCheckId>(DOCTOR_CONNECTIVITY_CHECK_IDS)
 
 /** Probes shared between the checks of one run (`DoctorContext.share`); the first caller's signal drives them. */
 type RunMemo = Map<string, Promise<unknown>>
@@ -114,7 +119,12 @@ export class DoctorService extends BaseService {
     if (ref.kind === 'chat') return { providerId: ref.providerId, modelId: ref.modelId }
     const agent = agentService.getAgent(ref.agentId)
     if (!agent) throw DataApiErrorFactory.notFound('Agent', ref.agentId)
-    const model = agent.model ? parseUniqueModelId(agent.model) : null
+    const model =
+      ref.providerId && ref.modelId
+        ? { providerId: ref.providerId, modelId: ref.modelId }
+        : agent.model
+          ? parseUniqueModelId(agent.model)
+          : null
     return { agentId: ref.agentId, ...model, mcpServerIds: agent.mcps ?? [] }
   }
 
@@ -151,11 +161,8 @@ export class DoctorService extends BaseService {
     if (active) return { status: 'busy', runId: active.runId }
     const subject = this.resolveSubject(input.subject)
     if (!subject?.providerId || !subject.modelId) throw new Error('No model is configured for this subject')
-    const record = this.createExecution(scope, input.runId, input.subject, [
-      'network-model-endpoint',
-      'provider-model-list',
-      'provider-model-conversation'
-    ])
+    const ids = this.selectChecks([...DOCTOR_CONNECTIVITY_CHECK_IDS], 'live', subject)
+    const record = this.createExecution(scope, input.runId, input.subject, ids)
     const controller = new AbortController()
     this.connectivityRuns.set(scope, { runId: input.runId, controller })
     try {
@@ -212,6 +219,21 @@ export class DoctorService extends BaseService {
     return { status: 'not_running' }
   }
 
+  private defaultCheckIds(
+    tier: DoctorRunTier,
+    subject: DoctorSubject | null,
+    includeConnectivity: boolean
+  ): DoctorCheckId[] {
+    return (Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]).filter((id) => {
+      const meta = DOCTOR_CHECK_CATALOG[id]
+      if (includeConnectivity && subject !== null && CONNECTIVITY_CHECK_IDS.has(id)) {
+        return applies(meta.scope, subject)
+      }
+      const allowedTier = includeConnectivity ? meta.tier === 'quick' : TIERS_FOR_RUN[tier].includes(meta.tier)
+      return !('includeByDefault' in meta) && allowedTier && applies(meta.scope, subject)
+    })
+  }
+
   private selectChecks(
     ids: readonly DoctorCheckId[],
     tier: DoctorRunTier,
@@ -243,6 +265,7 @@ export class DoctorService extends BaseService {
     tier: DoctorRunTier
     subject: DoctorSubjectRef
     checkIds?: readonly DoctorCheckId[]
+    includeConnectivity?: boolean
   }): Promise<DoctorRunResult> {
     if (!this.allReady) throw new Error('Doctor is not ready')
     const scope = doctorScopeKey(input.subject)
@@ -250,15 +273,7 @@ export class DoctorService extends BaseService {
     if (active) return { status: 'busy', runId: active.runId }
     const subject = this.resolveSubject(input.subject)
     const ids = this.selectChecks(
-      input.checkIds ??
-        (Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]).filter((id) => {
-          const meta = DOCTOR_CHECK_CATALOG[id]
-          return (
-            !('includeByDefault' in meta) &&
-            TIERS_FOR_RUN[input.tier].includes(meta.tier) &&
-            applies(meta.scope, subject)
-          )
-        }),
+      input.checkIds ?? this.defaultCheckIds(input.tier, subject, input.includeConnectivity === true),
       input.tier,
       subject
     )

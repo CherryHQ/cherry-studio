@@ -13,6 +13,20 @@ describe('Doctor subject boundary', () => {
       tier: 'quick',
       subject: { kind: 'global' }
     })
+    expect(
+      run.parse({
+        tier: 'live',
+        subject: { kind: 'chat', providerId: 'openai', modelId: 'gpt-4o' },
+        includeConnectivity: true
+      })
+    ).toMatchObject({ includeConnectivity: true })
+    expect(
+      run.parse({
+        tier: 'live',
+        subject: { kind: 'agent', agentId: 'agent', providerId: 'deepseek', modelId: 'deepseek-reasoner' },
+        includeConnectivity: true
+      }).subject
+    ).toEqual({ kind: 'agent', agentId: 'agent', providerId: 'deepseek', modelId: 'deepseek-reasoner' })
   })
 })
 

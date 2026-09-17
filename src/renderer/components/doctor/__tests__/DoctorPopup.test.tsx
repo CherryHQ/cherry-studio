@@ -323,6 +323,7 @@ describe('DoctorPopup', () => {
 
     expect(await screen.findByText(activeProgress)).toBeVisible()
     expect(screen.getAllByText(activeProgress)).toHaveLength(1)
+    expect(screen.getByRole('status').querySelector('svg')).toHaveClass('motion-safe:animate-spin')
     expect(screen.queryByText('Running quick basic checks…')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /settings\.doctor\.checks\.install-version-channel\.title/ })

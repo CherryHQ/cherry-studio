@@ -208,7 +208,7 @@ const MessageErrorInfo: React.FC<{
         <div className="flex shrink-0 items-center justify-center text-error">
           <AlertTriangle size={15} className="lucide-custom" />
         </div>
-        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || t(classification.i18nKey)}</div>
+        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || localizedErrorMessage}</div>
       </div>
 
       {/* Description */}

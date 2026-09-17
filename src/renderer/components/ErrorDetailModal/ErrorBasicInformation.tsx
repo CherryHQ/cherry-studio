@@ -10,7 +10,8 @@ import { DiagnosticsPanel } from '../DiagnosticsPanel'
 import {
   type DiagnosticReportConfig,
   type DiagnosticReportDescriptionLabels,
-  diagnosticReportFields
+  diagnosticReportFields,
+  resolveDiagnosticReportLocation
 } from './diagnosticReportDescription'
 
 interface ErrorBasicInformationProps {
@@ -32,8 +33,11 @@ export function ErrorBasicInformation({
   onViewDetails,
   viewDetailsButtonRef
 }: ErrorBasicInformationProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const location = diagnosticReport?.location ?? diagnosisContext?.errorSource
+  const locationLabel = location?.trim()
+    ? resolveDiagnosticReportLocation(t, location, i18n.language)
+    : undefined
   const labels = {
     errorMessage: t('error.message'),
     location: t('error.diagnostic_report.location'),
@@ -42,17 +46,11 @@ export function ErrorBasicInformation({
   const fields = diagnosticReportFields({
     diagnosisContext,
     error,
-    location,
+    location: locationLabel,
     localizedErrorMessage
-  })
-    .filter(({ id }) => id !== 'location')
-    .map((field) =>
-      field.id === 'errorMessage' && localizedErrorMessage?.trim()
-        ? { ...field, value: localizedErrorMessage.trim() }
-        : field
-    )
-  const title = location?.trim()
-    ? t('error.diagnostics.basic_information_with_location', { location: location.trim() })
+  }).filter(({ id }) => id !== 'location')
+  const title = locationLabel
+    ? t('error.diagnostics.basic_information_with_location', { location: locationLabel })
     : t('error.diagnostics.basic_information')
 
   return (

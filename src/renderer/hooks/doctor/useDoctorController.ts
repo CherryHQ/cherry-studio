@@ -14,6 +14,7 @@ import {
   type DoctorCheckId,
   type DoctorFixRequest,
   type DoctorNavigateTarget,
+  type DoctorPendingCheck,
   type DoctorRunTier,
   type DoctorScopeKey,
   type DoctorState,
@@ -122,13 +123,17 @@ export function useDoctorController({
   const canChangePanel = !isCloseBlocked && session.interaction.kind !== 'confirm-evidence'
 
   const run = useCallback(
-    async (tier: DoctorRunTier) => {
+    async (tier: DoctorRunTier, options?: { includeConnectivity?: boolean }) => {
       dispatch({
         type: 'start-interaction',
         interaction: { kind: 'run', tier }
       })
       try {
-        await ipcApi.request('diagnostics.doctor.run', { tier, subject })
+        await ipcApi.request('diagnostics.doctor.run', {
+          tier,
+          subject,
+          ...(options?.includeConnectivity ? { includeConnectivity: true } : {})
+        })
       } catch (error) {
         logger.error('Failed to run system diagnostics', error as Error)
         toast.error(t('settings.doctor.messages.run_failed'))
@@ -157,8 +162,12 @@ export function useDoctorController({
       return
     }
     autoRunRequestedRef.current = true
-    void run('quick').finally(() => setIsAutoRunPending(false))
-  }, [doctorState.status, initialPanel, initialRunTier, run, sharedCacheReady])
+    const includeConnectivity = subject.kind !== 'global'
+    void run(
+      includeConnectivity ? 'live' : 'quick',
+      includeConnectivity ? { includeConnectivity: true } : undefined
+    ).finally(() => setIsAutoRunPending(false))
+  }, [doctorState.status, initialPanel, initialRunTier, run, sharedCacheReady, subject.kind])
 
   const cancel = useCallback(async () => {
     if (!canCancelDoctorRun(doctorState)) return
@@ -172,6 +181,28 @@ export function useDoctorController({
       dispatch({ type: 'finish-interaction', kind: 'cancel' })
     }
   }, [doctorState, scope, t])
+
+  const confirmCheck = useCallback(
+    async (pending: DoctorPendingCheck) => {
+      if (!viewModel.runId) return
+      dispatch({ type: 'start-interaction', interaction: { kind: 'confirm-check' } })
+      try {
+        const result = await ipcApi.request('diagnostics.doctor.confirm_check', {
+          scope,
+          runId: viewModel.runId,
+          requestId: pending.requestId
+        })
+        if (result.status === 'stale') toast.error(t('settings.doctor.messages.result_changed'))
+        if (result.status === 'busy') toast.error(t('settings.doctor.messages.run_failed'))
+      } catch (error) {
+        logger.error('Failed to confirm a diagnostic check', error as Error)
+        toast.error(t('settings.doctor.messages.action_failed'))
+      } finally {
+        dispatch({ type: 'finish-interaction', kind: 'confirm-check' })
+      }
+    },
+    [scope, t, viewModel.runId]
+  )
 
   const performAction = useCallback(
     async (
@@ -355,6 +386,7 @@ export function useDoctorController({
     cancel,
     canChangePanel,
     cancelConfirmation: () => dispatch({ type: 'cancel-confirmation' }),
+    confirmCheck,
     confirmEvidence,
     executeAction,
     isAutoRunPending,

@@ -22,7 +22,12 @@ const registryMocks = vi.hoisted(() => ({
   mcpConnectedRun: vi.fn(),
   mcpRestart: vi.fn(),
   userDataRun: vi.fn(),
-  sharedProbe: vi.fn()
+  sharedProbe: vi.fn(),
+  modelEndpointRun: vi.fn(),
+  modelListRun: vi.fn(),
+  modelConversationRun: vi.fn(),
+  modelConversationConfirm: vi.fn(),
+  providerApiKeyRun: vi.fn()
 }))
 
 vi.mock('../registry', async () => {
@@ -50,8 +55,18 @@ vi.mock('../registry', async () => {
         run: registryMocks.mcpConnectedRun,
         fixes: { restart: registryMocks.mcpRestart }
       },
+      'provider-model': { id: 'provider-model', run: async () => ({ status: 'pass' }), fixes: {} },
+      'provider-api-key-present': { id: 'provider-api-key-present', run: registryMocks.providerApiKeyRun, fixes: {} },
       'network-online': { id: 'network-online', run: sharing, fixes: {} },
-      'network-dns-resolution': { id: 'network-dns-resolution', run: sharing, fixes: {} }
+      'network-dns-resolution': { id: 'network-dns-resolution', run: sharing, fixes: {} },
+      'network-model-endpoint': { id: 'network-model-endpoint', run: registryMocks.modelEndpointRun, fixes: {} },
+      'provider-model-list': { id: 'provider-model-list', run: registryMocks.modelListRun, fixes: {} },
+      'provider-model-conversation': {
+        id: 'provider-model-conversation',
+        run: registryMocks.modelConversationRun,
+        getConfirmation: registryMocks.modelConversationConfirm,
+        fixes: {}
+      }
     }
   }
 })
@@ -90,6 +105,17 @@ beforeEach(() => {
   registryMocks.mcpConnectedRun.mockResolvedValue({ status: 'pass' })
   registryMocks.userDataRun.mockResolvedValue({ status: 'pass' })
   registryMocks.sharedProbe.mockResolvedValue([])
+  registryMocks.modelEndpointRun.mockResolvedValue({ status: 'pass' })
+  registryMocks.modelListRun.mockResolvedValue({ status: 'pass' })
+  registryMocks.modelConversationRun.mockResolvedValue({ status: 'pass' })
+  registryMocks.providerApiKeyRun.mockResolvedValue({ status: 'pass' })
+  registryMocks.modelConversationConfirm.mockResolvedValue({
+    confirmation: {
+      messageKey: 'settings.doctor.checks.provider-model-conversation.confirmation',
+      params: { model: 'gpt-4o', modelId: 'gpt-4o', endpoint: 'https://example.test' }
+    },
+    isCurrent: () => true
+  })
 })
 
 describe('DoctorContext.share', () => {
@@ -278,6 +304,31 @@ describe('DoctorService scopes', () => {
     expect(stateOf('chat:openai/gpt-4o')).toBeUndefined()
   })
 
+  it('adds model connectivity to a conversation diagnosis without a full live sweep', async () => {
+    const started = await createReadyService().run({
+      tier: 'live',
+      subject: chat,
+      includeConnectivity: true
+    })
+    if (started.status !== 'completed') throw new Error('expected report')
+    const ids = [
+      ...started.report.results.map((entry) => entry.id),
+      ...(started.report.pendingChecks ?? []).map((pending) => pending.checkId)
+    ]
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        'network-online',
+        'network-model-endpoint',
+        'provider-model-list',
+        'provider-model-conversation'
+      ])
+    )
+    expect(ids).not.toContain('network-dns-resolution')
+    expect(ids).not.toContain('config-boot-config-valid')
+    expect(registryMocks.modelConversationRun).not.toHaveBeenCalled()
+    expect(started.report.pendingChecks).toEqual([expect.objectContaining({ checkId: 'provider-model-conversation' })])
+  })
+
   it('diagnoses the real Agent model and MCP membership, and refuses a removed association', async () => {
     dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' }).run()
     dbh.db
@@ -334,6 +385,59 @@ describe('DoctorService scopes', () => {
       })
     ).resolves.toEqual({ status: 'stale', reason: 'finding_changed' })
     expect(registryMocks.mcpRestart).not.toHaveBeenCalled()
+  })
+
+  it('pins an Agent conversation model so a later model switch does not reuse the first report', async () => {
+    dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' }).run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db
+      .insert(agentTable)
+      .values({
+        id: 'a-pin',
+        name: 'Pinned',
+        instructions: '',
+        type: 'claude-code',
+        model: 'openai::gpt-4o',
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db.insert(mcpServerTable).values({ id: 'srv-pin', name: 'MCP', isActive: true }).run()
+    dbh.db.insert(agentMcpServerTable).values({ agentId: 'a-pin', mcpServerId: 'srv-pin' }).run()
+    registryMocks.mcpConnectedRun.mockImplementation(async ({ subject }: DoctorContext) => ({
+      status: 'pass',
+      evidence: [{ key: 'model', value: `${subject?.providerId}/${subject?.modelId}`, dataClass: 'local_only' }]
+    }))
+    const service = createReadyService()
+    const first = await service.run({
+      tier: 'quick',
+      subject: { kind: 'agent', agentId: 'a-pin', providerId: 'deepseek', modelId: 'deepseek-v4-flash' },
+      checkIds: ['mcp-servers-connected']
+    })
+    const second = await service.run({
+      tier: 'quick',
+      subject: { kind: 'agent', agentId: 'a-pin', providerId: 'deepseek', modelId: 'deepseek-reasoner' },
+      checkIds: ['mcp-servers-connected']
+    })
+    if (first.status !== 'completed' || second.status !== 'completed') throw new Error('Expected reports')
+    expect(first.report.scope).toBe('agent:a-pin:deepseek/deepseek-v4-flash')
+    expect(second.report.scope).toBe('agent:a-pin:deepseek/deepseek-reasoner')
+    expect(first.report.results[0].evidence).toEqual([
+      { key: 'model', value: 'deepseek/deepseek-v4-flash', dataClass: 'local_only' }
+    ])
+    expect(second.report.results[0].evidence).toEqual([
+      { key: 'model', value: 'deepseek/deepseek-reasoner', dataClass: 'local_only' }
+    ])
   })
 
   it('gives a global run no subject, so parameterised checks fall back to defaults', async () => {

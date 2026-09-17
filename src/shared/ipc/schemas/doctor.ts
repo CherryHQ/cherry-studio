@@ -16,7 +16,14 @@ import { defineRoute } from '../define'
 
 const contextualSubjects = [
   z.object({ kind: z.literal('chat'), providerId: z.string().min(1), modelId: z.string().min(1) }).strict(),
-  z.object({ kind: z.literal('agent'), agentId: z.string().min(1) }).strict()
+  z
+    .object({
+      kind: z.literal('agent'),
+      agentId: z.string().min(1),
+      providerId: z.string().min(1).optional(),
+      modelId: z.string().min(1).optional()
+    })
+    .strict()
 ] as const
 const subjectRefSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('global') }).strict(),
@@ -43,7 +50,8 @@ export const doctorRequestSchemas = {
       .object({
         tier: z.enum(['quick', 'live']),
         subject: subjectRefSchema,
-        checkIds: z.array(z.enum(DOCTOR_CHECK_IDS)).optional()
+        checkIds: z.array(z.enum(DOCTOR_CHECK_IDS)).optional(),
+        includeConnectivity: z.boolean().optional()
       })
       .strict(),
     output: z.custom<DoctorRunResult>()

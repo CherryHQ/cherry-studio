@@ -61,7 +61,7 @@ export type DoctorSubjectKey = keyof DoctorSubject
 export type DoctorSubjectRef =
   | { readonly kind: 'global' }
   | { readonly kind: 'chat'; readonly providerId: string; readonly modelId: string }
-  | { readonly kind: 'agent'; readonly agentId: string }
+  | { readonly kind: 'agent'; readonly agentId: string; readonly providerId?: string; readonly modelId?: string }
 
 /** Identity of a run's context; suffixes the shared cache key so contexts never share state. */
 export type DoctorScopeKey = 'global' | `chat:${string}` | `agent:${string}`

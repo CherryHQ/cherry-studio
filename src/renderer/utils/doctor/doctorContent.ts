@@ -79,3 +79,17 @@ export function resolveDoctorFixLabel(
   if (!declaration) throw new Error(`Missing Doctor fix label: ${checkId}.${action.fixId}`)
   return typeof declaration === 'string' ? { key: declaration } : declaration(action, resolveTargetName)
 }
+
+/** Turns machine category codes such as `auth` into the catalog phrase for detail copy. */
+export function doctorCheckDetailParams(
+  t: (key: string, options?: { defaultValue?: string }) => string,
+  params?: Readonly<Record<string, string | number>>
+): Record<string, string | number> | undefined {
+  if (!params) return undefined
+  const category = params.category
+  if (typeof category !== 'string') return { ...params }
+  return {
+    ...params,
+    category: t(`settings.doctor.error_category.${category}`, { defaultValue: category })
+  }
+}

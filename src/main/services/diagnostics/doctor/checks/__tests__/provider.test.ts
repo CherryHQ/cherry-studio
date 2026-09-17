@@ -31,6 +31,7 @@ const global = { ...ctx, subject: null }
 function provider(overrides: Record<string, unknown> = {}) {
   return {
     id: 'openai',
+    name: 'OpenAI',
     isEnabled: true,
     authMethods: ['api-key'],
     authOptional: false,
@@ -149,8 +150,9 @@ describe('provider-api-key-present', () => {
     expect(result).toMatchObject({
       status: 'fail',
       attribution: 'user-fixable',
-      detail: { variant: 'missing' },
-      actions: [{ kind: 'navigate', target: '/settings/provider' }]
+      detail: { variant: 'missing', params: { provider: 'OpenAI' } },
+      actions: [{ kind: 'navigate', target: '/settings/provider' }],
+      evidence: [{ key: 'providerId', value: 'openai', dataClass: 'local_only' }]
     })
     expect(JSON.stringify(result)).not.toContain('sk-sensitive-value')
   })
@@ -169,11 +171,13 @@ describe('provider checks given a subject', () => {
   })
 
   it('reports a missing key on the subject provider even when the default provider has one', async () => {
-    services.getByProviderId.mockImplementation((id: string) => provider(id === 'anthropic' ? { id, apiKeys: [] } : {}))
+    services.getByProviderId.mockImplementation((id: string) =>
+      provider(id === 'anthropic' ? { id, name: 'Anthropic', apiKeys: [] } : {})
+    )
 
     await expect(providerApiKey.run({ ...ctx, subject: { providerId: 'anthropic' } })).resolves.toMatchObject({
       status: 'fail',
-      detail: { variant: 'missing' }
+      detail: { variant: 'missing', params: { provider: 'Anthropic' } }
     })
   })
 })

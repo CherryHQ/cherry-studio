@@ -148,7 +148,11 @@ describe('useDoctorController', () => {
     renderHook(() => useDoctorController({ initialPanel: 'checks', subject, onNavigate: vi.fn() }))
 
     await waitFor(() =>
-      expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick', subject })
+      expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', {
+        tier: 'live',
+        subject,
+        includeConnectivity: true
+      })
     )
   })
 

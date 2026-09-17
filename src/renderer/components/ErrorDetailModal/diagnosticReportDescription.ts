@@ -8,6 +8,22 @@ export interface DiagnosticReportConfig {
   location: string
 }
 
+const AGENT_LOCATION_LABELS = new Set(['agent', 'Agent 对话', 'Agent 對話'])
+
+export function resolveDiagnosticReportLocation(
+  t: (key: string, options?: { defaultValue?: string }) => string,
+  location: string,
+  language?: string
+): string {
+  if (AGENT_LOCATION_LABELS.has(location.trim())) {
+    return t('error.diagnostic_report.locations.work', {
+      defaultValue: language?.toLowerCase().startsWith('zh') ? '工作对话' : 'Work conversation'
+    })
+  }
+  if (location.trim() === 'home') return t('error.diagnostic_report.locations.home')
+  return location
+}
+
 export interface DiagnosticReportDescriptionLabels {
   errorMessage: string
   location: string
@@ -48,9 +64,11 @@ function diagnosticReportField(id: DiagnosticReportField['id'], value: unknown):
 function combineErrorParts(localized: unknown, name: unknown, message: unknown): string | undefined {
   const errorName = nonEmptyText(name)
   const errorMessage = nonEmptyText(message)
-  const raw = errorName && errorMessage ? errorName + ': ' + errorMessage : (errorName ?? errorMessage)
+  const raw = errorName && errorMessage ? `${errorName}: ${errorMessage}` : (errorName ?? errorMessage)
   const localizedMessage = nonEmptyText(localized)
-  if (localizedMessage && raw && localizedMessage !== raw) return localizedMessage + ' (' + raw + ')'
+  if (localizedMessage && errorMessage && localizedMessage !== errorMessage) {
+    return `${localizedMessage} (${errorMessage})`
+  }
   return localizedMessage ?? raw
 }
 
