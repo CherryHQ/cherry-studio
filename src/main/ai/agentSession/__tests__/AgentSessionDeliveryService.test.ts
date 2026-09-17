@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { agentService } from '@data/services/AgentService'
+import type { agentSessionService } from '@data/services/AgentSessionService'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -18,14 +20,14 @@ const mocks = vi.hoisted(() => ({
   listRecoverable: vi.fn(),
   resolveCrash: vi.fn(),
   reuseOrCreate: vi.fn(),
-  deleteByIds: vi.fn(),
+  deleteByIds: vi.fn<typeof agentSessionService.deleteByIdsWithImpact>(),
   listActiveIdsByAgent: vi.fn(),
   restore: vi.fn(),
   isExpiredTrash: vi.fn(),
   listExpiredTrashIds: vi.fn(),
   purgeExpiredByIdsTx: vi.fn(),
   deleteByAgentId: vi.fn(),
-  deleteAgent: vi.fn(),
+  deleteAgent: vi.fn<typeof agentService.deleteAgentStateTx>(),
   deleteWorkspace: vi.fn(),
   validateDispatch: vi.fn(),
   persistDispatchTx: vi.fn(),
@@ -202,6 +204,17 @@ const assistant = {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
+const agentDeletionResult: ReturnType<typeof agentService.deleteAgentStateTx> = {
+  deleted: true,
+  deletedSessionIds: undefined,
+  affectedSessionIds: [],
+  affectedChannelIds: [],
+  taskScheduleIds: [],
+  changeKind: 'projection',
+  deliveryResults: [],
+  purgedSystemWorkspacePaths: []
+}
+
 describe('AgentSessionDeliveryService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -243,7 +256,12 @@ describe('AgentSessionDeliveryService', () => {
     mocks.fail.mockReturnValue(null)
     mocks.finalize.mockReturnValue(null)
     mocks.findByTurnRef.mockReturnValue(null)
-    mocks.deleteByIds.mockReturnValue({ deletedIds: [], taskScheduleIds: [], deliveryResults: [] })
+    mocks.deleteByIds.mockReturnValue({
+      deletedIds: [],
+      taskScheduleIds: [],
+      deliveryResults: [],
+      purgedSystemWorkspacePaths: []
+    })
     mocks.listActiveIdsByAgent.mockReturnValue([])
     mocks.restore.mockReturnValue({ id: 'restored-session' })
     mocks.isExpiredTrash.mockReturnValue(true)
@@ -258,10 +276,8 @@ describe('AgentSessionDeliveryService', () => {
     })
     mocks.deleteByAgentId.mockReturnValue({ deletedIds: [], taskScheduleIds: [], deliveryResults: [] })
     mocks.deleteAgent.mockReturnValue({
-      deleted: true,
-      deletedSessionIds: [],
-      affectedSessionIds: [],
-      deliveryResults: []
+      ...agentDeletionResult,
+      deletedSessionIds: []
     })
     mocks.deleteWorkspace.mockReturnValue({ deletedIds: [], taskScheduleIds: [], deliveryResults: [] })
   })
@@ -715,7 +731,12 @@ describe('AgentSessionDeliveryService', () => {
     mocks.withDispatchLock.mockImplementation((topicId: string, fn: () => Promise<unknown>) =>
       dispatchLocks.runExclusive(topicId, fn)
     )
-    mocks.deleteByIds.mockReturnValue({ deletedIds: ['target'], taskScheduleIds: [], deliveryResults: [] })
+    mocks.deleteByIds.mockReturnValue({
+      deletedIds: ['target'],
+      taskScheduleIds: [],
+      deliveryResults: [],
+      purgedSystemWorkspacePaths: []
+    })
     mocks.closeSession.mockReturnValue(runtimeClosed)
     const delivery = new AgentSessionDeliveryService()
     deliveryOwner = delivery
@@ -1033,8 +1054,13 @@ describe('AgentSessionDeliveryService', () => {
       releaseFirstClose = resolve
     })
     mocks.deleteByIds
-      .mockReturnValueOnce({ deletedIds: ['target'], taskScheduleIds: [], deliveryResults: [] })
-      .mockReturnValueOnce({ deletedIds: [], taskScheduleIds: [], deliveryResults: [] })
+      .mockReturnValueOnce({
+        deletedIds: ['target'],
+        taskScheduleIds: [],
+        deliveryResults: [],
+        purgedSystemWorkspacePaths: []
+      })
+      .mockReturnValueOnce({ deletedIds: [], taskScheduleIds: [], deliveryResults: [], purgedSystemWorkspacePaths: [] })
     mocks.closeSession.mockReturnValueOnce(firstClose)
     const delivery = new AgentSessionDeliveryService()
     deliveryOwner = delivery
@@ -1060,7 +1086,7 @@ describe('AgentSessionDeliveryService', () => {
 
   it('pauses every affected runtime before closing it when deleting an Agent with Sessions', async () => {
     mocks.deleteAgent.mockReturnValue({
-      deleted: true,
+      ...agentDeletionResult,
       deletedSessionIds: ['target'],
       affectedSessionIds: ['target'],
       deliveryResults: []
@@ -1081,7 +1107,7 @@ describe('AgentSessionDeliveryService', () => {
 
   it('pauses an active retained Session before closing it after Agent deletion', async () => {
     mocks.deleteAgent.mockReturnValue({
-      deleted: true,
+      ...agentDeletionResult,
       affectedSessionIds: ['target'],
       deliveryResults: [{ ...accepted, delivery: { ...accepted.delivery, status: 'failed' } }]
     })
@@ -1101,7 +1127,7 @@ describe('AgentSessionDeliveryService', () => {
   it('resolves committed Agent deletion and retries deliveries when runtime close fails', async () => {
     const closeError = new Error('close failed')
     mocks.deleteAgent.mockReturnValue({
-      deleted: true,
+      ...agentDeletionResult,
       affectedSessionIds: ['target'],
       deliveryResults: [{ ...accepted, sessionId: 'sender', delivery: { ...accepted.delivery, status: 'failed' } }]
     })
@@ -1123,7 +1149,7 @@ describe('AgentSessionDeliveryService', () => {
 
   it('retries affected retained Sessions after permanent Agent deletion', async () => {
     mocks.deleteAgent.mockReturnValue({
-      deleted: true,
+      ...agentDeletionResult,
       affectedSessionIds: ['target'],
       deliveryResults: []
     })
@@ -1191,7 +1217,12 @@ describe('AgentSessionDeliveryService', () => {
       releaseClose = resolve
     })
     mocks.closeSession.mockReturnValue(closing)
-    mocks.deleteByIds.mockReturnValue({ deletedIds: ['target'], taskScheduleIds: [], deliveryResults: [] })
+    mocks.deleteByIds.mockReturnValue({
+      deletedIds: ['target'],
+      taskScheduleIds: [],
+      deliveryResults: [],
+      purgedSystemWorkspacePaths: []
+    })
     deliveryOwner = new AgentSessionDeliveryService()
     const service = new AgentLifecycleService()
     const archive = service.archiveSessions(['target'])
