@@ -1,3 +1,7 @@
+import { act, render } from '@testing-library/react'
+import { useRef } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { COMPOSER_INPUT_MAX_LENGTH } from '@renderer/components/composer/composerDraft'
 import { createSelectionReferenceToken } from '@renderer/components/composer/selectionReferenceToken'
 import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
@@ -5,9 +9,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { SelectionReference } from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { act, render } from '@testing-library/react'
-import { useRef } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useComposerSelectionReferenceInsertion } from '../useComposerSelectionReferenceInsertion'
 

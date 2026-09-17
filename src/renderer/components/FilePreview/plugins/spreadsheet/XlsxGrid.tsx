@@ -820,11 +820,11 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, 
   // a picked A2:B2 must stay hover-free too, the way the block producers' `:not([data-*-picked])` rules do.
   const hoverInsidePick = Boolean(
     hoverRect &&
-      selectionRect &&
-      hoverRect.top >= selectionRect.top &&
-      hoverRect.bottom <= selectionRect.bottom &&
-      hoverRect.left >= selectionRect.left &&
-      hoverRect.right <= selectionRect.right
+    selectionRect &&
+    hoverRect.top >= selectionRect.top &&
+    hoverRect.bottom <= selectionRect.bottom &&
+    hoverRect.left >= selectionRect.left &&
+    hoverRect.right <= selectionRect.right
   )
 
   const totalWidth = colLayout.totalSize * zoom + scaledHeaderWidth

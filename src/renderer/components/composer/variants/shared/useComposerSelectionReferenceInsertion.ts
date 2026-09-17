@@ -1,10 +1,11 @@
+import type { RefObject } from 'react'
+import { useEffect, useEffectEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { createSelectionReferenceToken } from '@renderer/components/composer/selectionReferenceToken'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { SelectionReference } from '@renderer/types/selectionReference'
-import type { RefObject } from 'react'
-import { useEffect, useEffectEvent } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { COMPOSER_INPUT_MAX_LENGTH } from '../../composerDraft'
 import type { ComposerDraftToken } from '../../tokens'

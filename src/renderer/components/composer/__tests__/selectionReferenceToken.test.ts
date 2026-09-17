@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import { createSelectionReferenceToken } from '@renderer/components/composer/selectionReferenceToken'
 import { type SelectionReference, SelectionReferenceSchema } from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { describe, expect, it } from 'vitest'
 
 const XLSX_REFERENCE: SelectionReference = {
   path: '/Users/dev/workspace/report.xlsx' as AbsoluteFilePath,

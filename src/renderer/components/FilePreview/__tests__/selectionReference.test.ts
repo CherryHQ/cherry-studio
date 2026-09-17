@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { SELECTION_EXCERPT_MAX_LENGTH, SelectionReferenceSchema } from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { describe, expect, it } from 'vitest'
 
 import { createSelectionReference, normalizeSelectionText } from '../selectionReference'
 

@@ -1,5 +1,6 @@
 import type { PresentationData, SlideNode, TableCell, TextBody, TextIndexEntry } from '@aiden0z/pptx-renderer'
 import { buildTextIndex, materializeSlideNodes } from '@aiden0z/pptx-renderer'
+
 import { loggerService } from '@logger'
 
 const SLIDE_INDEX_ATTRIBUTE = 'data-slide-index'

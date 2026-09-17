@@ -1,8 +1,9 @@
 import type * as PptxRenderer from '@aiden0z/pptx-renderer'
 import type { PresentationData, TextIndexEntry } from '@aiden0z/pptx-renderer'
 import { buildTextIndex, materializeSlideNodes } from '@aiden0z/pptx-renderer'
-import { loggerService } from '@logger'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { loggerService } from '@logger'
 
 import { slideExcerpt, slideToPptxAnchor } from '../pptxSelectionAnchor'
 
