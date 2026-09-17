@@ -1,6 +1,9 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { JobContext, JobSettledEvent } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
@@ -11,12 +14,6 @@ vi.mock('@data/services/JobService', () => ({
   jobService: {
     listRecentTerminalByScheduleId: vi.fn(),
     getById: vi.fn()
-  }
-}))
-
-vi.mock('@data/services/AgentTaskService', () => ({
-  agentTaskService: {
-    notifyRunChange: vi.fn()
   }
 }))
 
@@ -79,26 +76,29 @@ function makeSettled(overrides: Partial<JobSettledEvent<AgentTaskInput>>): JobSe
     attempt: 0,
     metadata: {},
     ...overrides
-  } as JobSettledEvent<AgentTaskInput>
+  }
 }
 
 describe('AgentTaskJobHandler', () => {
+  setupTestDatabase()
   const pauseSpy = vi.fn()
 
   beforeEach(() => {
     vi.mocked(application.get).mockImplementation((name: string) => {
       if (name === 'JobManager') return { pauseJobScheduleById: pauseSpy } as never
+      if (name === 'DbService') return MockMainDbServiceExport.dbService as never
       throw new Error(`Unexpected application.get('${name}')`)
     })
     pauseSpy.mockReset()
     pauseSpy.mockResolvedValue(true)
     vi.mocked(jobService.listRecentTerminalByScheduleId).mockReset()
     vi.mocked(jobService.getById).mockReset()
-    vi.mocked(agentTaskService.notifyRunChange).mockReset()
+    vi.spyOn(agentTaskService, 'notifyRunChange').mockImplementation(() => {})
     vi.mocked(runAgentTask).mockReset()
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.clearAllMocks()
   })
 

@@ -49,8 +49,8 @@ export default defineCreator({
       openWeights: true
     },
     {
-      id: 'deepseek-v4.1-flash-expires-on-0910',
-      name: 'DeepSeek V4.1 Flash Expires-On-0910',
+      id: 'deepseek-flash',
+      name: 'DeepSeek V4.1 Flash',
       family: 'deepseek-flash',
       capabilities: ['function-call', 'image-recognition', 'reasoning', 'structured-output'],
       contextWindow: 1000000,
@@ -77,6 +77,7 @@ export default defineCreator({
   ],
   reasoningFamilies: [
     { pattern: '^deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?', effort: ['none', 'low', 'high', 'max'] },
+    { pattern: '^deepseek-flash', effort: ['none', 'low', 'high', 'max'] },
     // v3.x hybrid inference (thinking / non-thinking at one endpoint).
     { pattern: 'deepseek-(?:chat|v3(?:\\.\\d|-\\d))', toggle: true, template: true },
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.

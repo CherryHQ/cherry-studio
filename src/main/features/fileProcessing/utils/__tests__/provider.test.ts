@@ -7,19 +7,19 @@ describe('file processing provider utils', () => {
     expect(
       getRequiredApiHost({
         apiHost: '  https://api.example.com/path  '
-      } as never)
+      })
     ).toBe('https://api.example.com/path')
 
     expect(
       getRequiredApiHost({
         apiHost: 'https://api.example.com///'
-      } as never)
+      })
     ).toBe('https://api.example.com')
   })
 
   it('rejects missing api hosts', () => {
-    expect(() => getRequiredApiHost({ apiHost: '   ' } as never)).toThrowError('API host is required')
-    expect(() => getRequiredApiHost({ apiHost: undefined } as never)).toThrowError('API host is required')
+    expect(() => getRequiredApiHost({ apiHost: '   ' })).toThrowError('API host is required')
+    expect(() => getRequiredApiHost({ apiHost: undefined })).toThrowError('API host is required')
   })
 
   it('returns a required api key and rejects empty key lists', () => {

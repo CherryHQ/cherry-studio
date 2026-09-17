@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { describe, expect, it } from 'vitest'
 
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import {
@@ -317,26 +318,26 @@ describe('resolveAiSdkProviderId', () => {
 
 describe('resolveProviderVariant', () => {
   it('appends -chat for openai-chat-completions on bases with a chat variant', () => {
-    expect(resolveProviderVariant('openai' as never, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('openai-chat')
+    expect(resolveProviderVariant('openai', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('openai-chat')
   })
 
   it('returns the base id for openai-responses on bases without a -responses variant', () => {
     // Azure has a real `responses` variant (suffix-based, key `azure-responses`).
     // OpenAI only has an `openai-response` ALIAS pointing back to `openai` —
     // no plural-suffix variant — so the resolver falls back to the base.
-    expect(resolveProviderVariant('openai' as never, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('openai')
+    expect(resolveProviderVariant('openai', ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('openai')
   })
 
   it('appends -responses for azure base (real variant)', () => {
-    expect(resolveProviderVariant('azure' as never, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('azure-responses')
+    expect(resolveProviderVariant('azure', ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('azure-responses')
   })
 
   it('returns the base id unchanged when no variant is registered', () => {
-    expect(resolveProviderVariant('deepseek' as never, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('deepseek')
+    expect(resolveProviderVariant('deepseek', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('deepseek')
   })
 
   it('returns the base id unchanged when endpointType is undefined', () => {
-    expect(resolveProviderVariant('openai' as never, undefined)).toBe('openai')
+    expect(resolveProviderVariant('openai', undefined)).toBe('openai')
   })
 })
 
@@ -579,7 +580,7 @@ describe('invariant: resolveAiSdkProviderId is deterministic for the registered 
     for (const endpointType of ENDPOINT_TYPES_USED) {
       it(`${id} / ${endpointType}: produces a non-empty AppProviderId`, () => {
         const provider = makeProvider({ id })
-        const result = resolveAiSdkProviderId(provider, endpointType as EndpointType)
+        const result = resolveAiSdkProviderId(provider, endpointType)
         expect(typeof result).toBe('string')
         expect(result.length).toBeGreaterThan(0)
       })

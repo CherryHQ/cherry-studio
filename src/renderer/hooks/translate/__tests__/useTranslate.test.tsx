@@ -1,8 +1,9 @@
-import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { TranslateLanguage } from '@shared/data/types/translate'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { TranslateLanguage } from '@shared/data/types/translate'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => `t(${key})` })

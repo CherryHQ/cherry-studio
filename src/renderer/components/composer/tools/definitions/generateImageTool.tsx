@@ -1,11 +1,12 @@
+import type { FC } from 'react'
+import { useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { GENERATE_IMAGE_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import { defineTool, type ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import type { FC } from 'react'
-import { useCallback, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   assistantId: string

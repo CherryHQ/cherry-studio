@@ -1,3 +1,6 @@
+import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
+import * as z from 'zod'
+
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type {
   AiStreamAttachResponse,
@@ -17,6 +20,7 @@ import {
   TimeoutMinutesAtomSchema
 } from '@shared/data/api/schemas/agents'
 import {
+  AgentSessionEntitySchema,
   type ReusableAgentSessionPlaceholdersResponse,
   ReuseOrCreateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
@@ -31,8 +35,6 @@ import {
   UniqueModelIdSchema
 } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
-import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
@@ -150,6 +152,9 @@ const aiImagePayloadSchema = z.strictObject({
   cleanupPolicy: CleanupPolicySchema
 })
 
+// Keep the public output named so declaration emit does not expose FileEntry's private path brand.
+const aiImageOutputSchema: z.ZodType<{ files: FileEntry[] }> = z.object({ files: z.array(FileEntrySchema) })
+
 const aiStreamRegenerateShape = {
   trigger: z.literal('regenerate-message'),
   parentAnchorId: z.string().min(1),
@@ -194,9 +199,7 @@ export const aiRequestSchemas = {
   'ai.image.generate': defineRoute({
     // requestId pairs the request with `ai.image.abort` (the abort registry lives in AiService).
     input: z.strictObject({ requestId: z.string().min(1), payload: aiImagePayloadSchema }),
-    // Pin the output to the named `FileEntry` so declaration-emit references the alias
-    // instead of trying to name FileEntry's module-private phantom path brand (TS4023).
-    output: z.object({ files: z.array(FileEntrySchema) }) as z.ZodType<{ files: FileEntry[] }>
+    output: aiImageOutputSchema
   }),
   'ai.image.abort': defineRoute({
     // Was a one-way `ipcOn`; per the migration guide a one-off becomes a `void` request.
@@ -307,8 +310,20 @@ export const aiRequestSchemas = {
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
   }),
+  'ai.agent.restore': defineRoute({
+    input: z.object({ agentId: z.string() }),
+    output: AgentEntitySchema
+  }),
   'ai.agent.delete': defineRoute({
-    input: z.strictObject({ agentId: z.string().min(1), deleteSessions: z.boolean().default(false) }),
+    input: z.strictObject({
+      agentId: z.string().min(1),
+      deleteSessions: z.boolean().default(false),
+      permanent: z.boolean().optional()
+    }),
+    output: z.strictObject({ deleted: z.boolean(), deletedSessionIds: z.array(z.string()).optional() })
+  }),
+  'ai.agent.delete_permanently': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1), deleteSessions: z.boolean() }),
     output: z.strictObject({ deleted: z.boolean(), deletedSessionIds: z.array(z.string()).optional() })
   }),
   'ai.agent.sessions.delete': defineRoute({
@@ -328,6 +343,17 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
   'ai.agent.session.delete': defineRoute({
+    input: z.strictObject({
+      sessionIds: z.array(z.string().min(1)).min(1).max(200),
+      permanent: z.boolean().optional()
+    }),
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
+  }),
+  'ai.agent.session.restore': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: AgentSessionEntitySchema
+  }),
+  'ai.agent.session.delete_permanently': defineRoute({
     input: z.strictObject({ sessionIds: z.array(z.string().min(1)).min(1).max(200) }),
     output: z.strictObject({ deletedIds: z.array(z.string()) })
   }),

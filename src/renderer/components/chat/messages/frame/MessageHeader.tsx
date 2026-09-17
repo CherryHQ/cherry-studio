@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import { ArrowUpRight, Bot, MousePointerClick, Sparkle, Target } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { memo, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
@@ -6,11 +12,6 @@ import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
-import dayjs from 'dayjs'
-import { ArrowUpRight, Bot, MousePointerClick, Sparkle, Target } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { memo, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   useMessageListActions,

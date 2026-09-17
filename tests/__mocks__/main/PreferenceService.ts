@@ -1,6 +1,7 @@
+import { vi } from 'vitest'
+
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { UnifiedPreferenceKeyType, UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
-import { vi } from 'vitest'
 
 /**
  * Mock PreferenceService for main process testing

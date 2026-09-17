@@ -1,8 +1,9 @@
-import i18n from '@renderer/i18n/resolver'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import i18n from '@renderer/i18n/resolver'
 
 import { useProviderDeepLinkImport } from '../hooks/useProviderDeepLinkImport'
 import ProviderSettingsPage from '../ProviderSettingsPage'

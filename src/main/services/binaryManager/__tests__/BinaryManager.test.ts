@@ -1,9 +1,10 @@
 import type * as NodeModule from 'node:module'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockCreateRequire = vi.hoisted(() => vi.fn())
 const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
@@ -240,7 +241,7 @@ describe('BinaryManager', () => {
     // first registration only happens once onAllReady fires (all phases ready).
     it('does not touch PreferenceService during the initial-bootstrap onInit', async () => {
       const service = new BinaryManager()
-      ;(application.get as unknown as ReturnType<typeof vi.fn>).mockClear()
+      ;(application.get as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockClear()
 
       await (service as any).onInit()
 
@@ -1229,12 +1230,12 @@ describe('BinaryManager', () => {
         expect(snapshots.bun).toEqual({
           name: 'bun',
           availability: { source: 'bundled', path: '/mock/cherry.bin/bun', version: '1.2.3' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message: 'mise ls boom' }
         })
         expect(snapshots.fd).toEqual({
           name: 'fd',
           availability: { source: 'system', path: '/usr/local/bin/fd' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message: 'mise ls boom' }
         })
       })
 
@@ -1256,14 +1257,14 @@ describe('BinaryManager', () => {
         expect(snapshots.fd).toEqual({
           name: 'fd',
           availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message: 'mise ls boom' }
         })
       })
 
       it.each([
-        ['a non-object', JSON.stringify(['not', 'an', 'object'])],
-        ['invalid spec entries', JSON.stringify({ fd: {} })]
-      ])('treats %s mise ls shape as query_failed, not absent', async (_case, stdout) => {
+        ['a non-object', JSON.stringify(['not', 'an', 'object']), 'mise ls --json returned a non-object shape'],
+        ['invalid spec entries', JSON.stringify({ fd: {} }), 'mise ls --json returned invalid entries for fd']
+      ])('treats %s mise ls shape as query_failed, not absent', async (_case, stdout, message) => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
         ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
@@ -1275,7 +1276,7 @@ describe('BinaryManager', () => {
         expect(snapshots.fd).toEqual({
           name: 'fd',
           availability: { source: 'none' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message }
         })
       })
 
@@ -3954,11 +3955,11 @@ describe('BinaryManager', () => {
   })
 
   describe('extractBundledBinaries', () => {
-    let mockFsp: Record<string, ReturnType<typeof vi.fn>>
+    let mockFsp: Record<string, ReturnType<typeof vi.fn<(...args: any[]) => any>>>
 
     beforeEach(async () => {
       const fspModule = await import('node:fs/promises')
-      mockFsp = fspModule.default as unknown as Record<string, ReturnType<typeof vi.fn>>
+      mockFsp = fspModule.default as unknown as Record<string, ReturnType<typeof vi.fn<(...args: any[]) => any>>>
     })
 
     it('skips extraction when bundled version matches installed version', async () => {

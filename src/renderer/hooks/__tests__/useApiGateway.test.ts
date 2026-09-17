@@ -1,8 +1,9 @@
-import { toast } from '@renderer/services/toast'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 

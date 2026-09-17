@@ -4,8 +4,9 @@
  * covered by its integration suite.
  */
 
-import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -26,6 +27,8 @@ vi.mock('@data/services/JobScheduleService', () => ({
 vi.mock('@data/services/JobService', () => ({
   jobService: { getRunStatesByScheduleIds: vi.fn(), list: vi.fn() }
 }))
+
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -102,6 +105,16 @@ function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
 
 describe('AgentTaskService (read side)', () => {
   beforeEach(() => {
+    MockMainDbServiceUtils.resetMocks()
+    MockMainDbServiceUtils.setDb({
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            all: () => [{ id: AGENT_ID }, { id: 'other-agent' }, { id: 'other' }]
+          })
+        })
+      })
+    })
     notifyDataApiDataChangeMock.mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReturnValue([])

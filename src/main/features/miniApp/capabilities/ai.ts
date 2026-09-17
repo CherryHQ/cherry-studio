@@ -8,6 +8,9 @@
  * underneath it — without ever learning which model it is.
  */
 
+import { eq } from 'drizzle-orm'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { modelService } from '@data/services/ModelService'
@@ -17,8 +20,6 @@ import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@sh
 import type { SerializedError } from '@shared/types/error'
 import { MINI_APP_MAX_INPUT_BYTES, MINI_APP_MAX_MESSAGES } from '@shared/types/miniAppManifest'
 import { isReasoningModel } from '@shared/utils/model'
-import { eq } from 'drizzle-orm'
-import * as z from 'zod'
 
 import { InvalidArgumentError, MiniAppUnavailableError } from '../errors'
 import { aiHiddenBudget, RateLimitedError } from './quota'

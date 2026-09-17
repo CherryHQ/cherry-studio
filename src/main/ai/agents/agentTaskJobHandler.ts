@@ -69,6 +69,11 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
   },
 
   async onSettled(event) {
+    if (event.status === 'completed' && event.scheduleId) {
+      application
+        .get('DbService')
+        .withWriteTx((tx) => agentTaskService.completeMissedRunTx(tx, event.scheduleId!, event.jobId, Date.now()))
+    }
     if (event.scheduleId) {
       agentTaskService.notifyRunChange(event.scheduleId, event.jobId, 'projection')
     }

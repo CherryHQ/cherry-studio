@@ -1,3 +1,6 @@
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { dataApiService } from '@data/DataApiService'
 import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
@@ -18,6 +21,7 @@ import {
   type MessageListMeta,
   type MessageListProviderValue,
   type MessageListRuntime,
+  type MessageListSelectAllPagination,
   type MessageListState,
   type MessageRuntime,
   type MessageStreamingLayers
@@ -51,8 +55,6 @@ import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
-import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   consumePendingTopicImageActions,
@@ -74,6 +76,7 @@ interface HomeMessageListParams {
   isMessagesStale?: boolean
   loadOlder?: () => void
   hasOlder?: boolean
+  selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
@@ -92,6 +95,7 @@ export function useHomeMessageListProviderValue({
   isMessagesStale = false,
   loadOlder,
   hasOlder = false,
+  selectAllPagination,
   openCitationsPanel,
   imageActionConsumer,
   onBindRuntime,
@@ -247,7 +251,8 @@ export function useHomeMessageListProviderValue({
     streamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     diagnosticReport,
-    persistDiagnosis
+    persistDiagnosis,
+    selectAllPagination
   })
 
   useEffect(() => {
@@ -435,31 +440,34 @@ export function useHomeMessageListProviderValue({
   }, [canStartNewContext, requireChatWrite, t, topic.id])
 
   const saveCodeBlock = useCallback(
-    async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
-      const { msgBlockId, codeBlockId, newContent } = data
+    async (data: { msgBlockId: string; originalContent: string; newContent: string }) => {
+      const { msgBlockId, originalContent, newContent } = data
 
       try {
         const resolved = resolvePartFromParts(partsByMessageIdRef.current, msgBlockId)
         if (resolved && resolved.part.type === 'text') {
           const textPart = resolved.part as { text?: string }
           const { updateCodeBlock } = await import('@renderer/utils/markdown')
-          const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
+          const updatedText = updateCodeBlock(textPart.text || '', originalContent, newContent)
+          if (updatedText === null) {
+            logger.warn(`Failed to save code block to message block ${msgBlockId}: no unique matching code block`)
+            toast.error(t('code_block.edit.save.failed.label'))
+            return
+          }
           const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
           allParts[resolved.index] = {
             ...resolved.part,
             text: updatedText
-          } as CherryMessagePart
+          }
           await requireChatWrite('saveCodeBlock').editMessage(resolved.messageId, allParts)
           toast.success(t('code_block.edit.save.success'))
           return
         }
 
-        logger.error(
-          `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: unable to resolve part`
-        )
+        logger.error(`Failed to save code block content to message block ${msgBlockId}: unable to resolve part`)
         toast.error(t('code_block.edit.save.failed.label'))
       } catch (error) {
-        logger.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error as Error)
+        logger.error(`Failed to save code block content to message block ${msgBlockId}:`, error as Error)
         toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
     },
@@ -537,7 +545,7 @@ export function useHomeMessageListProviderValue({
           ...(sourceLanguage && { sourceLanguage })
         }
       }
-      await write.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
+      await write.editMessage(messageId, [...baseParts, loadingPart])
       if (!isCurrentTranslation()) return null
 
       let pendingUpdate = Promise.resolve()
@@ -557,7 +565,7 @@ export function useHomeMessageListProviderValue({
         pendingUpdate = pendingUpdate
           .then(() => {
             if (!isCurrentTranslation()) return
-            return write.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart])
+            return write.editMessage(messageId, [...baseParts, translationPart])
           })
           .catch((error) => {
             logger.error('Failed to update message translation:', error as Error, { messageId })

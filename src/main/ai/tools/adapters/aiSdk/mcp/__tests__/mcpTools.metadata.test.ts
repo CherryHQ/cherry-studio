@@ -90,7 +90,7 @@ describe('MCP tool metadata reaches the UI parts', () => {
     for await (const message of readUIMessageStream({ stream: result.toUIMessageStream() })) {
       for (const part of message.parts) {
         if (!('toolCallId' in part) || part.toolCallId !== 'call-1') continue
-        states.set(part.state as string, (part as { toolMetadata?: unknown }).toolMetadata)
+        states.set(part.state, (part as { toolMetadata?: unknown }).toolMetadata)
       }
     }
 

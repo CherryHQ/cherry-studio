@@ -1,4 +1,5 @@
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
+
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 
 import type { AgentRuntimeToolApprovalRequest, AgentRuntimeUserInput } from '../types'

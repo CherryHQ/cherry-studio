@@ -1,5 +1,6 @@
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { describe, expect, it } from 'vitest'
+
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 
 import { aiRequestSchemas } from '../ai'
 
@@ -150,6 +151,16 @@ describe('ai.agent.session.delete IPC schema', () => {
     expect(
       deleteSessions.safeParse({ sessionIds: Array.from({ length: 201 }, (_, i) => `session-${i}`) }).success
     ).toBe(false)
+  })
+})
+
+describe('ai.agent.session.restore IPC schema', () => {
+  const restoreSession = aiRequestSchemas['ai.agent.session.restore'].input
+
+  it('requires exactly one non-empty Session id', () => {
+    expect(restoreSession.safeParse({ sessionId: 'session-1' }).success).toBe(true)
+    expect(restoreSession.safeParse({ sessionId: '' }).success).toBe(false)
+    expect(restoreSession.safeParse({ sessionId: 'session-1', extra: true }).success).toBe(false)
   })
 })
 

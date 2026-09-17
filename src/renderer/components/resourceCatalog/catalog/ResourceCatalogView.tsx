@@ -1,10 +1,11 @@
+import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Alert, Button } from '@cherrystudio/ui'
 import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
 import type { ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
 import { cn } from '@renderer/utils/style'
-import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ResourceGrid } from './ResourceGrid'
 
@@ -23,6 +24,8 @@ export type ResourceCatalogViewProps = {
   variant?: 'library' | 'settings'
   title?: ReactNode
   description?: ReactNode
+  selectedSkillId?: string
+  onSelectedSkillIdChange?: (skillId: string | undefined) => void
   toolbarFooter?: ReactNode
   allowColumnToggle?: boolean
   filterResource?: (resource: ResourceItem) => boolean
@@ -36,22 +39,27 @@ export function ResourceCatalogView({
   variant = 'library',
   title,
   description,
+  selectedSkillId,
+  onSelectedSkillIdChange,
   toolbarFooter,
   allowColumnToggle,
   filterResource
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
-  const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
+  const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(
+    resourceType,
+    onSelectedSkillIdChange ? { id: selectedSkillId, onChange: onSelectedSkillIdChange } : undefined
+  )
   const hasActiveDialog = Boolean(
     dialogs.selectedSkill ||
-      dialogs.assistantImportOpen ||
-      (resourceType === 'assistant' && dialogs.assistantLibraryOpen) ||
-      dialogs.skillImportOpen ||
-      dialogs.skillMarketplaceOpen ||
-      (resourceType === 'skill' && dialogs.systemSkillOpen) ||
-      dialogs.createDialogOpen ||
-      dialogs.createDialogKind ||
-      dialogs.editDialogTarget
+    dialogs.assistantImportOpen ||
+    (resourceType === 'assistant' && dialogs.assistantLibraryOpen) ||
+    dialogs.skillImportOpen ||
+    dialogs.skillMarketplaceOpen ||
+    (resourceType === 'skill' && dialogs.systemSkillOpen) ||
+    dialogs.createDialogOpen ||
+    dialogs.createDialogKind ||
+    dialogs.editDialogTarget
   )
   const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
 
@@ -70,7 +78,7 @@ export function ResourceCatalogView({
         {resourceError ? (
           <>
             {toolbarLeading ? (
-              <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 border-border-subtle border-b px-2">
+              <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 border-b border-border-subtle px-2">
                 <div className="flex shrink-0 items-center">{toolbarLeading}</div>
               </div>
             ) : null}
@@ -104,7 +112,11 @@ export function ResourceCatalogView({
         )}
       </div>
 
-      <ResourceDeleteConfirmDialog resource={dialogs.deleteConfirm} onClose={() => dialogs.setDeleteConfirm(null)} />
+      <ResourceDeleteConfirmDialog
+        resource={dialogs.deleteConfirm}
+        permanent={dialogs.deletePermanently}
+        onClose={() => dialogs.setDeleteConfirm(null)}
+      />
       {dialogsActivated ? (
         <Suspense fallback={null}>
           <ResourceCatalogDialogs

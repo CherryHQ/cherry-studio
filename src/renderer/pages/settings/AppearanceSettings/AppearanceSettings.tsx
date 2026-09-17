@@ -1,3 +1,9 @@
+import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   CodeEditor,
@@ -29,7 +35,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
@@ -40,21 +46,22 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isLinux, isMac } from '@renderer/utils/platform'
+import {
+  canRemoveSidebarShortcut,
+  createSidebarShortcutTarget,
+  SIDEBAR_SHORTCUT_PROVIDER_IDS
+} from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import type { MenuPresentationMode, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
 import { defaultLanguage } from '@shared/utils/languages'
-import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ThemeColorPicker from './components/ThemeColorPicker'
 
 const DEFAULT_COLOR_PRIMARY = '#00b96b'
 const DEFAULT_ZOOM_FACTOR = 1
+const CHAT_ASSISTANT_SHORTCUT_TARGET = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, 'assistants')
 const THEME_COLOR_PRESETS = [
   DEFAULT_COLOR_PRIMARY,
   '#EF4444', // Red
@@ -122,8 +129,8 @@ const AppearanceSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
   const activeCmTheme = useCmTheme()
-  const { appFavorites, setAppPinned } = useSidebarFavorites()
-  const isChatAssistantVisible = appFavorites.includes('assistants')
+  const { shortcuts, isPinned, setPinned } = useSidebarShortcuts()
+  const isChatAssistantVisible = isPinned(CHAT_ASSISTANT_SHORTCUT_TARGET)
 
   const [language, setLanguage] = usePreference('app.language')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
@@ -480,8 +487,8 @@ const AppearanceSettings: FC = () => {
           <SettingRowTitle>{t('settings.display.sidebar.chat.visible')}</SettingRowTitle>
           <Switch
             checked={isChatAssistantVisible}
-            disabled={isChatAssistantVisible && appFavorites.length <= 1}
-            onCheckedChange={(checked) => setAppPinned('assistants', checked)}
+            disabled={isChatAssistantVisible && !canRemoveSidebarShortcut(shortcuts, CHAT_ASSISTANT_SHORTCUT_TARGET)}
+            onCheckedChange={(checked) => setPinned(CHAT_ASSISTANT_SHORTCUT_TARGET, checked)}
             aria-label={t('settings.display.sidebar.chat.visible')}
           />
         </SettingRow>
@@ -623,7 +630,7 @@ const ThemePreview = ({ mode }: { mode: ThemeMode }) => {
     return (
       <div className="flex aspect-video w-full overflow-hidden rounded-md border border-neutral-400">
         <div className="flex w-1/2 bg-white">
-          <div className="w-1/3 border-neutral-200 border-r bg-neutral-100 p-1">
+          <div className="w-1/3 border-r border-neutral-200 bg-neutral-100 p-1">
             <div className="size-1.5 rounded-full bg-neutral-400" />
           </div>
           <div className="flex-1 p-1.5">
@@ -633,7 +640,7 @@ const ThemePreview = ({ mode }: { mode: ThemeMode }) => {
           </div>
         </div>
         <div className="flex w-1/2 bg-neutral-950">
-          <div className="w-1/3 border-neutral-700 border-r bg-neutral-900 p-1">
+          <div className="w-1/3 border-r border-neutral-700 bg-neutral-900 p-1">
             <div className="size-1.5 rounded-full bg-neutral-500" />
           </div>
           <div className="flex-1 p-1.5">
@@ -714,15 +721,15 @@ const ThemePreviewSelector = ({
 )
 
 const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-52.5 items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full max-w-52.5 min-w-0 items-center justify-end', className)} {...props} />
 )
 
 const SelectorRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-55 items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full max-w-55 min-w-0 items-center justify-end', className)} {...props} />
 )
 
 const WideControlRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-95 items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full max-w-95 min-w-0 items-center justify-end', className)} {...props} />
 )
 
 const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (

@@ -1,10 +1,11 @@
-import { appStateTable } from '@data/db/schemas/appState'
-import { fileEntryTable } from '@data/db/schemas/file'
-import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { appStateTable } from '@data/db/schemas/appState'
+import { fileEntryTable } from '@data/db/schemas/file'
+import type { FileEntryId } from '@shared/data/types/file'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -21,7 +22,7 @@ describe('ensureContentMetadataGeneration', () => {
   beforeEach(() => {
     MockMainDbServiceUtils.setDb(dbh.db)
     MockMainDbServiceExport.dbService.withWriteTx.mockImplementation((fn) =>
-      dbh.db.transaction(fn as Parameters<typeof dbh.db.transaction>[0], { behavior: 'immediate' })
+      dbh.db.transaction(fn, { behavior: 'immediate' })
     )
   })
 
@@ -79,7 +80,7 @@ describe('ensureContentMetadataGeneration', () => {
   })
 
   it('is idempotent after the v2 marker is present', () => {
-    seedInternal('019606a0-0000-7000-8000-000000000404' as FileEntryId, 'xxh3-64:2222222222222222', 104)
+    seedInternal('019606a0-0000-7000-8000-000000000404', 'xxh3-64:2222222222222222', 104)
     expect(ensureContentMetadataGeneration()).toMatchObject({ applied: true })
 
     expect(ensureContentMetadataGeneration()).toEqual({ applied: false, invalidated: 0 })

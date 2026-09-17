@@ -1,7 +1,8 @@
-import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
 
 vi.mock('@renderer/components/chat/messages/MessageList', () => ({
   default: () => <button type="button">Hidden action</button>

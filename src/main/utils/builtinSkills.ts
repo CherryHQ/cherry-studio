@@ -1,10 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { app } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
-import { app } from 'electron'
 
 import { toAsarUnpackedPath } from './asar'
 

@@ -4,6 +4,8 @@
  * an object closing over a Node primitive would void the sandbox.
  */
 
+import { contextBridge, ipcRenderer } from 'electron'
+
 import {
   type BridgeResult,
   MINI_APP_BRIDGE_CHANNEL,
@@ -11,7 +13,6 @@ import {
   MINI_APP_GUEST_LIMITS,
   MINI_APP_STREAM_CHANNEL
 } from '@shared/ipc/schemas/miniAppBridge'
-import { contextBridge, ipcRenderer } from 'electron'
 
 let seq = 0
 const streams = new Map<string, (chunk: string) => void>()

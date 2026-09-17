@@ -1,9 +1,10 @@
-import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { ChatConversationControls } from '../ChatConversationControls'
 
@@ -17,10 +18,6 @@ vi.mock('react-i18next', async (importOriginal) => {
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <span data-testid="model-avatar" />
-}))
-
-vi.mock('@renderer/components/EmojiIcon', () => ({
-  default: () => <span data-testid="assistant-avatar" />
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({

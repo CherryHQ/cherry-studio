@@ -15,7 +15,7 @@ import {
 } from '@main/core/lifecycle'
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
+import { isTerminalStatus, JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
@@ -902,7 +902,7 @@ export class JobManager extends BaseService {
       })
     }
 
-    const queueName = opts.queue ?? handler.defaultQueue?.(input as never) ?? type
+    const queueName = opts.queue ?? handler.defaultQueue?.(input) ?? type
     const now = Date.now()
     const scheduledAt = opts.scheduledAt ?? now
     const status = scheduledAt > now ? 'delayed' : 'pending'
@@ -1030,6 +1030,7 @@ export class JobManager extends BaseService {
     // COMMIT and this microtask leaves a pending row for startup recovery.
     queueMicrotask(() => {
       try {
+        // eslint-disable-next-line tx-boundary/no-ambient-db-in-tx -- deferred past COMMIT on purpose; reading the caller's tx here would defeat the re-read
         const persisted = jobService.getById(snapshot.id)
         if (!persisted) {
           this.finishedResolvers.delete(snapshot.id)
@@ -1272,6 +1273,7 @@ export class JobManager extends BaseService {
         type: input.type
       })
     }
+    // eslint-disable-next-line tx-boundary/no-ambient-db-in-tx -- pure schema validation, touches no database
     if (input.name) jobScheduleService.assertValidName(input.name)
     this.assertValidTrigger(input.trigger)
     const snapshot = jobScheduleService.createTx(tx, {
@@ -1302,6 +1304,7 @@ export class JobManager extends BaseService {
    *   `JOB_SCHEDULE_TRIGGER_INVALID` before any write
    */
   updateJobScheduleTx(tx: DbOrTx, id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
+    // eslint-disable-next-line tx-boundary/no-ambient-db-in-tx -- pure schema validation, touches no database
     if (patch.name) jobScheduleService.assertValidName(patch.name)
     if (patch.trigger !== undefined) this.assertValidTrigger(patch.trigger)
     return jobScheduleService.updateTx(tx, id, patch)
@@ -1907,14 +1910,28 @@ export class JobManager extends BaseService {
   ): Promise<void> {
     const dbService = application.get('DbService')
     let txFailed: Error | undefined
+    let written = false
     try {
-      jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
+      written = jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
     } catch (err) {
       txFailed = err as Error
       logger.error('finalizeJob: tx failed — synthesizing failed snapshot to release slot', { jobId, status, err })
     }
 
     const persisted = jobService.getById(jobId)
+
+    // The write is skipped when the row is already terminal, so `written === false`
+    // means an earlier finalize won — it published and resolved the waiters. Repeating
+    // that emits a duplicate settle, even when the late status happens to match.
+    if (!txFailed && !written && persisted && isTerminalStatus(persisted.status)) {
+      logger.warn('finalizeJob: already finalized — dropping the late terminal state', {
+        jobId,
+        attempted: status,
+        kept: persisted.status
+      })
+      return
+    }
+
     const snapshot: JobSnapshot | null = persisted ?? (txFailed ? this.synthesizeFailedSnapshot(jobId, txFailed) : null)
 
     if (!snapshot) {
@@ -2140,6 +2157,7 @@ export class JobManager extends BaseService {
       } catch (err) {
         const e = err as Error & { code?: string }
         logger.error('Schedule fire failed', {
+          operation: 'job.schedule.fire',
           scheduleId: currentSchedule.id,
           type: currentSchedule.type,
           code: e.code,

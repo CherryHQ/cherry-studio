@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
+
 const stubApp = (id: string): MiniAppType => ({
   kind: 'site',
   appId: id,
-  presetMiniAppId: id as MiniAppType['presetMiniAppId'],
+  presetMiniAppId: id,
   status: 'pinned',
   orderKey: 'a0',
   name: id,
@@ -50,8 +50,8 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     removeCustomMiniApp: vi.fn()
   })
 }))
-vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
-  useSidebarFavorites: () => ({ miniAppFavoriteIds: [], toggleMiniApp: vi.fn() })
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({ shortcuts: [], setPinned: vi.fn() })
 }))
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openMiniAppInSplit: mocks.openMiniAppInSplit })

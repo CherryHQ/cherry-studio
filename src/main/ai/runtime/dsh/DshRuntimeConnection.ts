@@ -2,6 +2,11 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
+import type { TokenUsage } from '@deepseek-ai/dsh-llm'
+import type { HarnessClient, NotificationSubscription } from '@deepseek-ai/dsh-sdk-client'
+import type { SessionEventNotification } from '@deepseek-ai/dsh-sdk-protocol'
+import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
+
 import { application } from '@application'
 import {
   BRIDGE_SOCKET_ENV,
@@ -9,10 +14,6 @@ import {
   type BridgePermissionMode,
   type BridgePolicy
 } from '@cherrystudio/dsh-bridge'
-import type { TokenUsage } from '@deepseek-ai/dsh-llm'
-import type { HarnessClient, NotificationSubscription } from '@deepseek-ai/dsh-sdk-client'
-import type { SessionEventNotification } from '@deepseek-ai/dsh-sdk-protocol'
-import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -21,6 +22,7 @@ import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { getAutoApprovedBrowserTools, resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -48,6 +50,7 @@ import type {
   AgentRuntimeTraceContext,
   AgentSessionUsageCapture
 } from '../types'
+import { resolveDshBunRuntime } from './bunRuntime'
 import { buildDshCompositionYaml, resolveDshRuntimeBinPath } from './compositionBuilder'
 import { DshBridgeServer, type DshBridgeServerOptions } from './DshBridgeServer'
 import {
@@ -231,6 +234,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   async start(): Promise<this> {
     if (this.input.resumeToken) assertValidDshResumeToken(this.input.resumeToken)
+    const runtimeExecutable = await resolveDshBunRuntime()
     const resolveInjection = async (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> => {
       try {
         return await resolveDshProviderInjectionFromSnapshot(
@@ -336,7 +340,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     await writeFile(this.compositionPath, yaml, { encoding: 'utf8', mode: 0o600 })
 
     try {
-      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: snapshot.linkedChannel !== null })
+      const mountedServers = resolveMountedMcpServers(agent, {
+        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+        channelLinked: snapshot.linkedChannel !== null
+      })
       const toolBridge = await buildDshCherryToolBridge(
         buildAgentMcpServers(
           session,
@@ -368,6 +375,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
         onGuardCheck: async (toolName, args, cwd) => {
+          const browserPermission = resolveBrowserToolPermission(toolName)
+          if (browserPermission === 'deny')
+            return {
+              kind: 'deny',
+              ruleId: 'browser-tool-disabled',
+              reason: 'Agent browser control is disabled in Browser settings.'
+            }
           const decision = await evaluateUserDataSqliteGuard({
             runtime: 'dsh',
             toolName,
@@ -389,10 +403,14 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
       // Complete replacement env — deliberate credential scope: the child sees
       // only managed binary locations, the routed API key, and the bridge socket.
+      const dshBin = resolveDshRuntimeBinPath()
       const client = new sdk.HarnessClient({
-        command: process.execPath,
-        args: [resolveDshRuntimeBinPath(), this.compositionPath],
-        cwd: workspacePath,
+        runtimeExecutable,
+        runtimeArgs: ['--no-env-file'],
+        dshBin,
+        profile: 'cherry',
+        // Bun must not discover workspace preloads before DSH's permission gates exist.
+        processCwd: path.dirname(dshBin),
         env: {
           ...binaryExecutionEnv,
           ...(loginShellEnv.HOME !== undefined
@@ -400,8 +418,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
             : process.env.HOME !== undefined
               ? { HOME: process.env.HOME }
               : {}),
-          ELECTRON_RUN_AS_NODE: '1',
           CHERRY_DSH_API_KEY: injection.apiKey,
+          CHERRY_DSH_CONFIG: this.compositionPath,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
           [BRIDGE_TOKEN_ENV]: this.bridge.authenticationToken,
           DSH_HOME: dshRoot
@@ -686,7 +704,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       allowedRoots: [this.workspacePath, this.agentDataPath],
       readTools: DSH_READ_TOOLS,
       editTools: DSH_EDIT_TOOLS,
-      autoApprovedTools: [...DSH_AUTO_APPROVED_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS],
+      autoApprovedTools: [
+        ...DSH_AUTO_APPROVED_BUILTIN_TOOLS,
+        ...DSH_AUTO_APPROVED_BRIDGED_TOOLS,
+        ...getAutoApprovedBrowserTools()
+      ],
       approvalRequiredTools: [...DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS],
       nonBypassableApprovalTools: [...DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS],
       // Closed plan-mode allow-list: plan-safe builtins plus Cherry's auto-approved
@@ -711,8 +733,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         if (notification.method !== 'session.event') continue
         const params = notification.params as { sessionId?: unknown; event?: unknown }
         if (typeof params?.sessionId !== 'string') continue
-        // The SDK server forwards session-log envelopes verbatim; the rc.6 pin keeps this
-        // single wire-boundary cast sound. Unknown merged types fall through the adapter.
+        // The SDK server forwards session-log envelopes verbatim across this wire boundary.
+        // Unknown merged types fall through the adapter.
         const event = params.event as SessionEvent
         if (params.sessionId !== this.input.sessionId) {
           // Every other session in this process is a descendant (or one racing its
