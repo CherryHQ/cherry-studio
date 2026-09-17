@@ -261,6 +261,43 @@ describe('FollowupQueueService', () => {
         ErrorCode.VALIDATION_ERROR
       )
     })
+
+    it('should refuse reorders while a live send holds a claim', () => {
+      const first = enqueueIn(SCOPE_A, 'a')
+      const second = enqueueIn(SCOPE_A, 'b')
+      expect(followupQueueService.claim(first.id)).toEqual({ claimed: true })
+
+      // Moving rows under a live send could expose a pending row that another
+      // window's auto-drain claims and sends concurrently with the live owner.
+      expectErrorCode(
+        () => followupQueueService.reorderBatch([{ id: second.id, anchor: { position: 'first' } }]),
+        ErrorCode.CONFLICT
+      )
+      expectErrorCode(() => followupQueueService.reorder(second.id, { after: first.id }), ErrorCode.CONFLICT)
+
+      expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.id)).toEqual([first.id, second.id])
+    })
+
+    it('should allow reorders around stale sending orphans', async () => {
+      const staleId = '11111111-1111-7111-8111-111111111111'
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: staleId,
+          scopeKey: SCOPE_A,
+          draft: draft('stale'),
+          payload: payload('stale'),
+          status: 'sending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: Date.now() - 31 * 60 * 1000
+        }
+      ])
+      const pending = enqueueIn(SCOPE_A, 'pending')
+
+      followupQueueService.reorderBatch([{ id: pending.id, anchor: { position: 'first' } }])
+
+      expect(followupQueueService.listByScope(SCOPE_A).map((item) => item.id)).toEqual([pending.id, staleId])
+    })
   })
 
   describe('paused state', () => {
@@ -291,7 +328,7 @@ describe('FollowupQueueService', () => {
   })
 
   describe('conversation delete cascade', () => {
-    it('should drop queue rows and paused state when the topic is deleted', async () => {
+    it('should drop queue rows and paused state when the topic is permanently deleted', async () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 'topic-a', name: 'Topic', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
@@ -300,7 +337,10 @@ describe('FollowupQueueService', () => {
       followupQueueService.setPaused('topic-a:assistant-1', true)
       enqueueIn(SCOPE_B, 'b')
 
+      // Trashing keeps the queue (restorable); only the permanent delete purges.
       topicService.delete('topic-a')
+      expect(followupQueueService.listByScope('topic-a:assistant-1')).toHaveLength(1)
+      topicService.delete('topic-a', { permanent: true })
 
       expect(followupQueueService.listByScope('topic-a:assistant-1')).toEqual([])
       expect(await dbh.db.select().from(followupQueueStateTable)).toHaveLength(0)

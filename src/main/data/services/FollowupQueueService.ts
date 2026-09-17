@@ -19,7 +19,7 @@
  * `purgeForScopePrefixTx` — there is no FK by design.
  */
 
-import { and, asc, eq, inArray, like, lt, or } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, like, lt, or } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -29,7 +29,7 @@ import {
   followupQueueStateTable,
   followupQueueTable
 } from '@data/db/schemas/followupQueue'
-import type { DbType } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -67,6 +67,32 @@ function rowToState(row: FollowupQueueStateRow): FollowupQueueState {
     paused: row.paused,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
+  }
+}
+
+/**
+ * Shared live-send barrier for reorders. While a row in the scope holds a
+ * fresh `sending` claim, no window may reorder: moving rows under a live send
+ * could expose a pending row that another window's auto-drain claims and sends
+ * concurrently with the live owner. Stale `sending` rows are crash orphans
+ * (reclaimable by any claim), so reorders around them stay allowed.
+ */
+function throwIfLiveClaimInScopeTx(tx: DbOrTx, scopeKey: string): void {
+  const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
+  const [live] = tx
+    .select({ id: followupQueueTable.id })
+    .from(followupQueueTable)
+    .where(
+      and(
+        eq(followupQueueTable.scopeKey, scopeKey),
+        eq(followupQueueTable.status, 'sending'),
+        gte(followupQueueTable.updatedAt, cutoff)
+      )
+    )
+    .limit(1)
+    .all()
+  if (live) {
+    throw DataApiErrorFactory.conflict('Followup queue reorder conflicts with an in-flight send', 'FollowupQueue')
   }
 }
 
@@ -154,11 +180,20 @@ export class FollowupQueueService {
 
   /**
    * Move a single item relative to an anchor. Scope is inferred from the
-   * target row — callers do not pass scope.
+   * target row — callers do not pass scope. Refused while a live send holds a
+   * claim in the scope (see `throwIfLiveClaimInScopeTx`).
    */
   reorder(id: string, anchor: OrderRequest): void {
     const dbService = application.get('DbService')
     const { item, scopeKey } = dbService.withWriteTx((tx) => {
+      const [target] = tx
+        .select({ scopeKey: followupQueueTable.scopeKey })
+        .from(followupQueueTable)
+        .where(eq(followupQueueTable.id, id))
+        .limit(1)
+        .all()
+      if (!target) throw DataApiErrorFactory.notFound('FollowupQueue', id)
+      throwIfLiveClaimInScopeTx(tx, target.scopeKey)
       applyScopedMoves(tx, followupQueueTable, [{ id, anchor }], {
         pkColumn: followupQueueTable.id,
         scopeColumn: followupQueueTable.scopeKey
@@ -170,12 +205,23 @@ export class FollowupQueueService {
     notifyQueueChange('order', scopeKey, [item.id])
   }
 
-  /** Apply a batch of moves atomically (single scope enforced). */
+  /**
+   * Apply a batch of moves atomically (single scope enforced). Refused while a
+   * live send holds a claim in the scope (see `throwIfLiveClaimInScopeTx`).
+   */
   reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
     const dbService = application.get('DbService')
     const ids = [...new Set(moves.map((move) => move.id))]
     const { scopeKey } = dbService.withWriteTx((tx) => {
+      const [target] = tx
+        .select({ scopeKey: followupQueueTable.scopeKey })
+        .from(followupQueueTable)
+        .where(eq(followupQueueTable.id, ids[0]))
+        .limit(1)
+        .all()
+      if (!target) throw DataApiErrorFactory.notFound('FollowupQueue', ids[0])
+      throwIfLiveClaimInScopeTx(tx, target.scopeKey)
       applyScopedMoves(tx, followupQueueTable, moves, {
         pkColumn: followupQueueTable.id,
         scopeColumn: followupQueueTable.scopeKey
