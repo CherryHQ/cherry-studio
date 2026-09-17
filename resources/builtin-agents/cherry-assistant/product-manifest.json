@@ -462,8 +462,8 @@
     }
   ],
   "providers": {
-    "version": "e47c80cffa19d83b",
-    "count": 62,
+    "version": "26c644d4b271adca",
+    "count": 63,
     "entries": [
       {
         "id": "cherryin",
@@ -544,6 +544,10 @@
       {
         "id": "radeon-cloud",
         "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "aimlapi",
+        "name": "AI/ML API"
       },
       {
         "id": "tokendance",
