@@ -109,7 +109,7 @@ it('locates a saved HTML line by visible text instead of the proportional estima
   const lines = saved.split('\n')
   const lineIndex = lines.findIndex((line) => line.includes('注意'))
   editor.commands.setContent(saved, { contentType: 'markdown' })
-  expect(findElementByLine(editor, lineIndex + 1, lines[lineIndex], lines.length)).toBe(editor.view.dom.children[1])
+  expect(findElementByLine(editor, lineIndex + 1, lines[lineIndex])).toBe(editor.view.dom.children[1])
 })
 
 it('respects an extension that already serializes its mark as HTML', () => {

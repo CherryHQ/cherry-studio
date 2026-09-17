@@ -3,7 +3,7 @@ import { Editor } from '@tiptap/core'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { createRichEditorExtensions } from '../createExtensions'
-import { findElementByLine, normalizeMarkdownLine } from '../helpers/jumpToLine'
+import { findElementByLine } from '../helpers/jumpToLine'
 
 // Build a real editor from the SAME extension factory production uses, so the test schema can never
 // silently drift from production (the drift that previously let GFM-table serialization break).
@@ -238,32 +238,53 @@ describe('plain-text clipboard serialization', () => {
 })
 
 describe('jump-to-line resolver', () => {
-  it.each([
-    ['## A heading', 'A heading'],
-    ['> a quote', 'a quote'],
-    ['- [ ] a task', 'a task'],
-    ['1. an item', 'an item'],
-    ['text with **bold** and `code`', 'text with bold and code'],
-    ['see [the docs](https://x.com)', 'see the docs'],
-    ['<span><strong>注意：</strong>检查 &amp; **原文**</span>', '注意：检查 & **原文**'],
-    [String.raw`literal a_b and \*\*stars\*\*`, 'literal a_b and **stars**']
-  ])('matches visible text in %s', (source, visible) => {
-    expect(normalizeMarkdownLine(source, make(''))).toBe(visible)
-  })
-
-  it('resolves a heading by its visible text', () => {
+  it('resolves a heading by its source line', () => {
     const instance = make('First paragraph\n\n## Second paragraph\n\nThird paragraph')
-    expect(findElementByLine(instance, 3, '## Second paragraph', 5)).toBe(instance.view.dom.children[1])
+    expect(findElementByLine(instance, 3, '## Second paragraph')).toBe(instance.view.dom.children[1])
   })
 
   it('disambiguates duplicate text by the line position', () => {
     const instance = make('intro\n\nrepeat\n\nmiddle\n\nrepeat\n\nend')
-    expect(findElementByLine(instance, 8, 'repeat', 10)).toBe(instance.view.dom.children[3])
-    expect(findElementByLine(instance, 2, 'repeat', 10)).toBe(instance.view.dom.children[1])
+    expect(findElementByLine(instance, 7, 'repeat')).toBe(instance.view.dom.children[3])
+    expect(findElementByLine(instance, 3, 'repeat')).toBe(instance.view.dom.children[1])
   })
 
-  it('falls back to a proportional block for source with no visible text', () => {
+  it('locates a block by line number without a content hint', () => {
     const instance = make('a\n\nb\n\nc\n\nd')
-    expect(findElementByLine(instance, 10, '---', 20)).toBe(instance.view.dom.children[1])
+    expect(findElementByLine(instance, 3)).toBe(instance.view.dom.children[1])
+  })
+})
+
+describe('source block navigation', () => {
+  const suffix = '\n\n```text\n' + Array.from({ length: 24 }, (_, index) => String(index)).join('\n') + '\n```'
+
+  it.each([
+    { block: '| 标题 |\n| --- |\n| 唯一目标 |', hit: '| 唯一目标 |', nodeType: 'table' },
+    { block: '| 标题 |\n| --- |\n| 唯一目标 |', hit: '| 标题 |', nodeType: 'table' },
+    { block: '| 标题 |\n| --- |\n| 唯一目标 |', hit: '| --- |', nodeType: 'table' },
+    { block: '| A | B |\n| --- | --- |\n| `a\\|b` | **目标** |', hit: '| `a\\|b` | **目标** |', nodeType: 'table' },
+    { block: '```text\n**原文**\n| 非表格 |\n```', hit: '**原文**', nodeType: 'codeBlock' },
+    { block: '> - 第一项\n>   - **嵌套目标**', hit: '>   - **嵌套目标**', nodeType: 'blockquote' },
+    {
+      block: '<span><strong>注意：</strong>目标 &amp; **原文**</span>',
+      hit: '<span><strong>注意：</strong>目标 &amp; **原文**</span>',
+      nodeType: 'paragraph'
+    }
+  ])('locates $hit in its $nodeType block', ({ block, hit, nodeType }) => {
+    const source = `前言\n\n${block}${suffix}`
+    const instance = make(source)
+    const lines = source.split('\n')
+    const lineNumber = lines.indexOf(hit) + 1
+    const targetNode = instance.state.doc.child(1)
+    expect(targetNode.type.name).toBe(nodeType)
+    const targetDom = instance.view.nodeDOM(instance.state.doc.child(0).nodeSize)
+    expect(findElementByLine(instance, lineNumber, hit)).toBe(targetDom)
+    expect(findElementByLine(instance, lineNumber)).toBe(targetDom)
+  })
+
+  it('distinguishes identical lines in a paragraph and a code block by source position', () => {
+    const source = '重复目标\n\n```text\n重复目标\n```' + suffix
+    const instance = make(source)
+    expect(findElementByLine(instance, 4, '重复目标')).toBe(instance.view.nodeDOM(instance.state.doc.child(0).nodeSize))
   })
 })
