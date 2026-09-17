@@ -214,4 +214,23 @@ describe('resolveAutoCompactWindow', () => {
       } as never)
     ).toBe(119_168)
   })
+
+  // A model materializing to another dialect on a preset-Anthropic provider is
+  // untrusted when that endpoint has no configuration: the absent entry proves
+  // nothing about where the traffic goes.
+  it('distrusts a preset-Anthropic model served through an unconfigured non-Anthropic endpoint', () => {
+    const provider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    expect(
+      resolveAutoCompactWindow(256_000, 32_000, provider, { endpointTypes: ['openai-chat-completions'] } as never)
+    ).toBe(119_168)
+    // ...while a model reaching the official endpoint on the same provider
+    // keeps the full budget.
+    expect(
+      resolveAutoCompactWindow(256_000, 32_000, provider, { endpointTypes: ['anthropic-messages'] } as never)
+    ).toBe(219_520)
+  })
 })
