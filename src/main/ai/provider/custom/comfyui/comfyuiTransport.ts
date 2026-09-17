@@ -7,7 +7,13 @@ import type {
   ImageGenerationTransport,
   ImageTransportDescriptor
 } from '../imageGenerationModel'
-import { convertUiWorkflowToPrompt, findPromptTarget, type ApiPromptNode, type ObjectInfo } from './uiToApiPrompt'
+import {
+  convertUiWorkflowToPrompt,
+  findPromptTarget,
+  isReference,
+  type ApiPromptNode,
+  type ObjectInfo
+} from './uiToApiPrompt'
 
 /**
  * ComfyUI transport: list the user's saved workflows, expand one into a prompt,
@@ -177,8 +183,34 @@ class ComfyuiTransport implements ImageGenerationTransport {
     throw new Error(`ComfyUI did not finish within ${POLL_TIMEOUT_MS / 1000}s`)
   }
 
-  async cancel(): Promise<void> {
-    await this.doFetch(`${this.baseURL}/interrupt`, { method: 'POST', headers: this.headers }).catch(() => undefined)
+  /**
+   * Cancel one generation. `/interrupt` stops whatever prompt the server is
+   * currently executing, so consult the queue first: a running id is
+   * interrupted, a queued one is deleted from the queue, a finished one
+   * matches neither and needs no request.
+   */
+  async cancel(taskId: string): Promise<void> {
+    try {
+      const queue = await fetchJson<{ queue_running?: unknown[][]; queue_pending?: unknown[][] }>(
+        `${this.baseURL}/queue`,
+        undefined,
+        { headers: this.headers, fetch: this.doFetch }
+      )
+      const running = queue.queue_running?.some((item) => item[0] === taskId) ?? false
+      const queued = queue.queue_pending?.some((item) => item[0] === taskId) ?? false
+      if (running) {
+        await this.doFetch(`${this.baseURL}/interrupt`, { method: 'POST', headers: this.headers })
+      } else if (queued) {
+        await this.doFetch(`${this.baseURL}/queue`, {
+          method: 'POST',
+          headers: { ...this.headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ delete: [taskId] })
+        })
+      }
+    } catch {
+      // Best effort: leave the generation running rather than interrupting
+      // a prompt that may belong to someone else.
+    }
   }
 
   /** The AI SDK downloads returned URLs itself, so hand back inline data. */
@@ -224,22 +256,45 @@ export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | u
   const value = Math.trunc(seed)
   const sampler = samplerId ? graph[samplerId] : undefined
   if (sampler) {
-    const key = 'seed' in sampler.inputs ? 'seed' : 'noise_seed' in sampler.inputs ? 'noise_seed' : undefined
+    const key = seedInputKey(sampler.inputs)
     if (key) {
-      sampler.inputs[key] = value
+      writeSeed(graph, sampler.inputs, key, value)
       return
     }
   }
   for (const node of Object.values(graph)) {
-    if ('seed' in node.inputs) {
-      node.inputs.seed = value
-      return
-    }
-    if ('noise_seed' in node.inputs) {
-      node.inputs.noise_seed = value
+    const key = seedInputKey(node.inputs)
+    if (key) {
+      writeSeed(graph, node.inputs, key, value)
       return
     }
   }
+}
+
+const seedInputKey = (inputs: Record<string, unknown>): 'seed' | 'noise_seed' | undefined =>
+  'seed' in inputs ? 'seed' : 'noise_seed' in inputs ? 'noise_seed' : undefined
+
+/**
+ * Write the seed into `inputs[key]`. A linked seed input is rewritten at its
+ * source node — the node the sampler pulls the seed from usually holds the
+ * pinning widget — so the connection is kept, not severed.
+ */
+function writeSeed(
+  graph: Record<string, ApiPromptNode>,
+  inputs: Record<string, unknown>,
+  key: 'seed' | 'noise_seed',
+  value: number
+): void {
+  const current = inputs[key]
+  if (isReference(current)) {
+    const source = graph[current[0]]
+    const sourceKey = source ? seedInputKey(source.inputs) : undefined
+    if (sourceKey) {
+      source.inputs[sourceKey] = value
+      return
+    }
+  }
+  inputs[key] = value
 }
 
 export function createComfyuiTransport(settings: ComfyuiTransportSettings): ComfyuiTransport {

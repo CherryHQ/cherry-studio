@@ -25,8 +25,8 @@ export interface UiNode {
   type: string
   mode?: number
   title?: string
-  inputs?: Array<{ name: string; link?: number | null; widget?: { name: string } }>
-  outputs?: Array<{ name: string; links?: number[] | null }>
+  inputs?: Array<{ name: string; type?: string; link?: number | null; widget?: { name: string } }>
+  outputs?: Array<{ name: string; type?: string; links?: number[] | null }>
   widgets_values?: unknown[] | JsonObject
 }
 
@@ -73,7 +73,7 @@ export interface ConversionResult {
 const WIDGET_TYPES = new Set(['INT', 'FLOAT', 'STRING', 'BOOLEAN'])
 const CONTROL_VALUES = new Set(['fixed', 'increment', 'decrement', 'randomize'])
 
-type Reference = [string, number]
+export type Reference = [string, number]
 
 /** Backend widget inputs for a node class, in declaration order. */
 function widgetInputNames(info: ObjectInfo[string], includeAdvanced = false): string[] {
@@ -93,8 +93,39 @@ function widgetInputNames(info: ObjectInfo[string], includeAdvanced = false): st
   return names
 }
 
-const isReference = (value: unknown): value is Reference =>
+export const isReference = (value: unknown): value is Reference =>
   Array.isArray(value) && value.length === 2 && typeof value[0] === 'string'
+
+/**
+ * The ComfyUI frontend's `isValidConnection`: a wildcard or empty type matches
+ * anything, comma-separated unions match on any member, otherwise it is a
+ * case-insensitive exact type match.
+ */
+function isValidConnection(typeA?: string, typeB?: string): boolean {
+  const a = (typeA ?? '').toLowerCase()
+  const b = (typeB ?? '').toLowerCase()
+  if (a === '' || a === '*' || b === '' || b === '*') return true
+  if (!a.includes(',') && !b.includes(',')) return a === b
+  return a.split(',').some((x) => b.split(',').some((y) => isValidConnection(x, y)))
+}
+
+/**
+ * Which of the bypass node's inputs feeds output `slot`, mirroring the
+ * frontend's `_getBypassSlotIndex`: the same-numbered input while the
+ * positional types are compatible, else the first exact then compatible
+ * type match. Returns -1 when no input can produce the output's type.
+ */
+function bypassInputSlot(node: UiNode, slot: number): number {
+  const inputs = node.inputs ?? []
+  const outputType = node.outputs?.[slot]?.type
+  if (outputType == null) return slot
+  if (outputType === '*' || outputType === '') return inputs.length > slot ? slot : 0
+  const opposite = inputs[slot]
+  if (opposite && isValidConnection(opposite.type, outputType)) return slot
+  const exact = inputs.findIndex((input) => input.type === outputType)
+  if (exact !== -1) return exact
+  return inputs.findIndex((input) => isValidConnection(input.type, outputType))
+}
 
 /**
  * In the API format an array is reserved for node connections (`[nodeId, slot]`),
@@ -179,8 +210,9 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
 
   /**
    * A node the prompt cannot contain (bypassed, or a frontend-only class) can
-   * still feed consumers: the frontend passes output slot i through to input
-   * slot i, so alias the output to that input's resolved link.
+   * still feed consumers: the frontend passes each output through to the input
+   * that can produce its type (see `bypassInputSlot`), so alias the output to
+   * that input's resolved link.
    */
   function passThrough(
     node: UiNode,
@@ -190,10 +222,10 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     bindings: Map<number, Map<number, unknown>>
   ) {
     const id = remap.get(node.id)!
-    const inputs = node.inputs ?? []
     const alias: Record<number, unknown> = {}
     ;(node.outputs ?? []).forEach((output, slot) => {
-      const link = inputs[slot]?.link
+      const inputSlot = bypassInputSlot(node, slot)
+      const link = inputSlot >= 0 ? node.inputs?.[inputSlot]?.link : undefined
       if (link != null) {
         const ref = resolveLink(link, links, remap, bindings)
         if (ref !== undefined) {
@@ -354,6 +386,9 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
   return { prompt, warnings }
 }
 
+/** Input names that can carry the prompt; the SDXL text encodes split theirs. */
+const PROMPT_INPUT_NAMES = new Set(['text', 'prompt', 'text_g', 'text_l'])
+
 /**
  * The node that should receive the user's prompt. A positive and a negative
  * conditioning node both hold a `text` input, so pick the one the sampler
@@ -378,7 +413,7 @@ export function findPromptTarget(
       const target = prompt[nodeId]
       if (!target) continue
       const entry = Object.entries(target.inputs).find(
-        ([name, value]) => typeof value === 'string' && (name === 'text' || name === 'prompt')
+        ([name, value]) => typeof value === 'string' && PROMPT_INPUT_NAMES.has(name)
       )
       if (entry) return { nodeId, input: entry[0], samplerId }
       for (const value of Object.values(target.inputs)) {

@@ -269,6 +269,44 @@ describe('convertUiWorkflowToPrompt', () => {
     expect(save.inputs.images).toEqual([producer, 0])
   })
 
+  it('rewires past a bypassed node through the type-compatible input when slots differ', () => {
+    const { prompt, warnings } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          { id: 1, type: 'EmptyLatentImage', widgets_values: [512, 512, 1] },
+          {
+            id: 2,
+            type: 'ImageScale',
+            mode: 4,
+            // Slot 0 is IMAGE while the output is LATENT — the frontend passes
+            // the output through the type-compatible slot 1, not positionally.
+            inputs: [
+              { name: 'image', type: 'IMAGE', link: null },
+              { name: 'latent_image', type: 'LATENT', link: 7 }
+            ],
+            widgets_values: ['lanczos'],
+            outputs: [{ name: 'LATENT', type: 'LATENT', links: [8] }]
+          },
+          {
+            id: 3,
+            type: 'VAEDecode',
+            inputs: [
+              { name: 'samples', type: 'LATENT', link: 8 },
+              { name: 'vae', type: 'VAE', link: null }
+            ]
+          }
+        ],
+        links: [link(7, 1, 0, 2, 1), link(8, 2, 0, 3, 0)]
+      },
+      objectInfo
+    )
+
+    const producer = Object.entries(prompt).find(([, n]) => n.class_type === 'EmptyLatentImage')![0]
+    const decode = Object.values(prompt).find((n) => n.class_type === 'VAEDecode')!
+    expect(decode.inputs.samples).toEqual([producer, 0])
+    expect(warnings).toEqual([])
+  })
+
   it('omits a muted node entirely', () => {
     const { prompt } = convertUiWorkflowToPrompt(
       {
@@ -403,5 +441,19 @@ describe('findPromptTarget', () => {
     expect(
       findPromptTarget({ '1': { class_type: 'SaveImage', inputs: { images: ['2', 0] }, _meta: { title: 'x' } } })
     ).toBeUndefined()
+  })
+
+  it('recognizes the SDXL text encodes as prompt targets', () => {
+    const target = findPromptTarget({
+      '1': { class_type: 'CLIPTextEncodeSDXL', inputs: { text_g: '', text_l: 'kept' }, _meta: { title: 'pos' } },
+      '2': { class_type: 'CLIPTextEncode', inputs: { text: 'blurry' }, _meta: { title: 'neg' } },
+      '3': {
+        class_type: 'KSampler',
+        inputs: { positive: ['1', 0], negative: ['2', 0] },
+        _meta: { title: 'KSampler' }
+      }
+    })
+
+    expect(target).toEqual({ nodeId: '1', input: 'text_g', samplerId: '3' })
   })
 })

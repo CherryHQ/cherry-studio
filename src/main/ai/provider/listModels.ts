@@ -37,6 +37,7 @@ import {
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
+import { customFetch } from '../utils/customFetch'
 import { defaultHeaders, getBaseUrl, getExtraHeaders, getProviderAppHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { listWorkflows } from './custom/comfyui/comfyuiTransport'
@@ -445,10 +446,11 @@ const comfyuiFetcher: ModelFetcher = {
   fetch: async (provider, signal) => {
     // ComfyUI has no model catalogue: its server serves whatever graphs it can
     // execute, so the user's saved workflows are the pickable units. The same
-    // headers the transport uses, so a preset-derived instance behaves like the
-    // canonical one.
+    // headers and proxy-aware fetch the transport uses, so a preset-derived
+    // instance behaves like the canonical one.
     const workflows = await listWorkflows(withoutTrailingSlash(getBaseUrl(provider)), signal, {
-      headers: { ...getProviderAppHeaders(provider), ...getExtraHeaders(provider) }
+      headers: { ...getProviderAppHeaders(provider), ...getExtraHeaders(provider) },
+      fetch: customFetch
     })
     return workflows.map((name) =>
       toModel(name, provider, {

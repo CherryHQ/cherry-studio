@@ -94,6 +94,47 @@ describe('listWorkflows', () => {
   })
 })
 
+describe('cancel', () => {
+  const transportWithQueue = () => {
+    const postBodies: unknown[] = []
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/queue')) {
+        if (init?.method === 'POST') postBodies.push(init.body)
+        return respond({ queue_running: [['running-id']], queue_pending: [['queued-id']] })
+      }
+      return new Response('', { status: 200 })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+    return { transport, doFetch, postBodies }
+  }
+
+  it('interrupts only the generation that is running', async () => {
+    const { transport, doFetch } = transportWithQueue()
+
+    await transport.cancel('running-id')
+
+    const urls = doFetch.mock.calls.map(([input]) => String(input))
+    expect(urls).toContain('http://localhost:8188/interrupt')
+  })
+
+  it('deletes a queued generation instead of interrupting', async () => {
+    const { transport, doFetch, postBodies } = transportWithQueue()
+
+    await transport.cancel('queued-id')
+
+    expect(doFetch.mock.calls.map(([input]) => String(input))).not.toContain('http://localhost:8188/interrupt')
+    expect(JSON.parse(postBodies[0] as string)).toEqual({ delete: ['queued-id'] })
+  })
+
+  it('does nothing for a finished generation', async () => {
+    const { transport, doFetch } = transportWithQueue()
+
+    await transport.cancel('gone-id')
+
+    expect(doFetch.mock.calls.map(([input]) => String(input))).toEqual(['http://localhost:8188/queue'])
+  })
+})
+
 describe('applySeed', () => {
   it('writes noise_seed for advanced samplers', () => {
     const graph: Record<string, ApiPromptNode> = {
@@ -124,5 +165,17 @@ describe('applySeed', () => {
     applySeed(graph, 42)
 
     expect(graph['1'].inputs.noise_seed).toBe(42)
+  })
+
+  it('writes a linked seed at its source node instead of severing the link', () => {
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'Seed', inputs: { seed: 7 }, _meta: { title: 'source' } },
+      '2': { class_type: 'KSampler', inputs: { seed: ['1', 0] }, _meta: { title: 'sampler' } }
+    }
+
+    applySeed(graph, 42, '2')
+
+    expect(graph['2'].inputs.seed).toEqual(['1', 0])
+    expect(graph['1'].inputs.seed).toBe(42)
   })
 })
