@@ -407,4 +407,50 @@ describe('IpcChatTransport', () => {
     const third = await reader.read()
     expect(third.done).toBe(true)
   })
+
+  it('reconnectToStream keeps live chunks broadcast during the attach round-trip', async () => {
+    // Main registers our sender the moment it processes the attach; a chunk
+    // broadcast before our stream listeners exist must still reach the reader.
+    const replay = [
+      { topicId, chunk: { type: 'text-start', id: 't' } },
+      { topicId, chunk: { type: 'text-delta', id: 't', delta: 'before' } }
+    ]
+    mock.mockApi.streamAttach.mockImplementation(async () => {
+      mock.emitChunk(topicId, { type: 'text-delta', id: 't', delta: 'during-attach' })
+      return { status: 'attached', bufferedChunks: replay }
+    })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    const chunks: UIMessageChunk[] = []
+    mock.emitDone(topicId, undefined, true)
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+    expect(chunks).toEqual([
+      { type: 'text-start', id: 't' },
+      { type: 'text-delta', id: 't', delta: 'before' },
+      { type: 'text-delta', id: 't', delta: 'during-attach' }
+    ])
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
+  })
+
+  it('reconnectToStream settles when done arrives during the attach round-trip', async () => {
+    const replay = [{ topicId, chunk: { type: 'text-start', id: 't' } }]
+    mock.mockApi.streamAttach.mockImplementation(async () => {
+      mock.emitDone(topicId, undefined, true)
+      return { status: 'attached', bufferedChunks: replay }
+    })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    const first = await reader.read()
+    expect(first.done).toBe(false)
+    expect(first.value).toEqual({ type: 'text-start', id: 't' })
+    const second = await reader.read()
+    expect(second.done).toBe(true)
+  })
 })

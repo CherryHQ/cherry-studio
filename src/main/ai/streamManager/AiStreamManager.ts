@@ -1313,16 +1313,9 @@ export class AiStreamManager extends BaseService {
       exec.runtimeTiming.finishApproval({ toolCallId: chunk.toolCallId })
     }
     // Open tool inputs pin their `tool-input-start` against ring eviction until
-    // terminal output arrives; `tool-input-available` alone must not release it.
+    // terminal output is buffered; `tool-input-available` alone must not release it.
     if (chunk.type === 'tool-input-start') {
       ;(exec.openToolInputIds ??= new Set()).add(chunk.toolCallId)
-    } else if (
-      chunk.type === 'tool-input-error' ||
-      chunk.type === 'tool-output-available' ||
-      chunk.type === 'tool-output-error' ||
-      chunk.type === 'tool-output-denied'
-    ) {
-      exec.openToolInputIds?.delete(chunk.toolCallId)
     }
     // Broadcast payloads and consumers only care about "any pending?", so only
     // the empty↔non-empty flip warrants a rebroadcast — size changes within
@@ -1376,6 +1369,16 @@ export class AiStreamManager extends BaseService {
         }
         exec.buffer.push(segment)
       }
+    }
+    // Released after buffering: evicting the opener to make room for its own
+    // terminal output would orphan that output in attach replay.
+    if (
+      chunk.type === 'tool-input-error' ||
+      chunk.type === 'tool-output-available' ||
+      chunk.type === 'tool-output-error' ||
+      chunk.type === 'tool-output-denied'
+    ) {
+      exec.openToolInputIds?.delete(chunk.toolCallId)
     }
     // Keeps stripped outputs resolvable until the message lands in SQLite. Bounded; an evicted
     // entry just falls through to the persisted copy.

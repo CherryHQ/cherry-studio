@@ -2220,6 +2220,39 @@ describe('AiStreamManager', () => {
       expect(ringMgr.inspect('a')!.executions[0].openToolInputCount).toBe(0)
     })
 
+    it('keeps the tool opener pinned while buffering its own terminal output', () => {
+      // Releasing the pin before the terminal output enters the ring lets
+      // eviction drop the opener to make room for the output, orphaning it in
+      // attach replay and terminating the resumed stream in `readUIMessageStream`.
+      const ringMgr = createManager({ maxBufferChunks: 2 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'tc1',
+        toolName: 'search'
+      })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'tc1',
+        output: { ok: true }
+      })
+      expect(ringMgr.inspect('a')!.executions[0].openToolInputCount).toBe(0)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.some(({ chunk }) => chunk.type === 'tool-input-start')).toBe(true)
+      expect(response.bufferedChunks.some(({ chunk }) => chunk.type === 'tool-output-available')).toBe(true)
+    })
+
     it('replays a post-eviction buffer that the real readUIMessageStream accepts', async () => {
       // Regression for "replay has gaps due to buffer overflow": when the ring
       // evicts a part's opening chunk, the attach replay must still parse
