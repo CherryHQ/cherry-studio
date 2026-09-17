@@ -883,6 +883,7 @@
     {
       "authOptional": true,
       "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-image-generation",
       "description": "ComfyUI - AI model provider",
       "endpointConfigs": {
         "openai-image-generation": {
@@ -2621,5 +2622,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "d05e05a898f7b66d"
+  "version": "4cc9e1dfb5650906"
 }
