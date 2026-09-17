@@ -132,8 +132,10 @@ export interface AiStreamRequest extends AiChatRequest {
   /**
    * Terminal policy for turns that complete with no renderable content.
    * Agent-owned streams set this: their status panes consume non-message
-   * terminal parts, so an empty turn is a legitimate outcome there. Ordinary
-   * chat leaves it unset and such turns become a `NoResponseError`.
+   * terminal parts, so an empty turn is a legitimate outcome there. The API
+   * gateway sets this too: its external clients own caller-defined tool
+   * namespaces the Cherry renderer has no card for. Ordinary chat leaves it
+   * unset and such turns become a `NoResponseError`.
    */
   allowEmptySuccess?: boolean
   /**

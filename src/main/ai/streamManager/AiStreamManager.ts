@@ -903,6 +903,11 @@ export class AiStreamManager extends BaseService {
     callOverrides?: CallOverrides
     /** Which layer owns history shaping; omitted means Cherry-managed. */
     contextOwner?: ContextOwner
+    /**
+     * Terminal policy for turns with no renderable content. The API gateway
+     * sets this: its external clients own caller-defined tool namespaces.
+     */
+    allowEmptySuccess?: boolean
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
     /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
@@ -931,6 +936,7 @@ export class AiStreamManager extends BaseService {
       messages,
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,
+      allowEmptySuccess: input.allowEmptySuccess,
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
