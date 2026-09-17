@@ -1,4 +1,4 @@
-import { Activity, GitBranch } from 'lucide-react'
+import { Activity, GitBranch, Globe } from 'lucide-react'
 import type { Dispatch, PropsWithChildren, ReactNode, SetStateAction } from 'react'
 import {
   Activity as ReactActivity,
@@ -28,10 +28,15 @@ import {
   RightPanelProvider,
   RightPanelShortcut,
   RightPanelViewport,
+  useRightPanelActions,
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import { SessionBrowserView } from '@renderer/components/SessionBrowserView'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useIpcOn } from '@renderer/ipc'
+import { topicBrowserRuntimeService as browserRuntime } from '@renderer/services/AgentBrowserRuntimeService'
+import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 const TopicBranchPanel = lazy(() => import('./TopicBranchPanel'))
 
@@ -52,6 +57,7 @@ interface TopicRightPaneViewportCallbacks {
 }
 
 interface TopicRightPanelScope extends TopicRightPaneMeta {
+  browserTitle: string
   branchTitle: string
   developerMode: boolean
   resourcePane: ResourcePaneConfig | null
@@ -197,6 +203,28 @@ function TopicBranchPortalContent({ target }: { target: TopicBranchTarget }) {
   )
 }
 
+function TopicBrowserRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  if (!scope.topicId) return null
+  return (
+    <SessionBrowserView
+      runtime={browserRuntime}
+      sessionId={scope.topicId}
+      securityProfile={WebviewSecurityProfile.AgentBrowser}
+      isHostActive={active}
+      target={{ id: `topic-browser:${scope.topicId}`, label: scope.browserTitle }}
+      onNavigate={(url) => browserRuntime.ensure(scope.topicId!, url)}
+    />
+  )
+}
+
+function TopicBrowserPaneOpener({ topicId }: { topicId?: string }) {
+  const actions = useRightPanelActions()
+  useIpcOn('browser.pane.open_requested', ({ sessionId, scope }) => {
+    if (scope === 'topic' && sessionId === topicId) actions.tryOpen('browser')
+  })
+  return null
+}
+
 function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
   if (!active) return null
   return (
@@ -229,6 +257,16 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       headerMode: 'content',
       readiness: scope.topicId ? 'ready' : 'unavailable',
       maximizedOnly: true
+    })
+  },
+  {
+    component: TopicBrowserRightPanel,
+    resolve: (scope) => ({
+      id: 'browser',
+      instanceKey: `browser:${scope.topicId ?? 'unavailable'}`,
+      title: scope.browserTitle,
+      readiness: scope.topicId ? 'ready' : 'unavailable',
+      canMaximize: true
     })
   },
   TOPIC_TRACE_PANE_CAPABILITY
@@ -268,6 +306,7 @@ function TopicRightPaneProvider({
       traceId,
       resourcePane: resourcePane ?? null,
       developerMode: enableDeveloperMode,
+      browserTitle: t('settings.browser.title'),
       branchTitle: topicName || t('chat.default.topic.name'),
       traceTitle: t('trace.label')
     }),
@@ -283,6 +322,7 @@ function TopicRightPaneProvider({
       onOpenChange={onOpenChange}
       userOpenIntentSeq={userOpenIntentSeq}
       present={present}>
+      <TopicBrowserPaneOpener topicId={topicId} />
       <ResourcePaneLocateOpener revealRequest={revealRequest} />
       <TopicBranchLiveStateStoreContext value={storeRef.current}>
         <TopicBranchTargetContext value={targetContext}>{children}</TopicBranchTargetContext>
@@ -304,11 +344,15 @@ function TopicRightPaneViewport({ branchHeader, onLocateMessage }: TopicRightPan
   )
 }
 
-function TopicRightPaneShortcuts() {
+function TopicRightPaneShortcuts({ browserEnabled = true }: { browserEnabled?: boolean }) {
   const { t } = useTranslation()
+  const [browserControlEnabled] = usePreference('app.browser.agent_control.enabled')
 
   return (
     <>
+      {browserEnabled && browserControlEnabled && (
+        <RightPanelShortcut tab="browser" label={t('settings.browser.title')} icon={<Globe className="size-3.5" />} />
+      )}
       <RightPanelShortcut tab="branch" label={t('chat.message.flow.title')} icon={<GitBranch className="size-3.5" />} />
       <RightPanelShortcut tab={TRACE_PANE_ID} label={t('trace.label')} icon={<Activity className="size-3.5" />} />
     </>

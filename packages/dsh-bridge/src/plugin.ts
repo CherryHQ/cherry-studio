@@ -398,6 +398,7 @@ export function apply(ctx: Context): void {
     if (!agent.session.header.cwd) {
       return { kind: 'deny' as const, reason: 'The tool caller has no verified workspace directory.' }
     }
+    let browserApproval: { kind: 'ask'; reason: string } | undefined
     try {
       const guard = await link.request(
         'guard/check',
@@ -410,6 +411,7 @@ export function apply(ctx: Context): void {
         exec.signal
       )
       if (guard.kind === 'deny') return guard
+      if (guard.kind === 'ask') browserApproval = guard
     } catch {
       return {
         kind: 'deny' as const,
@@ -427,9 +429,10 @@ export function apply(ctx: Context): void {
         reason: `no bridge policy is reachable for delegated agent "${agent.id}"`
       }
     }
-    return delegated
+    const decision = await (delegated
       ? decideDelegatedToolCall(policy, exec.name, exec.arguments)
-      : decideToolCall(policy, exec.name, exec.arguments)
+      : decideToolCall(policy, exec.name, exec.arguments))
+    return decision.kind === 'deny' ? decision : (browserApproval ?? decision)
   })
 
   // Hard guard, active in every mode (bypass included) and immune to later listeners.

@@ -165,6 +165,7 @@ const Chat: FC<Props> = (props) => {
       const confirmed = await popup.confirm({
         title: t('chat.input.clear.title'),
         content: t('chat.input.clear.content'),
+        autoFocusConfirm: true,
         centered: true
       })
       if (!confirmed) return
@@ -298,7 +299,11 @@ const Chat: FC<Props> = (props) => {
         showConversation ? (
           <>
             {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
-            <TopicRightPane.Shortcuts />
+            <TopicRightPane.Shortcuts
+              browserEnabled={
+                !!assistantContext.assistant && assistantContext.assistant.settings.enableBrowser !== false
+              }
+            />
           </>
         ) : undefined
       }
