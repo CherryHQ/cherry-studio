@@ -128,6 +128,8 @@ function createMockAiApi() {
 
 // ── Tests ────────────────────────────────────────────────────────────
 
+const tick = () => new Promise((r) => setTimeout(r, 0))
+
 describe('IpcChatTransport', () => {
   let transport: IpcChatTransport
   let mock: ReturnType<typeof createMockAiApi>
@@ -452,5 +454,27 @@ describe('IpcChatTransport', () => {
     expect(first.value).toEqual({ type: 'text-start', id: 't' })
     const second = await reader.read()
     expect(second.done).toBe(true)
+  })
+
+  it('reconnectToStream still closes when a per-execution error precedes topic done during attach', async () => {
+    // A filtered per-execution error must not suppress the later topic-level
+    // done, or the reconnected stream hangs open indefinitely.
+    const execId = 'provider-a::model-a' as UniqueModelId
+    const replay = [{ topicId, chunk: { type: 'text-start', id: 't' } }]
+    mock.mockApi.streamAttach.mockImplementation(async () => {
+      mock.emitError(topicId, 'exec failed', execId, false)
+      mock.emitDone(topicId, undefined, true)
+      return { status: 'attached', bufferedChunks: replay }
+    })
+
+    const stream = await transport.reconnectToStream({ chatId: topicId })
+    const reader = stream!.getReader()
+    const first = await reader.read()
+    expect(first.done).toBe(false)
+    expect(first.value).toEqual({ type: 'text-start', id: 't' })
+    const second = await Promise.race([reader.read(), tick().then(() => 'timeout' as const)])
+    expect(second).toMatchObject({ done: true })
+    reader.releaseLock()
+    await stream!.cancel().catch(() => {})
   })
 })

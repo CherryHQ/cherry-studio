@@ -268,7 +268,9 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           ) {
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           }
-        } else if (initialTerminal?.done) {
+        }
+        // A filtered per-execution error must not suppress a later topic done.
+        if (!isStreamClosed && initialTerminal?.done) {
           const data = initialTerminal.done
           if (
             matchesStream(data) &&
