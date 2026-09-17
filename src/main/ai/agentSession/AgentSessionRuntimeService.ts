@@ -1134,6 +1134,17 @@ export class AgentSessionRuntimeService extends BaseService {
     return false
   }
 
+  listClaimedResumeTokens(): ReadonlySet<string> {
+    const claimedResumeTokens = new Set<string>()
+    for (const entry of this.entries.values()) {
+      if (entry.lastResumeToken) claimedResumeTokens.add(entry.lastResumeToken)
+    }
+    for (const closing of this.closingSessions.values()) {
+      if (closing.resumeToken) claimedResumeTokens.add(closing.resumeToken)
+    }
+    return claimedResumeTokens
+  }
+
   /**
    * Whether the agent runtime will open another turn for this topic once the current one ends — a
    * queued steer/follow-up, or a next-turn drain already in progress. `AiStreamManager.onExecutionDone`

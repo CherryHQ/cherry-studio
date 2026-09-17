@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  convertMathFormula,
+  convertLatexMathToDollars,
   findCitationInChildren,
   isHtmlCode,
   markdownToPlainText,
@@ -57,26 +57,73 @@ describe('markdown', () => {
     })
   })
 
-  describe('convertMathFormula', () => {
-    it('should handle multiple delimiters in input', () => {
-      // 验证处理输入中的多个分隔符
-      const input = 'Text \\[block1\\] and \\(inline\\) and \\[block2\\]'
-      const result = convertMathFormula(input)
-      expect(result).toBe('Text $$block1$$ and $inline$ and $$block2$$')
+  describe('convertLatexMathToDollars', () => {
+    it('converts formulas and preserves inline and fenced code', () => {
+      const input = 'Euler \\(e\\) and `r"\\(\\d+\\)"`\n\n```bash\nif \\[ -f x \\]; then :; fi\n```\n\n\\[ a^2 \\]'
+
+      expect(convertLatexMathToDollars(input)).toBe(
+        'Euler $e$ and `r"\\(\\d+\\)"`\n\n```bash\nif \\[ -f x \\]; then :; fi\n```\n\n$$ a^2 $$'
+      )
     })
 
-    it('should return input unchanged if no delimiters', () => {
-      // 验证没有分隔符时返回原始输入
-      const input = 'Some text without math'
-      const result = convertMathFormula(input)
-      expect(result).toBe('Some text without math')
+    it('converts prose between code blocks when the first block contains a literal fence', () => {
+      const input = '```python\nprint("```")\n```\n\nFormula: \\(x\\)\n\n```python\nre.match(r"\\(\\d+\\)", s)\n```'
+
+      expect(convertLatexMathToDollars(input)).toBe(
+        '```python\nprint("```")\n```\n\nFormula: $x$\n\n```python\nre.match(r"\\(\\d+\\)", s)\n```'
+      )
     })
 
-    it('should return input if null or empty', () => {
-      // 验证空输入或 null 输入时返回原值
-      expect(convertMathFormula('')).toBe('')
-      // @ts-expect-error purposely pass wrong type to test error branch
-      expect(convertMathFormula(null)).toBe(null)
+    it('preserves a fence that starts on the list marker line', () => {
+      const input = '- ```js\n  test(/\\(a\\)/)\n  ```\n\nFormula: \\(x\\)'
+
+      expect(convertLatexMathToDollars(input)).toBe('- ```js\n  test(/\\(a\\)/)\n  ```\n\nFormula: $x$')
+    })
+
+    it('preserves tilde fences, longer fences wrapping shorter ones, and indented code', () => {
+      expect(convertLatexMathToDollars('~~~js\n\\(a\\)\n~~~\n\n\\(x\\)')).toBe('~~~js\n\\(a\\)\n~~~\n\n$x$')
+      expect(convertLatexMathToDollars('````md\n```js\n\\(a\\)\n```\n````\n\n\\(x\\)')).toBe(
+        '````md\n```js\n\\(a\\)\n```\n````\n\n$x$'
+      )
+      expect(convertLatexMathToDollars('Text\n\n    \\(a\\)\n\n\\(x\\)')).toBe('Text\n\n    \\(a\\)\n\n$x$')
+    })
+
+    it('preserves inline code delimited by more than one backtick', () => {
+      expect(convertLatexMathToDollars('``a ` \\(b\\)`` and \\(x\\)')).toBe('``a ` \\(b\\)`` and $x$')
+    })
+
+    it('converts a display formula whose delimiters own their lines, keeping its indentation', () => {
+      expect(convertLatexMathToDollars('Sum:\n\n  \\[\n  a + b\n  \\]\n\nDone')).toBe(
+        'Sum:\n\n  $$\n  a + b\n  $$\n\nDone'
+      )
+    })
+
+    it('converts several formulas on one line', () => {
+      expect(convertLatexMathToDollars('Text \\[block1\\] and \\(inline\\) and \\[block2\\]')).toBe(
+        'Text $$block1$$ and $inline$ and $$block2$$'
+      )
+    })
+
+    it('keeps LaTeX line-break spacing and escaped backslashes that only look like delimiters', () => {
+      expect(convertLatexMathToDollars('\\[\na \\\\[2pt]\nb\n\\]')).toBe('$$\na \\\\[2pt]\nb\n$$')
+      expect(convertLatexMathToDollars('path C:\\\\(x) and \\(y\\)')).toBe('path C:\\\\(x) and $y$')
+    })
+
+    it('leaves an unclosed delimiter alone instead of emitting an unbalanced dollar fence', () => {
+      expect(convertLatexMathToDollars('an escaped \\[ bracket, then \\(x\\) math')).toBe(
+        'an escaped \\[ bracket, then $x$ math'
+      )
+    })
+
+    it('leaves link text alone, where the chat renders the formula as plain text', () => {
+      expect(convertLatexMathToDollars('[\\(x\\)](https://example.com) and \\(y\\)')).toBe(
+        '[\\(x\\)](https://example.com) and $y$'
+      )
+    })
+
+    it('returns content without delimiters unchanged', () => {
+      expect(convertLatexMathToDollars('')).toBe('')
+      expect(convertLatexMathToDollars('plain `code` and $x$')).toBe('plain `code` and $x$')
     })
   })
 

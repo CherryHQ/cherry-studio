@@ -556,6 +556,7 @@ vi.mock('../components/TopicRightPane', () => {
 vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
   AssistantResourceList: ({
     activeAssistantId,
+    activeTopicId,
     historyRecordsActive,
     onAddAssistant,
     onActiveAssistantDeleted,
@@ -567,6 +568,7 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     onSelectedAssistantClick
   }: {
     activeAssistantId?: string | null
+    activeTopicId?: string | null
     historyRecordsActive?: boolean
     assistantTopicsSource?: unknown
     onAddAssistant?: () => void | Promise<void>
@@ -582,6 +584,7 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     return (
       <div
         data-active-assistant-id={activeAssistantId ?? ''}
+        data-active-topic-id={activeTopicId ?? ''}
         data-history-active={String(Boolean(historyRecordsActive))}
         data-testid="assistant-resource-list">
         <button type="button" onClick={() => void onAddAssistant?.()}>
@@ -788,6 +791,7 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-tab', 'resources')
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'true')
     expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', 'assistant-1')
+    expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-topic-id', 'topic-initial')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()

@@ -618,6 +618,11 @@ the contract — `AiStreamManager`, `AgentSessionRuntimeService`, and channel in
 `pause(reason?): Disposable` + `drainInFlight({ timeoutMs }) → { stragglerIds }`
 (empty = clean) + an advisory read-only `listActiveWork()`.
 
+BackupManager delegates Agent-specific participants to `AgentLifecycleService`; its
+`pauseIngress` / `drainIngress` pair covers Channel intake and lifecycle commands,
+and `pauseExecution` covers Delivery and Runtime. Global Stream and Job holds remain
+BackupManager-owned. See [Agent Lifecycle](./agent-lifecycle.md#backup-and-shutdown).
+
 Orchestration order (grandfather-free, per #16850) — the channel step MUST fully complete
 before the AI writers are paused:
 
