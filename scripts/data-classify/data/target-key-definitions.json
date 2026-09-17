@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "agent.commit_attribution.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Let the Claude Code runtime append its own attribution to git commits and PR bodies (Co-Authored-By trailer, Generated-with footer). Disable to omit that attribution (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.browser.agent_control.enabled",
       "type": "boolean",
       "defaultValue": true,
