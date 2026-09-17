@@ -47,7 +47,7 @@ import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpe
 import {
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
-  resolveReasoningEffortForModel
+  reconcileReasoningEffortForModel
 } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -710,7 +710,18 @@ const ChatComposerInner = ({
       if (!nextModel) return
       if (!assistant) return
 
-      const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort)
+      // Per-model preference wins over scalar projection: reconcile checks
+      // `reasoning_effort_by_model[nextModel.id]` first and only falls back to
+      // scalar projection when no supported pref exists. This mirrors what
+      // `setModel` will persist, so the optimistic override never flashes a
+      // scalar-derived value that the PATCH then discards.
+      const reconciled = reconcileReasoningEffortForModel(
+        nextModel,
+        reasoningEffort,
+        assistant.id,
+        assistant.settings.reasoning_effort_by_model
+      )
+      const nextReasoningEffort = reconciled ? (reconciled.reasoning_effort ?? 'default') : reasoningEffort
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
         assistantId: assistant.id,
@@ -721,13 +732,10 @@ const ChatComposerInner = ({
       // an ungated providers list. This duplicate read the composer's own list, which is deferred
       // (`shouldLoadProviders`) and therefore empty in single-model chats — it would have cleared the
       // setting for every model whose search is provider-native.
-      const extraSettings: {
-        reasoning_effort?: ReasoningEffortOption
-      } = {}
-      if (reasoningOverride?.assistantId === assistant.id) {
-        extraSettings.reasoning_effort = nextReasoningEffort
-      }
-      const update = setModel(nextModel, extraSettings)
+      // Delta-only model switch: let `setModel`'s per-model reconcile decide the
+      // persisted `reasoning_effort`. Passing a scalar-derived extra here would
+      // supersede the target model's saved per-model preference.
+      const update = setModel(nextModel, {})
       return update
         ?.then(() => {
           setReasoningOverride((current) => (current?.version === version ? null : current))
@@ -737,7 +745,7 @@ const ChatComposerInner = ({
           throw error
         })
     },
-    [assistant, reasoningEffort, reasoningOverride, setModel]
+    [assistant, reasoningEffort, setModel]
   )
 
   const {

@@ -40,7 +40,7 @@ export function reconcileReasoningEffortForModel(
   nextModel: Model,
   currentEffort: ReasoningEffortOption | undefined,
   assistantId?: string,
-  reasoningEffortByModel?: Record<string, string>
+  reasoningEffortByModel?: Partial<Record<string, ReasoningEffortOption>>
 ): ReasoningEffortPatch | null {
   // Per-model preference: restore the user's last choice for this exact model id if available.
   // Preserves the intent of d841980947 while adapting to the descriptor-driven vocabulary
@@ -48,7 +48,7 @@ export function reconcileReasoningEffortForModel(
   if (assistantId !== undefined && reasoningEffortByModel) {
     const pref = reasoningEffortByModel[nextModel.id]
     if (pref !== undefined) {
-      const prefOption = pref as ReasoningEffortOption
+      const prefOption = pref
       const supported = deriveThinkingOptions(nextModel)
       // If the model declares a vocabulary, only restore the pref when it's natively supported.
       // Fixed / non-reasoning models have supported === undefined and fall through to the

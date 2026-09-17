@@ -39,6 +39,65 @@ const EMPTY_ASSISTANTS: readonly Assistant[] = Object.freeze([])
 
 const ASSISTANTS_REFRESH_KEYS: ConcreteApiPaths[] = ['/assistants', '/assistants/*']
 
+type PendingVersions = Partial<Record<keyof AssistantSettings, number>>
+
+type PendingStaged = {
+  seq: number
+  previousPending: Partial<AssistantSettings>
+  previousVersions: PendingVersions
+}
+
+function stagePendingSettings(
+  pendingRef: { current: Partial<AssistantSettings> },
+  versionsRef: { current: PendingVersions },
+  seqRef: { current: number },
+  patch: Partial<AssistantSettings>
+): PendingStaged {
+  const seq = seqRef.current + 1
+  seqRef.current = seq
+  const previousPending = { ...pendingRef.current }
+  const previousVersions = { ...versionsRef.current }
+  pendingRef.current = { ...previousPending, ...patch }
+  const nextVersions: PendingVersions = { ...previousVersions }
+  for (const key of Object.keys(patch) as (keyof AssistantSettings)[]) {
+    nextVersions[key] = seq
+  }
+  versionsRef.current = nextVersions
+  return { seq, previousPending, previousVersions }
+}
+
+function revertPendingSettings(
+  pendingRef: { current: Partial<AssistantSettings> },
+  versionsRef: { current: PendingVersions },
+  staged: PendingStaged,
+  patch: Partial<AssistantSettings>
+): void {
+  const currentVersions = versionsRef.current
+  const nextPending: Partial<AssistantSettings> = { ...pendingRef.current }
+  const nextVersions: PendingVersions = { ...currentVersions }
+  let pendingChanged = false
+  let versionsChanged = false
+  for (const key of Object.keys(patch) as (keyof AssistantSettings)[]) {
+    // A newer overlapping mutation may have overwritten this key after this
+    // PATCH started — keep the fresher value instead of resurrecting stale state.
+    if (currentVersions[key] !== staged.seq) continue
+    pendingChanged = true
+    versionsChanged = true
+    if (key in staged.previousPending) {
+      ;(nextPending as Record<string, unknown>)[key] = (staged.previousPending as Record<string, unknown>)[key]
+    } else {
+      delete (nextPending as Record<string, unknown>)[key]
+    }
+    if (key in staged.previousVersions) {
+      ;(nextVersions as Record<string, unknown>)[key] = (staged.previousVersions as Record<string, unknown>)[key]
+    } else {
+      delete (nextVersions as Record<string, unknown>)[key]
+    }
+  }
+  if (pendingChanged) pendingRef.current = nextPending
+  if (versionsChanged) versionsRef.current = nextVersions
+}
+
 /**
  * List all assistants from SQLite via DataApi.
  *
@@ -197,6 +256,11 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   // a stale snapshot would overwrite keys an in-flight PATCH just wrote (e.g. a
   // reasoning-effort selection made moments before a model switch).
   const pendingSettingsRef = useRef<Partial<AssistantSettings>>({})
+  // Last-writer sequence per top-level settings key. A failed PATCH must only
+  // revert keys it still owns — a newer overlapping mutation may have already
+  // overwritten the key with a fresher value that must survive.
+  const pendingVersionsRef = useRef<Partial<Record<keyof AssistantSettings, number>>>({})
+  const pendingSeqRef = useRef(0)
   idRef.current = id
   assistantRef.current = assistant
   patchAssistantRef.current = patchAssistant
@@ -205,6 +269,7 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   // Fresh cache data supersedes anything staged optimistically.
   useEffect(() => {
     pendingSettingsRef.current = {}
+    pendingVersionsRef.current = {}
   }, [assistant])
 
   const modelId =
@@ -222,10 +287,9 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
       if (!currentId || !currentAssistant) return Promise.resolve(undefined)
       const latestSettings = { ...currentAssistant.settings, ...pendingSettingsRef.current }
       const patch = typeof settings === 'function' ? settings(latestSettings) : settings
-      const previousPending = pendingSettingsRef.current
-      pendingSettingsRef.current = { ...previousPending, ...patch }
+      const staged = stagePendingSettings(pendingSettingsRef, pendingVersionsRef, pendingSeqRef, patch)
       return patchAssistantRef.current(currentId, { settings: patch }).catch((error) => {
-        pendingSettingsRef.current = previousPending
+        revertPendingSettings(pendingSettingsRef, pendingVersionsRef, staged, patch)
         throw error
       })
     },
@@ -255,10 +319,9 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
       settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id }
     )
     if (!settingsPatch) return update
-    const previousPending = pendingSettingsRef.current
-    pendingSettingsRef.current = { ...previousPending, ...settingsPatch }
+    const staged = stagePendingSettings(pendingSettingsRef, pendingVersionsRef, pendingSeqRef, settingsPatch)
     return update.catch((error) => {
-      pendingSettingsRef.current = previousPending
+      revertPendingSettings(pendingSettingsRef, pendingVersionsRef, staged, settingsPatch)
       throw error
     })
   }, [])

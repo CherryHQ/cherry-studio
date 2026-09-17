@@ -342,4 +342,37 @@ describe('useAssistant pending-settings staging', () => {
 
     expect(seenLatest?.reasoning_effort).toBe('default')
   })
+
+  it('keeps newer overlapping writes when an earlier PATCH fails', async () => {
+    let rejectFirst: ((reason: unknown) => void) | undefined
+    const trigger = vi.fn()
+    trigger.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectFirst = reject
+        })
+    )
+    trigger.mockResolvedValue({ id: 'assistant-1' })
+    const { result } = setupWithTrigger(trigger)
+
+    await act(async () => {
+      const first = result.current.updateAssistantSettings({ reasoning_effort: 'high' }).catch(() => undefined)
+      // Start a newer overlapping write to the same key while the first is in flight.
+      const second = result.current.updateAssistantSettings({ reasoning_effort: 'low' })
+      rejectFirst?.(new Error('first failed'))
+      await first
+      await second
+    })
+
+    let seenLatest: Record<string, unknown> | undefined
+    await act(async () => {
+      await result.current.updateAssistantSettings((latest) => {
+        seenLatest = latest as Record<string, unknown>
+        return {}
+      })
+    })
+
+    // The failed first PATCH must not erase the newer 'low' value.
+    expect(seenLatest?.reasoning_effort).toBe('low')
+  })
 })

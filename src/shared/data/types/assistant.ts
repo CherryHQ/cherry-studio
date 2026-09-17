@@ -99,7 +99,7 @@ export const AssistantSettingsSchema = z.object({
    *  Key is the model id (UniqueModelId format), value is the reasoning effort option.
    *  Optional: absent means "no per-model preference recorded yet" and falls back to the
    *  shared `reasoning_effort` value. */
-  reasoning_effort_by_model: z.record(z.string(), z.string()).optional()
+  reasoning_effort_by_model: z.record(z.string(), ReasoningEffortOptionSchema).optional()
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
