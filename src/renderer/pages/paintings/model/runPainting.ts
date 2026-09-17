@@ -14,8 +14,17 @@ const logger = loggerService.withContext('paintings/generation')
  *  `ai.image.generate` route attaches to its IpcError `data`: prefer the
  *  provider message, else the HTTP status, else a response-body snippet.
  *  A 504 maps to the friendly timeout string — gateway bodies are proxy noise. */
+// Exhausted SDK retries arrive as RetryError with the 504 nested in lastError/errors.
+function hasStatusCode(detail: SerializedError, status: number): boolean {
+  if (detail.statusCode === status) return true
+  const nested = [detail.lastError, detail.originalError, ...(Array.isArray(detail.errors) ? detail.errors : [])]
+  return nested.some(
+    (entry) => typeof entry === 'object' && entry !== null && hasStatusCode(entry as SerializedError, status)
+  )
+}
+
 function aiDetailMessage(detail: SerializedError): string {
-  if (detail.statusCode === 504) return i18n.t('error.http.504')
+  if (hasStatusCode(detail, 504)) return i18n.t('error.http.504')
   if (detail.message) return detail.message
   const status = typeof detail.statusCode === 'number' ? `HTTP ${detail.statusCode}` : ''
   const body = typeof detail.responseBody === 'string' ? detail.responseBody.slice(0, 300) : ''
