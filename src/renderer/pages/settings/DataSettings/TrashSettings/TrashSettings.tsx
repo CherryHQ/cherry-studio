@@ -6,13 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, ConfirmDialog, SelectDropdown } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import {
-  SettingDivider,
-  SettingGroup,
-  SettingRow,
-  SettingRowTitle,
-  SettingTitle
-} from '@renderer/components/SettingsPrimitives'
+import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
@@ -247,32 +241,14 @@ const TrashSettings: FC = () => {
 
   return (
     <>
-      <SettingTitle>
+      <SettingTitle className="flex-wrap gap-3 text-lg">
         <span>{t('settings.data.trash.title')}</span>
         <Button variant="outline" className="text-destructive" onClick={() => setEmptyTrashOpen(true)}>
           {t('settings.data.trash.empty_trash.button')}
         </Button>
       </SettingTitle>
-      <SettingGroup>
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.trash.retention.label')}</SettingRowTitle>
-          <SelectDropdown
-            items={retentionOptions}
-            selectedId={String(retentionDays)}
-            onSelect={(id) => setRetentionDays(Number(id))}
-            triggerClassName="w-40 max-w-full"
-            renderSelected={({ label }) => <span className="truncate">{label}</span>}
-            renderItem={({ label }, isSelected) => (
-              <div className="flex w-full items-center gap-2">
-                <span className="flex-1 truncate">{label}</span>
-                {isSelected && <Check size={16} className="shrink-0 text-primary" />}
-              </div>
-            )}
-          />
-        </SettingRow>
-      </SettingGroup>
-      <SettingGroup>
-        <SettingRow>
+      <div className="mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-border border-b pb-3">
           <SelectDropdown
             items={categoryOptions}
             selectedId={category}
@@ -280,7 +256,7 @@ const TrashSettings: FC = () => {
               closePendingDelete()
               setCategory(id as TrashCategory)
             }}
-            triggerClassName="w-56 max-w-full"
+            triggerClassName="h-8 w-auto max-w-full gap-3 border-transparent px-2"
             renderSelected={({ label, Icon }) => (
               <>
                 <Icon size={16} className="shrink-0 text-muted-foreground" />
@@ -295,13 +271,37 @@ const TrashSettings: FC = () => {
               </div>
             )}
           />
-          <Button variant="outline" aria-pressed={isBatchMode} onClick={() => setIsBatchMode((current) => !current)}>
-            {t(isBatchMode ? 'settings.data.trash.selection.done' : 'settings.data.trash.selection.manage')}
-          </Button>
-        </SettingRow>
-        <SettingDivider />
+          <div className="ms-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+            <div
+              role="group"
+              aria-label={t('settings.data.trash.retention.label')}
+              className="flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground text-xs">{t('settings.data.trash.retention.label')}</span>
+              <SelectDropdown
+                items={retentionOptions}
+                selectedId={String(retentionDays)}
+                onSelect={(id) => setRetentionDays(Number(id))}
+                triggerClassName="h-8 w-auto max-w-full gap-2 border-transparent px-2 text-xs"
+                renderSelected={({ label }) => <span className="truncate">{label}</span>}
+                renderItem={({ label }, isSelected) => (
+                  <div className="flex w-full items-center gap-2">
+                    <span className="flex-1 truncate">{label}</span>
+                    {isSelected && <Check size={16} className="shrink-0 text-primary" />}
+                  </div>
+                )}
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              aria-pressed={isBatchMode}
+              onClick={() => setIsBatchMode((current) => !current)}>
+              {t(isBatchMode ? 'settings.data.trash.selection.done' : 'settings.data.trash.selection.manage')}
+            </Button>
+          </div>
+        </div>
         <ActiveSection {...sectionProps} />
-      </SettingGroup>
+      </div>
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {

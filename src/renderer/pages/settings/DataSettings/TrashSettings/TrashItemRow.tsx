@@ -1,4 +1,4 @@
-import { RotateCcw, Trash2 } from 'lucide-react'
+import { type LucideIcon, RotateCcw, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -8,6 +8,7 @@ import type { TrashItem } from './trashUtils'
 import { computeDaysRemaining, formatDeletedTime } from './trashUtils'
 
 interface TrashItemRowProps {
+  icon?: LucideIcon
   item: TrashItem
   retentionDays: number
   isRestoring: boolean
@@ -21,6 +22,7 @@ interface TrashItemRowProps {
 }
 
 const TrashItemRow: FC<TrashItemRowProps> = ({
+  icon: Icon,
   item,
   retentionDays,
   isRestoring,
@@ -40,7 +42,7 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
   const isBatchBlocked = isSectionBusy && !isRestoring
 
   return (
-    <div className="flex min-h-9 flex-wrap items-center gap-x-2 gap-y-1 border-border border-b py-1 last:border-b-0">
+    <div className="flex items-center gap-3 border-border border-b py-4">
       {showSelection && (
         <Checkbox
           checked={selected}
@@ -49,28 +51,39 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
           onCheckedChange={(checked) => onSelectedChange(checked === true)}
         />
       )}
-      <span className="min-w-24 flex-1 truncate text-foreground text-sm">{displayName}</span>
-      <div className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
-        <span title={deletedAtLabel} aria-label={deletedAtLabel}>
-          {deletedTime}
-        </span>
-        {daysRemaining !== null && (
-          <span>
-            {'· '}
-            {daysRemaining === 0
-              ? t('settings.data.trash.days_remaining_expired')
-              : daysRemaining === 'less-than-day'
-                ? t('settings.data.trash.days_remaining_lt_one')
-                : t('settings.data.trash.days_remaining', { count: daysRemaining })}
+      {Icon && (
+        <div
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+          aria-hidden="true">
+          <Icon size={18} />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-foreground text-sm" title={displayName}>
+          {displayName}
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-muted-foreground text-xs">
+          <span title={deletedAtLabel} aria-label={deletedAtLabel}>
+            {deletedTime}
           </span>
-        )}
+          {daysRemaining !== null && (
+            <span>
+              {'· '}
+              {daysRemaining === 0
+                ? t('settings.data.trash.days_remaining_expired')
+                : daysRemaining === 'less-than-day'
+                  ? t('settings.data.trash.days_remaining_lt_one')
+                  : t('settings.data.trash.days_remaining', { count: daysRemaining })}
+            </span>
+          )}
+        </div>
       </div>
-      <div className="flex shrink-0 items-center">
+      <div className="flex shrink-0 items-center gap-2">
         <Tooltip title={t('settings.data.trash.restore.label')}>
           <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+            variant="outline"
+            size="sm"
+            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
             aria-label={t('settings.data.trash.restore.label')}
             aria-disabled={isBatchBlocked || undefined}
             loading={isRestoring}
@@ -78,6 +91,7 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
               if (!isBatchBlocked) onRestore(item)
             }}>
             {!isRestoring && <RotateCcw size={16} />}
+            {t('settings.data.trash.restore.label')}
           </Button>
         </Tooltip>
         <Tooltip title={t('settings.data.trash.permanent_delete.label')}>

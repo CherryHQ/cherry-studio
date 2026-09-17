@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -107,6 +108,7 @@ afterEach(cleanup)
 
 beforeEach(async () => {
   await i18n.changeLanguage('en-US')
+  MockUsePreferenceUtils.resetMocks()
   vi.mocked(dataApiService.get).mockReset()
   mocks.ipcRequest.mockReset()
   mocks.deleteItem.mockReset().mockResolvedValue({ succeeded: ['topic-1'], failed: [] })
@@ -116,6 +118,22 @@ beforeEach(async () => {
 })
 
 describe('TrashSettings', () => {
+  it('keeps the cleanup preference editable from the compact toolbar without deleting items', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('data.trash.retention_days', 30)
+    render(<TrashSettings />)
+
+    const retention = screen.getByRole('group', { name: 'Auto-cleanup interval' })
+    await user.click(within(retention).getByRole('button', { name: '30 days' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Forever' }))
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('data.trash.retention_days')).toBe(0)
+    expect(screen.getByText('Deleted topic')).toBeInTheDocument()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    expect(mocks.deleteItem).not.toHaveBeenCalled()
+    expect(mocks.deleteItems).not.toHaveBeenCalled()
+  })
+
   it('lists trash categories in product order with localized Chinese labels', async () => {
     const user = userEvent.setup()
     await i18n.changeLanguage('zh-CN')

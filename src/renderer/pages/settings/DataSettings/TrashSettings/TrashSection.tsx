@@ -1,4 +1,4 @@
-import { Loader } from 'lucide-react'
+import { Loader, type LucideIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,6 +32,7 @@ export type TrashSectionPagination =
     }
 
 interface TrashSectionProps {
+  icon?: LucideIcon
   items: TrashItem[]
   isLoading: boolean
   error: Error | undefined
@@ -50,6 +51,7 @@ interface TrashSectionProps {
 }
 
 const TrashSection: FC<TrashSectionProps> = ({
+  icon,
   items,
   isLoading,
   error,
@@ -172,7 +174,7 @@ const TrashSection: FC<TrashSectionProps> = ({
   return (
     <>
       {isBatchMode && (
-        <div className="mb-2 flex min-h-8 flex-wrap items-center justify-between gap-2 border-border border-b pb-2">
+        <div className="flex min-h-8 flex-wrap items-center justify-between gap-3 border-border border-b py-3">
           <div className="flex items-center gap-2">
             <Checkbox
               checked={
@@ -188,7 +190,7 @@ const TrashSection: FC<TrashSectionProps> = ({
               </span>
             )}
           </div>
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className="ms-auto flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline" size="sm" disabled={isBatchActionDisabled} onClick={handleRestoreSelected}>
               {t('settings.data.trash.restore.selected', { count: selectedItems.length })}
             </Button>
@@ -226,11 +228,14 @@ const TrashSection: FC<TrashSectionProps> = ({
       ) : (
         <>
           {items.length === 0 ? (
-            <div className="text-muted-foreground text-sm">{t('settings.data.trash.empty.section')}</div>
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              {t('settings.data.trash.empty.section')}
+            </div>
           ) : (
             items.map((item) => (
               <TrashItemRow
                 key={item.id}
+                icon={icon}
                 item={item}
                 retentionDays={retentionDays}
                 isRestoring={pendingRestoreId === item.id}

@@ -1,3 +1,4 @@
+import { Bot, File, Image, MessageSquare, MessagesSquare, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -209,6 +210,7 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
+      icon={MessageSquare}
       isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
@@ -309,6 +311,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
+      icon={Bot}
       isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
@@ -406,6 +409,7 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
+      icon={MessagesSquare}
       isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
@@ -487,6 +491,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
+      icon={Sparkles}
       isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
@@ -569,6 +574,7 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
+      icon={Image}
       isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
@@ -681,6 +687,7 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
+      icon={File}
       isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
