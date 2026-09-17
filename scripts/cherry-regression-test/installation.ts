@@ -62,7 +62,14 @@ export function installReleaseArtifact(
       findFile(join(installedPath, 'Contents', 'MacOS'), (candidate) => statSync(candidate).isFile()) ?? ''
   } else {
     installedPath = paths.installed
-    execFileSync(artifactPath, ['/S', `/D=${installedPath}`], { stdio: 'ignore', timeout: 180_000 })
+    const environment = Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => !/^(GH|GITHUB)_(TOKEN|ENTERPRISE_TOKEN)$/i.test(key))
+    )
+    execFileSync(artifactPath, ['/S', `/D=${installedPath}`], {
+      stdio: 'ignore',
+      timeout: 180_000,
+      env: environment
+    })
     executablePath =
       findFile(installedPath, (candidate) => basename(candidate).toLowerCase() === 'cherry studio.exe') ?? ''
   }
