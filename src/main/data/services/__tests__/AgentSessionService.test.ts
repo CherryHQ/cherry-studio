@@ -1141,9 +1141,15 @@ describe('AgentSessionService', () => {
 
   it('deletes a session', async () => {
     const session = await createSession('Delete me')
+
+    // Trashing keeps the row restorable...
+    agentSessionService.delete(session.id)
+    const [trashed] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
+    expect(trashed.deletedAt).toEqual(expect.any(Number))
     notifyDataApiDataChangeMock.mockClear()
 
-    agentSessionService.delete(session.id)
+    // ...only the permanent delete removes it and purges its queue scopes.
+    agentSessionService.delete(session.id, { permanent: true })
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({
       code: ErrorCode.NOT_FOUND

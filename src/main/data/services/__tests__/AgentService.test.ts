@@ -1622,7 +1622,7 @@ describe('AgentService', () => {
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
     })
 
-    it('purges session queue rows and notifies consumers when deleting sessions', async () => {
+    it('purges session queue rows and notifies consumers on permanent delete', async () => {
       const { id } = await insertAgent({ id: 'agent_with_queue_001' })
       await dbh.db
         .insert(agentWorkspaceTable)
@@ -1650,10 +1650,16 @@ describe('AgentService', () => {
       ])
       notifyDataApiDataChangeMock.mockClear()
 
-      const result = agentService.deleteAgent(id, { deleteSessions: true })
+      // Trashing keeps the queue restorable; only the permanent delete purges.
+      const trashed = agentService.deleteAgent(id, { deleteSessions: true })
+
+      expect(trashed.deleted).toBe(true)
+      expect(await dbh.db.select().from(followupQueueTable)).toHaveLength(1)
+      notifyDataApiDataChangeMock.mockClear()
+
+      const result = agentService.deleteAgent(id, { permanent: true })
 
       expect(result.deleted).toBe(true)
-      expect(result.deletedSessionIds).toEqual(['session-queue-with-agent'])
       expect(await dbh.db.select().from(followupQueueTable)).toHaveLength(0)
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/followup-queues', kind: 'membership', dimension: 'scopeKey' },

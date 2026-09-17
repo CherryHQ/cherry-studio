@@ -1495,7 +1495,7 @@ describe('AssistantDataService', () => {
       ])
     })
 
-    it('should purge follow-up queue rows and notify consumers when deleting topics', async () => {
+    it('should purge follow-up queue rows and notify consumers on permanent delete', async () => {
       notifyDataApiDataChangeMock.mockClear()
       await seedAssistantRow([
         { id: 'ast-1', name: 'delete with topics' },
@@ -1515,12 +1515,28 @@ describe('AssistantDataService', () => {
           orderKey: 'a0',
           createdAt: 1,
           updatedAt: 1
+        },
+        {
+          id: '22222222-2222-7222-8222-222222222222',
+          scopeKey: 'topic-2:ast-2',
+          draft: { text: 'kept', tokens: [] },
+          payload: { text: 'kept', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
         }
       ])
 
+      // Trashing keeps the queue restorable; only the permanent delete purges.
       assistantDataService.delete('ast-1', { deleteTopics: true })
+      expect(await dbh.db.select().from(followupQueueTable)).toHaveLength(2)
+      notifyDataApiDataChangeMock.mockClear()
+      assistantDataService.delete('ast-1', { permanent: true })
 
-      expect(await dbh.db.select().from(followupQueueTable)).toHaveLength(0)
+      expect((await dbh.db.select().from(followupQueueTable)).map((row) => row.id)).toEqual([
+        '22222222-2222-7222-8222-222222222222'
+      ])
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/followup-queues', kind: 'membership', dimension: 'scopeKey' },
         { endpoint: '/followup-queue-states' }
