@@ -165,6 +165,7 @@ describe('deferred ComposerSurface', () => {
     render(<Harness text="   " />)
 
     expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('   ')
+    expect(screen.queryByText('chat.input.focus_hint')).not.toBeInTheDocument()
     expect(mocks.runtimeLoads).toBe(0)
   })
 
