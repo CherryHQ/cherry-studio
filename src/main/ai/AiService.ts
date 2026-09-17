@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto'
-
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -1365,8 +1363,8 @@ export class AiService extends BaseService {
       // for reasoning-capable models whose provider default enables reasoning.
       probe = this.generateText({
         ...probeRequest,
-        // A health check has no topic; each probe is its own conversation.
-        conversation: { id: `check:${randomUUID()}` },
+        // A health check has no topic and no conversation to keep warm.
+        conversation: {},
         system: 'test',
         prompt: 'hi',
         reasoningEffort: 'none'

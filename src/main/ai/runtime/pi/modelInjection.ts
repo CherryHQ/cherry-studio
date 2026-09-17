@@ -41,7 +41,11 @@ import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
 import { requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
-import { toAgentProviderHeaders } from '../agentProviderHeaders'
+import {
+  agentConversationHeaders,
+  toAgentProviderHeaders,
+  withDefaultAgentProviderHeaders
+} from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
@@ -149,7 +153,10 @@ export function buildPiProviderInjection(
   provider: Provider,
   model: Model,
   apiKey: string,
-  credentialReceipt?: AiUsageCredentialReceipt
+  credentialReceipt?: AiUsageCredentialReceipt,
+  /** Agent session this route serves; omitted by non-session callers (probes), which have no
+   *  conversation to keep warm and therefore declare no affinity header. */
+  sessionId?: string
 ): PiDirectProviderInjection {
   // Unsupported-provider beats missing-key: a login-based provider (grok-cli,
   // claude-code) has no key by design, and "missing API key" would misdiagnose it.
@@ -181,7 +188,12 @@ export function buildPiProviderInjection(
     baseUrl,
     apiKey: PI_PLACEHOLDER_API_KEY,
     api,
-    headers: toPiHeaders(getExtraHeaders(provider)),
+    headers: toPiHeaders(
+      withDefaultAgentProviderHeaders(
+        sessionId ? agentConversationHeaders(provider, sessionId) : {},
+        getExtraHeaders(provider)
+      )
+    ),
     models: [modelConfig]
   }
 
@@ -300,12 +312,13 @@ export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): 
 export function resolvePiProviderInjectionFromSnapshot(
   provider: Provider,
   model: Model,
-  enabledApiKeys?: readonly ApiKeyEntry[]
+  enabledApiKeys?: readonly ApiKeyEntry[],
+  sessionId?: string
 ): PiDirectProviderInjection {
   // Transport-adapter providers hold no app-side key: the real OAuth token is
   // fetched per stream call by the adapter. Skip the round-robin key rotation.
   if (getProviderTransportAdapter(provider.id)) {
-    return buildPiProviderInjection(provider, model, PI_PLACEHOLDER_API_KEY)
+    return buildPiProviderInjection(provider, model, PI_PLACEHOLDER_API_KEY, undefined, sessionId)
   }
 
   const resolvedApiKey = providerService.resolveApiKey(provider.id)
@@ -313,7 +326,7 @@ export function resolvePiProviderInjectionFromSnapshot(
   if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
     throw new Error(`Pi provider credentials changed during materialization: ${provider.id}`)
   }
-  return buildPiProviderInjection(provider, model, resolvedApiKey.value, resolvedApiKey.apiKeySelection)
+  return buildPiProviderInjection(provider, model, resolvedApiKey.value, resolvedApiKey.apiKeySelection, sessionId)
 }
 
 /** Resolve a session-bound Pi route, including provider-declared local Gateway transport. */
@@ -324,7 +337,7 @@ export async function resolvePiProviderInjectionForSession(
   enabledApiKeys?: readonly ApiKeyEntry[]
 ): Promise<PiProviderInjection> {
   if (!usesPiGateway(provider)) {
-    const injection = resolvePiProviderInjectionFromSnapshot(provider, model, enabledApiKeys)
+    const injection = resolvePiProviderInjectionFromSnapshot(provider, model, enabledApiKeys, sessionId)
     const headers = injection.providerConfig.headers
     if (
       matchesPreset(provider, SystemProviderIds.opencode) &&

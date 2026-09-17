@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto'
-
 import { isToolUIPart } from 'ai'
 
 import { application } from '@application'
@@ -179,9 +177,9 @@ async function exposeAgentSessionArchiveError<T>(operation: () => T | Promise<T>
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── One-shot model calls — AiService owns the provider clients. ──
-  // A renderer one-shot call has no topic; it is its own conversation.
+  // A renderer one-shot call has no topic and no conversation to keep warm.
   'ai.text.generate': ({ requestId, ...request }) => {
-    const generate = { ...request, conversation: { id: `one-shot:${randomUUID()}` } }
+    const generate = { ...request, conversation: {} }
     return exposeAiError('ai.text.generate', () =>
       requestId
         ? application.get('AiService').runTextRequest(requestId, generate)

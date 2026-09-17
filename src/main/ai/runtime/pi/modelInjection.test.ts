@@ -320,6 +320,58 @@ describe('buildPiProviderInjection', () => {
     expect(injection.requestEnvironment).toEqual({ AZURE_OPENAI_API_VERSION: '2025-04-01-preview' })
   })
 
+  describe('conversation affinity header', () => {
+    const openRouter = (settings?: Provider['settings']) =>
+      makeProvider({
+        id: 'custom-openrouter',
+        presetProviderId: 'openrouter',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': { adapterFamily: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1/' }
+        },
+        ...(settings ? { settings } : {})
+      })
+    const model = makeModel({ endpointTypes: ['openai-chat-completions'], apiModelId: 'openai/gpt-5.6' })
+
+    it('keys the declared header on the agent session', () => {
+      const injection = buildPiProviderInjection(openRouter(), model, REAL_KEY, undefined, 'session-1')
+
+      expect(injection.providerConfig.headers).toEqual({ 'x-session-id': 'session-1' })
+    })
+
+    it('declares nothing without a session — a probe has no conversation to keep warm', () => {
+      const injection = buildPiProviderInjection(openRouter(), model, REAL_KEY)
+
+      expect(injection.providerConfig.headers).toEqual({})
+    })
+
+    it('lets a configured header replace the default without emitting both casings', () => {
+      const provider = openRouter({ extraHeaders: { 'X-Session-Id': 'operator-pinned' } })
+
+      const injection = buildPiProviderInjection(provider, model, REAL_KEY, undefined, 'session-1')
+
+      expect(injection.providerConfig.headers).toEqual({ 'X-Session-Id': 'operator-pinned' })
+    })
+
+    it('declares nothing for a provider that reads no affinity header', () => {
+      const provider = makeProvider({
+        id: 'anthropic',
+        defaultChatEndpoint: 'anthropic-messages',
+        endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
+      })
+
+      const injection = buildPiProviderInjection(
+        provider,
+        makeModel({ endpointTypes: ['anthropic-messages'] }),
+        REAL_KEY,
+        undefined,
+        'session-1'
+      )
+
+      expect(injection.providerConfig.headers).toEqual({})
+    })
+  })
+
   it('adds stable TokenDance app attribution', () => {
     const provider = makeProvider({
       id: 'tokendance',

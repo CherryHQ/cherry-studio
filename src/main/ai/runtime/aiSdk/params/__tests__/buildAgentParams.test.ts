@@ -93,6 +93,24 @@ describe('buildAgentParams provider resolution', () => {
     expect(withCallerHeaders.options.headers).toEqual({ 'x-opencode-session': 'caller-wins', 'x-other': 'kept' })
   })
 
+  it('omits the declared conversation header when the request has no conversation identity', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {}, conversationHeader: 'x-opencode-session' },
+      credentialReceipt: { attribution: 'explicit', id: 'key', masked: 'sk-****' }
+    })
+
+    // A stateless gateway turn / one-shot: `topicId` is the stream handle, not an identity to claim.
+    // Sending it would announce a brand-new conversation on every request.
+    const params = await buildAgentParams({
+      request: { conversation: { topicId: 'gateway-6f1c2e' } },
+      signal: undefined,
+      provider: makeProvider({ id: 'opencode' }),
+      model: makeModel({ id: 'opencode::glm-5', providerId: 'opencode', apiModelId: 'glm-5' })
+    })
+
+    expect(params.options.headers).toBeUndefined()
+  })
+
   it.each([undefined, { 'X-OpenCode-Session': 'caller-session' }])(
     'sends the chat session on AI-assisted tool repair with caller headers %j',
     async (callerHeaders) => {

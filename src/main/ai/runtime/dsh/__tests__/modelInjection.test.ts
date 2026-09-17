@@ -226,6 +226,61 @@ describe('buildDshProviderInjection', () => {
     expect(injection.headers).toEqual({ 'x-trace': 'on', 'x-legacy': '42' })
   })
 
+  describe('conversation affinity header', () => {
+    const openRouter = (settings?: unknown) =>
+      ({
+        id: 'custom-openrouter',
+        presetProviderId: 'openrouter',
+        name: 'OpenRouter',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            adapterFamily: 'openrouter',
+            baseUrl: 'https://openrouter.ai/api/v1/'
+          }
+        },
+        ...(settings ? { settings } : {})
+      }) as unknown as Provider
+    const model = makeModel({
+      id: 'custom-openrouter::openai/gpt-5.6',
+      providerId: 'custom-openrouter',
+      apiModelId: 'openai/gpt-5.6'
+    })
+
+    it('keys the declared header on the agent session', () => {
+      const injection = buildDshProviderInjection(openRouter(), model, 'sk-native', undefined, 'default', 'session-1')
+
+      expect(injection.headers).toEqual({ 'x-session-id': 'session-1' })
+    })
+
+    it('declares nothing without a session — a probe has no conversation to keep warm', () => {
+      const injection = buildDshProviderInjection(openRouter(), model, 'sk-native')
+
+      expect(injection.headers).toEqual({})
+    })
+
+    it('lets a configured header replace the default without emitting both casings', () => {
+      const provider = openRouter({ extraHeaders: { 'X-Session-Id': 'operator-pinned' } })
+
+      const injection = buildDshProviderInjection(provider, model, 'sk-native', undefined, 'default', 'session-1')
+
+      expect(injection.headers).toEqual({ 'X-Session-Id': 'operator-pinned' })
+    })
+
+    it('declares nothing for a provider that reads no affinity header', () => {
+      const injection = buildDshProviderInjection(
+        nativeProvider,
+        makeModel({ id: 'deepseek::deepseek-chat', providerId: 'deepseek', apiModelId: 'deepseek-chat' }),
+        'sk-native',
+        undefined,
+        'default',
+        'session-1'
+      )
+
+      expect(injection.headers).toEqual({})
+    })
+  })
+
   it('adds stable TokenDance app attribution', () => {
     const provider = {
       ...nativeProvider,
