@@ -4,6 +4,8 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ChannelsModule from '@main/ai/channels'
+
 // Mock TaskService before importing CherryAutonomyTools
 const mockCreateTask = vi.fn()
 const mockListTasks = vi.fn()
@@ -13,15 +15,16 @@ const mockSendMessage = vi.fn()
 const mockSendFile = vi.fn()
 const mockGetAgent = vi.fn()
 const mockUpdateAgent = vi.fn()
-const mockSyncChannel = vi.fn()
-const mockDisconnectChannel = vi.fn()
-const mockWaitForQrUrl = vi.fn()
 const mockQRCodeToDataURL = vi.fn()
 const mockListChannels = vi.fn()
 const mockCreateChannel = vi.fn()
+const mockCreateChannelAndWaitForQr = vi.fn()
 const mockGetChannel = vi.fn()
 const mockUpdateChannel = vi.fn()
+const mockUpdateChannelAndWaitForQr = vi.fn()
 const mockDeleteChannel = vi.fn()
+const mockReconnectChannel = vi.fn()
+const mockReconnectChannelWithQr = vi.fn()
 const mockGetSession = vi.fn()
 const mockListSessions = vi.fn()
 const mockSearchSessions = vi.fn()
@@ -88,10 +91,7 @@ vi.mock('@application', async () => {
     ChannelManager: {
       getNotifyAdapters: mockGetNotifyAdapters,
       getAgentAdapters: mockGetNotifyAdapters,
-      getAdapterStatuses: vi.fn().mockReturnValue([]),
-      syncChannel: mockSyncChannel,
-      disconnectChannel: mockDisconnectChannel,
-      waitForQrUrl: mockWaitForQrUrl
+      getAdapterStatuses: vi.fn().mockReturnValue([])
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -103,20 +103,23 @@ vi.mock('qrcode', () => ({
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     listChannels: mockListChannels,
-    createChannel: mockCreateChannel,
-    getChannel: mockGetChannel,
-    updateChannel: mockUpdateChannel,
-    deleteChannel: mockDeleteChannel
+    getChannel: mockGetChannel
   }
 }))
 
-vi.mock('@data/services/AgentChannelWorkflowService', () => ({
-  agentChannelWorkflowService: {
-    createChannel: mockCreateChannel,
-    updateChannel: mockUpdateChannel,
-    deleteChannel: mockDeleteChannel
+vi.mock('@main/ai/channels', async (importOriginal) => {
+  const actual = await importOriginal<typeof ChannelsModule>()
+  return {
+    ...actual,
+    createAgentChannel: mockCreateChannel,
+    createAgentChannelAndWaitForQr: mockCreateChannelAndWaitForQr,
+    updateAgentChannel: mockUpdateChannel,
+    updateAgentChannelAndWaitForQr: mockUpdateChannelAndWaitForQr,
+    deleteAgentChannel: mockDeleteChannel,
+    reconnectAgentChannel: mockReconnectChannel,
+    reconnectAgentChannelWithQr: mockReconnectChannelWithQr
   }
-}))
+})
 
 vi.mock('@main/services/MainWindowService', () => ({
   windowService: {
@@ -1137,12 +1140,11 @@ describe('CherryAutonomyTools', () => {
     }
 
     beforeEach(() => {
-      mockSyncChannel.mockResolvedValue(undefined)
-      mockDisconnectChannel.mockResolvedValue(undefined)
       mockListChannels.mockReturnValue([])
       mockGetChannel.mockReturnValue(null)
-      mockDeleteChannel.mockResolvedValue(undefined)
+      mockDeleteChannel.mockResolvedValue(true)
       mockUpdateChannel.mockResolvedValue(undefined)
+      mockReconnectChannel.mockResolvedValue(undefined)
     })
 
     describe('status action', () => {
@@ -1272,8 +1274,10 @@ describe('CherryAutonomyTools', () => {
       })
 
       it('should add a wechat channel without a token path and return QR code image', async () => {
-        mockCreateChannel.mockReturnValue({ id: 'ch_wc1', type: 'wechat', name: 'My WeChat', isActive: true })
-        mockWaitForQrUrl.mockResolvedValue('https://login.weixin.qq.com/l/abc123')
+        mockCreateChannelAndWaitForQr.mockResolvedValue({
+          channel: { id: 'ch_wc1', type: 'wechat', name: 'My WeChat', isActive: true },
+          qrUrl: 'https://login.weixin.qq.com/l/abc123'
+        })
         mockQRCodeToDataURL.mockResolvedValue('data:image/png;base64,iVBORw0KGgo=')
 
         const server = createServer('agent_1')
@@ -1289,10 +1293,11 @@ describe('CherryAutonomyTools', () => {
           'config'
         )
 
-        expect(mockCreateChannel).toHaveBeenCalledWith(
+        expect(mockCreateChannelAndWaitForQr).toHaveBeenCalledWith(
           expect.objectContaining({
             config: { type: 'wechat', token_path: '', allowed_chat_ids: ['chat-1'] }
-          })
+          }),
+          30_000
         )
         expect(result.content).toHaveLength(2)
         expect(result.content[0].type).toBe('text')
@@ -1300,13 +1305,13 @@ describe('CherryAutonomyTools', () => {
         expect(result.content[1].type).toBe('image')
         expect(result.content[1].data).toBe('iVBORw0KGgo=')
         expect(result.content[1].mimeType).toBe('image/png')
-        expect(mockSyncChannel).toHaveBeenCalledWith('ch_wc1')
-        expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', 'ch_wc1', 30_000)
       })
 
       it('should add a feishu channel without app credentials and return QR code image', async () => {
-        mockCreateChannel.mockReturnValue({ id: 'ch_fs1', type: 'feishu', name: 'My Feishu', isActive: true })
-        mockWaitForQrUrl.mockResolvedValue('https://accounts.feishu.cn/device/abc123')
+        mockCreateChannelAndWaitForQr.mockResolvedValue({
+          channel: { id: 'ch_fs1', type: 'feishu', name: 'My Feishu', isActive: true },
+          qrUrl: 'https://accounts.feishu.cn/device/abc123'
+        })
         mockQRCodeToDataURL.mockResolvedValue('data:image/png;base64,iVBORw0KGgo=')
 
         const server = createServer('agent_1')
@@ -1329,7 +1334,7 @@ describe('CherryAutonomyTools', () => {
           'config'
         )
 
-        expect(mockCreateChannel).toHaveBeenCalledWith(
+        expect(mockCreateChannelAndWaitForQr).toHaveBeenCalledWith(
           expect.objectContaining({
             config: {
               type: 'feishu',
@@ -1340,7 +1345,8 @@ describe('CherryAutonomyTools', () => {
               allowed_chat_ids: ['chat-1'],
               domain: 'lark'
             }
-          })
+          }),
+          30_000
         )
         expect(result.content).toHaveLength(2)
         expect(result.content[0].text).toContain('Feishu channel created')
@@ -1349,8 +1355,6 @@ describe('CherryAutonomyTools', () => {
           data: 'iVBORw0KGgo=',
           mimeType: 'image/png'
         })
-        expect(mockSyncChannel).toHaveBeenCalledWith('ch_fs1')
-        expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', 'ch_fs1', 30_000)
       })
 
       it('should allow adding another Feishu channel when one already exists', async () => {
@@ -1361,8 +1365,10 @@ describe('CherryAutonomyTools', () => {
             config: { ...feishuChannel.config, app_id: 'app-id', app_secret: 'app-secret' }
           }
         ])
-        mockCreateChannel.mockReturnValue({ id: 'ch_fs2', type: 'feishu', name: 'Second Feishu', isActive: true })
-        mockWaitForQrUrl.mockResolvedValue('https://accounts.feishu.cn/device/abc123')
+        mockCreateChannelAndWaitForQr.mockResolvedValue({
+          channel: { id: 'ch_fs2', type: 'feishu', name: 'Second Feishu', isActive: true },
+          qrUrl: 'https://accounts.feishu.cn/device/abc123'
+        })
         mockQRCodeToDataURL.mockResolvedValue('data:image/png;base64,iVBORw0KGgo=')
 
         const server = createServer('agent_1')
@@ -1372,14 +1378,14 @@ describe('CherryAutonomyTools', () => {
           'config'
         )
 
-        expect(mockCreateChannel).toHaveBeenCalledWith(
+        expect(mockCreateChannelAndWaitForQr).toHaveBeenCalledWith(
           expect.objectContaining({
             type: 'feishu',
             name: 'Second Feishu',
             agentId: 'agent_1'
-          })
+          }),
+          30_000
         )
-        expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', 'ch_fs2', 30_000)
         expect(result.content.filter((item: { type: string }) => item.type === 'image')).toHaveLength(1)
       })
 
@@ -1404,7 +1410,10 @@ describe('CherryAutonomyTools', () => {
           existingChannel
         ])
         mockGetChannel.mockReturnValue(updatedChannel)
-        mockWaitForQrUrl.mockResolvedValue('https://accounts.larksuite.com/device/abc123')
+        mockUpdateChannelAndWaitForQr.mockResolvedValue({
+          channel: updatedChannel,
+          qrUrl: 'https://accounts.larksuite.com/device/abc123'
+        })
         mockQRCodeToDataURL.mockResolvedValue('data:image/png;base64,iVBORw0KGgo=')
 
         const server = createServer('agent_1')
@@ -1426,20 +1435,24 @@ describe('CherryAutonomyTools', () => {
         )
 
         expect(mockCreateChannel).not.toHaveBeenCalled()
-        expect(mockUpdateChannel).toHaveBeenCalledWith('ch_existing', {
-          name: 'Updated Feishu',
-          config: {
-            type: 'feishu',
-            app_id: '',
-            app_secret: '',
-            encrypt_key: '',
-            verification_token: '',
-            allowed_chat_ids: ['chat-1'],
-            domain: 'lark'
+        expect(mockUpdateChannelAndWaitForQr).toHaveBeenCalledWith(
+          'ch_existing',
+          'agent_1',
+          {
+            name: 'Updated Feishu',
+            config: {
+              type: 'feishu',
+              app_id: '',
+              app_secret: '',
+              encrypt_key: '',
+              verification_token: '',
+              allowed_chat_ids: ['chat-1'],
+              domain: 'lark'
+            },
+            isActive: true
           },
-          isActive: true
-        })
-        expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', 'ch_existing', 30_000)
+          30_000
+        )
         expect(result.content.filter((item: { type: string }) => item.type === 'image')).toHaveLength(1)
       })
 
@@ -1465,12 +1478,11 @@ describe('CherryAutonomyTools', () => {
         expect(result.content[0].text).toContain('Multiple unverified Feishu channels already exist')
         expect(result.content[0].text).toContain('reconnect_channel')
         expect(mockCreateChannel).not.toHaveBeenCalled()
-        expect(mockWaitForQrUrl).not.toHaveBeenCalled()
+        expect(mockCreateChannelAndWaitForQr).not.toHaveBeenCalled()
       })
 
       it('should clean up orphan channel when wechat QR times out', async () => {
-        mockCreateChannel.mockReturnValue({ id: 'ch_wc2', type: 'wechat', name: 'My WeChat', isActive: true })
-        mockWaitForQrUrl.mockRejectedValue(new Error('Timed out waiting for QR code'))
+        mockCreateChannelAndWaitForQr.mockRejectedValue(new Error('Timed out waiting for QR code'))
 
         const server = createServer('agent_1')
         const result = await callTool(
@@ -1483,10 +1495,7 @@ describe('CherryAutonomyTools', () => {
         expect(result.content).toHaveLength(1)
         expect(result.content[0].text).toContain('Timed out')
         expect(result.content[0].text).toContain('not saved')
-        // Should have deleted the orphan channel
-        expect(mockDeleteChannel).toHaveBeenCalledWith('ch_wc2')
-        // syncChannel runs once for the initial fire-and-forget add.
-        expect(mockSyncChannel).toHaveBeenCalledTimes(1)
+        expect(mockCreateChannelAndWaitForQr).toHaveBeenCalledOnce()
       })
 
       it('should error when required config field is missing', async () => {
@@ -1537,7 +1546,7 @@ describe('CherryAutonomyTools', () => {
         expect(result.isError).toBe(true)
         expect(result.content[0].text).toContain('QR authentication requires the channel to be enabled')
         expect(mockCreateChannel).not.toHaveBeenCalled()
-        expect(mockWaitForQrUrl).not.toHaveBeenCalled()
+        expect(mockCreateChannelAndWaitForQr).not.toHaveBeenCalled()
       })
     })
 
@@ -1640,7 +1649,7 @@ describe('CherryAutonomyTools', () => {
         const result = await callTool(server, { action: 'reconnect_channel', channel_id: 'ch_1' }, 'config')
 
         expect(result.content[0].text).toContain('reconnected')
-        expect(mockSyncChannel).toHaveBeenCalledWith('ch_1')
+        expect(mockReconnectChannel).toHaveBeenCalledWith('ch_1')
       })
 
       it('should error when channel_id is missing', async () => {
@@ -1669,7 +1678,7 @@ describe('CherryAutonomyTools', () => {
 
         expect(result.isError).toBe(true)
         expect(result.content[0].text).toContain('Channel "ch_1" not found')
-        expect(mockSyncChannel).not.toHaveBeenCalled()
+        expect(mockReconnectChannel).not.toHaveBeenCalled()
       })
     })
 

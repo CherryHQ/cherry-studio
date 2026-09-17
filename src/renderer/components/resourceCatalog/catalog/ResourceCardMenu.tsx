@@ -1,4 +1,4 @@
-import { Copy, Download, MoreHorizontal, Tag, Trash2 } from 'lucide-react'
+import { Archive, Copy, Download, MoreHorizontal, Tag, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -8,6 +8,7 @@ import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/co
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { Group } from '@shared/data/types/group'
 
 const logger = loggerService.withContext('ResourceCardMenu')
@@ -20,7 +21,7 @@ interface ResourceCardMenuProps {
   resource: ResourceItem
   onClose?: () => void
   onDuplicate: (r: ResourceItem) => void
-  onDelete: (r: ResourceItem) => void
+  onDelete: (r: ResourceItem, permanent?: boolean) => void
   onExport: (r: ResourceItem) => void
   allGroups: Group[]
   triggerClassName?: string
@@ -153,17 +154,36 @@ function useResourceCardMenuItems({
       items.push({ type: 'separator' })
     }
 
-    items.push({
-      type: 'item',
-      id: 'delete',
-      label: resource.type === 'skill' ? t('library.action.uninstall') : t('common.delete'),
-      icon: <Trash2 size={14} />,
-      destructive: true,
-      onSelect: () => {
-        onDelete(resource)
-        onClose?.()
-      }
-    })
+    const isOwner = resource.type === 'assistant' || resource.type === 'agent'
+    const protectedAgent =
+      resource.type === 'agent' && isProtectedBuiltinAgentRole(resource.raw.configuration?.builtin_role)
+    if (isOwner)
+      items.push({
+        type: 'item',
+        id: 'archive',
+        label: t(protectedAgent ? 'agent.session.agent.delete.trigger' : 'common.archive'),
+        icon: <Archive size={14} />,
+        onSelect: () => {
+          onDelete(resource)
+          onClose?.()
+        }
+      })
+    if (!protectedAgent)
+      items.push({
+        type: 'item',
+        id: 'delete',
+        label:
+          resource.type === 'skill'
+            ? t('library.action.uninstall')
+            : t(isOwner ? 'common.delete_permanently' : 'common.delete'),
+        icon: <Trash2 size={14} />,
+        destructive: true,
+        onSelect: () => {
+          if (isOwner) onDelete(resource, true)
+          else onDelete(resource)
+          onClose?.()
+        }
+      })
 
     return items
   }, [
