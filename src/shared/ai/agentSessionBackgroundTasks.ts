@@ -35,5 +35,74 @@ export const AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY = (sessionId: string) =>
  */
 export type AgentSessionTaskEvents = Record<string, AgentTaskEventPartData>
 
+const LATE_NONTERMINAL_ENRICHMENT_FIELDS = [
+  'createdAt',
+  'toolUseId',
+  'title',
+  'subagentType',
+  'taskType',
+  'workflowName'
+] as const satisfies ReadonlyArray<keyof AgentTaskEventPartData>
+
+export function isTerminalAgentSessionTaskStatus(status: AgentTaskEventPartData['status'] | undefined): boolean {
+  return status === 'completed' || status === 'stopped' || status === 'error'
+}
+
+/** Merge a lifecycle edge while preserving task identity and the first terminal transition. */
+export function mergeAgentSessionTaskEvent(
+  existing: AgentTaskEventPartData | undefined,
+  incoming: AgentTaskEventPartData
+): AgentTaskEventPartData {
+  if (!existing) return incoming
+
+  const merged = { ...existing }
+  const existingIsTerminal = isTerminalAgentSessionTaskStatus(existing.status)
+  const incomingIsTerminal = isTerminalAgentSessionTaskStatus(incoming.status)
+  const isFirstTerminalTransition = incomingIsTerminal && !existingIsTerminal
+  if (existingIsTerminal && !incomingIsTerminal) {
+    for (const field of LATE_NONTERMINAL_ENRICHMENT_FIELDS) {
+      const value = incoming[field]
+      const existingValue = existing[field]
+      if ((existingValue === undefined || existingValue === '') && value !== undefined && value !== '') {
+        ;(merged as Record<keyof AgentTaskEventPartData, unknown>)[field] = value
+      }
+    }
+    return merged
+  }
+
+  for (const [field, value] of Object.entries(incoming) as Array<
+    [keyof AgentTaskEventPartData, AgentTaskEventPartData[keyof AgentTaskEventPartData]]
+  >) {
+    if (value === undefined) continue
+    if (field === 'createdAt' && existing.createdAt !== undefined) continue
+    if (existingIsTerminal && (field === 'event' || field === 'status' || field === 'completedAt')) continue
+    if (field === 'usage') {
+      const existingUsage = existing.usage
+      const incomingUsage = incoming.usage
+      merged.usage = {
+        ...existingUsage,
+        // Context size is a point-in-time snapshot; unlike cumulative counters, the latest edge wins.
+        ...incomingUsage,
+        ...(existingUsage?.totalTokens !== undefined || incomingUsage?.totalTokens !== undefined
+          ? { totalTokens: Math.max(existingUsage?.totalTokens ?? 0, incomingUsage?.totalTokens ?? 0) }
+          : {}),
+        ...(isFirstTerminalTransition && incomingUsage?.toolUses !== undefined
+          ? { toolUses: incomingUsage.toolUses }
+          : existingUsage?.toolUses !== undefined || incomingUsage?.toolUses !== undefined
+            ? { toolUses: Math.max(existingUsage?.toolUses ?? 0, incomingUsage?.toolUses ?? 0) }
+            : {}),
+        ...(isFirstTerminalTransition && incomingUsage?.durationMs !== undefined
+          ? { durationMs: incomingUsage.durationMs }
+          : existingUsage?.durationMs !== undefined || incomingUsage?.durationMs !== undefined
+            ? { durationMs: Math.max(existingUsage?.durationMs ?? 0, incomingUsage?.durationMs ?? 0) }
+            : {})
+      }
+      continue
+    }
+    ;(merged as Record<keyof AgentTaskEventPartData, unknown>)[field] = value
+  }
+  return merged
+}
+
 export const AGENT_SESSION_TASK_EVENTS_CACHE_KEY = (sessionId: string) =>
   `agent.session.task_events.${sessionId}` as const
