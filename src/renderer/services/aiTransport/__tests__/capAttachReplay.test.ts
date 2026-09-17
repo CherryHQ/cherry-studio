@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { StreamChunkPayload } from '@shared/ai/transport'
 
-import { capAttachReplayChunks, MAX_ATTACH_REPLAY_CHUNKS } from '../capAttachReplay'
+import { capAttachReplayChunks, dropCoveredOverflow, MAX_ATTACH_REPLAY_CHUNKS } from '../capAttachReplay'
 
 function textDelta(id: string, delta: string): StreamChunkPayload {
   return { topicId: 't', chunk: { type: 'text-delta', id, delta } }
@@ -39,5 +39,40 @@ describe('capAttachReplayChunks', () => {
     const out = capAttachReplayChunks(bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS)
 
     expect(out.length).toBeLessThanOrEqual(MAX_ATTACH_REPLAY_CHUNKS)
+  })
+})
+
+describe('dropCoveredOverflow', () => {
+  const seqDelta = (seq: number, delta: string): StreamChunkPayload => ({
+    topicId: 't',
+    seq,
+    chunk: { type: 'text-delta', id: 'p', delta }
+  })
+
+  it('drops pre-attach live chunks already covered by the replay snapshot', () => {
+    // Main sent seqs 1-2 to a stale listener before the attach; the snapshot
+    // replays them, so the overflow copies must not reach the reader twice.
+    const replay = [seqDelta(1, 'a'), seqDelta(2, 'b')]
+    const overflow = [seqDelta(1, 'a'), seqDelta(2, 'b'), seqDelta(3, 'c')]
+
+    expect(dropCoveredOverflow(replay, overflow)).toEqual([seqDelta(3, 'c')])
+  })
+
+  it('keeps everything when no side carries sequence numbers', () => {
+    // Seq-less payloads (older main, hand-built tests) cannot be compared, so
+    // the filter stays a no-op instead of dropping live chunks it cannot place.
+    const replay = [textDelta('p', 'a')]
+    const overflow = [textDelta('p', 'a'), textDelta('p', 'b')]
+
+    expect(dropCoveredOverflow(replay, overflow)).toEqual(overflow)
+  })
+
+  it('drops overflow older than a capped replay tail, like the cap itself', () => {
+    // The cap deliberately discards old content; overflow must not resurrect
+    // it — only chunks newer than the retained tail drain after replay.
+    const replay = [seqDelta(100, 'tail'), seqDelta(101, 'tail')]
+    const overflow = [seqDelta(50, 'old'), seqDelta(102, 'new')]
+
+    expect(dropCoveredOverflow(replay, overflow)).toEqual([seqDelta(102, 'new')])
   })
 })

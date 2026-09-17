@@ -126,6 +126,9 @@ export function mergeDeltaPayload(
     }
     const merged: StreamChunkPayload = {
       ...tail,
+      // Newer constituent wins: the merged entry covers both origins, so the
+      // replay watermark must reach the incoming side to filter its live twin.
+      seq: incoming.seq ?? tail.seq,
       chunk: {
         ...prev,
         delta: prev.delta + next.delta,
@@ -144,6 +147,7 @@ export function mergeDeltaPayload(
     }
     const merged: StreamChunkPayload = {
       ...tail,
+      seq: incoming.seq ?? tail.seq,
       chunk: { ...prev, inputTextDelta: prev.inputTextDelta + next.inputTextDelta }
     }
     if (mergedByteLength !== undefined) deltaUtf8ByteLengths.set(merged, mergedByteLength)

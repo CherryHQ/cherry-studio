@@ -8,6 +8,20 @@ export const MAX_ATTACH_REPLAY_CHUNKS = 1000
 // buildCompactReplay (ring buffer + delta merge/synthesis); this helper only
 // bounds synchronous replay work during attach before the live stream handoff.
 
+// Pre-attach live chunks main already sent to a stale/parallel listener for
+// this window are also inside the attach snapshot; drop the covered ones.
+export function dropCoveredOverflow(
+  replay: readonly StreamChunkPayload[],
+  overflow: readonly StreamChunkPayload[]
+): StreamChunkPayload[] {
+  let watermark = -1
+  for (const payload of replay) {
+    if (payload.seq !== undefined && payload.seq > watermark) watermark = payload.seq
+  }
+  if (watermark < 0) return [...overflow]
+  return overflow.filter((payload) => payload.seq === undefined || payload.seq > watermark)
+}
+
 function scopedPartKey(payload: StreamChunkPayload, kind: 'text' | 'reasoning' | 'tool-input', id: string): string {
   return JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, `${kind}:${id}`])
 }

@@ -44,6 +44,12 @@ export interface StreamChunkPayload {
   attemptId?: number
   /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
   anchorMessageId?: string
+  /**
+   * Per-topic ingest index assigned by main. A re-attaching renderer drops
+   * pre-attach live chunks at or below the replay watermark — main already
+   * sent those to a stale/parallel listener and they are inside the snapshot.
+   */
+  seq?: number
   chunk: UIMessageChunk
 }
 

@@ -389,6 +389,23 @@ describe('buildCompactReplay', () => {
       expect(mergeDeltaPayload(tail, incoming, 7)).toMatchObject({ chunk: { inputTextDelta: '{"q":1}' } })
     })
 
+    it('keeps the newer ingest index on a merged entry for the replay watermark', () => {
+      // The merged entry covers both origins; the watermark must reach the
+      // incoming side or its live twin survives the overflow filter as a duplicate.
+      const tail = {
+        topicId: 't',
+        seq: 4,
+        chunk: { type: 'text-delta', id: 'p1', delta: 'ab' } as UIMessageChunk
+      }
+      const incoming = {
+        topicId: 't',
+        seq: 5,
+        chunk: { type: 'text-delta', id: 'p1', delta: 'cd' } as UIMessageChunk
+      }
+
+      expect(mergeDeltaPayload(tail, incoming)).toMatchObject({ seq: 5, chunk: { delta: 'abcd' } })
+    })
+
     it('splits one oversized incoming delta without breaking Unicode code points', () => {
       const payload = {
         topicId: 't',

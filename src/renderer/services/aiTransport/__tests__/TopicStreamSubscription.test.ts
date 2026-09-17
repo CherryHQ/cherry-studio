@@ -109,9 +109,10 @@ function createMockAiApi() {
       executionId: UniqueModelId,
       chunk: UIMessageChunk,
       anchorMessageId?: string,
-      attemptId = 1
+      attemptId = 1,
+      seq?: number
     ) => {
-      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, attemptId, anchorMessageId, chunk })
+      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, attemptId, anchorMessageId, seq, chunk })
     },
     emitDone: (
       topicId: string,
@@ -418,6 +419,28 @@ describe('TopicStreamSubscription', () => {
     await tick()
     mock.emitDone(TOPIC, A, 'success')
     expect(await readAll(sa)).toEqual([{ type: 'text-start', id: 't' }, textChunk('replay'), textChunk('live')])
+    sub.dispose()
+  })
+
+  it('drops attach-buffered live chunks already covered by the replay snapshot', async () => {
+    // A stale/parallel listener for this window receives live chunks main also
+    // includes in the snapshot; draining both would duplicate branch content.
+    mock.mockApi.streamAttach.mockImplementationOnce(async () => {
+      mock.emitChunk(TOPIC, A, textChunk('replay'), undefined, 1, 2)
+      mock.emitChunk(TOPIC, A, textChunk('fresh'), undefined, 1, 3)
+      return {
+        status: 'attached',
+        bufferedChunks: [
+          { topicId: TOPIC, executionId: A, attemptId: 1, seq: 1, chunk: { type: 'text-start', id: 't' } },
+          { topicId: TOPIC, executionId: A, attemptId: 1, seq: 2, chunk: textChunk('replay') }
+        ] satisfies StreamChunkPayload[]
+      }
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const sa = sub.register(A, undefined, 1)
+    await tick()
+    mock.emitDone(TOPIC, A, 'success')
+    expect(await readAll(sa)).toEqual([{ type: 'text-start', id: 't' }, textChunk('replay'), textChunk('fresh')])
     sub.dispose()
   })
 
