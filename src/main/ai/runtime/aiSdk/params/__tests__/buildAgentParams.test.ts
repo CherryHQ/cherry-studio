@@ -971,7 +971,22 @@ describe('buildAgentParams standard model parameters', () => {
     expect(sentBody?.thinking?.budget_tokens).toBe(4000)
   })
 
-  it('ignores a canonical Anthropic thinking override for Bedrock output budgeting', async () => {
+  it.each([
+    { label: 'ignores canonical Anthropic thinking', override: undefined, expectedBudget: undefined },
+    { label: 'uses a direct Bedrock budget', override: { type: 'enabled', budgetTokens: 4000 }, expectedBudget: 4000 },
+    {
+      label: 'bounds a direct Bedrock budget',
+      override: { type: 'enabled', budgetTokens: 400_000 },
+      expectedBudget: 299_999
+    },
+    {
+      label: 'disables a subminimum Bedrock budget',
+      override: { type: 'enabled', budgetTokens: 500 },
+      expectedBudget: 0
+    },
+    { label: 'preserves disabled Bedrock thinking', override: { type: 'disabled' }, expectedBudget: 0 },
+    { label: 'does not invent a missing Bedrock budget', override: { type: 'enabled' }, expectedBudget: 0 }
+  ])('$label while respecting the model output limit', async ({ override, expectedBudget }) => {
     let sentBody: Record<string, any> | undefined
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {
@@ -1018,7 +1033,8 @@ describe('buildAgentParams standard model parameters', () => {
         callOverrides: {
           maxOutputTokens: 393_216,
           providerOptions: {
-            anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } }
+            anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } },
+            ...(override && { bedrock: { reasoningConfig: override } })
           }
         }
       },
@@ -1032,9 +1048,8 @@ describe('buildAgentParams standard model parameters', () => {
     const reasoningConfig = result.options.providerOptions?.bedrock?.reasoningConfig as
       | { type?: string; budgetTokens?: number }
       | undefined
-    expect(reasoningConfig).toMatchObject({ type: 'enabled' })
-    expect(reasoningConfig?.budgetTokens).toBeGreaterThan(4000)
-    expect(result.options.maxOutputTokens).toBe(300_000 - reasoningConfig!.budgetTokens!)
+    const budget = expectedBudget ?? reasoningConfig!.budgetTokens!
+    if (expectedBudget === undefined) expect(budget).toBeGreaterThan(4000)
     await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
       model: result.sdkConfig.modelId,
       prompt: 'hello',
@@ -1042,7 +1057,9 @@ describe('buildAgentParams standard model parameters', () => {
       providerOptions: result.options.providerOptions
     })
     expect(sentBody?.inferenceConfig?.maxTokens).toBe(300_000)
-    expect(sentBody?.additionalModelRequestFields?.thinking?.budget_tokens).toBe(reasoningConfig?.budgetTokens)
+    expect(sentBody?.additionalModelRequestFields?.thinking?.budget_tokens).toBe(budget || undefined)
+    expect(reasoningConfig?.budgetTokens).toBe(budget || undefined)
+    expect(result.options.maxOutputTokens).toBe(300_000 - budget)
   })
 
   it('disables explicit Anthropic thinking when the total budget cannot satisfy its minimum', async () => {

@@ -711,12 +711,15 @@ function boundExplicitThinkingByTotalOutput(
 ): { providerOptions: ProviderOptions; budgetTokens: number | undefined } | undefined {
   if (endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return undefined
   const namespace = providerOptions[providerOptionsKey]
-  const thinking = namespace?.thinking
+  const thinkingKey = providerOptionsKey === 'bedrock' ? 'reasoningConfig' : 'thinking'
+  const thinking = namespace?.[thinkingKey]
   if (thinking === null || typeof thinking !== 'object' || Array.isArray(thinking)) return undefined
   const thinkingOptions = thinking
   if (thinkingOptions.type !== 'enabled') return undefined
   if (thinkingOptions.budgetTokens !== undefined && typeof thinkingOptions.budgetTokens !== 'number') return undefined
 
+  // Bedrock only adds an explicitly configured budget; unlike Anthropic it has no default here.
+  if (providerOptionsKey === 'bedrock' && thinkingOptions.budgetTokens === undefined) return undefined
   const requestedBudget = thinkingOptions.budgetTokens ?? ANTHROPIC_MIN_THINKING_BUDGET
   const budgetTokens =
     totalOutputTokens === undefined ? requestedBudget : Math.min(requestedBudget, totalOutputTokens - 1)
@@ -731,7 +734,7 @@ function boundExplicitThinkingByTotalOutput(
   return {
     providerOptions: {
       ...providerOptions,
-      [providerOptionsKey]: { ...namespace, thinking: normalizedThinking }
+      [providerOptionsKey]: { ...namespace, [thinkingKey]: normalizedThinking }
     },
     budgetTokens: normalizedThinking.type === 'enabled' ? budgetTokens : undefined
   }
@@ -742,7 +745,8 @@ function resolveEffectiveThinkingBudget(
   providerOptionsKey: string,
   fallbackBudgetTokens: number | undefined
 ): number | undefined {
-  const thinking = providerOptions[providerOptionsKey]?.thinking
+  const thinkingKey = providerOptionsKey === 'bedrock' ? 'reasoningConfig' : 'thinking'
+  const thinking = providerOptions[providerOptionsKey]?.[thinkingKey]
   if (thinking === undefined) return fallbackBudgetTokens
   if (thinking === null || typeof thinking !== 'object' || Array.isArray(thinking)) return undefined
 

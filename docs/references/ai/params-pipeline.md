@@ -99,6 +99,7 @@ interface RequestScope extends ToolApplyScope {
   request, signal, registry, assistant, model, provider,
   capabilities,            // resolveCapabilities — see capabilities.ts
   sdkConfig, endpointType, aiSdkProviderId,
+  requestedMaxOutputTokens, // model-clamped total shared by context and compaction
   requestContext,          // RequestContext for tool execute()
   mcpToolIds
 }
