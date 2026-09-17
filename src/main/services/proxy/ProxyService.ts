@@ -81,7 +81,7 @@ export class ProxyService extends BaseService {
   })
 
   /**
-   * Key of the currently applied proxy config (null before the first apply).
+   * Key of the fully applied proxy config (null before or after an incomplete apply).
    * Exposed so RegionService can invalidate its cached egress country the
    * moment the proxy — and thus the egress IP — changes.
    */
@@ -161,6 +161,7 @@ export class ProxyService extends BaseService {
     if (config.mode === 'system') this.ensureSystemProxyMonitor()
     else this.clearSystemProxyMonitor()
 
+    this.appliedKey = null
     await this.setGlobalProxy(config)
     this.appliedKey = proxyConfigKey(config)
   }
@@ -197,8 +198,9 @@ export class ProxyService extends BaseService {
       session.defaultSession,
       ...Object.values(WEBVIEW_SECURITY_PARTITIONS).map((partition) => session.fromPartition(partition))
     ]
-    // Await the session AND app proxy config together so a one-shot apply can't fail
-    // silently and callers can rely on the proxy being in effect once this resolves.
-    await Promise.all([...sessions.map((s) => s.setProxy(config)), app.setProxy(config)])
+    // Drain every write even on failure so the next apply cannot race stale session writes.
+    const outcomes = await Promise.allSettled([...sessions.map((s) => s.setProxy(config)), app.setProxy(config)])
+    const failed = outcomes.find((outcome) => outcome.status === 'rejected')
+    if (failed) throw failed.reason
   }
 }

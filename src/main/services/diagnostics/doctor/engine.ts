@@ -117,7 +117,12 @@ export async function runDoctorChecks<Id extends string, Outcome extends { reado
           return
         }
         const lane = lanes.get(check.lane)
-        const run = () => probe(check, options.signal, now)
+        const run = () => {
+          if (options.signal?.aborted) {
+            return Promise.resolve({ status: 'error' as const, message: CANCELED_MESSAGE, durationMs: 0 })
+          }
+          return probe(check, options.signal, now)
+        }
         settle({ id: check.id, ...(lane ? await lane.add(run, { throwOnTimeout: true }) : await run()) })
       })
     )
