@@ -14,7 +14,7 @@ import type {
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
 import { application } from '@application'
-import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -429,7 +429,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
    * A malformed token still throws — that's the resume-dir attack-surface guard.
    */
   private resolveSessionManager(pi: Awaited<ReturnType<typeof loadPiSdk>>, workspacePath: string, sessionDir: string) {
-    const isFork = agentSessionService.isFork(this.input.sessionId)
+    const isFork = agentSessionForkService.ownsNativeHistory(this.input.sessionId)
     if (!this.resumeToken) {
       if (isFork) throw new AgentSessionForkError('history_missing')
       return pi.SessionManager.create(workspacePath, sessionDir, { id: this.input.sessionId })
@@ -703,14 +703,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       }
       this.eventQueue.push({
         type: 'turn-complete',
-        forkState:
+        forkAnchor:
           leafId && this.resumeToken
             ? {
-                version: 1,
-                status: 'available',
                 checkpoint: { runtime: 'pi', runtimeSessionId: this.resumeToken, leafId }
               }
-            : { version: 1, status: 'unavailable', reason: 'checkpoint_failed' }
+            : undefined
       })
     }
     this.lastStopReason = undefined

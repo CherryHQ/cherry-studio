@@ -8,6 +8,7 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -200,8 +201,8 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
-  it.each(['success', 'workspace_changed', 'checkpoint_failed', 'cancelled'] as const)(
-    'requires an available checkpoint and makes one native fork request: %s',
+  it.each(['success', 'workspace_changed', 'legacy_history', 'cancelled'] as const)(
+    'offers completed messages without an availability flag and reports native fork errors: %s',
     async (scenario) => {
       let value: MessageListProviderValue | undefined
       const Probe = () => {
@@ -232,36 +233,13 @@ describe('useAgentMessageListProviderValue', () => {
       const selectedMessage = {
         id: 'selected-message',
         role: 'assistant',
-        status: 'success',
-        forkAvailability: { status: 'available' }
+        status: 'success'
       } as MessageListItem
       expect(capability.label).toBe('agent_session_fork.label')
-      expect(capability.availability({ ...selectedMessage, forkAvailability: undefined })).toEqual({
-        visible: true,
-        enabled: false,
-        reason: 'agent_session_fork.legacy_history'
-      })
       expect(capability.availability(selectedMessage)).toMatchObject({
         visible: true,
         enabled: true
       })
-      for (const [reason, label] of [
-        ['legacy_history', 'agent_session_fork.legacy_history'],
-        ['checkpoint_failed', 'agent_session_fork.checkpoint_failed'],
-        ['history_missing', 'agent_session_fork.history_missing'],
-        ['history_corrupt', 'agent_session_fork.history_corrupt'],
-        ['unsupported_checkpoint', 'agent_session_fork.unsupported_checkpoint'],
-        ['history_changed', 'agent_session_fork.history_changed'],
-        ['not_turn_boundary', 'agent_session_fork.not_turn_boundary']
-      ] as const) {
-        expect(
-          capability.availability({ ...selectedMessage, forkAvailability: { status: 'unavailable', reason } })
-        ).toEqual({
-          visible: true,
-          enabled: false,
-          reason: label
-        })
-      }
       expect(capability.availability({ ...selectedMessage, status: 'pending' })).toEqual({
         visible: true,
         enabled: false,
@@ -270,9 +248,17 @@ describe('useAgentMessageListProviderValue', () => {
       expect(capability.availability({ ...selectedMessage, role: 'user' })).toBe(false)
       expect(ipcApiRequest).not.toHaveBeenCalled()
       const action = value!.actions.forkSession!.run('selected-message')
-      if (scenario === 'cancelled') await expect(action).rejects.toThrow('message.tools.cancelled')
-      else if (scenario !== 'success') await expect(action).rejects.toThrow()
-      else await action
+      if (scenario !== 'success') {
+        const message = scenario === 'cancelled' ? 'message.tools.cancelled' : `agent_session_fork.${scenario}`
+        await expect(action).rejects.toMatchObject({
+          code: aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED,
+          data: { reason: scenario },
+          message
+        })
+        await expect(
+          Promise.resolve(action).catch((error) => formatErrorMessageWithPrefix(error, 'Unknown error'))
+        ).resolves.toBe(message)
+      } else await action
       expect(ipcApiRequest).toHaveBeenNthCalledWith(1, 'ai.agent.session.fork', {
         sourceSessionId: 'source',
         messageId: 'selected-message'

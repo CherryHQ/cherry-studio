@@ -1,4 +1,4 @@
-import { eq, like } from 'drizzle-orm'
+import { and, eq, like, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
@@ -63,7 +63,7 @@ export class AgentSessionForkService {
       .run()
   }
 
-  hasCommittedChild(journal: AgentSessionForkJournal): boolean {
+  hasPublishedSession(journal: AgentSessionForkJournal): boolean {
     const row = application
       .get('DbService')
       .getDb()
@@ -71,18 +71,37 @@ export class AgentSessionForkService {
       .from(agentSessionTable)
       .where(eq(agentSessionTable.id, journal.targetSessionId))
       .get()
-    return row?.forkedFrom?.operationId === journal.operationId
+    return Boolean(row)
+  }
+
+  ownsNativeHistory(sessionId: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ key: appStateTable.key })
+        .from(appStateTable)
+        .where(
+          and(
+            like(appStateTable.key, FORK_JOURNAL_PREFIX + '%'),
+            sql`json_extract(${appStateTable.value}, '$.targetSessionId') = ${sessionId}`,
+            sql`json_extract(${appStateTable.value}, '$.committed') = 1`
+          )
+        )
+        .get()
+    )
   }
 
   commit(input: {
     journal: AgentSessionForkJournal
     source: ReturnType<AgentSessionForkService['read']>
     excludedIds: readonly string[]
+    messageId: string
     messages: AgentSessionMessageRow[]
   }): void {
     const { journal, source } = input
     application.get('DbService').withWriteTx((tx) => {
-      const current = this.readTx(tx, journal.sourceSessionId, journal.messageId, input.excludedIds)
+      const current = this.readTx(tx, source.session.id, input.messageId, input.excludedIds)
       // Appending after the boundary is allowed. Changes to the chosen prefix, Agent or cwd are not.
       if (
         current.agent.type !== source.agent.type ||
@@ -125,20 +144,10 @@ export class AgentSessionForkService {
         },
         journal.createdAt
       )
-      agentSessionService.setForkSourceTx(tx, journal.targetSessionId, {
-        sessionId: journal.sourceSessionId,
-        messageId: journal.messageId,
-        operationId: journal.operationId
-      })
       agentSessionMessageService.insertForkMessagesTx(tx, journal.targetSessionId, input.messages)
       this.writeJournal({ ...journal, committed: true }, tx)
     })
     agentSessionService.notifyReadModelChange([journal.targetSessionId], 'membership')
-  }
-
-  markUnavailable(sourceSessionId: string, messageId: string, reason: string): void {
-    // The message owner validates the reason and performs the write.
-    agentSessionMessageService.markForkUnavailable(sourceSessionId, messageId, reason)
   }
 }
 

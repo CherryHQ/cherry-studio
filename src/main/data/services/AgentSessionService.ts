@@ -285,11 +285,6 @@ export class AgentSessionService {
     })
   }
 
-  /** Persist fork provenance within the publishing transaction. */
-  setForkSourceTx(tx: DbOrTx, id: string, source: NonNullable<SessionRow['forkedFrom']>): void {
-    tx.update(sessionsTable).set({ forkedFrom: source }).where(eq(sessionsTable.id, id)).run()
-  }
-
   /** Bump metadata modification time from a foreign service's transaction. */
   touchUpdatedAtTx(tx: DbOrTx, sessionId: string, timestampMs: number): void {
     tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()
@@ -317,18 +312,6 @@ export class AgentSessionService {
       .limit(1)
       .all()
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
-  }
-
-  isFork(id: string): boolean {
-    return Boolean(
-      application
-        .get('DbService')
-        .getDb()
-        .select({ source: sessionsTable.forkedFrom })
-        .from(sessionsTable)
-        .where(eq(sessionsTable.id, id))
-        .get()?.source
-    )
   }
 
   getById(id: string): AgentSessionEntity {

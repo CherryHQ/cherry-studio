@@ -18,8 +18,7 @@ export interface DshForkInput {
   targetSessionId: string
   targetCwd: string
   boundary: number
-  prefixHash: string
-  checkpoints: Array<{ boundary: number; prefixHash: string }>
+  checkpoints: Array<{ boundary: number }>
   events?: unknown[]
 }
 
@@ -62,19 +61,18 @@ export async function forkSession(input: DshForkInput): Promise<{ path: string }
       : await (source.sessionPersistence as JsonlSessionPersistence).loadStored(SessionId(input.sourceSessionId))
     const events = (input.events ?? stored?.events)?.slice(0, input.boundary + 1) as SessionEvent[] | undefined
     if (!events) throw new Error('history_missing')
-    if (createForkCheckpoint(events, input.boundary).prefixHash !== input.prefixHash) throw new Error('history_changed')
+    const { prefixHash } = createForkCheckpoint(events, input.boundary)
     for (const checkpoint of input.checkpoints) {
-      if (createForkCheckpoint(events, checkpoint.boundary).prefixHash !== checkpoint.prefixHash)
-        throw new Error('history_changed')
+      createForkCheckpoint(events, checkpoint.boundary)
     }
     // SessionStore validates and owns a detached copy of the full event graph.
     const child = target.sessions.create(SessionId(input.targetSessionId), {
       seed: events,
       inheritedEventCount: SessionLogOffset(events.length),
-      meta: { cwd: input.targetCwd, parentSession: SessionId(input.sourceSessionId), isSeeded: true }
+      meta: { cwd: input.targetCwd, isSeeded: true }
     })
     const inbox = new Inbox(child, { inserted() {}, discarded() {}, claimed() {} })
-    if (createForkCheckpoint(child.snapshotEvents(), input.boundary).prefixHash !== input.prefixHash)
+    if (createForkCheckpoint(child.snapshotEvents(), input.boundary).prefixHash !== prefixHash)
       throw new Error('history_corrupt')
     // 0.1.2's durable end-seed marker already excludes inherited inbox events.
     // Also clear any child-owned setup input through the public mutation API.

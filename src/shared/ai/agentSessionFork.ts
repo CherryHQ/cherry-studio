@@ -1,21 +1,10 @@
-export const AGENT_SESSION_FORK_UNAVAILABLE_REASONS = [
+export const AGENT_SESSION_FORK_FAILURE_REASONS = [
   'legacy_history',
   'not_turn_boundary',
-  'checkpoint_failed',
   'history_missing',
   'history_corrupt',
   'unsupported_checkpoint',
-  'history_changed'
-] as const
-
-export type AgentSessionForkUnavailableReason = (typeof AGENT_SESSION_FORK_UNAVAILABLE_REASONS)[number]
-
-export function isAgentSessionForkUnavailableReason(value: unknown): value is AgentSessionForkUnavailableReason {
-  return typeof value === 'string' && AGENT_SESSION_FORK_UNAVAILABLE_REASONS.some((reason) => reason === value)
-}
-
-export const AGENT_SESSION_FORK_FAILURE_REASONS = [
-  ...AGENT_SESSION_FORK_UNAVAILABLE_REASONS,
+  'history_changed',
   'workspace_changed',
   'workspace_unsupported_file',
   'source_missing',
@@ -29,7 +18,3 @@ export type AgentSessionForkFailureReason = (typeof AGENT_SESSION_FORK_FAILURE_R
 export function isAgentSessionForkFailureReason(value: unknown): value is AgentSessionForkFailureReason {
   return typeof value === 'string' && AGENT_SESSION_FORK_FAILURE_REASONS.some((reason) => reason === value)
 }
-
-export type AgentSessionForkAvailability =
-  | { status: 'available' }
-  | { status: 'unavailable'; reason: AgentSessionForkUnavailableReason }

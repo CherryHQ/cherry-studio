@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parentPort, workerData } from 'node:worker_threads'
@@ -26,8 +25,7 @@ export type ForkWorkerInput =
       targetSessionId: string
       targetCwd: string
       boundary: number
-      prefixHash: string
-      checkpoints: Array<{ boundary: number; prefixHash: string }>
+      checkpoints: Array<{ boundary: number }>
       events?: unknown[]
     }
 
@@ -124,14 +122,10 @@ async function run(input: ForkWorkerInput): Promise<unknown> {
     const uuid = mapping.get(value.messageUuid)
     const end = output.findIndex((entry) => entry.uuid === uuid)
     if (!uuid || end < 0) throw new Error('history_corrupt')
-    const prefix = value.messageUuid === checkpoint.messageUuid ? bytes : Buffer.concat(chunks.slice(0, end + 1))
     return {
       ...value,
       runtimeSessionId: result.sessionId,
-      messageUuid: uuid,
-      sourceCwd: input.targetCwd,
-      prefixBytes: prefix.length,
-      prefixHash: createHash('sha256').update(prefix).digest('hex')
+      messageUuid: uuid
     }
   })
   await mkdir(input.artifactDirectory, { recursive: true })

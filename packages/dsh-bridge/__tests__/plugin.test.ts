@@ -129,14 +129,8 @@ describe('cherry bridge plugin', () => {
     await expect.poll(() => host.requests[0]?.method).toBe('ready')
     const expected = sourceEvents.slice(0, end.seq + 1)
     const checkpoint = createForkCheckpoint(expected, end.seq)
-    await expect(
-      host.request('session/fork-checkpoint', { sessionId: 'session-1', boundary: end.seq })
-    ).resolves.toEqual(checkpoint)
     const reordered = expected.map(({ data, ...event }) => ({ data, ...event }))
     expect(createForkCheckpoint(reordered, end.seq)).toEqual(checkpoint)
-    await expect(
-      host.request('session/fork-checkpoint', { sessionId: 'session-1', boundary: later.seq })
-    ).rejects.toThrow('history_changed')
     expect(interruptedTurnClosers(expected)).toEqual([])
     await expect(host.request('session/fork-snapshot', { sessionId: 'session-1', boundary: end.seq })).resolves.toEqual(
       {
@@ -235,7 +229,8 @@ describe('cherry bridge plugin', () => {
           expect(stored?.events).toHaveLength(end.seq + 2)
           expect(stored?.events[end.seq]).toMatchObject({ type: 'turn/end', seq: end.seq })
           expect(stored?.events.at(-1)).toMatchObject({ type: 'session/end-seed' })
-          expect(stored?.meta).toMatchObject({ id: targetSessionId, cwd: targetCwd, parentSession: sourceId })
+          expect(stored?.meta).toMatchObject({ id: targetSessionId, cwd: targetCwd })
+          expect(stored?.meta?.parentSession).toBeUndefined()
           expect(stored?.inheritedEventCount).toBe(end.seq + 1)
           expect(createForkCheckpoint(stored!.events, end.seq)).toEqual(checkpoint)
           sourceEvents = stored!.events
@@ -248,54 +243,6 @@ describe('cherry bridge plugin', () => {
     }
   )
 
-  it.each([false, true])('rejects replaced history with the same session ID and boundary (live=%s)', async (live) => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-replaced-'))
-    cleanup.push(() => rm(directory, { recursive: true, force: true }))
-    const source = new Context()
-    const replacement = new Context()
-    try {
-      await source.plugin(SessionStore)
-      const original = source.sessions.create(SessionId('same-id'))
-      original.append('turn/start', { turn: 0 })
-      const end = original.append('turn/end', { turn: 0, reason: { kind: 'blocked' } })
-      const checkpoint = createForkCheckpoint(original.snapshotEvents(), end.seq)
-      await replacement.plugin(SessionStore)
-      const sourceRoot = path.join(directory, 'source')
-      await replacement.plugin(JsonlSessionPersistence, { root: sourceRoot })
-      const recreated = replacement.sessions.create(SessionId('same-id'))
-      recreated.append('turn/start', { turn: 0 })
-      recreated.append('turn/end', { turn: 0, reason: { kind: 'completed' } })
-      await replacement.sessionPersistence.ensureMaterialized(recreated)
-      await replacement.sessions.flush(recreated)
-      const events = recreated.snapshotEvents()
-      const targetRoot = path.join(directory, 'child')
-      const input = {
-        sourceRoot,
-        targetRoot,
-        sourceSessionId: 'same-id',
-        targetSessionId: 'child',
-        targetCwd: directory,
-        ...checkpoint,
-        checkpoints: [checkpoint],
-        events: live ? events : undefined
-      }
-      await expect(forkSession(input)).rejects.toThrow('history_changed')
-      const current = createForkCheckpoint(events, end.seq)
-      await expect(forkSession({ ...input, ...current })).rejects.toThrow('history_changed')
-      const reader = new Context()
-      try {
-        await reader.plugin(SessionStore)
-        await reader.plugin(JsonlSessionPersistence, { root: targetRoot })
-        expect(
-          await (reader.sessionPersistence as JsonlSessionPersistence).loadStored(SessionId('child'))
-        ).toBeUndefined()
-      } finally {
-        await reader.fiber.dispose()
-      }
-    } finally {
-      await Promise.all([source.fiber.dispose(), replacement.fiber.dispose()])
-    }
-  })
   it('executes fork I/O while the source writes', async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-fork-io-'))
     cleanup.push(() => rm(directory, { recursive: true, force: true }))

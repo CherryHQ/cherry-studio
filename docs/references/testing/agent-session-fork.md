@@ -1,5 +1,5 @@
 ---
-description: Runtime checkpoints, transaction safety and manual verification for independent Pi, Claude and DSH session forks
+description: Native fork contracts and verification for Pi, Claude and DSH
 sources:
   - src/main/ai/agentSession/AgentSessionForkOperations.ts
   - src/main/ai/agentSession/forkFiles.ts
@@ -15,154 +15,110 @@ sources:
 
 ## Contract
 
-An Agent assistant message menu exposes **Fork into a new session** at a recorded
-complete-turn boundary. This is independent of ordinary chat topic branching.
-Only Main resolves SDK identities, paths and boundaries. Message editing cannot
-provide a native checkpoint.
+Completed Agent assistant messages offer **Fork**; incomplete messages stay
+disabled. The renderer sends `ai.agent.session.fork` with `sourceSessionId` and
+`messageId`. Main resolves native history and validates the selected boundary.
+Known fork failures show localized reasons without an "Unknown error" prefix.
+Failed requests publish no session; UI text never substitutes for native context.
 
-The renderer sends `ai.agent.session.fork` with only `sourceSessionId` and
-`messageId`. A successful assistant message needs an available native checkpoint.
-Missing, failed, corrupt, changed or unsupported checkpoints remain unavailable
-with their specific reason. A native fork failure is returned to the caller;
-it never creates a child from UI history or silently starts an empty conversation.
-Availability and publication share the same Main-only persisted checkpoint schema;
-an `available` flag alone cannot enable a malformed checkpoint.
+Native identifiers live in Main-private `data.runtimeAnchor`; message edits cannot
+supply them. There is no persisted availability flag, application-level ancestry
+or fork-specific SQL migration. Each runtime manages its own context and
+compaction independently of Chat compression settings and ordinary topic branching.
 
-Pi, Claude and DSH own their context management and compaction. Cherry retains
-visible messages, source relationships, native checkpoints and resume references,
-plus the publication journal needed to recover operation-owned artifacts.
-Agent forks do not depend on Chat compression settings.
+The new session keeps the Agent, runtime and selected message prefix, assigns new
+message IDs, and waits for input. It resumes from independent native history and
+inherits no delivery queues, approvals, running tasks or usage charges. Source
+deletion before publication rejects the fork; deletion afterward leaves it intact.
 
-The new session keeps the Agent and runtime, receives new message IDs, and waits
-for input. Its visible history includes the selected prefix; native history and
-resume tokens provide the runtime context. Delivery queues, approvals, running
-tasks and usage billing are not inherited. Source deletion before publication
-rejects the operation; deletion after publication does not cascade to the child.
-
-User workspaces remain shared. System workspaces copy their **current** files,
-not historical file versions; forking does not roll files back to the selected
-turn. The copy checks file identity, nanosecond timestamps, size and SHA-256
-before/after copying, hashes targets, and rescans the source. Links and special
-files fail closed. This detects changes during copying; it is not an atomic
-snapshot and does not freeze the source afterward. User-owned files named
-`.claude` are not excluded.
+User workspaces remain shared. System workspaces copy **current** files without
+rolling back to the selected turn. Copying compares file identity, nanosecond
+timestamps, size and SHA-256, verifies targets, and rescans the source. Changes,
+links and special files reject the copy; user-owned `.claude` files are included.
+This is not an atomic snapshot and does not freeze later source changes.
 
 ## Runtime boundaries
 
-| Runtime | Checkpoint | Fork behavior |
+| Runtime | Native identifier | Fork behavior |
 | --- | --- | --- |
-| Pi | Native session ID and settled prompt leaf ID | Copy native history, open an independent manager, branch only that manager at the recorded leaf; retain its parent snapshot |
-| Claude | Final main-thread assistant UUID, fixed prefix byte count and SHA-256, explicit configuration directory/cwd | Private worker SessionStore, unchanged source UUIDs, one SDK forkSession call, inherited checkpoints mapped using forkedFrom |
-| DSH | Native session ID, exact turn/end seq and SHA-256 of the canonical event prefix | Verify the prefix from live snapshotEvents or cold SDK persisted log; public seeded session creation in an isolated context without an Agent loop |
+| Pi | Session ID and settled prompt leaf ID | Copy history and branch an independent manager at the leaf, retaining its parent snapshot |
+| Claude | Session ID, final main-thread assistant UUID and configuration directory | Private worker `SessionStore`, one SDK `forkSession` call, inherited identifiers mapped through `forkedFrom` |
+| DSH | Session ID and exact `turn/end` seq | Validate a live `snapshotEvents` prefix or persisted log, then seed an independent session |
 
-DSH seed ownership excludes inherited Inbox items from own events; the durable
-end-seed record establishes that boundary. The fork also calls public Inbox.clear.
-No automatic-goal or subagent execution services are constructed during creation.
+Claude rechecks the selected byte prefix while reading. An unflushed assistant
+entry returns `history_missing` and can be retried. Dangling compaction references
+or required replacements outside inherited prefixes return `unsupported_checkpoint`.
 
-Claude's SDK may emit `result` before its transcript is written. Checkpoint capture
-retries missing files or an unflushed target entry at 50 ms intervals, up to 40
-retries, and stops when the connection is cancelled. It records the byte prefix
-ending at the exact main-thread assistant UUID, excluding later appended entries.
-Malformed committed history fails immediately; capture failures log a reason
-without transcript content and never turn a successful answer into an error.
-
-Claude refuses publication if required references or opaque compaction metadata
-cannot survive SDK processing. In particular, SDK versions that leave preserved
-segment UUIDs dangling or move required replacements outside inherited prefixes
-return `unsupported_checkpoint`. Native metadata must remain valid for a fork
-to be published.
+DSH validates event structure at fork time, without a turn-completion checkpoint
+RPC. The durable end-seed record excludes inherited Inbox items; `Inbox.clear`
+removes child-owned input. Creation starts no Agent loop, goals or subagents.
+Fork-time validation checks current history, not equality with a saved digest.
 
 ## Manual matrix
 
 Repeat for Pi, Claude and DSH:
 
-1. Complete two turns with distinguishable facts. Fork the first turn; the child
-   must know the first fact and not the second. Confirm both the visible prefix
-   and the native resume boundary.
-2. Fork an inherited boundary in the child to create a grandchild. Resume both
-   independently. Delete the source, restart the app and resume the descendants.
-3. While the source is generating, awaiting approval, or running a background
-   task, fork an earlier completed turn. Confirm the source keeps running and
-   child actions do not resolve source approvals or run queued tasks.
-4. Open the same source in two windows and click the same boundary concurrently:
-   one in-flight result. Clicking again after completion creates another child.
-5. Verify completed history without a checkpoint and incomplete turns stay
-   disabled with the correct reason. Exercise checkpoint capture failure and
-   missing/corrupt, changed or unsupported native histories. If native history
-   becomes invalid after the menu was rendered, the request must fail without
-   publishing a child or retrying through another context path.
-6. For a system workspace, add, delete, replace and rewrite a same-sized file
-   while copying. The operation must reject without a visible partial child.
-   Check permission failures, a full disk, links, and retry after recovery.
-7. Delete the source while reading, copying, preparing native history and before
-   commit. Check transaction rollback and owned-artifact cleanup; interrupt cleanup
-   and restart to exercise its journal.
-8. Pause for backup and shutdown during a fork. No half-published session may be
-   backed up; only owned, uncommitted artifacts may be cleaned.
-9. Change or unset Chat compression configuration. Native fork/resume behavior
-   must remain independent of it.
-10. Edit or delete a message sharing its millisecond timestamp with earlier and
-    later messages. Only that message and later checkpoints in `(createdAt, id)`
-    order become unavailable; earlier checkpoints must remain usable.
+1. Complete two turns with distinct facts; fork the first. Visible and native
+   history must include only the first fact.
+2. Fork an inherited boundary again. Delete the source, restart, and resume both
+   new sessions independently.
+3. Fork an earlier turn while the source generates, awaits approval or runs a
+   task. Source execution continues; its approvals and queues remain separate.
+4. Click the same boundary concurrently in two windows: one in-flight result.
+   A later click creates another session.
+5. Click a completed message with missing identifiers or invalid native history:
+   show the specific error without a generic prefix or a new session. Incomplete
+   messages remain disabled. Retry Claude after its transcript has flushed.
+6. During a system-workspace copy, add, delete, replace or rewrite a same-sized
+   file. Reject partial copies. Also check permissions, full disk, links and retry.
+7. Delete the source during reading, copying, native preparation and before commit.
+   Verify rollback, owned-file cleanup, and recovery after interrupted cleanup.
+8. Start backup or shutdown during a fork. No partial session enters a backup;
+   cleanup removes only owned, uncommitted artifacts.
+9. Change or unset Chat compression settings; fork and resume remain unaffected.
+10. Edit/delete a message whose timestamp matches its neighbors. Discard native
+    identifiers from that message onward in `(createdAt, id)` order; keep earlier ones.
 
-Pi: inspect source manager identity, sessionId, sessionFile and leafId during
-fork. Normal source appends are allowed, but fork must not switch its manager
-or rewind it. Include old-format logs.
+Pi: include old-format logs. Verify source manager identity, `sessionId`,
+`sessionFile` and `leafId` stay unchanged by the fork; later appends are allowed.
 
-Claude: use repeated message text, compaction before/after the selected turn,
-preserved segments, replacements and a non-default configuration directory.
-Verify the destination project namespace matches the target workspace.
-Exercise forks through the registered lazy driver, not only a directly constructed
-Claude driver: an available checkpoint must reach the SDK without opening an
-Agent connection. Unsupported metadata or SDK failure must prevent publication.
-Cancellation must propagate as `cancelled`, never be retried or reported as
-missing history.
+Claude: cover repeated text, compaction before/after the boundary, preserved
+segments, replacements and a non-default configuration directory. Check the target
+project namespace and dispatch through the registered lazy driver without opening
+an Agent connection. Unsupported metadata prevents publication; cancellation
+returns `cancelled` without retry.
 
-DSH: remove or stale the projection cache before a cold fork. Confirm the
-recorded seq is used exactly, pending Inbox input is absent, goals do not activate,
-and tool cwd/session IDs point to the child after the first real resume.
-Replace a native log with different events at the same session ID and boundary:
-both live and cold forks must reject the native prefix. Normal later appends must
-remain valid. Verify inherited checkpoints through child and grandchild forks;
-old checkpoints without a prefix hash must stay unavailable.
-Verify MCP routing, interactive approvals, and source/child/grandchild forks
-after parent deletion. A host-opened fork is an execution root even with
-`parentSession` lineage; actual delegated subagents still inherit their execution
-root's approval ceiling.
-Leave a live fork snapshot unanswered, then cancel the fork or delete its source.
-Cancellation must abandon the pending request without waiting for its 60-second
-timeout. Cancelling only the fork must keep the source connection usable; a late
-snapshot response must not complete a cancelled fork or interfere with a new one.
+DSH: test live and cold forks with a missing/stale projection cache. Require the
+exact seq, reject invalid prefixes, and allow later appends. Verify remapped
+identifiers through repeated forks, empty Inbox, inactive goals, and child cwd,
+MCP routing and approvals after resume and source deletion. Seeded forks have no
+`parentSession`; delegated subagents still inherit their execution root's approval ceiling.
 
-For shared user workspaces, coordinate file changes between sessions. Forking
-preserves the shared directory relationship. Runtime file tools retain their
-ordinary permissions and behavior; this feature adds no global file-write locks
-or directory cleanup reservations.
+Leave a live DSH snapshot unanswered, then cancel or delete its source. Cancellation
+must not wait for the 60-second timeout. Cancelling only the fork leaves the source
+usable; late responses cannot complete cancelled forks or affect later requests.
+
+Shared user workspaces retain ordinary file permissions and behavior. Coordinate
+file changes between sessions; forks add no global write locks or cleanup reservations.
 
 ## Recovery and cleanup
 
-A child resumes only from its native history and resume reference. Missing or
-invalid required native history must explicitly fail after restart as well.
-It must never silently resume an empty conversation. Editing/deleting the
-selected visible prefix during a fork invalidates publication; appending after
-the selected boundary is allowed.
+The `app_state` publication journal records artifact ownership, commit status and
+workspace retention. Committed entries also identify sessions that require native
+history: missing/invalid history or resume references must fail explicitly,
+including after restart. Editing/deleting the selected prefix prevents publication;
+later appends are allowed.
 
-The native publication journal records operation-owned files, their identities,
-publication/commit status and workspace retention. Cleanup must confirm ownership
-and check registered workspace references, including overlapping directories and
-aliases, before removal. Adopted copied directories are retained. Uncertain
-ownership, inaccessible paths and legacy records never authorize destructive
-cleanup. Test repeated cleanup, recovery after interruption and transaction
-rollback with the real SQLite harness.
-
-Windows-only execution and platform simulations are not macOS/Linux native evidence.
+Cleanup verifies ownership and registered workspace references, including aliases
+and overlaps. Retain adopted directories and files with uncertain ownership or
+inaccessible paths; legacy journals grant no authority to delete adopted workspaces.
+Test rollback, repeated cleanup and restart recovery with the real SQLite harness.
 
 ## Automated gates
 
-Use existing tests to cover native prefix validation, independent source/child
-resume references, chained forks after source deletion, unavailable reasons,
-IPC errors, cancellation and ownership-based cleanup. Renderer checks must keep
-unavailable checkpoints disabled and issue only the native fork request.
+Existing tests cover native boundaries, repeated forks, source deletion, IPC
+errors, cancellation and cleanup. Renderer tests cover menu availability and
+localized failures without the generic error prefix.
 
 ```sh
 pnpm --filter @cherrystudio/dsh-bridge build
@@ -172,14 +128,12 @@ pnpm test:main src/main/data/services/__tests__/AgentSessionMessageService.test.
 pnpm exec vitest run --project main src/main/ai/runtime/__tests__/registerDrivers.test.ts src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts
 pnpm test:main src/main/ipc/handlers/__tests__/ai.test.ts
 pnpm test:shared src/shared/ipc/schemas/__tests__/ai.test.ts
-pnpm test:renderer src/renderer/components/chat/messages/frame/__tests__/messageMenuBarActions.test.tsx src/renderer/pages/agents/messages/__tests__/agentMessageListAdapter.test.tsx
+pnpm test:renderer src/renderer/components/chat/messages/frame/__tests__/messageMenuBarActions.test.tsx src/renderer/pages/agents/messages/__tests__/agentMessageListAdapter.test.tsx src/renderer/utils/__tests__/error.test.ts
 pnpm lint
 pnpm db:migrations:check
 pnpm docs:check
 ```
 
-Use the real SQLite harness (production migrations), and real SDK fixtures without
-model calls for native boundaries and chained forks. Keep extensions to existing
-tests. Remove operation-owned temporary tests/data after verification; never
-remove pre-existing project tests or unrelated user files. Record actual Electron
-and model-resume results separately; passing fixture tests is not live-model proof.
+Use production migrations and real SDK fixtures; extend existing tests and clean
+up only task-owned temporary files. Record Electron, live-model and native
+Windows/macOS/Linux results separately from fixtures and platform simulations.

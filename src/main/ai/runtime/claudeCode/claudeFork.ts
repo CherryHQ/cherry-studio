@@ -1,23 +1,11 @@
-import { createHash } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
-import { setTimeout as delay } from 'node:timers/promises'
 
 import type { SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
 
-import type { RuntimeForkState } from '@data/services/agentSessionFork'
-import { loggerService } from '@logger'
-
 import { readForkPrefix, readNativeForkHistory } from '../../agentSession/forkFiles'
-import {
-  AgentSessionForkError,
-  FORK_CHECKPOINT_FAILED,
-  type RuntimeForkInput,
-  type RuntimeForkResult
-} from '../forkCheckpoint'
+import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../forkCheckpoint'
 import { runForkWorker } from '../runForkWorker'
-
-const logger = loggerService.withContext('ClaudeFork')
 
 async function findSession(configDir: string, sessionId: string): Promise<string> {
   if (!/^[a-f0-9-]{36}$/i.test(sessionId)) throw new AgentSessionForkError('history_corrupt')
@@ -33,71 +21,6 @@ async function findSession(configDir: string, sessionId: string): Promise<string
   return files[0]
 }
 
-export async function captureClaudeForkCheckpoint(
-  runtimeSessionId: string,
-  messageUuid: string | undefined,
-  configDir: string,
-  sourceCwd: string,
-  signal?: AbortSignal
-): Promise<RuntimeForkState> {
-  try {
-    if (!messageUuid) throw new AgentSessionForkError('assistant_uuid_missing')
-    // The SDK can emit result before its transcript writer has flushed the assistant entry.
-    for (let attempt = 0; attempt <= 40; attempt++) {
-      if (attempt > 0) await delay(50, undefined, { signal })
-      signal?.throwIfAborted()
-      let bytes: Buffer
-      try {
-        bytes = await readForkPrefix(await findSession(configDir, runtimeSessionId))
-      } catch (error) {
-        if (
-          (error as NodeJS.ErrnoException)?.code === 'ENOENT' ||
-          (error instanceof AgentSessionForkError && error.reason === 'history_missing')
-        )
-          continue
-        throw error
-      }
-      let start = 0
-      for (let end = bytes.indexOf(10); end >= 0; end = bytes.indexOf(10, start)) {
-        const entry = JSON.parse(bytes.toString('utf8', start, end)) as SessionStoreEntry
-        start = end + 1
-        if (entry.uuid !== messageUuid || entry.type !== 'assistant' || entry.isSidechain) continue
-        // Waiting for persistence must not include messages appended after the selected assistant.
-        const prefix = bytes.subarray(0, start)
-        return {
-          version: 1,
-          status: 'available',
-          checkpoint: {
-            runtime: 'claude-code',
-            runtimeSessionId,
-            messageUuid,
-            configDir,
-            sourceCwd,
-            prefixBytes: prefix.length,
-            prefixHash: createHash('sha256').update(prefix).digest('hex')
-          }
-        }
-      }
-    }
-    throw new AgentSessionForkError('transcript_flush_timeout')
-  } catch (error) {
-    logger.warn('Claude fork checkpoint capture failed', {
-      runtimeSessionId,
-      messageUuid,
-      reason:
-        error instanceof AgentSessionForkError
-          ? error.reason
-          : error instanceof SyntaxError
-            ? 'history_corrupt'
-            : signal?.aborted
-              ? 'cancelled'
-              : ((error as NodeJS.ErrnoException)?.code ?? 'unknown')
-    })
-    // Failure to capture native history must not turn a successful answer into an error.
-    return FORK_CHECKPOINT_FAILED
-  }
-}
-
 export async function forkClaudeSession(input: RuntimeForkInput): Promise<RuntimeForkResult> {
   return readNativeForkHistory(() => prepareClaudeFork(input))
 }
@@ -106,32 +29,31 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
   const checkpoint = input.checkpoint
   if (checkpoint.runtime !== 'claude-code') throw new AgentSessionForkError('unsupported_checkpoint')
   const file = await findSession(checkpoint.configDir, checkpoint.runtimeSessionId)
-  const bytes = await readForkPrefix(file, checkpoint.prefixBytes)
-  if (createHash('sha256').update(bytes).digest('hex') !== checkpoint.prefixHash) {
-    throw new AgentSessionForkError('history_changed')
+  const bytes = await readForkPrefix(file)
+  const entries: SessionStoreEntry[] = []
+  let start = 0
+  let end = 0
+  for (end = bytes.indexOf(10); end >= 0; end = bytes.indexOf(10, start)) {
+    const entry = JSON.parse(bytes.toString('utf8', start, end)) as SessionStoreEntry
+    start = end + 1
+    entries.push(entry)
+    if (entry.uuid === checkpoint.messageUuid && entry.type === 'assistant' && !entry.isSidechain) break
   }
-  const entries = bytes
-    .toString('utf8')
-    .trimEnd()
-    .split('\n')
-    .map((line) => JSON.parse(line) as SessionStoreEntry)
+  if (end < 0) throw new AgentSessionForkError('history_missing')
+  if (!bytes.subarray(0, start).equals(await readForkPrefix(file, start)))
+    throw new AgentSessionForkError('history_changed')
   const checkpoints = input.checkpoints.map((value) => {
     if (value.runtime !== 'claude-code' || value.runtimeSessionId !== checkpoint.runtimeSessionId) {
       throw new AgentSessionForkError('history_changed')
     }
     return value
   })
-  // Use offsets in the original byte stream, not reserialized JSON lengths (which
-  // may differ for whitespace or CRLF logs).
-  const entryCounts = new Map<number, number>()
-  let entryCount = 0
-  for (let offset = bytes.indexOf(10); offset >= 0; offset = bytes.indexOf(10, offset + 1)) {
-    entryCounts.set(offset + 1, ++entryCount)
-  }
   const checkpointEntryCounts = checkpoints.map((value) => {
-    const count = entryCounts.get(value.prefixBytes)
-    if (!count) throw new AgentSessionForkError('history_changed')
-    return count
+    const index = entries.findIndex(
+      (entry) => entry.uuid === value.messageUuid && entry.type === 'assistant' && !entry.isSidechain
+    )
+    if (index < 0) throw new AgentSessionForkError('history_changed')
+    return index + 1
   })
   return runForkWorker<RuntimeForkResult>(
     {

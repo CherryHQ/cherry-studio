@@ -2,7 +2,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
-import { isAgentSessionForkUnavailableReason } from '@shared/ai/agentSessionFork'
+import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -29,9 +29,7 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
       input.signal.throwIfAborted()
       if (error instanceof AgentSessionForkError) throw error
       const reason =
-        error instanceof Error && isAgentSessionForkUnavailableReason(error.message)
-          ? error.message
-          : 'checkpoint_failed'
+        error instanceof Error && isAgentSessionForkFailureReason(error.message) ? error.message : 'operation_failed'
       throw new AgentSessionForkError(reason, error instanceof Error ? error.message : reason)
     }
     input.signal.throwIfAborted()

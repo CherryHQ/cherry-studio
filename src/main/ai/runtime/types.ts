@@ -1,7 +1,7 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { UIMessageChunk } from 'ai'
 
-import type { RuntimeForkState } from '@data/services/agentSessionFork'
+import type { RuntimeForkAnchor } from '@data/services/agentSessionFork'
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
@@ -133,7 +133,7 @@ export type AgentRuntimeEvent =
       }
     }
   | { type: 'resume-token'; token: string }
-  | { type: 'turn-complete'; forkState?: RuntimeForkState }
+  | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
   | { type: 'steer-undelivered'; inputs: AgentRuntimeUserInput[] }

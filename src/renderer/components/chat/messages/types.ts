@@ -210,7 +210,6 @@ export interface RemoveMessageErrorPartInput {
 }
 
 export interface MessageListItem {
-  forkAvailability?: NonNullable<CherryUIMessage['metadata']>['forkAvailability']
   id: string
   role: CherryUIMessage['role']
   assistantId?: string

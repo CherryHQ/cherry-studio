@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
-  isFork: vi.fn(() => false),
+  ownsNativeHistory: vi.fn(() => false),
   findCrashOrphanedAssistantMessages: vi.fn(),
   resolveCrashOrphanedMessages: vi.fn(),
   updateSessionDeliveryStatus: vi.fn(),
@@ -52,7 +52,7 @@ const mocks = vi.hoisted(() => ({
 const forkRecoveryMocks = vi.hoisted(() => ({
   getPath: vi.fn<(key: string) => string>(),
   journals: vi.fn<() => AgentSessionForkJournal[]>(() => []),
-  hasCommittedChild: vi.fn(() => false),
+  hasPublishedSession: vi.fn(() => false),
   writeJournal: vi.fn<(journal: AgentSessionForkJournal) => void>(),
   removeJournal: vi.fn<(operationId: string) => void>(),
   read: vi.fn()
@@ -65,8 +65,9 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 
 vi.mock('@data/services/AgentSessionForkService', () => ({
   agentSessionForkService: {
+    ownsNativeHistory: mocks.ownsNativeHistory,
     journals: forkRecoveryMocks.journals,
-    hasCommittedChild: forkRecoveryMocks.hasCommittedChild,
+    hasPublishedSession: forkRecoveryMocks.hasPublishedSession,
     writeJournal: forkRecoveryMocks.writeJournal,
     removeJournal: forkRecoveryMocks.removeJournal,
     read: forkRecoveryMocks.read
@@ -75,7 +76,6 @@ vi.mock('@data/services/AgentSessionForkService', () => ({
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
-    isFork: mocks.isFork,
     getById: mocks.getSessionById,
     ensureTraceId: mocks.ensureTraceId
   }
@@ -279,7 +279,7 @@ describe('AgentSessionForkOperations recovery', () => {
   function resetRecoveryMocks(): void {
     forkRecoveryMocks.getPath.mockReset()
     forkRecoveryMocks.journals.mockReset().mockReturnValue([])
-    forkRecoveryMocks.hasCommittedChild.mockReset().mockReturnValue(false)
+    forkRecoveryMocks.hasPublishedSession.mockReset().mockReturnValue(false)
     forkRecoveryMocks.writeJournal.mockReset()
     forkRecoveryMocks.removeJournal.mockReset()
     forkRecoveryMocks.read.mockReset()
@@ -343,8 +343,6 @@ describe('AgentSessionForkOperations recovery', () => {
     const journal: AgentSessionForkJournal = {
       version: 2,
       operationId,
-      sourceSessionId: randomUUID(),
-      messageId: randomUUID(),
       targetSessionId,
       createdAt,
       artifactDirectory,
@@ -454,7 +452,7 @@ describe('AgentSessionForkOperations recovery', () => {
 
   it('rejects a missing checkpoint before creating fork artifacts or rebuilding history', async () => {
     forkRecoveryMocks.read.mockReturnValue({
-      messages: [{ role: 'assistant', status: 'success', runtimeForkState: null }]
+      messages: [{ role: 'assistant', status: 'success', data: {} }]
     })
 
     await expect(new AgentSessionForkOperations().fork(randomUUID(), randomUUID())).rejects.toMatchObject({
@@ -493,7 +491,7 @@ describe('AgentSessionRuntimeService', () => {
     })
     mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-    mocks.isFork.mockReturnValue(false)
+    mocks.ownsNativeHistory.mockReturnValue(false)
     mocks.findCrashOrphanedAssistantMessages.mockReturnValue([])
     mocks.resolveCrashOrphanedMessages.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
@@ -3852,7 +3850,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
-        runtimeForkState: { version: 1, status: 'unavailable', reason: 'not_turn_boundary' },
+        runtimeAnchor: undefined,
         sessionId: 'session-1',
         runtimeResumeToken: 'resume-1',
         message: {
@@ -3898,7 +3896,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
-        runtimeForkState: { version: 1, status: 'unavailable', reason: 'not_turn_boundary' },
+        runtimeAnchor: undefined,
         sessionId: 'session-1',
         runtimeResumeToken: 'resume-1',
         message: {
@@ -4549,7 +4547,7 @@ describe('AgentSessionRuntimeService', () => {
     'resumes a native %s fork and sends only the new user messages',
     async (agentType) => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: agentType, model: baseTurnInput.modelId })
-      mocks.isFork.mockReturnValue(true)
+      mocks.ownsNativeHistory.mockReturnValue(true)
       mocks.getLastRuntimeResumeToken.mockReturnValue('native-child-token')
       const events = createAsyncQueue<any>()
       const connection = {
@@ -4610,7 +4608,7 @@ describe('AgentSessionRuntimeService', () => {
     'rejects a %s fork without native history before the driver can initialize an empty session',
     async (agentType) => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', type: agentType, model: baseTurnInput.modelId })
-      mocks.isFork.mockReturnValue(true)
+      mocks.ownsNativeHistory.mockReturnValue(true)
       const connect = vi.fn()
       runtimeDriverRegistry.register({
         type: agentType,
@@ -5680,7 +5678,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
-        runtimeForkState: { version: 1, status: 'unavailable', reason: 'not_turn_boundary' },
+        runtimeAnchor: undefined,
         sessionId: 'session-1',
         runtimeResumeToken: 'resume-init',
         message: {
@@ -5713,7 +5711,7 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
-        runtimeForkState: { version: 1, status: 'unavailable', reason: 'not_turn_boundary' },
+        runtimeAnchor: undefined,
         sessionId: 'session-1',
         message: {
           id: 'assistant-1',

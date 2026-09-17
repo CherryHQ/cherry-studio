@@ -7,13 +7,12 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
-import type { RuntimeForkState } from '@data/services/agentSessionFork'
+import type { RuntimeForkAnchor } from '@data/services/agentSessionFork'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
-import { FORK_CHECKPOINT_FAILED, NOT_FORK_BOUNDARY } from '../../runtime/forkCheckpoint'
 import type { PersistAssistantInput, PersistenceBackend } from '../../streamManager'
 
 const logger = loggerService.withContext('AgentSessionMessageBackend')
@@ -27,7 +26,7 @@ export interface AgentSessionMessageBackendOptions {
   modelId?: UniqueModelId
   /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
   runtimeResumeToken?: string | (() => string | undefined)
-  forkState?: () => RuntimeForkState | undefined
+  forkAnchor?: () => RuntimeForkAnchor | undefined
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
@@ -45,20 +44,19 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
   persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, runtimeStats } = input
     const runtimeResumeToken = this.getRuntimeResumeToken()
-    let forkState = NOT_FORK_BOUNDARY
+    let forkAnchor: RuntimeForkAnchor | undefined
     if (status === 'success') {
       try {
-        forkState = this.opts.forkState?.() ?? NOT_FORK_BOUNDARY
+        forkAnchor = this.opts.forkAnchor?.()
       } catch (error) {
         logger.warn('Fork checkpoint capture failed; preserving completed answer', { error })
-        forkState = FORK_CHECKPOINT_FAILED
       }
     }
-    const save = (runtimeForkState: RuntimeForkState) =>
+    const save = (runtimeAnchor?: RuntimeForkAnchor) =>
       agentSessionMessageService.saveMessage(
         {
           sessionId: this.opts.sessionId,
-          runtimeForkState,
+          runtimeAnchor,
           ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
           ...(runtimeStats ? { runtimeStats } : {}),
           message: {
@@ -72,11 +70,11 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         { publishDataChange: true }
       )
     try {
-      save(forkState)
+      save(forkAnchor)
     } catch (error) {
-      if (forkState.status !== 'available') throw error
+      if (!forkAnchor) throw error
       logger.warn('Fork checkpoint persistence failed; retrying completed answer without checkpoint', { error })
-      save(FORK_CHECKPOINT_FAILED)
+      save()
     }
   }
 

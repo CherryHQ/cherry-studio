@@ -1,15 +1,4 @@
-import type { RuntimeForkCheckpoint, RuntimeForkState } from '@data/services/agentSessionFork'
-
-export const FORK_CHECKPOINT_FAILED: RuntimeForkState = {
-  version: 1,
-  status: 'unavailable',
-  reason: 'checkpoint_failed'
-}
-export const NOT_FORK_BOUNDARY: RuntimeForkState = {
-  version: 1,
-  status: 'unavailable',
-  reason: 'not_turn_boundary'
-}
+import type { RuntimeForkCheckpoint } from '@data/services/agentSessionFork'
 
 export interface RuntimeForkInput {
   sourceSessionId: string

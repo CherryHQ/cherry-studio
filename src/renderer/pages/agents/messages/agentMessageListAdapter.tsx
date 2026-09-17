@@ -37,7 +37,8 @@ import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
+import { agentSessionForkFailureReason, aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
@@ -186,7 +187,10 @@ export function useAgentMessageListProviderValue({
         openRoute('/app/agents', { sessionId: result.sessionId })
       } catch (error) {
         const reason = agentSessionForkFailureReason(error)
-        if (reason) throw new Error(agentSessionForkReasonLabel(t, reason))
+        if (reason)
+          throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, agentSessionForkReasonLabel(t, reason), {
+            reason
+          })
         throw error
       }
     },

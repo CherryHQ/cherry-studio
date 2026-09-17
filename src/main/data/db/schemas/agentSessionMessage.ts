@@ -18,15 +18,13 @@ export const agentSessionMessageTable = sqliteTable(
     role: text().notNull(),
     // `data` stores MessageData (`{ parts }`); Drizzle handles
     // JSON.stringify/parse automatically via `{ mode: 'json' }`.
-    data: text({ mode: 'json' }).$type<MessageData>().notNull(),
+    data: text({ mode: 'json' }).$type<MessageData & { runtimeAnchor?: unknown }>().notNull(),
     searchableText: text().notNull().default(''),
     status: text().notNull(),
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),
     runtimeResumeToken: text(),
-    // Main-private checkpoint; the API projects only availability and a reason.
-    runtimeForkState: text({ mode: 'json' }).$type<unknown>(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),

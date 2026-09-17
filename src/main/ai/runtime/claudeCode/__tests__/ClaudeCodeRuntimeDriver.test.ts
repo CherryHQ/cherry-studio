@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -13,11 +12,11 @@ import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistant
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import type { RuntimeForkResult } from '../../forkCheckpoint'
-import { captureClaudeForkCheckpoint } from '../claudeFork'
+import { forkClaudeSession } from '../claudeFork'
 import type * as SettingsBuilderModule from '../settingsBuilder'
 import type * as StreamAdapterModule from '../streamAdapter'
 
-describe('Claude fork checkpoint persistence', () => {
+describe('Claude native forks', () => {
   it('maps UUIDs once in isolated SDK workers through a child and grandchild', async () => {
     const userUuid = '20249b48-e174-4610-84c2-af6224228290'
     let entries = [
@@ -38,10 +37,7 @@ describe('Claude fork checkpoint persistence', () => {
         runtime: 'claude-code',
         runtimeSessionId: currentId,
         messageUuid: currentUuid,
-        configDir: directory,
-        sourceCwd: directory,
-        prefixBytes: 1,
-        prefixHash: '0'.repeat(64)
+        configDir: directory
       }
       const worker = new Worker(new URL('../../forkWorker.ts', import.meta.url), {
         workerData: {
@@ -100,67 +96,50 @@ describe('Claude fork checkpoint persistence', () => {
     await rm(directory, { recursive: true, force: true })
   })
 
-  it.each(['\n', '\r\n'])('waits for the exact assistant entry and excludes later history (%j)', async (newline) => {
+  function forkInput() {
+    const checkpoint = {
+      runtime: 'claude-code' as const,
+      runtimeSessionId: sessionId,
+      messageUuid,
+      configDir: directory
+    }
+    return {
+      sourceSessionId: 'source',
+      targetSessionId: 'child',
+      targetCwd: directory,
+      artifactDirectory: path.join(directory, 'artifacts'),
+      checkpoint,
+      checkpoints: [checkpoint],
+      signal: new AbortController().signal
+    }
+  }
+
+  it.each(['\n', '\r\n'])('forks the exact UUID on demand and excludes later history (%j)', async (newline) => {
     await mkdir(path.dirname(file), { recursive: true })
-    const prefix = JSON.stringify({ type: 'system', compactMetadata: { trigger: 'auto' } }) + newline
-    await writeFile(file, prefix + entry.slice(0, 15))
-    const pending = captureClaudeForkCheckpoint(sessionId, messageUuid, directory, directory)
-    await delay(100)
-    await appendFile(
+    await writeFile(
       file,
-      entry.slice(15) + newline + JSON.stringify({ type: 'user', uuid: 'future-message' }) + newline
+      entry +
+        newline +
+        JSON.stringify({ type: 'user', uuid: 'future-message', message: { content: 'FUTURE_ONLY' } }) +
+        newline
     )
-    const state = await pending
-    expect(state).toMatchObject({ status: 'available', checkpoint: { messageUuid, runtimeSessionId: sessionId } })
-    if (state.status !== 'available' || state.checkpoint.runtime !== 'claude-code')
-      throw new Error('missing checkpoint')
-    expect(state.checkpoint.prefixBytes).toBe(Buffer.byteLength(prefix + entry + newline))
-    expect(state.checkpoint.prefixHash).toBe(
-      createHash('sha256')
-        .update(prefix + entry + newline)
-        .digest('hex')
-    )
+    const before = await readFile(file)
+    const result = await forkClaudeSession(forkInput())
+    const output = await readFile(result.publish[0].source, 'utf8')
+    expect(output).not.toContain('FUTURE_ONLY')
+    expect(JSON.parse(output.trim().split('\n')[0]).forkedFrom.messageUuid).toBe(messageUuid)
+    expect(result.resumeToken).not.toBe(sessionId)
+    expect(await readFile(file)).toEqual(before)
   })
 
-  it('waits for the SDK to create the project directory and transcript', async () => {
-    const pending = captureClaudeForkCheckpoint(sessionId, messageUuid, directory, directory)
-    await delay(100)
+  it.each([
+    ['missing', '', 'history_missing'],
+    ['unflushed', entry, 'history_missing'],
+    ['corrupt', 'invalid-json\n' + entry + '\n', 'history_corrupt']
+  ])('reports %s history instead of selecting another boundary', async (_name, content, reason) => {
     await mkdir(path.dirname(file), { recursive: true })
-    await writeFile(file, entry + '\n')
-    await expect(pending).resolves.toMatchObject({ status: 'available', checkpoint: { messageUuid } })
-  })
-
-  it('does not replace a missing target UUID with the latest assistant', async () => {
-    await mkdir(path.dirname(file), { recursive: true })
-    await writeFile(file, entry + '\n')
-    await expect(captureClaudeForkCheckpoint(sessionId, 'missing-uuid', directory, directory)).resolves.toMatchObject({
-      status: 'unavailable',
-      reason: 'checkpoint_failed'
-    })
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'Claude fork checkpoint capture failed',
-      expect.objectContaining({ reason: 'transcript_flush_timeout' })
-    )
-  })
-
-  it('stops waiting when the connection is cancelled', async () => {
-    const controller = new AbortController()
-    const pending = captureClaudeForkCheckpoint(sessionId, messageUuid, directory, directory, controller.signal)
-    controller.abort()
-    await expect(pending).resolves.toMatchObject({ status: 'unavailable', reason: 'checkpoint_failed' })
-  })
-
-  it('rejects malformed committed history without losing the successful answer', async () => {
-    await mkdir(path.dirname(file), { recursive: true })
-    await writeFile(file, 'invalid-json\n' + entry + '\n')
-    await expect(captureClaudeForkCheckpoint(sessionId, messageUuid, directory, directory)).resolves.toMatchObject({
-      status: 'unavailable',
-      reason: 'checkpoint_failed'
-    })
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'Claude fork checkpoint capture failed',
-      expect.objectContaining({ reason: 'history_corrupt' })
-    )
+    await writeFile(file, content)
+    await expect(forkClaudeSession(forkInput())).rejects.toMatchObject({ reason })
   })
 })
 
@@ -168,7 +147,7 @@ const externalFileUrl = (name: string) => `file:///${process.platform === 'win32
 
 const mocks = vi.hoisted(() => ({
   buildRequest: vi.fn(),
-  isFork: vi.fn(() => false),
+  ownsNativeHistory: vi.fn(() => false),
   deriveConfig: vi.fn(),
   getAgent: vi.fn(),
   getModelByKey: vi.fn(),
@@ -191,6 +170,11 @@ vi.mock('@application', () => ({
   application: { get: mocks.applicationGet, getPath: vi.fn(() => '/mock-claude-config') }
 }))
 
+vi.mock('../../forkWorker?nodeWorker', () => ({
+  default: (options: ConstructorParameters<typeof Worker>[1]) =>
+    new Worker(new URL('../../forkWorker.ts', import.meta.url), options)
+}))
+
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: mocks.createClaudeQuery
 }))
@@ -207,8 +191,8 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
 }))
 
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { isFork: mocks.isFork }
+vi.mock('@data/services/AgentSessionForkService', () => ({
+  agentSessionForkService: { ownsNativeHistory: mocks.ownsNativeHistory }
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -501,7 +485,7 @@ function userMessage() {
 describe('ClaudeCodeRuntimeDriver', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.isFork.mockReturnValue(false)
+    mocks.ownsNativeHistory.mockReturnValue(false)
     mocks.adapterInstances.length = 0
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeWarmQueryManager') {
@@ -1749,8 +1733,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       )
       await expect(completion).resolves.toMatchObject({
         type: 'turn-complete',
-        forkState: {
-          status: 'available',
+        forkAnchor: {
           checkpoint: { runtimeSessionId: sessionId, messageUuid, configDir: directory }
         }
       })
@@ -3208,7 +3191,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
   })
 
   it('rejects any fork without a native resume token, including a legacy rebuild', async () => {
-    mocks.isFork.mockReturnValue(true)
+    mocks.ownsNativeHistory.mockReturnValue(true)
     await expect(
       new ClaudeCodeRuntimeDriver().connect({
         sessionId: 'session-1',
@@ -3223,7 +3206,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     'No conversation found with session ID: stale-token',
     'messages.2.content.1: `tool_use` ids must be unique'
   ])('reports a fork resume failure without replaying into an empty session: %s', async (failure) => {
-    mocks.isFork.mockReturnValue(true)
+    mocks.ownsNativeHistory.mockReturnValue(true)
     const queue = createAsyncQueue<any>()
     mocks.createClaudeQuery.mockReturnValue({ ...queue.iterable, interrupt: vi.fn(), close: vi.fn() })
     const connection = await new ClaudeCodeRuntimeDriver().connect({

@@ -6,19 +6,15 @@ import type { AgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 
 export function agentSessionForkAvailability(t: TFunction, message: MessageListItem): ActionAvailabilityInput {
   if (message.role !== 'assistant') return false
-  const state = message.forkAvailability
-  const reason = state?.status === 'unavailable' ? state.reason : 'legacy_history'
-  const enabled = message.status === 'success' && state?.status === 'available'
+  const enabled = message.status === 'success'
   return {
     visible: true,
     enabled,
-    reason: enabled
-      ? undefined
-      : agentSessionForkReasonLabel(t, message.status !== 'success' ? 'not_turn_boundary' : reason)
+    reason: enabled ? undefined : agentSessionForkReasonLabel(t, 'not_turn_boundary')
   }
 }
 
-/** Static keys keep all unavailable states visible to the translation tooling. */
+/** Static keys keep runtime errors visible to the translation tooling. */
 export function agentSessionForkReasonLabel(t: TFunction, reason: AgentSessionForkFailureReason): string {
   switch (reason) {
     case 'cancelled':
@@ -27,8 +23,6 @@ export function agentSessionForkReasonLabel(t: TFunction, reason: AgentSessionFo
       return t('agent_session_fork.legacy_history')
     case 'not_turn_boundary':
       return t('agent_session_fork.not_turn_boundary')
-    case 'checkpoint_failed':
-      return t('agent_session_fork.checkpoint_failed')
     case 'history_missing':
       return t('agent_session_fork.history_missing')
     case 'history_corrupt':

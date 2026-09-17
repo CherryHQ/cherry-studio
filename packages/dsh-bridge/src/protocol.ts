@@ -96,10 +96,6 @@ export interface BridgeCommandResult {
 
 /** Host→plugin request methods with their param and result shapes. */
 export interface BridgeHostRequestMap {
-  'session/fork-checkpoint': {
-    params: { sessionId: string; boundary: number }
-    result: { boundary: number; prefixHash: string }
-  }
   'session/fork-snapshot': {
     params: { sessionId: string; boundary: number }
     result: { events: unknown[] }

@@ -5,7 +5,6 @@
 import * as z from 'zod'
 
 import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
-import { AGENT_SESSION_FORK_UNAVAILABLE_REASONS } from '@shared/ai/agentSessionFork'
 import {
   ContentMessageRoleSchema,
   MessageDataSchema,
@@ -57,12 +56,6 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   sessionId: z.string(),
   searchableText: z.string(),
   runtimeResumeToken: z.string().nullable(),
-  forkAvailability: z
-    .discriminatedUnion('status', [
-      z.strictObject({ status: z.literal('available') }),
-      z.strictObject({ status: z.literal('unavailable'), reason: z.enum(AGENT_SESSION_FORK_UNAVAILABLE_REASONS) })
-    ])
-    .optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })

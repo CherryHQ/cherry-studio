@@ -4,7 +4,8 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
-import type { RuntimeForkState } from '@data/services/agentSessionFork'
+import type { RuntimeForkAnchor } from '@data/services/agentSessionFork'
+import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
@@ -195,7 +196,7 @@ export interface AgentSessionInteractionState {
 }
 
 type AgentSessionTurn = {
-  forkState?: RuntimeForkState
+  forkAnchor?: RuntimeForkAnchor
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
   systemReminder?: boolean
@@ -1697,7 +1698,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
     if (runtimeResumeToken && !entry.lastResumeToken) entry.lastResumeToken = runtimeResumeToken
     // Validate before a driver can mint a new, empty initialization token.
-    if (agentSessionService.isFork(entry.sessionId) && !entry.lastResumeToken?.trim())
+    if (agentSessionForkService.ownsNativeHistory(entry.sessionId) && !entry.lastResumeToken?.trim())
       throw new AgentSessionForkError('history_missing')
   }
 
@@ -1830,10 +1831,9 @@ export class AgentSessionRuntimeService extends BaseService {
         {
           const turn = this.currentTurn(entry)
           if (turn)
-            turn.forkState =
-              event.forkState?.status === 'available'
-                ? { ...event.forkState, excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id) }
-                : event.forkState
+            turn.forkAnchor = event.forkAnchor
+              ? { ...event.forkAnchor, excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id) }
+              : undefined
         }
         this.clearApiRetry(entry)
         if (entry.runtimeState.execution.kind === 'turn') {
@@ -3156,7 +3156,7 @@ export class AgentSessionRuntimeService extends BaseService {
         assistantMessageId,
         modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
-        forkState: () => currentTurn.forkState,
+        forkAnchor: () => currentTurn.forkAnchor,
         afterPersist
       }),
       onPersistFailed: (error) =>

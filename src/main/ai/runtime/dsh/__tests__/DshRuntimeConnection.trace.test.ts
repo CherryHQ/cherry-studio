@@ -33,7 +33,7 @@ vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan } as never)
 
 const runtimeMocks = vi.hoisted(() => ({
   snapshot: undefined as any,
-  isFork: vi.fn(),
+  ownsNativeHistory: vi.fn(),
   bridgeRequest: vi.fn().mockResolvedValue(undefined),
   clientClose: vi.fn().mockResolvedValue(undefined),
   resolveInjection: vi.fn(),
@@ -109,8 +109,8 @@ vi.mock('../dshConnectionSignature', () => ({
   DshInvalidConnectionSnapshotError: class extends Error {},
   captureDshConnectionSnapshot: vi.fn(() => Promise.resolve(runtimeMocks.snapshot))
 }))
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { isFork: runtimeMocks.isFork }
+vi.mock('@data/services/AgentSessionForkService', () => ({
+  agentSessionForkService: { ownsNativeHistory: runtimeMocks.ownsNativeHistory }
 }))
 vi.mock('../modelInjection', () => ({
   resolveDshProviderInjectionFromSnapshot: runtimeMocks.resolveInjection,
@@ -196,7 +196,7 @@ const drain = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
 beforeEach(() => {
   runtimeMocks.snapshot = baseSnapshot()
-  runtimeMocks.isFork.mockReset().mockReturnValue(false)
+  runtimeMocks.ownsNativeHistory.mockReset().mockReturnValue(false)
   runtimeMocks.harnessOptions = undefined
   runtimeMocks.getShellEnv.mockReset().mockResolvedValue({
     PATH: ['/opt/homebrew/bin', '/usr/bin'].join(path.delimiter),
@@ -217,74 +217,47 @@ afterEach(() => {
 })
 
 describe('DshRuntimeConnection tracing', () => {
-  it.each(['valid', 'failed', 'mismatched-boundary'])(
-    'captures a verified checkpoint before the next turn (%s)',
-    async (outcome) => {
-      const connection = await new DshRuntimeConnection(connectInput).start()
-      const events: AgentRuntimeEvent[] = []
-      const consume = (async () => {
-        for await (const event of connection.events) events.push(event)
-      })()
-      await connection.send({ message: {} } as never)
-      const captured = Promise.withResolvers<{ boundary: number; prefixHash: string }>()
-      runtimeMocks.bridgeRequest.mockImplementation((method) =>
-        method === 'session/fork-checkpoint' ? captured.promise : Promise.resolve(undefined)
+  it('records the exact completed turn without a separate checkpoint request', async () => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    const events: AgentRuntimeEvent[] = []
+    const consume = (async () => {
+      for await (const event of connection.events) events.push(event)
+    })()
+    await connection.send({ message: {} } as never)
+    runtimeMocks.bridgeRequest.mockClear()
+    try {
+      subscription.push({
+        method: 'session.event',
+        params: {
+          sessionId: 'session-1',
+          event: { type: 'turn/end', seq: 7, time: 0, data: { turn: 0, reason: { kind: 'completed' } } }
+        }
+      })
+      subscription.push({
+        method: 'session.event',
+        params: {
+          sessionId: 'session-1',
+          event: { type: 'step/start', seq: 8, time: 0, data: { turn: 1, step: 1 } }
+        }
+      })
+      await vi.waitFor(() =>
+        expect(events.find((event) => event.type === 'turn-complete')).toEqual({
+          type: 'turn-complete',
+          forkAnchor: { checkpoint: { runtime: 'dsh', runtimeSessionId: 'session-1', boundary: 7 } }
+        })
       )
-      try {
-        subscription.push({
-          method: 'session.event',
-          params: {
-            sessionId: 'session-1',
-            event: { type: 'turn/end', seq: 7, time: 0, data: { turn: 0, reason: { kind: 'completed' } } }
-          }
-        })
-        subscription.push({
-          method: 'session.event',
-          params: {
-            sessionId: 'session-1',
-            event: { type: 'step/start', seq: 8, time: 0, data: { turn: 1, step: 1 } }
-          }
-        })
-        await vi.waitFor(() =>
-          expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
-            'session/fork-checkpoint',
-            { sessionId: 'session-1', boundary: 7 },
-            { timeoutMs: 10_000 }
-          )
-        )
-        expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
-        expect(spans).toHaveLength(0)
-        if (outcome === 'failed') captured.reject(new Error('checkpoint unavailable'))
-        else captured.resolve({ boundary: outcome === 'valid' ? 7 : 9, prefixHash: 'a'.repeat(64) })
-        await vi.waitFor(() =>
-          expect(events.find((event) => event.type === 'turn-complete')).toMatchObject({
-            forkState:
-              outcome === 'valid'
-                ? {
-                    status: 'available',
-                    checkpoint: {
-                      runtime: 'dsh',
-                      runtimeSessionId: 'session-1',
-                      boundary: 7,
-                      prefixHash: 'a'.repeat(64)
-                    }
-                  }
-                : { status: 'unavailable', reason: 'checkpoint_failed' }
-          })
-        )
-        expect(events.some((event) => event.type === 'error')).toBe(false)
-        await vi.waitFor(() => expect(spans).toHaveLength(1))
-      } finally {
-        captured.resolve({ boundary: 7, prefixHash: 'a'.repeat(64) })
-        await connection.close()
-        await consume
-      }
+      expect(runtimeMocks.bridgeRequest).not.toHaveBeenCalled()
+      expect(events.some((event) => event.type === 'error')).toBe(false)
+      await vi.waitFor(() => expect(spans).toHaveLength(1))
+    } finally {
+      await connection.close()
+      await consume
     }
-  )
+  })
 
   it.each([
-    ['DSH connection is closed', 'checkpoint_failed'],
-    ['session/fork-snapshot timed out after 60000ms', 'checkpoint_failed'],
+    ['DSH connection is closed', 'operation_failed'],
+    ['session/fork-snapshot timed out after 60000ms', 'operation_failed'],
     ['history_changed', 'history_changed'],
     ['history_corrupt', 'history_corrupt']
   ])('classifies a live snapshot failure without falling back to stored history: %s', async (message, reason) => {
@@ -293,8 +266,7 @@ describe('DshRuntimeConnection tracing', () => {
     const checkpoint = {
       runtime: 'dsh' as const,
       runtimeSessionId: 'session-1',
-      boundary: 7,
-      prefixHash: 'a'.repeat(64)
+      boundary: 7
     }
     const controller = new AbortController()
     const input: RuntimeForkInput = {
@@ -336,8 +308,7 @@ describe('DshRuntimeConnection tracing', () => {
     const checkpoint = {
       runtime: 'dsh' as const,
       runtimeSessionId: 'session-1',
-      boundary: 7,
-      prefixHash: 'a'.repeat(64)
+      boundary: 7
     }
     let failure: unknown
     const pending = driver
@@ -390,7 +361,7 @@ describe('DshRuntimeConnection tracing', () => {
   })
 
   it('requires existing native history when resuming a fork', async () => {
-    runtimeMocks.isFork.mockReturnValue(true)
+    runtimeMocks.ownsNativeHistory.mockReturnValue(true)
     const connection = await new DshRuntimeConnection({ ...connectInput, resumeToken: 'session-1' }).start()
     try {
       expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith(
@@ -403,7 +374,7 @@ describe('DshRuntimeConnection tracing', () => {
   })
 
   it('rejects any fork without a token, including a legacy rebuild, before creating a runtime', async () => {
-    runtimeMocks.isFork.mockReturnValue(true)
+    runtimeMocks.ownsNativeHistory.mockReturnValue(true)
     await expect(new DshRuntimeConnection(connectInput).start()).rejects.toThrow('history_missing')
     expect(runtimeMocks.harnessOptions).toBeUndefined()
   })

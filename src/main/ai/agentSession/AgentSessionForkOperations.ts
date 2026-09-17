@@ -8,10 +8,8 @@ import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessag
 import { agentService } from '@data/services/AgentService'
 import {
   AgentSessionForkSourceError,
-  getAgentSessionForkAvailability,
   type RuntimeForkCheckpoint,
-  RuntimeForkMetadataSchema,
-  RuntimeForkStateSchema
+  RuntimeForkAnchorSchema
 } from '@data/services/agentSessionFork'
 import { AgentSessionForkJournalSchema } from '@data/services/agentSessionForkJournal'
 import { type AgentSessionForkJournal, agentSessionForkService } from '@data/services/AgentSessionForkService'
@@ -80,7 +78,7 @@ export class AgentSessionForkOperations {
       if (parsed.data.cleanupComplete) continue
       if (parsed.data.version === 1) parsed.data.workspaceDisposition = 'retained'
       if (!includeUncommitted && !parsed.data.committed) continue
-      if (agentSessionForkService.hasCommittedChild(parsed.data)) continue
+      if (agentSessionForkService.hasPublishedSession(parsed.data)) continue
       try {
         await this.cleanup(parsed.data)
       } catch (error) {
@@ -93,15 +91,14 @@ export class AgentSessionForkOperations {
     signal.throwIfAborted()
     const preliminary = agentSessionForkService.read(sourceSessionId, messageId)
     const selected = preliminary.messages.at(-1)!
-    const state = RuntimeForkStateSchema.safeParse(selected.runtimeForkState)
+    const anchor = RuntimeForkAnchorSchema.safeParse(selected.data.runtimeAnchor)
     if (selected.role !== 'assistant' || selected.status !== 'success')
       throw new AgentSessionForkError('not_turn_boundary')
-    const availability = getAgentSessionForkAvailability(selected.runtimeForkState)
-    if (availability.status === 'unavailable') throw new AgentSessionForkError(availability.reason)
-    if (!state.success || state.data.status !== 'available') throw new AgentSessionForkError('unsupported_checkpoint')
+    if (!anchor.success)
+      throw new AgentSessionForkError(selected.data.runtimeAnchor == null ? 'legacy_history' : 'unsupported_checkpoint')
     const excludedIds = [
       ...new Set([
-        ...(RuntimeForkMetadataSchema.safeParse(selected.runtimeForkState).data?.excludedMessageIds ?? []),
+        ...(anchor.data.excludedMessageIds ?? []),
         ...preliminary.messages
           .filter(
             (row) =>
@@ -115,23 +112,21 @@ export class AgentSessionForkOperations {
       ])
     ]
     const source = agentSessionForkService.read(sourceSessionId, messageId, excludedIds)
-    const checkpoint = state.data.checkpoint
+    const checkpoint = anchor.data.checkpoint
     const agent = agentService.getAgent(source.agent.id)
     if (!agent) throw new AgentSessionForkSourceError('source_missing')
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
     if (agent.type !== checkpoint.runtime || !driver?.fork) throw new AgentSessionForkError('unsupported_checkpoint')
     const checkpoints: RuntimeForkCheckpoint[] = []
     for (const row of source.messages) {
-      const parsed = RuntimeForkStateSchema.safeParse(row.runtimeForkState)
-      if (parsed.success && parsed.data.status === 'available') checkpoints.push(parsed.data.checkpoint)
+      const parsed = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
+      if (parsed.success) checkpoints.push(parsed.data.checkpoint)
     }
     const root = application.getPath('feature.agents.forks')
     const operationId = randomUUID()
     const journal: AgentSessionForkJournal = {
       version: 2,
       operationId,
-      sourceSessionId,
-      messageId,
       targetSessionId: randomUUID(),
       createdAt: Date.now(),
       artifactDirectory: path.join(root, operationId),
@@ -190,26 +185,23 @@ export class AgentSessionForkOperations {
         })
       }
       signal.throwIfAborted()
-      agentSessionForkService.commit({ journal, source, excludedIds, messages })
+      agentSessionForkService.commit({ journal, source, excludedIds, messages, messageId })
       journal.committed = true
       return journal.targetSessionId
     } catch (error) {
-      if (!journal.committed && !agentSessionForkService.hasCommittedChild(journal)) {
+      if (!journal.committed && !agentSessionForkService.hasPublishedSession(journal)) {
         try {
           await this.cleanup(journal)
         } catch (cleanupError) {
           logger.warn('Fork rollback requires recovery', { operationId, error: cleanupError })
         }
       }
-      if (!signal.aborted && error instanceof AgentSessionForkError) {
-        agentSessionForkService.markUnavailable(sourceSessionId, messageId, error.reason)
-      }
       throw error
     }
   }
 
   private async cleanup(journal: AgentSessionForkJournal): Promise<void> {
-    if (journal.cleanupComplete || agentSessionForkService.hasCommittedChild(journal)) return
+    if (journal.cleanupComplete || agentSessionForkService.hasPublishedSession(journal)) return
     if (journal.version === 1) journal.workspaceDisposition = 'retained'
     try {
       await this.cleanupOwned(journal)
@@ -301,22 +293,15 @@ function cloneMessages(
   const ids = new Map(rows.map((row, index) => [row.id, newIds[index]]))
   let checkpointIndex = 0
   return rows.map((row) => {
-    const state = RuntimeForkStateSchema.safeParse(row.runtimeForkState)
-    const metadata = RuntimeForkMetadataSchema.safeParse(row.runtimeForkState)
-    const forkState =
-      state.success && state.data.status === 'available'
-        ? {
-            ...state.data,
-            checkpoint: checkpoints[checkpointIndex++],
-            excludedMessageIds: state.data.excludedMessageIds?.flatMap((id) => (ids.has(id) ? [ids.get(id)!] : []))
-          }
-        : metadata.success
-          ? {
-              ...metadata.data,
-              excludedMessageIds: metadata.data.excludedMessageIds?.flatMap((id) => (ids.has(id) ? [ids.get(id)!] : []))
-            }
-          : row.runtimeForkState
     const data = structuredClone(row.data)
+    const anchor = RuntimeForkAnchorSchema.safeParse(data.runtimeAnchor)
+    delete data.runtimeAnchor
+    if (anchor.success) {
+      data.runtimeAnchor = {
+        checkpoint: checkpoints[checkpointIndex++],
+        excludedMessageIds: anchor.data.excludedMessageIds?.flatMap((id) => (ids.has(id) ? [ids.get(id)!] : []))
+      }
+    }
     // Task events are live execution registries, not conversation content.
     data.parts = data.parts
       ?.filter((part) => part.type !== 'data-agent-task-event')
@@ -353,7 +338,6 @@ function cloneMessages(
       id: ids.get(row.id)!,
       sessionId: targetSessionId,
       data,
-      runtimeForkState: forkState,
       runtimeResumeToken: row.role === 'assistant' ? resumeToken : null,
       stats: null,
       ftsRowid: null,

@@ -53,7 +53,7 @@ describe('AgentSessionMessageBackend', () => {
     expect(mocks.saveMessage).toHaveBeenCalledWith(
       {
         sessionId: 'session-1',
-        runtimeForkState: { version: 1, status: 'unavailable', reason: 'not_turn_boundary' },
+        runtimeAnchor: undefined,
         message: {
           id: 'assistant-1',
           role: 'assistant',
@@ -73,9 +73,7 @@ describe('AgentSessionMessageBackend', () => {
     const backend = new AgentSessionMessageBackend({
       sessionId: 'session-1',
       assistantMessageId: 'assistant-1',
-      forkState: () => ({
-        version: 1,
-        status: 'available',
+      forkAnchor: () => ({
         checkpoint: {
           runtime: 'pi',
           runtimeSessionId: 'native-1',
@@ -87,7 +85,7 @@ describe('AgentSessionMessageBackend', () => {
     await listener.onDone({ status: 'success', finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] } })
     expect(mocks.saveMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        runtimeForkState: { version: 1, status: 'unavailable', reason: 'checkpoint_failed' },
+        runtimeAnchor: undefined,
         message: expect.objectContaining({ status: 'success' })
       }),
       { publishDataChange: true }

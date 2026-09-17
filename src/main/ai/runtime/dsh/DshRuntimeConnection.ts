@@ -14,8 +14,7 @@ import {
   type BridgePermissionMode,
   type BridgePolicy
 } from '@cherrystudio/dsh-bridge'
-import { RuntimeForkStateSchema } from '@data/services/agentSessionFork'
-import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -43,7 +42,6 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
-import { FORK_CHECKPOINT_FAILED } from '../forkCheckpoint'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -242,7 +240,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   async start(): Promise<this> {
     if (this.input.resumeToken) assertValidDshResumeToken(this.input.resumeToken)
-    const requireExistingHistory = agentSessionService.isFork(this.input.sessionId)
+    const requireExistingHistory = agentSessionForkService.ownsNativeHistory(this.input.sessionId)
     if (requireExistingHistory && !this.input.resumeToken)
       throw new Error('history_missing: this fork requires its existing native history.')
     const resolveInjection = async (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> => {
@@ -820,33 +818,15 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     switch (reason.kind) {
       case 'completed':
       case 'max-tokens': {
-        let forkState = FORK_CHECKPOINT_FAILED
-        try {
-          if (boundary !== undefined && this.bridge) {
-            const captured = await this.bridge.request(
-              'session/fork-checkpoint',
-              {
-                sessionId: this.input.sessionId,
-                boundary
-              },
-              { timeoutMs: 10_000 }
-            )
-            if (captured.boundary !== boundary) throw new Error('history_changed')
-            forkState = RuntimeForkStateSchema.parse({
-              version: 1,
-              status: 'available',
-              checkpoint: {
-                runtime: 'dsh',
-                runtimeSessionId: this.input.sessionId,
-                boundary,
-                prefixHash: captured.prefixHash
-              }
-            })
-          }
-        } catch (error) {
-          logger.warn('DSH fork checkpoint capture failed', { sessionId: this.input.sessionId, boundary, error })
-        }
-        if (!this.closed) this.eventQueue.push({ type: 'turn-complete', forkState })
+        this.eventQueue.push({
+          type: 'turn-complete',
+          forkAnchor:
+            boundary === undefined
+              ? undefined
+              : {
+                  checkpoint: { runtime: 'dsh', runtimeSessionId: this.input.sessionId, boundary }
+                }
+        })
         return
       }
       case 'aborted':

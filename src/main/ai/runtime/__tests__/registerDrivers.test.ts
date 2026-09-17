@@ -32,10 +32,7 @@ describe('registerRuntimeDrivers', () => {
       runtime: 'claude-code' as const,
       runtimeSessionId: 'source-native',
       messageUuid: '3804e4f9-80b1-4c2b-bd94-83e97d6c4269',
-      configDir: '/config',
-      sourceCwd: '/source',
-      prefixBytes: 100,
-      prefixHash: 'a'.repeat(64)
+      configDir: '/config'
     }
     const input: RuntimeForkInput = {
       sourceSessionId: 'source',

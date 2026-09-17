@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -25,7 +25,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/AgentSessionForkOperations'
-import type { RuntimeForkInput } from '@main/ai/runtime/forkCheckpoint'
+import { AgentSessionForkError, type RuntimeForkInput } from '@main/ai/runtime/forkCheckpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 
@@ -113,10 +113,7 @@ describe('AgentSessionMessageService', () => {
           runtime: 'claude-code' as const,
           runtimeSessionId: 'native-parent',
           messageUuid: ASSISTANT_MESSAGE_ID,
-          configDir: directory,
-          sourceCwd: '/tmp/workspace-fork-source',
-          prefixBytes: 100,
-          prefixHash: 'a'.repeat(64)
+          configDir: directory
         }
         const fork = vi.fn(async (input: RuntimeForkInput) => ({
           resumeToken: 'native-child',
@@ -138,7 +135,7 @@ describe('AgentSessionMessageService', () => {
           agentSessionMessageService.saveMessage({
             sessionId: 'fork-source',
             runtimeResumeToken: 'native-parent',
-            runtimeForkState: { version: 1, status: 'available', checkpoint },
+            runtimeAnchor: { checkpoint },
             message: {
               id: ASSISTANT_MESSAGE_ID,
               role: 'assistant',
@@ -146,7 +143,17 @@ describe('AgentSessionMessageService', () => {
               data: { parts: [{ type: 'text', text: 'answer' }] }
             }
           })
-          const operation = new AgentSessionForkOperations().fork('fork-source', ASSISTANT_MESSAGE_ID)
+          const operations = new AgentSessionForkOperations()
+          if (storedType === 'claude-code') {
+            fork.mockRejectedValueOnce(new AgentSessionForkError('history_missing'))
+            await expect(operations.fork('fork-source', ASSISTANT_MESSAGE_ID)).rejects.toMatchObject({
+              reason: 'history_missing'
+            })
+            expect(agentSessionForkService.journals()).toEqual([])
+            expect(await readdir(directory)).toEqual([])
+            expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(2)
+          }
+          const operation = operations.fork('fork-source', ASSISTANT_MESSAGE_ID)
           if (storedType === 'pi') {
             await expect(operation).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
             expect(fork).not.toHaveBeenCalled()
@@ -161,9 +168,9 @@ describe('AgentSessionMessageService', () => {
             const child = agentSessionMessageService.listSessionMessages(childId).items[0]
             expect(child.id).not.toBe(ASSISTANT_MESSAGE_ID)
             expect(child.runtimeResumeToken).toBe('native-child')
-            expect(child.forkAvailability).toEqual({ status: 'available' })
+
             expect(
-              agentSessionMessageService.readForkPrefixTx(dbh.db, childId, child.id)[0].runtimeForkState
+              agentSessionMessageService.readForkPrefixTx(dbh.db, childId, child.id)[0].data.runtimeAnchor
             ).toMatchObject({ checkpoint: { ...checkpoint, runtimeSessionId: 'native-child' } })
           }
           expect(connect).not.toHaveBeenCalled()
@@ -188,9 +195,7 @@ describe('AgentSessionMessageService', () => {
       for (const row of rows) {
         agentSessionMessageService.saveMessage({
           sessionId: SESSION_ID,
-          runtimeForkState: {
-            version: 1,
-            status: 'available',
+          runtimeAnchor: {
             checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: row.id }
           },
           message: {
@@ -212,10 +217,9 @@ describe('AgentSessionMessageService', () => {
       notifyDataApiDataChangeMock.mockClear()
       notifyDataApiDataChangeMock.mockImplementationOnce(() => {
         expect(dbh.sqlite.inTransaction).toBe(false)
-        expect(agentSessionMessageService.getSessionMessage(SESSION_ID, FILE_ENTRY_ID).forkAvailability).toEqual({
-          status: 'unavailable',
-          reason: 'history_changed'
-        })
+        expect(
+          agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, FILE_ENTRY_ID).at(-1)!.data.runtimeAnchor
+        ).toBeUndefined()
       })
       if (operation === 'edit') {
         agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
@@ -236,15 +240,14 @@ describe('AgentSessionMessageService', () => {
         ]
       ])
       for (const row of rows.slice(0, 2)) {
-        expect(agentSessionMessageService.getSessionMessage(SESSION_ID, row.id).forkAvailability).toEqual({
-          status: 'available'
-        })
+        expect(
+          agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, row.id).at(-1)!.data.runtimeAnchor
+        ).toBeDefined()
       }
       for (const row of rows.slice(operation === 'edit' ? 2 : 3)) {
-        expect(agentSessionMessageService.getSessionMessage(SESSION_ID, row.id).forkAvailability).toEqual({
-          status: 'unavailable',
-          reason: 'history_changed'
-        })
+        expect(
+          agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, row.id).at(-1)!.data.runtimeAnchor
+        ).toBeUndefined()
       }
       if (operation === 'delete')
         expect(() => agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow()
@@ -256,20 +259,17 @@ describe('AgentSessionMessageService', () => {
         runtime: 'claude-code',
         runtimeSessionId: 'native-claude',
         messageUuid: ASSISTANT_MESSAGE_ID,
-        configDir: '/config',
-        sourceCwd: '/workspace',
-        prefixBytes: 100,
-        prefixHash: 'a'.repeat(64)
+        configDir: '/config'
       },
-      { runtime: 'dsh', runtimeSessionId: 'native-dsh', boundary: 7, prefixHash: 'a'.repeat(64) }
-    ])('exposes only availability for a valid $runtime checkpoint', (checkpoint) => {
+      { runtime: 'dsh', runtimeSessionId: 'native-dsh', boundary: 7 }
+    ] as const)('keeps $runtime native identifiers out of public messages', (checkpoint) => {
       const saved = agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
-        runtimeForkState: { version: 1, status: 'available', checkpoint, excludedMessageIds: [USER_MESSAGE_ID] },
+        runtimeAnchor: { checkpoint, excludedMessageIds: [USER_MESSAGE_ID] },
         message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
       })
-      expect(saved.forkAvailability).toEqual({ status: 'available' })
-      expect(saved).not.toHaveProperty('runtimeForkState')
+
+      expect(saved).not.toHaveProperty('runtimeAnchor')
       expect(JSON.stringify(saved)).not.toContain(checkpoint.runtimeSessionId)
       const metadata = agentSessionMessageService.listCreatedInRangeMetadataPage({
         fromMs: 0,
@@ -278,50 +278,45 @@ describe('AgentSessionMessageService', () => {
       }).items[0]
       const entity = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
       expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(entity), 'utf8'))
-      expect(metadata).not.toHaveProperty('runtimeForkState')
+      expect(metadata).not.toHaveProperty('runtimeAnchor')
     })
 
     it.each([
-      ['missing checkpoint', undefined],
-      ['null checkpoint', null],
-      ['unknown runtime', { runtime: 'unknown', runtimeSessionId: 'native' }],
-      ['missing Pi leaf', { runtime: 'pi', runtimeSessionId: 'native' }],
-      ['empty native identity', { runtime: 'pi', runtimeSessionId: '', leafId: 'leaf' }],
-      ['extra native fields', { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf', unexpected: true }],
-      [
-        'incomplete Claude boundary',
-        { runtime: 'claude-code', runtimeSessionId: 'native', messageUuid: ASSISTANT_MESSAGE_ID }
-      ],
-      [
-        'negative DSH boundary',
-        { runtime: 'dsh', runtimeSessionId: 'native', boundary: -1, prefixHash: 'a'.repeat(64) }
-      ],
-      ['invalid DSH hash', { runtime: 'dsh', runtimeSessionId: 'native', boundary: 7, prefixHash: 'invalid' }]
-    ])('does not offer a fork for %s', (_label, checkpoint) => {
-      agentSessionMessageService.saveMessage({
-        sessionId: SESSION_ID,
-        runtimeForkState: { version: 1, status: 'available', checkpoint },
-        message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
-      })
-      const expected = { status: 'unavailable', reason: 'unsupported_checkpoint' }
-      const entity = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
-      expect(entity.forkAvailability).toEqual(expected)
-      expect(agentSessionMessageService.listSessionMessages(SESSION_ID).items[0].forkAvailability).toEqual(expected)
-      const metadata = agentSessionMessageService.listCreatedInRangeMetadataPage({
-        fromMs: 0,
-        toMs: Number.MAX_SAFE_INTEGER,
-        limit: 10
-      }).items[0]
-      expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(entity), 'utf8'))
-      expect(metadata).not.toHaveProperty('runtimeForkState')
-    })
+      ['missing native identifier', undefined, 'legacy_history'],
+      ['invalid native identifier', { checkpoint: { runtime: 'pi' } }, 'unsupported_checkpoint']
+    ] as const)(
+      'reports %s when fork is requested without publishing a session',
+      async (_label, runtimeAnchor, reason) => {
+        await seedAgent('fork-agent', 'Fork Agent')
+        await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
+        agentSessionMessageService.saveMessage({
+          sessionId: 'fork-source',
+          message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+        })
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ data: { parts: [], runtimeAnchor } })
+          .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+          .run()
+        await expect(new AgentSessionForkOperations().fork('fork-source', ASSISTANT_MESSAGE_ID)).rejects.toMatchObject({
+          reason
+        })
+        expect(agentSessionForkService.journals()).toEqual([])
+        expect(
+          dbh.db
+            .select()
+            .from(agentSessionTable)
+            .all()
+            .map((row) => row.id)
+            .sort()
+        ).toEqual(['fork-source', SESSION_ID])
+      }
+    )
 
     it.each(['edit', 'delete'])('rolls back checkpoint invalidation and %s without notifying windows', (operation) => {
       agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
-        runtimeForkState: {
-          version: 1,
-          status: 'available',
+        runtimeAnchor: {
           checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' }
         },
         message: {
@@ -352,9 +347,9 @@ describe('AgentSessionMessageService', () => {
         ).toThrow('transaction failed')
       }
       expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
-      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).forkAvailability).toEqual({
-        status: 'available'
-      })
+      expect(
+        agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, ASSISTANT_MESSAGE_ID).at(-1)!.data.runtimeAnchor
+      ).toBeDefined()
       expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual([
         { type: 'text', text: 'answer' }
       ])
@@ -364,8 +359,7 @@ describe('AgentSessionMessageService', () => {
       const journal = {
         version: 2 as const,
         operationId: randomUUID(),
-        sourceSessionId: randomUUID(),
-        messageId: ASSISTANT_MESSAGE_ID,
+
         targetSessionId: randomUUID(),
         createdAt: Date.now(),
         artifactDirectory: '/owned-fork',
@@ -393,9 +387,7 @@ describe('AgentSessionMessageService', () => {
     it('keeps native checkpoints private and invalidates a selected history after edits', () => {
       const saved = agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,
-        runtimeForkState: {
-          version: 1,
-          status: 'available',
+        runtimeAnchor: {
           checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' }
         },
         message: {
@@ -405,15 +397,16 @@ describe('AgentSessionMessageService', () => {
           data: { parts: [{ type: 'text', text: 'answer' }] }
         }
       })
-      expect(saved.forkAvailability).toEqual({ status: 'available' })
-      expect(saved).not.toHaveProperty('runtimeForkState')
-      agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
-        data: { parts: [{ type: 'text', text: 'edited' }] }
-      })
-      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).forkAvailability).toEqual({
-        status: 'unavailable',
-        reason: 'history_changed'
-      })
+
+      expect(saved.data).not.toHaveProperty('runtimeAnchor')
+      const forgedData = {
+        parts: [{ type: 'text' as const, text: 'edited' }],
+        runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'forged', leafId: 'forged' } }
+      }
+      agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, { data: forgedData })
+      expect(
+        agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, ASSISTANT_MESSAGE_ID).at(-1)!.data.runtimeAnchor
+      ).toBeUndefined()
     })
 
     it.each([
@@ -432,9 +425,7 @@ describe('AgentSessionMessageService', () => {
       agentSessionMessageService.saveMessage({
         sessionId: 'fork-source',
         runtimeResumeToken: 'original-token',
-        runtimeForkState: {
-          version: 1,
-          status: 'available',
+        runtimeAnchor: {
           checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' }
         },
         message: {
@@ -448,8 +439,7 @@ describe('AgentSessionMessageService', () => {
       const journal = {
         version: 1 as const,
         operationId: 'test-operation',
-        sourceSessionId: 'fork-source',
-        messageId: ASSISTANT_MESSAGE_ID,
+
         targetSessionId: 'fork-child',
         createdAt: Date.now(),
         artifactDirectory: '/test-owned-operation',
@@ -467,6 +457,7 @@ describe('AgentSessionMessageService', () => {
       })
       agentSessionForkService.commit({
         source,
+        messageId: ASSISTANT_MESSAGE_ID,
         journal,
         excludedIds: [],
         messages: source.messages.map((row) => ({ ...row, id: FILE_ENTRY_ID, runtimeResumeToken: 'child-token' }))
@@ -477,18 +468,11 @@ describe('AgentSessionMessageService', () => {
       expect(agentSessionService.getById('fork-source').name).toBe(sourceName)
       const child = agentSessionMessageService.getSessionMessage('fork-child', FILE_ENTRY_ID)
       expect(child.runtimeResumeToken).toBe('child-token')
-      expect(child.data).toEqual(source.messages[0].data)
-      expect(child.forkAvailability).toEqual({ status: 'available' })
+      expect(child.data.parts).toEqual(source.messages[0].data.parts)
+
       expect(
-        agentSessionMessageService.readForkPrefixTx(dbh.db, 'fork-child', FILE_ENTRY_ID)[0].runtimeForkState
-      ).toEqual(source.messages[0].runtimeForkState)
-      expect(
-        dbh.db
-          .select({ forkedFrom: agentSessionTable.forkedFrom })
-          .from(agentSessionTable)
-          .where(eq(agentSessionTable.id, 'fork-child'))
-          .get()?.forkedFrom
-      ).toEqual({ sessionId: 'fork-source', messageId: ASSISTANT_MESSAGE_ID, operationId: journal.operationId })
+        agentSessionMessageService.readForkPrefixTx(dbh.db, 'fork-child', FILE_ENTRY_ID)[0].data.runtimeAnchor
+      ).toEqual(source.messages[0].data.runtimeAnchor)
       expect(agentSessionForkService.journals()).toEqual([{ ...journal, committed: true }])
       expect(child.stats).toBeNull()
       expect(child.delivery).toBeNull()
@@ -496,11 +480,11 @@ describe('AgentSessionMessageService', () => {
         const childSource = agentSessionForkService.read('fork-child', FILE_ENTRY_ID)
         agentSessionForkService.commit({
           source: childSource,
+          messageId: FILE_ENTRY_ID,
           journal: {
             ...journal,
             operationId: 'grandchild-operation',
-            sourceSessionId: 'fork-child',
-            messageId: FILE_ENTRY_ID,
+
             targetSessionId: 'fork-grandchild'
           },
           excludedIds: [],
@@ -509,6 +493,7 @@ describe('AgentSessionMessageService', () => {
         expect(agentSessionService.getById('fork-grandchild').name).toBe('test(3)')
         agentSessionForkService.commit({
           source,
+          messageId: ASSISTANT_MESSAGE_ID,
           journal: { ...journal, operationId: 'sibling-operation', targetSessionId: 'fork-sibling' },
           excludedIds: [],
           messages: source.messages.map((row) => ({ ...row, id: 'sibling-message' }))
@@ -518,7 +503,12 @@ describe('AgentSessionMessageService', () => {
       }
       agentSessionService.deleteTx(dbh.db, 'fork-source')
       expect(agentSessionService.getById('fork-child').id).toBe('fork-child')
-      expect(agentSessionForkService.hasCommittedChild(journal)).toBe(true)
+      expect(agentSessionForkService.hasPublishedSession(journal)).toBe(true)
+      expect(agentSessionForkService.ownsNativeHistory('fork-child')).toBe(true)
+      expect(agentSessionForkService.ownsNativeHistory('fork-source')).toBe(false)
+      expect(agentSessionMessageService.getLastRuntimeResumeToken('fork-child')).toBe('child-token')
+      expect(agentSessionForkService.journals()[0]).not.toHaveProperty('sourceSessionId')
+      expect(agentSessionForkService.journals()[0]).not.toHaveProperty('messageId')
     })
 
     it('publishes no child when the source prefix changed or its parent disappeared', async () => {
@@ -536,13 +526,13 @@ describe('AgentSessionMessageService', () => {
       const source = agentSessionForkService.read('fork-source', ASSISTANT_MESSAGE_ID)
       const input = {
         source,
+        messageId: ASSISTANT_MESSAGE_ID,
         excludedIds: [],
         messages: source.messages.map((row) => ({ ...row, id: FILE_ENTRY_ID })),
         journal: {
           version: 1 as const,
           operationId: 'test-operation',
-          sourceSessionId: 'fork-source',
-          messageId: ASSISTANT_MESSAGE_ID,
+
           targetSessionId: 'fork-child',
           createdAt: Date.now(),
           artifactDirectory: '/test-owned-operation',

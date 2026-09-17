@@ -6,8 +6,6 @@ export const FORK_JOURNAL_PREFIX = 'agent-session-fork:'
 export const AgentSessionForkJournalSchema = z.object({
   version: z.union([z.literal(1), z.literal(2)]),
   operationId: z.uuid(),
-  sourceSessionId: z.uuid(),
-  messageId: z.uuid(),
   targetSessionId: z.uuid(),
   createdAt: z.number().int(),
   artifactDirectory: z.string(),

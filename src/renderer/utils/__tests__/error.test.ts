@@ -64,6 +64,22 @@ describe('error', () => {
     )
   })
 
+  it('shows localized fork failures without labelling them as unknown errors', () => {
+    const message = '该历史消息未记录分叉检查点。'
+    const error = new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, message, { reason: 'legacy_history' })
+
+    expect(formatErrorMessageWithPrefix(error, '未知错误')).toBe(message)
+    expect(formatErrorMessageWithPrefix(new Error('unexpected failure'), 'Unknown error')).toBe(
+      'Unknown error: unexpected failure'
+    )
+    expect(
+      formatErrorMessageWithPrefix(
+        new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, 'unexpected failure', { reason: 'unrecognized' }),
+        'Unknown error'
+      )
+    ).toBe('Unknown error: unexpected failure')
+  })
+
   describe('getErrorDetails', () => {
     it('should handle null or non-object values', () => {
       expect(getErrorDetails(null)).toBeNull()

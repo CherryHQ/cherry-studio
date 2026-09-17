@@ -36,7 +36,6 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
-import { isAgentSessionForkUnavailableReason } from '@shared/ai/agentSessionFork'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -61,7 +60,7 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { AgentSessionForkSourceError, getAgentSessionForkAvailability } from './agentSessionFork'
+import { AgentSessionForkSourceError, RuntimeForkAnchorSchema, type RuntimeForkAnchor } from './agentSessionFork'
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -87,20 +86,17 @@ export interface AgentSessionMessageRangeMetadata {
 }
 
 function agentSessionMessageEntityJsonBytes(): SQL<number> {
-  // Availability is validated in Main below; count a null placeholder here instead
-  // of duplicating the native checkpoint schema in SQL.
   return sql<number>`length(cast(json_object(
     'id', ${sessionMessagesTable.id},
     'sessionId', ${sessionMessagesTable.sessionId},
     'role', ${sessionMessagesTable.role},
-    'data', json(${sessionMessagesTable.data}),
+    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor'),
     'searchableText', ${sessionMessagesTable.searchableText},
     'status', ${sessionMessagesTable.status},
     'modelId', ${sessionMessagesTable.modelId},
     'messageSnapshot', json(${sessionMessagesTable.messageSnapshot}),
     'stats', json(${sessionMessagesTable.stats}),
     'runtimeResumeToken', ${sessionMessagesTable.runtimeResumeToken},
-    'forkAvailability', null,
     'delivery', json(case
       when ${sessionMessagesTable.delivery} is not null and ${sessionMessagesTable.deliveryStatus} is not null
       then json_set(
@@ -150,7 +146,7 @@ type ListSessionMessagesOptions = {
 
 type SaveAgentSessionMessageParams = {
   sessionId: string
-  runtimeForkState?: unknown
+  runtimeAnchor?: RuntimeForkAnchor
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
   message: CreateAgentSessionMessageDto & {
@@ -288,29 +284,13 @@ function terminalResultData(
   return { parts: [{ type: 'text', text }] }
 }
 
-export class AgentSessionMessageService {
-  markForkUnavailable(sessionId: string, messageId: string, value: string): void {
-    if (!isAgentSessionForkUnavailableReason(value)) return
-    application
-      .get('DbService')
-      .getDb()
-      .update(sessionMessagesTable)
-      .set({
-        runtimeForkState: { version: 1, status: 'unavailable', reason: value },
-        updatedAt: Date.now()
-      })
-      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
-      .run()
-    notifyDataApiDataChange([
-      {
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'projection',
-        routeParams: { sessionId },
-        entityIds: [messageId]
-      }
-    ])
-  }
+function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessageEntity['data'] {
+  const result = { ...data }
+  delete result.runtimeAnchor
+  return result
+}
 
+export class AgentSessionMessageService {
   /** Main-only native fork read. API callers must never receive these raw rows. */
   readForkPrefixTx(
     tx: DbOrTx,
@@ -343,7 +323,6 @@ export class AgentSessionMessageService {
           modelId: row.modelId,
           messageSnapshot: row.messageSnapshot,
           runtimeResumeToken: row.runtimeResumeToken,
-          runtimeForkState: row.runtimeForkState,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt
         })
@@ -357,7 +336,7 @@ export class AgentSessionMessageService {
     if (!row) return
     tx.update(sessionMessagesTable)
       .set({
-        runtimeForkState: { version: 1, status: 'unavailable', reason: 'history_changed' },
+        data: sql`json_remove(${sessionMessagesTable.data}, '$.runtimeAnchor')`,
         updatedAt: Date.now()
       })
       .where(
@@ -368,7 +347,7 @@ export class AgentSessionMessageService {
             gt(sessionMessagesTable.createdAt, row.createdAt),
             and(eq(sessionMessagesTable.createdAt, row.createdAt), gte(sessionMessagesTable.id, row.id))
           ),
-          sql`json_extract(${sessionMessagesTable.runtimeForkState}, '$.status') = 'available'`
+          sql`json_type(${sessionMessagesTable.data}, '$.runtimeAnchor') is not null`
         )
       )
       .run()
@@ -578,7 +557,6 @@ export class AgentSessionMessageService {
       .select({
         createdAt: sessionMessagesTable.createdAt,
         entityJsonBytes: agentSessionMessageEntityJsonBytes(),
-        runtimeForkState: sessionMessagesTable.runtimeForkState,
         id: sessionMessagesTable.id,
         sessionId: sessionMessagesTable.sessionId
       })
@@ -598,14 +576,9 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const tail = pageRows[pageRows.length - 1]
     return {
-      items: pageRows.map(({ runtimeForkState, ...row }) => ({
+      items: pageRows.map((row) => ({
         ...row,
-        createdAt: timestampToISO(row.createdAt),
-        // Replace the four-byte SQL null placeholder with the actual public projection.
-        entityJsonBytes:
-          row.entityJsonBytes -
-          4 +
-          Buffer.byteLength(JSON.stringify(getAgentSessionForkAvailability(runtimeForkState)), 'utf8')
+        createdAt: timestampToISO(row.createdAt)
       })),
       nextCursor: hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
     }
@@ -733,7 +706,7 @@ export class AgentSessionMessageService {
       const updatedAt = Date.now()
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
-      const mergedData = { ...existing.data, ...dto.data }
+      const mergedData = publicMessageData({ ...existing.data, ...dto.data })
       this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)
@@ -847,14 +820,13 @@ export class AgentSessionMessageService {
       id: row.id,
       sessionId: row.sessionId,
       role: row.role as AgentSessionMessageEntity['role'],
-      data: row.data,
+      data: publicMessageData(row.data),
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],
       modelId: row.modelId,
       messageSnapshot: row.messageSnapshot,
       stats: row.stats,
       runtimeResumeToken: row.runtimeResumeToken,
-      forkAvailability: getAgentSessionForkAvailability(row.runtimeForkState),
       delivery:
         row.delivery && row.deliveryStatus
           ? {
@@ -913,7 +885,6 @@ export class AgentSessionMessageService {
     timestampMs = Date.now()
   ): SavedAgentSessionMessage {
     const { sessionId, runtimeResumeToken = null, runtimeStats, message } = params
-    const runtimeForkState = params.runtimeForkState
     const messageId = message.id ?? uuidv7()
     const status = message.status ?? 'success'
 
@@ -926,6 +897,8 @@ export class AgentSessionMessageService {
     }
 
     const existingRow = this.findExistingMessageRow(db, sessionId, messageId)
+    const data: SessionMessageRow['data'] = publicMessageData(message.data)
+    if (params.runtimeAnchor) data.runtimeAnchor = RuntimeForkAnchorSchema.parse(params.runtimeAnchor)
 
     if (existingRow) {
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
@@ -959,12 +932,11 @@ export class AgentSessionMessageService {
             .set({
               role: message.role,
               status,
-              data: message.data,
+              data,
               modelId,
               messageSnapshot,
               stats,
               runtimeResumeToken: runtimeResumeTokenToPersist,
-              ...(runtimeForkState === undefined ? {} : { runtimeForkState }),
               delivery,
               deliveryStatus,
               deliveryTurnRef,
@@ -983,13 +955,12 @@ export class AgentSessionMessageService {
           ...existingRow,
           role: message.role,
           status,
-          data: message.data,
+          data,
           searchableText: existingRow.searchableText,
           modelId,
           messageSnapshot,
           stats,
           runtimeResumeToken: runtimeResumeTokenToPersist,
-          ...(runtimeForkState === undefined ? {} : { runtimeForkState }),
           delivery,
           deliveryStatus,
           deliveryTurnRef,
@@ -1007,12 +978,11 @@ export class AgentSessionMessageService {
       sessionId,
       role: message.role,
       status,
-      data: message.data,
+      data,
       modelId: message.modelId,
       messageSnapshot: message.messageSnapshot,
       stats: mergeMessageRuntimeStats(undefined, runtimeStats) ?? null,
       runtimeResumeToken,
-      runtimeForkState: runtimeForkState ?? { version: 1, status: 'unavailable', reason: 'not_turn_boundary' },
       delivery: message.delivery,
       deliveryStatus: message.deliveryStatus,
       deliveryTurnRef: message.deliveryTurnRef,

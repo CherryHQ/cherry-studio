@@ -31,8 +31,7 @@ export async function forkDshSession(input: RuntimeForkInput, snapshotEvents?: u
       targetSessionId: input.targetSessionId,
       targetCwd: input.targetCwd,
       boundary: checkpoint.boundary,
-      prefixHash: checkpoint.prefixHash,
-      checkpoints: checkpoints.map(({ boundary, prefixHash }) => ({ boundary, prefixHash })),
+      checkpoints: checkpoints.map(({ boundary }) => ({ boundary })),
       events: snapshotEvents
     },
     input.signal

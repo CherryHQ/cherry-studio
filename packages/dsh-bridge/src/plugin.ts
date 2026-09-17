@@ -19,7 +19,6 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import { type AskUserQuestionRequest, UserQuestionError } from '@deepseek-ai/dsh-user-questions'
 
-import { createForkCheckpoint } from './fork'
 import { type BridgeLink, connectBridgeLink } from './link'
 import { decideDelegatedToolCall, decideToolCall, detectGlobalInstall } from './policy'
 import {
@@ -115,10 +114,6 @@ export function apply(ctx: Context): void {
   /** Host→plugin dispatch; a rejection becomes the JSON-RPC error response. */
   async function handleRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
     switch (method) {
-      case 'session/fork-checkpoint': {
-        const { sessionId, boundary } = params as BridgeHostParams<'session/fork-checkpoint'>
-        return createForkCheckpoint(requireAgent(sessionId).session.snapshotEvents(), boundary)
-      }
       case 'session/fork-snapshot': {
         const { sessionId, boundary } = params as BridgeHostParams<'session/fork-snapshot'>
         const session = requireAgent(sessionId).session

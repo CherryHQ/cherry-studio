@@ -38,7 +38,7 @@ interface FakeSpan {
 
 const mocks = vi.hoisted(() => ({
   getById: vi.fn(),
-  isFork: vi.fn(() => false),
+  ownsNativeHistory: vi.fn(() => false),
   getAgent: vi.fn(),
   broadcast: vi.fn(),
   skillList: vi.fn(),
@@ -125,7 +125,10 @@ vi.mock('@application', () => ({
   }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getById: mocks.getById, isFork: mocks.isFork }
+  agentSessionService: { getById: mocks.getById }
+}))
+vi.mock('@data/services/AgentSessionForkService', () => ({
+  agentSessionForkService: { ownsNativeHistory: mocks.ownsNativeHistory }
 }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/AgentChannelService', () => ({
@@ -301,7 +304,7 @@ async function nextEventWithin(events: AsyncIterable<AgentRuntimeEvent>): Promis
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.isFork.mockReturnValue(false)
+  mocks.ownsNativeHistory.mockReturnValue(false)
   toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
   mocks.createOpts = undefined
@@ -833,8 +836,8 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.unregisterApiProviders).toHaveBeenCalledOnce()
   })
 
-  it.each([false, true])('reopens the native session file by resume id (fork=%s)', async (isFork) => {
-    mocks.isFork.mockReturnValue(isFork)
+  it.each([false, true])('reopens the native session file by resume id (fork=%s)', async (ownsNativeHistory) => {
+    mocks.ownsNativeHistory.mockReturnValue(ownsNativeHistory)
     mocks.readdirSync.mockReturnValue(['2026-07-06T00-00-00-000Z_sess-1.jsonl'])
     mocks.readFileSync.mockReturnValue(
       [
@@ -893,7 +896,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it.each([undefined, 'missing-id'])('rejects a fork without native history (token=%s)', async (resumeToken) => {
-    mocks.isFork.mockReturnValue(true)
+    mocks.ownsNativeHistory.mockReturnValue(true)
     await expect(new PiRuntimeConnection({ ...input, resumeToken }).start()).rejects.toMatchObject({
       reason: 'history_missing'
     })
@@ -908,7 +911,7 @@ describe('PiRuntimeConnection', () => {
     JSON.stringify({ type: 'session', id: SESSION_ID }) + '\ninvalid-json\n',
     JSON.stringify({ type: 'session', id: 'replaced-id' }) + '\n' + JSON.stringify({ type: 'message', id: 'leaf' })
   ])('rejects corrupt fork history before the SDK can initialize or truncate it (%j)', async (history) => {
-    mocks.isFork.mockReturnValue(true)
+    mocks.ownsNativeHistory.mockReturnValue(true)
     mocks.readdirSync.mockReturnValue(['2026-07-06T00-00-00-000Z_sess-1.jsonl'])
     mocks.readFileSync.mockReturnValue(history)
     await expect(new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()).rejects.toMatchObject({

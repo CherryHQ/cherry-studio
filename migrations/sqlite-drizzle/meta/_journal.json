@@ -154,13 +154,6 @@
       "when": 1788332276777,
       "tag": "0021_majestic_molly_hayes",
       "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "6",
-      "when": 1789542794688,
-      "tag": "0022_wise_tarot",
-      "breakpoints": true
     }
   ],
   "version": "7"
