@@ -4,19 +4,18 @@ sources:
   - src/shared/ai/agentHook.ts
   - src/main/ai/agentSession/AgentHookSession.ts
   - src/main/ai/runtime
-  - src/renderer/components/resourceCatalog/dialogs/components/AgentHooksField.tsx
+  - src/renderer/pages/settings/components/AgentHooksField.tsx
   - src/renderer/pages/settings/HooksSettings.tsx
 ---
 
 # Agent Hooks
 
-Configure Hooks in the agent edit dialog's **Hooks** tab. This feature applies to
-Pi, Claude Code, and DSH agent sessions, not the internal AI SDK chat-loop hooks.
-**Settings → Tools → Hooks** lists configured Hooks grouped by agent, including
-disabled Hooks. **Edit** opens that agent's Hooks tab; saving refreshes the list.
-The overview paginates agents and never runs commands when displaying them.
-Settings live in the existing `Agent.configuration.hooks` JSON field; no SQL
-migration, dependency installation, or workspace configuration discovery is needed.
+Configure global Hooks in **Settings → Tools → Hooks**. This is the only editor;
+the agent edit dialog has no Hook tab. Rules apply to all Cherry Pi, Claude Code,
+and DSH agent sessions, including background turns, but not ordinary AI SDK chats
+or standalone external CLIs. Settings use the fixed `agent.hooks` Preference key,
+defaulting to an empty list. No SQL migration or dependency installation is needed.
+The unreleased per-agent configuration is not migrated, merged, or executed.
 
 ## Trust and execution
 
@@ -27,10 +26,13 @@ file trustworthy. Hook output does not grant tool permissions or become a system
 prompt. This is automation, not a substitute for sandboxing or approval policy.
 
 New Hooks are disabled. Editing a command, event, match condition, or timeout disables that Hook
-until explicitly enabled again. The form auto-saves through the normal Agent
-DataApi update; it never executes scripts for previews or validation. Main reads
-the current configuration at each event. A change does not interrupt a Hook that
-has already started. Malformed executable settings fail closed for pre-tool calls.
+until explicitly enabled again. Adding, enabling, disabling, and confirmed deletion
+are persisted immediately; text edits are auto-saved after a short delay. Failed
+auto-saves keep the current edit and expose a retry action. Editing is unavailable
+until the initial load succeeds. Viewing and editing never execute scripts.
+Main validates a snapshot of the global rules at each event. Changes affect subsequent
+events without reconnecting, not commands already in progress. They do not replay
+startup or past events. Malformed settings fail closed for pre-tool calls.
 
 Commands run in the Main-resolved session workspace, using the login-shell
 environment plus the agent's configured environment variables. Runtime API keys
@@ -40,6 +42,15 @@ host platform; Cherry does not translate shell syntax. No interpolation of tool
 arguments or model text into the configured command line takes place.
 
 ## Events
+
+Tool events use public native interfaces: Claude SDK `PreToolUse`, `PostToolUse`,
+and `PostToolUseFailure`; Pi extension `tool_call` and `tool_result`; DSH plugin
+`tools/pre-execute` and `tools/execute`. Matching and command execution remain in Main.
+The other four events use Cherry's lifecycle and presented-interaction boundaries,
+which do not coincide reliably with native startup, intermediate-turn, or permission
+events. Each event has one owner; a native failure never triggers a second application
+attempt. Cherry does not write native CLI configuration files or interpret their
+runtime-specific script protocols.
 
 | Event | Boundary | Failure behavior |
 | --- | --- | --- |
@@ -65,9 +76,8 @@ block its response. One approval ID is notified once per connection. Failed pres
 automatic permissions, and headless denials do not trigger these events. Question requests
 are distinct from permission requests and do not also fire `approvalRequested`.
 `questionRequested` refers to a structured interaction, not question marks in assistant prose.
-Currently Claude supplies this interaction through `AskUserQuestion`. Pi and DSH do not
-yet expose a general user-question tool in Cherry; their plan-review and permission
-requests still fire `approvalRequested`. Adding that question tool is a separate pending change.
+It fires only when the runtime exposes a structured question through Cherry's interaction
+bridge; the Hook adapter does not invent a missing question tool or infer one from prose.
 
 Optional `matcher.toolNameContains` and `matcher.inputContains` fields use case-sensitive
 literal substring matching. The latter matches serialized `toolInput` JSON, not the output
@@ -114,7 +124,7 @@ characters of stdout/stderr accompany its failure reason. Successful output is
 not injected into model context. Execution metadata and failures are recorded by
 the `AgentHookSession` logger, without automatically logging successful output.
 
-Limits: 16 Hooks per agent; 60 seconds per command; 1 MiB of JSON input; 64 KiB
+Limits: 16 global Hooks; 60 seconds per command; 1 MiB of JSON input; 64 KiB
 combined stdout/stderr per command. Oversized input is rejected, not silently
 truncated. Oversized output terminates the command. Claude's separate SDK matcher
 budget accommodates the configured command sequence and cleanup, so the SDK does
@@ -142,6 +152,11 @@ tools or processes from performing equivalent actions.
 ## Ownership and verification
 
 `AgentSessionRuntimeService` owns one `AgentHookSession` per runtime connection.
+`AgentHookSession` owns configuration matching, shell selection, and Hook failure policy.
+It delegates command execution to `src/main/utils/processRunner.ts::executeCommand()`:
+the shared runner owns cwd/stdin, output collection, timeout/cancellation, and process-tree
+cleanup. Hooks request structured exit results; existing callers still receive stdout
+and reject on failure by default.
 Drivers receive a Main-only callback, not shell commands or renderer-provided
 paths. Claude's prewarmed SDK callbacks resolve the currently bound handler;
 DSH transports event data over its authenticated per-connection bridge and relays
@@ -149,7 +164,9 @@ cancellation by invocation ID. Reconnecting does not replay completed tool event
 Hooks are not a durable exactly-once job system: a crash can interrupt a command,
 and a new runtime connection fires `sessionStart` again.
 
-Regression tests extend the existing runtime, bridge, AgentService, and agent-edit
-dialog suites. They cover real command stdin/exit/timeout/cancellation, real SQLite
-configuration round trips, real DSH SDK execution, Full Access rejection, warm
-Claude callbacks, post-result preservation, and explicit UI re-enabling.
+Regression tests extend the existing runtime, bridge, PreferenceService, settings,
+and agent-edit suites. They cover real command stdin/exit/timeout/cancellation,
+real SQLite global configuration round trips, real DSH SDK execution, Full Access
+rejection, warm Claude callbacks, post-result preservation, live global rules across
+agents, ignored legacy rules, explicit UI re-enabling, auto-save serialization and
+failure recovery, and confirmed deletion.

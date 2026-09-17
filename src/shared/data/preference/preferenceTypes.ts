@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import type { AgentHook } from '@shared/ai/agentHook'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -43,6 +44,8 @@ export type RetryFallbackModelId = UniqueModelId
  * ("English", "ไทย"), not an app locale code; null = no constraint injected.
  */
 export type AgentLanguagePreference = AgentLanguage
+
+export type AgentHookPreference = AgentHook[]
 
 export enum SelectionTriggerMode {
   Selected = 'selected',

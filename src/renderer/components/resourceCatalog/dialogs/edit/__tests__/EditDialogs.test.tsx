@@ -793,55 +793,11 @@ function createDeferred<T>() {
 }
 
 describe('edit dialogs', () => {
-  it.each(['pi', 'claude-code', 'dsh'] as const)(
-    'saves Hooks for %s and disables edited commands until explicitly re-enabled',
-    async (type) => {
-      const user = userEvent.setup()
-      render(<AgentEditDialog open resource={{ ...AGENT, type }} onOpenChange={vi.fn()} initialTab="hooks" />)
-      await user.click(screen.getByRole('button', { name: 'Add Hook' }))
-      expect(screen.queryByText(/Hooks run with your local account permissions/)).not.toBeInTheDocument()
-      expect(screen.queryByText(/Windows: PowerShell/)).not.toBeInTheDocument()
-      expect(screen.getByRole('switch', { name: 'Enable Hook' })).toBeDisabled()
-      await user.type(screen.getByRole('textbox', { name: 'Command or script' }), 'exit 0')
-      await user.click(screen.getByRole('combobox', { name: 'Event' }))
-      await user.keyboard('{ArrowDown}')
-      expect(await screen.findByRole('option', { name: 'Model asks a question' })).toBeInTheDocument()
-      await user.click(screen.getByRole('option', { name: 'Waiting for approval' }))
-      await user.click(screen.getByRole('textbox', { name: 'Tool name contains' }))
-      await user.paste('write')
-      await user.click(screen.getByRole('textbox', { name: 'Input contains' }))
-      await user.paste('test.txt')
-      await user.click(screen.getByRole('switch', { name: 'Enable Hook' }))
-      await waitFor(() =>
-        expect(updateAgentMock).toHaveBeenLastCalledWith({
-          body: {
-            configuration: {
-              hooks: [
-                expect.objectContaining({
-                  event: 'approvalRequested',
-                  command: 'exit 0',
-                  enabled: true,
-                  matcher: { toolNameContains: 'write', inputContains: 'test.txt' }
-                })
-              ]
-            }
-          }
-        })
-      )
-      await user.type(screen.getByRole('textbox', { name: 'Tool name contains' }), 'File')
-      expect(screen.getByRole('switch', { name: 'Enable Hook' })).not.toBeChecked()
-      await user.click(screen.getByRole('switch', { name: 'Enable Hook' }))
-      await user.type(screen.getByRole('textbox', { name: 'Command or script' }), '; exit 2')
-      expect(screen.getByRole('switch', { name: 'Enable Hook' })).not.toBeChecked()
-      await waitFor(() =>
-        expect(updateAgentMock).toHaveBeenLastCalledWith({
-          body: { configuration: { hooks: [expect.objectContaining({ command: 'exit 0; exit 2', enabled: false })] } }
-        })
-      )
-      await user.click(screen.getByRole('button', { name: 'Remove Hook' }))
-      await waitFor(() => expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { configuration: { hooks: [] } } }))
-    }
-  )
+  it.each(['pi', 'claude-code', 'dsh'] as const)('has no per-agent Hook editor for %s', (type) => {
+    render(<AgentEditDialog open resource={{ ...AGENT, type }} onOpenChange={vi.fn()} />)
+    expect(screen.queryByRole('tab', { name: 'Hooks' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add Hook' })).not.toBeInTheDocument()
+  })
 
   it('binds a prompt to the assistant being edited', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)

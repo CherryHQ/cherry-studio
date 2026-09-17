@@ -8,7 +8,6 @@
 
 import * as z from 'zod'
 
-import { AgentHookListSchema } from '@shared/ai/agentHook'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -55,7 +54,6 @@ export const AgentConfigurationSchema = z
     reasoning_effort: ReasoningEffortOptionSchema.optional(),
     service_tier: ServiceTierSelectionSchema.optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
-    hooks: AgentHookListSchema.optional(),
     bootstrap_completed: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),
     scheduler_type: AgentSchedulerTypeSchema.optional(),

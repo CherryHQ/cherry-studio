@@ -1,126 +1,170 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Badge, Button } from '@cherrystudio/ui'
-import { useDataChange, usePaginatedQuery } from '@data/hooks/useDataApi'
-import {
-  ResourceEditDialogHost,
-  type ResourceEditDialogTarget
-} from '@renderer/components/resourceCatalog/dialogs/edit'
+import { Alert, Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { preferenceService } from '@data/PreferenceService'
+import { loggerService } from '@logger'
 import { SettingsContentColumn, SettingTitle } from '@renderer/components/SettingsPrimitives'
-import { AGENT_HOOK_EVENT_LABEL_KEYS } from '@renderer/utils/agent/agentHookLabels'
-import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
+import { AgentHookListSchema, type AgentHook } from '@shared/ai/agentHook'
+
+import { AgentHooksField } from './components/AgentHooksField'
+
+const logger = loggerService.withContext('HooksSettings')
+const PREFERENCE_OPTIONS = { optimistic: false } as const
+const AUTO_SAVE_DELAY_MS = 400
+// Remounts must wait for saves that outlive the previous editor.
+let saveQueue = Promise.resolve()
 
 export function HooksSettings() {
   const { t } = useTranslation()
-  const [editTarget, setEditTarget] = useState<ResourceEditDialogTarget | null>(null)
-  const {
-    items: agents,
-    total,
-    page,
-    isLoading,
-    isRefreshing,
-    error,
-    hasNext,
-    hasPrev,
-    nextPage,
-    prevPage,
-    refresh
-  } = usePaginatedQuery('/agents', { limit: AGENTS_MAX_LIMIT, swrOptions: { keepPreviousData: false } })
-  useDataChange('/agents', () => void refresh())
-  const configuredAgents = agents.filter((agent) => agent.configuration?.hooks?.length)
+  const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [loadAttempt, setLoadAttempt] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    void saveQueue
+      .then(() => preferenceService.get('agent.hooks'))
+      .then(() => {
+        if (active) setLoadStatus(preferenceService.isCached('agent.hooks') ? 'ready' : 'error')
+      })
+      .catch((error) => {
+        logger.error('Failed to load global Hooks', error as Error)
+        if (active) setLoadStatus('error')
+      })
+    return () => {
+      active = false
+    }
+  }, [loadAttempt])
 
   return (
     <SettingsContentColumn>
       <div className="space-y-4">
-        <SettingTitle>
-          {t('settings.hooks.title')}
-          <Button variant="outline" size="sm" disabled={isLoading || isRefreshing} onClick={() => void refresh()}>
-            {t('common.refresh')}
-          </Button>
-        </SettingTitle>
+        <SettingTitle>{t('settings.hooks.title')}</SettingTitle>
         <p className="text-muted-foreground text-sm">{t('settings.hooks.description')}</p>
-        {error ? (
+        {loadStatus === 'error' ? (
           <Alert
             type="error"
             message={t('common.error')}
             action={
-              <Button variant="outline" size="sm" onClick={() => void refresh()}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setLoadStatus('loading')
+                  setLoadAttempt((attempt) => attempt + 1)
+                }}>
                 {t('common.retry')}
               </Button>
             }
           />
-        ) : isLoading ? (
+        ) : loadStatus === 'loading' ? (
           <p role="status" className="py-8 text-center text-muted-foreground text-sm">
             {t('common.loading')}
           </p>
-        ) : configuredAgents.length === 0 ? (
-          <p className="py-8 text-center text-muted-foreground text-sm">{t('settings.hooks.empty')}</p>
         ) : (
-          configuredAgents.map((agent) => (
-            <section key={agent.id} aria-label={agent.name} className="space-y-3 rounded-xl border border-border p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="break-words font-medium text-sm">{agent.name}</h2>
-                  <p className="text-muted-foreground text-xs">{t(AGENT_RUNTIME_CAPABILITIES[agent.type].labelKey)}</p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEditTarget({ kind: 'agent', id: agent.id, initialTab: 'hooks' })}>
-                  {t('common.edit')}
-                </Button>
-              </div>
-              <ul className="divide-y divide-border-subtle">
-                {agent.configuration?.hooks?.map((hook) => (
-                  <li key={hook.id} className="space-y-2 py-3 first:pt-0 last:pb-0">
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="min-w-0 break-words font-medium">{hook.name || t('agent_hooks.title')}</span>
-                      <Badge variant="secondary">{t(AGENT_HOOK_EVENT_LABEL_KEYS[hook.event])}</Badge>
-                      <Badge variant={hook.enabled ? 'outline' : 'secondary'}>
-                        {hook.enabled ? t('common.enabled') : t('common.disabled')}
-                      </Badge>
-                    </div>
-                    {hook.matcher?.toolNameContains ? (
-                      <p className="break-all text-muted-foreground text-xs">
-                        {t('agent_hooks.matcher.tool_name')}: {hook.matcher.toolNameContains}
-                      </p>
-                    ) : null}
-                    {hook.matcher?.inputContains ? (
-                      <p className="break-all text-muted-foreground text-xs">
-                        {t('agent_hooks.matcher.input')}: {hook.matcher.inputContains}
-                      </p>
-                    ) : null}
-                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted/40 p-2 font-mono text-xs">
-                      {hook.command}
-                    </pre>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))
+          <GlobalHooksEditor />
         )}
-        {hasPrev || hasNext ? (
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button variant="outline" size="sm" disabled={!hasPrev || isLoading} onClick={prevPage}>
-              {t('common.previous')}
-            </Button>
-            <span className="text-muted-foreground text-xs">
-              {t('settings.hooks.pagination', { page, pageCount: Math.max(page, Math.ceil(total / AGENTS_MAX_LIMIT)) })}
-            </span>
-            <Button variant="outline" size="sm" disabled={!hasNext || isLoading} onClick={nextPage}>
-              {t('common.next')}
-            </Button>
-          </div>
-        ) : null}
       </div>
-      <ResourceEditDialogHost
-        target={editTarget}
-        onOpenChange={(open) => {
-          if (!open) setEditTarget(null)
-        }}
-      />
     </SettingsContentColumn>
+  )
+}
+
+function GlobalHooksEditor() {
+  const { t } = useTranslation()
+  const [storedHooks, setStoredHooks] = usePreference('agent.hooks', PREFERENCE_OPTIONS)
+  const [draft, setDraft] = useState<AgentHook[] | null>(null)
+  const [saveFailed, setSaveFailed] = useState(false)
+  const draftRef = useRef<AgentHook[] | null>(null)
+  const revisionRef = useRef(0)
+  const lastSavedRevisionRef = useRef(0)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mountedRef = useRef(true)
+  const stored = AgentHookListSchema.safeParse(storedHooks)
+  const hooks = draft ?? (stored.success ? stored.data : [])
+  const parsed = AgentHookListSchema.safeParse(hooks)
+
+  const enqueueSave = useCallback(() => {
+    const requestedRevision = revisionRef.current
+    saveQueue = saveQueue.then(async () => {
+      if (lastSavedRevisionRef.current >= requestedRevision) return
+
+      const snapshot = draftRef.current
+      if (!snapshot) return
+      const snapshotRevision = revisionRef.current
+      const validated = AgentHookListSchema.safeParse(snapshot)
+      if (!validated.success) return
+
+      try {
+        await setStoredHooks(validated.data)
+        lastSavedRevisionRef.current = snapshotRevision
+        if (revisionRef.current === snapshotRevision) {
+          draftRef.current = null
+          if (mountedRef.current) setDraft(null)
+        }
+        if (mountedRef.current) setSaveFailed(false)
+      } catch (error) {
+        logger.error('Failed to auto-save global Hooks', error as Error)
+        if (mountedRef.current) setSaveFailed(true)
+      }
+    })
+    return saveQueue
+  }, [setStoredHooks])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      if (draftRef.current) void enqueueSave()
+    }
+  }, [enqueueSave])
+
+  const updateHooks = (next: AgentHook[], options?: { immediate?: boolean }) => {
+    revisionRef.current += 1
+    draftRef.current = next
+    setDraft(next)
+    setSaveFailed(false)
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
+    if (options?.immediate) {
+      void enqueueSave()
+    } else {
+      saveTimerRef.current = setTimeout(() => {
+        saveTimerRef.current = null
+        void enqueueSave()
+      }, AUTO_SAVE_DELAY_MS)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {!stored.success || !parsed.success ? <Alert type="error" message={t('settings.hooks.invalid')} /> : null}
+      {saveFailed ? (
+        <Alert
+          type="error"
+          message={t('settings.hooks.save_failed')}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSaveFailed(false)
+                void enqueueSave()
+              }}>
+              {t('common.retry')}
+            </Button>
+          }
+        />
+      ) : null}
+      {stored.success ? (
+        <fieldset className="min-w-0">
+          <AgentHooksField value={hooks} onChange={updateHooks} />
+        </fieldset>
+      ) : null}
+    </div>
   )
 }

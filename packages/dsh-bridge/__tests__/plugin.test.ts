@@ -178,6 +178,48 @@ describe('cherry bridge plugin', () => {
     ])
   })
 
+  it('preserves a live browser approval requirement over a stale allow rule without weakening a disabled tool', async () => {
+    let hookDenied = false
+    const host = await startHost((method) => {
+      if (method === 'guard/check') return { kind: 'ask', reason: 'Browser approval' }
+      if (method === 'hook/run' && hookDenied) return { denied: true, reason: 'Hook blocked browser action' }
+      return {}
+    })
+    const rootAgent = { id: 'session-1', session: { header: { cwd: '/workspace' } } } as Agent
+    let preExecute: PreExecuteHandler | undefined
+    const ctx = makeContext({
+      on: (event: string, handler: unknown) => {
+        if (event === 'tools/pre-execute') preExecute = handler as PreExecuteHandler
+        return () => undefined
+      },
+      agents: { resume: vi.fn(async () => rootAgent), create: vi.fn(), get: vi.fn(() => rootAgent) }
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    await host.request('session/open', {
+      ...openParams,
+      resume: false,
+      policy: { ...openParams.policy, autoApprovedTools: ['mcp__browser__click'] }
+    })
+    if (!preExecute) throw new Error('tools/pre-execute handler was not registered')
+    await expect(
+      preExecute({ agent: rootAgent, name: 'mcp__browser__click', arguments: {} }, () => undefined)
+    ).resolves.toEqual({ kind: 'ask', reason: 'Browser approval' })
+    hookDenied = true
+    await expect(
+      preExecute({ agent: rootAgent, name: 'mcp__browser__click', arguments: {} }, () => undefined)
+    ).resolves.toEqual({ kind: 'deny', reason: 'Hook blocked browser action' })
+    hookDenied = false
+    await host.request('policy/update', {
+      sessionId: 'session-1',
+      policy: { ...openParams.policy, disabledTools: ['mcp__browser__click'] }
+    })
+    await expect(
+      preExecute({ agent: rootAgent, name: 'mcp__browser__click', arguments: {} }, () => undefined)
+    ).resolves.toMatchObject({ kind: 'deny' })
+  })
   it('checks root and delegated native tool calls with Main before local permission policy', async () => {
     const host = await startHost((method) =>
       method === 'guard/check' ? { kind: 'deny', ruleId: 'user-data-sqlite-write', reason: 'protected SQLite' } : {}

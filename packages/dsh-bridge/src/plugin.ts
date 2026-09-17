@@ -398,6 +398,7 @@ export function apply(ctx: Context): void {
     if (!agent.session.header.cwd) {
       return { kind: 'deny' as const, reason: 'The tool caller has no verified workspace directory.' }
     }
+    let browserApproval: { kind: 'ask'; reason: string } | undefined
     try {
       const guard = await link.request(
         'guard/check',
@@ -410,6 +411,7 @@ export function apply(ctx: Context): void {
         exec.signal
       )
       if (guard.kind === 'deny') return guard
+      if (guard.kind === 'ask') browserApproval = guard
     } catch {
       return {
         kind: 'deny' as const,
@@ -427,9 +429,9 @@ export function apply(ctx: Context): void {
         reason: `no bridge policy is reachable for delegated agent "${agent.id}"`
       }
     }
-    const decision = delegated
+    const decision = await (delegated
       ? decideDelegatedToolCall(policy, exec.name, exec.arguments)
-      : decideToolCall(policy, exec.name, exec.arguments)
+      : decideToolCall(policy, exec.name, exec.arguments))
     if (decision.kind === 'deny') return decision
     try {
       const hook = await link.callHook(
@@ -447,7 +449,7 @@ export function apply(ctx: Context): void {
       return { kind: 'deny' as const, reason: 'The Agent Hook could not verify this tool call.' }
     }
     // A Hook can only deny; it never upgrades the original approval policy.
-    return decision
+    return browserApproval ?? decision
   })
 
   ctx.on('tools/execute', async (exec, next) => {

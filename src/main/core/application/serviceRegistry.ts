@@ -27,6 +27,7 @@ import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
+import { BrowserSessionService } from '@main/features/browser'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
 import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/knowledge'
 import { MiniAppRuntimeService } from '@main/features/miniApp/runtime/MiniAppRuntimeService'
@@ -69,7 +70,7 @@ import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
 import { WebSearchService } from '@main/services/webSearch'
-import { WebviewService } from '@main/services/WebviewService'
+import { WebviewService } from '@main/services/webview'
 
 /**
  * Centralized service registry.
@@ -138,6 +139,7 @@ export const services = {
   TrayService,
   WebSearchService,
   WebviewService,
+  BrowserSessionService,
   OAuthRuntimeService,
   MainWindowService,
   NotificationService,

@@ -1,11 +1,9 @@
-import type { ChildProcess } from 'node:child_process'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
+import { executeCommand, type CommandResult } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { AgentHookListSchema, type AgentHook } from '@shared/ai/agentHook'
-import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 
 import type { AgentRuntimeHookHandler, AgentRuntimeHookInput, AgentRuntimeToolApprovalRequest } from '../runtime/types'
 
@@ -17,14 +15,8 @@ interface HookSessionContext {
   sessionId: string
   agentId: string
   runtime: string
-  getConfiguration: () => AgentConfiguration | undefined
+  getConfiguration: () => { hooks: AgentHook[]; env_vars?: Record<string, string> }
   getCwd: () => string | undefined
-}
-
-interface HookCommandResult {
-  code: number | null
-  output: string
-  failure?: string
 }
 
 /** One connection's Hook lifetime; prewarming alone never starts a command. */
@@ -64,22 +56,35 @@ export class AgentHookSession {
 
   async close(): Promise<void> {
     this.controller.abort()
-    await Promise.allSettled([...this.pending])
+    await Promise.allSettled([this.started, ...this.pending])
   }
 
   private async invokeOnce(input: AgentRuntimeHookInput, signal: AbortSignal) {
     if (signal.aborted) return { denied: input.event === 'preToolUse', reason: 'Hook execution was cancelled.' }
     this.started ??= this.run({ event: 'sessionStart', messageId: input.messageId }, this.controller.signal)
-    await this.started
+    await this.waitForOrAbort(this.started, signal)
     if (signal.aborted) return { denied: input.event === 'preToolUse', reason: 'Hook execution was cancelled.' }
     if (input.event === 'sessionStart') return {}
     return this.run(input, signal)
   }
 
+  // Cancelling a waiter must preserve connection startup and the process-wide shell capture.
+  private async waitForOrAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise<T | undefined> {
+    const aborted = Promise.withResolvers<undefined>()
+    const onAbort = () => aborted.resolve(undefined)
+    signal.addEventListener('abort', onAbort, { once: true })
+    if (signal.aborted) onAbort()
+    try {
+      return await Promise.race([operation, aborted.promise])
+    } finally {
+      signal.removeEventListener('abort', onAbort)
+    }
+  }
+
   private async run(input: AgentRuntimeHookInput, signal: AbortSignal): ReturnType<AgentRuntimeHookHandler> {
     try {
       const configuration = this.context.getConfiguration()
-      const hooks = AgentHookListSchema.parse(configuration?.hooks ?? []).filter(
+      const hooks = AgentHookListSchema.parse(configuration.hooks).filter(
         (hook) =>
           hook.enabled &&
           hook.event === input.event &&
@@ -98,7 +103,7 @@ export class AgentHookSession {
         cwd
       })
       if (Buffer.byteLength(stdin) > MAX_INPUT_BYTES) throw new Error('Hook input exceeds the 1 MiB limit.')
-      const env = { ...(await getShellEnv()), ...configuration?.env_vars }
+      const env = { ...(await this.waitForOrAbort(getShellEnv(), signal)), ...configuration?.env_vars }
       for (const hook of hooks) {
         if (signal.aborted) return { denied: input.event === 'preToolUse', reason: 'Hook execution was cancelled.' }
         const result = await this.execute(hook, cwd, env, stdin, signal)
@@ -132,7 +137,7 @@ export class AgentHookSession {
     env: NodeJS.ProcessEnv,
     stdin: string,
     signal: AbortSignal
-  ): Promise<HookCommandResult> {
+  ): Promise<CommandResult> {
     const isWindows = process.platform === 'win32'
     const systemRoot = Object.entries(env).find(([key]) => key.toLowerCase() === 'systemroot')?.[1]
     if (isWindows && !systemRoot) throw new Error('Windows SystemRoot is unavailable.')
@@ -149,77 +154,14 @@ export class AgentHookSession {
             hook.command
         ]
       : ['-c', hook.command]
-    if (signal.aborted) return { code: null, output: '', failure: 'cancelled' }
-    const child = crossPlatformSpawn(command, args, {
+    return executeCommand(command, args, {
       cwd,
       env,
-      detached: !isWindows,
-      windowsHide: true,
-      stdio: 'pipe'
-    })
-    return this.collect(child, hook.timeoutMs, stdin, signal)
-  }
-
-  private collect(
-    child: ChildProcess,
-    timeoutMs: number,
-    stdin: string,
-    signal: AbortSignal
-  ): Promise<HookCommandResult> {
-    return new Promise((resolve) => {
-      let outputBytes = 0
-      const output: Buffer[] = []
-      let failure: string | undefined
-      let settled = false
-      let stopping: Promise<void> | undefined
-      const finish = (code: number | null) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timer)
-        signal.removeEventListener('abort', onAbort)
-        resolve({ code, output: Buffer.concat(output).toString('utf8'), failure })
-      }
-      const stop = (reason: string) => {
-        failure ??= reason
-        stopping ??= (async () => {
-          try {
-            await terminateProcessTree(child, true, 'Agent Hook')
-            if (!(await waitForProcessExit(child, 2000)))
-              logger.error('Agent Hook process did not exit', { pid: child.pid })
-          } catch (error) {
-            logger.error('Agent Hook process termination failed', { pid: child.pid, error })
-          } finally {
-            child.stdin?.destroy()
-            child.stdout?.destroy()
-            child.stderr?.destroy()
-            finish(null)
-          }
-        })()
-      }
-      const onAbort = () => stop('cancelled')
-      const timer = setTimeout(() => stop('timed out'), timeoutMs)
-      timer.unref?.()
-      const onData = (data: Buffer) => {
-        const remaining = MAX_OUTPUT_BYTES - outputBytes
-        if (remaining > 0) output.push(data.subarray(0, remaining))
-        outputBytes += data.length
-        if (outputBytes > MAX_OUTPUT_BYTES) stop('output exceeds 64 KiB')
-      }
-      child.stdout?.on('data', onData)
-      child.stderr?.on('data', onData)
-      child.once('error', (error) => {
-        failure = error.message
-        finish(null)
-      })
-      child.once('close', (code) => {
-        if (!stopping) finish(code)
-      })
-      child.stdin?.on('error', (error: NodeJS.ErrnoException) => {
-        if (error.code !== 'EPIPE') stop(error.message)
-      })
-      signal.addEventListener('abort', onAbort, { once: true })
-      if (signal.aborted) onAbort()
-      else child.stdin?.end(stdin)
+      stdin,
+      signal,
+      timeout: hook.timeoutMs,
+      maxOutputBytes: MAX_OUTPUT_BYTES,
+      result: 'structured'
     })
   }
 }

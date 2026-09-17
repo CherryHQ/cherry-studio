@@ -4,7 +4,6 @@ import {
   DEFAULT_HEARTBEAT_INTERVAL,
   normalizePermissionMode
 } from '@renderer/utils/agent/permissionMode'
-import type { AgentHook } from '@shared/ai/agentHook'
 import type { AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -41,7 +40,6 @@ export interface AgentFormState {
   permissionMode: string
   /** Raw multi-line `KEY=VALUE` text; parsed at save time. */
   envVarsText: string
-  hooks: AgentHook[]
   heartbeatEnabled: boolean
   heartbeatInterval: number
 }
@@ -110,7 +108,6 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
-    hooks: (cfg.hooks ?? []).map((hook) => ({ ...hook })),
     heartbeatEnabled: cfg.heartbeat_enabled ?? DEFAULT_HEARTBEAT_ENABLED,
     heartbeatInterval: asNumber(cfg.heartbeat_interval) || DEFAULT_HEARTBEAT_INTERVAL
   }
@@ -199,10 +196,6 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
   }
   if (baseline.envVarsText !== next.envVarsText) {
     cfgPatch.env_vars = envVarsFromText(next.envVarsText)
-    cfgDirty = true
-  }
-  if (JSON.stringify(baseline.hooks) !== JSON.stringify(next.hooks)) {
-    cfgPatch.hooks = next.hooks
     cfgDirty = true
   }
   if (baseline.heartbeatEnabled !== next.heartbeatEnabled) {

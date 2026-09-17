@@ -147,7 +147,10 @@ export interface BridgePluginRequestMap {
   }
   'guard/check': {
     params: { sessionId: string; toolName: string; args: unknown; cwd: string }
-    result: { kind: 'allow' } | { kind: 'deny'; ruleId: 'user-data-sqlite-write'; reason: string }
+    result:
+      | { kind: 'allow' }
+      | { kind: 'ask'; reason: string }
+      | { kind: 'deny'; ruleId: 'user-data-sqlite-write' | 'browser-tool-disabled'; reason: string }
   }
   'approval/ask': {
     params: {

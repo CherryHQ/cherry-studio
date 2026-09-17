@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { tmpdir } from 'node:os'
 
+import { MockMainPreferenceService, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import crossSpawn from 'cross-spawn'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -12,8 +14,10 @@ import * as shellEnv from '@main/utils/shellEnv'
 import type { AgentHook } from '@shared/ai/agentHook'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
-import type { AgentRuntimeConnection, AgentRuntimeEvent } from '../../runtime/types'
+import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentRuntimeEvent } from '../../runtime/types'
 import { AgentHookSession } from '../AgentHookSession'
+
+vi.mock('cross-spawn', { spy: true })
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
@@ -59,7 +63,6 @@ vi.mock('@data/services/AgentSessionService', () => ({
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: mocks.getAgent,
-    getAgentHookConfiguration: () => ({ hooks: [] }),
     onAgentUpdated: () => () => {}
   }
 }))
@@ -249,7 +252,7 @@ describe('Agent Hook commands', () => {
   const sessions: AgentHookSession[] = []
   const windows = process.platform === 'win32'
   let hooks: AgentHook[]
-  let spawnSpy: MockInstance<typeof processRunner.crossPlatformSpawn>
+  let spawnSpy: MockInstance<typeof crossSpawn>
   const configure = (command: string, event: AgentHook['event'] = 'preToolUse', timeoutMs = 10_000) => {
     hooks.push({ id: randomUUID(), name: 'test-hook', event, command, timeoutMs, enabled: true })
   }
@@ -271,7 +274,7 @@ describe('Agent Hook commands', () => {
         Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
       )
     )
-    spawnSpy = vi.spyOn(processRunner, 'crossPlatformSpawn')
+    spawnSpy = vi.mocked(crossSpawn).mockClear()
   })
   afterEach(async () => {
     await Promise.all(sessions.splice(0).map((session) => session.close()))
@@ -290,7 +293,7 @@ describe('Agent Hook commands', () => {
     expect(result.reason).toContain('exit 7')
     expect(result.reason).toContain("中文 $(exit 0); 'quotes'")
     expect(result.reason).toContain('hook-session')
-    expect(spawnSpy.mock.calls[0][1].join(' ')).not.toContain('中文')
+    expect(spawnSpy.mock.calls[0][1]!.join(' ')).not.toContain('中文')
   }, 45_000)
 
   it('runs session start once per connection, reads live settings and never lets a post-Hook deny', async () => {
@@ -306,6 +309,45 @@ describe('Agent Hook commands', () => {
     expect(spawnSpy).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps one immutable rule snapshot while an event is waiting to launch', async () => {
+    const session = create()
+    await session.invoke({ event: 'sessionStart' })
+    configure('exit 0', 'preToolUse', 30_000)
+    configure('exit 7', 'preToolUse', 30_000)
+    const env = await shellEnv.getShellEnv()
+    const envRequested = createDeferred<void>()
+    const envReady = createDeferred<typeof env>()
+    vi.mocked(shellEnv.getShellEnv).mockImplementationOnce(() => {
+      envRequested.resolve()
+      return envReady.promise
+    })
+
+    const pending = session.invoke({ event: 'preToolUse' })
+    await envRequested.promise
+    hooks[0].command = 'exit 9'
+    hooks[1].enabled = false
+    envReady.resolve(env)
+
+    expect(await pending).toMatchObject({ denied: true, reason: expect.stringContaining('exit 7') })
+    expect(spawnSpy.mock.results.map(({ value }) => value.exitCode)).toEqual([0, 7])
+    expect(await session.invoke({ event: 'preToolUse' })).toMatchObject({
+      denied: true,
+      reason: expect.stringContaining('exit 9')
+    })
+    expect(spawnSpy).toHaveBeenCalledTimes(3)
+  }, 100_000)
+
+  it('rejects invalid global settings before tools without changing completed tool results', async () => {
+    configure('exit 0', 'preToolUse', 0)
+    const session = create()
+    expect(await session.invoke({ event: 'preToolUse' })).toMatchObject({
+      denied: true,
+      reason: expect.stringContaining('Unable to execute Hook')
+    })
+    expect(await session.invoke({ event: 'postToolUse' })).toEqual({})
+    expect(spawnSpy).not.toHaveBeenCalled()
+  })
+
   it('keeps shared session startup alive when its first caller is cancelled before command launch', async () => {
     configure('exit 0', 'sessionStart', 30_000)
     configure('exit 7', 'preToolUse', 30_000)
@@ -315,16 +357,58 @@ describe('Agent Hook commands', () => {
     vi.mocked(shellEnv.getShellEnv).mockReturnValueOnce(envReady.promise)
     const controller = new AbortController()
     const first = session.invoke({ event: 'preToolUse' }, controller.signal)
+    let cancelled: unknown
+    void first.then((result) => {
+      cancelled = result
+    })
     const next = session.invoke({ event: 'preToolUse' })
     controller.abort()
-    envReady.resolve(env)
+    try {
+      await expect.poll(() => cancelled).toMatchObject({ denied: true, reason: expect.stringContaining('cancelled') })
+      expect(spawnSpy).not.toHaveBeenCalled()
+    } finally {
+      envReady.resolve(env)
+    }
 
-    expect(await first).toMatchObject({ denied: true, reason: expect.stringContaining('cancelled') })
     expect(await next).toMatchObject({ denied: true, reason: expect.stringContaining('exit 7') })
     expect(spawnSpy.mock.results.map(({ value }) => value.exitCode)).toEqual([0, 7])
     await session.invoke({ event: 'sessionStart' })
     expect(spawnSpy).toHaveBeenCalledTimes(2)
   }, 75_000)
+
+  it.each(['sessionStart', 'preToolUse'] as const)(
+    'cancels and closes while %s awaits the environment',
+    async (event) => {
+      configure('exit 0', event)
+      const session = create()
+      const envRequested = createDeferred<void>()
+      const envReady = createDeferred<Record<string, string>>()
+      vi.mocked(shellEnv.getShellEnv).mockImplementationOnce(() => {
+        envRequested.resolve()
+        return envReady.promise
+      })
+      const controller = new AbortController()
+      let cancelled: unknown
+      const pending = session.invoke({ event: 'preToolUse' }, controller.signal).then((result) => {
+        cancelled = result
+      })
+      await envRequested.promise
+      controller.abort()
+      try {
+        await expect.poll(() => cancelled).toMatchObject({ denied: true, reason: expect.stringContaining('cancelled') })
+        let closed = false
+        const closing = session.close().then(() => {
+          closed = true
+        })
+        await expect.poll(() => closed).toBe(true)
+        await closing
+        expect(spawnSpy).not.toHaveBeenCalled()
+      } finally {
+        envReady.resolve({})
+      }
+      await pending
+    }
+  )
 
   it('fails closed on timeout and oversized output', async () => {
     configure(windows ? 'Start-Sleep -Seconds 30' : 'sleep 30', 'preToolUse', 100)
@@ -338,7 +422,7 @@ describe('Agent Hook commands', () => {
     hooks[0].command = windows ? "[Console]::Out.Write('x' * 70000)" : 'head -c 70000 /dev/zero'
     expect(await session.invoke({ event: 'preToolUse' })).toMatchObject({
       denied: true,
-      reason: expect.stringContaining('64 KiB')
+      reason: expect.stringContaining('65536 bytes')
     })
   }, 15_000)
 
@@ -405,11 +489,17 @@ describe('Agent Hook commands', () => {
     async (event) => {
       configure(windows ? 'Start-Sleep -Seconds 30' : 'sleep 30', event)
       const session = create()
-      const pending = session.invoke({ event: 'preToolUse' })
+      const controller = new AbortController()
+      const pending = session.invoke({ event: 'preToolUse' }, controller.signal)
       await expect.poll(() => spawnSpy.mock.results[0]?.value?.pid).toBeDefined()
+      if (event === 'sessionStart') {
+        controller.abort()
+        await pending
+      }
       await session.close()
       expect(await pending).toMatchObject({ denied: true, reason: expect.stringContaining('cancelled') })
-      expect(await processRunner.waitForProcessExit(spawnSpy.mock.results[0].value, 1000)).toBe(true)
+      const child = spawnSpy.mock.results[0].value
+      expect(child.exitCode !== null || child.signalCode !== null).toBe(true)
       await session.invoke({ event: 'preToolUse' })
       expect(spawnSpy).toHaveBeenCalledTimes(1)
     }
@@ -418,6 +508,7 @@ describe('Agent Hook commands', () => {
 
 describe('AgentSessionRuntimeService', () => {
   beforeEach(() => {
+    MockMainPreferenceServiceUtils.resetMocks()
     BaseService.resetInstances()
     runtimeDriverRegistry.clearForTest()
     toolApprovalRegistry.clear('test-reset')
@@ -471,9 +562,105 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'ClaudeCodeWarmQueryManager')
         return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
+      if (name === 'PreferenceService') return MockMainPreferenceService.getInstance()
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
+
+  it.each(['pi', 'claude-code', 'dsh'] as const)(
+    'uses live global Hooks for different %s agents without executing legacy agent rules',
+    async (runtime) => {
+      const connections: Array<{
+        events: ReturnType<typeof createAsyncQueue<AgentRuntimeEvent>>
+        connection: AgentRuntimeConnection
+      }> = []
+      const connect = vi.fn<(input: AgentRuntimeConnectInput) => Promise<AgentRuntimeConnection>>(async () => {
+        const events = createAsyncQueue<AgentRuntimeEvent>()
+        const connection = {
+          events: events.iterable,
+          send: vi.fn(),
+          reconcile: vi.fn<AgentRuntimeConnection['reconcile']>().mockResolvedValue('current'),
+          close: vi.fn()
+        } satisfies AgentRuntimeConnection
+        connections.push({ events, connection })
+        return connection
+      })
+      runtimeDriverRegistry.register({
+        type: runtime,
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const rule: AgentHook = {
+        id: randomUUID(),
+        name: 'global-rule',
+        event: 'preToolUse',
+        enabled: true,
+        command: 'exit 5',
+        timeoutMs: 30_000
+      }
+      mocks.getAgent.mockImplementation((id: string) => ({
+        id,
+        type: runtime,
+        model: baseTurnInput.modelId,
+        configuration: { env_vars: { HOOK_AGENT: id }, hooks: [{ ...rule, name: 'legacy', command: 'exit 9' }] }
+      }))
+      mocks.getSessionById.mockImplementation((id: string) => ({ id, workspace: { path: tmpdir() } }))
+      const envSpy = vi
+        .spyOn(shellEnv, 'getShellEnv')
+        .mockResolvedValue(
+          Object.fromEntries(
+            Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+          )
+        )
+      const spawnSpy = vi.mocked(crossSpawn).mockClear()
+      const service = new AgentSessionRuntimeService()
+      try {
+        for (const index of [0, 1]) {
+          MockMainPreferenceServiceUtils.setPreferenceValue('agent.hooks', [])
+          const agentId = `hook-agent-${index}`
+          const sessionId = `hook-session-${index}`
+          const handle = service.beginTurn({
+            ...baseTurnInput,
+            agentId,
+            sessionId,
+            topicId: `agent-session:${sessionId}`,
+            agentType: runtime
+          })
+          const reader = service
+            .openTurnStream({ sessionId, turnId: handle.turnId, signal: new AbortController().signal })
+            .getReader()
+          await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+          await vi.waitFor(() => expect(connections[index]?.connection.send).toHaveBeenCalledOnce())
+          const onHook = connect.mock.calls[index][0].onHook!
+          expect(await onHook({ event: 'preToolUse', toolName: 'write' })).toEqual({})
+          expect(spawnSpy).toHaveBeenCalledTimes(index)
+          MockMainPreferenceServiceUtils.setPreferenceValue('agent.hooks', [rule])
+          expect(await onHook({ event: 'preToolUse', toolName: 'write' })).toMatchObject({
+            denied: true,
+            reason: expect.stringContaining('global-rule failed: exit 5')
+          })
+          expect(spawnSpy.mock.calls.at(-1)?.[2]).toMatchObject({
+            cwd: tmpdir(),
+            env: expect.objectContaining({ HOOK_AGENT: agentId })
+          })
+          MockMainPreferenceServiceUtils.setPreferenceValue('agent.hooks', [{ ...rule, enabled: false }])
+          expect(await onHook({ event: 'preToolUse', toolName: 'write' })).toEqual({})
+          expect(spawnSpy).toHaveBeenCalledTimes(index + 1)
+          expect(connect).toHaveBeenCalledTimes(index + 1)
+          await service.closeSession(sessionId)
+          connections[index].events.push({ type: 'turn-complete' })
+        }
+      } finally {
+        for (const index of [0, 1]) await service.closeSession(`hook-session-${index}`)
+        for (const { events } of connections) events.push({ type: 'turn-complete' })
+        envSpy.mockRestore()
+        spawnSpy.mockClear()
+      }
+    },
+    60_000
+  )
 
   describe('turnEnd Hooks', () => {
     it.each(['pi', 'claude-code', 'dsh'])(
@@ -520,7 +707,7 @@ describe('AgentSessionRuntimeService', () => {
               Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
             )
           )
-        const spawnSpy = vi.spyOn(processRunner, 'crossPlatformSpawn')
+        const spawnSpy = vi.mocked(crossSpawn).mockClear()
         const hookSpy = vi.spyOn(hooks, 'invoke')
         try {
           const handle = service.beginTurn({ ...baseTurnInput, agentType: runtime })
@@ -578,7 +765,7 @@ describe('AgentSessionRuntimeService', () => {
           await hooks.close()
           events.push({ type: 'turn-complete' })
           hookSpy.mockRestore()
-          spawnSpy.mockRestore()
+          spawnSpy.mockClear()
           envSpy.mockRestore()
         }
       }
@@ -622,7 +809,7 @@ describe('AgentSessionRuntimeService', () => {
               Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
             )
           )
-        const spawnSpy = vi.spyOn(processRunner, 'crossPlatformSpawn')
+        const spawnSpy = vi.mocked(crossSpawn).mockClear()
         const decisions: unknown[] = []
         const request = {
           interactionKind: 'question' as const,
@@ -658,7 +845,7 @@ describe('AgentSessionRuntimeService', () => {
         } finally {
           await service.closeSession('session-1')
           await hooks.close()
-          spawnSpy.mockRestore()
+          spawnSpy.mockClear()
           envSpy.mockRestore()
         }
       }
@@ -732,6 +919,17 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.respondToolApproval('missing', { approved: true })).toBe(false)
       expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
     })
+  })
+
+  it('exposes the current output identity without retaining a completed turn identity', () => {
+    const service = new AgentSessionRuntimeService()
+    expect(service.getLiveAssistantMessageId('session-1')).toBeUndefined()
+    service.beginTurn(baseTurnInput)
+    expect(service.getLiveAssistantMessageId('session-1')).toBe('assistant-1')
+    service.markTurnTerminal('session-1', 'success')
+    expect(service.getLiveAssistantMessageId('session-1')).toBeUndefined()
+    service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-2' })
+    expect(service.getLiveAssistantMessageId('session-1')).toBe('assistant-2')
   })
 
   it('aborts live streams before shutdown clears their pending approvals', async () => {
@@ -2089,6 +2287,120 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(connection.reconcile).toHaveBeenCalledOnce()
     expect(connection.close).not.toHaveBeenCalled()
+  })
+
+  // Sibling sessions of one agent, both idle-warm. `reconcile` stands in for the driver's
+  // rebuildSignature comparison — `reasoningEffort` is one of its facts.
+  function seedIdleSiblings(service: any, baselineEffort: string) {
+    const connections = new Map<string, { close: ReturnType<typeof vi.fn>; reconcile: ReturnType<typeof vi.fn> }>()
+    for (const sessionId of ['session-1', 'session-2']) {
+      service.beginTurn({
+        ...baseTurnInput,
+        sessionId,
+        topicId: `agent-session:${sessionId}`,
+        assistantMessageId: `assistant-${sessionId}`
+      })
+      const entry = service.entries.get(sessionId)
+      entry.runtimeState.execution = { kind: 'idle' }
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        reconcile: vi.fn(async (target: any) => (target.reasoningEffort === baselineEffort ? 'current' : 'rebuild'))
+      }
+      entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} }
+      connections.set(sessionId, connection)
+    }
+    return connections
+  }
+
+  it('keeps idle sibling connections when an agent write changes nothing they serve', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    const connections = seedIdleSiblings(service, 'high')
+
+    // A rename feeds no rebuild fact and no live tool-policy fact, so no session may rebuild.
+    await service.handleAgentUpdated(
+      'agent-1',
+      { name: 'Renamed' },
+      { id: 'agent-1', name: 'Renamed', model: baseTurnInput.modelId, configuration: { reasoning_effort: 'high' } }
+    )
+
+    for (const [sessionId, connection] of connections) {
+      expect(connection.close, sessionId).not.toHaveBeenCalled()
+      expect(connection.reconcile, sessionId).toHaveBeenCalledWith(expect.objectContaining({ reasoningEffort: 'high' }))
+    }
+  })
+
+  it('reads the agent once per session on a push reconcile, not twice', async () => {
+    // `agentService.getAgent` is four uncached queries. `handleAgentUpdated` already holds the
+    // updated entity, so walking every session of that agent must not re-read it per session.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    seedIdleSiblings(service, 'high')
+    mocks.getAgent.mockClear()
+
+    await service.handleAgentUpdated(
+      'agent-1',
+      { name: 'Renamed' },
+      { id: 'agent-1', name: 'Renamed', model: baseTurnInput.modelId, configuration: { reasoning_effort: 'high' } }
+    )
+
+    // None: the target is built from the entity the caller passed in, and a `current` verdict
+    // never reaches the knowledge-scope comparison.
+    expect(mocks.getAgent).not.toHaveBeenCalled()
+  })
+
+  it('compares a target against one agent read, not one per field group', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    seedIdleSiblings(service, 'high')
+    const entry = service.entries.get('session-1')
+    const target = service.connectionTarget(entry)
+    mocks.getAgent.mockClear()
+
+    expect(service.connectionTargetEquals(entry, target)).toBe(true)
+
+    // The target it builds to compare against and the knowledge scope it resolves come from the
+    // same read.
+    expect(mocks.getAgent).toHaveBeenCalledTimes(1)
+  })
+
+  it('rebuilds idle sibling connections when the agent reasoning effort actually changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'low' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    const connections = seedIdleSiblings(service, 'high')
+
+    await service.handleAgentUpdated(
+      'agent-1',
+      { configuration: { reasoning_effort: 'low' } },
+      { id: 'agent-1', model: baseTurnInput.modelId, configuration: { reasoning_effort: 'low' } }
+    )
+
+    for (const [sessionId, connection] of connections) {
+      expect(connection.close, sessionId).toHaveBeenCalled()
+      expect(connection.reconcile, sessionId).toHaveBeenCalledWith(expect.objectContaining({ reasoningEffort: 'low' }))
+    }
   })
 
   it('queues follow-ups instead of redirecting them into a stale-model live connection', async () => {

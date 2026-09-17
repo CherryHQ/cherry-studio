@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
@@ -39,6 +40,7 @@ import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
+import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -133,6 +135,8 @@ interface AgentChatLayoutProps {
   centerSurface?: ConversationCenterSlot | null
   className?: string
   conversationState: 'pending' | 'ready' | 'unavailable'
+  streamingLayers: MessageStreamingLayers
+  isMessageHistoryLoading: boolean
   messages: CherryUIMessage[]
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onPaneCollapse?: () => void
@@ -389,7 +393,9 @@ const AgentChat = ({
     !centerSurface && (sessionSnapshot || resourcePane) ? (
       <>
         {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
-        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Shortcuts
+          browserEnabled={!!activeAgent && !activeAgent.disabledTools?.includes(BROWSER_TOOL_GROUP)}
+        />
       </>
     ) : undefined
   let topBar: ReactNode
@@ -515,6 +521,8 @@ const AgentChat = ({
       'multi-select-mode': Boolean(!centerSurface && sessionSnapshot && isMultiSelectMode)
     }),
     conversationState,
+    streamingLayers: runtime.streamingLayers,
+    isMessageHistoryLoading: runtimeIsLoading,
     messages: sessionSnapshot ? runtime.uiMessages : EMPTY_MESSAGES,
     onFileNavigationRequestChange,
     onPaneAutoCollapseChange,
@@ -698,6 +706,8 @@ function AgentChatLayout({
   centerSurface,
   className,
   conversationState,
+  streamingLayers,
+  isMessageHistoryLoading,
   messages,
   onFileNavigationRequestChange,
   onPaneAutoCollapseChange,
@@ -721,6 +731,8 @@ function AgentChatLayout({
     <AgentRightPane.Scope
       model={model}
       conversationState={conversationState}
+      streamingLayers={streamingLayers}
+      isMessageHistoryLoading={isMessageHistoryLoading}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}
       workspaceType={sessionSnapshot?.workspace?.type}

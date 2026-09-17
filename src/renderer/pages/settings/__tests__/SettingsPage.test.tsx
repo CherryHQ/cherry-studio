@@ -1,12 +1,14 @@
-import { MockUseDataApiUtils, mockUsePaginatedQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUi from '@cherrystudio/ui'
+import type * as PreferenceModule from '@data/PreferenceService'
+import { preferenceService } from '@data/PreferenceService'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { AgentHook } from '@shared/ai/agentHook'
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 
 import { HooksSettings } from '../HooksSettings'
 import SettingsPage from '../SettingsPage'
@@ -72,6 +74,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'agent.settings.toolsMcp.mcp.tab': 'MCP',
+        'deviceConnections.title': '设备互联',
         'selection.name': '划词助手',
         'settings.appearance.title': '外观',
         'settings.channels.title': '频道',
@@ -99,11 +102,47 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+const preferenceBridge = vi.hoisted(() => ({
+  get: vi.fn(),
+  set: vi.fn(),
+  subscribe: vi.fn().mockResolvedValue(undefined),
+  listeners: new Set<Parameters<typeof window.api.preference.onChanged>[0]>()
+}))
+
+vi.unmock('@data/hooks/usePreference')
+vi.mock('@data/PreferenceService', async (importOriginal) => {
+  const actual = await importOriginal<typeof PreferenceModule>()
+  const { EventEmitter } = await import('node:events')
+  // The renderer setup has no preference bridge to reuse for the IPC cleanup return value.
+  const ipcRenderer = Object.assign(new EventEmitter(), {
+    invoke: vi.fn<Electron.IpcRenderer['invoke']>().mockResolvedValue(undefined),
+    postMessage: vi.fn<Electron.IpcRenderer['postMessage']>(),
+    send: vi.fn<Electron.IpcRenderer['send']>(),
+    sendSync: vi.fn<Electron.IpcRenderer['sendSync']>(),
+    sendToHost: vi.fn<Electron.IpcRenderer['sendToHost']>()
+  }) satisfies Electron.IpcRenderer
+  window.api.preference = {
+    ...window.api.preference,
+    get: preferenceBridge.get,
+    set: preferenceBridge.set,
+    subscribe: preferenceBridge.subscribe,
+    onChanged: (listener) => {
+      preferenceBridge.listeners.add(listener)
+      return () => {
+        preferenceBridge.listeners.delete(listener)
+        return ipcRenderer
+      }
+    }
+  }
+  return { ...actual, preferenceService: new actual.PreferenceService() }
+})
+
 describe('SettingsPage', () => {
   beforeEach(() => {
+    preferenceService.clearCache()
+    preferenceBridge.get.mockReset().mockImplementation(async (key) => getDefaultValue(key))
     isMacTransparentWindowMock.mockReturnValue(false)
     navigateMock.mockReset()
-    MockUseDataApiUtils.mockPaginatedData('/agents', [])
   })
 
   it('mounts the full-width search field from the header icon only on demand', () => {
@@ -142,6 +181,18 @@ describe('SettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-models' })
   })
 
+  it('exposes device connections as its own settings destination in developer mode', async () => {
+    preferenceBridge.get.mockImplementation(async (key) =>
+      key === 'app.developer_mode.enabled' ? true : getDefaultValue(key)
+    )
+    render(<SettingsPage />)
+
+    const deviceConnectionsItem = await screen.findByRole('button', { name: '设备互联' })
+    fireEvent.click(deviceConnectionsItem)
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/device-connections' })
+  })
+
   it('keeps document processing and OCR together in tools and dependencies in the system group', () => {
     render(<SettingsPage />)
 
@@ -176,7 +227,7 @@ describe('SettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/prompts' })
   })
 
-  it('opens the Hooks overview from the tools menu', async () => {
+  it('opens global Hooks settings from the tools menu', async () => {
     const user = userEvent.setup()
     render(<SettingsPage />)
     await user.click(screen.getByRole('button', { name: zhCN['settings.hooks.title'] }))
@@ -200,89 +251,211 @@ describe('SettingsPage', () => {
   })
 })
 
-describe('Hooks settings overview', () => {
-  const agents: AgentEntity[] = (['pi', 'claude-code', 'dsh'] as const).map((type, index) => ({
-    id: 'hooks-agent-' + type,
-    name: type + ' agent',
-    type,
-    model: null,
-    modelName: null,
-    createdAt: '2026-09-15T00:00:00.000Z',
-    updatedAt: '2026-09-15T00:00:00.000Z',
-    orderKey: 'a' + index,
-    configuration: {
-      hooks: [
-        {
-          id: '00000000-0000-4000-8000-000000000001',
-          name: 'Hook ' + type,
-          event: 'preToolUse',
-          command: 'echo ' + type,
-          enabled: type !== 'dsh',
-          timeoutMs: 1000
-        }
-      ]
-    }
-  }))
-
+describe('Global Hooks settings', () => {
+  beforeAll(() => {
+    HTMLElement.prototype.hasPointerCapture ??= () => false
+    HTMLElement.prototype.setPointerCapture ??= () => {}
+    HTMLElement.prototype.releasePointerCapture ??= () => {}
+    HTMLElement.prototype.scrollIntoView ??= () => {}
+  })
+  const rule: AgentHook = {
+    id: '00000000-0000-4000-8000-000000000001',
+    name: 'saved hook',
+    event: 'preToolUse',
+    command: 'exit 0',
+    enabled: true,
+    timeoutMs: 10_000
+  }
+  let persisted: AgentHook[]
   beforeEach(() => {
-    MockUseDataApiUtils.mockPaginatedData('/agents', agents)
+    preferenceService.clearCache()
+    persisted = []
+    preferenceBridge.get
+      .mockReset()
+      .mockImplementation(async (key) => (key === 'agent.hooks' ? structuredClone(persisted) : getDefaultValue(key)))
+    preferenceBridge.set.mockReset().mockImplementation(async (_key, value) => {
+      persisted = structuredClone(value)
+    })
   })
 
-  it('shows configured Hooks under their agents, including disabled Hooks, and refreshes changed data', () => {
-    const { rerender } = render(<HooksSettings />)
-    for (const agent of agents) {
-      const group = within(screen.getByRole('region', { name: agent.name }))
-      expect(group.getByText('echo ' + agent.type)).toBeInTheDocument()
-      expect(
-        group.getByText(agent.type === 'dsh' ? zhCN['common.disabled'] : zhCN['common.enabled'])
-      ).toBeInTheDocument()
-    }
-    MockUseDataApiUtils.mockPaginatedData('/agents', [{ ...agents[0], configuration: { hooks: [] } }, agents[1]])
-    rerender(<HooksSettings />)
-    expect(screen.queryByRole('region', { name: agents[0].name })).not.toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: agents[2].name })).not.toBeInTheDocument()
-    expect(screen.getByRole('region', { name: agents[1].name })).toBeInTheDocument()
-  })
-
-  it('opens the selected agent on its Hooks tab', async () => {
-    MockUseDataApiUtils.mockQueryResult('/agents/:agentId', { data: agents[0] })
-    const agentQuery = mockUseQuery.getMockImplementation()!
-    const queries = new Map([['/agents/:agentId', agentQuery]])
-    for (const path of [
-      '/skills',
-      '/providers',
-      '/models',
-      '/pins',
-      '/prompts',
-      '/prompt-bindings/:targetType/:targetId',
-      '/mcp-servers'
-    ] as const) {
-      MockUseDataApiUtils.mockQueryData(path, [])
-      queries.set(path, mockUseQuery.getMockImplementation()!)
-    }
-    mockUseQuery.mockImplementation((path, options) => (queries.get(path) ?? agentQuery)(path, options))
+  it('does not enable editing on an unresolved or failed load and can retry', async () => {
+    let reject!: (error: Error) => void
+    preferenceBridge.get.mockReturnValueOnce(
+      new Promise((_resolve, rejectLoad) => {
+        reject = rejectLoad
+      })
+    )
     const user = userEvent.setup()
     render(<HooksSettings />)
-    await user.click(
-      within(screen.getByRole('region', { name: agents[0].name })).getByRole('button', { name: zhCN['common.edit'] })
-    )
-    const dialog = within(await screen.findByRole('dialog'))
-    expect(dialog.getByRole('tab', { name: zhCN['agent_hooks.title'] })).toHaveAttribute('aria-selected', 'true')
-    expect(dialog.getByLabelText(zhCN['agent_hooks.command'])).toHaveValue('echo pi')
+    expect(screen.getByRole('status')).toHaveTextContent(zhCN['common.loading'])
+    expect(screen.queryByRole('button', { name: zhCN['common.save'] })).not.toBeInTheDocument()
+    await act(async () => {
+      reject(new Error('IPC unavailable'))
+    })
+    expect(await screen.findByRole('button', { name: zhCN['common.retry'] })).toBeEnabled()
+    expect(preferenceBridge.set).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: zhCN['common.retry'] }))
+    expect(await screen.findByRole('button', { name: zhCN['agent_hooks.add'] })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: zhCN['common.save'] })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: zhCN['common.cancel'] })).not.toBeInTheDocument()
   })
 
-  it('distinguishes an empty page from a load failure and allows retry', async () => {
-    MockUseDataApiUtils.mockPaginatedData('/agents', [], { total: 501, hasNext: true })
-    const { rerender } = render(<HooksSettings />)
-    expect(screen.getByText(zhCN['settings.hooks.empty'])).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: zhCN['common.next'] })).toBeEnabled()
-    const refresh = vi.fn()
-    const emptyPage = mockUsePaginatedQuery('/agents')
-    mockUsePaginatedQuery.mockReturnValue({ ...emptyPage, error: new Error('Unavailable'), refresh })
-    rerender(<HooksSettings />)
-    expect(screen.queryByText(zhCN['settings.hooks.empty'])).not.toBeInTheDocument()
+  it('auto-saves global rules, applies the enable switch directly, and confirms deletion', async () => {
     const user = userEvent.setup()
+    render(<HooksSettings />)
+    await user.click(await screen.findByRole('button', { name: zhCN['agent_hooks.add'] }))
+    await waitFor(() => expect(persisted).toHaveLength(1))
+    expect(screen.queryByRole('button', { name: zhCN['common.save'] })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: zhCN['common.cancel'] })).not.toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: zhCN['agent_hooks.enabled'] })).toBeDisabled()
+    await user.click(screen.getByLabelText(zhCN['agent_hooks.command']))
+    await user.paste('exit 0')
+    await user.click(screen.getByRole('combobox', { name: zhCN['agent_hooks.event'] }))
+    await user.keyboard('{ArrowDown}')
+    await user.click(await screen.findByRole('option', { name: zhCN['agent_hooks.events.approval_requested'] }))
+    await user.click(screen.getByLabelText(zhCN['agent_hooks.matcher.tool_name']))
+    await user.paste('write')
+    await user.click(screen.getByLabelText(zhCN['agent_hooks.matcher.input']))
+    await user.paste('test.txt')
+    await user.click(screen.getByRole('switch', { name: zhCN['agent_hooks.enabled'] }))
+    await waitFor(() =>
+      expect(persisted).toEqual([
+        expect.objectContaining({
+          event: 'approvalRequested',
+          command: 'exit 0',
+          enabled: true,
+          matcher: { toolNameContains: 'write', inputContains: 'test.txt' }
+        })
+      ])
+    )
+    await user.type(screen.getByLabelText(zhCN['agent_hooks.command']), '; exit 2')
+    expect(screen.getByRole('switch', { name: zhCN['agent_hooks.enabled'] })).not.toBeChecked()
+    await waitFor(() => expect(persisted[0]).toMatchObject({ command: 'exit 0; exit 2', enabled: false }))
+
+    await user.click(screen.getByRole('button', { name: zhCN['agent_hooks.remove'] }))
+    let dialog = await screen.findByRole('dialog', { name: zhCN['agent_hooks.remove'] })
+    expect(persisted).toHaveLength(1)
+    await user.click(within(dialog).getByRole('button', { name: zhCN['common.cancel'] }))
+    expect(screen.queryByRole('dialog', { name: zhCN['agent_hooks.remove'] })).not.toBeInTheDocument()
+    expect(persisted).toHaveLength(1)
+
+    await user.click(screen.getByRole('button', { name: zhCN['agent_hooks.remove'] }))
+    dialog = await screen.findByRole('dialog', { name: zhCN['agent_hooks.remove'] })
+    await user.click(within(dialog).getByRole('button', { name: zhCN['common.delete'] }))
+    await waitFor(() => expect(persisted).toEqual([]))
+  })
+
+  it('starts saved Hook entries collapsed and keeps their summary controls available', async () => {
+    persisted = [rule]
+    const user = userEvent.setup()
+    render(<HooksSettings />)
+
+    const collapse = await screen.findByRole('button', { name: /saved hook/ })
+    expect(collapse).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('textbox', { name: zhCN['agent_hooks.command'] })).not.toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: zhCN['agent_hooks.enabled'] })).toBeVisible()
+    expect(screen.getByRole('button', { name: zhCN['agent_hooks.remove'] })).toBeVisible()
+
+    await user.click(collapse)
+    expect(collapse).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByLabelText(zhCN['agent_hooks.command'])).toHaveValue('exit 0')
+
+    await user.click(collapse)
+    expect(collapse).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(screen.getByRole('button', { name: zhCN['agent_hooks.add'] }))
+    await waitFor(() => expect(persisted).toHaveLength(2))
+    expect(collapse).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: new RegExp(`^${zhCN['agent_hooks.title']}`) })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+  })
+
+  it('keeps a failed auto-save editable and retries without losing the draft', async () => {
+    persisted = [rule]
+    preferenceBridge.set.mockRejectedValueOnce(new Error('Disk full'))
+    const user = userEvent.setup()
+    render(<HooksSettings />)
+    await user.click(await screen.findByRole('button', { name: /saved hook/ }))
+    const command = await screen.findByLabelText(zhCN['agent_hooks.command'])
+    await user.type(command, '; exit 2')
+    expect(await screen.findByText(zhCN['settings.hooks.save_failed'])).toBeInTheDocument()
+    expect(command).toHaveValue('exit 0; exit 2')
+    expect(persisted[0].command).toBe('exit 0')
     await user.click(screen.getByRole('button', { name: zhCN['common.retry'] }))
-    expect(refresh).toHaveBeenCalledOnce()
+    await waitFor(() => expect(persisted[0]).toMatchObject({ command: 'exit 0; exit 2', enabled: false }))
+    expect(screen.queryByText(zhCN['settings.hooks.save_failed'])).not.toBeInTheDocument()
+  })
+
+  it('serializes auto-saves and persists edits made while a write is in flight', async () => {
+    persisted = [rule]
+    let releaseFirstSave!: () => void
+    const firstSave = new Promise<void>((resolve) => {
+      releaseFirstSave = resolve
+    })
+    preferenceBridge.set
+      .mockImplementationOnce(async (_key, value) => {
+        await firstSave
+        persisted = structuredClone(value)
+      })
+      .mockImplementation(async (_key, value) => {
+        persisted = structuredClone(value)
+      })
+    const user = userEvent.setup()
+    render(<HooksSettings />)
+    await user.click(await screen.findByRole('button', { name: /saved hook/ }))
+    const command = await screen.findByLabelText(zhCN['agent_hooks.command'])
+    await user.type(command, '; first')
+    await waitFor(() => expect(preferenceBridge.set).toHaveBeenCalledTimes(1))
+    await user.type(command, '; latest')
+    act(() => {
+      releaseFirstSave()
+    })
+    await waitFor(() => expect(persisted[0].command).toBe('exit 0; first; latest'))
+    expect(preferenceBridge.set).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not expose stale Hook rules when reopening during pending saves', async () => {
+    persisted = [rule]
+    const saves = [Promise.withResolvers<void>(), Promise.withResolvers<void>()]
+    for (const save of saves) {
+      preferenceBridge.set.mockImplementationOnce(async (_key, value) => {
+        await save.promise
+        persisted = structuredClone(value)
+      })
+    }
+    const user = userEvent.setup()
+    const firstView = render(<HooksSettings />)
+
+    try {
+      await user.click(await screen.findByRole('switch', { name: zhCN['agent_hooks.enabled'] }))
+      await waitFor(() => expect(preferenceBridge.set).toHaveBeenCalledTimes(1))
+      await user.click(screen.getByRole('button', { name: /saved hook/ }))
+      await user.type(screen.getByLabelText(zhCN['agent_hooks.name']), ' updated')
+      firstView.unmount()
+      await act(async () => {
+        render(<HooksSettings />)
+      })
+
+      expect(screen.queryByRole('switch', { name: zhCN['agent_hooks.enabled'] })).not.toBeInTheDocument()
+      await act(async () => saves[0].resolve())
+      expect(screen.getByRole('status')).toHaveTextContent(zhCN['common.loading'])
+      await act(async () => saves[1].resolve())
+
+      await user.click(await screen.findByRole('button', { name: /saved hook updated/ }))
+      await user.type(screen.getByLabelText(zhCN['agent_hooks.name']), ' again')
+      await waitFor(() => expect(persisted).toEqual([{ ...rule, enabled: false, name: 'saved hook updated again' }]))
+    } finally {
+      await act(async () => saves.forEach((save) => save.resolve()))
+    }
+  })
+
+  it('does not silently replace damaged global settings with an empty list', async () => {
+    preferenceBridge.get.mockResolvedValueOnce('damaged')
+    render(<HooksSettings />)
+    expect(await screen.findByText(zhCN['settings.hooks.invalid'])).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: zhCN['agent_hooks.add'] })).not.toBeInTheDocument()
+    expect(preferenceBridge.set).not.toHaveBeenCalled()
   })
 })

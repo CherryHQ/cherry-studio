@@ -6,6 +6,27 @@
   },
   "definitions": [
     {
+      "targetKey": "agent.commit_attribution.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Let the Claude Code runtime append its own attribution to git commits and PR bodies (Co-Authored-By trailer, Generated-with footer). Disable to omit that attribution (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.browser.agent_control.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Allow agents to control their visible browser pane (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.browser.open_links_in_browser",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Open website links in shared built-in browser tabs"
+    },
+    {
       "targetKey": "app.fetch.allow_private_network",
       "type": "boolean",
       "defaultValue": true,
@@ -771,6 +792,13 @@
       },
       "status": "classified",
       "description": "Command shortcut: screenshot.capture (unified command system)"
+    },
+    {
+      "targetKey": "agent.hooks",
+      "type": "PreferenceTypes.AgentHookPreference",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Global command Hooks for all Cherry agent sessions (Pi, Claude Code and DSH)"
     },
     {
       "targetKey": "agent.language",

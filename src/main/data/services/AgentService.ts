@@ -20,7 +20,6 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
-import { AgentHookListSchema } from '@shared/ai/agentHook'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -513,18 +512,6 @@ export class AgentService {
     const result = database.select().from(agentsTable).where(whereClause).limit(1).all()
 
     return result[0]
-  }
-
-  /** Execution must fail closed on damaged Hooks, not use the UI's drift-tolerant projection. */
-  getAgentHookConfiguration(id: string): Pick<AgentConfiguration, 'hooks' | 'env_vars'> {
-    const row = this.findAgentRow(id)
-    if (!row) throw new Error('The agent no longer exists.')
-    const raw = row.configuration
-    if (raw != null && (typeof raw !== 'object' || Array.isArray(raw))) {
-      throw new Error('The agent Hook configuration is invalid.')
-    }
-    const hooks = AgentHookListSchema.parse(raw?.hooks === undefined ? [] : raw.hooks)
-    return { hooks, env_vars: parseConfiguration(raw, id)?.env_vars }
   }
 
   getAgent(id: string): AgentEntity | null {

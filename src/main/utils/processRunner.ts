@@ -172,79 +172,138 @@ export function waitForProcessExit(child: ChildProcess, timeoutMs: number): Prom
   })
 }
 
+interface ExecuteCommandOptions {
+  /** Capture and return stdout in string mode (default: true) */
+  capture?: boolean
+  /** Environment variables (defaults to getShellEnv()) */
+  env?: NodeJS.ProcessEnv
+  cwd?: string
+  /** UTF-8 input followed by EOF; omitted input still closes stdin */
+  stdin?: string
+  signal?: AbortSignal
+  /** Maximum combined stdout/stderr bytes before the process tree is terminated */
+  maxOutputBytes?: number
+  /** Timeout in milliseconds, measured from process launch */
+  timeout?: number
+  result?: 'stdout' | 'structured'
+}
+
+export interface CommandResult {
+  code: number | null
+  stdout: string
+  stderr: string
+  /** Combined stdout/stderr in the order received */
+  output: string
+  /** Launch, cancellation, timeout or I/O failure; nonzero exit alone is not a failure here */
+  failure?: string
+}
+
 /**
- * Execute a command and return its output.
- * Uses crossPlatformSpawn internally for proper Windows .cmd handling.
- * If no env is provided, automatically uses the shell environment.
+ * Execute with cross-platform argument handling and bounded process-tree cleanup.
+ * Default mode returns stdout (or an empty string for capture=false) and rejects on failure.
+ * Structured mode returns output and exit/failure details instead, including nonzero exits.
  */
+export function executeCommand(
+  command: string,
+  args: string[],
+  options: ExecuteCommandOptions & { result: 'structured' }
+): Promise<CommandResult>
+export function executeCommand(
+  command: string,
+  args: string[],
+  options?: ExecuteCommandOptions & { result?: 'stdout' }
+): Promise<string>
 export async function executeCommand(
   command: string,
   args: string[],
-  options?: {
-    /** Capture and return stdout (default: true) */
-    capture?: boolean
-    /** Environment variables (defaults to getShellEnv()) */
-    env?: NodeJS.ProcessEnv
-    /** Maximum combined stdout/stderr bytes before the command is terminated */
-    maxOutputBytes?: number
-    /** Timeout in milliseconds */
-    timeout?: number
-  }
-): Promise<string> {
-  const env = options?.env ?? (await getShellEnv())
-
-  return new Promise<string>((resolve, reject) => {
-    const child = crossPlatformSpawn(command, args, { env })
-    let stdout = ''
-    let stderr = ''
+  options: ExecuteCommandOptions = {}
+): Promise<string | CommandResult> {
+  const env = options.env ?? (options.signal?.aborted ? {} : await getShellEnv())
+  const result = await new Promise<CommandResult>((resolve) => {
+    if (options.signal?.aborted) {
+      resolve({ code: null, stdout: '', stderr: '', output: '', failure: 'Command execution was cancelled.' })
+      return
+    }
+    const child = crossPlatformSpawn(command, args, { env, cwd: options.cwd, detached: !isWin })
+    const stdout: Buffer[] = []
+    const stderr: Buffer[] = []
+    const output: Buffer[] = []
     let outputBytes = 0
-    let outputLimitError: Error | undefined
+    let failure: string | undefined
+    let settled = false
+    let closed = false
+    let stopping: Promise<void> | undefined
     let timeoutId: ReturnType<typeof setTimeout> | undefined
 
-    const collectOutput = (chunk: unknown): string | null => {
-      if (outputLimitError) return null
-      const text = String(chunk)
-      const chunkBytes = Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(text)
-      const nextOutputBytes = outputBytes + chunkBytes
-      if (options?.maxOutputBytes !== undefined && nextOutputBytes > options.maxOutputBytes) {
-        outputLimitError = new Error(`Command output exceeded ${options.maxOutputBytes} bytes`)
-        if (timeoutId) clearTimeout(timeoutId)
-        child.kill('SIGKILL')
-        return null
-      }
-      outputBytes = nextOutputBytes
-      return text
+    const finish = (code: number | null) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeoutId)
+      options.signal?.removeEventListener('abort', onAbort)
+      child.stdin?.destroy()
+      child.stdout?.destroy()
+      child.stderr?.destroy()
+      resolve({
+        code,
+        stdout: Buffer.concat(stdout).toString('utf8'),
+        stderr: Buffer.concat(stderr).toString('utf8'),
+        output: Buffer.concat(output).toString('utf8'),
+        failure
+      })
     }
-
-    child.stdout?.on('data', (chunk) => {
-      stdout += collectOutput(chunk) ?? ''
-    })
-
-    child.stderr?.on('data', (chunk) => {
-      stderr += collectOutput(chunk) ?? ''
-    })
-
-    if (options?.timeout) {
-      timeoutId = setTimeout(() => {
-        child.kill('SIGKILL')
-        reject(new Error(`Command timed out after ${options.timeout}ms`))
-      }, options.timeout)
+    const stop = (reason: string) => {
+      if (settled) return
+      failure ??= reason
+      stopping ??= (async () => {
+        try {
+          if (child.pid) {
+            await terminateProcessTree(child, true, 'command')
+            if (!closed && !(await waitForProcessExit(child, 2000))) {
+              logger.error('Command process did not exit', { pid: child.pid })
+            }
+          }
+        } catch (error) {
+          logger.error('Command process termination failed', { pid: child.pid, error })
+        } finally {
+          finish(null)
+        }
+      })()
     }
-
-    child.on('error', (err) => {
-      if (timeoutId) clearTimeout(timeoutId)
-      reject(outputLimitError ?? err)
-    })
-
-    child.on('close', (code) => {
-      if (timeoutId) clearTimeout(timeoutId)
-      if (outputLimitError) {
-        reject(outputLimitError)
-      } else if (code === 0) {
-        resolve(options?.capture !== false ? stdout : '')
-      } else {
-        reject(new Error(stderr || `Command failed with code ${code}`))
+    const onAbort = () => stop('Command execution was cancelled.')
+    const collectOutput = (chunk: Buffer, stream: Buffer[]) => {
+      if (settled || stopping) return
+      const remaining = options.maxOutputBytes === undefined ? chunk.length : options.maxOutputBytes - outputBytes
+      if (remaining > 0) {
+        const kept = chunk.subarray(0, remaining)
+        stream.push(kept)
+        output.push(kept)
       }
+      outputBytes += chunk.length
+      if (options.maxOutputBytes !== undefined && outputBytes > options.maxOutputBytes) {
+        stop(`Command output exceeded ${options.maxOutputBytes} bytes`)
+      }
+    }
+    child.stdout?.on('data', (chunk: Buffer) => collectOutput(chunk, stdout))
+    child.stderr?.on('data', (chunk: Buffer) => collectOutput(chunk, stderr))
+    child.once('error', (error) => stop(error.message))
+    child.once('close', (code) => {
+      closed = true
+      if (!stopping) finish(code)
     })
+    child.stdin?.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code !== 'EPIPE') stop(error.message)
+    })
+    if (options.timeout) {
+      timeoutId = setTimeout(() => stop(`Command timed out after ${options.timeout}ms`), options.timeout)
+      timeoutId.unref?.()
+    }
+    options.signal?.addEventListener('abort', onAbort, { once: true })
+    if (options.signal?.aborted) onAbort()
+    else child.stdin?.end(options.stdin)
   })
+
+  if (options.result === 'structured') return result
+  if (result.failure) throw new Error(result.failure)
+  if (result.code !== 0) throw new Error(result.stderr || `Command failed with code ${result.code}`)
+  return options.capture !== false ? result.stdout : ''
 }
