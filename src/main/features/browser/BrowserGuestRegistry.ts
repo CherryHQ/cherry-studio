@@ -5,6 +5,7 @@ import { session, type WebContents, webContents } from 'electron'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { WindowId } from '@shared/ipc/types'
 import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
@@ -41,7 +42,7 @@ export class BrowserGuestRegistry implements Disposable {
   ) {}
 
   attach(sessionId: string, webviewId: number, senderId: WindowId | null): { tabId: string } {
-    const ownerId = this.resolveOwner(sessionId)
+    const ownerId = this.getOwner(sessionId)
     const window = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
     const guest = webContents.fromId(webviewId)
     const profiles = [
@@ -186,8 +187,17 @@ export class BrowserGuestRegistry implements Disposable {
     target.abort.abort(new BrowserSessionError('not_found'))
   }
 
+  private getOwner(sessionId: string): string {
+    try {
+      return this.resolveOwner(sessionId)
+    } catch (error) {
+      if (isDataApiNotFoundError(error)) throw new BrowserSessionError('not_allowed')
+      throw error
+    }
+  }
+
   get(context: BrowserGuestContext): BrowserGuestTarget | undefined {
-    const ownerId = this.resolveOwner(context.sessionId)
+    const ownerId = this.getOwner(context.sessionId)
     if (ownerId !== context.ownerId) throw new BrowserSessionError('not_allowed')
     const target = this.targets.get(context.sessionId)
     if (!target || target.guest.isDestroyed() || target.abort.signal.aborted) return undefined

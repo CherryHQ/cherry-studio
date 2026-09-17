@@ -8,6 +8,7 @@ import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, LifecycleState, Phase, ServicePhase } from '@main/core/lifecycle'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/schemas/browserImport'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
@@ -165,13 +166,7 @@ export class BrowserSessionService extends BaseService {
     const context = { sessionId: topicId, ownerId: assistantId }
     const assertAvailable = () => {
       signal.throwIfAborted()
-      if (
-        this.shutdown.signal.aborted ||
-        !application.get('PreferenceService').get('app.browser.agent_control.enabled') ||
-        topicService.getById(topicId).assistantId !== assistantId ||
-        assistantDataService.getById(assistantId).settings.enableBrowser === false
-      )
-        throw new BrowserSessionError('not_allowed')
+      this.assertTopicAvailable(topicId, assistantId)
     }
     assertAvailable()
     let entry = this.topicServers.get(topicId)
@@ -182,14 +177,7 @@ export class BrowserSessionService extends BaseService {
     }
     if (!entry) {
       const controller = new SessionBrowserController(this, {
-        assertAvailable: () => {
-          if (
-            !application.get('PreferenceService').get('app.browser.agent_control.enabled') ||
-            topicService.getById(topicId).assistantId !== assistantId ||
-            assistantDataService.getById(assistantId).settings.enableBrowser === false
-          )
-            throw new BrowserSessionError('not_allowed')
-        },
+        assertAvailable: () => this.assertTopicAvailable(topicId, assistantId),
         get: () => this.topicBrowser.get(context),
         ensureGuest: async (abort, url) => {
           const target = await this.topicBrowser.ensureGuest(context, abort, url)
@@ -232,6 +220,21 @@ export class BrowserSessionService extends BaseService {
         target?.cursor.hide()
         if (!target) await server.close()
       }
+    }
+  }
+
+  private assertTopicAvailable(topicId: string, assistantId: string): void {
+    if (this.shutdown.signal.aborted || !application.get('PreferenceService').get('app.browser.agent_control.enabled'))
+      throw new BrowserSessionError('not_allowed')
+    try {
+      if (
+        topicService.getById(topicId).assistantId !== assistantId ||
+        assistantDataService.getById(assistantId).settings.enableBrowser === false
+      )
+        throw new BrowserSessionError('not_allowed')
+    } catch (error) {
+      if (isDataApiNotFoundError(error)) throw new BrowserSessionError('not_allowed')
+      throw error
     }
   }
 
