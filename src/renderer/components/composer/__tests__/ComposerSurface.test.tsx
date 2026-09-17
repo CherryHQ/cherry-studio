@@ -596,6 +596,13 @@ describe('ComposerSurface', () => {
     expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
   })
 
+  it('does not render a visual focus reminder', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    expect(screen.queryByText('chat.input.focus_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('聚焦输入框')).not.toBeInTheDocument()
+  })
+
   it('renders the AI-generated content disclaimer when the composer enables it', () => {
     const view = render(<ComposerSurface {...baseProps} />)
 

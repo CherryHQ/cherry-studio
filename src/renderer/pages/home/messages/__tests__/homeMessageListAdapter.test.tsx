@@ -699,13 +699,13 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     await waitFor(() => expect(value).toBeDefined())
     await value?.actions.saveCodeBlock?.({
       msgBlockId: 'block-1',
-      codeBlockId: 'code-block-1',
+      originalContent: 'const value = "old"',
       newContent: 'const value = "new"'
     })
 
     expect(updateCodeBlock).toHaveBeenCalledWith(
       '```ts\nconst value = "old"\n```',
-      'code-block-1',
+      'const value = "old"',
       'const value = "new"'
     )
     expect(chatWriteMock.editMessage).toHaveBeenCalledWith('message-1', [updatedPart])
@@ -804,6 +804,40 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     await waitFor(() => expect(value?.state.isMessageTranslating?.('message-1')).toBe(false))
   })
 
+  it('reports a failure without writing when the edited code block cannot be located', async () => {
+    const textPart = {
+      type: 'text',
+      text: '```ts\nconst value = "old"\n```'
+    } as CherryMessagePart
+    let value: MessageListProviderValue | undefined
+
+    vi.mocked(resolvePartFromParts).mockReturnValue({
+      index: 0,
+      messageId: 'message-1',
+      part: textPart
+    })
+    vi.mocked(updateCodeBlock).mockReturnValue(null)
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        partsByMessageId={{ 'message-1': [textPart] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+    await value?.actions.saveCodeBlock?.({
+      msgBlockId: 'block-1',
+      originalContent: 'const value = "missing"',
+      newContent: 'const value = "new"'
+    })
+
+    expect(chatWriteMock.editMessage).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('code_block.edit.save.failed.label')
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
   it('shows an error when saving code block edits through chat write fails', async () => {
     const textPart = {
       type: 'text',
@@ -833,7 +867,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     await waitFor(() => expect(value).toBeDefined())
     await value?.actions.saveCodeBlock?.({
       msgBlockId: 'block-1',
-      codeBlockId: 'code-block-1',
+      originalContent: 'const value = "old"',
       newContent: 'const value = "new"'
     })
 
