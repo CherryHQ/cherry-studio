@@ -10,31 +10,27 @@ import { Arch } from 'electron-builder'
 import { describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
+import electronViteConfig from '../../electron.vite.config'
 // CJS build script — vitest interops the module.exports fine.
-import {
-  assertPrebuiltPackages,
-  buildConversationIslandHelperForPack,
-  conversationIslandPackageFilters,
-  keepPackages
-} from '../before-pack'
+import { assertPrebuiltPackages, buildConversationIslandHelperForPack, keepPackages } from '../before-pack'
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
 const foreignPlatform = hostPlatform === 'darwin' ? 'win32' : 'darwin'
 const legacyMacOcrVersion = '1.0.2'
 const macOcrPackages = ['@napi-rs/system-ocr-darwin-arm64', '@napi-rs/system-ocr-darwin-x64']
-const featureOutputs = [
-  '!out/preload/conversationIsland.js',
-  '!out/renderer/windows/conversationIsland/**',
-  '!out/renderer/assets/conversationIsland-*.js'
-]
 
-describe('conversationIslandPackageFilters', () => {
-  it('keeps the feature outputs in macOS packages', () => {
-    expect(conversationIslandPackageFilters('darwin')).toEqual([])
+const buildInputs = electronViteConfig as {
+  preload: { build: { rollupOptions: { input: Record<string, string> } } }
+  renderer: { build: { rollupOptions: { input: Record<string, string> } } }
+}
+
+describe('Conversation Island build inputs', () => {
+  it('does not build the retired Electron preload', () => {
+    expect(buildInputs.preload.build.rollupOptions.input).not.toHaveProperty('conversationIsland')
   })
 
-  it.each(['win32', 'linux'])('excludes the feature outputs from %s packages', (platform) => {
-    expect(conversationIslandPackageFilters(platform)).toEqual(featureOutputs)
+  it('does not build the retired Electron renderer page', () => {
+    expect(buildInputs.renderer.build.rollupOptions.input).not.toHaveProperty('conversationIsland')
   })
 })
 

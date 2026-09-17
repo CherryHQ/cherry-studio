@@ -44,8 +44,4 @@ describe('WINDOW_TYPE_REGISTRY preload invariants', () => {
       expect(entry.windowOptions.webPreferences?.sandbox, `WindowType '${entry.type}'`).toBe(false)
     }
   })
-
-  it('keeps the self-contained ConversationIsland preload sandboxed', () => {
-    expect(WINDOW_TYPE_REGISTRY[WindowType.ConversationIsland]?.windowOptions.webPreferences?.sandbox).toBe(true)
-  })
 })
