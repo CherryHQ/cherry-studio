@@ -1,6 +1,7 @@
 {
   "agent.add.error.failed": "Не удалось добавить агента",
   "agent.add.title": "Добавить агента",
+  "agent.archive.related_resources": "Связанные каналы будут отключены; запланированные задачи приостановлены. Настройки, подписки и история запусков сохраняются. После восстановления агента пропущенные задачи не будут запущены автоматически.",
   "agent.askUserQuestion.answered": "ответил",
   "agent.askUserQuestion.close": "Закрыть",
   "agent.askUserQuestion.customPlaceholder": "Введите ваш ответ...",

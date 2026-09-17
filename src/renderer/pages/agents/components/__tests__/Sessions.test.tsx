@@ -3747,6 +3747,8 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(sessionDataMocks.reload).toHaveBeenCalled())
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'Alpha agent',
+      title: 'common.archived',
+      description: 'agent.archive.related_resources',
       onUndo: expect.any(Function)
     })
 

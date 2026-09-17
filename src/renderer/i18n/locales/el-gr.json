@@ -1,6 +1,7 @@
 {
   "agent.add.error.failed": "Αποτυχία προσθήκης πράκτορα",
   "agent.add.title": "Προσθήκη Agent",
+  "agent.archive.related_resources": "Τα συνδεδεμένα κανάλια θα αποσυνδεθούν και οι προγραμματισμένες εργασίες έχουν τεθεί σε παύση. Οι ρυθμίσεις, οι συνδρομές και το ιστορικό εκτέλεσης διατηρούνται. Οι εργασίες που χάθηκαν δεν θα εκτελεστούν αυτόματα μετά την επαναφορά του πράκτορα.",
   "agent.askUserQuestion.answered": "απαντήθηκε",
   "agent.askUserQuestion.close": "Κλείσιμο",
   "agent.askUserQuestion.customPlaceholder": "Εισάγετε την απάντησή σας...",

@@ -72,6 +72,30 @@ describe('recycleBinFeedback', () => {
     expect(toast.success).toHaveBeenNthCalledWith(2, 'Restored from Recycle Bin')
   })
 
+  it('keeps resource status readable with an archive title and a working undo action', async () => {
+    const onUndo = vi.fn().mockResolvedValue(undefined)
+
+    showRecycleBinUndo({
+      itemName: 'Research agent',
+      title: i18n.t('common.archived', { name: 'Research agent' }),
+      description: i18n.t('agent.archive.related_resources'),
+      onUndo
+    })
+
+    expect(getInitialToastConfig()).toMatchObject({
+      title: 'Archived Research agent',
+      description:
+        "Linked channels will disconnect; scheduled tasks are paused. Settings, subscriptions, and run history are kept. Missed tasks won't run automatically after restoring the agent.",
+      timeout: 10000,
+      action: { label: 'Undo' }
+    })
+
+    await getUndoAction().onClick()
+
+    expect(onUndo).toHaveBeenCalledOnce()
+    expect(toast.success).toHaveBeenNthCalledWith(2, 'Restored from Recycle Bin')
+  })
+
   it('logs and reports a rejected single-item restore without leaking the rejection', async () => {
     const error = new Error('stale')
     const loggerError = vi.spyOn(loggerService.withContext('recycleBinFeedback'), 'error').mockImplementation(() => {})

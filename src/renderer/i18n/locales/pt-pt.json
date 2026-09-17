@@ -1,6 +1,7 @@
 {
   "agent.add.error.failed": "Falha ao adicionar agente",
   "agent.add.title": "Adicionar Agente",
+  "agent.archive.related_resources": "Os canais associados serão desligados; as tarefas agendadas estão em pausa. As definições, subscrições e o histórico de execução são mantidos. As tarefas não executadas não serão executadas automaticamente após restaurar o agente.",
   "agent.askUserQuestion.answered": "respondido",
   "agent.askUserQuestion.close": "Fechar",
   "agent.askUserQuestion.customPlaceholder": "Introduza a sua resposta...",

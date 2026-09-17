@@ -1,6 +1,7 @@
 {
   "agent.add.error.failed": "Error al añadir agente",
   "agent.add.title": "Agregar Agente",
+  "agent.archive.related_resources": "Los canales vinculados se desconectarán; las tareas programadas están en pausa. Se conservan la configuración, las suscripciones y el historial de ejecución. Las tareas omitidas no se ejecutarán automáticamente al restaurar el agente.",
   "agent.askUserQuestion.answered": "respondido",
   "agent.askUserQuestion.close": "Cerrar",
   "agent.askUserQuestion.customPlaceholder": "Introduce tu respuesta...",

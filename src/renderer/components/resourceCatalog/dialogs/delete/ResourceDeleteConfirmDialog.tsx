@@ -177,6 +177,8 @@ const AgentDeleteDialog: FC<{
       }
       showRecycleBinUndo({
         itemName: resource.name,
+        title: t('common.archived', { name: resource.name }),
+        description: t('agent.archive.related_resources'),
         onUndo: () =>
           restoreRecycleBinUndoGroup({
             primary: {

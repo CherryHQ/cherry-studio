@@ -1,6 +1,7 @@
 {
   "agent.add.error.failed": "新增 Agent 失敗",
   "agent.add.title": "新增 Agent",
+  "agent.archive.related_resources": "關聯頻道將中斷連線，排程任務已暫停。設定、訂閱和執行記錄保留；還原 Agent 後不會自動補跑錯過的任務。",
   "agent.askUserQuestion.answered": "已回答",
   "agent.askUserQuestion.close": "關閉",
   "agent.askUserQuestion.customPlaceholder": "輸入你的答案...",

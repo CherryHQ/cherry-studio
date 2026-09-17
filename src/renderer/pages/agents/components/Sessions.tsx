@@ -1340,6 +1340,8 @@ const Sessions = ({
           } else {
             showRecycleBinUndo({
               itemName: agent?.name || t('common.unnamed'),
+              title: t('common.archived', { name: agent?.name || t('common.unnamed') }),
+              description: t('agent.archive.related_resources'),
               onUndo: () =>
                 restoreRecycleBinUndoGroup({
                   primary: {

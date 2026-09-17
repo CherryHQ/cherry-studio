@@ -359,6 +359,8 @@ export function AgentResourceList({
           } else {
             showRecycleBinUndo({
               itemName: agentName,
+              title: t('common.archived', { name: agentName }),
+              description: t('agent.archive.related_resources'),
               onUndo: () =>
                 restoreRecycleBinUndoGroup({
                   primary: {

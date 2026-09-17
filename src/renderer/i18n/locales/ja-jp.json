@@ -1,6 +1,7 @@
 {
   "agent.add.error.failed": "エージェントの追加に失敗しました",
   "agent.add.title": "エージェントを追加",
+  "agent.archive.related_resources": "関連チャネルは切断され、定期タスクは一時停止されます。設定、サブスクリプション、実行履歴は保持されます。エージェントを復元しても、実行時刻を過ぎたタスクは自動実行されません。",
   "agent.askUserQuestion.answered": "回答済み",
   "agent.askUserQuestion.close": "閉じる",
   "agent.askUserQuestion.customPlaceholder": "答えを入力してください...",

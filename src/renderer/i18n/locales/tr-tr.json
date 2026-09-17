@@ -1,6 +1,7 @@
 {
   "agent.add.error.failed": "Ajan eklenemedi",
   "agent.add.title": "Ajan Ekle",
+  "agent.archive.related_resources": "Bağlı kanalların bağlantısı kesilecek; zamanlanmış görevler duraklatıldı. Ayarlar, abonelikler ve çalıştırma geçmişi korunur. Ajanı geri yükledikten sonra kaçırılan görevler otomatik olarak çalıştırılmaz.",
   "agent.askUserQuestion.answered": "yanıtlandı",
   "agent.askUserQuestion.close": "Kapat",
   "agent.askUserQuestion.customPlaceholder": "Yanıtı girin...",

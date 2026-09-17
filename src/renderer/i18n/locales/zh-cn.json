@@ -1,6 +1,7 @@
 {
   "agent.add.error.failed": "添加智能体失败",
   "agent.add.title": "添加智能体",
+  "agent.archive.related_resources": "关联频道将断开连接，定时任务已暂停。配置、订阅和执行记录保留；恢复智能体后不会自动补跑错过的任务。",
   "agent.askUserQuestion.answered": "已回答",
   "agent.askUserQuestion.close": "关闭",
   "agent.askUserQuestion.customPlaceholder": "输入您的回答...",

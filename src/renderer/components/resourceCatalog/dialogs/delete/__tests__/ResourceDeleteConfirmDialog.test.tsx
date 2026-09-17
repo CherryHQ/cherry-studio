@@ -178,6 +178,8 @@ describe('ResourceDeleteConfirmDialog', () => {
     expect(mocks.closeConversationTabs).not.toHaveBeenCalled()
     expect(mocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'agent name',
+      title: 'common.archived',
+      description: 'agent.archive.related_resources',
       onUndo: expect.any(Function)
     })
     expect(onClose).toHaveBeenCalledTimes(1)

@@ -1,6 +1,7 @@
 {
   "agent.add.error.failed": "Agent hinzufügen fehlgeschlagen",
   "agent.add.title": "Agent hinzufügen",
+  "agent.archive.related_resources": "Verknüpfte Kanäle werden getrennt; geplante Aufgaben sind pausiert. Einstellungen, Abonnements und Ausführungsverlauf bleiben erhalten. Verpasste Aufgaben werden nach dem Wiederherstellen des Agenten nicht automatisch nachgeholt.",
   "agent.askUserQuestion.answered": "beantwortet",
   "agent.askUserQuestion.close": "Schließen",
   "agent.askUserQuestion.customPlaceholder": "Geben Sie Ihre Antwort ein...",

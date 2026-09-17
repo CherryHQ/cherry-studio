@@ -1347,6 +1347,8 @@ describe('classic layout entity resource list actions', () => {
     expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'Agent 1',
+      title: 'common.archived',
+      description: 'agent.archive.related_resources',
       onUndo: expect.any(Function)
     })
 

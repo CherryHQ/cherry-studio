@@ -1,6 +1,7 @@
 {
   "agent.add.error.failed": "Nu s-a putut adăuga un agent",
   "agent.add.title": "Adaugă agent",
+  "agent.archive.related_resources": "Canalele asociate vor fi deconectate; sarcinile programate sunt întrerupte. Setările, abonamentele și istoricul execuțiilor sunt păstrate. Sarcinile ratate nu vor fi executate automat după restaurarea agentului.",
   "agent.askUserQuestion.answered": "răspuns",
   "agent.askUserQuestion.close": "Închide",
   "agent.askUserQuestion.customPlaceholder": "Introdu răspunsul tău...",

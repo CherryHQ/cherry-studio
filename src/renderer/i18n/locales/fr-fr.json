@@ -1,6 +1,7 @@
 {
   "agent.add.error.failed": "Échec de l'ajout de l'agent",
   "agent.add.title": "Ajouter un agent",
+  "agent.archive.related_resources": "Les canaux liés seront déconnectés ; les tâches planifiées sont en pause. Les paramètres, les abonnements et l’historique d’exécution sont conservés. Les tâches manquées ne seront pas exécutées automatiquement après la restauration de l’agent.",
   "agent.askUserQuestion.answered": "répondu",
   "agent.askUserQuestion.close": "Fermer",
   "agent.askUserQuestion.customPlaceholder": "Entrez votre réponse...",

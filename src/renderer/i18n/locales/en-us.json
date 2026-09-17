@@ -1,6 +1,7 @@
 {
   "agent.add.error.failed": "Failed to add an agent",
   "agent.add.title": "Add Agent",
+  "agent.archive.related_resources": "Linked channels will disconnect; scheduled tasks are paused. Settings, subscriptions, and run history are kept. Missed tasks won't run automatically after restoring the agent.",
   "agent.askUserQuestion.answered": "answered",
   "agent.askUserQuestion.close": "Close",
   "agent.askUserQuestion.customPlaceholder": "Enter your answer...",
