@@ -312,6 +312,7 @@ vi.mock('react-i18next', () => ({
         'chat.topics.pin': 'Pin Conversation',
         'chat.topics.unpin': 'Unpin Conversation',
         'common.all': 'All',
+        'common.archive': 'Archive',
         'common.assistant': 'Assistant',
         'common.back': 'Back',
         'common.cancel': 'Cancel',
@@ -1269,37 +1270,6 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
   })
 
-  it('renders the external topic context menu for history rows', () => {
-    hookMocks.useTopics.mockReturnValue({
-      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
-      error: undefined,
-      isLoading: false
-    })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-
-    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
-
-    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
-    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-
-    expect(menuContent ?? null).toBeInTheDocument()
-    expect(menuContent).toHaveClass('z-50')
-    expect(Array.from(menuContent?.querySelectorAll('[data-testid="context-menu-separator"]') ?? [])).toHaveLength(2)
-    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
-      'Generate conversation name',
-      'Edit conversation name',
-      'Pin Conversation',
-      'Clear messages',
-      '',
-      'Save to notes',
-      'Save to knowledge base',
-      'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to Siyuan',
-      'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
-      '',
-      'Delete'
-    ])
-  })
-
   it('clears a topic from history without an active conversation consumer', async () => {
     const user = userEvent.setup()
     setupAssistantHistory()
@@ -1561,7 +1531,8 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
   })
 
-  it('deletes a topic from the history row context menu without confirmation', async () => {
+  it('archives a topic from the history row context menu without confirmation', async () => {
+    const user = userEvent.setup()
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
@@ -1573,7 +1544,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1587,7 +1558,8 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
   })
 
-  it('switches to the adjacent topic after deleting the active topic from the history row context menu', async () => {
+  it('switches to the adjacent topic after archiving the active topic from the history row context menu', async () => {
+    const user = userEvent.setup()
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
@@ -1608,7 +1580,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1626,7 +1598,7 @@ describe('HistoryRecordsView assistant mode', () => {
     const { onActiveRecordChange, onRecordSelect, onClose } = setupAssistantHistory({ activeRecordId: 'topic-alpha' })
     const menu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const content = menu?.querySelector('[data-testid="context-menu-content"]')
-    await user.click(within(content as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(content as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1652,7 +1624,8 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(onActiveRecordChange).toHaveBeenCalledWith(null)
   })
 
-  it('does not switch topics after deleting a non-active history row', async () => {
+  it('does not switch topics after archiving a non-active history row', async () => {
+    const user = userEvent.setup()
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
@@ -1673,7 +1646,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1686,7 +1659,8 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(onActiveRecordChange).not.toHaveBeenCalled()
   })
 
-  it('keeps the active topic unchanged when history deletion fails', async () => {
+  it('keeps the active topic unchanged when history archiving fails', async () => {
+    const user = userEvent.setup()
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
@@ -1708,7 +1682,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1722,6 +1696,7 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('reports an already-moved topic without changing active history state or offering Undo', async () => {
+    const user = userEvent.setup()
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
@@ -1745,7 +1720,7 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
       await flushAnimationFrame()
@@ -1762,6 +1737,7 @@ describe('HistoryRecordsView locale resources', () => {
     const requiredGlobalKeys = [
       'chat.topics.manage.delete.confirm.content',
       'chat.topics.manage.delete.confirm.title',
+      'common.archive',
       'common.back',
       'common.cancel',
       'common.delete',

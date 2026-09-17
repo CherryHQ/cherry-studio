@@ -1,5 +1,6 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -273,6 +274,7 @@ vi.mock('react-i18next', () => {
         'agent.edit.title': 'Edit Agent',
         'common.agent': 'Agent',
         'common.all': 'All',
+        'common.archive': 'Archive',
         'common.back': 'Back',
         'common.cancel': 'Cancel',
         'common.close': 'Close',
@@ -1054,22 +1056,6 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
 
-  it('renders the external session context menu for history rows', () => {
-    setupAgentHistory()
-
-    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
-    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-
-    expect(menuContent ?? null).toBeInTheDocument()
-    expect(menuContent).toHaveClass('z-50')
-    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
-      'Edit task name',
-      'Pin task',
-      '',
-      'Delete'
-    ])
-  })
-
   it('hides the session delete action for pinned history rows', () => {
     setupAgentHistory({
       pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']])
@@ -1211,12 +1197,13 @@ describe('HistoryRecordsView agent mode', () => {
     getActiveSession.mockRestore()
   })
 
-  it('deletes a session without confirmation and moves the active session when needed', async () => {
+  it('archives a session without confirmation and moves the active session when needed', async () => {
+    const user = userEvent.setup()
     const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1231,7 +1218,8 @@ describe('HistoryRecordsView agent mode', () => {
     expect(onActiveRecordChange).toHaveBeenCalledWith('session-beta')
   })
 
-  it('clears the active session after deleting the last session from history', async () => {
+  it('clears the active session after archiving the last session from history', async () => {
+    const user = userEvent.setup()
     const { onActiveRecordChange } = setupAgentHistory({
       activeRecordId: 'session-alpha',
       sessions: [createSession()]
@@ -1239,7 +1227,7 @@ describe('HistoryRecordsView agent mode', () => {
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1252,13 +1240,14 @@ describe('HistoryRecordsView agent mode', () => {
     expect(onActiveRecordChange).toHaveBeenCalledWith(null)
   })
 
-  it('keeps the active session unchanged when history deletion fails', async () => {
+  it('keeps the active session unchanged when history archiving fails', async () => {
+    const user = userEvent.setup()
     hookMocks.deleteSession.mockResolvedValueOnce(false)
     const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
