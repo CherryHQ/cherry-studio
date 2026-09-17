@@ -1,30 +1,13 @@
+import type { Editor } from '@tiptap/core'
+
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('RichEditor/jumpToLine')
 
-/**
- * Strip markdown syntax from a raw source line so it can be matched against a rendered block's
- * `textContent`. The native @tiptap/markdown (marked) AST exposes no per-node line numbers, so
- * jump-to-line resolves a search hit by its text rather than by line number.
- */
-export function normalizeMarkdownLine(line: string): string {
-  return (
-    line
-      // leading block markers: blockquote (>), heading (#), ordered list, list bullet + optional task checkbox
-      .replace(/^\s*>+\s?/, '')
-      .replace(/^\s*#{1,6}\s+/, '')
-      .replace(/^\s*\d+[.)]\s+/, '')
-      .replace(/^\s*[-*+]\s+(?:\[[ xX]\]\s+)?/, '')
-      // links / images -> visible text: [text](url) and ![alt](url)
-      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-      // inline emphasis / code / strike markers
-      .replace(/(\*\*|__|~~|[*_`])/g, '')
-      // table pipes
-      .replace(/\|/g, ' ')
-      // collapse whitespace
-      .replace(/\s+/g, ' ')
-      .trim()
-  )
+/** Normalize a source line with the editor's parser so Markdown and inline HTML match visible text. */
+export function normalizeMarkdownLine(line: string, editor: Editor): string {
+  const doc = editor.schema.nodeFromJSON(editor.markdown!.parse(line))
+  return doc.textContent.replace(/\s+/g, ' ').trim()
 }
 
 /**
@@ -38,12 +21,12 @@ export function normalizeMarkdownLine(line: string): string {
  * Returns null only when the editor has no blocks.
  */
 export function findElementByLine(
-  editorDom: HTMLElement,
+  editor: Editor,
   lineNumber: number,
   lineContent?: string,
   totalLines?: number
 ): HTMLElement | null {
-  const blocks = Array.from(editorDom.children).filter((el): el is HTMLElement => el instanceof HTMLElement)
+  const blocks = Array.from(editor.view.dom.children).filter((el): el is HTMLElement => el instanceof HTMLElement)
   if (blocks.length === 0) {
     logger.warn('No editor blocks found for jump-to-line')
     return null
@@ -57,7 +40,7 @@ export function findElementByLine(
       : null
 
   // Strategy 1: content match, disambiguated by proximity to the estimated line position.
-  const needle = lineContent ? normalizeMarkdownLine(lineContent) : ''
+  const needle = lineContent ? normalizeMarkdownLine(lineContent, editor) : ''
   if (needle) {
     const matches: { block: HTMLElement; index: number }[] = []
     blocks.forEach((block, index) => {

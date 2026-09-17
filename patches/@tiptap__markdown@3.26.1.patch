@@ -1,5 +1,5 @@
 diff --git a/dist/index.cjs b/dist/index.cjs
-index 5812dcd0b49a7e78b4381a91e4631c5c69eaa48b..1ae517e1c0f17a3facf941fe597bf4022abfdc82 100644
+index 5812dcd0b4..8cdda3f5df 100644
 --- a/dist/index.cjs
 +++ b/dist/index.cjs
 @@ -231,7 +231,8 @@ var MarkdownManager = class {
@@ -21,17 +21,21 @@ index 5812dcd0b49a7e78b4381a91e4631c5c69eaa48b..1ae517e1c0f17a3facf941fe597bf402
        if (parsed.type === "doc" && parsed.content) {
          if (token.block) {
            return parsed.content;
-@@ -1011,6 +1012,17 @@ var MarkdownManager = class {
+@@ -1011,6 +1012,21 @@ var MarkdownManager = class {
     * This handles cases where marks span across multiple text nodes.
     */
    renderNodesWithMarkBoundaries(nodes, parentNode, separator = "", level = 0) {
-+    const hasBold = (node) => node?.marks?.some((mark) => mark.type === "bold");
 +    const needsHtml = nodes.some((node, index) => {
-+      if (node.type !== "text" || !hasBold(node)) return false;
-+      const previous = nodes[index - 1];
-+      const next = nodes[index + 1];
-+      return (!hasBold(previous) && /^[\p{P}\p{S}]/u.test(node.text || "") && /[^\s\p{P}\p{S}]$/u.test(previous?.text || "")) ||
-+        (!hasBold(next) && /[\p{P}\p{S}]$/u.test(node.text || "") && /^[^\s\p{P}\p{S}]/u.test(next?.text || ""));
++      if (node.type !== "text") return false;
++      return (node.marks || []).some((mark) => {
++        const opening = this.getMarkOpening(mark.type, mark);
++        if (!/^(?:\*{1,2}|_{1,2})$/.test(opening) || this.getMarkClosing(mark.type, mark) !== opening) return false;
++        const hasMark = (adjacent) => adjacent?.marks?.some((other) => other.type === mark.type);
++        const previous = nodes[index - 1];
++        const next = nodes[index + 1];
++        return (!hasMark(previous) && /^[\p{P}\p{S}]/u.test(node.text || "") && /[^\s\p{P}\p{S}]$/u.test(previous?.text || "")) ||
++          (!hasMark(next) && /[\p{P}\p{S}]$/u.test(node.text || "") && /^[^\s\p{P}\p{S}]/u.test(next?.text || ""));
++      });
 +    });
 +    if (needsHtml) {
 +      return `<span>${_core.generateHTML({ type: "doc", content: nodes }, this.baseExtensions)}</span>`;
@@ -40,7 +44,7 @@ index 5812dcd0b49a7e78b4381a91e4631c5c69eaa48b..1ae517e1c0f17a3facf941fe597bf402
      const activeMarks = /* @__PURE__ */ new Map();
      const reopenWithHtmlOnNextOpen = /* @__PURE__ */ new Set();
 diff --git a/dist/index.js b/dist/index.js
-index f29ad96882b43e17dcf4bb78998e6a88a4c5b192..fd42c8e0448e6e81eb810efa00233f2c65126f7e 100644
+index f29ad96882..11527901c7 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -11,7 +11,8 @@ import {
@@ -72,17 +76,21 @@ index f29ad96882b43e17dcf4bb78998e6a88a4c5b192..fd42c8e0448e6e81eb810efa00233f2c
        if (parsed.type === "doc" && parsed.content) {
          if (token.block) {
            return parsed.content;
-@@ -1011,6 +1013,17 @@ var MarkdownManager = class {
+@@ -1011,6 +1013,21 @@ var MarkdownManager = class {
     * This handles cases where marks span across multiple text nodes.
     */
    renderNodesWithMarkBoundaries(nodes, parentNode, separator = "", level = 0) {
-+    const hasBold = (node) => node?.marks?.some((mark) => mark.type === "bold");
 +    const needsHtml = nodes.some((node, index) => {
-+      if (node.type !== "text" || !hasBold(node)) return false;
-+      const previous = nodes[index - 1];
-+      const next = nodes[index + 1];
-+      return (!hasBold(previous) && /^[\p{P}\p{S}]/u.test(node.text || "") && /[^\s\p{P}\p{S}]$/u.test(previous?.text || "")) ||
-+        (!hasBold(next) && /[\p{P}\p{S}]$/u.test(node.text || "") && /^[^\s\p{P}\p{S}]/u.test(next?.text || ""));
++      if (node.type !== "text") return false;
++      return (node.marks || []).some((mark) => {
++        const opening = this.getMarkOpening(mark.type, mark);
++        if (!/^(?:\*{1,2}|_{1,2})$/.test(opening) || this.getMarkClosing(mark.type, mark) !== opening) return false;
++        const hasMark = (adjacent) => adjacent?.marks?.some((other) => other.type === mark.type);
++        const previous = nodes[index - 1];
++        const next = nodes[index + 1];
++        return (!hasMark(previous) && /^[\p{P}\p{S}]/u.test(node.text || "") && /[^\s\p{P}\p{S}]$/u.test(previous?.text || "")) ||
++          (!hasMark(next) && /[\p{P}\p{S}]$/u.test(node.text || "") && /^[^\s\p{P}\p{S}]/u.test(next?.text || ""));
++      });
 +    });
 +    if (needsHtml) {
 +      return `<span>${generateHTML({ type: "doc", content: nodes }, this.baseExtensions)}</span>`;
@@ -91,7 +99,7 @@ index f29ad96882b43e17dcf4bb78998e6a88a4c5b192..fd42c8e0448e6e81eb810efa00233f2c
      const activeMarks = /* @__PURE__ */ new Map();
      const reopenWithHtmlOnNextOpen = /* @__PURE__ */ new Set();
 diff --git a/src/MarkdownManager.ts b/src/MarkdownManager.ts
-index 0d1c9fd5c81441d1546c28fb7dcb20fa4b9f4857..67ebede592205488c21d1b80f819ee101646492f 100644
+index 0d1c9fd5c8..86747543d4 100644
 --- a/src/MarkdownManager.ts
 +++ b/src/MarkdownManager.ts
 @@ -15,7 +15,8 @@ import {
@@ -104,7 +112,9 @@ index 0d1c9fd5c81441d1546c28fb7dcb20fa4b9f4857..67ebede592205488c21d1b80f819ee10
    getExtensionField,
    getSchema,
    marksEqual,
-@@ -987,7 +988,10 @@ export class MarkdownManager {
+@@ -985,9 +986,12 @@ export class MarkdownManager {
+       return this.htmlAsLiteralText(html, !!token.block)
+     }
 -
 +
 -    // Use generateJSON to parse the HTML using extensions' parseHTML rules
@@ -119,22 +129,26 @@ index 0d1c9fd5c81441d1546c28fb7dcb20fa4b9f4857..67ebede592205488c21d1b80f819ee10
 +
        // If the result is a doc node, extract its content
        if (parsed.type === 'doc' && parsed.content) {
-@@ -1271,6 +1275,21 @@ export class MarkdownManager {
+@@ -1271,6 +1275,25 @@ export class MarkdownManager {
      separator = '',
      level = 0,
    ): string {
-+    const hasBold = (node?: JSONContent) => node?.marks?.some(mark => mark.type === 'bold')
 +    const needsHtml = nodes.some((node, index) => {
-+      if (node.type !== 'text' || !hasBold(node)) return false
-+      const previous = nodes[index - 1]
-+      const next = nodes[index + 1]
-+      return (
-+        (!hasBold(previous) && /^[\p{P}\p{S}]/u.test(node.text || '') && /[^\s\p{P}\p{S}]$/u.test(previous?.text || '')) ||
-+        (!hasBold(next) && /[\p{P}\p{S}]$/u.test(node.text || '') && /^[^\s\p{P}\p{S}]/u.test(next?.text || ''))
-+      )
++      if (node.type !== 'text') return false
++      return (node.marks || []).some(mark => {
++        const opening = this.getMarkOpening(mark.type, mark)
++        if (!/^(?:\*{1,2}|_{1,2})$/.test(opening) || this.getMarkClosing(mark.type, mark) !== opening) return false
++        const hasMark = (adjacent?: JSONContent) => adjacent?.marks?.some(other => other.type === mark.type)
++        const previous = nodes[index - 1]
++        const next = nodes[index + 1]
++        return (
++          (!hasMark(previous) && /^[\p{P}\p{S}]/u.test(node.text || '') && /[^\s\p{P}\p{S}]$/u.test(previous?.text || '')) ||
++          (!hasMark(next) && /[\p{P}\p{S}]$/u.test(node.text || '') && /^[^\s\p{P}\p{S}]/u.test(next?.text || ''))
++        )
++      })
 +    })
 +    if (needsHtml) {
-+      // CommonMark cannot delimit these bold ranges. Keep the inline fragment in HTML
++      // CommonMark cannot delimit these emphasis ranges. Keep the inline fragment in HTML
 +      // so nested marks and literal markdown characters retain their meaning together.
 +      return `<span>${generateHTML({ type: 'doc', content: nodes }, this.baseExtensions)}</span>`
 +    }
