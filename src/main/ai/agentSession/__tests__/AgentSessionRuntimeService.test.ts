@@ -363,6 +363,17 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('exposes the current output identity without retaining a completed turn identity', () => {
+    const service = new AgentSessionRuntimeService()
+    expect(service.getLiveAssistantMessageId('session-1')).toBeUndefined()
+    service.beginTurn(baseTurnInput)
+    expect(service.getLiveAssistantMessageId('session-1')).toBe('assistant-1')
+    service.markTurnTerminal('session-1', 'success')
+    expect(service.getLiveAssistantMessageId('session-1')).toBeUndefined()
+    service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-2' })
+    expect(service.getLiveAssistantMessageId('session-1')).toBe('assistant-2')
+  })
+
   it('aborts live streams before shutdown clears their pending approvals', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })

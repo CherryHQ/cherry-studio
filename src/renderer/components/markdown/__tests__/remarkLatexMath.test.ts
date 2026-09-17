@@ -6,8 +6,9 @@ import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 import { describe, expect, it, vi } from 'vitest'
 
-import { defaultMarkdownPlugins, Markdown, withMath } from '@cherrystudio/ui'
+import { defaultMarkdownPlugins, Markdown, StreamingMarkdown, withMath } from '@cherrystudio/ui'
 
+import { createLatexMarkdownBlockParser } from '../parseLatexMarkdownBlocks'
 import { remarkLatexMath } from '../remarkLatexMath'
 
 vi.unmock('@cherrystudio/ui')
@@ -69,6 +70,61 @@ describe('remarkLatexMath', () => {
 
     expect(container.querySelector('.katex-error')).toBeNull()
     expect(container.querySelector('annotation[encoding="application/x-tex"]')?.textContent).toBe('a + b + c + d')
+  })
+
+  it.each(['\n', '\r\n', '\r'])('keeps standalone equals inside bracket math with %j line endings', (eol) => {
+    const value = ['', 'x', '=', '-\\frac{b}{2a}', '\\pm', '\\frac{\\sqrt{b^2-4ac}}{2a}', ''].join(eol)
+    const source = `\\[${value}\\]${eol}${eol}Next section${eol}=${eol}${eol}After formula.`
+    const tree = parse(source)
+
+    expect(tree.children).toMatchObject([
+      { type: 'math', value },
+      { type: 'heading', depth: 1, children: [{ type: 'text', value: 'Next section' }] },
+      { type: 'paragraph', children: [{ type: 'text', value: 'After formula.' }] }
+    ])
+  })
+
+  it.each([
+    ['indented', '   \\[\nx\n=\ny\n\\]', '\nx\n=\ny\n'],
+    ['blockquote', '> \\[\n> x\n> =\n> y\n> \\]', '\nx\n=\ny\n'],
+    ['list', '- \\[\n  x\n  =\n  y\n  \\]', '\nx\n=\ny\n'],
+    ['nested delimiters', '\\[\nx + \\[y\\]\n=\nz\n\\]', '\nx + y\n=\nz\n']
+  ])('protects Markdown-looking content in %s bracket math', (_label, source, value) => {
+    const nodes = mathNodes(source)
+    expect(nodes).toHaveLength(1)
+    expect(nodes[0]).toMatchObject({
+      type: 'math',
+      value
+    })
+  })
+
+  it('does not close bracket math across a blockquote boundary', () => {
+    const source = '> \\[\n> x\n> =\n\ny\n\\]\n\nNext section\n='
+
+    expect(mathNodes(source)).toEqual([])
+    expect(parse(source).children.at(-1)).toMatchObject({
+      type: 'heading',
+      children: [{ type: 'text', value: 'Next section' }]
+    })
+  })
+
+  it.each([
+    ['static', Markdown, '\n'],
+    ['streaming', StreamingMarkdown, '\r\n']
+  ] as const)('renders a split-line equation across a blank line through %s Markdown', (_label, Renderer, eol) => {
+    const value = '\nx\n=\n\n-\\frac{b}{2a}\\pm\\frac{\\sqrt{b^2-4ac}}{2a}\n'
+    const { container, getByRole } = render(
+      createElement(Renderer, {
+        id: 'split-line-equation',
+        plugins: { ...defaultMarkdownPlugins, math: withMath({ singleDollar: true }) },
+        remarkPlugins: [remarkLatexMath],
+        parseMarkdownIntoBlocksFn: createLatexMarkdownBlockParser(),
+        children: `## Before formula\n\n\\[${value}\\]\n\n## Next section`.replaceAll('\n', eol)
+      })
+    )
+
+    expect(container.querySelector('annotation[encoding="application/x-tex"]')?.textContent).toBe(value)
+    expect(getByRole('heading', { name: 'Next section' })).toBeTruthy()
   })
 
   it.each([

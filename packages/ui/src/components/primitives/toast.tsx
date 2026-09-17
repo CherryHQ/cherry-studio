@@ -3,11 +3,18 @@ import type React from 'react'
 import { createContext, use, useMemo, useSyncExternalStore } from 'react'
 
 import { cn } from '../../lib/utils'
+import { Button } from './button'
 
 export type ToastType = 'error' | 'success' | 'warning' | 'info' | 'loading'
 type StaticToastType = Exclude<ToastType, 'loading'>
 
+export interface ToastAction {
+  label: React.ReactNode
+  onClick: () => void | Promise<void>
+}
+
 export interface ToastConfig {
+  action?: ToastAction
   title?: React.ReactNode
   description?: React.ReactNode
   icon?: React.ReactNode
@@ -319,6 +326,7 @@ const getToastA11yProps = (type: ToastType): Pick<React.HTMLAttributes<HTMLDivEl
 }
 
 const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: ToastStore; toast: ToastRecord }) => {
+  const action = toast.action
   const icon = toast.icon ?? typeIconMap[toast.type]
   const a11yProps = getToastA11yProps(toast.type)
 
@@ -334,23 +342,48 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
       )}
       style={toast.style}
       onClick={toast.onClick}>
-      <div className="mt-0.5 flex shrink-0 items-center justify-center">{icon}</div>
+      <div className={cn('flex shrink-0 items-center justify-center', action ? 'min-h-7' : 'mt-0.5')}>{icon}</div>
       <div className="min-w-0 flex-1">
-        {toast.title && <div className="text-sm leading-5 font-medium break-words">{toast.title}</div>}
+        {toast.title && (
+          <div className={cn('text-sm leading-5 font-medium break-words', action && 'min-h-7 py-1')}>{toast.title}</div>
+        )}
         {toast.description && (
-          <div className="mt-0.5 text-xs leading-5 break-words text-muted-foreground">{toast.description}</div>
+          <div
+            className={cn(
+              'text-xs leading-5 break-words text-muted-foreground',
+              (toast.title || !action) && 'mt-0.5',
+              action && !toast.title && 'min-h-7 py-1'
+            )}>
+            {toast.description}
+          </div>
         )}
       </div>
-      <button
-        type="button"
-        aria-label={labels.close}
-        className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        onClick={(event) => {
-          event.stopPropagation()
-          store.remove(toast.key)
-        }}>
-        <X className="size-3.5" />
-      </button>
+      {action && (
+        <Button
+          type="button"
+          className="shrink-0"
+          size="sm"
+          variant="outline"
+          onClick={(event) => {
+            event.stopPropagation()
+            store.remove(toast.key)
+            void action.onClick()
+          }}>
+          {action.label}
+        </Button>
+      )}
+      <div className={cn('flex shrink-0 items-center', action && 'min-h-7')}>
+        <button
+          type="button"
+          aria-label={labels.close}
+          className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          onClick={(event) => {
+            event.stopPropagation()
+            store.remove(toast.key)
+          }}>
+          <X className="size-3.5" />
+        </button>
+      </div>
     </div>
   )
 }

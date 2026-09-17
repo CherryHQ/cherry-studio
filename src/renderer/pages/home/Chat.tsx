@@ -159,6 +159,7 @@ const Chat: FC<Props> = (props) => {
       const confirmed = await popup.confirm({
         title: t('chat.input.clear.title'),
         content: t('chat.input.clear.content'),
+        autoFocusConfirm: true,
         centered: true
       })
       if (!confirmed) return

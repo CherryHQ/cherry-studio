@@ -36,7 +36,6 @@ const UNREFERENCED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000
 
 // What a developer loses when an optional tool fails to download.
 const IMPACT = {
-  bun: 'Dependencies presets and JS tooling',
   uv: 'Python tooling and Dependencies presets',
   rg: 'in-app search',
   mingit: 'the bundled git fallback (system git still works)'
@@ -292,6 +291,7 @@ const TOOLS = [
   {
     name: 'bun',
     version: BUN_VERSION,
+    required: true,
     versionFile: '.bun-version',
     packages: {
       'darwin-arm64': {
