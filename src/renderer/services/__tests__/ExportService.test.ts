@@ -845,6 +845,43 @@ describe('ExportService', () => {
       expect(markdown).toContain('math $x$')
       expect(markdown).toContain('if \\[ -f x \\]; fi')
     })
+
+    it('leaves a tilde-fenced block in the reasoning trace untouched', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'Check \\(x\\) first\n~~~bash\nif \\[ -f x \\]; then echo hi; fi\n~~~' },
+        { type: 'text', text: 'Answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('Check $x$ first')
+      expect(markdown).toContain('if \\[ -f x \\]; then echo hi; fi')
+    })
+
+    it('converts prose between code blocks when the first block contains a literal fence', async () => {
+      const message = createExportView([
+        {
+          type: 'text',
+          text: [
+            '```python',
+            'print("```")',
+            '```',
+            '',
+            'Formula: \\(x\\)',
+            '',
+            '```python',
+            're.match(r"\\(\\d+\\)", s)',
+            '```'
+          ].join('\n')
+        }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('Formula: $x$')
+      expect(markdown).toContain('print("```")')
+      expect(markdown).toContain('re.match(r"\\(\\d+\\)", s)')
+    })
   })
 
   describe('messagesToMarkdown', () => {

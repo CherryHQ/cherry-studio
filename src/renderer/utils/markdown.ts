@@ -5,11 +5,11 @@ import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
 import { getCodeBlockId } from './markdownLight'
+import { remarkLatexMath } from './remarkLatexMath'
 
 // The lightweight Markdown chunk owns the transforms both runtimes need; this module adds only the
 // helpers that pull in remark/remove-markdown.
 export {
-  convertMathFormula,
   findCitationInChildren,
   getCodeBlockId,
   isHtmlCode,
@@ -40,6 +40,37 @@ export function updateCodeBlock(raw: string, id: string, newContent: string): st
   })
 
   return unified().use(remarkStringify).stringify(tree)
+}
+
+const latexMathParser = unified().use(remarkParse).use(remarkLatexMath).freeze()
+
+/**
+ * Rewrite `\(…\)` / `\[…\]` as `$…$` / `$$…$$` exactly where the chat renders a formula. The
+ * formulas are located with the chat's own LaTeX parser, so code, link text and unbalanced
+ * delimiters stay as written, and nothing else in the source is re-serialized.
+ */
+export function convertLatexMathToDollars(markdown: string): string {
+  if (!markdown.includes('\\(') && !markdown.includes('\\[')) return markdown
+
+  const tree = latexMathParser.runSync(latexMathParser.parse(markdown), markdown)
+  let cursor = 0
+  let result = ''
+  visit(tree, ['inlineMath', 'math'], (node) => {
+    const start = node.position?.start.offset
+    const end = node.position?.end.offset
+    if (start === undefined || end === undefined) return
+
+    const raw = markdown.slice(start, end)
+    const open = raw.search(/\S/)
+    const dollars = raw.startsWith('\\(', open) ? '$' : raw.startsWith('\\[', open) ? '$$' : undefined
+    const close = raw.lastIndexOf(dollars === '$' ? '\\)' : '\\]')
+    if (!dollars || close < open + 2) return
+
+    result += markdown.slice(cursor, start + open) + dollars + raw.slice(open + 2, close) + dollars
+    cursor = start + close + 2
+  })
+
+  return result + markdown.slice(cursor)
 }
 
 /**

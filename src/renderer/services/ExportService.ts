@@ -23,14 +23,13 @@ import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
-import { mapMarkdownOutsideCode } from '@renderer/utils/citation'
 import { getTitleFromString, messagesToPlainText, processCitations } from '@renderer/utils/export'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import {
   captureScrollableAsBlob as captureScrollableAsBlobUtil,
   captureScrollableAsDataUrl as captureScrollableAsDataUrlUtil
 } from '@renderer/utils/image'
-import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
+import { convertLatexMathToDollars, markdownToPlainText } from '@renderer/utils/markdown'
 import { stripCitationMarkers } from '@renderer/utils/message/citations'
 import { getComposerTextFromMessage } from '@renderer/utils/message/composerTokens'
 import {
@@ -302,10 +301,10 @@ const createBaseMarkdown = async (
       } else if (reasoningContent.startsWith('<think>')) {
         reasoningContent = reasoningContent.substring(7)
       }
-      // Must run before sanitizing turns `\n` into `<br>`: the code-aware split relies on
-      // newlines to stop a stray backtick from pairing with a later fence.
+      // Must run before sanitizing turns `\n` into `<br>`: formulas and code blocks are only
+      // recognizable while the line structure is intact.
       if (forceDollarMathInMarkdown) {
-        reasoningContent = mapMarkdownOutsideCode(reasoningContent, convertMathFormula)
+        reasoningContent = convertLatexMathToDollars(reasoningContent)
       }
       // 使用 DOMPurify 安全地处理思维链内容
       reasoningContent = sanitizeReasoningContent(reasoningContent)
@@ -337,7 +336,7 @@ const createBaseMarkdown = async (
   const { content, citation: toolCitation } = getToolCitationExport(message, rawContent)
   let citation = excludeCitations ? '' : getCitationContent(message) || toolCitation
 
-  let processedContent = forceDollarMathInMarkdown ? mapMarkdownOutsideCode(content, convertMathFormula) : content
+  let processedContent = forceDollarMathInMarkdown ? convertLatexMathToDollars(content) : content
 
   // 处理引用标记
   if (excludeCitations) {
