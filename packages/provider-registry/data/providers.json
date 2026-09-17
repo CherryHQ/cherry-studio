@@ -1506,78 +1506,6 @@
       ]
     },
     {
-      "availableInEditions": ["global"],
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Moonshot - AI model provider",
-      "endpointConfigs": {
-        "anthropic-messages": {
-          "adapterFamily": "anthropic",
-          "baseUrl": "https://api.moonshot.ai/anthropic"
-        },
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.moonshot.ai",
-          "reasoningFormat": {
-            "type": "openai-chat",
-            "wire": {
-              "auto": {
-                "operations": [
-                  {
-                    "target": "thinking.type",
-                    "value": {
-                      "source": "literal",
-                      "value": "auto"
-                    }
-                  }
-                ]
-              },
-              "effort": {
-                "operations": [
-                  {
-                    "target": "thinking.type",
-                    "value": {
-                      "source": "literal",
-                      "value": "enabled"
-                    }
-                  }
-                ]
-              },
-              "off": {
-                "operations": [
-                  {
-                    "target": "thinking.type",
-                    "value": {
-                      "source": "literal",
-                      "value": "disabled"
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      "id": "moonshot-global",
-      "metadata": {
-        "website": {
-          "apiKey": "https://platform.moonshot.ai/console/api-keys",
-          "docs": "https://platform.moonshot.ai/docs/",
-          "models": "https://platform.moonshot.ai/docs/",
-          "official": "https://www.moonshot.ai/"
-        }
-      },
-      "name": "Moonshot",
-      "presetProviderId": "moonshot",
-      "serverTools": [
-        {
-          "endpointTypes": ["openai-chat-completions"],
-          "id": "web-search",
-          "modelScope": "model-dependent",
-          "vendors": ["kimi"]
-        }
-      ]
-    },
-    {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "BAICHUAN AI - AI model provider",
@@ -2600,7 +2528,34 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "oMLX - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "http://localhost:8000"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:8000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "omlx",
+      "metadata": {
+        "website": {
+          "docs": "https://github.com/jundot/omlx",
+          "official": "https://omlx.ai"
+        }
+      },
+      "name": "oMLX"
     }
   ],
-  "version": "c1e12f94463bc3de"
+  "version": "d735955cfb89f72f"
 }

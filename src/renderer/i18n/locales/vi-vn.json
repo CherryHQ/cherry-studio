@@ -3078,6 +3078,7 @@
   "provider.o3": "O3",
   "provider.ocoolai": "ocoolAI",
   "provider.ollama": "Ollama",
+  "provider.omlx": "oMLX",
   "provider.open-mineru": "Open MinerU",
   "provider.openai": "OpenAI",
   "provider.openai-codex": "OpenAI Codex",

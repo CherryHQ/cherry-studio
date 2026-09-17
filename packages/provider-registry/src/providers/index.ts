@@ -39,6 +39,7 @@ import p_new_api from './new-api'
 import p_nvidia from './nvidia'
 import p_ocoolai from './ocoolai'
 import p_ollama from './ollama'
+import p_omlx from './omlx'
 import p_openai from './openai'
 import p_openai_codex from './openai-codex'
 import p_opencode from './opencode'
@@ -127,5 +128,6 @@ export const PROVIDERS: Provider[] = [
   p_cerebras,
   p_mimo,
   p_zai,
-  p_minimax_global
+  p_minimax_global,
+  p_omlx
 ]
