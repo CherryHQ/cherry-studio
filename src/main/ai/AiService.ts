@@ -953,7 +953,9 @@ export class AiService extends BaseService {
       model: sdkConfig.modelId,
       prompt: promptParam,
       n: structured.n ?? 1,
-      maxRetries: request.requestOptions?.maxRetries ?? 0,
+      // Single-shot image calls otherwise surface an upstream gateway 504 with
+      // no second chance; the SDK retries transient errors with backoff (abort-aware).
+      maxRetries: request.requestOptions?.maxRetries ?? 2,
       ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
       ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
       ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
