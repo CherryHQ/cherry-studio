@@ -120,7 +120,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
         closeLabel={t('common.close')}
         closeOnOverlayClick={!controller.isCloseBlocked}
         showCloseButton={!controller.isCloseBlocked}
-        className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
+        className="grid max-h-[calc(100vh-100px)] grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
         onEscapeKeyDown={(event) => {
           if (controller.isCloseBlocked) event.preventDefault()
         }}>

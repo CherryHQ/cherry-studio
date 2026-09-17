@@ -158,7 +158,7 @@ describe('DoctorPopup', () => {
     })
 
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveClass('max-h-[calc(100vh-2rem)]')
+    expect(dialog).toHaveClass('max-h-[calc(100vh-100px)]')
     expect(dialog).not.toHaveClass('h-[min(760px,calc(100vh-2rem))]')
     expect(dialog).toHaveAccessibleDescription('settings.doctor.panel_descriptions.report')
     // Secondary panels retain the header divider that separates their explanatory copy.
@@ -209,8 +209,12 @@ describe('DoctorPopup', () => {
     expect(screen.queryByRole('button', { name: 'settings.doctor.actions.run_basic' })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'error.diagnostics.action_required' })).not.toBeInTheDocument()
     expect(screen.queryByText('Fixed: 0')).not.toBeInTheDocument()
-    expect(screen.getByText('Needs attention: 0')).toBeVisible()
-    expect(screen.getByText('settings.doctor.summary.basic_healthy')).toBeVisible()
+    expect(screen.queryByRole('region', { name: 'error.diagnostics.result' })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', {
+        name: /settings\.doctor\.checks\.install-version-channel\.title.*settings\.doctor\.status\.pass/
+      })
+    ).toBeVisible()
   })
 
   it('runs quick checks from the expired-result alert', async () => {
@@ -308,7 +312,7 @@ describe('DoctorPopup', () => {
     expect(screen.getByRole('heading', { name: 'settings.doctor.title' })).toBeVisible()
   })
 
-  it('shows one active-check progress line without rendering check rows while running', async () => {
+  it('shows every check during a run and updates results in place', async () => {
     mocks.doctorState = {
       status: 'running',
       runId: 'quick-run',
@@ -325,31 +329,39 @@ describe('DoctorPopup', () => {
     })
 
     const quickCheckCount = DOCTOR_CHECK_IDS.filter((id) => DOCTOR_CHECK_CATALOG[id].tier === 'quick').length
-    const activeProgress = `Checking: Default provider API key · 1/${quickCheckCount}`
-
-    expect(await screen.findByText(activeProgress)).toBeVisible()
-    expect(screen.getAllByText(activeProgress)).toHaveLength(1)
-    expect(screen.getByRole('status').querySelector('svg')).toHaveClass('motion-safe:animate-spin')
-    expect(screen.queryByText('Running quick basic checks…')).not.toBeInTheDocument()
+    const checks = await screen.findByRole('region', { name: 'settings.doctor.copy.checks_heading' })
+    expect(within(checks).getAllByRole('button')).toHaveLength(quickCheckCount)
+    for (const check of within(checks).getAllByRole('button')) {
+      expect(check).toHaveAttribute('aria-expanded', 'false')
+    }
+    expect(screen.queryByText(/^Checking:/)).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: /settings\.doctor\.checks\.install-version-channel\.title/ })
-    ).not.toBeInTheDocument()
+      within(checks).getByRole('button', {
+        name: /settings\.doctor\.checks\.install-version-channel\.title.*settings\.doctor\.status\.pass/
+      })
+    ).toBeVisible()
     expect(
-      screen.queryByRole('button', { name: /settings\.doctor\.checks\.provider-api-key-present\.title/ })
-    ).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.doctor.advanced.title' })).toBeVisible()
+      within(checks).getByRole('button', { name: /Default provider API key.*settings\.doctor\.status\.pending/ })
+    ).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'settings.doctor.advanced.title' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.doctor.actions.cancel_run' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'settings.doctor.actions.more' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'settings.doctor.actions.run_network' })).toBeDisabled()
 
-    mocks.doctorState = { ...mocks.doctorState, activeCheckIds: [], results: [] }
+    mocks.doctorState = {
+      ...mocks.doctorState,
+      activeCheckIds: [],
+      results: [...mocks.doctorState.results, { id: 'provider-api-key-present', status: 'pass', durationMs: 1 }]
+    }
     view.rerender(<PopupHost />)
 
-    expect(await screen.findByText(`0 of ${quickCheckCount} completed`)).toBeVisible()
-    expect(screen.queryByText(activeProgress)).not.toBeInTheDocument()
+    expect(
+      await within(checks).findByRole('button', { name: /Default provider API key.*settings\.doctor\.status\.pass/ })
+    ).toBeVisible()
+    expect(within(checks).getAllByRole('button')).toHaveLength(quickCheckCount)
   })
 
-  it('separates user-fixable findings from other completed diagnostics', async () => {
+  it('lists all completed checks with their results and collapsed details', async () => {
     const user = userEvent.setup()
     mocks.doctorState = {
       status: 'completed',
@@ -453,54 +465,77 @@ describe('DoctorPopup', () => {
       void DoctorPopup.show({ initialPanel: 'checks' })
     })
 
-    expect(await screen.findByRole('region', { name: 'error.diagnostics.result' })).toBeVisible()
-    const actionRequired = screen.getByRole('region', { name: 'error.diagnostics.action_required' })
-    const otherFindings = screen.getByRole('region', { name: 'settings.doctor.copy.checks_heading' })
-    expect(screen.getByText('Needs attention: 4')).toBeVisible()
+    const checks = await screen.findByRole('region', { name: 'settings.doctor.copy.checks_heading' })
+    expect(screen.queryByRole('region', { name: 'error.diagnostics.result' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'error.diagnostics.action_required' })).not.toBeInTheDocument()
+    expect(within(checks).getAllByRole('button')).toHaveLength(7)
+    const orderedChecks = within(checks).getAllByRole('button')
+    const expectedTitles = [
+      'settings.doctor.checks.storage-disk-space.title',
+      'Provider model',
+      'settings.doctor.checks.permission-accessibility.title',
+      'settings.doctor.checks.network-online.title',
+      'settings.doctor.checks.logs-recent-findings.title',
+      'settings.doctor.checks.install-version-channel.title',
+      'Default provider API key'
+    ]
+    for (const [index, title] of expectedTitles.entries()) {
+      expect(orderedChecks[index]).toHaveAccessibleName(expect.stringContaining(title))
+    }
+    for (const check of within(checks).getAllByRole('button')) {
+      expect(check).toHaveAttribute('aria-expanded', 'false')
+    }
 
     expect(
-      screen.queryByRole('button', { name: /settings\.doctor\.checks\.install-version-channel\.title/ })
-    ).not.toBeInTheDocument()
-    expect(
-      within(otherFindings).getByRole('button', { name: /settings\.doctor\.checks\.logs-recent-findings\.title/ })
+      screen.getByRole('button', {
+        name: /settings\.doctor\.checks\.install-version-channel\.title.*settings\.doctor\.status\.pass/
+      })
     ).toBeVisible()
     expect(
-      within(otherFindings).getByRole('button', { name: /settings\.doctor\.checks\.network-online\.title/ })
+      within(checks).getByRole('button', { name: /settings\.doctor\.checks\.logs-recent-findings\.title/ })
     ).toBeVisible()
-    const errorCheck = within(otherFindings).getByRole('button', {
+    expect(
+      within(checks).getByRole('button', { name: /settings\.doctor\.checks\.network-online\.title/ })
+    ).toBeVisible()
+    const errorCheck = within(checks).getByRole('button', {
       name: /Provider model.*settings\.doctor\.status\.error/
     })
-    const skippedCheck = within(otherFindings).getByRole('button', {
+    const skippedCheck = within(checks).getByRole('button', {
       name: /Default provider API key.*settings\.doctor\.status\.skip/
     })
     expect(errorCheck).toBeVisible()
     expect(skippedCheck).toBeVisible()
     if (errorCheck.getAttribute('aria-expanded') === 'false') await user.click(errorCheck)
-    expect(within(otherFindings).getByText('This check could not be completed')).toBeVisible()
+    expect(within(checks).getByText('This check could not be completed')).toBeVisible()
     await user.click(skippedCheck)
-    expect(within(otherFindings).getByText('Skipped because Provider model did not complete')).toBeVisible()
-    const advancedTools = screen.getByRole('button', { name: 'settings.doctor.advanced.title' })
-    expect(advancedTools).toHaveAttribute('aria-expanded', 'false')
+    expect(within(checks).getByText('Skipped because Provider model did not complete')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'settings.doctor.advanced.title' })).not.toBeInTheDocument()
     expect(screen.queryByText('2.0.0')).not.toBeInTheDocument()
     expect(screen.queryByText('/Users/local/CherryStudio')).not.toBeInTheDocument()
 
-    await user.click(advancedTools)
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.more' }))
 
-    expect(screen.getByRole('button', { name: 'settings.about.debug.title' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'settings.about.diagnostics.sources.logs.title' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'settings.doctor.basics.data_path' })).toBeVisible()
+    expect(screen.getByRole('menuitem', { name: 'settings.about.debug.title' })).toBeVisible()
+    expect(screen.getByRole('menuitem', { name: 'settings.about.diagnostics.sources.logs.title' })).toBeVisible()
+    expect(screen.getByRole('menuitem', { name: 'settings.doctor.basics.data_path' })).toBeVisible()
+    await user.keyboard('{Escape}')
 
-    const firstCheck = within(actionRequired).getByRole('button', {
+    const firstCheck = within(checks).getByRole('button', {
       name: /settings\.doctor\.checks\.permission-accessibility\.title.*settings\.doctor\.status\.warn/
     })
-    const failingCheck = within(actionRequired).getByRole('button', {
+    const failingCheck = within(checks).getByRole('button', {
       name: /settings\.doctor\.checks\.storage-disk-space\.title.*settings\.doctor\.status\.fail/
     })
-    expect(firstCheck).toHaveAttribute('aria-expanded', 'true')
+    expect(firstCheck).toHaveAttribute('aria-expanded', 'false')
     expect(failingCheck).toHaveAttribute('aria-expanded', 'false')
-    expect(
-      within(actionRequired).getByRole('button', { name: 'settings.doctor.evidence.local_details' })
-    ).toHaveAttribute('aria-expanded', 'true')
+
+    await user.click(firstCheck)
+
+    expect(firstCheck).toHaveAttribute('aria-expanded', 'true')
+    expect(within(checks).getByRole('button', { name: 'settings.doctor.evidence.local_details' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
 
     await user.click(failingCheck)
 
@@ -509,7 +544,7 @@ describe('DoctorPopup', () => {
     expect(screen.getByText('reclaimableBytes')).toBeVisible()
   })
 
-  it('updates the semantic result counts after a successful fix', async () => {
+  it('runs a fix after expanding its check', async () => {
     const user = userEvent.setup()
     mocks.doctorState = completedDoctorState([
       {
@@ -528,14 +563,11 @@ describe('DoctorPopup', () => {
       void DoctorPopup.show({ initialPanel: 'checks' })
     })
 
-    const attention = await screen.findByText('Needs attention: 1')
-    // Semantic foreground colors distinguish completed fixes from outstanding attention.
-    expect(screen.queryByText('Fixed: 0')).not.toBeInTheDocument()
-    expect(attention).toHaveClass('text-warning')
-
+    await user.click(
+      await screen.findByRole('button', { name: /settings\.doctor\.checks\.permission-accessibility\.title/ })
+    )
     await user.click(screen.getByRole('button', { name: 'settings.doctor.fixes.request_accessibility' }))
 
-    expect(await screen.findByText('Fixed: 1')).toHaveClass('text-success')
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.fix', {
       scope: 'global',
       runId: 'completed-quick',

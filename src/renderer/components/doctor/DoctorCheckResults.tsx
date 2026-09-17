@@ -491,22 +491,22 @@ function statusBadgeClass(status: DoctorStatusIconStatus): string {
 function StatusIcon({ status }: { readonly status: DoctorStatusIconStatus }): ReactNode {
   switch (status) {
     case 'pass':
-      return <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
+      return <CircleCheck className="size-4 shrink-0 text-success" aria-hidden />
     case 'warn':
-      return <CircleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+      return <CircleAlert className="size-4 shrink-0 text-warning" aria-hidden />
     case 'fail':
     case 'error':
-      return <CircleX className="text-error mt-0.5 size-4 shrink-0" aria-hidden />
+      return <CircleX className="text-error size-4 shrink-0" aria-hidden />
     case 'pending':
     case 'running':
       return (
-        <span className="mt-0.5 inline-flex shrink-0 motion-safe:animate-spin" aria-hidden>
+        <span className="inline-flex shrink-0 motion-safe:animate-spin" aria-hidden>
           <CircleDashed className="text-muted-foreground size-4" />
         </span>
       )
     case 'skip':
     case 'neutral':
-      return <CircleMinus className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+      return <CircleMinus className="text-muted-foreground size-4 shrink-0" aria-hidden />
     default:
       return assertNever(status)
   }

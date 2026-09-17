@@ -8,7 +8,6 @@ import { Accordion, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import type { DoctorInteraction } from '@renderer/hooks/doctor/doctorSessionReducer'
 import { buildDoctorViewModel } from '@renderer/utils/doctor'
-import type { DoctorCheckResult } from '@shared/types/doctor'
 
 vi.unmock('@cherrystudio/ui')
 
@@ -247,31 +246,7 @@ describe('DoctorCheckAccordionItems interactions', () => {
     expectTypeOf<keyof ReturnType<typeof createController>>().toEqualTypeOf<keyof DoctorController>()
   })
 
-  it('uses the sectioned surface for Doctor summary panels', () => {
-    render(<DoctorChecksPanel controller={createCompletedPanelController()} />)
-
-    expect(screen.getByRole('region', { name: 'error.diagnostics.result' })).toHaveAttribute(
-      'data-variant',
-      'sectioned'
-    )
-  })
-
-  it('shows one active-check announcement and hides finding rows while running', () => {
-    const controller = createCompletedPanelController()
-    controller.viewModel.status = 'running'
-    controller.viewModel.activeCheckIds = ['runtime-claude-login']
-    render(<DoctorChecksPanel controller={controller} />)
-
-    expect(screen.getAllByRole('status')).toHaveLength(1)
-    expect(screen.getByRole('status')).toHaveTextContent('Checking: settings.doctor.checks.runtime-claude-login.title')
-    expect(screen.getByRole('status').querySelector('svg')).toHaveClass('motion-safe:animate-spin')
-    expect(screen.queryByRole('region', { name: 'error.diagnostics.action_required' })).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: /settings\.doctor\.checks\.runtime-claude-login\.title/ })
-    ).not.toBeInTheDocument()
-  })
-
-  it('shows every anomaly while separating user-fixable actions, then reflects the repaired report', async () => {
+  it('shows all check results and updates a repaired check to passed', async () => {
     const controller = createCompletedPanelController()
     const report = controller.viewModel.report!
     const actionable = report.results[0]
@@ -302,15 +277,9 @@ describe('DoctorCheckAccordionItems interactions', () => {
     const viewModel = buildDoctorViewModel({ status: 'completed', report: mixedReport }, Date.parse(report.finishedAt))
     const view = render(<DoctorChecksPanel controller={{ ...controller, viewModel }} />)
 
-    expect(screen.getByText('Needs attention: 3')).toBeVisible()
-    expect(screen.queryByText('Fixed: 0')).not.toBeInTheDocument()
-    expect(screen.queryByText('settings.doctor.summary.problems')).not.toBeInTheDocument()
-    const findings = screen.getByRole('region', { name: 'error.diagnostics.action_required' })
-    expect(
-      within(findings).getByRole('button', { name: /settings\.doctor\.checks\.runtime-claude-login\.title/ })
-    ).toBeVisible()
+    expect(screen.queryByRole('region', { name: 'error.diagnostics.result' })).not.toBeInTheDocument()
     const otherChecks = screen.getByRole('region', { name: 'settings.doctor.copy.checks_heading' })
-    for (const id of ['logs-recent-findings', 'network-online']) {
+    for (const id of ['install-version-channel', 'runtime-claude-login', 'logs-recent-findings', 'network-online']) {
       expect(
         within(otherChecks).getByRole('button', { name: new RegExp(`settings.doctor.checks.${id}.title`) })
       ).toBeVisible()
@@ -341,47 +310,9 @@ describe('DoctorCheckAccordionItems interactions', () => {
       />
     )
 
-    expect(screen.getByText('Fixed: 1')).toBeVisible()
-    expect(screen.getByText('Fixed: 1')).toHaveClass('text-success')
-    expect(screen.getByText('Needs attention: 0')).toBeVisible()
-    expect(screen.getByText('settings.doctor.summary.basic_healthy')).toBeVisible()
-    expect(screen.queryByRole('region', { name: 'error.diagnostics.action_required' })).not.toBeInTheDocument()
-  })
-
-  it.each([
-    {
-      id: 'logs-recent-findings',
-      status: 'warn',
-      durationMs: 1,
-      attribution: 'app-bug',
-      detail: { variant: 'findings' },
-      actions: [{ kind: 'report' }]
-    },
-    {
-      id: 'network-online',
-      status: 'warn',
-      durationMs: 1,
-      attribution: 'transient',
-      detail: { variant: 'offline' },
-      actions: []
-    }
-  ] satisfies DoctorCheckResult[])('does not call an isolated $attribution finding healthy', (result) => {
-    const controller = createCompletedPanelController()
-    const report = controller.viewModel.report!
-    const viewModel = buildDoctorViewModel(
-      {
-        status: 'completed',
-        report: { ...report, results: [result], summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 } }
-      },
-      Date.parse(report.finishedAt)
-    )
-    render(<DoctorChecksPanel controller={{ ...controller, viewModel }} />)
-
-    expect(screen.getByText('Needs attention: 1')).toBeVisible()
-    expect(screen.queryByText('settings.doctor.summary.basic_healthy')).not.toBeInTheDocument()
     expect(
-      within(screen.getByRole('region', { name: 'settings.doctor.copy.checks_heading' })).getByRole('button', {
-        name: new RegExp(`settings.doctor.checks.${result.id}.title`)
+      screen.getByRole('button', {
+        name: /settings\.doctor\.checks\.runtime-claude-login\.title.*settings\.doctor\.status\.pass/
       })
     ).toBeVisible()
   })
