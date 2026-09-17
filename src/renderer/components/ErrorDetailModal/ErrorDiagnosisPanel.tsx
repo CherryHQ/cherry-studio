@@ -6,6 +6,7 @@ import { Accordion, Button } from '@cherrystudio/ui'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
 import { DoctorCheckAccordionItems, DoctorCheckNotices } from '@renderer/components/doctor'
 import type { DoctorController } from '@renderer/hooks/doctor'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { doctorCheckTitleKey } from '@shared/utils/doctor'
 
@@ -77,8 +78,34 @@ export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck, subject 
           ? t('settings.doctor.summary.running_basic')
           : t('error.diagnostics.preparing_result')
 
+  const providerId = subject.kind !== 'global' ? subject.providerId : undefined
+  const providerName = providerId ? t(getProviderLabelKey(providerId, providerId)) : ''
   const extraRows =
-    !isDoctorPending && doctorController.viewModel.status === 'completed' ? actionRequiredRows(doctorController) : []
+    !isDoctorPending && doctorController.viewModel.status === 'completed'
+      ? actionRequiredRows(doctorController).map((row) => {
+          const result = row.result
+          if (
+            row.id !== 'provider-api-key-present' ||
+            !result ||
+            result.id !== 'provider-api-key-present' ||
+            (result.status !== 'warn' && result.status !== 'fail') ||
+            result.detail.params?.provider ||
+            !providerName
+          ) {
+            return row
+          }
+          return {
+            ...row,
+            result: {
+              ...result,
+              detail: {
+                ...result.detail,
+                params: { ...result.detail.params, provider: providerName }
+              }
+            }
+          }
+        })
+      : []
   const extraFindings =
     extraRows.length > 0 ? (
       <DoctorCheckAccordionItems

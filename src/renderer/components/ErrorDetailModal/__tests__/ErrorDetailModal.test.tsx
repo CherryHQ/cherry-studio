@@ -91,7 +91,7 @@ const missingApiKeyResult: DoctorCheckResult = {
   status: 'fail',
   durationMs: 1,
   attribution: 'user-fixable',
-  detail: { variant: 'missing', params: { provider: 'DeepSeek' } },
+  detail: { variant: 'missing' },
   evidence: [
     { key: 'providerId', value: 'deepseek', dataClass: 'local_only' },
     { key: 'status', value: 401, dataClass: 'public' },
@@ -178,6 +178,7 @@ const translations: Record<string, string> = {
   'message.copied': 'Copied',
   'message.tools.units.item_one': '{{count}} item',
   'message.tools.units.item_other': '{{count}} items',
+  'provider.deepseek': 'DeepSeek',
   'settings.doctor.actions.cancel_run': 'Cancel checks',
   'settings.doctor.actions.confirm_check': 'Send test message',
   'settings.doctor.actions.open_provider': 'Open provider settings',
