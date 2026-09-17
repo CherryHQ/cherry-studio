@@ -130,7 +130,9 @@ describe('useTranslateHistory', () => {
     const { result } = renderHook(() => useTranslateHistory({ update: { rethrowError: false } }))
 
     await expect(result.current.update('hist-123', { star: false })).resolves.toBeUndefined()
-    expect(loggerSpy).toHaveBeenCalledWith('Failed to update translate history', failure)
+    expect(loggerSpy).toHaveBeenCalledWith('Failed to update translate history', failure, {
+      operation: 'translate.history.error.save'
+    })
     expect(toast.error).toHaveBeenCalledWith('t(translate.history.error.save)')
   })
 })

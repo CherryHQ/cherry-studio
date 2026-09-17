@@ -440,7 +440,7 @@ describe('create_agent', () => {
 })
 
 describe('prepare_diagnostic_report', () => {
-  it('is exposed only by the explicit Cherry Support capability set', async () => {
+  it('is exposed by the default assistant tool set and callable through the packaged list path', async () => {
     const assistantClient = await connectAssistantClient()
     const supportClient = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
 
@@ -449,7 +449,8 @@ describe('prepare_diagnostic_report', () => {
       'diagnose',
       'product_info',
       'apply_setting',
-      'create_agent'
+      'create_agent',
+      'prepare_diagnostic_report'
     ])
 
     const supportTools = (await supportClient.listTools()).tools
@@ -470,7 +471,7 @@ describe('prepare_diagnostic_report', () => {
   })
 
   it('returns an editable normalized draft without performing submission', async () => {
-    const client = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
+    const client = await connectAssistantClient()
     const output = { ok: true, description: 'first\r\nsecond\r\nthird' }
 
     const result = await client.callTool({

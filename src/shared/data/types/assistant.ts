@@ -67,6 +67,7 @@ export const AssistantSettingsSchema = z.object({
   service_tier: ServiceTierSelectionSchema.optional(),
   // -- Tool use --
   mcpMode: McpModeSchema,
+  enableBrowser: z.boolean().optional(),
   maxToolCalls: z.number().int().positive(),
   enableMaxToolCalls: z.boolean(),
 

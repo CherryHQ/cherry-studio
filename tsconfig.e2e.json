@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.web.json",
+  "compilerOptions": {
+    "composite": false,
+    "incremental": false,
+    "types": ["node"]
+  },
+  "include": ["tests/e2e/cherry-regression/**/*.ts", "cherry-regression.playwright.config.ts", "src/preload/*.d.ts"]
+}

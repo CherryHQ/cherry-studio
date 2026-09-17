@@ -15,6 +15,7 @@ import { app, dialog } from 'electron'
 
 import { application } from '@application'
 import {
+  describeErrorChain,
   evaluateCandidateVersion,
   getAllMigrators,
   getBlockMessage,
@@ -154,7 +155,10 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     needsMigration = await migrationEngine.needsMigration()
     logger.info('Migration status check result', { needsMigration })
   } catch (error) {
-    logger.error('Migration status check failed', error as Error)
+    // The driver reason lives in `.cause`, which neither `error.message` nor the
+    // winston serializer carries — flatten it or the failure is undiagnosable.
+    const reason = describeErrorChain(error)
+    logger.error(`Migration status check failed: ${reason}`, error as Error)
     await app.whenReady()
 
     // Dev-only: when the disposable migration SQL is regenerated/deleted but
@@ -172,7 +176,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
           `  ${paths.databaseFile}\n\n` +
           `Or run:\n  rm -f "${paths.databaseFile}"\n\n` +
           `Then start the app again (pnpm dev).\n\n` +
-          `Original error: ${(error as Error).message}`
+          `Original error: ${reason}`
       )
       logger.error('Exiting application due to schema out of sync (dev)')
       application.quit()
@@ -188,7 +192,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
       dialog.showErrorBox(
         'Migration Failed (Dev) - Application Cannot Start',
         `Startup migration failed while applying schema changes:\n\n` +
-          `  ${(error as Error).message}\n\n` +
+          `  ${reason}\n\n` +
           `In development this is usually one of:\n\n` +
           `  1. Your local database predates a schema change (incompatible legacy data). ` +
           `If this is throwaway dev data, reset it and restart:\n` +
@@ -201,7 +205,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
     } else {
       dialog.showErrorBox(
         'Migration Failed - Application Cannot Start',
-        `Could not complete data migration:\n\n  ${(error as Error).message}\n\n` +
+        `Could not complete data migration:\n\n  ${reason}\n\n` +
           `The application will now exit. Please try again, and contact support if the problem persists.`
       )
     }

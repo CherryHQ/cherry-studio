@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
+import { DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AGENT_TYPES, type AgentType } from '@shared/data/api/schemas/agents'
 
-import { hostToolsEnabled, resolveAgentCapabilities, resolveHostTools } from '../builtinAgentCapabilities'
+import {
+  hostToolsEnabled,
+  resolveAgentCapabilities,
+  resolveHostTools,
+  resolveMountedMcpServers
+} from '../builtinAgentCapabilities'
 
 const agentOf = (type: AgentType, builtinRole?: string) =>
   ({ type, configuration: builtinRole ? { builtin_role: builtinRole } : {} }) as never
@@ -37,6 +43,7 @@ describe('resolveAgentCapabilities', () => {
   })
 
   it('keeps diagnostic draft preparation in the reusable channel-linked Support tool set', () => {
+    expect(DEFAULT_ASSISTANT_TOOL_NAMES).toContain('prepare_diagnostic_report')
     const support = resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT } })
     const assistant = resolveAgentCapabilities({ configuration: { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT } })
     const channelLinkedSupportTools = resolveHostTools(agentOf('claude-code', BUILTIN_AGENT_ROLE.SUPPORT), {
@@ -67,5 +74,34 @@ describe('hostToolsEnabled', () => {
   it.each(AGENT_TYPES)('never grants host tools to an ordinary Agent on %s', (type) => {
     expect(hostToolsEnabled(agentOf(type), { channelLinked: false })).toBe(false)
     expect(hostToolsEnabled(agentOf(type), { channelLinked: true })).toBe(false)
+  })
+})
+
+describe('Agent browser mounting', () => {
+  it.each(AGENT_TYPES)('honors the built-in browser opt-out on %s', (type) => {
+    expect(
+      resolveMountedMcpServers(
+        { type, configuration: {}, disabledTools: ['mcp__browser'] },
+        {
+          channelLinked: false,
+          browserEnabled: true
+        }
+      ).has('browser')
+    ).toBe(false)
+  })
+  it.each(AGENT_TYPES)('requires enabled control and an interactive open environment on %s', (type) => {
+    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: false, browserEnabled: true }).has('browser')).toBe(
+      true
+    )
+    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: false }).has('browser')).toBe(false)
+    expect(resolveMountedMcpServers(agentOf(type), { channelLinked: true, browserEnabled: true }).has('browser')).toBe(
+      false
+    )
+    expect(
+      resolveMountedMcpServers(agentOf(type, BUILTIN_AGENT_ROLE.SUPPORT), {
+        channelLinked: false,
+        browserEnabled: true
+      }).has('browser')
+    ).toBe(false)
   })
 })
