@@ -5,11 +5,16 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 export interface KnowledgeFileItemData {
   source: string
   path: AbsoluteFilePath
+  // Set when the user picked a file whose extension is outside the curated allow-list via the
+  // "All files" option. Carried to main so the add-time gate lets it through; the index-time
+  // binary guard still rejects a file that decodes as binary.
+  allowArbitrary?: boolean
 }
 
 export const resolveKnowledgeFileData = async (
   externalPath: string,
-  displayName = externalPath
+  displayName = externalPath,
+  allowArbitrary = false
 ): Promise<KnowledgeFileItemData> => {
   const source = externalPath.trim()
 
@@ -24,9 +29,12 @@ export const resolveKnowledgeFileData = async (
 
   return {
     source,
-    path: result.data
+    path: result.data,
+    ...(allowArbitrary ? { allowArbitrary: true } : {})
   }
 }
 
-export const resolveKnowledgeFileMetadataEntryData = async (file: FileMetadata): Promise<KnowledgeFileItemData> =>
-  resolveKnowledgeFileData(file.path, file.origin_name || file.name)
+export const resolveKnowledgeFileMetadataEntryData = async (
+  file: FileMetadata,
+  allowArbitrary = false
+): Promise<KnowledgeFileItemData> => resolveKnowledgeFileData(file.path, file.origin_name || file.name, allowArbitrary)
