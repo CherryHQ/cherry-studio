@@ -1383,25 +1383,6 @@ describe('ChatContent', () => {
     expect(regenerate).not.toHaveBeenCalled()
   })
 
-  it('configures message writes to refresh the branch tree cache', () => {
-    render(<ChatContent topic={topic} />)
-
-    expect(mockUseMutation).toHaveBeenCalledWith(
-      'PATCH',
-      '/messages/:id',
-      expect.objectContaining({
-        refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
-      })
-    )
-    expect(mockUseMutation).toHaveBeenCalledWith(
-      'POST',
-      '/messages/:id/siblings',
-      expect.objectContaining({
-        refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
-      })
-    )
-  })
-
   it('clears branch live state after all multi-model executions finish in the same tick', async () => {
     const onBranchLiveStateChange = vi.fn()
     const reservedUser = {

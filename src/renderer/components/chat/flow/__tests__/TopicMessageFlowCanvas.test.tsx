@@ -1,381 +1,254 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ReactFlowProps, Viewport } from '@xyflow/react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { TOPIC_MESSAGE_FLOW_NODE_TYPE, TopicMessageFlowCanvas, type TopicMessageFlowLayout } from '../index'
-import type { TopicMessageFlowNodeModel } from '../types'
+import TopicMessageFlowCanvas from '../TopicMessageFlowCanvas'
+import type { TopicMessageFlowEdgeModel, TopicMessageFlowGraph, TopicMessageFlowNodeModel } from '../types'
 
-const { setViewportMock } = vi.hoisted(() => ({
-  setViewportMock: vi.fn()
-}))
+type FlowProps = ReactFlowProps<TopicMessageFlowNodeModel, TopicMessageFlowEdgeModel>
+const flow = vi.hoisted(() => ({ props: null as FlowProps | null, viewport: { x: 0, y: 0, zoom: 1 } }))
 
 vi.mock('@xyflow/react', async () => {
   const React = await import('react')
-
   return {
-    Controls: (props: Record<string, unknown>) =>
-      React.createElement('div', { 'data-position': props.position, 'data-testid': 'flow-controls' }),
-    Handle: () => React.createElement('span', { 'data-testid': 'flow-handle' }),
-    MiniMap: (props: Record<string, unknown>) =>
-      React.createElement('div', {
-        className: props.className as string,
-        'data-bg-color': props.bgColor,
-        'data-position': props.position,
-        'data-testid': 'flow-minimap'
-      }),
-    Position: {
-      Bottom: 'bottom',
-      Top: 'top'
-    },
-    ReactFlow: ({
-      children,
-      defaultViewport,
-      edges,
-      fitView,
-      fitViewOptions,
-      maxZoom,
-      minZoom,
-      nodeTypes,
-      nodes,
-      nodesConnectable,
-      nodesDraggable,
-      onInit,
-      onNodeClick,
-      onNodeContextMenu,
-      onlyRenderVisibleElements,
-      proOptions
-    }: {
-      children: ReactNode
-      defaultViewport?: { x: number; y: number; zoom: number }
-      edges: unknown[]
-      fitView?: boolean
-      fitViewOptions?: { maxZoom?: number; padding?: number }
-      maxZoom?: number
-      minZoom?: number
-      nodeTypes: Record<string, React.ComponentType<any>>
-      nodes: TopicMessageFlowNodeModel[]
-      nodesConnectable?: boolean
-      nodesDraggable?: boolean
-      onInit?: (instance: { setViewport: typeof setViewportMock }) => void
-      onNodeClick?: (event: React.MouseEvent, node: TopicMessageFlowNodeModel) => void
-      onNodeContextMenu?: (event: React.MouseEvent, node: TopicMessageFlowNodeModel) => void
-      onlyRenderVisibleElements?: boolean
-      proOptions?: { hideAttribution?: boolean }
-    }) => {
+    Controls: () => <div data-testid="flow-controls" />,
+    MiniMap: () => <div data-testid="flow-minimap" />,
+    Position: { Left: 'left', Right: 'right' },
+    ReactFlow: (props: FlowProps) => {
+      flow.props = props
+      const { onInit } = props
       React.useEffect(() => {
-        onInit?.({ setViewport: setViewportMock })
+        onInit?.({
+          setViewport: (viewport: Viewport) => {
+            flow.viewport = viewport
+            return Promise.resolve(true)
+          },
+          getViewport: () => flow.viewport
+        } as unknown as Parameters<NonNullable<FlowProps['onInit']>>[0])
       }, [onInit])
-
-      return React.createElement(
-        'div',
-        {
-          'data-edges': edges.length,
-          'data-default-x': defaultViewport?.x,
-          'data-default-y': defaultViewport?.y,
-          'data-default-zoom': defaultViewport?.zoom,
-          'data-fit-view': fitView ? 'true' : 'false',
-          'data-fit-view-max-zoom': fitViewOptions?.maxZoom,
-          'data-fit-view-padding': fitViewOptions?.padding,
-          'data-hide-attribution': proOptions?.hideAttribution ? 'true' : 'false',
-          'data-max-zoom': maxZoom,
-          'data-min-zoom': minZoom,
-          'data-nodes-connectable': nodesConnectable ? 'true' : 'false',
-          'data-nodes-draggable': nodesDraggable ? 'true' : 'false',
-          'data-only-render-visible-elements': onlyRenderVisibleElements ? 'true' : 'false',
-          'data-testid': 'react-flow'
-        },
-        nodes.map((node) => {
-          const NodeComponent = nodeTypes[node.type ?? TOPIC_MESSAGE_FLOW_NODE_TYPE]
-
-          return React.createElement(
-            'div',
-            {
-              'data-testid': `flow-node-${node.data.messageId}`,
-              key: node.id,
-              onClick: (event: React.MouseEvent) => onNodeClick?.(event, node),
-              onContextMenu: (event: React.MouseEvent) => onNodeContextMenu?.(event, node)
-            },
-            React.createElement(NodeComponent, {
-              data: node.data,
-              id: node.id,
-              selected: node.selected ?? false
-            })
-          )
-        }),
-        children
+      return (
+        <div data-testid="react-flow">
+          {props.nodes?.map((node) => (
+            <button
+              type="button"
+              key={node.id}
+              onClick={(event) => props.onNodeClick?.(event, node)}
+              onDoubleClick={(event) => props.onNodeDoubleClick?.(event, node)}
+              onContextMenu={(event) => props.onNodeContextMenu?.(event, node)}>
+              {node.id}
+            </button>
+          ))}
+          {props.children}
+        </div>
       )
     }
   }
 })
 
-const graph: TopicMessageFlowLayout = {
-  activeNodeId: 'assistant-1',
-  edges: [
-    {
-      id: 'user-1-assistant-1',
-      source: 'user-1',
-      target: 'assistant-1',
-      data: {
-        isActivePath: true,
-        isInactiveBranch: false,
-        isSiblingBranch: false
-      }
-    }
-  ],
+const graph: TopicMessageFlowGraph = {
+  activeNodeId: 'answer-a',
   nodes: [
-    {
-      id: 'user-1',
-      type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
-      position: { x: 0, y: 0 },
-      data: {
-        createdAt: '2026-01-01T00:00:00.000Z',
-        isActive: false,
-        isInactiveBranch: false,
-        isOnActivePath: true,
-        messageId: 'user-1',
-        preview: 'Plan the topic branch',
-        role: 'user',
-        status: 'success'
-      }
-    },
-    {
-      id: 'assistant-1',
-      type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
-      position: { x: 260, y: 120 },
-      data: {
-        createdAt: '2026-01-01T00:01:00.000Z',
-        isActive: true,
-        isInactiveBranch: false,
-        isOnActivePath: true,
-        messageId: 'assistant-1',
-        modelId: 'openai/gpt-5-codex',
-        preview: 'Here is the branch overview.',
-        role: 'assistant',
-        status: 'pending',
-        siblingsGroupId: 2
-      }
+    ['user-1', 'topic-root', 'user'],
+    ['answer-a', 'user-1', 'assistant'],
+    ['answer-b', 'user-1', 'assistant']
+  ].map(([id, parentId, role]) => ({
+    id: id,
+    parentId,
+    data: {
+      messageId: id,
+      role: role as TopicMessageFlowNodeModel['data']['role'],
+      status: 'success',
+      preview: id,
+      createdAt: '2026-01-01T00:00:00Z',
+      isActive: id === 'answer-a',
+      isOnActivePath: id !== 'answer-b',
+      isInactiveBranch: id === 'answer-b'
     }
-  ],
-  stats: {
-    activePathLength: 2,
-    branchCount: 1,
-    nodeCount: 2
-  }
+  })),
+  edges: [
+    ['user-1', 'answer-a'],
+    ['user-1', 'answer-b']
+  ].map(([source, target]) => ({
+    id: source + target,
+    source,
+    target,
+    data: { isActivePath: target !== 'answer-b', isInactiveBranch: target === 'answer-b', isSiblingBranch: false }
+  })),
+  stats: { activePathLength: 2, branchCount: 2, nodeCount: 3 }
+}
+
+function node(id: string) {
+  const found = flow.props?.nodes?.find((item) => item.id === id)
+  if (!found) throw new Error('Missing canvas node ' + id)
+  return found
+}
+
+async function findInitializedCanvas() {
+  const canvas = await screen.findByTestId('react-flow')
+  await waitFor(() => expect(flow.viewport.zoom).toBe(0.85))
+  return canvas
+}
+
+async function measureNodeHeight(id: string, height: number) {
+  act(() => flow.props!.onNodesChange!([{ id, type: 'dimensions', dimensions: { width: node(id).width!, height } }]))
+  await act(async () => {
+    await new Promise(window.requestAnimationFrame)
+  })
 }
 
 describe('TopicMessageFlowCanvas', () => {
-  let clientWidthSpy: ReturnType<typeof vi.spyOn>
-
   beforeEach(() => {
-    setViewportMock.mockClear()
-    clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800)
+    flow.props = null
+    flow.viewport = { x: 0, y: 0, zoom: 1 }
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600)
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('opens with the first message at the left and vertically centered', async () => {
+    render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} />)
+    await findInitializedCanvas()
+    const viewport = flow.viewport
+    const root = node('user-1')
+    const screenLeft = viewport.x + root.position.x * viewport.zoom
+    const screenCenterY = viewport.y + (root.position.y + root.measured!.height! / 2) * viewport.zoom
+    expect(screenLeft).toBeGreaterThanOrEqual(16)
+    expect(screenLeft).toBeLessThanOrEqual(48)
+    expect(screenCenterY).toBeCloseTo(300)
+    expect(node('answer-a').position.x).toBeGreaterThan(root.position.x + root.width!)
   })
 
-  afterEach(() => {
-    clientWidthSpy.mockRestore()
+  it('keeps the first message centered as its loading placeholder and delayed body are measured', async () => {
+    render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} />)
+    await findInitializedCanvas()
+
+    for (const height of [144, 420]) {
+      await measureNodeHeight('user-1', height)
+      const root = node('user-1')
+      expect(flow.viewport.x + root.position.x * flow.viewport.zoom).toBeCloseTo(32)
+      expect(flow.viewport.y + (root.position.y + height / 2) * flow.viewport.zoom).toBeCloseTo(300)
+    }
   })
 
-  it('renders the read-only React Flow surface with custom nodes and overlays after measuring width', async () => {
-    render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
+  it.each(['pointer', 'wheel', 'keyboard'])(
+    'preserves the user viewport after %s input and later measurements',
+    async (input) => {
+      const user = userEvent.setup()
+      render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} />)
+      const canvas = await findInitializedCanvas()
 
-    expect(screen.queryByTestId('react-flow')).not.toBeInTheDocument()
-    expect(await screen.findByTestId('react-flow')).toBeInTheDocument()
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-fit-view', 'false')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-default-x', '306.5')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-default-y', '64')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-default-zoom', '0.85')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-min-zoom', '0.08')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-max-zoom', '1.4')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-only-render-visible-elements', 'true')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-hide-attribution', 'true')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-nodes-draggable', 'false')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-nodes-connectable', 'false')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-edges', '1')
-    expect(screen.getByTestId('flow-controls')).toBeInTheDocument()
-    expect(screen.getByTestId('flow-minimap')).toHaveAttribute('data-bg-color', 'var(--card)')
-    expect(screen.getByTestId('flow-minimap')).toHaveClass('border-border')
-    expect(screen.getByTestId('topic-message-flow-legend')).toBeInTheDocument()
-    expect(screen.getByText('Plan the topic branch')).toBeInTheDocument()
-    expect(screen.getByText('gpt-5-codex')).toBeInTheDocument()
-    expect(screen.queryByText('#2')).not.toBeInTheDocument()
+      if (input === 'pointer') await user.pointer({ target: canvas, keys: '[MouseLeft]' })
+      if (input === 'wheel') fireEvent.wheel(canvas, { deltaY: 120 })
+      if (input === 'keyboard') {
+        await user.tab()
+        await user.keyboard('{ArrowDown}')
+      }
+      const userViewport = { x: -500, y: -200, zoom: 0.6 }
+      flow.viewport = userViewport
+
+      await measureNodeHeight('user-1', 420)
+      expect(flow.viewport).toEqual(userViewport)
+    }
+  )
+
+  it('centers the first message again when a new focus is requested after user interaction', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} focusKey="topic-1" />)
+    await user.click(await findInitializedCanvas())
+    flow.viewport = { x: -500, y: -200, zoom: 0.6 }
+    await measureNodeHeight('user-1', 420)
+
+    rerender(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} focusKey="topic-2" />)
+    await findInitializedCanvas()
+    const root = node('user-1')
+    expect(flow.viewport.y + (root.position.y + 210) * flow.viewport.zoom).toBeCloseTo(300)
+    expect(flow.viewport.zoom).toBe(0.85)
   })
 
-  it('starts with the root node centered horizontally near the top', async () => {
-    render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
-
-    await waitFor(() => {
-      expect(setViewportMock).toHaveBeenCalledWith({ x: 306.5, y: 64, zoom: 0.85 }, { duration: 0 })
-    })
+  it('reflows siblings when a complete response grows taller', async () => {
+    render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} />)
+    await findInitializedCanvas()
+    act(() =>
+      flow.props!.onNodesChange!([{ id: 'answer-a', type: 'dimensions', dimensions: { width: 440, height: 900 } }])
+    )
+    expect(node('answer-b').position.y).toBeGreaterThan(node('answer-a').position.y + 900)
   })
 
-  it('does not refocus the canvas when only node preview changes', async () => {
-    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
-
-    await waitFor(() => expect(setViewportMock).toHaveBeenCalledTimes(1))
-    setViewportMock.mockClear()
-
+  it('preserves the viewport when active branch and streamed content change', async () => {
+    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} focusKey="topic-1" />)
+    await findInitializedCanvas()
+    const previousViewport = { x: -500, y: -200, zoom: 0.6 }
+    flow.viewport = previousViewport
     rerender(
       <TopicMessageFlowCanvas
         graph={{
           ...graph,
-          nodes: graph.nodes.map((node) =>
-            node.id === 'assistant-1'
-              ? { ...node, data: { ...node.data, preview: 'Streaming preview changed.' } }
-              : node
-          )
+          activeNodeId: 'answer-b',
+          nodes: graph.nodes.map((item) => ({
+            ...item,
+            data: { ...item.data, preview: 'New streamed content' }
+          }))
         }}
-        onNodeSelect={vi.fn()}
+        onNodeActivate={vi.fn()}
+        focusKey="topic-1"
       />
     )
-
-    await screen.findByText('Streaming preview changed.')
-    await new Promise((resolve) => window.requestAnimationFrame(resolve))
-
-    expect(setViewportMock).not.toHaveBeenCalled()
-  })
-
-  it('keeps the current viewport when the graph changes under the same pane focus key', async () => {
-    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} focusKey="docked:0" />)
-
-    await waitFor(() => expect(setViewportMock).toHaveBeenCalledTimes(1))
-    setViewportMock.mockClear()
-
-    rerender(
-      <TopicMessageFlowCanvas
-        graph={{
-          ...graph,
-          edges: [
-            ...graph.edges,
-            {
-              id: 'assistant-1-user-2',
-              source: 'assistant-1',
-              target: 'user-2',
-              data: {
-                isActivePath: true,
-                isInactiveBranch: false,
-                isSiblingBranch: false
-              }
-            }
-          ],
-          nodes: [
-            {
-              ...graph.nodes[0],
-              position: { x: 96, y: 0 }
-            },
-            ...graph.nodes.slice(1),
-            {
-              id: 'user-2',
-              type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
-              position: { x: 96, y: 240 },
-              data: {
-                createdAt: '2026-01-01T00:02:00.000Z',
-                isActive: true,
-                isInactiveBranch: false,
-                isOnActivePath: true,
-                messageId: 'user-2',
-                preview: 'Continue from here.',
-                role: 'user',
-                status: 'success'
-              }
-            }
-          ],
-          activeNodeId: 'user-2',
-          stats: {
-            activePathLength: 3,
-            branchCount: 1,
-            nodeCount: 3
-          }
-        }}
-        onNodeSelect={vi.fn()}
-        focusKey="docked:0"
-      />
-    )
-
-    await screen.findByText('Continue from here.')
-    await new Promise((resolve) => window.requestAnimationFrame(resolve))
-
-    expect(setViewportMock).not.toHaveBeenCalled()
-  })
-
-  it('waits for the pane layout before mounting React Flow', async () => {
-    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} layoutReady={false} />)
-
-    expect(screen.queryByTestId('react-flow')).not.toBeInTheDocument()
-
-    rerender(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} layoutReady />)
-
-    expect(await screen.findByTestId('react-flow')).toBeInTheDocument()
-  })
-
-  it('refocuses when the pane layout focus key changes', async () => {
-    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} focusKey="docked:0" />)
-
-    await waitFor(() => expect(setViewportMock).toHaveBeenCalledTimes(1))
-    setViewportMock.mockClear()
-
-    rerender(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} focusKey="docked:1" />)
-
-    await waitFor(() => {
-      expect(setViewportMock).toHaveBeenCalledWith({ x: 306.5, y: 64, zoom: 0.85 }, { duration: 0 })
+    await act(async () => {
+      await new Promise(window.requestAnimationFrame)
     })
+    expect(flow.viewport).toEqual(previousViewport)
   })
 
-  it('calls onNodeSelect with the clicked message id', async () => {
-    const onNodeSelect = vi.fn()
-
-    render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={onNodeSelect} />)
-
-    fireEvent.click(await screen.findByTestId('flow-node-assistant-1'))
-
-    expect(onNodeSelect).toHaveBeenCalledWith('assistant-1')
+  it('waits for the pane transition before mounting the canvas', async () => {
+    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} layoutReady={false} />)
+    expect(screen.queryByTestId('react-flow')).not.toBeInTheDocument()
+    rerender(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} layoutReady />)
+    expect(await screen.findByTestId('react-flow')).toBeVisible()
   })
 
-  it('calls onNodeContextMenu with the right-clicked message id', async () => {
-    const onNodeContextMenu = vi.fn()
-
-    render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} onNodeContextMenu={onNodeContextMenu} />)
-
-    fireEvent.contextMenu(await screen.findByTestId('flow-node-user-1'))
-
-    expect(onNodeContextMenu).toHaveBeenCalledWith('user-1')
+  it('switches the conversation target when clicking a historical node', async () => {
+    function Conversation() {
+      const [activeBranch, setActiveBranch] = useState('answer-a')
+      return (
+        <>
+          <output aria-label="Conversation branch">{activeBranch}</output>
+          <TopicMessageFlowCanvas graph={graph} onNodeActivate={setActiveBranch} />
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Conversation />)
+    const answer = await screen.findByRole('button', { name: 'answer-b' })
+    await user.click(answer)
+    expect(screen.getByLabelText('Conversation branch')).toHaveTextContent('answer-b')
   })
 
-  it('renders active error nodes with the error state marker', async () => {
-    render(
-      <TopicMessageFlowCanvas
-        graph={{
-          activeNodeId: 'error-1',
-          edges: [],
-          nodes: [
-            {
-              id: 'error-1',
-              type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
-              position: { x: 0, y: 0 },
-              data: {
-                createdAt: '2026-01-01T00:02:00.000Z',
-                isActive: true,
-                isInactiveBranch: false,
-                isOnActivePath: true,
-                messageId: 'error-1',
-                preview: 'Broken branch.',
-                role: 'assistant',
-                status: 'error'
-              }
-            }
-          ],
-          stats: {
-            activePathLength: 1,
-            branchCount: 0,
-            nodeCount: 1
-          }
-        }}
-        onNodeSelect={vi.fn()}
-      />
-    )
+  it('brings a requested offscreen branch into view without changing the user zoom', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(480)
+    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={() => {}} />)
+    await findInitializedCanvas()
+    flow.viewport = { x: -900, y: -900, zoom: 0.7 }
+    rerender(<TopicMessageFlowCanvas graph={graph} onNodeActivate={() => {}} revealNodeId="answer-b" />)
+    await waitFor(() => {
+      const viewport = flow.viewport
+      expect(viewport.zoom).toBe(0.7)
+      const target = node('answer-b')
+      const left = target.position.x * viewport.zoom + viewport.x
+      const top = target.position.y * viewport.zoom + viewport.y
+      expect(left).toBeGreaterThanOrEqual(0)
+      expect(left + target.width! * viewport.zoom).toBeLessThanOrEqual(480)
+      expect(top).toBeGreaterThanOrEqual(0)
+      expect(top + target.measured!.height! * viewport.zoom).toBeLessThanOrEqual(600)
+    })
+    const revealedViewport = flow.viewport
+    await measureNodeHeight('user-1', 420)
+    expect(flow.viewport).toEqual(revealedViewport)
+  })
 
-    const errorNode = (await screen.findByText('Broken branch.')).closest('[data-message-id="error-1"]')
-
-    expect(errorNode).toHaveAttribute('data-active', 'true')
-    expect(errorNode?.querySelector('.bg-error')).toBeInTheDocument()
+  it('keeps empty conversations out of React Flow', () => {
+    render(<TopicMessageFlowCanvas graph={{ ...graph, nodes: [], edges: [] }} onNodeActivate={vi.fn()} />)
+    expect(screen.getByTestId('topic-message-flow-empty')).toBeVisible()
+    expect(screen.queryByTestId('react-flow')).not.toBeInTheDocument()
   })
 })

@@ -10,9 +10,10 @@ import type { MessageListItem } from '../types'
 interface Props {
   message: MessageListItem
   hoistAttachments?: boolean
+  defaultUserContentExpanded?: boolean
 }
 
-const MessageContent: React.FC<Props> = ({ message, hoistAttachments }) => {
+const MessageContent: React.FC<Props> = ({ message, hoistAttachments, defaultUserContentExpanded }) => {
   return (
     <>
       {!isEmpty(message.mentions) && (
@@ -24,7 +25,11 @@ const MessageContent: React.FC<Props> = ({ message, hoistAttachments }) => {
           ))}
         </Flex>
       )}
-      <MessagePartsRenderer message={message} hoistAttachments={hoistAttachments} />
+      <MessagePartsRenderer
+        message={message}
+        hoistAttachments={hoistAttachments}
+        defaultUserContentExpanded={defaultUserContentExpanded}
+      />
     </>
   )
 }

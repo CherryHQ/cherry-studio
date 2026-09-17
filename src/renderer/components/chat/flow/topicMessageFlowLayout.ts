@@ -1,5 +1,5 @@
 import { graphlib, layout, type OrderConstraint } from '@dagrejs/dagre'
-import { MarkerType, Position } from '@xyflow/react'
+import { Position } from '@xyflow/react'
 
 import type {
   TopicMessageFlowEdgeModel,
@@ -12,13 +12,22 @@ import type {
 import { TOPIC_MESSAGE_FLOW_NODE_TYPE } from './types'
 
 export const TOPIC_MESSAGE_FLOW_NODE_SIZE = {
-  width: 220,
-  height: 112
+  width: 440,
+  height: 280
 } as const
 
-// This reviewed visualization color belongs to the message-flow graph rather
-// than the shared readable-content hierarchy.
-export const TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR = 'oklch(0.71 0.02 261)'
+export const TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR = 'var(--border-strong)'
+
+export interface TopicMessageFlowNodeSize {
+  width: number
+  height: number
+}
+
+export function getTopicMessageFlowNodeSize(node: TopicMessageFlowGraph['nodes'][number]): TopicMessageFlowNodeSize {
+  if (node.data.isAwaitingInput || node.data.isContextBoundary) return { width: 300, height: 112 }
+  if (node.data.role === 'user') return { width: 320, height: 160 }
+  return TOPIC_MESSAGE_FLOW_NODE_SIZE
+}
 
 const GRAPH_SPACING = {
   nodesep: 56,
@@ -29,13 +38,16 @@ const GRAPH_SPACING = {
 } as const
 
 const EDGE_COLORS: Record<TopicMessageFlowEdgeState, string> = {
-  active: 'var(--success)',
-  default: 'var(--border)',
+  active: 'var(--primary)',
+  default: 'var(--border-strong)',
   inactive: TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR,
-  sibling: 'var(--border)'
+  sibling: 'var(--border-strong)'
 }
 
-export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): TopicMessageFlowLayout {
+export function layoutTopicMessageFlowGraph(
+  graph: TopicMessageFlowGraph,
+  measuredSizes: ReadonlyMap<string, TopicMessageFlowNodeSize> = new Map()
+): TopicMessageFlowLayout {
   const depthById = getDepthById(graph)
   const orderedNodes = [...graph.nodes].sort((a, b) => compareGraphNodes(a, b, depthById))
   const orderConstraints = buildSiblingOrderConstraints(orderedNodes)
@@ -54,13 +66,13 @@ export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): Topic
 
   const dagreGraph = new graphlib.Graph()
     .setGraph({
-      rankdir: 'TB',
+      rankdir: 'LR',
       ...GRAPH_SPACING
     })
     .setDefaultEdgeLabel(() => ({}))
 
   for (const node of orderedNodes) {
-    dagreGraph.setNode(node.id, { ...TOPIC_MESSAGE_FLOW_NODE_SIZE })
+    dagreGraph.setNode(node.id, { ...(measuredSizes.get(node.id) ?? getTopicMessageFlowNodeSize(node)) })
   }
 
   for (const edge of visibleEdges) {
@@ -72,11 +84,17 @@ export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): Topic
   const nodes = orderedNodes.map((node): TopicMessageFlowNodeModel => {
     const positioned = dagreGraph.node(node.id)
 
-    return toReactFlowNode(node, {
-      x: positioned.x - TOPIC_MESSAGE_FLOW_NODE_SIZE.width / 2,
-      y: positioned.y - TOPIC_MESSAGE_FLOW_NODE_SIZE.height / 2
-    })
+    const size = measuredSizes.get(node.id) ?? getTopicMessageFlowNodeSize(node)
+    return toReactFlowNode(node, { x: positioned.x - size.width / 2, y: positioned.y - size.height / 2 }, size)
   })
+
+  const root = nodes[0]
+  if (root) {
+    const offset = { x: root.position.x - GRAPH_SPACING.marginx, y: root.position.y - GRAPH_SPACING.marginy }
+    for (const node of nodes) {
+      node.position = { x: node.position.x - offset.x, y: node.position.y - offset.y }
+    }
+  }
 
   return {
     nodes,
@@ -88,25 +106,23 @@ export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): Topic
 
 function toReactFlowNode(
   node: TopicMessageFlowGraph['nodes'][number],
-  position: TopicMessageFlowNodeModel['position']
+  position: TopicMessageFlowNodeModel['position'],
+  size: TopicMessageFlowNodeSize
 ): TopicMessageFlowNodeModel {
   return {
     id: node.id,
     type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
     position,
     data: { ...node.data },
-    sourcePosition: Position.Bottom,
-    targetPosition: Position.Top,
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
     draggable: false,
     connectable: false,
     selectable: true,
-    width: TOPIC_MESSAGE_FLOW_NODE_SIZE.width,
-    height: TOPIC_MESSAGE_FLOW_NODE_SIZE.height,
-    initialWidth: TOPIC_MESSAGE_FLOW_NODE_SIZE.width,
-    initialHeight: TOPIC_MESSAGE_FLOW_NODE_SIZE.height,
+    width: size.width,
+    measured: size,
     style: {
-      width: TOPIC_MESSAGE_FLOW_NODE_SIZE.width,
-      height: TOPIC_MESSAGE_FLOW_NODE_SIZE.height
+      width: size.width
     }
   }
 }
@@ -117,26 +133,19 @@ function toReactFlowEdge(edge: TopicMessageFlowGraphEdge): TopicMessageFlowEdgeM
 
   return {
     id: edge.id,
-    type: 'smoothstep',
+    type: 'default',
     source: edge.source,
     target: edge.target,
     data: {
       ...edge.data,
       state
     },
-    animated: state === 'active',
+    animated: false,
     selectable: false,
     interactionWidth: state === 'active' ? 20 : 12,
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      color,
-      width: 16,
-      height: 16
-    },
     style: {
       stroke: color,
       strokeWidth: state === 'active' ? 2.25 : 1.5,
-      strokeDasharray: state === 'active' || state === 'sibling' || state === 'inactive' ? '4 4' : undefined,
       opacity: 1
     }
   }
