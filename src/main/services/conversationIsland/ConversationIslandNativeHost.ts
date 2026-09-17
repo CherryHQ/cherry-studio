@@ -18,6 +18,9 @@ const logger = loggerService.withContext('ConversationIsland:Native')
 const READY_TIMEOUT_MS = 3_000
 const IDLE_TIMEOUT_MS = 30_000
 const SHUTDOWN_GRACE_MS = 1_000
+const CRASH_WINDOW_MS = 60_000
+const RESTART_DELAYS_MS = [250, 1_000, 4_000] as const
+const CIRCUIT_BREAKER_CRASH_COUNT = 4
 const STDERR_MAX_LINE_LENGTH = 4_096
 
 export type PresentCommand = Extract<ConversationIslandCommand, { type: 'present' }>
@@ -71,6 +74,7 @@ interface Generation {
   blocked: boolean
   stopping: boolean
   exited: boolean
+  failureHandled: boolean
   readyTimer: TimerHandle | null
   idleTimer: TimerHandle | null
   terminateTimer: TimerHandle | null
@@ -110,11 +114,15 @@ export class ConversationIslandNativeHost {
   private readonly setTimer: (callback: () => void, delay: number) => TimerHandle
   private readonly clearTimer: (timer: TimerHandle) => void
   private readonly callbacks: NativeHostCallbacks
+  private readonly generations = new Set<Generation>()
   private generationSequence = 0
   private current: Generation | null = null
   private desired: StateCommand | null = null
   private pending: StateCommand | null = null
   private terminateAfterHiddenRevision: number | null = null
+  private crashTimestamps: number[] = []
+  private restartTimer: TimerHandle | null = null
+  private circuitOpen = false
   private closed = false
   private shutdownPromise: Promise<void> | null = null
 
@@ -133,7 +141,7 @@ export class ConversationIslandNativeHost {
     if (this.current) this.clearIdleTimer(this.current)
     this.terminateAfterHiddenRevision = null
 
-    if (!this.current) this.start()
+    if (!this.current && !this.restartTimer && !this.circuitOpen) this.start()
     this.flushPending()
   }
 
@@ -141,19 +149,31 @@ export class ConversationIslandNativeHost {
     if (this.closed || !this.updateDesired(command)) return
 
     this.terminateAfterHiddenRevision = terminateAfterHidden ? command.revision : null
+    this.cancelRestart()
     this.flushPending()
+  }
+
+  public resetCircuit(): void {
+    this.crashTimestamps = []
+    this.circuitOpen = false
+    this.cancelRestart()
+
+    if (!this.closed && !this.current && this.desired?.type === 'present') this.start()
   }
 
   public shutdown(): Promise<void> {
     if (this.shutdownPromise) return this.shutdownPromise
 
     this.closed = true
+    this.cancelRestart()
     this.pending = null
     this.desired = null
     this.terminateAfterHiddenRevision = null
 
-    const generation = this.current
-    this.shutdownPromise = generation ? this.stopGeneration(generation) : Promise.resolve()
+    const generations = [...this.generations]
+    this.shutdownPromise = generations.length
+      ? Promise.all(generations.map((generation) => this.stopGeneration(generation))).then(() => undefined)
+      : Promise.resolve()
     return this.shutdownPromise
   }
 
@@ -192,6 +212,7 @@ export class ConversationIslandNativeHost {
       blocked: false,
       stopping: false,
       exited: false,
+      failureHandled: false,
       readyTimer: null,
       idleTimer: null,
       terminateTimer: null,
@@ -214,6 +235,7 @@ export class ConversationIslandNativeHost {
     }
 
     this.current = generation
+    this.generations.add(generation)
     this.attachListeners(generation)
     generation.readyTimer = this.createTimer(READY_TIMEOUT_MS, () => {
       this.handleUnexpectedFailure('ready-timeout', generation)
@@ -369,10 +391,35 @@ export class ConversationIslandNativeHost {
   }
 
   private handleUnexpectedFailure(reason: FailureReason, generation: Generation | null = this.current): void {
-    if (generation && (this.current !== generation || generation.stopping)) return
+    if (generation) {
+      if (this.current !== generation || generation.stopping || generation.failureHandled) return
+      generation.failureHandled = true
+    }
 
     logger.warn('Conversation Island native helper failed', { reason })
     if (generation && !generation.exited) void this.stopGeneration(generation)
+    if (generation && this.current === generation) this.current = null
+
+    if (this.closed || this.desired?.type !== 'present') return
+
+    this.pending = this.desired
+    const now = this.now()
+    this.crashTimestamps = this.crashTimestamps.filter((timestamp) => now - timestamp < CRASH_WINDOW_MS)
+    this.crashTimestamps.push(now)
+    const crashCount = this.crashTimestamps.length
+
+    if (crashCount >= CIRCUIT_BREAKER_CRASH_COUNT) {
+      this.circuitOpen = true
+      this.cancelRestart()
+      logger.error('Conversation Island native helper circuit opened', {
+        crashCount,
+        errorKind: reason,
+        state: this.desired.type
+      })
+      return
+    }
+
+    this.scheduleRestart(RESTART_DELAYS_MS[crashCount - 1])
   }
 
   private handleExit(generation: Generation): void {
@@ -396,7 +443,26 @@ export class ConversationIslandNativeHost {
       this.current = null
       this.pending = null
     }
+    this.generations.delete(generation)
     generation.resolveExit()
+  }
+
+  private scheduleRestart(delay: number): void {
+    if (this.restartTimer || this.closed || this.circuitOpen || this.desired?.type !== 'present') return
+
+    this.restartTimer = this.createTimer(delay, () => {
+      this.restartTimer = null
+      if (this.closed || this.circuitOpen || this.current || this.desired?.type !== 'present') return
+
+      this.pending = this.desired
+      this.start()
+    })
+  }
+
+  private cancelRestart(): void {
+    if (!this.restartTimer) return
+    this.clearTimer(this.restartTimer)
+    this.restartTimer = null
   }
 
   private handleStderrData(generation: Generation, chunk: Buffer | string): void {

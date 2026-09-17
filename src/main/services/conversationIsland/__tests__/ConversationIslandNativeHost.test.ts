@@ -12,6 +12,7 @@ import {
 const mocks = vi.hoisted(() => ({
   isPackaged: false,
   getPath: vi.fn(),
+  loggerError: vi.fn(),
   loggerWarn: vi.fn()
 }))
 
@@ -26,7 +27,7 @@ vi.mock('electron', () => ({
 vi.mock('@application', () => ({ application: { getPath: mocks.getPath } }))
 
 vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ warn: mocks.loggerWarn }) }
+  loggerService: { withContext: () => ({ error: mocks.loggerError, warn: mocks.loggerWarn }) }
 }))
 
 const { ConversationIslandNativeHost } = await import('../ConversationIslandNativeHost')
@@ -217,6 +218,191 @@ describe('ConversationIslandNativeHost', () => {
       reason: 'ready-timeout'
     })
     expect(JSON.stringify(mocks.loggerWarn.mock.calls)).not.toContain(activity.title)
+  })
+
+  it('restarts active crashes with bounded backoff and replays the latest present after each ready', () => {
+    const { children, host, spawnProcess } = createHarness()
+    host.present(present(1))
+    ready(children[0])
+
+    children[0].exit(1)
+    host.present(present(2))
+    vi.advanceTimersByTime(249)
+    expect(spawnProcess).toHaveBeenCalledOnce()
+    vi.advanceTimersByTime(1)
+    ready(children[1])
+    expect(decoded(children[1].stdin.writes)).toEqual([present(2)])
+
+    children[1].exit(1)
+    host.present(present(3))
+    vi.advanceTimersByTime(999)
+    expect(spawnProcess).toHaveBeenCalledTimes(2)
+    vi.advanceTimersByTime(1)
+    ready(children[2])
+    expect(decoded(children[2].stdin.writes)).toEqual([present(3)])
+
+    children[2].exit(1)
+    host.present(present(4))
+    vi.advanceTimersByTime(3_999)
+    expect(spawnProcess).toHaveBeenCalledTimes(3)
+    vi.advanceTimersByTime(1)
+    ready(children[3])
+    expect(decoded(children[3].stdin.writes)).toEqual([present(4)])
+  })
+
+  it('opens the circuit after four active crashes within sixty seconds', () => {
+    const { children, host, spawnProcess } = createHarness()
+    host.present(present(1))
+    ready(children[0])
+
+    for (const delay of [250, 1_000, 4_000]) {
+      children.at(-1)!.exit(1)
+      vi.advanceTimersByTime(delay)
+      ready(children.at(-1)!)
+    }
+
+    children.at(-1)!.exit(1)
+    vi.advanceTimersByTime(120_000)
+
+    expect(spawnProcess).toHaveBeenCalledTimes(4)
+    expect(mocks.loggerError).toHaveBeenCalledWith('Conversation Island native helper circuit opened', {
+      crashCount: 4,
+      errorKind: 'process-exit',
+      state: 'present'
+    })
+    expect(JSON.stringify(mocks.loggerError.mock.calls)).not.toContain(activity.title)
+  })
+
+  it('counts an error and subsequent exit from one generation as one crash', () => {
+    const { children, host, spawnProcess } = createHarness()
+    host.present(present(1))
+    ready(children[0])
+
+    children[0].emit('error', new Error('private process details'))
+    children[0].exit(1)
+    vi.advanceTimersByTime(250)
+    ready(children[1])
+
+    children[1].exit(1)
+    vi.advanceTimersByTime(999)
+    expect(spawnProcess).toHaveBeenCalledTimes(2)
+    vi.advanceTimersByTime(1)
+    expect(spawnProcess).toHaveBeenCalledTimes(3)
+  })
+
+  it('applies the same crash recovery policy to ready timeouts', () => {
+    const { children, host, spawnProcess } = createHarness()
+    host.present(present(1))
+
+    vi.advanceTimersByTime(3_000)
+    vi.advanceTimersByTime(249)
+    expect(spawnProcess).toHaveBeenCalledOnce()
+    vi.advanceTimersByTime(1)
+    expect(spawnProcess).toHaveBeenCalledTimes(2)
+
+    ready(children[1])
+    expect(decoded(children[1].stdin.writes)).toEqual([present(1)])
+  })
+
+  it('does not count or restart a crash while hidden and idle', () => {
+    const { children, host, spawnProcess } = createHarness()
+    host.present(present(1))
+    ready(children[0])
+    host.dismiss(dismiss(2))
+    children[0].stdout.push(helperEvent({ version: 1, type: 'hidden', revision: 2 }))
+
+    children[0].exit(1)
+    vi.advanceTimersByTime(60_000)
+    expect(spawnProcess).toHaveBeenCalledOnce()
+
+    host.present(present(3))
+    ready(children[1])
+    children[1].exit(1)
+    vi.advanceTimersByTime(249)
+    expect(spawnProcess).toHaveBeenCalledTimes(2)
+    vi.advanceTimersByTime(1)
+    expect(spawnProcess).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not count a normal idle shutdown as a crash', () => {
+    const { children, host, spawnProcess } = createHarness()
+    host.present(present(1))
+    ready(children[0])
+    host.dismiss(dismiss(2))
+    children[0].stdout.push(helperEvent({ version: 1, type: 'hidden', revision: 2 }))
+
+    vi.advanceTimersByTime(30_000)
+    children[0].exit(0)
+    host.present(present(3))
+    ready(children[1])
+    children[1].exit(1)
+
+    vi.advanceTimersByTime(249)
+    expect(spawnProcess).toHaveBeenCalledTimes(2)
+    vi.advanceTimersByTime(1)
+    expect(spawnProcess).toHaveBeenCalledTimes(3)
+  })
+
+  it('coalesces present updates during backoff and cancels a pending restart on dismiss', () => {
+    const { children, host, spawnProcess } = createHarness()
+    host.present(present(1))
+    ready(children[0])
+
+    children[0].exit(1)
+    host.present(present(2))
+    host.present(present(3))
+    vi.advanceTimersByTime(250)
+    expect(spawnProcess).toHaveBeenCalledTimes(2)
+    ready(children[1])
+    expect(decoded(children[1].stdin.writes)).toEqual([present(3)])
+
+    children[1].exit(1)
+    host.present(present(4))
+    host.dismiss(dismiss(5))
+    vi.advanceTimersByTime(1_000)
+    expect(spawnProcess).toHaveBeenCalledTimes(2)
+  })
+
+  it('starts the latest present when the circuit is reset', () => {
+    const { children, host, spawnProcess } = createHarness()
+    host.present(present(1))
+    ready(children[0])
+
+    for (const delay of [250, 1_000, 4_000]) {
+      children.at(-1)!.exit(1)
+      vi.advanceTimersByTime(delay)
+      ready(children.at(-1)!)
+    }
+    children.at(-1)!.exit(1)
+    host.present(present(8))
+
+    vi.advanceTimersByTime(10_000)
+    expect(spawnProcess).toHaveBeenCalledTimes(4)
+    host.resetCircuit()
+    expect(spawnProcess).toHaveBeenCalledTimes(5)
+    ready(children[4])
+    expect(decoded(children[4].stdin.writes)).toEqual([present(8)])
+  })
+
+  it('slides old crashes out of the window and returns to the shortest delay', () => {
+    const { children, host, spawnProcess } = createHarness()
+    host.present(present(1))
+    ready(children[0])
+
+    for (const delay of [250, 1_000, 4_000]) {
+      children.at(-1)!.exit(1)
+      vi.advanceTimersByTime(delay)
+      ready(children.at(-1)!)
+    }
+
+    vi.advanceTimersByTime(60_000)
+    children.at(-1)!.exit(1)
+    vi.advanceTimersByTime(249)
+    expect(spawnProcess).toHaveBeenCalledTimes(4)
+    vi.advanceTimersByTime(1)
+
+    expect(spawnProcess).toHaveBeenCalledTimes(5)
+    expect(mocks.loggerError).not.toHaveBeenCalled()
   })
 
   it('flushes only the latest desired state when the child becomes ready', () => {
