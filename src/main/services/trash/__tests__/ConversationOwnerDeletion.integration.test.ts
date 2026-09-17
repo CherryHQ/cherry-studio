@@ -8,6 +8,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { assistantTable } from '@data/db/schemas/assistant'
+import { followupQueueTable } from '@data/db/schemas/followupQueue'
 import { topicTable } from '@data/db/schemas/topic'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { assistantDataService } from '@data/services/AssistantService'
@@ -18,6 +19,8 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { TrashService } from '../TrashService'
 
 const mocks = vi.hoisted(() => ({ busy: false, runtimeBusy: false }))
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
@@ -187,4 +190,33 @@ describe('conversation owner permanent deletion', () => {
     expect(dbh.db.select().from(topicTable).all()).toHaveLength(3)
     expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(3)
   })
+
+  it.each([false, true])(
+    'purges session queue rows and invalidates renderer mirrors on permanent delete: %s',
+    async (deleteSessions) => {
+      dbh.db
+        .insert(followupQueueTable)
+        .values({
+          id: '11111111-1111-7111-8111-111111111111',
+          scopeKey: 'agent-session:active-session',
+          draft: { text: 'queued', tokens: [] },
+          payload: { text: 'queued', userMessageParts: [] },
+          status: 'pending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        })
+        .run()
+      notifyDataApiDataChangeMock.mockClear()
+
+      const result = await new AgentLifecycleService().deleteActiveAgentPermanently('agent', deleteSessions)
+
+      expect(result.deleted).toBe(true)
+      expect(dbh.db.select().from(followupQueueTable).all()).toHaveLength(0)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/followup-queues', kind: 'membership', dimension: 'scopeKey' },
+        { endpoint: '/followup-queue-states' }
+      ])
+    }
+  )
 })
