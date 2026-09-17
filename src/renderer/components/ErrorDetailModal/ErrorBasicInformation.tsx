@@ -35,9 +35,7 @@ export function ErrorBasicInformation({
 }: ErrorBasicInformationProps) {
   const { t, i18n } = useTranslation()
   const location = diagnosticReport?.location ?? diagnosisContext?.errorSource
-  const locationLabel = location?.trim()
-    ? resolveDiagnosticReportLocation(t, location, i18n.language)
-    : undefined
+  const locationLabel = location?.trim() ? resolveDiagnosticReportLocation(t, location, i18n.language) : undefined
   const labels = {
     errorMessage: t('error.message'),
     location: t('error.diagnostic_report.location'),
