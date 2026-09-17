@@ -881,6 +881,25 @@
       ]
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "description": "ComfyUI - AI model provider",
+      "endpointConfigs": {
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:8188"
+        }
+      },
+      "id": "comfyui",
+      "metadata": {
+        "website": {
+          "docs": "https://docs.comfy.org/development/comfyui-server/comms_routes",
+          "official": "https://www.comfy.org/"
+        }
+      },
+      "name": "ComfyUI"
+    },
+    {
       "authMethods": ["oauth"],
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
@@ -2600,26 +2619,7 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
-    },
-    {
-      "authOptional": true,
-      "availableInEditions": ["global", "cn"],
-      "description": "ComfyUI - AI model provider",
-      "endpointConfigs": {
-        "openai-image-generation": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "http://localhost:8188"
-        }
-      },
-      "id": "comfyui",
-      "metadata": {
-        "website": {
-          "docs": "https://docs.comfy.org/development/comfyui-server/comms_routes",
-          "official": "https://www.comfy.org/"
-        }
-      },
-      "name": "ComfyUI"
     }
   ],
-  "version": "e071806e834539e1"
+  "version": "d05e05a898f7b66d"
 }

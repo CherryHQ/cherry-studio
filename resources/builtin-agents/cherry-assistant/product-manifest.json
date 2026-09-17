@@ -465,7 +465,7 @@
     }
   ],
   "providers": {
-    "version": "e071806e834539e1",
+    "version": "d05e05a898f7b66d",
     "count": 63,
     "entries": [
       {
@@ -567,6 +567,10 @@
       {
         "id": "claude-code",
         "name": "Claude Code"
+      },
+      {
+        "id": "comfyui",
+        "name": "ComfyUI"
       },
       {
         "id": "openai-codex",
@@ -719,10 +723,6 @@
       {
         "id": "minimax-global",
         "name": "minimax-global"
-      },
-      {
-        "id": "comfyui",
-        "name": "ComfyUI"
       }
     ]
   },
