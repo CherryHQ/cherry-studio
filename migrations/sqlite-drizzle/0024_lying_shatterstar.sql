@@ -9,6 +9,13 @@ WHERE `id` IN (
   WHERE `job`.`type` = 'agent.task'
     AND json_extract(`job`.`input`, '$.prompt') = '__heartbeat__'
     AND json_extract(`job_schedule`.`job_input_template`, '$.prompt') = '__heartbeat__'
+    -- The reserved `heartbeat_<agentId>` shape only sync mints; a user-authored
+    -- schedule that carries the sentinel prompt is left visible.
+    AND substr(
+      `job_schedule`.`name`,
+      1,
+      length('heartbeat_') + length(json_extract(`job_schedule`.`job_input_template`, '$.agentId'))
+    ) = 'heartbeat_' || json_extract(`job_schedule`.`job_input_template`, '$.agentId')
 )
 AND NOT EXISTS (
   SELECT 1 FROM `job`

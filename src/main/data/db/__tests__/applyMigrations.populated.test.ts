@@ -128,10 +128,10 @@ describe('applyMigrations over a populated database', () => {
     sqlite
       .prepare(`INSERT INTO job_schedule
       (id, type, name, trigger, job_input_template, catch_up_policy, created_at, updated_at)
-      VALUES ('heartbeat-schedule', 'agent.task', 'heartbeat', ?, ?, ?, ?, ?)`)
+      VALUES ('heartbeat-schedule', 'agent.task', 'heartbeat_agent-1', ?, ?, ?, ?, ?)`)
       .run(
         JSON.stringify({ kind: 'interval', ms: 60_000 }),
-        JSON.stringify({ prompt: '__heartbeat__' }),
+        JSON.stringify({ agentId: 'agent-1', prompt: '__heartbeat__' }),
         JSON.stringify({ kind: 'skip-missed' }),
         now,
         now

@@ -15,9 +15,11 @@ import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
  * The backfill may only retype sessions a heartbeat run created. Keying on
  * the sentinel prompt alone would also hide a legacy user task whose prompt
  * happened to be exactly '__heartbeat__' — a real user session disappearing
- * from conversations. The shipped statement therefore additionally requires
- * the referencing fire's schedule template to carry the sentinel, which only
- * heartbeat schedules do.
+ * from conversations. A sentinel template is not enough either: before the
+ * sentinel guard, a user could save such a task, and it would carry the same
+ * template. The shipped statement therefore also requires the reserved
+ * `heartbeat_<agentId>` schedule name that only sync mints; a schedule without
+ * that shape stays visible, which is the safe direction.
  */
 
 function readBackfillStatement(): string {
@@ -40,6 +42,7 @@ describe('agent session type backfill (migration 0024)', () => {
     prompt?: string
     sessionId: string
     schedulePrompt?: string
+    scheduleName?: string
   }) {
     if (values.scheduleId && values.schedulePrompt) {
       dbh.db
@@ -47,7 +50,7 @@ describe('agent session type backfill (migration 0024)', () => {
         .values({
           id: values.scheduleId,
           type: 'agent.task',
-          name: `schedule-${values.scheduleId}`,
+          name: values.scheduleName ?? `schedule-${values.scheduleId}`,
           trigger: { kind: 'interval', ms: 60_000 },
           jobInputTemplate: { agentId: 'agent', prompt: values.schedulePrompt },
           catchUpPolicy: { kind: 'skip-missed' },
@@ -97,13 +100,47 @@ describe('agent session type backfill (migration 0024)', () => {
       scheduleId: 'sched-hb',
       prompt: '__heartbeat__',
       sessionId: 'sess-hb',
-      schedulePrompt: '__heartbeat__'
+      schedulePrompt: '__heartbeat__',
+      scheduleName: 'heartbeat_agent'
     })
 
     dbh.sqlite.exec(readBackfillStatement())
 
     expect(typeOf('sess-hb')).toBe('background')
     expect(typeOf('sess-untouched')).toBe('conversation')
+  })
+
+  it('retypes sessions a disambiguated heartbeat schedule created', () => {
+    seedSessions(['sess-hb-renamed'])
+    seedRow({
+      id: 'hb-renamed',
+      scheduleId: 'sched-hb-renamed',
+      prompt: '__heartbeat__',
+      sessionId: 'sess-hb-renamed',
+      schedulePrompt: '__heartbeat__',
+      scheduleName: 'heartbeat_agent__1a2b3c4d'
+    })
+
+    dbh.sqlite.exec(readBackfillStatement())
+
+    expect(typeOf('sess-hb-renamed')).toBe('background')
+  })
+
+  it('keeps a sentinel-prompted user schedule that is not in the reserved name space', () => {
+    seedSessions(['sess-user-schedule-sentinel'])
+    // Pre-guard, a user could save a task whose prompt is the sentinel; both the
+    // fire and its template then carry it. The name is what sync alone mints.
+    seedRow({
+      id: 'user-schedule-sentinel',
+      scheduleId: 'sched-user-sentinel',
+      prompt: '__heartbeat__',
+      sessionId: 'sess-user-schedule-sentinel',
+      schedulePrompt: '__heartbeat__'
+    })
+
+    dbh.sqlite.exec(readBackfillStatement())
+
+    expect(typeOf('sess-user-schedule-sentinel')).toBe('conversation')
   })
 
   it('keeps sessions a user task touched, including a sentinel-prompted legacy task', () => {
@@ -116,7 +153,8 @@ describe('agent session type backfill (migration 0024)', () => {
       scheduleId: 'sched-hb',
       prompt: '__heartbeat__',
       sessionId: 'sess-mixed',
-      schedulePrompt: '__heartbeat__'
+      schedulePrompt: '__heartbeat__',
+      scheduleName: 'heartbeat_agent'
     })
     seedRow({
       id: 'user-shared',
