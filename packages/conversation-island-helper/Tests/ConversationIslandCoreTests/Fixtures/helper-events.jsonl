@@ -1,0 +1,4 @@
+{"version":1,"type":"ready","pid":4242}
+{"version":1,"type":"setExpanded","revision":42,"expanded":true}
+{"version":1,"type":"openActivity","revision":42,"activityId":"topic-1"}
+{"version":1,"type":"hidden","revision":43}

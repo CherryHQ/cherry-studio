@@ -1,0 +1,3 @@
+{"version":1,"type":"present","revision":42,"payload":{"displayId":1,"expanded":false,"reducedMotion":false,"theme":{"appearance":"dark","primaryColor":"#00B96B","fontFamily":""},"primaryActivityId":"topic-1","activityCountText":"2 个活动","activities":[{"activityId":"topic-1","identityAvatar":"🤖","identityName":"Assistant","state":"streaming","statusText":"正在生成","title":"性能分析"},{"activityId":"topic-2","identityAvatar":"🧠","identityName":"Reviewer","state":"awaiting-confirmation","statusText":"等待确认","title":"检查变更"}]}}
+{"version":1,"type":"dismiss","revision":43}
+{"version":1,"type":"shutdown"}
