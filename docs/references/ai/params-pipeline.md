@@ -123,7 +123,7 @@ buildAgentParams(input)
   ├─ resolveEffectiveEndpoint → endpointType (model > provider default)
   ├─ resolveAiSdkProviderId   → adapter-family routing (see adapter-family.md)
   ├─ extractAiSdkStandardParams → standard params + provider-scoped params
-  ├─ resolveRequestedMaxOutputTokens → raw output limit before reasoning adjustment
+  ├─ resolveRequestedMaxOutputTokens → model-clamped total output budget before reasoning adjustment
   ├─ resolveReasoningInvocation → reasoning wire + explicit thinking budget
   ├─ collectFromFeatures      → plugins + hookParts
   ├─ assembleSystemPrompt     → assistant prompt + deferred-tools header
