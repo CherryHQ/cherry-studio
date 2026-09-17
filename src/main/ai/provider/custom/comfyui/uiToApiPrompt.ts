@@ -220,10 +220,7 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
         if (slot.link != null) {
           byName.set(slot.name, resolveLink(slot.link, links, remap, bindings))
         } else if ('widget' in slot) {
-          byName.set(
-            slot.name,
-            Array.isArray(values) ? values[widgetIndex] : values?.[slot.name]
-          )
+          byName.set(slot.name, Array.isArray(values) ? values[widgetIndex] : values?.[slot.name])
           widgetIndex += 1
         }
       }
