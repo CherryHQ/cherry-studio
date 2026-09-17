@@ -47,6 +47,19 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId }: Props) => {
   const { data: usageData } = useQuery('/ai-usage-records/stats', statsParams)
   const usedCount = usageData?.buckets.find((b) => b.groupBy === 'apiKey' && b.apiKeyId === keyId)?.requestCount ?? 0
 
+  const renewsAt = useMemo(() => {
+    if (!entry) return null
+    if (entry.period === 'daily') {
+      const d = new Date()
+      d.setUTCHours(24, 0, 0, 0)
+      return d
+    }
+    const d = new Date()
+    d.setUTCMonth(d.getUTCMonth() + 1, 1)
+    d.setUTCHours(0, 0, 0, 0)
+    return d
+  }, [entry?.period])
+
   const update = (next: { limit: number; period: 'daily' | 'monthly' } | undefined) => {
     const id = apiKeyLimitId(providerId, keyId)
     const { [id]: _removed, ...rest } = limits
@@ -78,16 +91,25 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId }: Props) => {
         />
       </div>
       {entry && (
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-xs">
-            {t('settings.provider.api_key.quota_used', { used: usedCount, limit: entry.limit })}
-          </span>
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${Math.min(100, (usedCount / entry.limit) * 100)}%` }}
-            />
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground text-xs">
+              {t('settings.provider.api_key.quota_used', { used: usedCount, limit: entry.limit })}
+            </span>
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${Math.min(100, (usedCount / entry.limit) * 100)}%` }}
+              />
+            </div>
           </div>
+          {renewsAt && (
+            <span className="text-muted-foreground text-xs">
+              {t('settings.provider.api_key.quota_renews_at', {
+                date: renewsAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+              })}
+            </span>
+          )}
         </div>
       )}
     </div>

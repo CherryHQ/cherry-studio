@@ -103,9 +103,9 @@ kalite × kota. Elle seçim üstte ayrı katman — ezilmiyor, geçersizse okunu
 
 ## Faz 3 — Kota ve kullanım paneli
 
-- [ ] 3.1 Key başına yenilenme zamanı göstergesi: günlük limit UTC 00:00, aylık limit dönem başından 30 gün — `ApiKeyQuotaLimit`'e "yenilenir: …" satırı
-- [ ] 3.2 Sağlayıcı panelinde durum rozeti: çalışıyor / kotası dolu / hatalı — `ConnectionSettings`'e badge
-- [ ] 3.3 Sağlayıcı sayfası i18n: 3.1-3.2 yeni metinleri 13 dilde
+- [x] 3.1 Key başına yenilenme zamanı göstergesi: günlük limit UTC 00:00, aylık limit dönem başından 30 gün — `ApiKeyQuotaLimit`'e "yenilenir: …" satırı
+- [x] 3.2 Sağlayıcı panelinde durum rozeti: çalışıyor / kotası dolu / hatalı — `ConnectionSettings`'e badge
+- [x] 3.3 Sağlayıcı sayfası i18n: 3.1-3.2 yeni metinleri 13 dilde
 
 ## Faz 4 — Video üretimi
 
@@ -174,6 +174,8 @@ Motor tarafı bitti ama tercihleri girecek ekran yok; şu an ayarlar sadece veri
 - 6.6/3.4: `TaskRoutingSettings.tsx` yenilendi — otomatik mod: "Auto" badge + türetilmiş tablonun en iyi adayı + skor dökümü (kalite/uyumluluk/sağlık/kota); elle seçim: model seçici + "otomatiğe dön" butonu.
 - 6.7: 4 yeni routing i18n anahtarı 13 kataloga eklendi (`pnpm i18n:sync` + i18n-translator).
 - 4.1: `chat.routing.pinned_model` tercihi eklendi; `routeDefaultModelId` önce bu modeli döndürüyor (elle seçim hâlâ her şeyi geçer). `TaskRoutingSettings` üstüne model seçici + sabitlemeyi-kaldır butonu eklendi. 2 yeni i18n anahtarı 13 dilde çevrildi.
+- 3.1: `ApiKeyQuotaLimit`'e `renewsAt` hesabı eklendi — günlük UTC gece yarısı, aylık 1. gün.
+- 3.2: `ProviderHeader`'a `ProviderStatusBadge` eklendi — `chat.retry.model_health` tercihinden son 2 saatte hatalı model varsa kırmızı "Hata" rozeti gösteriyor.
 - Faz 1 (yetenek): 1.1 `McpServerFields.tsx`'e `FilesystemBaseDirField` eklendi — `@cherry/filesystem` sunucusunda args alanı yerine dizin seçici gösteriliyor; 1.2-1.3 zaten doğruydu; 1.4 `enableWebSearch=true` yapıldı.
 - Ortam: Visual Studio Build Tools (MSVC 14.44) kuruldu — `better-sqlite3` Electron için derlenebiliyor, kurulum paketi üretimi açıldı.
 - Engel notu: `@paymoapp/electron-shutdown-handler` derlenemediği için `node_modules` içindeki `dist/index.js`'te native yükleme try/catch'e alındı (modülün kendi kodu zaten `addon = null` durumunu karşılıyor). **Yeniden kurulumda tekrar uygulanmalı.**

@@ -1,14 +1,44 @@
 import { Bolt } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 
 import { useProviderEnable } from '../hooks/providerSetting/useProviderEnable'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import ProviderApiOptionsDrawer from './ProviderApiOptionsDrawer'
+
+const HEALTH_STALE_MS = 2 * 60 * 60 * 1000
+
+function ProviderStatusBadge({ providerId }: { providerId: string }) {
+  const { t } = useTranslation()
+  const [modelHealth] = usePreference('chat.retry.model_health')
+  const { models } = useModels({ providerId })
+
+  const status = useMemo(() => {
+    if (!modelHealth || models.length === 0) return null
+    const now = Date.now()
+    const recentHealthEntries = models
+      .map((m) => modelHealth[m.id])
+      .filter((h) => h && now - h.checkedAt < HEALTH_STALE_MS)
+    if (recentHealthEntries.length === 0) return null
+    const anyFailed = recentHealthEntries.some((h) => !h!.ok)
+    return anyFailed ? 'error' : 'ok'
+  }, [modelHealth, models])
+
+  if (status === 'error') {
+    return (
+      <Badge variant="destructive" className="h-4 px-1.5 text-[10px]">
+        {t('settings.provider.status.error')}
+      </Badge>
+    )
+  }
+  return null
+}
 
 interface ProviderHeaderProps {
   providerId: string
@@ -63,6 +93,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                   meta.fancyProviderName
                 )}
               </h1>
+              {provider.isEnabled && <ProviderStatusBadge providerId={providerId} />}
               {meta.showApiOptionsButton && (
                 <Tooltip content={t('settings.provider.api.options.label')}>
                   <Button
