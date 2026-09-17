@@ -694,6 +694,15 @@ describe('useSessions', () => {
     expect(deleted).toBe(false)
   })
 
+  it('uses the direct permanent deletion command only for explicit permanent deletion', async () => {
+    mockIpcRequest.mockResolvedValue({ deletedIds: ['session-a'] })
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const deleted = await act(async () => result.current.deleteSession('session-a', { permanent: true }))
+    expect(deleted).toBe(true)
+    expect(mockIpcRequest).toHaveBeenCalledWith('ai.agent.session.delete_permanently', { sessionIds: ['session-a'] })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('agents', ['session-a'])
+  })
+
   it('returns a stale outcome without item feedback when a batch owner handles the result', async () => {
     mockIpcRequest.mockResolvedValue({ deletedIds: [] })
 

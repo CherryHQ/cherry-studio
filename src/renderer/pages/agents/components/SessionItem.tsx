@@ -1,4 +1,4 @@
-import { PinIcon, Trash2 } from 'lucide-react'
+import { Archive, PinIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,7 +29,7 @@ import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 interface SessionItemProps {
   active?: boolean
   channelType?: string
-  onDelete: (id: string) => void | Promise<void>
+  onDelete: (id: string, permanent?: boolean) => void | Promise<void>
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onOpenRenameDialog: (session: AgentSessionEntity) => void
@@ -128,6 +128,7 @@ const SessionItem = ({
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
   const startMenuEdit = useCallback(() => onOpenRenameDialog(session), [onOpenRenameDialog, session])
   const handleDelete = useCallback(() => onDelete(session.id), [onDelete, session.id])
+  const handleDeletePermanently = useCallback(() => onDelete(session.id, true), [onDelete, session.id])
   const handleTogglePin = useCallback(() => {
     void onTogglePin?.(session.id)
   }, [onTogglePin, session.id])
@@ -148,6 +149,8 @@ const SessionItem = ({
       onCopyMarkdown: () => sessionMenuActions.onCopyMarkdown(session),
       onCopyPlainText: () => sessionMenuActions.onCopyPlainText(session),
       onDelete: handleDelete,
+      onDeletePermanently: handleDeletePermanently,
+      isBusy: isStreamPending || showAwaitingApprovalBadge,
       onExportImage: () => sessionMenuActions.onExportImage(session),
       onExportJoplin: () => sessionMenuActions.onExportJoplin(session),
       onExportMarkdown: () => sessionMenuActions.onExportMarkdown(session),
@@ -171,6 +174,9 @@ const SessionItem = ({
     }),
     [
       handleDelete,
+      handleDeletePermanently,
+      isStreamPending,
+      showAwaitingApprovalBadge,
       handleOpenInNewTab,
       handleOpenInNewWindow,
       handleTogglePin,
@@ -305,14 +311,15 @@ const SessionItem = ({
           </Tooltip>
         )}
         {!pinned && (
-          <Tooltip title={t('common.delete')} delay={500}>
+          <Tooltip title={t('common.archive')} delay={500}>
             <ResourceList.ItemAction
-              aria-label={t('common.delete')}
+              aria-label={t('common.archive')}
+              disabled={!deleteAction?.availability.enabled}
               onClick={(event) => {
                 event.stopPropagation()
                 if (deleteAction) void handleMenuAction(deleteAction)
               }}>
-              <Trash2 size={14} className="size-3.5!" />
+              <Archive size={14} className="size-3.5!" />
             </ResourceList.ItemAction>
           </Tooltip>
         )}

@@ -8,6 +8,13 @@ import { defineRoute } from '../define'
 
 /** Trash lifecycle commands that coordinate runtime state with persisted data. */
 export const trashRequestSchemas = {
+  'trash.topic.delete_permanently': defineRoute({
+    input: z.strictObject({ topicIds: z.array(z.string().min(1)).min(1) }),
+    output: z.strictObject({
+      deletedIds: z.array(z.string()),
+      deletedCount: z.number().int().nonnegative()
+    }) satisfies z.ZodType<DeleteTopicsResult>
+  }),
   'trash.topic.archive': defineRoute({
     input: z.strictObject({ topicIds: z.array(z.string().min(1)).min(1) }),
     output: z.strictObject({

@@ -145,6 +145,18 @@ describe('TrashService', () => {
     expect(topicService.deleteByIds).not.toHaveBeenCalled()
   })
 
+  it('rejects permanent deletion when a Topic becomes busy before the dispatch lock is acquired', async () => {
+    aiStreamManager.withDispatchLock.mockImplementationOnce(async (id, operation) => {
+      busyTopicIds.add(id)
+      return operation()
+    })
+    await expect(new TrashService().deleteActiveTopicsPermanently(['topic-a'])).rejects.toMatchObject({
+      name: 'TopicArchiveBusyError',
+      topicIds: ['topic-a']
+    })
+    expect(topicService.deleteByIds).not.toHaveBeenCalled()
+  })
+
   it('does not archive an Assistant when a cascading Topic is unsettled', async () => {
     topicService.listActiveIdsByAssistant.mockReturnValue(['topic-a'])
     busyTopicIds.add('topic-a')

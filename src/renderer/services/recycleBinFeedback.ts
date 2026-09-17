@@ -6,9 +6,9 @@ import { isDataApiNotFoundError } from '@shared/data/api/errors'
 
 const logger = loggerService.withContext('recycleBinFeedback')
 
-export function showRecycleBinUndo(input: { itemName: string; onUndo: () => Promise<void> }): void {
+export function showRecycleBinUndo(input: { itemName: string; title?: string; onUndo: () => Promise<void> }): void {
   toast.success({
-    title: i18n.t('recycle_bin.moved', { name: input.itemName }),
+    title: input.title ?? i18n.t('recycle_bin.moved', { name: input.itemName }),
     timeout: 5000,
     action: {
       label: i18n.t('common.undo'),

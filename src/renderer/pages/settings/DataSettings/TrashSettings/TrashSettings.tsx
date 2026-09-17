@@ -249,7 +249,7 @@ const TrashSettings: FC = () => {
     <>
       <SettingTitle>
         <span>{t('settings.data.trash.title')}</span>
-        <Button variant="outline" onClick={() => setEmptyTrashOpen(true)}>
+        <Button variant="outline" className="text-destructive" onClick={() => setEmptyTrashOpen(true)}>
           {t('settings.data.trash.empty_trash.button')}
         </Button>
       </SettingTitle>

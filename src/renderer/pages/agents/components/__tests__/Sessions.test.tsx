@@ -654,6 +654,7 @@ vi.mock('react-i18next', () => ({
         'chat.topics.copy.title': 'Copy',
         'common.cancel': 'Cancel',
         'common.delete': 'Delete',
+        'common.archive': 'Archive',
         'common.delete_success': 'Deleted successfully',
         'common.error': 'Error',
         'common.loading': 'Loading...',
@@ -850,7 +851,7 @@ function openSessionListOptions() {
 
 function deleteSessionRow(row: HTMLElement) {
   act(() => {
-    fireEvent.click(within(row).getByLabelText('Delete'))
+    fireEvent.click(within(row).getByLabelText('Archive'))
   })
 }
 
@@ -2410,7 +2411,7 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     const sessionRow = screen.getByText('Alpha session').closest('[role="option"]')
-    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Archive')
 
     act(() => {
       fireEvent.click(deleteButton)
@@ -2420,6 +2421,7 @@ describe('Sessions', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'Alpha session',
+      title: 'common.archived',
       onUndo: expect.any(Function)
     })
 

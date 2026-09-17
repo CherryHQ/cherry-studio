@@ -65,19 +65,35 @@ function createTopicActionFixture(overrides: Partial<TopicActionContext> = {}): 
 }
 
 describe('topic context menu actions', () => {
-  it('exposes one recoverable Delete action without a confirmation', async () => {
+  it('exposes recoverable Archive without a destructive style or confirmation', async () => {
     const onDelete = vi.fn()
     const context = createTopicActionFixture({ onDelete })
     const actions = resolveTopicMenuActions(context)
     const deleteAction = actions.find((action) => action.id === 'topic.delete')
 
-    expect(actions.filter((action) => action.danger).map((action) => action.id)).toEqual(['topic.delete'])
-    expect(deleteAction?.label).toBe('common.delete')
+    expect(deleteAction?.danger).toBe(false)
+    expect(deleteAction?.label).toBe('common.archive')
     expect(deleteAction?.confirm).toBeUndefined()
 
     await executeTopicMenuAction(deleteAction!, context)
 
     expect(onDelete).toHaveBeenCalledWith(topic)
+  })
+
+  it('requires destructive confirmation for permanent deletion and blocks it during generation', async () => {
+    const onDeletePermanently = vi.fn()
+    const context = createTopicActionFixture({ onDeletePermanently })
+    const action = resolveTopicMenuActions(context).find((action) => action.id === 'topic.delete-permanently')!
+    expect(action).toMatchObject({
+      danger: true,
+      label: 'common.delete_permanently',
+      confirm: { destructive: true, confirmText: 'common.delete_permanently' }
+    })
+    await expect(executeTopicMenuAction(action, { ...context, isArchiveBlocked: true })).resolves.toBe(false)
+    expect(onDeletePermanently).not.toHaveBeenCalled()
+    await executeTopicMenuAction(action, context)
+    expect(onDeletePermanently).toHaveBeenCalledWith(topic)
+    expect(context.onDelete).not.toHaveBeenCalled()
   })
 
   it('keeps Delete visible but disabled while the Topic has unsettled generation work', async () => {

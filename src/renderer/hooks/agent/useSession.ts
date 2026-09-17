@@ -49,6 +49,7 @@ export type SessionDeleteOutcome = { status: 'succeeded' } | { status: 'stale' }
 
 type DeleteSessionOutcomeOptions = {
   showFeedback?: boolean
+  permanent?: boolean
 }
 
 export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
@@ -328,9 +329,15 @@ export const useSessions = (
   )
 
   const deleteSessionWithOutcome = useCallback(
-    async (id: string, { showFeedback = true }: DeleteSessionOutcomeOptions = {}): Promise<SessionDeleteOutcome> => {
+    async (
+      id: string,
+      { showFeedback = true, permanent = false }: DeleteSessionOutcomeOptions = {}
+    ): Promise<SessionDeleteOutcome> => {
       try {
-        const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: [id] })
+        const result = await ipcApi.request(
+          permanent ? 'ai.agent.session.delete_permanently' : 'ai.agent.session.delete',
+          { sessionIds: [id] }
+        )
         const deleted = result.deletedIds.includes(id)
         if (deleted) closeConversationTabs('agents', result.deletedIds)
         try {
@@ -352,7 +359,8 @@ export const useSessions = (
   )
 
   const deleteSession = useCallback(
-    async (id: string): Promise<boolean> => (await deleteSessionWithOutcome(id)).status === 'succeeded',
+    async (id: string, options?: DeleteSessionOutcomeOptions): Promise<boolean> =>
+      (await deleteSessionWithOutcome(id, options)).status === 'succeeded',
     [deleteSessionWithOutcome]
   )
 

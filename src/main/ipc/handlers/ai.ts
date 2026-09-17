@@ -278,6 +278,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
         : application.get('AgentLifecycleService').archiveSessions(sessionIds)
     ),
   'ai.agent.session.restore': ({ sessionId }) => restoreAgentSession(sessionId),
+  'ai.agent.session.delete_permanently': ({ sessionIds }) =>
+    exposeAgentSessionArchiveError(() =>
+      application.get('AgentLifecycleService').deleteActiveSessionsPermanently(sessionIds)
+    ),
   'ai.agent.session.reuse_or_create': (input) => application.get('AgentLifecycleService').reuseOrCreateSession(input),
   'ai.agent.workspace.delete': ({ workspaceId }) =>
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),

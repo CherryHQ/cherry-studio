@@ -477,11 +477,14 @@ export class TopicService {
     logger.info(options.permanent === true ? 'Permanently deleted topic' : 'Moved topic to Recycle Bin', { id })
   }
 
-  deleteByIds(ids: string[], options: { permanent?: boolean } = {}): DeleteTopicsResult {
+  deleteByIds(
+    ids: string[],
+    options: { permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
+  ): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) =>
       options.permanent === true
-        ? this.purgeManyByIdsTx(tx, ids, { requireAll: true })
+        ? this.purgeManyByIdsTx(tx, ids, { requireAll: true, targetState: options.targetState })
         : this.trashManyByIdsTx(tx, ids, { requireAll: true })
     )
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
@@ -529,14 +532,23 @@ export class TopicService {
     return trashedIds
   }
 
-  private purgeManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
+  private purgeManyByIdsTx(
+    tx: DbOrTx,
+    ids: string[],
+    options: { requireAll?: boolean; targetState?: 'active' | 'trashed' } = {}
+  ): string[] {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
     const rows = tx
       .select({ id: topicTable.id })
       .from(topicTable)
-      .where(and(inArray(topicTable.id, uniqueIds), isNotNull(topicTable.deletedAt)))
+      .where(
+        and(
+          inArray(topicTable.id, uniqueIds),
+          options.targetState === 'active' ? isNull(topicTable.deletedAt) : isNotNull(topicTable.deletedAt)
+        )
+      )
       .all()
     const deletedIds = rows.map((row) => row.id)
 

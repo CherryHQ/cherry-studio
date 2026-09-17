@@ -1,4 +1,5 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
@@ -108,5 +109,38 @@ describe('Agent Session archive persistence', () => {
       status: 'success',
       data: { parts: [{ type: 'text', text: 'Reply persisted before archive' }] }
     })
+  })
+
+  it.each(['stream', 'runtime'])('refuses direct permanent deletion while %s work is unsettled', async (busy) => {
+    mocks.hasUnsettledTopicWork.mockReturnValue(busy === 'stream')
+    mocks.isSessionBusy.mockReturnValue(busy === 'runtime')
+    const service = new AgentLifecycleService()
+    await expect(service.deleteActiveSessionsPermanently([SESSION_ID])).rejects.toMatchObject({
+      name: 'AgentSessionArchiveBusyError'
+    })
+    expect(agentSessionService.getById(SESSION_ID).id).toBe(SESSION_ID)
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('pending')
+  })
+
+  it('permanently deletes an idle active Session and its messages without deleting the user workspace', async () => {
+    mocks.hasUnsettledTopicWork.mockReturnValue(false)
+    const service = new AgentLifecycleService()
+    await expect(service.deleteActiveSessionsPermanently([SESSION_ID])).resolves.toEqual({ deletedIds: [SESSION_ID] })
+    expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID)).get()).toBeUndefined()
+    expect(() => agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow()
+    expect(
+      dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, WORKSPACE_ID)).get()
+    ).toBeDefined()
+    await expect(service.restoreSession(SESSION_ID)).rejects.toThrow()
+  })
+
+  it('keeps archive and active-list permanent deletion state-specific across stale views', async () => {
+    mocks.hasUnsettledTopicWork.mockReturnValue(false)
+    const service = new AgentLifecycleService()
+    await service.archiveSessions([SESSION_ID])
+    await expect(service.deleteActiveSessionsPermanently([SESSION_ID])).resolves.toEqual({ deletedIds: [] })
+    await service.restoreSession(SESSION_ID)
+    await expect(service.purgeSessions([SESSION_ID])).resolves.toEqual({ deletedIds: [] })
+    expect(agentSessionService.getById(SESSION_ID).id).toBe(SESSION_ID)
   })
 })

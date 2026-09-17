@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { FilePenLine, MoreHorizontal, PinIcon, Plus, Trash2, Unlink } from 'lucide-react'
+import { FilePenLine, MoreHorizontal, PinIcon, Plus, Archive, Unlink } from 'lucide-react'
 import type { RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -644,7 +644,7 @@ export function Topics({
   )
 
   const handleDeleteTopicFromMenu = useCallback(
-    async (topic: Topic) => {
+    async (topic: Topic, permanent = false) => {
       const wasActiveAtStart = topic.id === activeTopicIdRef.current
       const assistantTopicsBeforeDelete = topicsRef.current.filter(
         (candidate) => candidate.assistantId === topic.assistantId
@@ -654,11 +654,13 @@ export function Topics({
         findLatestActive(topicsRef.current.filter((candidate) => candidate.id !== topic.id))
 
       try {
-        await deleteTopicById(topic.id)
+        if (permanent) await deleteTopicById(topic.id, { permanent: true, targetState: 'active' })
+        else await deleteTopicById(topic.id)
       } catch (err) {
         logger.error('Failed to delete topic', { topicId: topic.id, err })
         if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
-        else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
+        else if (isTrashTopicBusyError(err))
+          toast.info(t(permanent ? 'chat.topics.delete.blocked_generation' : 'recycle_bin.move.blocked_generation'))
         else toast.error(err instanceof Error ? err.message : t('chat.topics.manage.delete.error'))
         return
       }
@@ -673,8 +675,14 @@ export function Topics({
         else clearActiveTopic()
       }
 
+      if (permanent) {
+        toast.success(t('settings.data.trash.permanent_delete.success'))
+        return
+      }
+
       showRecycleBinUndo({
         itemName: topic.name.trim() || t('chat.conversation.new'),
+        title: t('common.archived', { name: topic.name.trim() || t('chat.conversation.new') }),
         onUndo: () =>
           restoreRecycleBinItem({
             id: topic.id,
@@ -1685,7 +1693,7 @@ interface TopicListBodyProps {
   notesPath: string
   onAutoRename: (topic: Topic) => Promise<void>
   onClearMessages: (topic: Topic) => void
-  onDeleteFromMenu: (topic: Topic) => Promise<void>
+  onDeleteFromMenu: (topic: Topic, permanent?: boolean) => Promise<void>
   onMoveToAssistant: (topic: Topic, assistantId: string) => void | Promise<void>
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void
@@ -1871,6 +1879,7 @@ const TopicRow = memo(function TopicRow({
     onClearMessages,
     onCopyImage: (topic) => onRequestTopicImageAction('copy', topic),
     onDelete: onDeleteFromMenu,
+    onDeletePermanently: (topic) => onDeleteFromMenu(topic, true),
     onExportImage: (topic) => onRequestTopicImageAction('export', topic),
     onMoveToAssistant,
     onOpenInNewTab,
@@ -1945,15 +1954,17 @@ const TopicRow = memo(function TopicRow({
           </Tooltip>
         )}
         {canDeleteTopic && (
-          <Tooltip title={isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : t('common.delete')} delay={500}>
+          <Tooltip
+            title={isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : t('common.archive')}
+            delay={500}>
             <ResourceList.ItemAction
-              aria-label={t('common.delete')}
+              aria-label={t('common.archive')}
               disabled={isArchiveBlocked}
               onClick={(event) => {
                 event.stopPropagation()
                 if (deleteAction) void handleMenuAction(deleteAction)
               }}>
-              <Trash2 size={14} className="size-3.5!" />
+              <Archive size={14} className="size-3.5!" />
             </ResourceList.ItemAction>
           </Tooltip>
         )}

@@ -349,6 +349,10 @@ export const aiRequestSchemas = {
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: AgentSessionEntitySchema
   }),
+  'ai.agent.session.delete_permanently': defineRoute({
+    input: z.strictObject({ sessionIds: z.array(z.string().min(1)).min(1).max(200) }),
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
+  }),
   'ai.agent.session.reuse_or_create': defineRoute({
     input: ReuseOrCreateAgentSessionSchema,
     output: z.custom<ReusableAgentSessionPlaceholdersResponse>()

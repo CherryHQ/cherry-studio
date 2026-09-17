@@ -195,6 +195,7 @@ const TrashSection: FC<TrashSectionProps> = ({
             <Button
               variant="outline"
               size="sm"
+              className="text-destructive"
               disabled={isBatchActionDisabled}
               onClick={() => requestPermanentDelete(selectedItems, true)}>
               {t('settings.data.trash.permanent_delete.selected', { count: selectedItems.length })}

@@ -84,7 +84,7 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="text-muted-foreground hover:text-destructive aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+            className="text-destructive hover:text-destructive focus-visible:text-destructive aria-disabled:cursor-not-allowed aria-disabled:opacity-40 dark:text-destructive"
             aria-label={t('settings.data.trash.permanent_delete.label')}
             aria-disabled={isBatchBlocked || undefined}
             disabled={isRestoring}

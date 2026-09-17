@@ -813,7 +813,7 @@ const Sessions = ({
   )
 
   const handleDeleteSession = useCallback(
-    async (id: string) => {
+    async (id: string, permanent = false) => {
       const deletedSession =
         filteredGroupedSessions.find((session) => session.id === id) ??
         sessionItemsRef.current.find((session) => session.id === id)
@@ -828,7 +828,7 @@ const Sessions = ({
       const wasActive = activeSessionIdRef.current === id
 
       const performDelete = async () => {
-        const success = await deleteSession(id)
+        const success = permanent ? await deleteSession(id, { permanent: true }) : await deleteSession(id)
         if (!success) {
           if (replacement && wasActive && activeSessionIdRef.current === replacement.id) setActiveSessionId(id)
           return
@@ -836,8 +836,14 @@ const Sessions = ({
 
         if (wasActive && !replacement) setTrackedActiveSessionId(null, null)
 
+        if (permanent) {
+          toast.success(t('settings.data.trash.permanent_delete.success'))
+          return
+        }
+
         showRecycleBinUndo({
           itemName: deletedSession?.name || t('common.unnamed'),
+          title: t('common.archived', { name: deletedSession?.name || t('common.unnamed') }),
           onUndo: () =>
             restoreRecycleBinItem({
               id,
@@ -2206,7 +2212,7 @@ interface SessionListBodyProps {
   isDraggable: boolean
   isValidating: boolean
   listRef: RefObject<HTMLDivElement | null>
-  onDeleteSession: (id: string) => Promise<void>
+  onDeleteSession: (id: string, permanent?: boolean) => Promise<void>
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onOpenRenameDialog: (session: AgentSessionEntity) => void

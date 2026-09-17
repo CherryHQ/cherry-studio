@@ -70,6 +70,14 @@ Archive rejects unsettled generation, including terminal persistence. Agent-only
 archive checks its associated Sessions too; retaining Sessions is not permission
 to interrupt their generation.
 
+The Session menu separates recoverable **Archive** from red **Delete Permanently**.
+The latter requires confirmation and uses `ai.agent.session.delete_permanently`
+to remove active Sessions directly, under the same busy check and dispatch lock
+as archive. It does not first archive and then purge. Both actions are disabled
+while generating or awaiting approval; main-process admission remains authoritative.
+The existing Recycle Bin purge still accepts only archived Sessions, so a stale
+Recycle Bin page cannot delete a Session that has already been restored.
+
 - Agent commands serialize by Agent ID.
 - Session lifecycle operations serialize by Session ID, acquiring multiple IDs
   in sorted order. Restore and purge share these locks.

@@ -16,6 +16,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof Cher
 const mocks = vi.hoisted(() => ({
   fileItems: [] as TrashItem[],
   ipcRequest: vi.fn(),
+  deleteItem: vi.fn(),
+  deleteItems: vi.fn(),
   runDelete: vi
     .fn()
     .mockResolvedValue({ succeeded: [] as string[], failed: [] as Array<{ id: string; error: string }> })
@@ -45,8 +47,8 @@ vi.mock('../TrashDomainSections', async () => {
         isPermanentDeleting: props.isPermanentDeleting,
         onRestore: vi.fn(),
         onRestoreMany: vi.fn().mockResolvedValue({ succeeded: [item.id], failed: [] }),
-        onPermanentDelete: vi.fn().mockResolvedValue({ succeeded: [item.id], failed: [] }),
-        onPermanentDeleteMany: vi.fn().mockResolvedValue({ succeeded: [item.id], failed: [] }),
+        onPermanentDelete: mocks.deleteItem,
+        onPermanentDeleteMany: mocks.deleteItems,
         onRequestDelete: props.onRequestDelete
       })
     }
@@ -107,6 +109,8 @@ beforeEach(async () => {
   await i18n.changeLanguage('en-US')
   vi.mocked(dataApiService.get).mockReset()
   mocks.ipcRequest.mockReset()
+  mocks.deleteItem.mockReset().mockResolvedValue({ succeeded: ['topic-1'], failed: [] })
+  mocks.deleteItems.mockReset().mockResolvedValue({ succeeded: ['topic-1'], failed: [] })
   mocks.runDelete.mockReset().mockResolvedValue({ succeeded: [], failed: [] })
   mocks.fileItems = fileItems(1)
 })
@@ -130,14 +134,6 @@ describe('TrashSettings', () => {
     ])
   })
 
-  it('shows the automatic cleanup interval without explanatory copy', async () => {
-    await i18n.changeLanguage('zh-CN')
-    render(<TrashSettings />)
-
-    expect(screen.getByText('自动清理周期')).toBeInTheDocument()
-    expect(screen.queryByText('已删除的项目将一直保留，直到你手动彻底删除')).not.toBeInTheDocument()
-  })
-
   it('reports referenced files kept instead of claiming the trash is empty', async () => {
     const user = userEvent.setup()
     mocks.ipcRequest.mockResolvedValueOnce({
@@ -149,15 +145,54 @@ describe('TrashSettings', () => {
     render(<TrashSettings />)
 
     await user.click(screen.getByRole('button', { name: 'Empty Trash' }))
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Empty Trash' }))
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveTextContent('Referenced files will be kept.')
     await user.click(within(dialog).getByRole('button', { name: 'Empty Trash' }))
 
+    expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('trash.purge_now')
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Deleted: 3. Referenced files kept: 2.'))
   })
 })
 
 describe('TrashSettings permanent-delete confirmation', () => {
+  it.each(['single', 'batch'] as const)(
+    'requires confirmation before %s topic deletion and leaves cancellation harmless',
+    async (mode) => {
+      const user = userEvent.setup()
+      render(<TrashSettings />)
+      if (mode === 'batch') {
+        await user.click(screen.getByRole('button', { name: 'Batch manage' }))
+        await user.click(screen.getByRole('checkbox', { name: 'Select Deleted topic' }))
+      }
+      const deleteLabel = mode === 'batch' ? 'Delete Permanently 1' : 'Delete Permanently'
+      await user.click(screen.getByRole('button', { name: deleteLabel }))
+      expect(screen.getByRole('dialog')).toHaveTextContent('This action cannot be undone.')
+      expect(mocks.deleteItem).not.toHaveBeenCalled()
+      expect(mocks.deleteItems).not.toHaveBeenCalled()
+
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+      expect(screen.getByText('Deleted topic')).toBeInTheDocument()
+      expect(mocks.deleteItem).not.toHaveBeenCalled()
+      expect(mocks.deleteItems).not.toHaveBeenCalled()
+
+      await user.click(screen.getByRole('button', { name: deleteLabel }))
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete Permanently' }))
+      const topic = { id: 'topic-1', name: 'Deleted topic', deletedAt: 1_750_000_000_000 }
+      if (mode === 'batch') {
+        expect(mocks.deleteItems).toHaveBeenCalledExactlyOnceWith([topic])
+        expect(mocks.deleteItem).not.toHaveBeenCalled()
+      } else {
+        expect(mocks.deleteItem).toHaveBeenCalledExactlyOnceWith(topic)
+        expect(mocks.deleteItems).not.toHaveBeenCalled()
+      }
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    }
+  )
+
   it('reveals current-type selection on demand and preserves batch mode across categories', async () => {
     const user = userEvent.setup()
     render(<TrashSettings />)

@@ -39,7 +39,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'common.cancel': 'Cancel',
-        'common.delete': 'Delete',
+        'common.archive': 'Archive',
         'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
         'recycle_bin.move.confirm_title': 'Move to Recycle Bin?'
       })[key] ?? key
@@ -100,7 +100,7 @@ sessionMenuActions.exportMenuOptions = {
 }
 
 describe('SessionItem', () => {
-  it('deletes immediately without opening a confirmation dialog', async () => {
+  it('archives through the hover action without requesting permanent deletion', async () => {
     const user = userEvent.setup()
     const onDelete = vi.fn()
     const Provider = ResourceList.Provider<AgentSessionEntity>
@@ -117,7 +117,7 @@ describe('SessionItem', () => {
       </Provider>
     )
 
-    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
 
     expect(onDelete).toHaveBeenCalledWith('session-a')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

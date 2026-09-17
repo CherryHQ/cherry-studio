@@ -103,6 +103,14 @@ export class TrashService extends BaseService {
     })
   }
 
+  async deleteActiveTopicsPermanently(topicIds: string[]): Promise<DeleteTopicsResult> {
+    const ids = [...new Set(topicIds)].sort()
+    return this.withTopicLocks(ids, () => {
+      this.assertTopicsSettled(ids)
+      return topicService.deleteByIds(ids, { permanent: true, targetState: 'active' })
+    })
+  }
+
   async archiveAssistantTopics(assistantId: string): Promise<DeleteTopicsResult> {
     return this.withStableAssistantTopics(assistantId, () => topicService.deleteByAssistantId(assistantId))
   }

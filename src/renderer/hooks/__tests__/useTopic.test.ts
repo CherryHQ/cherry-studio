@@ -394,6 +394,13 @@ describe('useTopicMutations', () => {
     expect(mockIpcRequest).not.toHaveBeenCalled()
   })
 
+  it('deletes active Topics through the guarded lifecycle command and closes their tabs', async () => {
+    const { result } = renderHook(() => useTopicMutations())
+    await act(async () => result.current.deleteTopic('topic-a', { permanent: true, targetState: 'active' }))
+    expect(mockIpcRequest).toHaveBeenCalledWith('trash.topic.delete_permanently', { topicIds: ['topic-a'] })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
+  })
+
   it('refreshes the topic list and keeps the tab open when deletion finds stale data', async () => {
     const staleError = DataApiErrorFactory.notFound('Topic', 'topic-a')
     mockIpcRequest.mockRejectedValue(staleError)

@@ -93,6 +93,12 @@ export class AgentLifecycleService extends BaseService {
     )
   }
 
+  deleteActiveSessionsPermanently(ids: string[]) {
+    return this.runOperation('delete-active-sessions:' + ids.join(','), () =>
+      this.deleteSessionsInternal([...new Set(ids)], true, 'active')
+    )
+  }
+
   restoreSession(id: string) {
     return this.runOperation('restore-session:' + id, () =>
       this.sessionLocks.runExclusive(id, () => agentSessionService.restore(id))
@@ -294,9 +300,16 @@ export class AgentLifecycleService extends BaseService {
     }
   }
 
-  private async deleteSessionsInternal(ids: string[], permanent: boolean): Promise<{ deletedIds: string[] }> {
+  private async deleteSessionsInternal(
+    ids: string[],
+    permanent: boolean,
+    targetState: 'active' | 'trashed' = 'trashed'
+  ): Promise<{ deletedIds: string[] }> {
     const deleteSessions = async () => {
-      const result = agentSessionService.deleteByIdsWithImpact(ids, { permanent })
+      const result = agentSessionService.deleteByIdsWithImpact(ids, {
+        permanent,
+        ...(targetState === 'active' ? { targetState } : {})
+      })
       await this.finishDeletion(result.deletedIds, result.deliveryResults)
       if (permanent && result.purgedSystemWorkspacePaths.length > 0) {
         const systemWorkspacesRoot = application.getPath('feature.agents.system_workspaces')
@@ -310,7 +323,7 @@ export class AgentLifecycleService extends BaseService {
       }
       return { deletedIds: result.deletedIds }
     }
-    if (permanent)
+    if (permanent && targetState === 'trashed')
       return this.withOperationLocks(ids, async () => {
         const eligibleIds = ids.filter((id) => agentSessionService.isExpiredTrash(id, Number.MAX_SAFE_INTEGER))
         await this.drainSessions(eligibleIds)

@@ -445,6 +445,7 @@ vi.mock('react-i18next', () => ({
         if (key === 'chat.topics.export.joplin') return 'Export to Joplin'
         if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
         if (key === 'common.delete') return 'Delete'
+        if (key === 'common.archive') return 'Archive'
         if (key === 'common.delete_permanently') return 'Delete Permanently'
         if (key === 'common.delete_success') return 'Deleted'
         if (key === 'common.delete_failed') return 'Delete failed'
@@ -766,7 +767,7 @@ function getTopicRow(topicName: string) {
 }
 
 function deleteTopicRow(row: HTMLElement) {
-  fireEvent.click(within(row).getByRole('button', { name: 'Delete' }))
+  fireEvent.click(within(row).getByRole('button', { name: 'Archive' }))
 }
 
 function sortableData(id: string) {
@@ -1629,9 +1630,10 @@ describe('Topics', () => {
       'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to Siyuan',
       'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
       '',
-      'Delete'
+      'Archive',
+      'Delete Permanently'
     ])
-    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' })).toHaveAttribute(
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete Permanently' })).toHaveAttribute(
       'variant',
       'destructive'
     )
@@ -1935,12 +1937,13 @@ describe('Topics', () => {
     fireEvent.contextMenu(getByText('Alpha topic'))
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
     expect(confirmActionShow).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'Alpha topic',
+      title: 'common.archived',
       onUndo: expect.any(Function)
     })
 
@@ -1961,7 +1964,7 @@ describe('Topics', () => {
     fireEvent.contextMenu(getByText('Alpha topic'))
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
 
@@ -1975,7 +1978,7 @@ describe('Topics', () => {
     const { getByText } = renderTopicList()
 
     const topicRow = getByText('Gamma topic').closest('[role="option"]')
-    const deleteButton = within(topicRow as HTMLElement).getByRole('button', { name: 'Delete' })
+    const deleteButton = within(topicRow as HTMLElement).getByRole('button', { name: 'Archive' })
     fireEvent.click(deleteButton)
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-c'))
@@ -2490,7 +2493,7 @@ describe('Topics', () => {
     let topicRow = getTopicRow('Gamma topic')
     let indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     expect(indicatorRoot).toHaveAccessibleName('Running')
-    const runningDeleteButton = within(topicRow).getByRole('button', { name: 'Delete' })
+    const runningDeleteButton = within(topicRow).getByRole('button', { name: 'Archive' })
     expect(runningDeleteButton).toBeDisabled()
     fireEvent.click(runningDeleteButton)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -2508,7 +2511,7 @@ describe('Topics', () => {
     topicRow = getTopicRow('Gamma topic')
     indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     expect(indicatorRoot).toHaveAccessibleName('Done')
-    expect(within(topicRow).getByRole('button', { name: 'Delete' })).toBeEnabled()
+    expect(within(topicRow).getByRole('button', { name: 'Archive' })).toBeEnabled()
     // The delete button always renders now (revealed on hover); assert only
     // that the row is not in the delete-confirm state.
     expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()

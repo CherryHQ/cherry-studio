@@ -940,7 +940,10 @@ export class AgentSessionService {
     return { deletedIds: result.deletedIds }
   }
 
-  deleteByIdsWithImpact(ids: string[], options: { permanent?: boolean } = {}): AgentSessionBatchDeletionOutcome {
+  deleteByIdsWithImpact(
+    ids: string[],
+    options: { permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
+  ): AgentSessionBatchDeletionOutcome {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) {
       return { deletedIds: [], taskScheduleIds: [], deliveryResults: [], purgedSystemWorkspacePaths: [] }
@@ -956,7 +959,12 @@ export class AgentSessionService {
         .select({ session: sessionsTable, workspace: agentWorkspaceTable })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-        .where(and(inArray(sessionsTable.id, uniqueIds), isNotNull(sessionsTable.deletedAt)))
+        .where(
+          and(
+            inArray(sessionsTable.id, uniqueIds),
+            options.targetState === 'active' ? isNull(sessionsTable.deletedAt) : isNotNull(sessionsTable.deletedAt)
+          )
+        )
         .all()
 
       return {

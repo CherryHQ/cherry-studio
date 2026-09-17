@@ -424,10 +424,15 @@ export function useTopicMutations() {
   )
 
   const deleteTopic = useCallback(
-    async (topicId: string, options?: { permanent?: boolean; refresh?: boolean }): Promise<void> => {
+    async (
+      topicId: string,
+      options?: { permanent?: boolean; refresh?: boolean; targetState?: 'active' | 'trashed' }
+    ): Promise<void> => {
       const shouldRefresh = options?.refresh !== false
       try {
-        if (options?.permanent) {
+        if (options?.permanent && options.targetState === 'active') {
+          await ipcApi.request('trash.topic.delete_permanently', { topicIds: [topicId] })
+        } else if (options?.permanent) {
           await deleteTrigger({ params: { id: topicId }, query: { permanent: true } })
         } else {
           await ipcApi.request('trash.topic.archive', { topicIds: [topicId] })

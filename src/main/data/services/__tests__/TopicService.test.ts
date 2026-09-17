@@ -777,6 +777,36 @@ describe('TopicService', () => {
   })
 
   describe('trash listing (inTrash)', () => {
+    it('permanently deletes active Topics and messages without permitting stale trash deletion', async () => {
+      dbh.db.insert(topicTable).values({ id: 'active-purge', name: 'Active', orderKey: 'a0' }).run()
+      dbh.db
+        .insert(messageTable)
+        .values(
+          withRoot('active-purge', [
+            {
+              id: 'active-message',
+              topicId: 'active-purge',
+              parentId: null,
+              role: 'user',
+              data: { parts: [{ type: 'text', text: 'Do not retain' }] },
+              status: 'success',
+              siblingsGroupId: 0
+            }
+          ])
+        )
+        .run()
+      expect(() => topicService.delete('active-purge', { permanent: true })).toThrow()
+      topicService.delete('active-purge')
+      expect(() => topicService.deleteByIds(['active-purge'], { permanent: true, targetState: 'active' })).toThrow()
+      topicService.restore('active-purge')
+      expect(topicService.deleteByIds(['active-purge'], { permanent: true, targetState: 'active' })).toEqual({
+        deletedIds: ['active-purge'],
+        deletedCount: 1
+      })
+      expect(dbh.db.select().from(topicTable).where(eq(topicTable.id, 'active-purge')).all()).toEqual([])
+      expect(dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'active-purge')).all()).toEqual([])
+      expect(() => topicService.restore('active-purge')).toThrow()
+    })
     it('hides trashed topics from the default list and shows them with inTrash', async () => {
       await dbh.db.insert(topicTable).values([
         { id: 't-live', name: 'Live', orderKey: 'a0', createdAt: 1, updatedAt: 100 },

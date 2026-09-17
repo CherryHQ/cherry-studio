@@ -26,6 +26,8 @@ async function exposeArchiveError<T>(operation: () => Promise<T>): Promise<T> {
  * so it ignores `IpcContext`.
  */
 export const trashHandlers: IpcHandlersFor<typeof trashRequestSchemas> = {
+  'trash.topic.delete_permanently': ({ topicIds }) =>
+    exposeArchiveError(() => application.get('TrashService').deleteActiveTopicsPermanently(topicIds)),
   'trash.topic.archive': ({ topicIds }) =>
     exposeArchiveError(() => application.get('TrashService').archiveTopics(topicIds)),
   'trash.assistant_topics.archive': ({ assistantId }) =>
