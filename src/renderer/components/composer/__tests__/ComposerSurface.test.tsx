@@ -596,23 +596,6 @@ describe('ComposerSurface', () => {
     expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
   })
 
-  it('shows the focus hint only while the draft is empty', () => {
-    const fileToken = { id: 'file:file-1', kind: 'file' as const, label: 'notes.md' }
-    const serializedFileToken = { ...fileToken, index: 0, textOffset: 0 }
-    const view = render(<ComposerSurface {...baseProps} />)
-
-    expect(screen.getByText('chat.input.focus_hint')).toBeInTheDocument()
-
-    view.rerender(<ComposerSurface {...baseProps} text="   " />)
-    expect(screen.queryByText('chat.input.focus_hint')).not.toBeInTheDocument()
-
-    view.rerender(<ComposerSurface {...baseProps} tokens={[fileToken]} managedTokenKinds={['file']} />)
-    expect(screen.queryByText('chat.input.focus_hint')).not.toBeInTheDocument()
-
-    view.rerender(<ComposerSurface {...baseProps} draftTokens={[serializedFileToken]} />)
-    expect(screen.queryByText('chat.input.focus_hint')).not.toBeInTheDocument()
-  })
-
   it('renders the AI-generated content disclaimer when the composer enables it', () => {
     const view = render(<ComposerSurface {...baseProps} />)
 
@@ -753,6 +736,14 @@ describe('ComposerSurface', () => {
       'data-ui',
       'chat.composer.action.send'
     )
+  })
+
+  it('keeps regular editor padding independent of the overlay corner control', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    const editorContent = screen.getByTestId('editor-content')
+    expect(editorContent.style.getPropertyValue('--composer-editor-padding')).toBe('6px 15px 0')
+    expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
   })
 
   it('exposes the pause anchor while a response is streaming', () => {

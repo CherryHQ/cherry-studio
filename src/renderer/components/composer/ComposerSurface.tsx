@@ -276,7 +276,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             style={{
               height: editorMinHeight,
               minHeight: editorMinHeight,
-              padding: '6px 44px 0 15px',
+              padding: '6px 15px 0',
               fontSize: props.fontSize,
               lineHeight: 1.4
             }}
@@ -340,11 +340,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               if (matchesComposerShortcut(event, newlineShortcut)) insertFallbackNewline(event.currentTarget)
             }}
           />
-          <ComposerFocusShortcut
-            focus={() => textareaRef.current?.focus()}
-            editable={props.editable}
-            hasContent={props.text.length > 0 || props.tokens.length > 0 || Boolean(props.draftTokens?.length)}
-          />
+          <ComposerFocusShortcut focus={() => textareaRef.current?.focus()} editable={props.editable} />
         </div>
       </div>
       <div
