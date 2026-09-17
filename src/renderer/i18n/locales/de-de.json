@@ -559,6 +559,7 @@
   "backup.confirm.button": "Backup-Speicherort auswählen",
   "backup.content": "Sichern Sie alle Daten, einschließlich Chat-Verlauf, Einstellungen, Wissensdatenbank und alle anderen Daten. Bitte beachten Sie, dass der Backup-Vorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld",
   "backup.error.active_data_writers": "Eine Konversation oder ein Agent läuft noch. Warten Sie, bis sie/er fertig ist, und versuchen Sie es dann erneut.",
+  "backup.error.background_tasks": "Hintergrundaufgaben (z. B. die Wissensdatenbank-Indizierung) wurden innerhalb der Wartezeit nicht abgeschlossen. Zum Schutz der Datenintegrität wurde diese Sicherung oder Wiederherstellung gestoppt. Warten Sie, bis die Aufgaben abgeschlossen sind, und versuchen Sie es erneut. Falls dies weiterhin auftritt, prüfen Sie den Aufgabenstatus und die Fehler in der entsprechenden Funktion.",
   "backup.error.disk_full": "Nicht genügend Speicherplatz verfügbar. Geben Sie Speicherplatz frei und versuchen Sie es erneut.",
   "backup.error.disk_full_with_available": "Der Speicherplatz reicht nicht aus. Verfügbar: {{available}}. Geben Sie Speicherplatz frei und versuchen Sie es erneut.",
   "backup.error.newer_version": "This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
