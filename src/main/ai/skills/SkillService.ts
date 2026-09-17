@@ -134,7 +134,10 @@ export class SkillService {
    * the global Skills storage root.
    */
   getSkillDirectory(name: string): string {
-    return this.getSkillStoragePath(sanitizeFolderName(name))
+    // Callers pass the stored folderName, which is already final. Do not re-sanitize: the
+    // reserved-name suffix in sanitizeFolderName would remap a pre-existing POSIX folder such
+    // as `CON` to a path that was never created.
+    return this.getSkillStoragePath(name)
   }
 
   /** Resolve the app-owned directory for an installed skill. */
@@ -551,9 +554,37 @@ export class SkillService {
     const destFolderName = existing?.folderName ?? folderName
     const destPath = this.getSkillStoragePath(destFolderName)
 
-    await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
-    await this.installer.install(skillDir, destPath)
-    await this.linkMirror(destFolderName)
+    // A folder migration retires the old folder to a rollback marker BEFORE the replacement is
+    // published, so no crash window leaves both folders on disk with no marker for startup
+    // recovery to settle. An install failure below restores the marker; a commit failure in the
+    // migration branch does the same.
+    let migrationBackup: string | null = null
+    let prevFolderName: string | null = null
+    if (renamed) {
+      prevFolderName = renamed.folderName
+      migrationBackup = await this.installer.backupReplacedFolderForMigration(
+        this.getSkillStoragePath(prevFolderName),
+        folderName
+      )
+    }
+
+    try {
+      await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
+      await this.installer.install(skillDir, destPath)
+      await this.linkMirror(destFolderName)
+    } catch (error) {
+      if (migrationBackup && prevFolderName) {
+        try {
+          await fs.promises.rename(migrationBackup, this.getSkillStoragePath(prevFolderName))
+        } catch (restoreError) {
+          logger.error('Failed to restore previous skill folder after install failure', {
+            prevFolderName,
+            error: restoreError instanceof Error ? restoreError.message : String(restoreError)
+          })
+        }
+      }
+      throw error
+    }
 
     const tags = metadata.tags ?? []
 
@@ -578,15 +609,14 @@ export class SkillService {
 
     if (renamed) {
       // Move the catalog entry to the new folder, preserving the skill ID and its agent_skills rows.
-      // The previous folder is kept in a rollback marker naming the replacement, so startup recovery
-      // can tell a pre-commit crash (restore the old folder, drop the replacement) from a post-commit
-      // one (drop the marker, keep the replacement). Recursive deletion is not atomic, so deleting
-      // the old folder first could strand a half-removed old state.
-      const prevFolderName = renamed.folderName
-      const backupPath = await this.installer.backupReplacedFolderForMigration(
-        this.getSkillStoragePath(prevFolderName),
-        folderName
-      )
+      // The previous folder was already retired to a rollback marker naming the replacement before
+      // the replacement was published, so startup recovery can tell a pre-commit crash (restore the
+      // old folder, drop the replacement) from a post-commit one (drop the marker, keep the
+      // replacement). Recursive deletion is not atomic, so deleting the old folder first could
+      // strand a half-removed old state.
+      // `migrationBackup` was taken from `renamed.folderName` before publishing above; when the old
+      // folder was already missing from disk it is null and there is nothing to restore or commit.
+      const backupPath = migrationBackup
       try {
         application.get('DbService').withWriteTx((tx) => {
           agentGlobalSkillService.updateTx(tx, renamed.id, {
@@ -605,10 +635,10 @@ export class SkillService {
         // by startup recovery, so even a double fault loses nothing.
         if (backupPath) {
           try {
-            await fs.promises.rename(backupPath, this.getSkillStoragePath(prevFolderName))
+            await fs.promises.rename(backupPath, this.getSkillStoragePath(renamed.folderName))
           } catch (restoreError) {
             logger.error('Failed to restore previous skill folder after migration failure', {
-              prevFolderName,
+              prevFolderName: renamed.folderName,
               error: restoreError instanceof Error ? restoreError.message : String(restoreError)
             })
           }
@@ -625,9 +655,9 @@ export class SkillService {
         throw error
       }
       await this.installer.commitReplacedFolder(backupPath)
-      await this.unlinkMirror(prevFolderName)
+      await this.unlinkMirror(renamed.folderName)
       const updated = agentGlobalSkillService.getById(renamed.id)!
-      logger.info('Skill folder migrated', { id: renamed.id, prevFolderName, folderName, source })
+      logger.info('Skill folder migrated', { id: renamed.id, prevFolderName: renamed.folderName, folderName, source })
       return updated
     }
 
