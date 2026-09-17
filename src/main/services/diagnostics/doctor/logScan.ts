@@ -1,9 +1,9 @@
 import { application } from '@application'
 
 import { collectErrorLogRecords } from '../scan'
-import type { DoctorContext } from './types'
+import type { DoctorContextBase } from './types'
 
-export function recentLogScan(ctx: DoctorContext) {
+export function recentLogScan(ctx: DoctorContextBase) {
   return ctx.share('doctor:seven-day-logs', async (signal) => {
     const toMs = Date.now()
     const scan = await collectErrorLogRecords(

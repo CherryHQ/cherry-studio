@@ -44,13 +44,7 @@ export function ErrorBasicInformation({
     error,
     location,
     localizedErrorMessage
-  })
-    .filter(({ id }) => id !== 'location')
-    .map((field) =>
-      field.id === 'errorMessage' && localizedErrorMessage?.trim()
-        ? { ...field, value: localizedErrorMessage.trim() }
-        : field
-    )
+  }).filter(({ id }) => id !== 'location')
   const title = location?.trim()
     ? t('error.diagnostics.basic_information_with_location', { location: location.trim() })
     : t('error.diagnostics.basic_information')

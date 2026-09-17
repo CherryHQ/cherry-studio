@@ -60,6 +60,7 @@ function createController(overrides: ControllerOverrides = {}) {
     cancel: vi.fn<DoctorController['cancel']>(),
     canChangePanel: true,
     cancelConfirmation: vi.fn<DoctorController['cancelConfirmation']>(),
+    confirmCheck: vi.fn<DoctorController['confirmCheck']>(),
     confirmEvidence: vi.fn<DoctorController['confirmEvidence']>(),
     executeAction: vi.fn<DoctorController['executeAction']>(),
     isAutoRunPending: false,
@@ -85,6 +86,7 @@ function createController(overrides: ControllerOverrides = {}) {
       canCancel: false,
       groups: [],
       isStale: false,
+      pendingChecks: [],
       problemCount: 1,
       rows: [
         {
@@ -121,7 +123,11 @@ function createController(overrides: ControllerOverrides = {}) {
     ...baseController,
     ...overrides,
     session: { ...baseController.session, ...overrides.session },
-    viewModel: { ...baseController.viewModel, ...overrides.viewModel }
+    viewModel: {
+      ...baseController.viewModel,
+      ...overrides.viewModel,
+      pendingChecks: overrides.viewModel?.pendingChecks ?? baseController.viewModel.pendingChecks
+    }
   } satisfies DoctorController
 }
 
@@ -148,6 +154,7 @@ function createCompletedPanelController() {
       problemCount: 1,
       report: {
         schemaVersion: 1,
+        scope: 'global',
         runId: 'run-1',
         tier: 'quick',
         startedAt: '2026-09-05T00:00:00.000Z',
@@ -256,6 +263,7 @@ describe('DoctorCheckAccordionItems interactions', () => {
 
     expect(screen.getAllByRole('status')).toHaveLength(1)
     expect(screen.getByRole('status')).toHaveTextContent('Checking: settings.doctor.checks.runtime-claude-login.title')
+    expect(screen.getByRole('status').querySelector('svg')).toHaveClass('motion-safe:animate-spin')
     expect(screen.queryByRole('region', { name: 'error.diagnostics.action_required' })).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /settings\.doctor\.checks\.runtime-claude-login\.title/ })
@@ -402,6 +410,7 @@ describe('DoctorCheckAccordionItems interactions', () => {
         interaction: {
           kind: 'fixing',
           request: {
+            scope: 'global',
             runId: 'run-1',
             checkId: 'permission-screen-capture',
             fixId: 'request'

@@ -299,7 +299,7 @@ function TabSnapshot() {
 
 function ErrorRecoveryNavigationControls() {
   useMainWindowNavigation()
-  const { navigateErrorTarget } = useMessageErrorActions()
+  const { navigateErrorTarget } = useMessageErrorActions({ getDoctorSubject: () => undefined })
   const { activeTabId, closeTabs, tabs } = useTabsContext()
   const settingsTab = tabs.find((tab) => isSettingsPath(tab.url))
 

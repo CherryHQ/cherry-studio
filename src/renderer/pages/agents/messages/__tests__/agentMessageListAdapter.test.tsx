@@ -445,24 +445,18 @@ describe('useAgentMessageListProviderValue', () => {
 
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
       diagnosticReport: { location: string }
-      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+      getDoctorSubject: (message?: { model?: { id: string; provider: string; name: string } }) => unknown
     }
-    expect(options.diagnosticReport).toEqual(diagnosticReport)
-    await options.persistDiagnosis('message-1-part-0', { summary: 'Runtime failed' })
-
-    expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1')
-    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1', {
-      body: {
-        data: {
-          parts: [
-            expect.objectContaining({
-              providerMetadata: expect.objectContaining({
-                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Runtime failed' }) })
-              })
-            })
-          ]
-        }
-      }
+    expect(options.getDoctorSubject()).toEqual({ kind: 'agent', agentId: topic.assistantId })
+    expect(
+      options.getDoctorSubject({
+        model: { id: 'deepseek-v4-flash', provider: 'deepseek', name: 'DeepSeek V4 Flash' }
+      })
+    ).toEqual({
+      kind: 'agent',
+      agentId: topic.assistantId,
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash'
     })
   })
 

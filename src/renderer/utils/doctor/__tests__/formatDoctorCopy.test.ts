@@ -8,6 +8,7 @@ describe('formatDoctorReportForCopy', () => {
   it('copies only public basics, visible identity, status, and public evidence', () => {
     const report: DoctorReport = {
       schemaVersion: 1,
+      scope: 'global',
       runId: 'secret-run-id',
       tier: 'quick',
       startedAt: '2026-09-04T08:59:00.000Z',

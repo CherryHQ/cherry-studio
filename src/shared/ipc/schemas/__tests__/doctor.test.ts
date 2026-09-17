@@ -2,6 +2,34 @@ import { describe, expect, it } from 'vitest'
 
 import { doctorRequestSchemas } from '../doctor'
 
+const run = doctorRequestSchemas['diagnostics.doctor.run'].input
+
+describe('Doctor subject boundary', () => {
+  it('rejects missing and incomplete subjects instead of starting global diagnostics', () => {
+    for (const subject of [undefined, null, { kind: 'chat', providerId: 'openai' }, { kind: 'agent', agentId: '' }]) {
+      expect(run.safeParse({ tier: 'quick', subject }).success).toBe(false)
+    }
+    expect(run.parse({ tier: 'quick', subject: { kind: 'global' } })).toEqual({
+      tier: 'quick',
+      subject: { kind: 'global' }
+    })
+    expect(
+      run.parse({
+        tier: 'live',
+        subject: { kind: 'chat', providerId: 'openai', modelId: 'gpt-4o' },
+        includeConnectivity: true
+      })
+    ).toMatchObject({ includeConnectivity: true })
+    expect(
+      run.parse({
+        tier: 'live',
+        subject: { kind: 'agent', agentId: 'agent', providerId: 'deepseek', modelId: 'deepseek-reasoner' },
+        includeConnectivity: true
+      }).subject
+    ).toEqual({ kind: 'agent', agentId: 'agent', providerId: 'deepseek', modelId: 'deepseek-reasoner' })
+  })
+})
+
 describe('Connectivity RPC boundary', () => {
   it('requires a contextual subject and caller-known run UUID for cancellation', () => {
     const schema = doctorRequestSchemas['diagnostics.doctor.connectivity'].input

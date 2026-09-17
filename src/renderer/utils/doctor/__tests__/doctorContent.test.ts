@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { resolveDoctorFixLabel } from '../doctorContent'
+import { doctorCheckDetailParams, resolveDoctorFixLabel } from '../doctorContent'
 
 describe('resolveDoctorFixLabel', () => {
   it('returns a static declaration without resolving a target name', () => {
@@ -30,5 +30,24 @@ describe('resolveDoctorFixLabel', () => {
         () => undefined
       )
     ).toEqual({ key: 'settings.doctor.fixes.restart_mcp_generic' })
+  })
+})
+
+describe('doctorCheckDetailParams', () => {
+  it('translates a machine category code for detail copy', () => {
+    const t = vi.fn((key: string, options?: { defaultValue?: string }) =>
+      key === 'settings.doctor.error_category.auth'
+        ? 'Not signed in or the API key is invalid'
+        : (options?.defaultValue ?? key)
+    )
+
+    expect(doctorCheckDetailParams(t, { category: 'auth' })).toEqual({
+      category: 'Not signed in or the API key is invalid'
+    })
+    expect(t).toHaveBeenCalledWith('settings.doctor.error_category.auth', { defaultValue: 'auth' })
+  })
+
+  it('leaves other params unchanged when there is no category', () => {
+    expect(doctorCheckDetailParams(vi.fn(), { provider: 'DeepSeek' })).toEqual({ provider: 'DeepSeek' })
   })
 })

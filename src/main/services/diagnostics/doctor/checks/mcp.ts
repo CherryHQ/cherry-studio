@@ -11,10 +11,18 @@ import { defineDoctorCheck } from '../types'
 
 const logger = loggerService.withContext('SystemDoctor:Mcp')
 
+/** Every enabled server in a global run; only the subject's servers in a contextual one. */
+function enabledServers(subject: { readonly mcpServerIds: readonly string[] } | null): McpServer[] {
+  const enabled = mcpServerService.list({ isActive: true }).items
+  if (!subject) return enabled
+  const scoped = new Set(subject.mcpServerIds)
+  return enabled.filter((server) => scoped.has(server.id))
+}
+
 export const mcpServersConnected = defineDoctorCheck({
   id: 'mcp-servers-connected',
-  async run() {
-    const servers = mcpServerService.list({ isActive: true }).items
+  async run(ctx) {
+    const servers = enabledServers(ctx.subject)
     if (!application.get('McpRuntimeService').isReady) throw new Error('MCP runtime is not ready')
     const cache = application.get('CacheService')
     const failed = servers.filter((server) => {
@@ -63,10 +71,8 @@ export const mcpServersConnected = defineDoctorCheck({
 export const mcpLaunchCommands = defineDoctorCheck({
   id: 'mcp-launch-commands',
   timeoutMs: 20_000,
-  async run({ signal }) {
-    const servers = mcpServerService
-      .list({ isActive: true })
-      .items.filter((server) => mcpTransportKind(server) === 'stdio')
+  async run({ signal, subject }) {
+    const servers = enabledServers(subject).filter((server) => mcpTransportKind(server) === 'stdio')
     const failed: McpServer[] = []
     const unresolved: { serverId: string; command: string }[] = []
     const errors: DoctorEvidenceItem[] = []

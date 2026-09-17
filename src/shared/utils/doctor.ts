@@ -25,7 +25,10 @@ export function isDoctorCheckId(value: unknown): value is DoctorCheckId {
 /** Both processes derive the same key: main to publish a run's state, the renderer to subscribe to it. */
 export function doctorScopeKey(ref: DoctorSubjectRef): DoctorScopeKey {
   if (ref.kind === 'global') return 'global'
-  return ref.kind === 'chat' ? `chat:${ref.providerId}/${ref.modelId}` : `agent:${ref.agentId}`
+  if (ref.kind === 'chat') return `chat:${ref.providerId}/${ref.modelId}`
+  return ref.providerId && ref.modelId
+    ? `agent:${ref.agentId}:${ref.providerId}/${ref.modelId}`
+    : `agent:${ref.agentId}`
 }
 
 export function isDoctorScopeKey(value: unknown): value is DoctorScopeKey {
@@ -41,12 +44,14 @@ export function doctorFixMeta<Id extends DoctorCheckId>(checkId: Id, fixId: Doct
 /** Untrusted-input guard for `diagnostics.doctor.fix`: the check must exist and declare that fix. */
 export function isDoctorFixRequest(value: unknown): value is DoctorFixRequest {
   if (typeof value !== 'object' || value === null) return false
-  const { runId, checkId, fixId, target } = value as {
+  const { scope, runId, checkId, fixId, target } = value as {
+    scope?: unknown
     runId?: unknown
     checkId?: unknown
     fixId?: unknown
     target?: unknown
   }
+  if (!isDoctorScopeKey(scope)) return false
   if (typeof runId !== 'string' || runId.length === 0) return false
   if (!isDoctorCheckId(checkId) || typeof fixId !== 'string') return false
   const meta = (DOCTOR_CHECK_CATALOG[checkId].fixes as readonly DoctorFixMeta[]).find((fix) => fix.id === fixId)

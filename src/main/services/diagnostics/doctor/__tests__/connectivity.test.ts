@@ -137,6 +137,8 @@ describe('model connectivity against an HTTP provider', () => {
         providerId: 'connectivity',
         name: 'Connectivity',
         orderKey: 'a0',
+        isEnabled: true,
+        apiKeys: [{ id: 'key-1', key: 'test-key', isEnabled: true }],
         endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: url } }
       })
       .run()
@@ -252,6 +254,7 @@ describe('model connectivity against an HTTP provider', () => {
     const started = await start()
     expect(result(started.report, 'provider-model-list')).toMatchObject({
       status: 'fail',
+      actions: [{ kind: 'navigate', target: '/settings/provider' }],
       evidence: [
         { key: 'category', value: category },
         { key: 'httpStatus', value: status }
@@ -266,7 +269,8 @@ describe('model connectivity against an HTTP provider', () => {
     const started = await start()
     expect(result(started.report, 'provider-model-list')).toMatchObject({
       status: 'warn',
-      detail: { variant: 'not_listed' }
+      detail: { variant: 'not_listed' },
+      actions: [{ kind: 'navigate', target: '/settings/provider' }]
     })
     expect(result(await confirm(started), 'provider-model-conversation')?.status).toBe('pass')
   })
@@ -402,11 +406,30 @@ describe('model connectivity against an HTTP provider', () => {
     const pending = doctor.confirmCheck(input)
     await vi.waitFor(() => expect(requests).toHaveLength(1))
     expect(await doctor.confirmCheck(input)).toEqual({ status: 'busy' })
+    expect(await doctor.run({ subject, tier: 'quick', checkIds: ['network-online'] })).toEqual({
+      status: 'busy',
+      runId: started.runId
+    })
+    expect(await doctor.checkConnectivity({ subject, runId: 'new' })).toEqual({ status: 'busy', runId: started.runId })
     expect(doctor.cancelConnectivity(started.scope, 'wrong-run')).toEqual({ status: 'not_running' })
     expect(doctor.cancelConnectivity(started.scope, started.runId)).toEqual({ status: 'canceled' })
     expect(await pending).toEqual({ status: 'canceled' })
     expect(await doctor.confirmCheck(input)).toEqual({ status: 'stale' })
     expect(requests).toHaveLength(1)
+  })
+
+  it('supersedes a pending connectivity decision with an ordinary run in the same scope', async () => {
+    const started = await start()
+    const next = await doctor.run({ subject, tier: 'quick', checkIds: ['network-online'] })
+    expect(next.status).toBe('completed')
+    expect(
+      await doctor.confirmCheck({
+        scope: started.scope,
+        runId: started.runId,
+        requestId: started.report.pendingChecks[0].requestId
+      })
+    ).toEqual({ status: 'stale' })
+    expect(requests).toEqual([])
   })
 
   it('invalidates a pending confirmation when canceled before execution', async () => {
@@ -434,9 +457,13 @@ describe('model connectivity against an HTTP provider', () => {
         orderKey: 'a0'
       })
       .run()
-    const global = await doctor.run({ tier: 'quick', checkIds: ['config-boot-config-valid'] })
+    const global = await doctor.run({
+      subject: { kind: 'global' },
+      tier: 'quick',
+      checkIds: ['config-boot-config-valid']
+    })
     expect(global.status).toBe('completed')
-    const before = structuredClone(application.get('CacheService').getShared('doctor.state'))
+    const before = structuredClone(application.get('CacheService').getShared('doctor.state.global'))
     const chat = await start()
     const agent = await start({ kind: 'agent', agentId: 'agent' }, 'agent-run')
     dbh.db.update(agentTable).set({ model: null }).run()
@@ -448,13 +475,17 @@ describe('model connectivity against an HTTP provider', () => {
       })
     ).toEqual({ status: 'stale' })
     expect(result(await confirm(chat), 'provider-model-conversation')?.status).toBe('pass')
-    expect(application.get('CacheService').getShared('doctor.state')).toEqual(before)
+    expect(application.get('CacheService').getShared('doctor.state.global')).toEqual(before)
     expect(requests).toHaveLength(1)
   })
 
   it('applies the same confirmation policy to an explicitly selected ordinary Doctor check', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'connectivity::wire-model')
-    const started = await doctor.run({ tier: 'live', checkIds: ['provider-model-conversation'] })
+    const started = await doctor.run({
+      subject: { kind: 'global' },
+      tier: 'live',
+      checkIds: ['provider-model-conversation']
+    })
     if (started.status !== 'completed') throw new Error('Expected report')
     expect(started.report.results).toEqual([])
     expect(requests).toEqual([])
@@ -464,7 +495,7 @@ describe('model connectivity against an HTTP provider', () => {
       requestId: started.report.pendingChecks![0].requestId
     })
     expect(response.status).toBe('completed')
-    expect(application.get('CacheService').getShared('doctor.state')).toMatchObject({
+    expect(application.get('CacheService').getShared('doctor.state.global')).toMatchObject({
       status: 'completed',
       report: {
         runId: started.report.runId,
@@ -477,7 +508,11 @@ describe('model connectivity against an HTTP provider', () => {
 
   it('invalidates a global confirmation if the default model changes', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'connectivity::wire-model')
-    const started = await doctor.run({ tier: 'live', checkIds: ['provider-model-conversation'] })
+    const started = await doctor.run({
+      subject: { kind: 'global' },
+      tier: 'live',
+      checkIds: ['provider-model-conversation']
+    })
     if (started.status !== 'completed') throw new Error('Expected report')
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
     expect(

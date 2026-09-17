@@ -16,7 +16,7 @@ export type { DiagnosisResult, DiagnosisStep } from '@shared/data/types/uiParts'
 
 export interface DiagnosisContext {
   errorSource?: string
-  providerName?: string
+  providerId?: string
   modelId?: string
 }
 
@@ -54,31 +54,31 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     msg.includes('not available in your territory') ||
     (msg.includes('territory') && (status === 403 || msg.includes('unsupported')))
   ) {
-    const provider = errorInfo.provider || context?.providerName || 'the provider'
+    const provider = errorInfo.provider || context?.providerId || 'the provider'
     return `## Context\n${provider} is blocking the request because the user's IP region is not supported. This is NOT an API-key issue. Suggest configuring an HTTP/SOCKS proxy in system settings, or switching to a provider available in the user's region. DO NOT suggest changing the API key.\n`
   }
 
   // Auth / API key issues (401). 403 is handled below — mirrors `classifyError`, which keeps
   // a refused request out of the invalid-key bucket.
   if (status === 401 || msg.includes('api_key') || msg.includes('unauthorized')) {
-    const provider = errorInfo.provider || context?.providerName || 'the provider'
+    const provider = errorInfo.provider || context?.providerId || 'the provider'
     return `## Context\nThe user is calling ${provider} API and got an authentication error. Cherry Studio lets users configure API keys per provider in provider settings.\n`
   }
 
   // Explicit billing signals win over the HTTP 429 rate-limit default.
   if (status === 402 || isQuotaErrorMessage(msg)) {
-    const provider = errorInfo.provider || context?.providerName || 'the provider'
+    const provider = errorInfo.provider || context?.providerId || 'the provider'
     return `## Context\nThe user's quota or account balance is exhausted on ${provider}. Suggest checking billing on the provider's website, topping up, or switching to a different provider. DO NOT suggest waiting or retrying - this is not a transient issue.\n`
   }
 
   // 403 sits below region/quota, matching `classifyError`'s `permission` ordering.
   if (status === 403 || msg.includes('forbidden')) {
-    const provider = errorInfo.provider || context?.providerName || 'the provider'
+    const provider = errorInfo.provider || context?.providerId || 'the provider'
     return `## Context\n${provider} refused this request with HTTP 403. The API key was NOT rejected as invalid, so this is usually an account plan, key permission, or resource-access restriction rather than a wrong key. Read the provider's own error text in the error data before concluding. DO NOT tell the user their API key is invalid or suggest regenerating it unless the provider's error text says so.\n`
   }
 
   if (status === 429 || msg.includes('rate_limit') || msg.includes('rate limit') || msg.includes('too many requests')) {
-    const provider = errorInfo.provider || context?.providerName || 'the provider'
+    const provider = errorInfo.provider || context?.providerId || 'the provider'
     return `## Context\nThe user is hitting a rate limit on ${provider} due to too many requests in a short window. This is NOT a billing or quota issue - the user has not run out of credit. Suggest waiting briefly before retrying, slowing down request frequency, or switching to a model with a higher rate limit. DO NOT mention billing, recharging, top-up, or running out of quota.\n`
   }
 
@@ -177,7 +177,7 @@ export async function diagnoseError(
 
   if (context?.errorSource) errorInfo.source = context.errorSource
 
-  const provider = context?.providerName ?? errorBag.provider ?? errorBag.providerId
+  const provider = context?.providerId ?? errorBag.provider ?? errorBag.providerId
   if (typeof provider === 'string' && provider) errorInfo.provider = provider
 
   const modelId = context?.modelId ?? errorBag.modelId

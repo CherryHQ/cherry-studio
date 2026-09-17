@@ -48,9 +48,11 @@ function diagnosticReportField(id: DiagnosticReportField['id'], value: unknown):
 function combineErrorParts(localized: unknown, name: unknown, message: unknown): string | undefined {
   const errorName = nonEmptyText(name)
   const errorMessage = nonEmptyText(message)
-  const raw = errorName && errorMessage ? errorName + ': ' + errorMessage : (errorName ?? errorMessage)
+  const raw = errorName && errorMessage ? `${errorName}: ${errorMessage}` : (errorName ?? errorMessage)
   const localizedMessage = nonEmptyText(localized)
-  if (localizedMessage && raw && localizedMessage !== raw) return localizedMessage + ' (' + raw + ')'
+  if (localizedMessage && errorMessage && localizedMessage !== errorMessage) {
+    return `${localizedMessage} (${errorMessage})`
+  }
   return localizedMessage ?? raw
 }
 
@@ -84,7 +86,7 @@ export function diagnosticReportFields({
 }: DiagnosticReportFieldsInput): DiagnosticReportField[] {
   return [
     diagnosticReportField('location', location),
-    diagnosticReportField('model', combineModelParts(diagnosisContext?.providerName, diagnosisContext?.modelId)),
+    diagnosticReportField('model', combineModelParts(diagnosisContext?.providerId, diagnosisContext?.modelId)),
     diagnosticReportField('errorMessage', combineErrorParts(localizedErrorMessage, error?.name, error?.message))
   ].filter((field): field is DiagnosticReportField => field !== undefined)
 }

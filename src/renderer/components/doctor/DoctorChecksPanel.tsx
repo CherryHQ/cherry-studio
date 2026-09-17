@@ -1,4 +1,4 @@
-import { ChevronDown, Copy, Download } from 'lucide-react'
+import { ChevronDown, Copy, Download, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -213,7 +213,19 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
           total: viewModel.rows.length
         })
       : t('settings.doctor.summary.progress', { completed, total: viewModel.rows.length })
-    return <DiagnosticsPanel role="status" aria-live="polite" title={progress} />
+    return (
+      <DiagnosticsPanel
+        role="status"
+        aria-busy="true"
+        aria-live="polite"
+        title={
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate">{progress}</span>
+            <Loader2 className="text-foreground-tertiary size-4 shrink-0 motion-safe:animate-spin" aria-hidden />
+          </span>
+        }
+      />
+    )
   }
 
   if (viewModel.report) {
