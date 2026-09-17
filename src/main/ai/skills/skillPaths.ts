@@ -9,6 +9,32 @@ const logger = loggerService.withContext('SkillPaths')
 
 const MAX_FOLDER_NAME_LENGTH = 80
 
+// Compared case-insensitively: Windows reserves these device names in every directory.
+const WINDOWS_RESERVED_FOLDER_NAMES = new Set([
+  'con',
+  'prn',
+  'aux',
+  'nul',
+  'com1',
+  'com2',
+  'com3',
+  'com4',
+  'com5',
+  'com6',
+  'com7',
+  'com8',
+  'com9',
+  'lpt1',
+  'lpt2',
+  'lpt3',
+  'lpt4',
+  'lpt5',
+  'lpt6',
+  'lpt7',
+  'lpt8',
+  'lpt9'
+])
+
 export function sanitizeFolderName(folderName: string): string {
   let sanitized = folderName.replace(/[/\\]/g, '_')
   sanitized = sanitized.replace(new RegExp(String.fromCharCode(0), 'g'), '')
@@ -16,6 +42,12 @@ export function sanitizeFolderName(folderName: string): string {
 
   if (sanitized.length > MAX_FOLDER_NAME_LENGTH) {
     sanitized = sanitized.slice(0, MAX_FOLDER_NAME_LENGTH)
+  }
+
+  // Windows refuses to create directories named after reserved device names, so such a skill
+  // would fail to install. Suffix them; the names cannot work as folders on Windows as-is.
+  if (WINDOWS_RESERVED_FOLDER_NAMES.has(sanitized.toLowerCase())) {
+    sanitized = `${sanitized}-skill`
   }
 
   return sanitized
