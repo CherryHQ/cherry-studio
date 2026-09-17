@@ -331,21 +331,15 @@ export class AgentSessionService {
 
   getById(id: string): AgentSessionEntity {
     const db = application.get('DbService').getDb()
-    const row = this.getByIdTx(db, id)
-    if (!row) throw DataApiErrorFactory.notFound('Session', id)
-    return row
-  }
-
-  /** Read a session inside a caller-owned transaction for idempotent commands. */
-  getByIdTx(tx: DbOrTx, id: string): AgentSessionEntity | null {
-    const [row] = tx
+    const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
-    return row ? rowToSession(row) : null
+    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    return rowToSession(row)
   }
 
   /** Read the internal sticky-session relation without exposing it on session entities. */

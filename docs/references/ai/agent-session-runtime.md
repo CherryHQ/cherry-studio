@@ -238,7 +238,7 @@ but still require a live approval for delegation. Knowing a Session or message i
 access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor.
 
 `session_read` shares this caller authorization boundary. It reads current source data, without a
-handoff cutoff or snapshot. Topic queries retain branch and sibling options; Agent Session queries
+cutoff or snapshot. Topic queries retain branch and sibling options; Agent Session queries
 retain their existing pagination. Temporary conversations retain their in-memory lifetime and list
 semantics. Exact message reads check conversation membership. A `tool_call_id` with `message_id`
 uses the same persisted tool-output reconstruction as the renderer, including its explicit fallback
