@@ -8,7 +8,7 @@ import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { CodeCli, isApiGatewayProviderId, PROVIDERLESS_CLI_TOOLS } from '@shared/types/codeCli'
 import { isFileConfiguredCli } from '@shared/utils/cliConfig'
 
 import {
@@ -22,7 +22,6 @@ import {
   writeCliConfigDraft
 } from '../cliConfig'
 import type { LaunchDialog } from '../components/LaunchDialog'
-import { PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
 import { useAvailableTerminals } from './useAvailableTerminals'
 
@@ -96,9 +95,9 @@ export function useLaunchDialogController({
 
   // The CLI config file is written at "enable" time, not here — launch only
   // opens a terminal running the CLI in the provider's directory. Provider-less
-  // tools (qoder / copilot) launch with a directory only.
+  // tools (Qoder / Copilot) launch with a directory only.
   const handleLaunch = useCallback(async () => {
-    // Provider-less tools (qoder/copilot) and the virtual "own login" option both
+    // Provider-less tools (Qoder/Copilot) and the virtual "own login" option both
     // launch with a directory only — no Cherry provider/model is injected.
     const runWithoutProvider = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool) || isOwnLoginSelected
     if (!directory || (!runWithoutProvider && !enabledProvider)) {
@@ -174,15 +173,21 @@ export function useLaunchDialogController({
       if (isGatewayProvider && apiGatewayProvider) {
         await apiGatewayProvider.ensureRunning()
       }
-      if (isGatewayProvider && apiGatewayProvider && isFileConfiguredCli(selectedCliTool)) {
+      if (
+        isGatewayProvider &&
+        apiGatewayProvider &&
+        (isFileConfiguredCli(selectedCliTool) || selectedCliTool === CodeCli.MCODE)
+      ) {
         const apiKey = await apiGatewayProvider.getApiKey()
         let onDiskFiles: CliConfigFileDraft[] | undefined
-        try {
-          onDiskFiles = await readCliConfigFiles(selectedCliTool)
-        } catch (err) {
-          // Reading is only needed to preserve a raw gateway model. If it fails, rebuild the managed
-          // config from preference so launch still uses the current gateway connection.
-          logger.warn('Failed to read CLI config for gateway reconciliation; rewriting', err as Error)
+        if (isFileConfiguredCli(selectedCliTool)) {
+          try {
+            onDiskFiles = await readCliConfigFiles(selectedCliTool)
+          } catch (err) {
+            // Reading is only needed to preserve a raw gateway model. If it fails, rebuild the managed
+            // config from preference so launch still uses the current gateway connection.
+            logger.warn('Failed to read CLI config for gateway reconciliation; rewriting', err as Error)
+          }
         }
 
         let modelId = cliConfigContext.modelId

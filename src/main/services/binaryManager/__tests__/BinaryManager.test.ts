@@ -2200,6 +2200,71 @@ describe('BinaryManager', () => {
     })
   })
 
+  describe('prepareRuntimeForExecution', () => {
+    it.each([
+      { nodeVersion: '20.19.4', expectedRuntime: 'node@22.19.0', expectedVersion: '22.19.0' },
+      { nodeVersion: '24.11.1', expectedRuntime: 'core:node@24.11.1', expectedVersion: '24.11.1' }
+    ])('uses a compatible execution path without changing the global Node $nodeVersion', async (testCase) => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      manifestRef.value = [{ name: 'node', tool: 'core:node', requestedVersion: testCase.nodeVersion }]
+      let globalNode = testCase.nodeVersion
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ node: [{ version: globalNode, active: true }] }), stderr: '' }
+        if (args[0] === 'latest') return { stdout: '22.19.0\n', stderr: '' }
+        if (args[0] === 'use') globalNode = args.at(-1)!.split('@').at(-1)!
+        if (args[0] === 'which') {
+          const version = args.includes('--tool') ? args.at(-1)!.split('@').at(-1)! : globalNode
+          return { stdout: `/mock/mise/installs/node/${version}/bin/${args[1]}\n`, stderr: '' }
+        }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.prepareRuntimeForExecution('mcode')).resolves.toBe(
+        `/mock/mise/installs/node/${testCase.expectedVersion}/bin`
+      )
+
+      expect(globalNode).toBe(testCase.nodeVersion)
+      const commands = mockExecFileAsync.mock.calls.map(([, args]) => args)
+      expect(commands).toContainEqual(['which', 'node', '--tool', testCase.expectedRuntime])
+      expect(commands.some((args) => args[0] === 'use' || args[0] === 'install')).toBe(false)
+    })
+
+    it.each([true, false])(
+      'repairs a missing runtime without globally selecting it (repair succeeds: %s)',
+      async (repairWorks) => {
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+        let installed = false
+        mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+          if (args[0] === 'latest') return { stdout: '22.19.0\n', stderr: '' }
+          if (args[0] === 'install') installed = true
+          if (args[0] === 'which' && installed && repairWorks) {
+            return { stdout: '/mock/mise/installs/node/22.19.0/bin/node\n', stderr: '' }
+          }
+          return { stdout: '', stderr: '' }
+        })
+
+        const result = service.prepareRuntimeForExecution('mcode')
+        if (repairWorks) await expect(result).resolves.toBe('/mock/mise/installs/node/22.19.0/bin')
+        else await expect(result).rejects.toThrow('runtime is not runnable after reinstall: node@22.19.0')
+
+        const commands = mockExecFileAsync.mock.calls.map(([, args]) => args)
+        expect(commands).toContainEqual(['install', '--force', 'node@22.19.0'])
+        expect(commands.some((args) => args[0] === 'use')).toBe(false)
+      }
+    )
+
+    it('does not prepare a runtime for tools without a requirement', async () => {
+      const service = new BinaryManager()
+      await expect(service.prepareRuntimeForExecution('claude')).resolves.toBeUndefined()
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+  })
+
   describe('installByName (name-only fixed/custom install)', () => {
     const makeService = () => {
       const service = new BinaryManager()
@@ -2457,6 +2522,46 @@ describe('BinaryManager', () => {
 
       expect(miseArgs()).toContainEqual(['use', '-g', 'core:node@18.20.0', 'npm:mytool@latest'])
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'core:node@20.0.0', 'npm:mytool@latest'])
+    })
+
+    it.each([
+      { nodeVersion: '20.19.4', expectedRuntime: 'node@22.19' },
+      { nodeVersion: '24.11.1', expectedRuntime: 'core:node@24.11.1' }
+    ])('selects a compatible Node for MiniMax Code when custom Node is $nodeVersion', async (testCase) => {
+      const service = makeService()
+      manifestRef.value = [{ name: 'node', tool: 'core:node', requestedVersion: testCase.nodeVersion }]
+      let installed = false
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2) {
+          return {
+            stdout: JSON.stringify({
+              node: [{ version: testCase.nodeVersion, active: true }],
+              ...(installed ? { 'npm:@minimax-ai/code': [{ version: '0.2.3', active: true }] } : {})
+            }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@minimax-ai/code': [{ version: '0.2.3', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'use') installed = true
+        if (args[0] === 'which') return { stdout: `/mock/mise/shims/${args[1]}\n`, stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await service.installByName({ name: 'mcode' })
+
+      const useCall = mockExecFileAsync.mock.calls.find((call: any[]) => call[1][0] === 'use')
+      expect(useCall?.[1]).toEqual([
+        'use',
+        '-g',
+        testCase.expectedRuntime,
+        'npm:@minimax-ai/code[allow_builds=["better-sqlite3"]]@latest'
+      ])
+      expect(useCall?.[2].env).not.toHaveProperty('MISE_NPM_SHELL_OUT')
     })
 
     it('does not adopt an unapplied custom runtime for a package install, using the default runtime', async () => {

@@ -21,6 +21,15 @@ export const codeCliHandlers: IpcHandlersFor<typeof codeCliRequestSchemas> = {
       return { success: false as const, message: error instanceof Error ? error.message : 'Unknown error' }
     }
   },
+  'code_cli.mcode_provider.apply': async (input) => {
+    return application.get('CodeCliService').applyMiniMaxCodeProvider(input)
+  },
+  'code_cli.mcode_provider.clear': async () => {
+    return application.get('CodeCliService').clearMiniMaxCodeProviders()
+  },
+  'code_cli.mcode_provider.activate_official': async () => {
+    return application.get('CodeCliService').activateMiniMaxCodeOfficial()
+  },
   'code_cli.get_available_terminals': async () => {
     // Project to the contract's { id, name }. The service's TerminalConfig also carries a macOS
     // bundleId used internally for LaunchServices resolution; the renderer never consumes it, so keep it
