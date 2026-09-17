@@ -56,7 +56,7 @@ Cherry Studio (51.8k yıldız, TypeScript + Electron, aktif geliştiriliyor) sı
 - [x] 0.2 Önceki oturumun kaydedilmemiş çalışması commit edildi (5 commit) — artık kayıp riski yok
 - [x] 0.3 `@paymoapp/electron-shutdown-handler` yaması kalıcı: `patches/@paymoapp__electron-shutdown-handler@1.1.2.patch`, `pnpm install` artık silmiyor
 - [x] 0.4 Uygulamayı çalıştır, ana akışı baştan dene (sağlayıcı ekle → model senkronla → mesaj gönder), takıldığı her noktayı yaz
-- [ ] 0.5 Arayüz dilini Türkçe yap + varsayılan asistana "her zaman Türkçe cevap ver" talimatı
+- [x] 0.5 Arayüz dilini Türkçe yap + varsayılan asistana "her zaman Türkçe cevap ver" talimatı
 - [ ] 0.6 **Madde 3**: MCP dosya sistemi sunucusuna çalışma klasörü bağla → doğrula: klasörde dosya oluşturabiliyor
 
 ## Faz 1 — Sağlık hafızası ve kaliteye göre sıralama (Madde 2)
@@ -133,6 +133,7 @@ Motor tarafı bitti ama tercihleri girecek ekran yok; şu an ayarlar sadece veri
 - 3.3: `routeDefaultModelId` `PersistentChatContextProvider` gönderim yoluna bağlandı; sadece varsayılanı değiştiriyor, elle seçimi değil.
 - 3.3 notu: yönlendirme hata verirse (bozuk ayar, silinmiş model) mesaj yine gönderiliyor — optimizasyon bir engele dönüşmemeli.
 - 2.3 notu: tip kontrolü testimin yakalayamadığı gerçek bir hatayı buldu (`buckets` ayrımlı birleşim, `groupBy` ile daraltmak gerekiyordu); taklit veri de gerçeğe uydurularak düzeltildi.
+- 0.5: CDP üzerinden `app.language=tr-tr` + "Cherry Assistant" prompt="Her zaman Türkçe cevap ver." — uygulama çalışırken uygulandı.
 - 0.4: Tam akış doğrulandı. Tek engel: dev modunda ilk çalışmada Vite optimizatör bitince sayfa splash'ta kalıyor, tek `Page.reload()` çözüyor (production'da yok). API key olmadan sync models çalışıyor; mesaj gönderilince "API Key is invalid + Go to Settings" hatası düzgün gösteriliyor.
 - 6.1 notu: test gerçek bir tasarım hatası yakaladı — kalite skoru **metin** yeteneğini ölçüyor, görsel üretiminde alakasız. Frontier sohbet modeli adanmış görsel modelini eziyordu; `NATIVE_IMAGE_BONUS = 100` kalite aralığının tamamını aşıyor.
 - 6.1 notu 2: yalnızca görsel üreten model (`outputModalities` içinde `text` yok) sohbet turunu cevaplayamaz. "Kolay iş en zayıf adayı seçer" kuralı yüzünden kod kategorisinde seçilip her seferinde patlardı — kategori bazlı uygunluk filtresi eklendi.
