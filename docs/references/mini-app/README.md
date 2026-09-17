@@ -27,6 +27,14 @@ This is the author-facing contract. It describes what you can call, what is enfo
 | [Runtime probes](./probes.md) | Maintaining the host: the measurements behind the sandbox layers and how to rebuild each probe when Electron moves |
 | [`examples/capability-tests/`](./examples/capability-tests/manifest.json) | A runnable app that checks every `cherry.*` method against this reference, permission by permission — zip the directory to install it |
 
+## Maintainer design proposals
+
+These documents describe possible future capabilities. They are not part of the current Mini App runtime contract.
+
+| Proposal | Status |
+|---|---|
+| [Private SQLite database API](./database-api-design.md) | Proposed and not implemented — `window.cherry.db` does not currently exist |
+
 ## Minimal app
 
 ```
