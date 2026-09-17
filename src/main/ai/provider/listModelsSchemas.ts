@@ -146,7 +146,9 @@ export const LMStudioModelsResponseSchema = z.object({
     z.looseObject({
       key: z.string(),
       display_name: z.string().nullish(),
-      capabilities: z.looseObject({ vision: z.boolean().nullish() }).nullish(),
+      capabilities: z
+        .looseObject({ vision: z.boolean().nullish(), trained_for_tool_use: z.boolean().nullish() })
+        .nullish(),
       type: z
         .string()
         .nullable()
