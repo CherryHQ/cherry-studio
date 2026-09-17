@@ -9,6 +9,12 @@ const workflow = parse(readFileSync('.github/workflows/cherry-regression-test.ym
 const steps = workflow.jobs.aggregate.steps as Array<{ name: string; run?: string }>
 
 describe('single regression artifact bundle', () => {
+  it('requires a resolved target and a non-skipped test job while retaining failed-run reports', () => {
+    expect(workflow.jobs.aggregate.if).toBe(
+      "always() && needs.resolve.result == 'success' && needs.test.result != 'skipped'"
+    )
+  })
+
   let directory: string
   const write = (path: string, content: string) => {
     const target = join(directory, path)

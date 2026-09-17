@@ -409,7 +409,7 @@ jobs:
 
   aggregate:
     needs: [resolve, test]
-    if: always()
+    if: always() && needs.resolve.result == 'success' && needs.test.result != 'skipped'
     runs-on: ubuntu-latest
     permissions:
       contents: read
