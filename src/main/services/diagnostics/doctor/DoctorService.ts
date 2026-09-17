@@ -119,7 +119,12 @@ export class DoctorService extends BaseService {
     if (ref.kind === 'chat') return { providerId: ref.providerId, modelId: ref.modelId }
     const agent = agentService.getAgent(ref.agentId)
     if (!agent) throw DataApiErrorFactory.notFound('Agent', ref.agentId)
-    const model = agent.model ? parseUniqueModelId(agent.model) : null
+    const model =
+      ref.providerId && ref.modelId
+        ? { providerId: ref.providerId, modelId: ref.modelId }
+        : agent.model
+          ? parseUniqueModelId(agent.model)
+          : null
     return { agentId: ref.agentId, ...model, mcpServerIds: agent.mcps ?? [] }
   }
 
@@ -156,7 +161,8 @@ export class DoctorService extends BaseService {
     if (active) return { status: 'busy', runId: active.runId }
     const subject = this.resolveSubject(input.subject)
     if (!subject?.providerId || !subject.modelId) throw new Error('No model is configured for this subject')
-    const record = this.createExecution(scope, input.runId, input.subject, [...DOCTOR_CONNECTIVITY_CHECK_IDS])
+    const ids = this.selectChecks([...DOCTOR_CONNECTIVITY_CHECK_IDS], 'live', subject)
+    const record = this.createExecution(scope, input.runId, input.subject, ids)
     const controller = new AbortController()
     this.connectivityRuns.set(scope, { runId: input.runId, controller })
     try {

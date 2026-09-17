@@ -76,7 +76,7 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
   if (state.status === 'completed') {
     const resultById = new Map(state.report.results.map((result) => [result.id, result]))
     const pendingIds = new Set((state.report.pendingChecks ?? []).map((pending) => pending.checkId))
-    return DOCTOR_CHECK_IDS.flatMap((id) => {
+    return DOCTOR_CHECK_IDS.flatMap<DoctorRowViewModel>((id) => {
       const result = resultById.get(id)
       if (result) {
         return [
@@ -96,6 +96,7 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
           id,
           domain: DOCTOR_CHECK_CATALOG[id].domain,
           status: 'pending',
+          result: undefined,
           actions: [],
           actionsDisabled: true
         }
@@ -105,7 +106,7 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
 
   const resultById = new Map(state.results.map((result) => [result.id, result]))
   const active = new Set(state.activeCheckIds)
-  return DOCTOR_CHECK_IDS.flatMap((id) => {
+  return DOCTOR_CHECK_IDS.flatMap<DoctorRowViewModel>((id) => {
     const result = resultById.get(id)
     const inDefault =
       !('includeByDefault' in DOCTOR_CHECK_CATALOG[id]) &&

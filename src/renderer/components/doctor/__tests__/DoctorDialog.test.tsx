@@ -58,6 +58,7 @@ function createController(overrides: ControllerOverrides = {}) {
     cancel: vi.fn<DoctorController['cancel']>(),
     canChangePanel: true,
     cancelConfirmation: vi.fn<DoctorController['cancelConfirmation']>(),
+    confirmCheck: vi.fn<DoctorController['confirmCheck']>(),
     confirmEvidence: vi.fn<DoctorController['confirmEvidence']>(),
     executeAction: vi.fn<DoctorController['executeAction']>(),
     isAutoRunPending: false,

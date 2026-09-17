@@ -24,7 +24,7 @@ import {
 } from '@renderer/components/chat/messages/types'
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
-import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -226,7 +226,13 @@ export function useAgentMessageListProviderValue({
   }, [resolvedAgentId, visibleMessages, topic.id])
 
   const getDoctorSubject = useCallback(
-    (): DoctorSubjectRef | undefined => (resolvedAgentId ? { kind: 'agent', agentId: resolvedAgentId } : undefined),
+    (message: MessageListItem): DoctorSubjectRef | undefined => {
+      if (!resolvedAgentId) return undefined
+      const model = message ? getMessageListItemModel(message) : undefined
+      return model
+        ? { kind: 'agent', agentId: resolvedAgentId, providerId: model.provider, modelId: model.id }
+        : { kind: 'agent', agentId: resolvedAgentId }
+    },
     [resolvedAgentId]
   )
   const {

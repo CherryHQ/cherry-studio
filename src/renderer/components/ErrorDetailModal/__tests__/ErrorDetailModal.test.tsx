@@ -8,7 +8,7 @@ import { Dialog, DialogContent } from '@cherrystudio/ui'
 import type * as DoctorComponents from '@renderer/components/doctor'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
-import type { DoctorCheckResult, DoctorState } from '@shared/types/doctor'
+import type { DoctorCheckResult, DoctorPendingCheck, DoctorState } from '@shared/types/doctor'
 
 import type { ErrorDetailContentProps } from '../ErrorDetailModal'
 
@@ -86,6 +86,59 @@ const skippedResult: DoctorCheckResult = {
   skippedBy: 'provider-model'
 }
 
+const missingApiKeyResult: DoctorCheckResult = {
+  id: 'provider-api-key-present',
+  status: 'fail',
+  durationMs: 1,
+  attribution: 'user-fixable',
+  detail: { variant: 'missing', params: { provider: 'DeepSeek' } },
+  evidence: [
+    { key: 'providerId', value: 'deepseek', dataClass: 'local_only' },
+    { key: 'status', value: 401, dataClass: 'public' },
+    { key: 'request', value: 'private request', dataClass: 'consent_required' }
+  ],
+  actions: [{ kind: 'navigate', target: '/settings/provider' }]
+}
+
+const modelEndpointPass: DoctorCheckResult = {
+  id: 'network-model-endpoint',
+  status: 'pass',
+  durationMs: 1
+}
+
+const modelListFail: DoctorCheckResult = {
+  id: 'provider-model-list',
+  status: 'fail',
+  durationMs: 1,
+  attribution: 'user-fixable',
+  detail: { variant: 'request_failed', params: { category: 'auth' } },
+  evidence: [
+    { key: 'status', value: 401, dataClass: 'public' },
+    { key: 'body', value: 'Not logged in · Please run /login', dataClass: 'local_only' }
+  ],
+  actions: [{ kind: 'navigate', target: '/settings/provider' }]
+}
+
+const conversationPending: DoctorPendingCheck = {
+  checkId: 'provider-model-conversation',
+  requestId: 'confirm-conversation',
+  confirmation: {
+    messageKey: 'settings.doctor.checks.provider-model-conversation.confirmation',
+    params: { model: 'DeepSeek V4 Flash', modelId: 'deepseek-v4-flash', endpoint: 'https://api.deepseek.com/' }
+  }
+}
+
+const conversationFail: DoctorCheckResult = {
+  id: 'provider-model-conversation',
+  status: 'fail',
+  durationMs: 1,
+  attribution: 'user-fixable',
+  detail: { variant: 'request_failed', params: { category: 'auth' } },
+  actions: [{ kind: 'navigate', target: '/settings/provider' }]
+}
+
+const chatSubject = { kind: 'chat' as const, providerId: 'deepseek', modelId: 'deepseek-v4-flash' }
+
 const mocks = vi.hoisted(() => ({
   cacheReady: true,
   diagnoseError: vi.fn(),
@@ -106,6 +159,7 @@ const translations: Record<string, string> = {
   'error.diagnostic_report.action': 'Report a problem',
   'error.diagnostic_report.location': 'Location',
   'error.diagnostics.action_required': 'Action required',
+  'error.diagnostics.action_required_tag': 'Needs action',
   'error.diagnostics.back_to_overview': 'Back to diagnostic overview',
   'error.diagnostics.basic_information': 'Basic information',
   'error.diagnostics.basic_information_with_location': 'Basic information ({{location}})',
@@ -126,6 +180,7 @@ const translations: Record<string, string> = {
   'message.tools.units.item_other': '{{count}} items',
   'settings.doctor.actions.cancel_run': 'Cancel checks',
   'settings.doctor.actions.confirm_check': 'Send test message',
+  'settings.doctor.actions.open_provider': 'Open provider settings',
   'settings.doctor.actions.run_network': 'Full check',
   'settings.doctor.actions.run_basic': 'Quick basic checks',
   'settings.doctor.actions.rerun': 'Run checks again',
@@ -135,16 +190,33 @@ const translations: Record<string, string> = {
   'settings.doctor.checks.install-native-modules.title': 'Native components',
   'settings.doctor.checks.logs-recent-findings.title': 'Recent findings',
   'settings.doctor.checks.network-online.title': 'Network availability',
+  'settings.doctor.checks.network-model-endpoint.detail.unreachable': 'The configured Base URL could not be reached.',
+  'settings.doctor.checks.network-model-endpoint.title': 'Selected model endpoint',
+  'settings.doctor.checks.provider-api-key-present.detail.missing': '{{provider}} has no enabled API key.',
   'settings.doctor.checks.provider-api-key-present.title': 'Provider API key',
+  'settings.doctor.checks.provider-model-conversation.confirmation':
+    'Send one short test message to {{model}} ({{modelId}}) at {{endpoint}}?',
+  'settings.doctor.checks.provider-model-conversation.title': 'Model conversation',
+  'settings.doctor.checks.provider-model-list.detail.request_failed':
+    '{{category}}. The remote model list could not be retrieved.',
+  'settings.doctor.checks.provider-model-list.title': 'Remote model availability',
   'settings.doctor.checks.storage-disk-space.detail.low': 'Available disk space is low.',
   'settings.doctor.checks.storage-disk-space.title': 'Available disk space',
   'settings.doctor.checks.install-version-channel.title': 'Version and release channel',
+  'settings.doctor.checks.pending': 'Awaiting check',
+  'settings.doctor.checks.skipped': 'Skipped because {{check}} did not pass.',
+  'settings.doctor.empty.description': 'Run basic checks, or a full check that includes network and service checks.',
+  'settings.doctor.empty.title': 'No diagnostic result yet',
+  'settings.doctor.error_category.auth': 'Not signed in or the API key is invalid',
   'settings.doctor.evidence.local_details': 'Local details',
   'settings.doctor.evidence.local_only': 'Local only',
   'settings.doctor.fixes.repair_boot_config': 'Repair startup configuration',
   'settings.doctor.messages.relaunch_required': 'Restart Cherry Studio to apply the repair.',
   'settings.doctor.status.fail': 'Failed',
   'settings.doctor.status.pass': 'Passed',
+  'settings.doctor.status.pending': 'Pending',
+  'settings.doctor.status.skip': 'Skipped',
+  'settings.doctor.status.warn': 'Warning',
   'settings.doctor.summary.progress': '{{completed}} of {{total}} completed',
   'settings.doctor.stale.description': 'This diagnostic result is out of date.',
   'settings.doctor.title': 'System diagnostics'
@@ -235,7 +307,8 @@ function runningDoctorState(
 
 function completedDoctorState(
   results: readonly DoctorCheckResult[] = [],
-  expiresAt = new Date(Date.now() + 60_000).toISOString()
+  expiresAt = new Date(Date.now() + 60_000).toISOString(),
+  pendingChecks?: readonly DoctorPendingCheck[]
 ): DoctorState {
   const now = Date.now()
   return {
@@ -261,6 +334,7 @@ function completedDoctorState(
         userDataPath: '/Users/local/CherryStudio'
       },
       results,
+      ...(pendingChecks ? { pendingChecks } : {}),
       summary: { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 }
     }
   }
@@ -394,7 +468,7 @@ describe('ErrorDetailContent diagnostics', () => {
       })
     })
 
-    await screen.findByRole('region', { name: 'Action required' })
+    await screen.findByRole('region', { name: 'Diagnostic result' })
     await user.click(screen.getByRole('button', { name: /Startup configuration/ }))
     const repair = screen.getByRole('button', { name: 'Repair startup configuration' })
     await waitFor(() => expect(repair).toBeEnabled())
@@ -499,7 +573,7 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
   })
 
-  it('shows only user-fixable rows with local details expanded in Action required', async () => {
+  it('shows only user-fixable rows in Diagnostic result without local diagnostic dumps', async () => {
     const user = userEvent.setup()
     mocks.doctorState = completedDoctorState([
       passingVersionResult,
@@ -514,23 +588,26 @@ describe('ErrorDetailContent diagnostics', () => {
     renderErrorDetailContent({ error: providerError })
 
     const result = screen.getByRole('region', { name: 'Diagnostic result' })
-    const diagnostics = screen.getByRole('region', { name: 'Action required' })
-    const accordion = diagnostics.querySelector('[data-slot="accordion"]')
-    expect(diagnostics).toHaveAttribute('data-variant', 'sectioned')
+    const accordion = result.querySelector('[data-slot="accordion"]')
+    expect(result).toHaveAttribute('data-variant', 'sectioned')
     expect(accordion).not.toHaveClass('rounded-lg', 'border', 'bg-background')
-    expect(within(diagnostics).getByText('Available disk space')).toHaveClass('text-xs')
+    expect(within(result).getByText('Available disk space')).toHaveClass('text-xs')
     expect(result).toHaveTextContent('needs attention: 2 items')
-    const lowDisk = within(diagnostics).getByRole('button', { name: /Available disk space/ })
+    const lowDisk = within(result).getByRole('button', { name: /Available disk space/ })
+    expect(within(lowDisk).getByText('Needs action')).toHaveClass('text-warning')
+    expect(within(lowDisk).queryByText('Warning')).not.toBeInTheDocument()
+    expect(within(result).getByRole('button', { name: /Startup configuration/ })).toHaveTextContent('Needs action')
+    expect(within(result).getByRole('button', { name: /Startup configuration/ })).not.toHaveTextContent('Failed')
     await user.click(lowDisk)
-    const localDetails = within(diagnostics).getByRole('button', { name: 'Local details' })
-    expect(localDetails).toHaveAttribute('aria-expanded', 'true')
-    expect(within(diagnostics).getByText('/Users/local/CherryStudio')).toBeVisible()
-    expect(within(diagnostics).getByRole('button', { name: /Startup configuration/ })).toBeInTheDocument()
-    expect(within(diagnostics).queryByRole('button', { name: /Version and release channel/ })).not.toBeInTheDocument()
-    expect(within(diagnostics).queryByRole('button', { name: /Recent findings/ })).not.toBeInTheDocument()
-    expect(within(diagnostics).queryByRole('button', { name: /Network availability/ })).not.toBeInTheDocument()
-    expect(within(diagnostics).queryByRole('button', { name: /Native components/ })).not.toBeInTheDocument()
-    expect(within(diagnostics).queryByRole('button', { name: /Provider API key/ })).not.toBeInTheDocument()
+    expect(within(result).queryByRole('button', { name: 'Local details' })).not.toBeInTheDocument()
+    expect(within(result).queryByText('/Users/local/CherryStudio')).not.toBeInTheDocument()
+    expect(within(result).getByRole('button', { name: /Startup configuration/ })).toBeInTheDocument()
+    expect(within(result).queryByRole('button', { name: /Version and release channel/ })).not.toBeInTheDocument()
+    expect(within(result).queryByRole('button', { name: /Recent findings/ })).not.toBeInTheDocument()
+    expect(within(result).queryByRole('button', { name: /Network availability/ })).not.toBeInTheDocument()
+    expect(within(result).queryByRole('button', { name: /Native components/ })).not.toBeInTheDocument()
+    expect(within(result).queryByRole('button', { name: /Provider API key/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
   })
 
   it('shows one progress line and no Action required panel while Doctor is running', () => {
@@ -551,21 +628,225 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
   })
 
-  it('orders Doctor results, required actions, and basic information', () => {
+  it('orders Doctor results and basic information', () => {
     mocks.doctorState = completedDoctorState([lowDiskResult])
 
     renderErrorDetailContent({ error: providerError })
 
     const result = screen.getByRole('region', { name: 'Diagnostic result' })
-    const actionRequired = screen.getByRole('region', { name: 'Action required' })
     const basicInformation = screen.getByRole('region', { name: 'Basic information' })
-    const panels = screen
-      .getAllByRole('region')
-      .filter((panel) => [result, actionRequired, basicInformation].includes(panel))
+    const panels = screen.getAllByRole('region').filter((panel) => [result, basicInformation].includes(panel))
 
-    expect(panels).toEqual([result, actionRequired, basicInformation])
+    expect(panels).toEqual([result, basicInformation])
     expect(result).toHaveTextContent('needs attention: 1 item')
+    expect(within(result).getByRole('button', { name: /Available disk space/ })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
+  })
+
+  it('renders conversation connectivity as three collapsed steps without the result summary', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = completedDoctorState([modelEndpointPass, modelListFail], undefined, [conversationPending])
+
+    renderErrorDetailContent({ subject: chatSubject, error: providerError })
+
+    const result = screen.getByRole('region', { name: 'Diagnostic result' })
+    const endpoint = within(result).getByRole('button', { name: /Selected model endpoint/ })
+    const availability = within(result).getByRole('button', { name: /Remote model availability/ })
+    const conversation = within(result).getByRole('button', { name: /Model conversation/ })
+    expect(within(endpoint).queryByText('1')).not.toBeInTheDocument()
+    expect(within(availability).queryByText('2')).not.toBeInTheDocument()
+    expect(within(conversation).queryByText('3')).not.toBeInTheDocument()
+    expect(within(endpoint).getByText('Passed')).toHaveClass('text-success')
+    expect(within(availability).getByText('Failed')).toHaveClass('text-error')
+    expect(within(conversation).getByText('Pending')).toHaveClass('text-warning')
+    expect(endpoint).toHaveAttribute('aria-expanded', 'false')
+    expect(availability).toHaveAttribute('aria-expanded', 'false')
+    expect(conversation).toHaveAttribute('aria-expanded', 'false')
+    expect(result).not.toHaveTextContent('needs attention')
+    expect(result).not.toHaveTextContent('Fixed:')
+
+    await user.click(endpoint)
+    expect(
+      within(endpoint.closest('[data-slot="accordion-item"]') as HTMLElement).getByText('Passed', { selector: 'p' })
+    ).toBeVisible()
+    await user.click(availability)
+    expect(
+      await screen.findByText('Not signed in or the API key is invalid. The remote model list could not be retrieved.')
+    ).toBeVisible()
+    expect(screen.queryByText('401')).not.toBeInTheDocument()
+    expect(screen.queryByText('Not logged in · Please run /login')).not.toBeInTheDocument()
+    await user.click(conversation)
+    expect(
+      await screen.findByText(
+        'Send one short test message to DeepSeek V4 Flash (deepseek-v4-flash) at https://api.deepseek.com/?'
+      )
+    ).toBeVisible()
+    expect(within(result).getByRole('button', { name: 'Send test message' })).toBeEnabled()
+    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
+  })
+
+  it('keeps connectivity findings on the steps and other user-fixable rows in Diagnostic result', () => {
+    mocks.doctorState = completedDoctorState([missingApiKeyResult, modelEndpointPass, modelListFail], undefined, [
+      conversationPending
+    ])
+
+    renderErrorDetailContent({ subject: chatSubject, error: providerError })
+
+    const result = screen.getByRole('region', { name: 'Diagnostic result' })
+    expect(within(result).getByText('Remote model availability')).toBeVisible()
+    expect(within(result).getByText('Model conversation')).toBeVisible()
+    expect(within(result).getByRole('button', { name: /Provider API key/ })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
+    expect(result).not.toHaveTextContent('needs attention')
+    const apiKey = within(result).getByRole('button', { name: /Provider API key/ })
+    expect(apiKey.querySelector('svg.text-error')).not.toBeInTheDocument()
+    expect(within(apiKey).getByText('Needs action')).toHaveClass('text-warning')
+    expect(within(apiKey).queryByText('Failed')).not.toBeInTheDocument()
+    expect(within(result).getByRole('button', { name: /Remote model availability/ })).not.toHaveTextContent(
+      'Needs action'
+    )
+  })
+
+  it('explains a missing API key with the provider name and no local diagnostic dump', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = completedDoctorState([missingApiKeyResult, modelEndpointPass])
+
+    renderErrorDetailContent({ subject: chatSubject, error: providerError })
+
+    const result = screen.getByRole('region', { name: 'Diagnostic result' })
+    await user.click(within(result).getByRole('button', { name: /Provider API key/ }))
+    expect(within(result).getByText('DeepSeek has no enabled API key.')).toBeVisible()
+    expect(within(result).queryByRole('button', { name: 'Local details' })).not.toBeInTheDocument()
+    expect(result).not.toHaveTextContent('providerId')
+    expect(result).not.toHaveTextContent('401')
+    expect(result).not.toHaveTextContent('private request')
+  })
+
+  it('keeps a confirmed conversation failure on the connectivity steps', () => {
+    mocks.doctorState = completedDoctorState([modelEndpointPass, modelListFail, conversationFail])
+
+    renderErrorDetailContent({ subject: chatSubject, error: providerError })
+
+    const result = screen.getByRole('region', { name: 'Diagnostic result' })
+    expect(within(result).getByText('Remote model availability')).toBeVisible()
+    expect(within(result).getByText('Model conversation')).toBeVisible()
+    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
+  })
+
+  it('offers provider settings from a failed connectivity step', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = completedDoctorState([modelEndpointPass, modelListFail, conversationFail])
+
+    renderErrorDetailContent({
+      subject: chatSubject,
+      error: providerError,
+      onDoctorNavigate: mocks.openSettingsTab
+    })
+
+    await user.click(screen.getByRole('button', { name: /Model conversation/ }))
+    await user.click(await screen.findByRole('button', { name: 'Open provider settings' }))
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider')
+    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
+  })
+
+  it('does not repeat provider settings on connectivity steps when the API key already offers it', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = completedDoctorState([missingApiKeyResult, modelEndpointPass, conversationFail])
+
+    renderErrorDetailContent({
+      subject: chatSubject,
+      error: providerError,
+      onDoctorNavigate: mocks.openSettingsTab
+    })
+
+    const result = screen.getByRole('region', { name: 'Diagnostic result' })
+    await user.click(within(result).getByRole('button', { name: /Model conversation/ }))
+    expect(within(result).queryByRole('button', { name: 'Open provider settings' })).not.toBeInTheDocument()
+    await user.click(within(result).getByRole('button', { name: /Provider API key/ }))
+    await user.click(within(result).getByRole('button', { name: 'Open provider settings' }))
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider')
+    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
+  })
+
+  it('confirms the conversation step from the diagnostic result', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = completedDoctorState([modelEndpointPass, modelListFail], undefined, [conversationPending])
+    mocks.request.mockResolvedValue({ status: 'completed' })
+
+    renderErrorDetailContent({ subject: chatSubject, error: providerError })
+
+    await user.click(screen.getByRole('button', { name: /Model conversation/ }))
+    await user.click(await screen.findByRole('button', { name: 'Send test message' }))
+
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.confirm_check', {
+      scope: 'chat:deepseek/deepseek-v4-flash',
+      runId: 'completed-quick',
+      requestId: 'confirm-conversation'
+    })
+  })
+
+  it('shows three connectivity steps while a conversation diagnosis is running', () => {
+    mocks.doctorState = runningDoctorState('live', ['network-model-endpoint'])
+
+    renderErrorDetailContent({ subject: chatSubject, error: providerError })
+
+    const diagnosing = screen.getByRole('region', { name: 'Diagnosing' })
+    expect(within(diagnosing).queryByText('1')).not.toBeInTheDocument()
+    expect(within(diagnosing).getByText('Selected model endpoint')).toBeVisible()
+    expect(within(diagnosing).queryByText('2')).not.toBeInTheDocument()
+    expect(within(diagnosing).getByText('Remote model availability')).toBeVisible()
+    expect(within(diagnosing).queryByText('3')).not.toBeInTheDocument()
+    expect(within(diagnosing).getByText('Model conversation')).toBeVisible()
+    expect(diagnosing).not.toHaveTextContent('needs attention')
+    expect(within(diagnosing).queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('enables the system diagnosis full check without a prior conversation report', async () => {
+    const user = userEvent.setup()
+    const onOpenFullCheck = vi.fn()
+    renderErrorDetailContent({ subject: chatSubject, error: providerError, onOpenFullCheck })
+
+    const result = await screen.findByRole('region', { name: 'Diagnostic result' })
+    const fullCheck = await screen.findByRole('button', { name: 'Full check' })
+    await waitFor(() => expect(fullCheck).toBeEnabled())
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', {
+      subject: chatSubject,
+      tier: 'live',
+      includeConnectivity: true
+    })
+    expect(within(result).getByText('Selected model endpoint')).toBeVisible()
+    expect(within(result).getByText('Remote model availability')).toBeVisible()
+    expect(within(result).getByText('Model conversation')).toBeVisible()
+    expect(screen.queryByText('No diagnostic result yet')).not.toBeInTheDocument()
+
+    mocks.request.mockClear()
+    await user.click(fullCheck)
+
+    expect(onOpenFullCheck).toHaveBeenCalledTimes(1)
+    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
+  })
+
+  it('opens System Doctor from a conversation full check after error details close', async () => {
+    const user = userEvent.setup()
+    mocks.doctorState = completedDoctorState([modelEndpointPass, modelListFail], undefined, [conversationPending])
+    render(<PopupHost />)
+    act(() => showErrorDetailPopup({ subject: chatSubject, error: providerError }))
+
+    const fullCheck = await screen.findByRole('button', { name: 'Full check' })
+    await waitFor(() => expect(fullCheck).toBeEnabled())
+    mocks.request.mockClear()
+    await user.click(fullCheck)
+
+    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
+    expect(mocks.showDoctor).not.toHaveBeenCalled()
+    expect(popupService.getSnapshot()[0]?.open).toBe(false)
+
+    await waitFor(() =>
+      expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'checks', initialRunTier: 'live' })
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('offers a basic rerun directly from an expired-result warning', async () => {

@@ -82,6 +82,39 @@ describe('Doctor scope ownership', () => {
     expect(global.result.current.viewModel.report?.scope).toBe('global')
   })
 
+  it('does not reuse an Agent report after the conversation model changes', async () => {
+    const firstModel = {
+      kind: 'agent',
+      agentId: 'support',
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash'
+    } as const
+    const secondModel = {
+      kind: 'agent',
+      agentId: 'support',
+      providerId: 'deepseek',
+      modelId: 'deepseek-reasoner'
+    } as const
+    const first = renderHook(() =>
+      useDoctorController({ initialPanel: 'checks', subject: firstModel, onNavigate: vi.fn() })
+    )
+    await waitFor(() =>
+      expect(first.result.current.viewModel.report?.scope).toBe('agent:support:deepseek/deepseek-v4-flash')
+    )
+    const second = renderHook(() =>
+      useDoctorController({ initialPanel: 'checks', subject: secondModel, onNavigate: vi.fn() })
+    )
+    await waitFor(() =>
+      expect(second.result.current.viewModel.report?.scope).toBe('agent:support:deepseek/deepseek-reasoner')
+    )
+    expect(request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(2)
+    expect(request).toHaveBeenLastCalledWith('diagnostics.doctor.run', {
+      tier: 'live',
+      subject: secondModel,
+      includeConnectivity: true
+    })
+  })
+
   it('does not carry a successful fix into a newer report', async () => {
     const subject = { kind: 'global' } as const
     const first = report(subject)

@@ -107,7 +107,7 @@ export const providerApiKey = defineDoctorCheck({
       return {
         status: 'fail',
         attribution: 'user-fixable',
-        detail: { variant: 'provider_unavailable' },
+        detail: { variant: 'provider_unavailable', params: { provider: providerId } },
         actions: PROVIDER_SETTINGS_ACTION
       }
     }
@@ -119,7 +119,7 @@ export const providerApiKey = defineDoctorCheck({
     return {
       status: 'fail',
       attribution: 'user-fixable',
-      detail: { variant: 'missing' },
+      detail: { variant: 'missing', params: { provider: provider.name } },
       actions: PROVIDER_SETTINGS_ACTION,
       devMessage: 'The model provider has no enabled API key',
       evidence: [{ key: 'providerId', value: providerId, dataClass: 'local_only' }]

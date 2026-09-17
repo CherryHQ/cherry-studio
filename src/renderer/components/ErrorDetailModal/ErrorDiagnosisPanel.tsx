@@ -2,24 +2,29 @@ import type { ReactNode } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
 
-import { Button } from '@cherrystudio/ui'
+import { Accordion, Button } from '@cherrystudio/ui'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
-import { DoctorCheckNotices } from '@renderer/components/doctor'
+import { DoctorCheckAccordionItems, DoctorCheckNotices } from '@renderer/components/doctor'
 import type { DoctorController } from '@renderer/hooks/doctor'
+import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { doctorCheckTitleKey } from '@shared/utils/doctor'
+
+import { actionRequiredRows, ErrorConnectivitySteps } from './ErrorConnectivitySteps'
 
 interface ErrorDiagnosisPanelProps {
   readonly doctorController: DoctorController
   readonly onRunFullCheck: () => void
+  readonly subject: DoctorSubjectRef
 }
 
 function FixedSummary({ children, enabled }: { children?: ReactNode; enabled: boolean }) {
   return enabled ? <span className="text-success">{children}</span> : null
 }
 
-export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck }: ErrorDiagnosisPanelProps) {
+export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck, subject }: ErrorDiagnosisPanelProps) {
   const { t } = useTranslation()
   const { interaction } = doctorController.session
+  const showConnectivitySteps = subject.kind !== 'global'
   const activeDoctorTier =
     doctorController.viewModel.status === 'running'
       ? doctorController.viewModel.tier
@@ -38,7 +43,17 @@ export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck }: ErrorD
   const hasDoctorNotices =
     doctorController.viewModel.isStale ||
     doctorController.session.relaunchRequired ||
-    doctorController.viewModel.rows.length === 0
+    (doctorController.viewModel.rows.length === 0 && !showConnectivitySteps)
+  const noticesController = showConnectivitySteps
+    ? {
+        ...doctorController,
+        run: ((tier, options) =>
+          doctorController.run(tier === 'quick' ? 'live' : tier, {
+            ...options,
+            includeConnectivity: true
+          })) satisfies DoctorController['run']
+      }
+    : doctorController
 
   const progress =
     doctorController.viewModel.status === 'running'
@@ -62,6 +77,20 @@ export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck }: ErrorD
           ? t('settings.doctor.summary.running_basic')
           : t('error.diagnostics.preparing_result')
 
+  const extraRows =
+    !isDoctorPending && doctorController.viewModel.status === 'completed' ? actionRequiredRows(doctorController) : []
+  const extraFindings =
+    extraRows.length > 0 ? (
+      <DoctorCheckAccordionItems
+        compact
+        showActionRequiredTag
+        showEvidence={false}
+        showStatusIcon={false}
+        controller={doctorController}
+        rows={extraRows}
+      />
+    ) : null
+
   return (
     <DiagnosticsPanel
       title={t(isDoctorPending ? 'error.diagnostics.diagnosing' : 'error.diagnostics.result')}
@@ -84,13 +113,26 @@ export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck }: ErrorD
           <Button
             variant="outline"
             size="sm"
-            disabled={doctorController.isInteracting || !doctorController.viewModel.report}
-            onClick={onRunFullCheck}>
+            loading={interaction.kind === 'run'}
+            disabled={doctorController.isInteracting || (!showConnectivitySteps && !doctorController.viewModel.report)}
+            onClick={() => onRunFullCheck()}>
             {t('settings.doctor.actions.run_network')}
           </Button>
         ) : null
       }>
-      {isDoctorPending ? (
+      {showConnectivitySteps ? (
+        <div>
+          <Accordion type="single" collapsible className="[&>[data-slot=accordion-item]:first-child]:border-t-0">
+            <ErrorConnectivitySteps controller={doctorController} />
+            {extraFindings}
+          </Accordion>
+          {hasDoctorNotices ? (
+            <div className="space-y-3 px-4 pb-4">
+              <DoctorCheckNotices controller={noticesController} />
+            </div>
+          ) : null}
+        </div>
+      ) : isDoctorPending ? (
         <div
           className="flex min-w-0 items-center gap-1.5 px-4 py-3 text-[13px] text-foreground-tertiary leading-5"
           role="status"
@@ -113,6 +155,11 @@ export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck }: ErrorD
               }}
             />
           </p>
+          {extraFindings ? (
+            <Accordion type="single" collapsible>
+              {extraFindings}
+            </Accordion>
+          ) : null}
           {doctorController.viewModel.pendingChecks.length > 0 ? (
             <div className="space-y-3 border-t border-border px-4 py-3">
               {doctorController.viewModel.pendingChecks.map((pending) => (
@@ -136,7 +183,7 @@ export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck }: ErrorD
           ) : null}
           {hasDoctorNotices ? (
             <div className="space-y-3 px-4 pb-4">
-              <DoctorCheckNotices controller={doctorController} />
+              <DoctorCheckNotices controller={noticesController} />
             </div>
           ) : null}
         </div>

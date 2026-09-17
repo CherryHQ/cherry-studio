@@ -16,7 +16,14 @@ import { defineRoute } from '../define'
 
 const contextualSubjects = [
   z.object({ kind: z.literal('chat'), providerId: z.string().min(1), modelId: z.string().min(1) }).strict(),
-  z.object({ kind: z.literal('agent'), agentId: z.string().min(1) }).strict()
+  z
+    .object({
+      kind: z.literal('agent'),
+      agentId: z.string().min(1),
+      providerId: z.string().min(1).optional(),
+      modelId: z.string().min(1).optional()
+    })
+    .strict()
 ] as const
 const subjectRefSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('global') }).strict(),

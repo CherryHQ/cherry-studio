@@ -137,6 +137,8 @@ describe('model connectivity against an HTTP provider', () => {
         providerId: 'connectivity',
         name: 'Connectivity',
         orderKey: 'a0',
+        isEnabled: true,
+        apiKeys: [{ id: 'key-1', key: 'test-key', isEnabled: true }],
         endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: url } }
       })
       .run()
@@ -252,6 +254,7 @@ describe('model connectivity against an HTTP provider', () => {
     const started = await start()
     expect(result(started.report, 'provider-model-list')).toMatchObject({
       status: 'fail',
+      actions: [{ kind: 'navigate', target: '/settings/provider' }],
       evidence: [
         { key: 'category', value: category },
         { key: 'httpStatus', value: status }
@@ -266,7 +269,8 @@ describe('model connectivity against an HTTP provider', () => {
     const started = await start()
     expect(result(started.report, 'provider-model-list')).toMatchObject({
       status: 'warn',
-      detail: { variant: 'not_listed' }
+      detail: { variant: 'not_listed' },
+      actions: [{ kind: 'navigate', target: '/settings/provider' }]
     })
     expect(result(await confirm(started), 'provider-model-conversation')?.status).toBe('pass')
   })

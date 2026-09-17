@@ -174,5 +174,8 @@ describe('doctorScopeKey', () => {
     expect(doctorScopeKey({ kind: 'global' })).toBe('global')
     expect(doctorScopeKey({ kind: 'chat', providerId: 'openai', modelId: 'gpt-4o' })).toBe('chat:openai/gpt-4o')
     expect(doctorScopeKey({ kind: 'agent', agentId: 'a1' })).toBe('agent:a1')
+    expect(doctorScopeKey({ kind: 'agent', agentId: 'a1', providerId: 'deepseek', modelId: 'deepseek-v4-flash' })).toBe(
+      'agent:a1:deepseek/deepseek-v4-flash'
+    )
   })
 })

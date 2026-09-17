@@ -1,3 +1,3 @@
 export { DoctorCheckNotices } from './DoctorCheckNotices'
-export { DoctorCheckAccordionItems } from './DoctorCheckResults'
+export { DoctorCheckAccordionItems, DoctorCheckActions } from './DoctorCheckResults'
 export { default as DoctorPopup } from './DoctorPopup'

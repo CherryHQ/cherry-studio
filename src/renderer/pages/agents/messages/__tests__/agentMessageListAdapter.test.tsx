@@ -445,9 +445,19 @@ describe('useAgentMessageListProviderValue', () => {
 
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
       diagnosticReport: { location: string }
-      getDoctorSubject: () => unknown
+      getDoctorSubject: (message?: { model?: { id: string; provider: string; name: string } }) => unknown
     }
     expect(options.getDoctorSubject()).toEqual({ kind: 'agent', agentId: topic.assistantId })
+    expect(
+      options.getDoctorSubject({
+        model: { id: 'deepseek-v4-flash', provider: 'deepseek', name: 'DeepSeek V4 Flash' }
+      })
+    ).toEqual({
+      kind: 'agent',
+      agentId: topic.assistantId,
+      providerId: 'deepseek',
+      modelId: 'deepseek-v4-flash'
+    })
   })
 
   it('omits diagnostic-report actions when the consumer does not provide that capability', () => {
