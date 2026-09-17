@@ -71,7 +71,7 @@ function groupStatus(rows: readonly DoctorRowViewModel[]): DoctorGroupStatus {
 }
 
 function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowViewModel[] {
-  if (state.status === 'idle' || state.status === 'canceled') return []
+  if (state.status !== 'running' && state.status !== 'completed') return []
 
   if (state.status === 'completed') {
     const resultById = new Map(state.report.results.map((result) => [result.id, result]))
@@ -105,23 +105,16 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
   }
 
   const resultById = new Map(state.results.map((result) => [result.id, result]))
-  const active = new Set(state.activeCheckIds)
-  return DOCTOR_CHECK_IDS.flatMap<DoctorRowViewModel>((id) => {
+  return state.selectedCheckIds.map<DoctorRowViewModel>((id) => {
     const result = resultById.get(id)
-    const inDefault =
-      !('includeByDefault' in DOCTOR_CHECK_CATALOG[id]) &&
-      (state.tier === 'live' || DOCTOR_CHECK_CATALOG[id].tier === 'quick')
-    if (!inDefault && !result && !active.has(id)) return []
-    return [
-      {
-        id,
-        domain: DOCTOR_CHECK_CATALOG[id].domain,
-        status: result?.status ?? 'pending',
-        result,
-        actions: result ? resultActions(result) : [],
-        actionsDisabled: true
-      }
-    ]
+    return {
+      id,
+      domain: DOCTOR_CHECK_CATALOG[id].domain,
+      status: result?.status ?? 'pending',
+      result,
+      actions: result ? resultActions(result) : [],
+      actionsDisabled: true
+    }
   })
 }
 

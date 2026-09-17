@@ -4137,6 +4137,8 @@
   "settings.doctor.empty.canceled_description": "Hazır olduğunuzda denetimleri yeniden çalıştırın.",
   "settings.doctor.empty.canceled_title": "Denetimler iptal edildi",
   "settings.doctor.empty.description": "Temel bir denetim çalıştırın veya ağ ve hizmet denetimlerini de ekleyin.",
+  "settings.doctor.empty.failed_description": "Kontroller tamamlanamadı. Tanılamayı yeniden deneyin.",
+  "settings.doctor.empty.failed_title": "Tanılama başarısız oldu",
   "settings.doctor.empty.title": "Henüz tanılama sonucu yok",
   "settings.doctor.entry.title": "Sistem tanılaması",
   "settings.doctor.error_category.auth": "Not signed in or the API key is invalid",

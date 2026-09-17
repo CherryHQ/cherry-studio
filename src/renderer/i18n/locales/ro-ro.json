@@ -4137,6 +4137,8 @@
   "settings.doctor.empty.canceled_description": "Rulează din nou verificările când ești pregătit.",
   "settings.doctor.empty.canceled_title": "Verificări anulate",
   "settings.doctor.empty.description": "Rulează o verificare de bază sau include verificările de rețea și servicii.",
+  "settings.doctor.empty.failed_description": "Verificările nu au putut fi finalizate. Încercați din nou diagnosticarea.",
+  "settings.doctor.empty.failed_title": "Diagnosticarea a eșuat",
   "settings.doctor.empty.title": "Nu există încă niciun rezultat de diagnosticare",
   "settings.doctor.entry.title": "Diagnosticarea sistemului",
   "settings.doctor.error_category.auth": "Not signed in or the API key is invalid",

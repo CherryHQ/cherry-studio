@@ -36,16 +36,15 @@ import {
   type DoctorConnectivityResult,
   type DoctorConnectivitySubject
 } from '@shared/types/doctorConnectivity'
-import { doctorScopeKey } from '@shared/utils/doctor'
+import { doctorScopeKey, doctorStateCacheKey } from '@shared/utils/doctor'
 
 import { collectDiagnosticSystemInfo } from '../systemInfo'
 import type { DiagnosticWarning } from '../types'
 import { DoctorExecution } from './execution'
 import { doctorCheckRegistry } from './registry'
-import type { DoctorContext, DoctorFixOutcome } from './types'
+import type { DoctorContext, DoctorEngineDefinition, DoctorFixOutcome } from './types'
 
 const TIERS_FOR_RUN: Record<DoctorRunTier, readonly DoctorTier[]> = { quick: ['quick'], live: ['quick', 'live'] }
-const CONNECTIVITY_CHECK_IDS = new Set<DoctorCheckId>(DOCTOR_CONNECTIVITY_CHECK_IDS)
 
 /** Probes shared between the checks of one run (`DoctorContext.share`); the first caller's signal drives them. */
 type RunMemo = Map<string, Promise<unknown>>
@@ -86,7 +85,7 @@ function offersFix(result: DoctorCheckResult, fixId: string, target?: string): b
 
 /**
  * Runs checks and publishes progress + the final report on the shared cache key
- * `doctor.state.${scope}`, so every window renders the same run and the report dies with the
+ * `doctorStateCacheKey(scope)`, so every window renders the same run and the report dies with the
  * process (it is time-bound anyway, see `DOCTOR_REPORT_TTL_MS`). Scopes are independent: a
  * chat's diagnosis never disturbs the global report, and each scope has at most one run.
  */
@@ -132,7 +131,7 @@ export class DoctorService extends BaseService {
     for (const [key, record] of this.subjects) {
       if (record.expiresAt <= Date.now() && !this.activeRuns.has(key) && !this.connectivityRuns.has(key)) {
         this.subjects.delete(key)
-        application.get('CacheService').deleteShared(`doctor.state.${key}`)
+        application.get('CacheService').deleteShared(doctorStateCacheKey(key))
       }
     }
     const facts = this.resolveSubject(ref)
@@ -219,18 +218,10 @@ export class DoctorService extends BaseService {
     return { status: 'not_running' }
   }
 
-  private defaultCheckIds(
-    tier: DoctorRunTier,
-    subject: DoctorSubject | null,
-    includeConnectivity: boolean
-  ): DoctorCheckId[] {
+  private defaultCheckIds(tier: DoctorRunTier, subject: DoctorSubject | null): DoctorCheckId[] {
     return (Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]).filter((id) => {
       const meta = DOCTOR_CHECK_CATALOG[id]
-      if (includeConnectivity && subject !== null && CONNECTIVITY_CHECK_IDS.has(id)) {
-        return applies(meta.scope, subject)
-      }
-      const allowedTier = includeConnectivity ? meta.tier === 'quick' : TIERS_FOR_RUN[tier].includes(meta.tier)
-      return !('includeByDefault' in meta) && allowedTier && applies(meta.scope, subject)
+      return !('includeByDefault' in meta) && TIERS_FOR_RUN[tier].includes(meta.tier) && applies(meta.scope, subject)
     })
   }
 
@@ -265,28 +256,41 @@ export class DoctorService extends BaseService {
     tier: DoctorRunTier
     subject: DoctorSubjectRef
     checkIds?: readonly DoctorCheckId[]
-    includeConnectivity?: boolean
   }): Promise<DoctorRunResult> {
     if (!this.allReady) throw new Error('Doctor is not ready')
-    const scope = doctorScopeKey(input.subject)
+    const subject = this.resolveSubject(input.subject)
+    const ids = this.selectChecks(input.checkIds ?? this.defaultCheckIds(input.tier, subject), input.tier, subject)
+    return this.runSelected(input.subject, input.tier, ids)
+  }
+
+  /** Runs the contextual quick checks plus only the connectivity checks applicable to the resolved subject. */
+  async runContextualDiagnosis(subjectRef: DoctorConnectivitySubject): Promise<DoctorRunResult> {
+    if (!this.allReady) throw new Error('Doctor is not ready')
+    const subject = this.resolveSubject(subjectRef)
+    const contextualIds = DOCTOR_CONNECTIVITY_CHECK_IDS.filter((id) => applies(DOCTOR_CHECK_CATALOG[id].scope, subject))
+    const ids = this.selectChecks([...this.defaultCheckIds('quick', subject), ...contextualIds], 'live', subject)
+    return this.runSelected(subjectRef, 'live', ids)
+  }
+
+  private async runSelected(
+    subjectRef: DoctorSubjectRef,
+    tier: DoctorRunTier,
+    ids: readonly DoctorCheckId[]
+  ): Promise<DoctorRunResult> {
+    const scope = doctorScopeKey(subjectRef)
     const active = this.activeRuns.get(scope) ?? this.connectivityRuns.get(scope)
     if (active) return { status: 'busy', runId: active.runId }
-    const subject = this.resolveSubject(input.subject)
-    const ids = this.selectChecks(
-      input.checkIds ?? this.defaultCheckIds(input.tier, subject, input.includeConnectivity === true),
-      input.tier,
-      subject
-    )
     const runId = randomUUID()
     const controller = new AbortController()
     this.activeRuns.set(scope, { runId, controller })
-    const record = this.createExecution(scope, runId, input.subject, ids)
+    const record = this.createExecution(scope, runId, subjectRef, ids)
     const startedAt = new Date()
     try {
       const running: DoctorState = {
         status: 'running',
         runId,
-        tier: input.tier,
+        tier,
+        selectedCheckIds: ids,
         startedAt: startedAt.toISOString(),
         results: [],
         activeCheckIds: []
@@ -297,13 +301,13 @@ export class DoctorService extends BaseService {
       )
       if (controller.signal.aborted) {
         this.subjects.delete(scope)
-        this.publish(scope, { status: 'canceled', runId })
+        this.publish(scope, { status: 'canceled', runId, selectedCheckIds: ids })
         return { status: 'canceled', runId }
       }
       const basics = await this.collectBasics()
       if (controller.signal.aborted) {
         this.subjects.delete(scope)
-        this.publish(scope, { status: 'canceled', runId })
+        this.publish(scope, { status: 'canceled', runId, selectedCheckIds: ids })
         return { status: 'canceled', runId }
       }
       const finishedAt = new Date()
@@ -311,7 +315,8 @@ export class DoctorService extends BaseService {
         schemaVersion: 1,
         runId,
         scope,
-        tier: input.tier,
+        tier,
+        selectedCheckIds: ids,
         startedAt: startedAt.toISOString(),
         finishedAt: finishedAt.toISOString(),
         expiresAt: new Date(finishedAt.getTime() + DOCTOR_REPORT_TTL_MS).toISOString(),
@@ -327,7 +332,7 @@ export class DoctorService extends BaseService {
     } catch (error) {
       // `running` was already published; without a terminal state every window spins forever.
       this.subjects.delete(scope)
-      this.publish(scope, { status: 'idle' })
+      this.publish(scope, { status: 'failed', runId, selectedCheckIds: ids })
       throw error
     } finally {
       this.activeRuns.delete(scope)
@@ -388,10 +393,10 @@ export class DoctorService extends BaseService {
       let outcome: DoctorFixOutcome
       try {
         const context = runContext(controller.signal, new Map(), subject)
-        outcome =
-          request.checkId === 'mcp-servers-connected'
-            ? await doctorCheckRegistry[request.checkId].fixes[request.fixId]({ ...context, target: request.target })
-            : await doctorCheckRegistry[request.checkId].fixes[request.fixId](context)
+        const definition = doctorCheckRegistry[request.checkId] as unknown as DoctorEngineDefinition
+        const handler = definition.fixes[request.fixId]
+        if (!handler) throw new Error(`Missing fix ${request.fixId} for ${request.checkId}`)
+        outcome = await handler({ ...context, ...('target' in request ? { target: request.target } : {}) })
       } catch (error) {
         outcome = { status: 'failed', message: error instanceof Error ? error.message : String(error) }
       }
@@ -412,12 +417,7 @@ export class DoctorService extends BaseService {
     if (!(Date.parse(state.report.expiresAt) > Date.now())) return { status: 'stale', reason: 'report_expired' }
     const record = this.subjects.get(request.scope)
     if (!record || record.runId !== request.runId) return { status: 'stale', reason: 'run_superseded' }
-    if (record.ref.kind === 'agent') {
-      const agent = agentService.getAgent(record.ref.agentId)
-      if (!agent || (request.checkId === 'mcp-servers-connected' && !agent.mcps?.includes(request.target))) {
-        return { status: 'stale', reason: 'finding_changed' }
-      }
-    }
+    if (!record.execution.isCurrent()) return { status: 'stale', reason: 'finding_changed' }
     const finding = state.report.results.find((item) => item.id === request.checkId)
     if (!finding || !offersFix(finding, request.fixId, request.target))
       return { status: 'stale', reason: 'finding_changed' }
@@ -446,11 +446,11 @@ export class DoctorService extends BaseService {
   }
 
   private currentState(scope: DoctorScopeKey): DoctorState {
-    return application.get('CacheService').getShared(`doctor.state.${scope}`) ?? { status: 'idle' }
+    return application.get('CacheService').getShared(doctorStateCacheKey(scope)) ?? { status: 'idle' }
   }
 
   private publish(scope: DoctorScopeKey, state: DoctorState): void {
-    application.get('CacheService').setShared(`doctor.state.${scope}`, state)
+    application.get('CacheService').setShared(doctorStateCacheKey(scope), state)
   }
 
   private async execute(

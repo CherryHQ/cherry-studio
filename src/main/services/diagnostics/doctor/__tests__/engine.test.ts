@@ -88,6 +88,30 @@ describe('runDoctorChecks', () => {
     ])
   })
 
+  it('does not start a queued probe after cancellation', async () => {
+    const controller = new AbortController()
+    let queuedStarted = false
+    const run = runDoctorChecks({
+      checks: [
+        check('running', hang),
+        check('queued', async () => {
+          queuedStarted = true
+          return { status: 'pass' }
+        })
+      ],
+      laneLimits: { quick: 1 },
+      signal: controller.signal
+    })
+
+    controller.abort()
+    const results = await run
+    expect(queuedStarted).toBe(false)
+    expect(results).toMatchObject([
+      { id: 'running', status: 'error', message: CANCELED_MESSAGE },
+      { id: 'queued', status: 'error', message: CANCELED_MESSAGE }
+    ])
+  })
+
   it('skips a check whose prerequisite failed and names the blocker', async () => {
     const results = await runDoctorChecks({
       checks: [

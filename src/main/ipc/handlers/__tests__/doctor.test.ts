@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const doctor = vi.hoisted(() => ({ run: vi.fn(), cancel: vi.fn(), fix: vi.fn() }))
+const doctor = vi.hoisted(() => ({ run: vi.fn(), runContextualDiagnosis: vi.fn(), cancel: vi.fn(), fix: vi.fn() }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -31,6 +31,17 @@ describe('doctorHandlers', () => {
       status: 'canceled'
     })
     expect(doctor.cancel).toHaveBeenCalledWith('global', 'r1')
+  })
+
+  it('delegates contextual diagnosis to its dedicated service entrypoint', async () => {
+    doctor.runContextualDiagnosis.mockResolvedValue({ status: 'busy', runId: 'r-context' })
+    const subject = { kind: 'agent' as const, agentId: 'agent-1' }
+    await expect(doctorHandlers['diagnostics.doctor.run_contextual']({ subject }, ctx)).resolves.toEqual({
+      status: 'busy',
+      runId: 'r-context'
+    })
+    expect(doctor.runContextualDiagnosis).toHaveBeenCalledWith(subject)
+    expect(doctor.run).not.toHaveBeenCalled()
   })
 
   it('forwards a fix request untouched', async () => {

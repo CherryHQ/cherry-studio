@@ -63,7 +63,7 @@ function resolveConnectivitySteps(controller: DoctorController): readonly Connec
   const { viewModel } = controller
   const rowById = new Map(viewModel.rows.map((row) => [row.id, row]))
   const pendingById = new Map(viewModel.pendingChecks.map((pending) => [pending.checkId, pending]))
-  const completed = viewModel.status === 'completed'
+  const terminal = viewModel.status === 'completed' || viewModel.status === 'canceled' || viewModel.status === 'failed'
 
   return DOCTOR_CONNECTIVITY_CHECK_IDS.map((id) => {
     const pending = pendingById.get(id)
@@ -74,17 +74,18 @@ function resolveConnectivitySteps(controller: DoctorController): readonly Connec
     if (row) {
       return { id, result: row.result, status: row.status }
     }
-    return { id, status: completed ? ('skip' as const) : ('pending' as const) }
+    return { id, status: terminal || viewModel.status === 'running' ? ('skip' as const) : ('pending' as const) }
   })
 }
 
 function stepDetail(
   t: ReturnType<typeof useTranslation>['t'],
   result: DoctorCheckResult | undefined,
+  status: ConnectivityStepStatus,
   pending?: DoctorPendingCheck
 ): string {
   if (pending) return t(pending.confirmation.messageKey, pending.confirmation.params)
-  if (!result) return t('settings.doctor.checks.pending')
+  if (!result) return t(DOCTOR_STATUS_LABEL_KEYS[status])
   if (result.status === 'error') return t('settings.doctor.checks.error')
   if (result.status === 'skip' && 'skippedBy' in result) {
     return t('settings.doctor.checks.skipped', { check: t(doctorCheckTitleKey(result.skippedBy)) })
@@ -127,7 +128,7 @@ export function ErrorConnectivitySteps({ controller }: ErrorConnectivityStepsPro
     <>
       {steps.map((step) => {
         const tone = statusTone(step.status)
-        const detail = stepDetail(t, step.result, step.pending)
+        const detail = stepDetail(t, step.result, step.status, step.pending)
         const row = rowById.get(step.id)
         const actionRow = row ? withoutCoveredNavigates(row, coveredNavigates) : undefined
         return (

@@ -86,4 +86,7 @@ export interface DoctorEngineDefinition {
   readonly timeoutMs?: number
   run(ctx: DoctorContext): Promise<DoctorProbeOutcome<DoctorCheckId>>
   getConfirmation?(ctx: DoctorContext): Promise<DoctorPreparedConfirmation | DoctorProbeOutcome<DoctorCheckId>>
+  readonly fixes: Readonly<
+    Record<string, (ctx: DoctorContextBase & { readonly target?: string }) => Promise<DoctorFixOutcome>>
+  >
 }

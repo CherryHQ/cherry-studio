@@ -47,6 +47,10 @@ export class DoctorExecution {
     this.results = results
   }
 
+  isCurrent(): boolean {
+    return this.isSubjectCurrent()
+  }
+
   claim(requestId: string): { checkId: DoctorCheckId; isCurrent: () => boolean } | undefined {
     for (const [checkId, prepared] of this.pending) {
       if (prepared.requestId !== requestId) continue

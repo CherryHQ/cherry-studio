@@ -44,17 +44,9 @@ export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck, subject 
   const hasDoctorNotices =
     doctorController.viewModel.isStale ||
     doctorController.session.relaunchRequired ||
+    doctorController.viewModel.status === 'canceled' ||
+    doctorController.viewModel.status === 'failed' ||
     (doctorController.viewModel.rows.length === 0 && !showConnectivitySteps)
-  const noticesController = showConnectivitySteps
-    ? {
-        ...doctorController,
-        run: ((tier, options) =>
-          doctorController.run(tier === 'quick' ? 'live' : tier, {
-            ...options,
-            includeConnectivity: true
-          })) satisfies DoctorController['run']
-      }
-    : doctorController
 
   const progress =
     doctorController.viewModel.status === 'running'
@@ -155,7 +147,11 @@ export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck, subject 
           </Accordion>
           {hasDoctorNotices ? (
             <div className="space-y-3 px-4 pb-4">
-              <DoctorCheckNotices controller={noticesController} />
+              <DoctorCheckNotices
+                controller={doctorController}
+                onRetry={() => doctorController.run('contextual')}
+                retryLabel="rerun"
+              />
             </div>
           ) : null}
         </div>
@@ -210,7 +206,7 @@ export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck, subject 
           ) : null}
           {hasDoctorNotices ? (
             <div className="space-y-3 px-4 pb-4">
-              <DoctorCheckNotices controller={noticesController} />
+              <DoctorCheckNotices controller={doctorController} />
             </div>
           ) : null}
         </div>

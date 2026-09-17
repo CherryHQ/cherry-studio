@@ -4137,6 +4137,8 @@
   "settings.doctor.empty.canceled_description": "Hãy chạy lại các mục kiểm tra khi bạn sẵn sàng.",
   "settings.doctor.empty.canceled_title": "Đã hủy kiểm tra",
   "settings.doctor.empty.description": "Chạy kiểm tra cơ bản hoặc bao gồm cả kiểm tra mạng và dịch vụ.",
+  "settings.doctor.empty.failed_description": "Không thể hoàn tất kiểm tra. Hãy thử chẩn đoán lại.",
+  "settings.doctor.empty.failed_title": "Chẩn đoán thất bại",
   "settings.doctor.empty.title": "Chưa có kết quả chẩn đoán",
   "settings.doctor.entry.title": "Chẩn đoán hệ thống",
   "settings.doctor.error_category.auth": "Not signed in or the API key is invalid",

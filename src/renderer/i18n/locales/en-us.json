@@ -4137,6 +4137,8 @@
   "settings.doctor.empty.canceled_description": "Run the checks again when you are ready.",
   "settings.doctor.empty.canceled_title": "Checks canceled",
   "settings.doctor.empty.description": "Run a basic check or include network and service checks.",
+  "settings.doctor.empty.failed_description": "The checks could not finish. Try the diagnosis again.",
+  "settings.doctor.empty.failed_title": "Diagnosis failed",
   "settings.doctor.empty.title": "No diagnostic result yet",
   "settings.doctor.entry.title": "System diagnostics",
   "settings.doctor.error_category.auth": "Not signed in or the API key is invalid",

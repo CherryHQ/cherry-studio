@@ -4137,6 +4137,8 @@
   "settings.doctor.empty.canceled_description": "准备好后，请重新运行检查。",
   "settings.doctor.empty.canceled_title": "检查已取消",
   "settings.doctor.empty.description": "运行基础检查，或运行包含网络与服务检查的完整检查。",
+  "settings.doctor.empty.failed_description": "检查未能完成，请重新运行诊断。",
+  "settings.doctor.empty.failed_title": "诊断失败",
   "settings.doctor.empty.title": "暂无诊断结果",
   "settings.doctor.entry.title": "系统诊断",
   "settings.doctor.error_category.auth": "未登录或密钥无效",

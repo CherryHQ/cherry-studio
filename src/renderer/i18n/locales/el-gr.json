@@ -4137,6 +4137,8 @@
   "settings.doctor.empty.canceled_description": "Εκτελέστε ξανά τους ελέγχους όταν είστε έτοιμοι.",
   "settings.doctor.empty.canceled_title": "Οι έλεγχοι ακυρώθηκαν",
   "settings.doctor.empty.description": "Εκτελέστε έναν βασικό έλεγχο ή συμπεριλάβετε ελέγχους δικτύου και υπηρεσιών.",
+  "settings.doctor.empty.failed_description": "Οι έλεγχοι δεν μπόρεσαν να ολοκληρωθούν. Δοκιμάστε ξανά τη διάγνωση.",
+  "settings.doctor.empty.failed_title": "Η διάγνωση απέτυχε",
   "settings.doctor.empty.title": "Δεν υπάρχει ακόμη διαγνωστικό αποτέλεσμα",
   "settings.doctor.entry.title": "Διαγνωστικός έλεγχος συστήματος",
   "settings.doctor.error_category.auth": "Not signed in or the API key is invalid",

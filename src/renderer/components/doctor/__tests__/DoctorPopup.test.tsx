@@ -10,7 +10,7 @@ import { DOCTOR_CHECK_CATALOG, DOCTOR_CHECK_IDS, type DoctorCheckResult, type Do
 vi.unmock('@cherrystudio/ui')
 
 const mocks = vi.hoisted(() => ({
-  doctorState: { status: 'canceled', runId: 'run-1' } as DoctorState,
+  doctorState: { status: 'canceled', runId: 'run-1', selectedCheckIds: [] } as DoctorState,
   request: vi.fn(),
   translations: {
     'error.diagnostics.checking_progress': 'Checking: {{check}} · {{completed}}/{{total}}',
@@ -111,6 +111,7 @@ function completedDoctorState(
       scope: 'global',
       runId: 'completed-quick',
       tier: 'quick',
+      selectedCheckIds: results.map((result) => result.id),
       startedAt: new Date(now - 1_000).toISOString(),
       finishedAt: new Date(now).toISOString(),
       expiresAt,
@@ -145,7 +146,7 @@ afterEach(async () => {
 describe('DoctorPopup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
+    mocks.doctorState = { status: 'canceled', runId: 'run-1', selectedCheckIds: [] }
     mocks.request.mockResolvedValue(undefined)
   })
 
@@ -236,7 +237,7 @@ describe('DoctorPopup', () => {
 
   it('offers a quick recovery after full checks are canceled', async () => {
     const user = userEvent.setup()
-    mocks.doctorState = { status: 'canceled', runId: 'canceled-live' }
+    mocks.doctorState = { status: 'canceled', runId: 'canceled-live', selectedCheckIds: [] }
     render(<PopupHost />)
 
     act(() => {
@@ -262,6 +263,10 @@ describe('DoctorPopup', () => {
       status: 'running',
       runId: `running-${tier}`,
       tier,
+      selectedCheckIds:
+        tier === 'quick'
+          ? DOCTOR_CHECK_IDS.filter((id) => DOCTOR_CHECK_CATALOG[id].tier === 'quick')
+          : DOCTOR_CHECK_IDS,
       startedAt: new Date().toISOString(),
       activeCheckIds: [],
       results: []
@@ -308,6 +313,7 @@ describe('DoctorPopup', () => {
       status: 'running',
       runId: 'quick-run',
       tier: 'quick',
+      selectedCheckIds: DOCTOR_CHECK_IDS.filter((id) => DOCTOR_CHECK_CATALOG[id].tier === 'quick'),
       startedAt: new Date().toISOString(),
       activeCheckIds: ['provider-api-key-present'],
       results: [{ id: 'install-version-channel', status: 'pass', durationMs: 1 }]
@@ -352,6 +358,12 @@ describe('DoctorPopup', () => {
         scope: 'global',
         runId: 'run-2',
         tier: 'quick',
+        selectedCheckIds: [
+          'storage-disk-space',
+          'config-boot-config-valid',
+          'provider-api-key-present',
+          'logs-recent-findings'
+        ],
         startedAt: new Date(Date.now() - 1_000).toISOString(),
         finishedAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 600_000).toISOString(),

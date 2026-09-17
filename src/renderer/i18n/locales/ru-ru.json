@@ -4137,6 +4137,8 @@
   "settings.doctor.empty.canceled_description": "Запустите проверки ещё раз, когда будете готовы.",
   "settings.doctor.empty.canceled_title": "Проверки отменены",
   "settings.doctor.empty.description": "Запустите основные проверки или включите проверки сети и сервисов.",
+  "settings.doctor.empty.failed_description": "Не удалось завершить проверки. Запустите диагностику ещё раз.",
+  "settings.doctor.empty.failed_title": "Ошибка диагностики",
   "settings.doctor.empty.title": "Результатов диагностики пока нет",
   "settings.doctor.entry.title": "Диагностика системы",
   "settings.doctor.error_category.auth": "Not signed in or the API key is invalid",

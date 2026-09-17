@@ -4137,6 +4137,8 @@
   "settings.doctor.empty.canceled_description": "Ejecuta de nuevo las comprobaciones cuando quieras.",
   "settings.doctor.empty.canceled_title": "Comprobaciones canceladas",
   "settings.doctor.empty.description": "Ejecuta una comprobación básica o incluye las comprobaciones de red y servicios.",
+  "settings.doctor.empty.failed_description": "No se pudieron completar las comprobaciones. Vuelve a intentar el diagnóstico.",
+  "settings.doctor.empty.failed_title": "Error en el diagnóstico",
   "settings.doctor.empty.title": "Aún no hay ningún resultado del diagnóstico",
   "settings.doctor.entry.title": "Diagnóstico del sistema",
   "settings.doctor.error_category.auth": "Not signed in or the API key is invalid",
