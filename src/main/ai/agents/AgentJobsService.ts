@@ -11,9 +11,11 @@ import {
 } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
+import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -21,10 +23,12 @@ import {
   AgentSessionWorkspaceSourceSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
 import { triggersEqual, type JobScheduleSnapshot, type UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
-import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
+import type { AgentTaskForm, AgentTaskPatch, HeartbeatDocument, HeartbeatRunResult } from '@shared/ipc/schemas/ai'
 
 import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from './agentTaskDefaults'
 import { agentTaskJobHandler } from './agentTaskJobHandler'
+import { readHeartbeat } from './heartbeat'
+import { readHeartbeatDocument, writeHeartbeatDocument } from './heartbeatDocument'
 import {
   type HeartbeatSyncOutcome,
   isReservedHeartbeatScheduleName,
@@ -101,6 +105,7 @@ export class AgentJobsService extends BaseService {
   private readonly pauseHolds = new Set<symbol>()
   private readonly pendingHeartbeats = new Set<string>()
   private repairPending = false
+  private readonly heartbeatRuns = new Set<string>()
 
   syncHeartbeat(agentId: string, rows?: JobScheduleSnapshot[]): Promise<HeartbeatSyncOutcome | undefined> {
     if (this.isShuttingDown) return Promise.resolve(undefined)
@@ -450,6 +455,45 @@ export class AgentJobsService extends BaseService {
       agentTaskService.notifyReadModelChange(schedules.map((s) => s.id))
     }
     return deleted
+  }
+
+  readHeartbeatDocument(agentId: string): Promise<HeartbeatDocument> {
+    this.assertHeartbeatAvailable()
+    return this.inFlightWork.track(readHeartbeatDocument(agentId))
+  }
+
+  writeHeartbeatDocument(agentId: string, document: HeartbeatDocument): Promise<HeartbeatDocument> {
+    this.assertHeartbeatAvailable()
+    return this.inFlightWork.track(writeHeartbeatDocument(agentId, document))
+  }
+
+  runHeartbeat(agentId: string): Promise<HeartbeatRunResult> {
+    this.assertHeartbeatAvailable()
+    if (this.heartbeatRuns.has(agentId)) return Promise.resolve('busy')
+    this.heartbeatRuns.add(agentId)
+    return this.inFlightWork.track(this.triggerHeartbeat(agentId).finally(() => this.heartbeatRuns.delete(agentId)))
+  }
+
+  private assertHeartbeatAvailable(): void {
+    if (this.isShuttingDown || this.pauseHolds.size > 0) throw new Error('Agent jobs are temporarily paused')
+  }
+
+  private async triggerHeartbeat(agentId: string): Promise<HeartbeatRunResult> {
+    await this.syncHeartbeat(agentId)
+    this.assertHeartbeatAvailable()
+    const agent = agentService.getAgent(agentId)
+    if (!agent || !isHeartbeatEnabled(agent.configuration ?? {})) return 'disabled'
+    const schedule = agentTaskService.getHeartbeatSchedule(agentId)
+    if (!schedule?.enabled) return 'paused'
+    const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
+    if (template?.workspace.type !== 'user') return 'paused'
+    const workspace = agentWorkspaceService.getById(template.workspace.workspaceId)
+    if (!workspace?.path || !(await readHeartbeat(workspace.path))) return 'empty'
+    this.assertHeartbeatAvailable()
+    if (jobService.list({ scheduleId: schedule.id, status: ['pending', 'delayed', 'running'], limit: 1 }).length) {
+      return 'busy'
+    }
+    return (await application.get('JobManager').triggerJobScheduleNowById(schedule.id)) ? 'started' : 'paused'
   }
 
   /** Run a scheduled agent task now (`ai.agent.task.run`). @returns whether the trigger fired (`false` = not found / not owned). */

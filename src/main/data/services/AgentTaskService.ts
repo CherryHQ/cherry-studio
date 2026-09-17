@@ -147,6 +147,23 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
 }
 
 export class AgentTaskService {
+  getHeartbeatSchedule(agentId: string): JobScheduleSnapshot | null {
+    return (
+      jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).find((schedule) => {
+        const template = normalizeAgentTaskTemplate(schedule.jobInputTemplate)
+        return template?.agentId === agentId && template.prompt === HEARTBEAT_PROMPT_SENTINEL
+      }) ?? null
+    )
+  }
+
+  getHeartbeatStatus(agentId: string) {
+    const schedule = this.getHeartbeatSchedule(agentId)
+    return {
+      scheduleEnabled: schedule?.enabled ?? false,
+      latestRun: schedule ? (jobService.list({ scheduleId: schedule.id, limit: 1 })[0] ?? null) : null
+    }
+  }
+
   /** Publish every DataApi projection backed by the composed task read model. */
   notifyReadModelChange(taskIds: readonly string[]): void {
     const entityIds = [...new Set(taskIds)]

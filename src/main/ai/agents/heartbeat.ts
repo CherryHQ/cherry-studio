@@ -3,14 +3,11 @@ import { lstat, mkdir, open, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { hasHeartbeatTasks } from '@shared/ai/agentHeartbeat'
 
 const logger = loggerService.withContext('HeartbeatReader')
 
 const HEARTBEAT_FILENAME = 'heartbeat.md'
-
-// An unterminated `<!--` consumes the rest of the file (HTML5 rule), so a
-// truncated template still counts as comments-only instead of firing a model call.
-const HTML_COMMENT_PATTERN = /<!--[\s\S]*?(?:-->|$)/g
 
 /** Comments-only template: readHeartbeat skips it, so a fresh heartbeat costs nothing until the user adds real entries. */
 const HEARTBEAT_TEMPLATE = [
@@ -19,11 +16,6 @@ const HEARTBEAT_TEMPLATE = [
   '<!-- Keep it small: every non-empty tick is a model call. While only these comments are present, ticks are skipped. -->',
   ''
 ].join('\n')
-
-/** Effectively empty = nothing but whitespace and HTML comments (a comments-only template). */
-function isEffectivelyEmpty(trimmed: string): boolean {
-  return trimmed.replace(HTML_COMMENT_PATTERN, '').trim().length === 0
-}
 
 export async function readHeartbeat(workspacePath: string): Promise<string | undefined> {
   const resolved = path.resolve(workspacePath, HEARTBEAT_FILENAME)
@@ -64,7 +56,7 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
       logger.debug('Heartbeat file is empty', { path: resolved })
       return undefined
     }
-    if (isEffectivelyEmpty(trimmed)) {
+    if (!hasHeartbeatTasks(trimmed)) {
       logger.debug('Heartbeat file is effectively empty (comments only)', { path: resolved })
       return undefined
     }

@@ -13,10 +13,12 @@ import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSessio
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { PathStaleVersionError } from '@main/utils/file'
 import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
 import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
@@ -246,6 +248,16 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
+  'ai.agent.heartbeat.read': ({ agentId }) => application.get('AgentJobsService').readHeartbeatDocument(agentId),
+  'ai.agent.heartbeat.write': async ({ agentId, ...document }) => {
+    try {
+      return await application.get('AgentJobsService').writeHeartbeatDocument(agentId, document)
+    } catch (error) {
+      if (error instanceof PathStaleVersionError) throw new IpcError(fileErrorCodes.STALE_VERSION, error.message)
+      throw error
+    }
+  },
+  'ai.agent.heartbeat.run': ({ agentId }) => application.get('AgentJobsService').runHeartbeat(agentId),
   'ai.agent.task.create': ({ agentId, ...form }) =>
     exposeAgentTaskError(() => application.get('AgentJobsService').createTask(agentId, form)),
   'ai.agent.task.update': ({ agentId, taskId, patch }) =>

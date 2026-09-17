@@ -77,6 +77,7 @@ import {
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
+import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
   resource: AgentDetail | null
@@ -532,6 +533,11 @@ function AgentEditDialogContent({
             onSettingsNavigate={closeBeforeAction}
             caps={caps}
             agentType={resource.type}
+            agentId={resource.id}
+            beforeHeartbeatOpen={async () => {
+              await flush()
+              return failedSaveKeyRef.current === null
+            }}
           />
         </TabsContent>
         <TabsContent
@@ -582,7 +588,9 @@ function AgentBasicFields({
   setEmojiPickerOpen,
   onSettingsNavigate,
   caps,
-  agentType
+  agentType,
+  agentId,
+  beforeHeartbeatOpen
 }: {
   form: UseFormReturn<AgentEditFormValues>
   modelFilter?: ModelSelectorFilter
@@ -596,9 +604,12 @@ function AgentBasicFields({
   onSettingsNavigate?: (navigate: () => void) => void
   caps: AgentRuntimeCapabilities
   agentType: AgentType
+  agentId: string
+  beforeHeartbeatOpen: () => Promise<boolean>
 }) {
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
+  const [heartbeatOpen, setHeartbeatOpen] = useState(false)
 
   return (
     <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
@@ -676,11 +687,27 @@ function AgentBasicFields({
         permissionModeCards={getPermissionModeCards(agentType)}
       />
       {caps.heartbeat ? (
-        <HeartbeatSettingsField
-          form={form}
-          enabled={heartbeatEnabled}
-          onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
-        />
+        <div>
+          <HeartbeatSettingsField
+            form={form}
+            enabled={heartbeatEnabled}
+            onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
+          />
+          <div className="flex justify-end pb-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                if (await beforeHeartbeatOpen()) setHeartbeatOpen(true)
+              }}>
+              {t('agent.heartbeat.edit')}
+            </Button>
+          </div>
+          {heartbeatOpen ? (
+            <HeartbeatEditorDialog agentId={agentId} enabled={heartbeatEnabled} onOpenChange={setHeartbeatOpen} />
+          ) : null}
+        </div>
       ) : null}
     </div>
   )

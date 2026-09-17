@@ -33,3 +33,8 @@ export function clampHeartbeatIntervalMinutes(raw: number | undefined): number {
   }
   return Math.min(Math.max(MIN_HEARTBEAT_INTERVAL_MINUTES, Math.round(raw)), MAX_HEARTBEAT_INTERVAL_MINUTES)
 }
+
+/** Whitespace and HTML comments do not request a model invocation. */
+export function hasHeartbeatTasks(content: string): boolean {
+  return content.replace(/<!--[\s\S]*?(?:-->|$)/g, '').trim().length > 0
+}
