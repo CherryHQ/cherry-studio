@@ -465,7 +465,7 @@
     }
   ],
   "providers": {
-    "version": "c1e12f94463bc3de",
+    "version": "d735955cfb89f72f",
     "count": 63,
     "entries": [
       {
@@ -605,10 +605,6 @@
         "name": "Moonshot AI"
       },
       {
-        "id": "moonshot-global",
-        "name": "Moonshot"
-      },
-      {
         "id": "baichuan",
         "name": "BAICHUAN AI"
       },
@@ -719,6 +715,10 @@
       {
         "id": "minimax-global",
         "name": "minimax-global"
+      },
+      {
+        "id": "omlx",
+        "name": "oMLX"
       }
     ]
   },
