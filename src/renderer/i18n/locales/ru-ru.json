@@ -369,6 +369,7 @@
   "agent.tasks.schedule.weekly": "Еженедельно",
   "agent.tasks.status.active": "Активна",
   "agent.tasks.status.completed": "Завершена",
+  "agent.tasks.status.missed": "Пропущено",
   "agent.tasks.status.paused": "Приостановлена",
   "agent.tasks.timeout.label": "Максимальное время выполнения",
   "agent.tasks.timeout.placeholder": "Без ограничений",

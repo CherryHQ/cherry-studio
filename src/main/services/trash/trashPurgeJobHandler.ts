@@ -1,7 +1,5 @@
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
-import { agentService } from '@data/services/AgentService'
-import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { paintingService } from '@data/services/PaintingService'
@@ -9,8 +7,6 @@ import { promptService } from '@data/services/PromptService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import type { JobHandlerFor } from '@main/core/job/types'
-
-import { sweepAgentOrphans } from './agentOrphanSweep'
 
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
@@ -60,19 +56,15 @@ const PURGE_DOMAINS: ReadonlyArray<{
   {
     name: 'session',
     purgeExpired: async (cutoffMs, limit) => {
-      const batch = await application.get('AgentSessionDeliveryService').purgeExpiredSessions(cutoffMs, limit)
-      return completedPurgeBatch(batch.purgedIds, batch.hasMore, () =>
-        agentSessionService.notifyPurged(batch.purgedIds)
-      )
+      const batch = await application.get('AgentLifecycleService').purgeExpiredSessions(cutoffMs, limit)
+      return completedPurgeBatch(batch.purgedIds, batch.hasMore, () => {})
     }
   },
   {
     name: 'agent',
-    purgeExpired: (cutoffMs, limit) => {
-      const impact = application.get('DbService').withWriteTx((tx) => agentService.purgeExpiredTx(tx, cutoffMs, limit))
-      return completedPurgeBatch(impact.purgedIds, impact.purgedIds.length === limit, () =>
-        agentService.notifyPurged(impact)
-      )
+    purgeExpired: async (cutoffMs, limit) => {
+      const batch = await application.get('AgentLifecycleService').purgeExpiredAgents(cutoffMs, limit)
+      return completedPurgeBatch(batch.purgedIds, batch.hasMore, () => {})
     }
   },
   {
@@ -161,7 +153,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     // Schedule reconciliation strictly AFTER all transactions committed. It runs even
     // when retention is disabled so an interrupted event cleanup heals on the next pass.
     ctx.signal.throwIfAborted()
-    await application.get('AgentJobsService').reconcileAgentSchedules()
+    await application.get('AgentLifecycleService').reconcile()
     ctx.reportProgress(Math.round(((PURGE_DOMAINS.length + 1) / totalSteps) * 100))
 
     // Filesystem reclamation strictly AFTER all transactions committed.
@@ -191,7 +183,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
 
     ctx.signal.throwIfAborted()
     try {
-      const { failedDrivers } = await sweepAgentOrphans(ctx.signal)
+      const { failedDrivers } = await application.get('AgentLifecycleService').sweepOrphans(ctx.signal)
       if (failedDrivers.length > 0) {
         reclaimed = false
         logger.warn('Agent orphan sweep left runtime residue', { failedDrivers })

@@ -32,7 +32,7 @@ export class TopicArchiveBusyError extends Error {
  */
 @Injectable('TrashService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['JobManager', 'FileManager', 'AiStreamManager'])
+@DependsOn(['JobManager', 'FileManager', 'AiStreamManager', 'AgentLifecycleService'])
 export class TrashService extends BaseService {
   protected onInit(): void {
     // Register in onInit (NOT onReady) so JobManager's startup recovery sweep

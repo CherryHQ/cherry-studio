@@ -29,7 +29,7 @@ vi.mock('@application', async () => {
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
-const { AgentSessionDeliveryService } = await import('../AgentSessionDeliveryService')
+const { AgentLifecycleService } = await import('../../agents/AgentLifecycleService')
 const { AgentSessionMessageBackend } = await import('../persistence/AgentSessionMessageBackend')
 
 const AGENT_ID = 'agent-archive-persistence'
@@ -80,9 +80,9 @@ describe('Agent Session archive persistence', () => {
   })
 
   it('preserves the terminal assistant reply when archive is retried after generation settles', async () => {
-    const service = new AgentSessionDeliveryService()
+    const service = new AgentLifecycleService()
 
-    await expect(service.deleteSessions([SESSION_ID])).rejects.toMatchObject({
+    await expect(service.archiveSessions([SESSION_ID])).rejects.toMatchObject({
       name: 'AgentSessionArchiveBusyError',
       sessionIds: [SESSION_ID]
     })
@@ -101,7 +101,7 @@ describe('Agent Session archive persistence', () => {
       }
     })
 
-    await expect(service.deleteSessions([SESSION_ID])).resolves.toEqual({ deletedIds: [SESSION_ID] })
+    await expect(service.archiveSessions([SESSION_ID])).resolves.toEqual({ deletedIds: [SESSION_ID] })
     await service.restoreSession(SESSION_ID)
 
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toMatchObject({

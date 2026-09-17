@@ -170,14 +170,17 @@ describe('Trash domain batch adapters', () => {
     expect(refresh?.({ args: { params: { id: 'assistant-1' } } })).toEqual(['/assistants', '/assistants/assistant-1'])
   })
 
-  it('refreshes only agent resources when restoring an agent', () => {
+  it('restores an Agent through lifecycle IPC and refreshes its resources', async () => {
+    const user = userEvent.setup()
+    mocks.paginatedItemsByPath.set('/agents', [
+      { id: 'agent-1', name: 'Agent one', deletedAt: '2026-08-01T00:00:00.000Z' }
+    ])
     render(
       <AgentTrashSection retentionDays={30} isBatchMode={false} isPermanentDeleting={false} onRequestDelete={vi.fn()} />
     )
-
-    const refresh = mocks.mutationOptions.get('POST /agents/:agentId/restore')?.refresh
-
-    expect(refresh?.({ args: { params: { agentId: 'agent-1' } } })).toEqual(['/agents', '/agents/agent-1'])
+    await user.click(screen.getByRole('button', { name: 'Restore' }))
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.restore', { agentId: 'agent-1' }))
+    expect(mocks.invalidate).toHaveBeenCalledWith(['/agents', '/agents/agent-1'])
   })
 
   it('restores a Session through its lifecycle IPC command', async () => {

@@ -369,6 +369,7 @@
   "agent.tasks.schedule.weekly": "Εβδομαδιαία",
   "agent.tasks.status.active": "Ενεργή",
   "agent.tasks.status.completed": "Ολοκληρώθηκε",
+  "agent.tasks.status.missed": "Χάθηκε",
   "agent.tasks.status.paused": "Σε παύση",
   "agent.tasks.timeout.label": "Μέγιστος χρόνος εκτέλεσης",
   "agent.tasks.timeout.placeholder": "Χωρίς όριο",

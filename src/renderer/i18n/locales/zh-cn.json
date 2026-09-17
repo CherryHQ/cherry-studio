@@ -369,6 +369,7 @@
   "agent.tasks.schedule.weekly": "每周",
   "agent.tasks.status.active": "活跃",
   "agent.tasks.status.completed": "已完成",
+  "agent.tasks.status.missed": "已错过",
   "agent.tasks.status.paused": "已暂停",
   "agent.tasks.timeout.label": "最长执行时间",
   "agent.tasks.timeout.placeholder": "无限制",

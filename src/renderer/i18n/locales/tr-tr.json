@@ -369,6 +369,7 @@
   "agent.tasks.schedule.weekly": "Haftalık",
   "agent.tasks.status.active": "Etkin",
   "agent.tasks.status.completed": "Tamamlandı",
+  "agent.tasks.status.missed": "Kaçırıldı",
   "agent.tasks.status.paused": "Duraklatıldı",
   "agent.tasks.timeout.label": "Maksimum Çalıştırma Süresi",
   "agent.tasks.timeout.placeholder": "Sınır yok",

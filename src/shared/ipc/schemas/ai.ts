@@ -310,6 +310,10 @@ export const aiRequestSchemas = {
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
   }),
+  'ai.agent.restore': defineRoute({
+    input: z.object({ agentId: z.string() }),
+    output: AgentEntitySchema
+  }),
   'ai.agent.delete': defineRoute({
     input: z.strictObject({
       agentId: z.string().min(1),

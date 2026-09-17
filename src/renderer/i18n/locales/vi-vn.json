@@ -369,6 +369,7 @@
   "agent.tasks.schedule.weekly": "Hàng tuần",
   "agent.tasks.status.active": "Hoạt động",
   "agent.tasks.status.completed": "Hoàn thành",
+  "agent.tasks.status.missed": "Đã bỏ lỡ",
   "agent.tasks.status.paused": "Tạm dừng",
   "agent.tasks.timeout.label": "Thời gian thực thi tối đa",
   "agent.tasks.timeout.placeholder": "Không giới hạn",

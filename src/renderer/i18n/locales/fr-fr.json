@@ -369,6 +369,7 @@
   "agent.tasks.schedule.weekly": "Hebdomadaire",
   "agent.tasks.status.active": "Actif",
   "agent.tasks.status.completed": "Terminé",
+  "agent.tasks.status.missed": "Manquée",
   "agent.tasks.status.paused": "En pause",
   "agent.tasks.timeout.label": "Temps d’exécution maximal",
   "agent.tasks.timeout.placeholder": "Aucune limite",

@@ -76,10 +76,6 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     }
   },
 
-  '/agents/:agentId/restore': {
-    POST: async ({ params }) => agentService.restoreAgent(params.agentId)
-  },
-
   // Task reads only — task mutations are mixed-effect commands (schedule row +
   // subscriptions + timer) and live on IpcApi `ai.agent.task.*` (AgentJobsService).
   '/agents/:agentId/tasks': {

@@ -369,6 +369,7 @@
   "agent.tasks.schedule.weekly": "Săptămânal",
   "agent.tasks.status.active": "Activă",
   "agent.tasks.status.completed": "Finalizată",
+  "agent.tasks.status.missed": "Ratată",
   "agent.tasks.status.paused": "În pauză",
   "agent.tasks.timeout.label": "Timp maxim de execuție",
   "agent.tasks.timeout.placeholder": "Fără limită",

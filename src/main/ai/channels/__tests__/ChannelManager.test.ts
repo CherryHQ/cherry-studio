@@ -9,10 +9,7 @@ import { ChannelManager } from '../ChannelManager'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 
 const mocks = vi.hoisted(() => ({
-  getLifecycleState: vi.fn(),
-  trashedListeners: new Set<(event: { agentId: string }) => void>(),
-  restoredListeners: new Set<(event: { agentId: string }) => void>(),
-  purgedListeners: new Set<(event: { agentId: string }) => void>()
+  getLifecycleState: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -23,19 +20,7 @@ vi.mock('@logger', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
-    getLifecycleState: mocks.getLifecycleState,
-    onAgentTrashed: (listener: (event: { agentId: string }) => void) => {
-      mocks.trashedListeners.add(listener)
-      return { dispose: () => mocks.trashedListeners.delete(listener) }
-    },
-    onAgentRestored: (listener: (event: { agentId: string }) => void) => {
-      mocks.restoredListeners.add(listener)
-      return { dispose: () => mocks.restoredListeners.delete(listener) }
-    },
-    onAgentPurged: (listener: (event: { agentId: string }) => void) => {
-      mocks.purgedListeners.add(listener)
-      return { dispose: () => mocks.purgedListeners.delete(listener) }
-    }
+    getLifecycleState: mocks.getLifecycleState
   }
 }))
 
@@ -99,9 +84,6 @@ describe('ChannelManager', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
-    mocks.trashedListeners.clear()
-    mocks.restoredListeners.clear()
-    mocks.purgedListeners.clear()
     mocks.getLifecycleState.mockReturnValue('active')
     rows = []
     adapters = []
@@ -149,7 +131,7 @@ describe('ChannelManager', () => {
     await vi.waitFor(() => expect(adapters).toHaveLength(1))
 
     mocks.getLifecycleState.mockReturnValue('trashed')
-    for (const listener of mocks.trashedListeners) listener({ agentId: 'agent-1' })
+    manager.reconcileAgent('agent-1', true)
     await vi.waitFor(() => expect(adapters[0].disconnect).toHaveBeenCalledOnce())
 
     expect(rows[0].isActive).toBe(true)
@@ -158,7 +140,7 @@ describe('ChannelManager', () => {
     expect(channelMessageHandler.clearSessionTracker).toHaveBeenCalledWith('agent-1')
 
     mocks.getLifecycleState.mockReturnValue('active')
-    for (const listener of mocks.restoredListeners) listener({ agentId: 'agent-1' })
+    manager.reconcileAgent('agent-1')
     await vi.waitFor(() => expect(adapters).toHaveLength(2))
     expect(adapters[1].connect).toHaveBeenCalledOnce()
   })
@@ -169,7 +151,7 @@ describe('ChannelManager', () => {
     await vi.waitFor(() => expect(adapters).toHaveLength(1))
 
     rows[0] = makeChannel({ agentId: null })
-    for (const listener of mocks.purgedListeners) listener({ agentId: 'agent-1' })
+    manager.reconcileAgent('agent-1', true)
 
     await vi.waitFor(() => expect(adapters[0].disconnect).toHaveBeenCalledOnce())
     expect(rows[0].isActive).toBe(true)

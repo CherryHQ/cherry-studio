@@ -18,7 +18,7 @@ import type { AgentSessionRuntimeDriver } from '@main/ai/runtime/types'
 const { restoreJournalMock } = vi.hoisted(() => ({ restoreJournalMock: { hasPendingRestore: vi.fn(() => false) } }))
 vi.mock('@data/db/restore/restoreJournal', () => restoreJournalMock)
 
-const { sweepAgentOrphans } = await import('../agentOrphanSweep')
+const { sweepAgentOrphans } = await import('@main/ai/agents/agentOrphanSweep')
 
 /** Older than the sweep's 5-minute freshness gate. */
 const STALE_SECONDS = (Date.now() - 60 * 60 * 1000) / 1000

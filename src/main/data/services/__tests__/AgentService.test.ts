@@ -1232,44 +1232,6 @@ describe('AgentService', () => {
   })
 
   describe('deleteAgent', () => {
-    it('publishes distinct post-commit events for trash and purge, but not stale deletes', async () => {
-      const { id } = await insertAgent({ id: 'agent_delete_events_001' })
-      const trashed: Array<{ agentId: string; deletedAt: number | null | undefined }> = []
-      const purged: Array<{ agentId: string; remainingRows: number }> = []
-      const trashedDisposable = agentService.onAgentTrashed(({ agentId }) => {
-        const [row] = dbh.db
-          .select({ deletedAt: agentTable.deletedAt })
-          .from(agentTable)
-          .where(eq(agentTable.id, agentId))
-          .all()
-        trashed.push({ agentId, deletedAt: row?.deletedAt })
-      })
-      const purgedDisposable = agentService.onAgentPurged(({ agentId }) => {
-        const remainingRows = dbh.db
-          .select({ id: agentTable.id })
-          .from(agentTable)
-          .where(eq(agentTable.id, agentId))
-          .all().length
-        purged.push({ agentId, remainingRows })
-      })
-
-      try {
-        expect(agentService.deleteAgent(id, { permanent: true }).deleted).toBe(false)
-        expect(agentService.deleteAgent(id).deleted).toBe(true)
-        expect(agentService.deleteAgent(id).deleted).toBe(false)
-        expect(trashed).toEqual([{ agentId: id, deletedAt: expect.any(Number) }])
-        expect(purged).toEqual([])
-
-        expect(agentService.deleteAgent(id, { permanent: true }).deleted).toBe(true)
-        expect(agentService.deleteAgent(id, { permanent: true }).deleted).toBe(false)
-        expect(trashed).toHaveLength(1)
-        expect(purged).toEqual([{ agentId: id, remainingRows: 0 }])
-      } finally {
-        trashedDisposable.dispose()
-        purgedDisposable.dispose()
-      }
-    })
-
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
       agentService.deleteAgent(id)
@@ -1283,7 +1245,7 @@ describe('AgentService', () => {
       expect(rows.find((r) => r.id === id)).toBeUndefined()
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agents', kind: 'membership', entityIds: [id] },
-        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
+        { endpoint: '/agents/:agentId', entityIds: [id] }
       ])
     })
 
@@ -1361,13 +1323,7 @@ describe('AgentService', () => {
         { id: 'channel-retention-retained', agentId: retainedAgent.id }
       ])
 
-      const purgedEvents: string[] = []
-      const disposable = agentService.onAgentPurged(({ agentId }) => purgedEvents.push(agentId))
-      try {
-        agentService.notifyPurged(impact)
-      } finally {
-        disposable.dispose()
-      }
+      agentService.notifyPurged(impact)
 
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-retention-impact'] },
@@ -1384,7 +1340,6 @@ describe('AgentService', () => {
         { endpoint: '/agent-channels', kind: 'projection', entityIds: ['channel-retention-impact'] },
         { endpoint: '/agent-channels/:channelId', entityIds: ['channel-retention-impact'] }
       ])
-      expect(purgedEvents).toEqual([purgedAgent.id])
     })
 
     it('keeps active sessions attached when moving only the agent to the Recycle Bin', async () => {
@@ -1441,7 +1396,7 @@ describe('AgentService', () => {
       expect(trashedSessions.find((session) => session.id === 'session-trashed-earlier')?.deletedAt).toBe(100)
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agents', kind: 'membership', entityIds: [id] },
-        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
+        { endpoint: '/agents/:agentId', entityIds: [id] }
       ])
       expect(await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))).toHaveLength(1)
 

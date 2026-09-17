@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
-import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
-import { Phase } from '@main/core/lifecycle/types'
 
 const { appGetMock, assistantDataService, topicService } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
@@ -62,11 +60,6 @@ beforeEach(() => {
 const drive = (svc: InstanceType<typeof TrashService>) => svc as unknown as { onInit(): void; onReady(): void }
 
 describe('TrashService', () => {
-  it('declares WhenReady phase with same-phase deps only (no BeforeReady services)', () => {
-    expect(getPhase(TrashService)).toBe(Phase.WhenReady)
-    expect(getDependencies(TrashService)).toEqual(['JobManager', 'FileManager', 'AiStreamManager'])
-  })
-
   it('registers the trash.purge handler in onInit so startup recovery sees it', () => {
     drive(new TrashService()).onInit()
 

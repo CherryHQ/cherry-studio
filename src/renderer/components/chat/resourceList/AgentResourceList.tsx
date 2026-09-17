@@ -32,7 +32,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
-import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
+import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 import {
   buildResolvedIconTypeMenuAction,
@@ -117,9 +117,7 @@ export function AgentResourceList({
   const closeConversationTabs = useCloseConversationTabs()
   const invalidate = useInvalidateCache()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
-  const { trigger: restoreAgent } = useMutation('POST', '/agents/:agentId/restore', {
-    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`]
-  })
+  const restoreAgent = useCallback((agentId: string) => ipcApi.request('ai.agent.restore', { agentId }), [])
   const restoreSession = useCallback(
     (sessionId: string) => ipcApi.request('ai.agent.session.restore', { sessionId }),
     []
@@ -356,7 +354,8 @@ export function AgentResourceList({
                 restoreRecycleBinUndoGroup({
                   primary: {
                     id: agentId,
-                    restore: (id) => restoreAgent({ params: { agentId: id } }),
+                    restore: (id) => restoreAgent(id),
+                    isNotFound: isAgentNotFoundError,
                     getActive: (id) => dataApiService.get(`/agents/${id}`)
                   },
                   related: {

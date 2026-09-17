@@ -31,23 +31,6 @@ export class ChannelManager extends BaseService {
   }
 
   protected async onReady(): Promise<void> {
-    this.registerDisposable(
-      agentService.onAgentTrashed(({ agentId }) => {
-        this.requestAgentChannels(agentId)
-        channelMessageHandler.clearSessionTracker(agentId)
-      })
-    )
-    this.registerDisposable(
-      agentService.onAgentRestored(({ agentId }) => {
-        this.requestAgentChannels(agentId)
-      })
-    )
-    this.registerDisposable(
-      agentService.onAgentPurged(({ agentId }) => {
-        this.requestAgentChannels(agentId)
-        channelMessageHandler.clearSessionTracker(agentId)
-      })
-    )
     await this.start()
   }
 
@@ -171,7 +154,8 @@ export class ChannelManager extends BaseService {
     return { kind: 'connected', channel, agentId: channel.agentId }
   }
 
-  private requestAgentChannels(agentId: string): void {
+  reconcileAgent(agentId: string, clearSessionTracker = false): void {
+    if (clearSessionTracker) channelMessageHandler.clearSessionTracker(agentId)
     const channelIds = new Set<string>()
     for (const [channelId, runtime] of this.runtimes) {
       if (runtime.ownerAgentId === agentId) channelIds.add(channelId)

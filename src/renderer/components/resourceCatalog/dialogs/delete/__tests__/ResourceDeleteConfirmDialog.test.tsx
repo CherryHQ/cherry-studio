@@ -66,12 +66,7 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => mocks.invalidate,
   useMutation: (method: string, path: string) => ({
-    trigger:
-      method === 'POST' && path === '/agents/:agentId/restore'
-        ? mocks.restoreAgent
-        : method === 'POST' && path === '/topics/:id/restore'
-          ? mocks.restoreTopic
-          : mocks.restoreAssistant
+    trigger: method === 'POST' && path === '/topics/:id/restore' ? mocks.restoreTopic : mocks.restoreAssistant
   })
 }))
 
@@ -86,7 +81,11 @@ vi.mock('@renderer/hooks/tab', () => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.agent.session.restore' ? mocks.restoreSession(input) : mocks.ipcRequest(route, input)
+      route === 'ai.agent.restore'
+        ? mocks.restoreAgent(input)
+        : route === 'ai.agent.session.restore'
+          ? mocks.restoreSession(input)
+          : mocks.ipcRequest(route, input)
   }
 }))
 vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
@@ -160,7 +159,7 @@ describe('ResourceDeleteConfirmDialog', () => {
 
     await mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
 
-    expect(mocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+    expect(mocks.restoreAgent).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(mocks.invalidate).toHaveBeenCalledWith('/agents')
     expect(mocks.invalidate).toHaveBeenCalledWith('/agent-sessions')
   })
@@ -187,14 +186,14 @@ describe('ResourceDeleteConfirmDialog', () => {
 
     await expect(mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
 
-    expect(mocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+    expect(mocks.restoreAgent).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(mocks.restoreSession).toHaveBeenCalledExactlyOnceWith({ sessionId: 'session-2' })
     expect(mocks.getActiveResource).toHaveBeenCalledWith('/agent-sessions/session-2')
   })
 
   it('treats an Agent restore NOT_FOUND as complete only when refresh confirms it is active', async () => {
     const user = userEvent.setup()
-    mocks.restoreAgent.mockRejectedValueOnce(DataApiErrorFactory.notFound('Agent', 'agent-1'))
+    mocks.restoreAgent.mockRejectedValueOnce(new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, 'Agent missing'))
 
     render(<ResourceDeleteConfirmDialog resource={createResource('agent')} onClose={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))

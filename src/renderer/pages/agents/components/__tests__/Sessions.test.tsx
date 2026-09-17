@@ -10,7 +10,6 @@ import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { TopicStreamStatus } from '@shared/ai/transport'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -556,9 +555,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
                   ? dataApiMocks.deleteAgent
                   : method === 'DELETE' && path === '/agents/:agentId/sessions'
                     ? dataApiMocks.deleteAgentSessions
-                    : method === 'POST' && path === '/agents/:agentId/restore'
-                      ? dataApiMocks.restoreAgent
-                      : dataApiMocks.findOrCreateWorkspace,
+                    : dataApiMocks.findOrCreateWorkspace,
       isLoading: false,
       error: undefined
     }
@@ -567,7 +564,8 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    request: dataApiMocks.ipcRequest,
+    request: (route: string, input: unknown) =>
+      route === 'ai.agent.restore' ? dataApiMocks.restoreAgent(input) : dataApiMocks.ipcRequest(route, input),
     on: vi.fn(() => () => undefined)
   }
 }))
@@ -3750,7 +3748,7 @@ describe('Sessions', () => {
       onUndo: expect.any(Function)
     })
 
-    dataApiMocks.restoreAgent.mockRejectedValueOnce(DataApiErrorFactory.notFound('Agent', 'agent-a'))
+    dataApiMocks.restoreAgent.mockRejectedValueOnce(new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, 'Agent missing'))
     const getActiveAgent = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'agent-a' })
     dataApiMocks.refetchAgents.mockRejectedValueOnce(new Error('Agent refresh failed'))
     sessionDataMocks.reload.mockRejectedValueOnce(new Error('Session refresh failed'))
@@ -3758,7 +3756,7 @@ describe('Sessions', () => {
     const sessionRefreshCount = sessionDataMocks.reload.mock.calls.length
 
     await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
-    expect(dataApiMocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-a' } })
+    expect(dataApiMocks.restoreAgent).toHaveBeenCalledWith({ agentId: 'agent-a' })
     expect(getActiveAgent).toHaveBeenCalledWith('/agents/agent-a')
     expect(dataApiMocks.refetchAgents).toHaveBeenCalledTimes(agentRefreshCount + 1)
     expect(sessionDataMocks.reload).toHaveBeenCalledTimes(sessionRefreshCount + 1)
@@ -3814,7 +3812,7 @@ describe('Sessions', () => {
 
     await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
 
-    expect(dataApiMocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-a' } })
+    expect(dataApiMocks.restoreAgent).toHaveBeenCalledWith({ agentId: 'agent-a' })
     expect(sessionDataMocks.restoreSession).toHaveBeenCalledWith('session-a')
     expect(sessionDataMocks.restoreSession).toHaveBeenCalledWith('session-not-loaded')
   })

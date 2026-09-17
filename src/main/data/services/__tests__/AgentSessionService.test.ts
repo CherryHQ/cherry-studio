@@ -496,7 +496,7 @@ describe('AgentSessionService', () => {
     })
   })
 
-  describe('reuseOrCreatePlaceholderForDelivery', () => {
+  describe('reuseOrCreatePlaceholderWithImpact', () => {
     it('filters by exact workspace and message emptiness, ordered by updatedAt', async () => {
       const userWorkspace = await createWorkspace('reusable-user')
       await dbh.db.insert(agentWorkspaceTable).values({
@@ -569,13 +569,13 @@ describe('AgentSessionService', () => {
       await insertSessionMessage('user-with-message', 'message-prevents-reuse')
 
       expect(
-        agentSessionService.reuseOrCreatePlaceholderForDelivery({
+        agentSessionService.reuseOrCreatePlaceholderWithImpact({
           agentId: 'agent-session-test',
           workspace: { type: 'user', workspaceId: userWorkspace.id }
         })
       ).toMatchObject({ session: { id: 'user-updated-later' }, created: false, deletedDuplicateSessionIds: [] })
       expect(
-        agentSessionService.reuseOrCreatePlaceholderForDelivery({
+        agentSessionService.reuseOrCreatePlaceholderWithImpact({
           agentId: 'agent-session-test',
           workspace: { type: 'system' }
         })
@@ -590,11 +590,11 @@ describe('AgentSessionService', () => {
     it('creates at most one reusable placeholder for repeated exact targets', async () => {
       const userWorkspace = await createWorkspace('create-reusable-user')
 
-      const first = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+      const first = agentSessionService.reuseOrCreatePlaceholderWithImpact({
         agentId: 'agent-session-test',
         workspace: { type: 'user', workspaceId: userWorkspace.id }
       })
-      const second = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+      const second = agentSessionService.reuseOrCreatePlaceholderWithImpact({
         agentId: 'agent-session-test',
         workspace: { type: 'user', workspaceId: userWorkspace.id }
       })
@@ -620,7 +620,7 @@ describe('AgentSessionService', () => {
         updatedAt: oldActivityAt
       })
 
-      const result = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+      const result = agentSessionService.reuseOrCreatePlaceholderWithImpact({
         agentId: 'agent-session-test',
         workspace: { type: 'user', workspaceId: userWorkspace.id }
       })
@@ -647,7 +647,7 @@ describe('AgentSessionService', () => {
       pinService.pin({ entityType: 'session', entityId: duplicate.id })
       notifyDataApiDataChangeMock.mockClear()
 
-      const result = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+      const result = agentSessionService.reuseOrCreatePlaceholderWithImpact({
         agentId: 'agent-session-test',
         workspace: { type: 'system' }
       })
@@ -1616,7 +1616,7 @@ describe('AgentSessionService', () => {
     const userSession = await createSession('User workspace retained')
     agentSessionService.deleteByIds([systemSession.id, userSession.id])
 
-    const result = agentSessionService.deleteByIdsForDelivery([systemSession.id, userSession.id], {
+    const result = agentSessionService.deleteByIdsWithImpact([systemSession.id, userSession.id], {
       permanent: true
     })
 

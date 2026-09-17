@@ -93,20 +93,28 @@ vi.mock('@main/ai/agents/agentDataDirectory', () => ({
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
-    reuseOrCreatePlaceholderForDelivery: mocks.reuseOrCreate,
-    deleteByIdsForDelivery: mocks.deleteByIds,
+    reuseOrCreatePlaceholderWithImpact: mocks.reuseOrCreate,
+    deleteByIdsWithImpact: mocks.deleteByIds,
     listActiveIdsByAgent: mocks.listActiveIdsByAgent,
+    listIdsByAgent: mocks.listActiveIdsByAgent,
+    listIdsByWorkspace: () => [],
     restore: mocks.restore,
+    notifyPurged: vi.fn(),
     isExpiredTrash: mocks.isExpiredTrash,
     listExpiredTrashIds: mocks.listExpiredTrashIds,
     purgeExpiredByIdsTx: mocks.purgeExpiredByIdsTx,
-    deleteByAgentIdForDelivery: mocks.deleteByAgentId,
-    deleteWorkspaceCascadeForDelivery: mocks.deleteWorkspace
+    deleteByAgentIdWithImpact: mocks.deleteByAgentId,
+    deleteWorkspaceCascadeWithImpact: mocks.deleteWorkspace
   }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
-  agentService: { deleteAgentForDelivery: mocks.deleteAgent }
+  agentService: { deleteAgentStateTx: mocks.deleteAgent, notifyDeleted: vi.fn(), getLifecycleState: () => 'trashed' }
+}))
+
+vi.mock('@main/ai/agents/agentOrphanSweep', () => ({ sweepAgentOrphans: vi.fn() }))
+vi.mock('@data/services/AgentTaskService', () => ({
+  agentTaskService: { setOwnerStateTx: () => [], notifyReadModelChange: vi.fn() }
 }))
 
 vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
@@ -118,6 +126,8 @@ vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
 }))
 
 const runtime = {
+  listActiveWork: () => [],
+  drainInFlight: async () => ({ stragglerIds: [] }),
   isSessionBusy: mocks.runtimeBusy,
   closeSession: mocks.closeSession,
   onTurnTerminal: (listener: (event: any) => void) => {
@@ -151,12 +161,22 @@ vi.mock('@application', () => ({
       if (name === 'AgentSessionRuntimeService') return runtime
       if (name === 'AiStreamManager') return manager
       if (name === 'DbService') return dbService
+      if (name === 'AgentSessionDeliveryService') return deliveryOwner
+      if (name === 'ChannelManager')
+        return {
+          pause: () => ({ dispose() {} }),
+          reconcileAgent() {},
+          listActiveWork: () => [],
+          drainInFlight: async () => ({ stragglerIds: [] })
+        }
       throw new Error(`Unexpected application.get(${name})`)
     }
   }
 }))
 
 const { AgentSessionDeliveryService } = await import('../AgentSessionDeliveryService')
+const { AgentLifecycleService } = await import('../../agents/AgentLifecycleService')
+let deliveryOwner: InstanceType<typeof AgentSessionDeliveryService>
 
 const now = new Date().toISOString()
 const accepted = {
@@ -672,10 +692,12 @@ describe('AgentSessionDeliveryService', () => {
 
   it('rejects Session archive before the DB write while its turn is unsettled', async () => {
     mocks.hasUnsettledTopicWork.mockReturnValue(true)
-    const service = new AgentSessionDeliveryService()
-    await service._doInit()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
+    await delivery._doInit()
 
-    await expect(service.deleteSessions(['target'])).rejects.toMatchObject({
+    await expect(service.archiveSessions(['target'])).rejects.toMatchObject({
       name: 'AgentSessionArchiveBusyError',
       sessionIds: ['target']
     })
@@ -695,10 +717,12 @@ describe('AgentSessionDeliveryService', () => {
     )
     mocks.deleteByIds.mockReturnValue({ deletedIds: ['target'], taskScheduleIds: [], deliveryResults: [] })
     mocks.closeSession.mockReturnValue(runtimeClosed)
-    const service = new AgentSessionDeliveryService()
-    await service._doInit()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
+    await delivery._doInit()
 
-    const deleting = service.deleteSessions(['target'])
+    const deleting = service.archiveSessions(['target'])
     await vi.waitFor(() => expect(mocks.closeSession).toHaveBeenCalledWith('target'))
 
     let competingAdmissionEntered = false
@@ -730,10 +754,12 @@ describe('AgentSessionDeliveryService', () => {
     mocks.removeAgentStorageSubdirectory.mockImplementation(async () => {
       order.push('workspace-removed')
     })
-    const service = new AgentSessionDeliveryService()
-    await service._doInit()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
+    await delivery._doInit()
 
-    await expect(service.deleteSessions(['target'], true)).resolves.toEqual({ deletedIds: ['target'] })
+    await expect(service.purgeSessions(['target'])).resolves.toEqual({ deletedIds: ['target'] })
 
     expect(mocks.removeAgentStorageSubdirectory).toHaveBeenCalledWith(
       '/mock/feature.agents.system_workspaces',
@@ -752,10 +778,12 @@ describe('AgentSessionDeliveryService', () => {
       purgedSystemWorkspacePaths: [workspacePath]
     })
     mocks.removeAgentStorageSubdirectory.mockRejectedValue(cleanupError)
-    const service = new AgentSessionDeliveryService()
-    await service._doInit()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
+    await delivery._doInit()
 
-    await expect(service.deleteSessions(['target'], true)).resolves.toEqual({ deletedIds: ['target'] })
+    await expect(service.purgeSessions(['target'])).resolves.toEqual({ deletedIds: ['target'] })
 
     expect(mocks.logger.warn).toHaveBeenCalledWith('Failed to remove purged Agent Session workspace', {
       workspacePath,
@@ -763,27 +791,34 @@ describe('AgentSessionDeliveryService', () => {
     })
   })
 
-  it('rejects Agent cascade archive when one of its Sessions is unsettled', async () => {
-    mocks.listActiveIdsByAgent.mockReturnValue(['target'])
-    mocks.hasUnsettledTopicWork.mockReturnValue(true)
-    const service = new AgentSessionDeliveryService()
-    await service._doInit()
+  it.each([true, false])(
+    'rejects Agent archive when a Session is unsettled (archiveSessions=%s)',
+    async (archiveSessions) => {
+      mocks.listActiveIdsByAgent.mockReturnValue(['target'])
+      mocks.hasUnsettledTopicWork.mockReturnValue(true)
+      const delivery = new AgentSessionDeliveryService()
+      deliveryOwner = delivery
+      const service = new AgentLifecycleService()
+      await delivery._doInit()
 
-    await expect(service.deleteAgent('agent-1', true)).rejects.toMatchObject({
-      name: 'AgentSessionArchiveBusyError',
-      sessionIds: ['target']
-    })
+      await expect(service.archiveAgent('agent-1', { archiveSessions })).rejects.toMatchObject({
+        name: 'AgentSessionArchiveBusyError',
+        sessionIds: ['target']
+      })
 
-    expect(mocks.deleteAgent).not.toHaveBeenCalled()
-  })
+      expect(mocks.deleteAgent).not.toHaveBeenCalled()
+    }
+  )
 
   it("rejects clearing an Agent's Sessions when one is unsettled", async () => {
     mocks.listActiveIdsByAgent.mockReturnValue(['target'])
     mocks.hasUnsettledTopicWork.mockReturnValue(true)
-    const service = new AgentSessionDeliveryService()
-    await service._doInit()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
+    await delivery._doInit()
 
-    await expect(service.deleteAgentSessions('agent-1')).rejects.toMatchObject({
+    await expect(service.archiveAgentSessions('agent-1')).rejects.toMatchObject({
       name: 'AgentSessionArchiveBusyError',
       sessionIds: ['target']
     })
@@ -799,7 +834,9 @@ describe('AgentSessionDeliveryService', () => {
     mocks.listExpiredTrashIds.mockReturnValue(['expired-session'])
     mocks.abortAndDrain.mockReturnValue(runtimeDrained)
     mocks.purgeExpiredByIdsTx.mockReturnValue(['expired-session'])
-    const service = new AgentSessionDeliveryService()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
 
     const purge = service.purgeExpiredSessions(500, 10)
     await vi.waitFor(() =>
@@ -811,7 +848,7 @@ describe('AgentSessionDeliveryService', () => {
 
     await expect(purge).resolves.toEqual({ purgedIds: ['expired-session'], hasMore: false })
     expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledWith({}, ['expired-session'], 500)
-    expect(service.isWriteQuiesced).toBe(false)
+    expect(delivery.isWriteQuiesced).toBe(false)
   })
 
   it('does not drain a Session restored before its retention purge acquires ownership', async () => {
@@ -826,7 +863,9 @@ describe('AgentSessionDeliveryService', () => {
     mocks.restore.mockReturnValue(restoreGate)
     mocks.isExpiredTrash.mockImplementation(() => !restored)
     mocks.listExpiredTrashIds.mockReturnValue(['expired-session'])
-    const service = new AgentSessionDeliveryService()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
 
     const restore = service.restoreSession('expired-session')
     await vi.waitFor(() => expect(mocks.restore).toHaveBeenCalledWith('expired-session'))
@@ -861,7 +900,9 @@ describe('AgentSessionDeliveryService', () => {
       order.push('restore')
       throw DataApiErrorFactory.notFound('Session', 'expired-session')
     })
-    const service = new AgentSessionDeliveryService()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
 
     const purge = service.purgeExpiredSessions(500, 10)
     await vi.waitFor(() => expect(mocks.abortAndDrain).toHaveBeenCalledOnce())
@@ -888,14 +929,16 @@ describe('AgentSessionDeliveryService', () => {
           uniqueModelId: 'provider::model'
         })
     })
-    const delivery = { ...accepted, sessionId: 'expired-session' }
-    mocks.listAccepted.mockImplementation((sessionId?: string) => (sessionId === 'expired-session' ? [delivery] : []))
+    const request = { ...accepted, sessionId: 'expired-session' }
+    mocks.listAccepted.mockImplementation((sessionId?: string) => (sessionId === 'expired-session' ? [request] : []))
     mocks.validateDispatch.mockReturnValue(validation)
     mocks.listExpiredTrashIds.mockReturnValue(['expired-session'])
     mocks.purgeExpiredByIdsTx.mockReturnValue(['expired-session'])
-    const service = new AgentSessionDeliveryService()
-    await service._doInit()
-    service.kick('expired-session')
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
+    await delivery._doInit()
+    delivery.kick('expired-session')
     await vi.waitFor(() => expect(mocks.validateDispatch).toHaveBeenCalled())
 
     const purge = service.purgeExpiredSessions(500, 10)
@@ -918,7 +961,9 @@ describe('AgentSessionDeliveryService', () => {
       if (topicId === 'agent-session:failed-session') return Promise.reject(new Error('drain failed'))
       return slowDrain
     })
-    const service = new AgentSessionDeliveryService()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
 
     let settled = false
     const purge = service.purgeExpiredSessions(500, 10)
@@ -934,13 +979,13 @@ describe('AgentSessionDeliveryService', () => {
     await flush()
 
     expect(settled).toBe(false)
-    expect(service.isWriteQuiesced).toBe(true)
+    expect(delivery.isWriteQuiesced).toBe(true)
     expect(mocks.purgeExpiredByIdsTx).not.toHaveBeenCalled()
 
     releaseSlowDrain()
 
     await expect(purge).rejects.toThrow('drain failed')
-    expect(service.isWriteQuiesced).toBe(false)
+    expect(delivery.isWriteQuiesced).toBe(false)
     expect(mocks.purgeExpiredByIdsTx).not.toHaveBeenCalled()
   })
 
@@ -948,7 +993,9 @@ describe('AgentSessionDeliveryService', () => {
     mocks.listExpiredTrashIds.mockReturnValue(['restored-session', 'expired-session'])
     mocks.isExpiredTrash.mockImplementation((sessionId: string) => sessionId === 'expired-session')
     mocks.purgeExpiredByIdsTx.mockReturnValue(['expired-session'])
-    const service = new AgentSessionDeliveryService()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
 
     await expect(service.purgeExpiredSessions(500, 2)).resolves.toEqual({
       purgedIds: ['expired-session'],
@@ -965,8 +1012,10 @@ describe('AgentSessionDeliveryService', () => {
       deletedDuplicateSessionIds: ['duplicate'],
       deliveryResults: []
     })
-    const service = new AgentSessionDeliveryService()
-    await service._doInit()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
+    await delivery._doInit()
 
     await expect(
       service.reuseOrCreateSession({ agentId: 'agent-1', workspace: { type: 'system' } })
@@ -987,12 +1036,14 @@ describe('AgentSessionDeliveryService', () => {
       .mockReturnValueOnce({ deletedIds: ['target'], taskScheduleIds: [], deliveryResults: [] })
       .mockReturnValueOnce({ deletedIds: [], taskScheduleIds: [], deliveryResults: [] })
     mocks.closeSession.mockReturnValueOnce(firstClose)
-    const service = new AgentSessionDeliveryService()
-    await service._doInit()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
+    await delivery._doInit()
 
-    const first = service.deleteSessions(['target'])
+    const first = service.archiveSessions(['target'])
     await vi.waitFor(() => expect(mocks.closeSession).toHaveBeenCalledWith('target'))
-    await service.deleteSessions(['target'])
+    const second = service.archiveSessions(['target'])
 
     let drained = false
     const drain = service.drainInFlight({ timeoutMs: 5_000 }).then((result) => {
@@ -1003,7 +1054,7 @@ describe('AgentSessionDeliveryService', () => {
     expect(drained).toBe(false)
 
     releaseFirstClose()
-    await first
+    await Promise.all([first, second])
     await expect(drain).resolves.toEqual({ stragglerIds: [] })
   })
 
@@ -1014,10 +1065,12 @@ describe('AgentSessionDeliveryService', () => {
       affectedSessionIds: ['target'],
       deliveryResults: []
     })
-    const service = new AgentSessionDeliveryService()
-    await service._doInit()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
+    await delivery._doInit()
 
-    await service.deleteAgent('agent-1', true)
+    await service.archiveAgent('agent-1', { archiveSessions: true })
 
     expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:target', 'target-agent-deleted')
     expect(mocks.closeSession).toHaveBeenCalledWith('target')
@@ -1032,10 +1085,12 @@ describe('AgentSessionDeliveryService', () => {
       affectedSessionIds: ['target'],
       deliveryResults: [{ ...accepted, delivery: { ...accepted.delivery, status: 'failed' } }]
     })
-    const service = new AgentSessionDeliveryService()
-    await service._doInit()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
+    await delivery._doInit()
 
-    await service.deleteAgent('agent-1', false)
+    await service.archiveAgent('agent-1', { archiveSessions: false })
 
     expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:target', 'target-agent-deleted')
     expect(mocks.pauseRuntimeTurn.mock.invocationCallOrder[0]).toBeLessThan(
@@ -1051,9 +1106,11 @@ describe('AgentSessionDeliveryService', () => {
       deliveryResults: [{ ...accepted, sessionId: 'sender', delivery: { ...accepted.delivery, status: 'failed' } }]
     })
     mocks.closeSession.mockRejectedValue(closeError)
-    const service = new AgentSessionDeliveryService()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
 
-    await expect(service.deleteAgent('agent-1', false)).resolves.toEqual({ deleted: true })
+    await expect(service.archiveAgent('agent-1', { archiveSessions: false })).resolves.toEqual({ deleted: true })
     await service.drainInFlight({ timeoutMs: 100 })
 
     expect(mocks.listAccepted).toHaveBeenCalledWith('sender')
@@ -1070,9 +1127,11 @@ describe('AgentSessionDeliveryService', () => {
       affectedSessionIds: ['target'],
       deliveryResults: []
     })
-    const service = new AgentSessionDeliveryService()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
 
-    await service.deleteAgent('agent-1', true, true)
+    await service.purgeAgent('agent-1')
     await service.drainInFlight({ timeoutMs: 100 })
 
     expect(mocks.listAccepted).toHaveBeenCalledWith('target')
@@ -1084,9 +1143,11 @@ describe('AgentSessionDeliveryService', () => {
       taskScheduleIds: [],
       deliveryResults: []
     })
-    const service = new AgentSessionDeliveryService()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
 
-    await expect(service.deleteAgentSessions('agent-1')).resolves.toEqual({
+    await expect(service.archiveAgentSessions('agent-1')).resolves.toEqual({
       deletedIds: ['session-1', 'session-not-loaded']
     })
 
@@ -1101,11 +1162,52 @@ describe('AgentSessionDeliveryService', () => {
       taskScheduleIds: [],
       deliveryResults: []
     })
-    const service = new AgentSessionDeliveryService()
-    await service._doInit()
+    const delivery = new AgentSessionDeliveryService()
+    deliveryOwner = delivery
+    const service = new AgentLifecycleService()
+    await delivery._doInit()
 
     await service.deleteWorkspace('workspace-1')
 
     expect(mocks.closeSession).toHaveBeenCalledWith('target')
+  })
+
+  it('keeps lifecycle admission paused until every ingress hold is released', async () => {
+    const service = new AgentLifecycleService()
+    mocks.restore.mockReturnValue({ id: 'target' })
+    const backup = service.pauseIngress('backup')
+    const other = service.pauseIngress('other')
+    await expect(service.restoreSession('target')).rejects.toThrow('paused')
+    backup.dispose()
+    backup.dispose()
+    await expect(service.restoreSession('target')).rejects.toThrow('paused')
+    other.dispose()
+    await expect(service.restoreSession('target')).resolves.toEqual({ id: 'target' })
+  })
+
+  it('drains accepted lifecycle work during backup and shutdown without admitting new commands', async () => {
+    let releaseClose!: () => void
+    const closing = new Promise<void>((resolve) => {
+      releaseClose = resolve
+    })
+    mocks.closeSession.mockReturnValue(closing)
+    mocks.deleteByIds.mockReturnValue({ deletedIds: ['target'], taskScheduleIds: [], deliveryResults: [] })
+    deliveryOwner = new AgentSessionDeliveryService()
+    const service = new AgentLifecycleService()
+    const archive = service.archiveSessions(['target'])
+    await vi.waitFor(() => expect(mocks.closeSession).toHaveBeenCalledWith('target'))
+    const hold = service.pauseIngress('backup')
+    const verdict = await service.drainIngress({ timeoutMs: 5 })
+    expect(verdict.stragglerIds).toEqual(['archive-sessions:target'])
+    let stopped = false
+    const stop = service._doStop().then(() => {
+      stopped = true
+    })
+    hold.dispose()
+    await expect(service.restoreSession('target')).rejects.toThrow('paused')
+    expect(stopped).toBe(false)
+    releaseClose()
+    await Promise.all([archive, stop])
+    expect((await service.drainIngress({ timeoutMs: 100 })).stragglerIds).toEqual([])
   })
 })

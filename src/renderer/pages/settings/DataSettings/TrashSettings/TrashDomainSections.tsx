@@ -17,7 +17,7 @@ import { requestBatchedFileMutation } from '@renderer/services/fileBatchMutation
 import { toast } from '@renderer/services/toast'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
+import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 import TrashSection, { type PendingPermanentDelete } from './TrashSection'
 import type { TrashBatchOutcome, TrashItem } from './trashUtils'
@@ -257,12 +257,21 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
   const totalPages = Math.ceil(total / 50)
   useDataChange('/agents', () => void refresh())
 
-  const restoreMutation = useMutation('POST', '/agents/:agentId/restore', {
-    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`]
-  })
-
   const restoreItem = (item: TrashItem) =>
-    reconcileNotFound(() => restoreMutation.trigger({ params: { agentId: item.id } }), refresh, `/agents/${item.id}`)
+    reconcileNotFound(
+      async () => {
+        const restored = await ipcApi.request('ai.agent.restore', { agentId: item.id })
+        try {
+          await invalidate(['/agents', `/agents/${item.id}`])
+        } catch (error) {
+          logger.warn('failed to refresh agents after restore', error as Error)
+        }
+        return restored
+      },
+      refresh,
+      `/agents/${item.id}`,
+      isAgentNotFoundError
+    )
 
   const handleRestore = async (item: TrashItem) => {
     setPendingRestoreId(item.id)

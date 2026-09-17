@@ -30,7 +30,7 @@ const {
   sweepAgentOrphansMock
 } = vi.hoisted(() => ({
   agentJobsServiceMock: { reconcileAgentSchedules: vi.fn(async () => 0) },
-  agentSessionDeliveryServiceMock: { purgeExpiredSessions: vi.fn() },
+  agentSessionDeliveryServiceMock: { purgeExpiredSessions: vi.fn(), purgeExpiredAgents: vi.fn() },
   fileManagerMock: {
     runSweep: vi.fn(async () => ({
       outcome: 'completed',
@@ -46,7 +46,7 @@ vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataA
 // Mock the agent-dir sweep so its post-commit failure path can be exercised
 // without touching the real filesystem; the default resolves (clean run) so
 // existing tests behave identically.
-vi.mock('../agentOrphanSweep', () => ({ sweepAgentOrphans: sweepAgentOrphansMock }))
+vi.mock('@main/ai/agents/agentOrphanSweep', () => ({ sweepAgentOrphans: sweepAgentOrphansMock }))
 
 // The unified application mock does not carry feature services (FileManager is
 // not in defaultServiceInstances) — route it locally, everything else falls
@@ -57,7 +57,12 @@ vi.mock('@application', async () => {
   const container = application.getContainer()
   application.get.mockImplementation((name: string) => {
     if (name === 'AgentJobsService') return agentJobsServiceMock
-    if (name === 'AgentSessionDeliveryService') return agentSessionDeliveryServiceMock
+    if (name === 'AgentLifecycleService')
+      return {
+        ...agentSessionDeliveryServiceMock,
+        reconcile: agentJobsServiceMock.reconcileAgentSchedules,
+        sweepOrphans: sweepAgentOrphansMock
+      }
     if (name === 'FileManager') return fileManagerMock
     return container.get(name)
   })
@@ -92,10 +97,16 @@ describe('trashPurgeJobHandler', () => {
   beforeEach(() => {
     agentJobsServiceMock.reconcileAgentSchedules.mockClear()
     agentJobsServiceMock.reconcileAgentSchedules.mockImplementation(async () => 0)
+    agentSessionDeliveryServiceMock.purgeExpiredAgents.mockImplementation(async (cutoffMs: number, limit: number) => {
+      const impact = dbh.db.transaction((tx) => agentService.purgeExpiredTx(tx, cutoffMs, limit))
+      agentService.notifyPurged(impact)
+      return { purgedIds: impact.purgedIds, hasMore: impact.purgedIds.length === limit }
+    })
     agentSessionDeliveryServiceMock.purgeExpiredSessions.mockClear()
     agentSessionDeliveryServiceMock.purgeExpiredSessions.mockImplementation(async (cutoffMs: number, limit: number) => {
       const ids = agentSessionService.listExpiredTrashIds(cutoffMs, limit)
       const purgedIds = dbh.db.transaction((tx) => agentSessionService.purgeExpiredByIdsTx(tx, ids, cutoffMs))
+      agentSessionService.notifyPurged(purgedIds)
       return { purgedIds, hasMore: ids.length === limit }
     })
     fileManagerMock.runSweep.mockClear()
@@ -261,16 +272,6 @@ describe('trashPurgeJobHandler', () => {
 
     let expiredTopicRowsAtSweepTime = -1
     let expiredAgentRowsAtScheduleSweepTime = -1
-    const purgedAgentEvents: Array<{ agentId: string; remainingRows: number }> = []
-    const purgedDisposable = agentService.onAgentPurged(({ agentId }) => {
-      if (agentId !== 'agent-expired') return
-      const remainingRows = dbh.db
-        .select({ id: agentTable.id })
-        .from(agentTable)
-        .where(eq(agentTable.id, agentId))
-        .all().length
-      purgedAgentEvents.push({ agentId, remainingRows })
-    })
     agentJobsServiceMock.reconcileAgentSchedules.mockImplementation(async () => {
       expiredAgentRowsAtScheduleSweepTime = dbh.db
         .select({ id: agentTable.id })
@@ -294,12 +295,7 @@ describe('trashPurgeJobHandler', () => {
     })
 
     const ctx = makeCtx({})
-    let result: Awaited<ReturnType<typeof trashPurgeJobHandler.execute>>
-    try {
-      result = await trashPurgeJobHandler.execute(ctx)
-    } finally {
-      purgedDisposable.dispose()
-    }
+    const result = await trashPurgeJobHandler.execute(ctx)
 
     expect(result).toEqual({
       skipped: false,
@@ -355,7 +351,6 @@ describe('trashPurgeJobHandler', () => {
     // disk sweep ran after all DB purge transactions committed
     expect(agentJobsServiceMock.reconcileAgentSchedules).toHaveBeenCalledTimes(1)
     expect(expiredAgentRowsAtScheduleSweepTime).toBe(0)
-    expect(purgedAgentEvents).toEqual([{ agentId: 'agent-expired', remainingRows: 0 }])
     expect(fileManagerMock.runSweep).toHaveBeenCalledTimes(1)
     expect(expiredTopicRowsAtSweepTime).toBe(0)
     expect(ctx.reportProgress).toHaveBeenLastCalledWith(100)

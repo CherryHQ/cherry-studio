@@ -430,9 +430,7 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => agentDataMocks.invalidate,
-  useMutation: (method: string, path: string) => ({
-    trigger: method === 'POST' && path === '/agents/:agentId/restore' ? agentDataMocks.restoreAgent : vi.fn()
-  })
+  useMutation: () => ({ trigger: vi.fn() })
 }))
 
 vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
@@ -443,9 +441,11 @@ vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.agent.session.restore'
-        ? agentDataMocks.restoreSession(input)
-        : agentDataMocks.ipcRequest(route, input),
+      route === 'ai.agent.restore'
+        ? agentDataMocks.restoreAgent(input)
+        : route === 'ai.agent.session.restore'
+          ? agentDataMocks.restoreSession(input)
+          : agentDataMocks.ipcRequest(route, input),
     on: vi.fn(() => () => undefined)
   }
 }))
@@ -1300,7 +1300,7 @@ describe('classic layout entity resource list actions', () => {
 
     await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
 
-    expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+    expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(agentDataMocks.refetchAgents).toHaveBeenCalled()
   })
 
@@ -1341,7 +1341,7 @@ describe('classic layout entity resource list actions', () => {
 
     await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
 
-    expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+    expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-1' })
     expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ sessionId: 'session-not-loaded' })
   })
@@ -1366,12 +1366,12 @@ describe('classic layout entity resource list actions', () => {
 
     await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
 
-    expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+    expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(loggerMocks.warn).toHaveBeenCalled()
   })
 
   it('treats Agent restore NOT_FOUND as complete only after refresh confirms the Agent is active', async () => {
-    agentDataMocks.restoreAgent.mockRejectedValueOnce(DataApiErrorFactory.notFound('Agent', 'agent-1'))
+    agentDataMocks.restoreAgent.mockRejectedValueOnce(new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, 'Agent missing'))
 
     render(
       <AgentResourceList

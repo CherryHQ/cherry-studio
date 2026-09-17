@@ -100,7 +100,7 @@ import {
   type AgentWorkspaceEntity
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
+import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 import {
   type AgentSessionImageActionRequest,
@@ -1153,9 +1153,7 @@ const Sessions = ({
   const invalidate = useInvalidateCache()
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
-  const { trigger: restoreAgent } = useMutation('POST', '/agents/:agentId/restore', {
-    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`]
-  })
+  const restoreAgent = useCallback((agentId: string) => ipcApi.request('ai.agent.restore', { agentId }), [])
 
   const createSessionFromSeed = useCallback(
     async (seed: CreateSessionSeed | null | undefined) => {
@@ -1332,7 +1330,8 @@ const Sessions = ({
                 restoreRecycleBinUndoGroup({
                   primary: {
                     id: agentId,
-                    restore: (id) => restoreAgent({ params: { agentId: id } }),
+                    restore: (id) => restoreAgent(id),
+                    isNotFound: isAgentNotFoundError,
                     getActive: (id) => dataApiService.get(`/agents/${id}`)
                   },
                   related: {

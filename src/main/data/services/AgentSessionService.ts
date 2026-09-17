@@ -504,7 +504,7 @@ export class AgentSessionService {
   }
 
   /** Reuse or create one exact empty placeholder under a serialized write transaction. */
-  reuseOrCreatePlaceholderForDelivery(dto: ReuseOrCreateAgentSessionDto): ReuseOrCreateAgentSessionOutcome {
+  reuseOrCreatePlaceholderWithImpact(dto: ReuseOrCreateAgentSessionDto): ReuseOrCreateAgentSessionOutcome {
     const reservedId = uuidv4()
     const result = withSqliteErrors(
       () =>
@@ -889,10 +889,10 @@ export class AgentSessionService {
   }
 
   delete(id: string, options: { permanent?: boolean } = {}): void {
-    this.deleteForDelivery(id, options)
+    this.deleteWithImpact(id, options)
   }
 
-  deleteForDelivery(id: string, options: { permanent?: boolean } = {}): AgentSessionDeletionOutcome {
+  deleteWithImpact(id: string, options: { permanent?: boolean } = {}): AgentSessionDeletionOutcome {
     if (options.permanent !== true) {
       const { trashedIds, taskScheduleIds, deliveryResults } = application
         .get('DbService')
@@ -936,11 +936,11 @@ export class AgentSessionService {
   }
 
   deleteByIds(ids: string[], options: { permanent?: boolean } = {}): DeleteAgentSessionsResult {
-    const result = this.deleteByIdsForDelivery(ids, options)
+    const result = this.deleteByIdsWithImpact(ids, options)
     return { deletedIds: result.deletedIds }
   }
 
-  deleteByIdsForDelivery(ids: string[], options: { permanent?: boolean } = {}): AgentSessionBatchDeletionOutcome {
+  deleteByIdsWithImpact(ids: string[], options: { permanent?: boolean } = {}): AgentSessionBatchDeletionOutcome {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) {
       return { deletedIds: [], taskScheduleIds: [], deliveryResults: [], purgedSystemWorkspacePaths: [] }
@@ -1105,11 +1105,11 @@ export class AgentSessionService {
   }
 
   deleteWorkspaceCascade(workspaceId: string): DeleteAgentSessionsResult {
-    const result = this.deleteWorkspaceCascadeForDelivery(workspaceId)
+    const result = this.deleteWorkspaceCascadeWithImpact(workspaceId)
     return { deletedIds: result.deletedIds }
   }
 
-  deleteWorkspaceCascadeForDelivery(workspaceId: string): AgentSessionDeletionOutcome {
+  deleteWorkspaceCascadeWithImpact(workspaceId: string): AgentSessionDeletionOutcome {
     const result = application.get('DbService').withWriteTx((tx) => {
       agentWorkspaceService.getRowByIdTx(tx, workspaceId)
       const channelReferences = agentChannelService.resetWorkspaceReferencesTx(tx, workspaceId)
@@ -1155,11 +1155,11 @@ export class AgentSessionService {
   }
 
   deleteByAgentId(agentId: string, options: { permanent?: boolean } = {}): DeleteAgentSessionsResult {
-    const result = this.deleteByAgentIdForDelivery(agentId, options)
+    const result = this.deleteByAgentIdWithImpact(agentId, options)
     return { deletedIds: result.deletedIds }
   }
 
-  deleteByAgentIdForDelivery(agentId: string, options: { permanent?: boolean } = {}): AgentSessionDeletionOutcome {
+  deleteByAgentIdWithImpact(agentId: string, options: { permanent?: boolean } = {}): AgentSessionDeletionOutcome {
     const deliveryResults: AgentSessionMessageEntity[] = []
     const result = application.get('DbService').withWriteTx((tx) => {
       if (options.permanent !== true) {
@@ -1218,6 +1218,23 @@ export class AgentSessionService {
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
       .where(eq(sessionsTable.agentId, agentId))
+      .orderBy(asc(sessionsTable.id))
+      .all()
+      .map((row) => row.id)
+  }
+
+  listIdsByAgent(agentId: string): string[] {
+    return this.listIdsByAgentTx(application.get('DbService').getDb(), agentId)
+  }
+
+  listIdsByWorkspace(workspaceId: string): string[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, workspaceId))
+      .orderBy(asc(sessionsTable.id))
       .all()
       .map((row) => row.id)
   }

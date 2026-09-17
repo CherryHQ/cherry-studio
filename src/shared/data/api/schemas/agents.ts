@@ -183,8 +183,8 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   lastRun: z.string().nullable().optional(),
   /** Live enable/disable flag — pause/resume flips this. */
   enabled: z.boolean(),
-  /** Output-only derived label kept for UI continuity (active / paused / completed). */
-  status: z.enum(['active', 'paused', 'completed']),
+  /** Output-only state derived from the schedule and its execution history. */
+  status: z.enum(['active', 'paused', 'completed', 'missed']),
   createdAt: z.string(),
   updatedAt: z.string()
 })
@@ -295,14 +295,6 @@ export type AgentSchemas = {
     PATCH: {
       params: { agentId: string }
       body: UpdateAgentDto
-      response: AgentEntity
-    }
-  }
-
-  /** Restore one trashed agent. Pins purged at Delete time are not restored. */
-  '/agents/:agentId/restore': {
-    POST: {
-      params: { agentId: string }
       response: AgentEntity
     }
   }

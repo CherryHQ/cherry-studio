@@ -17,7 +17,7 @@ import { ipcApi } from '@renderer/ipc'
 import { restoreRecycleBinUndoGroup, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
-import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
+import { isAgentNotFoundError, isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
 
 const logger = loggerService.withContext('ResourceDeleteConfirmDialog')
@@ -123,9 +123,7 @@ const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
-  const { trigger: restoreAgent } = useMutation('POST', '/agents/:agentId/restore', {
-    refresh: ['/agents', '/agents/*']
-  })
+  const restoreAgent = useCallback((agentId: string) => ipcApi.request('ai.agent.restore', { agentId }), [])
   const restoreSession = useCallback(
     (sessionId: string) => ipcApi.request('ai.agent.session.restore', { sessionId }),
     []
@@ -155,7 +153,8 @@ const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>
           restoreRecycleBinUndoGroup({
             primary: {
               id: resource.id,
-              restore: (id) => restoreAgent({ params: { agentId: id } }),
+              restore: (id) => restoreAgent(id),
+              isNotFound: isAgentNotFoundError,
               getActive: (id) => dataApiService.get(`/agents/${id}`)
             },
             related: {

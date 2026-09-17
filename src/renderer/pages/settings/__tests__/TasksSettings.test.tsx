@@ -1830,6 +1830,17 @@ describe('TasksSettings detail behavior', () => {
     expect(screen.queryByRole('menuitem', { name: 'agent.tasks.run' })).not.toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'agent.tasks.delete.label' })).toBeInTheDocument()
   })
+
+  it('shows missed tasks without an enable switch and allows an explicit manual run', async () => {
+    const user = userEvent.setup()
+    taskDataMock.task = { ...taskDataMock.defaultTask, enabled: false, status: 'missed' }
+    render(<TasksSettings />)
+    await screen.findByText('agent.tasks.status.missed')
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.edit' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('agent-1', 'task-1'))
+  })
 })
 
 describe('TaskTimeSelect minute retention on fresh mount', () => {

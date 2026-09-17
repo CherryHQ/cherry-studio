@@ -7,9 +7,9 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
+import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import { AgentSessionArchiveBusyError } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
@@ -155,7 +155,7 @@ function agentTaskNotFound(taskId: string): IpcError {
 
 async function restoreAgentSession(sessionId: string) {
   try {
-    return await application.get('AgentSessionDeliveryService').restoreSession(sessionId)
+    return await application.get('AgentLifecycleService').restoreSession(sessionId)
   } catch (e) {
     if (isDataApiError(e) && e.code === ErrorCode.NOT_FOUND) {
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, e.message)
@@ -239,12 +239,24 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
+  'ai.agent.restore': async ({ agentId }) => {
+    try {
+      return await application.get('AgentLifecycleService').restoreAgent(agentId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        throw new IpcError(aiErrorCodes.AI_AGENT_NOT_FOUND, error.message)
+      }
+      throw error
+    }
+  },
   'ai.agent.delete': ({ agentId, deleteSessions, permanent }) =>
     exposeAgentSessionArchiveError(() =>
-      application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions, permanent)
+      permanent
+        ? application.get('AgentLifecycleService').purgeAgent(agentId)
+        : application.get('AgentLifecycleService').archiveAgent(agentId, { archiveSessions: deleteSessions })
     ),
   'ai.agent.sessions.delete': ({ agentId }) =>
-    exposeAgentSessionArchiveError(() => application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId)),
+    exposeAgentSessionArchiveError(() => application.get('AgentLifecycleService').archiveAgentSessions(agentId)),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the
@@ -261,13 +273,14 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.delete': ({ sessionIds, permanent }) =>
     exposeAgentSessionArchiveError(() =>
-      application.get('AgentSessionDeliveryService').deleteSessions(sessionIds, permanent)
+      permanent
+        ? application.get('AgentLifecycleService').purgeSessions(sessionIds)
+        : application.get('AgentLifecycleService').archiveSessions(sessionIds)
     ),
   'ai.agent.session.restore': ({ sessionId }) => restoreAgentSession(sessionId),
-  'ai.agent.session.reuse_or_create': (input) =>
-    application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
+  'ai.agent.session.reuse_or_create': (input) => application.get('AgentLifecycleService').reuseOrCreateSession(input),
   'ai.agent.workspace.delete': ({ workspaceId }) =>
-    application.get('AgentSessionDeliveryService').deleteWorkspace(workspaceId),
+    application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
 
   // ── Agent session runtime queries & commands. ──
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {

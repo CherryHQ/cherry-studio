@@ -369,6 +369,7 @@
   "agent.tasks.schedule.weekly": "週次",
   "agent.tasks.status.active": "アクティブ",
   "agent.tasks.status.completed": "完了",
+  "agent.tasks.status.missed": "実行時刻を超過",
   "agent.tasks.status.paused": "一時停止中",
   "agent.tasks.timeout.label": "最長実行時間",
   "agent.tasks.timeout.placeholder": "制限なし",
