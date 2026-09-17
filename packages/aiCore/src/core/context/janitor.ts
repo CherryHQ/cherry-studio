@@ -178,6 +178,8 @@ const STUB_ESCALATION = [4000, 1000, 200, 0]
  * the entire accumulated history and must never be dropped — plus as many of
  * the most recent messages as fit, and the trailing instruction. Whatever is
  * dropped is announced in-band so the summary can't silently claim to cover it.
+ * When first+instruction alone exceed the budget the result stays over budget
+ * by design — truncating the prior summary would destroy history.
  */
 function clampToInputBudget(messages: ContextMessage[], maxInputTokens: number): ContextMessage[] {
   if (messages.length <= 2) return messages
