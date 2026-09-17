@@ -13,7 +13,7 @@ const logger = loggerService.withContext('AgentCreateDialog')
 type AgentCreateDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreated: (agentId: string) => void | Promise<void>
+  onCreated: (agentId: string, defaultWorkspaceId?: string | null) => void | Promise<void>
 }
 
 export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreateDialogProps) {
@@ -24,7 +24,7 @@ export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreate
       try {
         const created = await createAgent(buildCreateAgentCommand(values))
         onOpenChange(false)
-        await onCreated(created.id)
+        await onCreated(created.id, values.defaultWorkspaceId)
       } catch (error) {
         logger.error('Failed to create agent', error as Error)
         throw error
