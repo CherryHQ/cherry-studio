@@ -53,10 +53,27 @@ Kullanıcı Türkçe yazıyor, cevaplar Türkçe. **Kod, yorum ve commit mesajla
 - **Görev bitince** `GOREVLER.md`'de `[ ]` → `[x]` ve **tek satır** not. Fazlar arası rapor üretme.
 - **Doğrulama dar tut:** değişen alanın testi (`./node_modules/.bin/vitest run <yol>`) + gerekiyorsa
   `pnpm run typecheck:node` / `typecheck:web`. Tüm paneli gezme, `pnpm test`'i tek dosya için çalıştırma.
-- **Basit ve yalıtılmış işleri alt ajana ver:** i18n çevirisi, tekrarlayan sağlayıcı adaptörleri,
-  mekanik test yazımı.
 - **Sorma, yap.** Kullanıcı hızlı sonuç istiyor. Sadece geri alınamaz veya gerçekten onun kararı
   olan şeylerde dur.
+
+### Çıktı kısa olacak
+
+Kullanıcının açık isteği: *"çıktılar da az olsun, bana yapıldıktan sonra şunu yaptım demesi yeterli."*
+
+- Bir görev bitince **tek cümle**: ne değişti. Dosya listesi, kod bloğu, madde madde özet yok.
+- Ne yapacağını anlatma, yap ve sonucu söyle.
+- İstenmedikçe rapor/özet dosyası üretme.
+- **İstisna:** bir şey bozuksa, bir varsayım yanlış çıktıysa veya kullanıcının bilmesi gereken bir
+  ödünleşim varsa — onu söyle. Kısalık, kötü haberi gizlemek için değil.
+
+### İş hangi modele gider
+
+- **Haiku alt ajanı** — yargı gerektirmeyen, hacimli iş. Kurulu: `i18n-translator`.
+  Çağırma: `Agent(subagent_type: "i18n-translator", ...)`.
+- **Ana oturum (Sonnet)** — tasarım kararı, mimari, hata ayıklama, yeni özellik.
+- **`Explore` alt ajanı** — "bu nerede tanımlı" tipi aramalar; ana bağlamı kirletmez.
+
+Mekanik bir iş 3+ dosyaya yayılıyorsa ve karar gerektirmiyorsa alt ajana ver.
 
 ## Bozulmaması gereken tasarım kuralları
 
