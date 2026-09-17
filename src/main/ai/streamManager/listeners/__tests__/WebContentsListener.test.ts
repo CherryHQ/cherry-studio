@@ -63,6 +63,30 @@ describe('WebContentsListener coalescing', () => {
     })
   })
 
+  it('carries the newest ingest index on coalesced and direct sends', () => {
+    // The renderer's overflow filter compares live seqs against the replay
+    // watermark; a coalesced event must cover its whole run, not its first chunk.
+    const wc = fakeWc()
+    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+
+    l.onChunk(chunk('text-delta', { id: 't1', delta: 'Hello' }), undefined, undefined, undefined, 7)
+    l.onChunk(chunk('text-delta', { id: 't1', delta: '!' }), undefined, undefined, undefined, 8)
+    l.onChunk(chunk('text-end', { id: 't1' }), undefined, undefined, undefined, 9)
+
+    expect(wc.send.mock.calls[0][2].seq).toBe(8)
+    expect(wc.send.mock.calls[1][2].seq).toBe(9)
+  })
+
+  it('omits the ingest index when the caller has none', () => {
+    const wc = fakeWc()
+    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+
+    l.onChunk(chunk('text-end', { id: 't1' }))
+
+    expect(wc.send).toHaveBeenCalledTimes(1)
+    expect(wc.send.mock.calls[0][2]).not.toHaveProperty('seq')
+  })
+
   it('flushes pending buffer when a non-mergeable chunk arrives', () => {
     const wc = fakeWc()
     const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')

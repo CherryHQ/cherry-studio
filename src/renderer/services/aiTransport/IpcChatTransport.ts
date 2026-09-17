@@ -12,7 +12,7 @@ import {
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
-import { capAttachReplayChunks, MAX_ATTACH_REPLAY_CHUNKS } from './capAttachReplay'
+import { capAttachReplayChunks, dropCoveredOverflow, MAX_ATTACH_REPLAY_CHUNKS } from './capAttachReplay'
 import { streamDispatchService } from './StreamDispatchService'
 
 const logger = loggerService.withContext('IpcChatTransport')
@@ -113,7 +113,10 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       logger.warn('transport replay capped', { total: result.bufferedChunks.length, topicId })
       replayChunks = capAttachReplayChunks(result.bufferedChunks, MAX_ATTACH_REPLAY_CHUNKS)
     }
-    return this.buildListenerStream(topicId, [...replayChunks, ...overflowChunks], undefined, undefined, {
+    // Main also sent pre-attach live chunks to a stale/parallel listener for
+    // this window; those are inside the snapshot above, so drain only the rest.
+    const freshOverflow = dropCoveredOverflow(replayChunks, overflowChunks)
+    return this.buildListenerStream(topicId, [...replayChunks, ...freshOverflow], undefined, undefined, {
       done: overflowDone,
       error: overflowError
     })

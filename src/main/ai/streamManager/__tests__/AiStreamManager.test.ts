@@ -30,6 +30,8 @@ class FakeListener implements StreamListener {
   chunks: UIMessageChunk[] = []
   /** Second argument of each onChunk call, indexed by chunk position. */
   chunkSources: Array<string | undefined> = []
+  /** Fifth argument of each onChunk call — the per-topic ingest index. */
+  chunkSeqs: Array<number | undefined> = []
   doneResults: StreamDoneResult[] = []
   pausedResults: StreamPausedResult[] = []
   errorResults: StreamErrorResult[] = []
@@ -43,9 +45,10 @@ class FakeListener implements StreamListener {
     this.terminalPhase = terminalPhase
   }
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: string): void {
+  onChunk(chunk: UIMessageChunk, sourceModelId?: string, _anchor?: string, _attempt?: number, seq?: number): void {
     this.chunks.push(chunk)
     this.chunkSources.push(sourceModelId)
+    this.chunkSeqs.push(seq)
   }
 
   onDone(result: StreamDoneResult): void | Promise<void> {
@@ -1327,6 +1330,34 @@ describe('AiStreamManager', () => {
       expect(late.chunks).toEqual([chunk('ab')])
     })
 
+    it('tags chunks with increasing per-topic seqs for attach replay dedup', () => {
+      // A re-attaching renderer drops pre-attach live chunks at or below the
+      // snapshot watermark, so buffer, snapshot, and live delivery must agree.
+      const early = new FakeListener('early:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [early]
+      })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      mgr.onChunk('a', 'provider-a::model-a', chunk('a'))
+      mgr.onChunk('a', 'provider-a::model-a', chunk('b'))
+
+      expect(early.chunkSeqs).toEqual([1, 2, 3])
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = mgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      // Merged delta entry carries the newer side, covering its live twin.
+      expect(response.bufferedChunks.map((p) => p.seq)).toEqual([1, 3])
+
+      const late = new FakeListener('late:a')
+      mgr.addListener('a', late)
+      expect(late.chunkSeqs).toEqual([1, 3])
+    })
+
     it('does not deliver to a non-streaming topic', async () => {
       const l = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [l] })
@@ -1963,18 +1994,21 @@ describe('AiStreamManager', () => {
             topicId: 'a',
             executionId: 'provider-a::model-a',
             attemptId,
+            seq: 1,
             chunk: { type: 'text-start', id: 'p1' }
           },
           {
             topicId: 'a',
             executionId: 'provider-a::model-a',
             attemptId,
+            seq: 3,
             chunk: { type: 'text-delta', id: 'p1', delta: 'hello' }
           },
           {
             topicId: 'a',
             executionId: 'provider-a::model-a',
             attemptId,
+            seq: 4,
             chunk: { type: 'text-end', id: 'p1' }
           }
         ]

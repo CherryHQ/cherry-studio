@@ -854,6 +854,7 @@ export class AiStreamManager extends BaseService {
       // Surfaced into the topic status snapshot and the main-only completion event as this turn's
       // stable identity.
       turnId: `${Date.now()}:${++this.nextStreamTurnSequence}`,
+      nextChunkSeq: 0,
       executions,
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
       // `pending` → `streaming` on first chunk.
@@ -1154,7 +1155,7 @@ export class AiStreamManager extends BaseService {
     // execution's buffer (acceptable: the Renderer demuxes by executionId + anchor).
     for (const exec of stream.executions.values()) {
       for (const chunk of exec.buffer) {
-        listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId, chunk.attemptId)
+        listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId, chunk.attemptId, chunk.seq)
       }
     }
     return true
@@ -1280,11 +1281,13 @@ export class AiStreamManager extends BaseService {
 
     const sourceModelId = modelId
     const anchorMessageId = exec.anchorMessageId
+    const seq = ++stream.nextChunkSeq
     const payload: StreamChunkPayload = {
       topicId,
       executionId: sourceModelId,
       attemptId: exec.attemptId,
       anchorMessageId,
+      seq,
       chunk
     }
 
@@ -1400,7 +1403,7 @@ export class AiStreamManager extends BaseService {
         continue
       }
       try {
-        listener.onChunk(chunk, sourceModelId, anchorMessageId, exec.attemptId)
+        listener.onChunk(chunk, sourceModelId, anchorMessageId, exec.attemptId, seq)
       } catch (err) {
         logger.warn('Listener threw', { topicId, listenerId: id, event: 'onChunk', err })
       }

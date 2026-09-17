@@ -7,7 +7,7 @@ import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
-import { capAttachReplayChunks, MAX_ATTACH_REPLAY_CHUNKS } from './capAttachReplay'
+import { capAttachReplayChunks, dropCoveredOverflow, MAX_ATTACH_REPLAY_CHUNKS } from './capAttachReplay'
 
 const logger = loggerService.withContext('TopicStreamSubscription')
 
@@ -478,7 +478,10 @@ export class TopicStreamSubscription {
             const live = this.#attachBuffer
             this.#attachBuffer = null
             for (const payload of replay) this.#routeChunk(payload)
-            if (live) for (const payload of live) this.#routeChunk(payload)
+            // Pre-attach live chunks already covered by the snapshot above are
+            // dropped; only genuinely new chunks drain after replay, in order.
+            const fresh = live ? dropCoveredOverflow(replay, live) : undefined
+            if (fresh) for (const payload of fresh) this.#routeChunk(payload)
             break
           }
           case 'not-found':
