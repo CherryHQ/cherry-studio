@@ -36,9 +36,11 @@ interface SessionItemProps {
   onPress: (id: string) => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin?: (id: string) => void | Promise<unknown>
+  onToggleSidebar?: (session: AgentSessionEntity) => void
   panePosition?: TopicTabPosition
   pinned?: boolean
   reserveLeadingIconSlot?: boolean
+  sidebarPinned?: boolean
   session: AgentSessionEntity
   sessionMenuActions: SessionItemMenuActions
 }
@@ -73,8 +75,10 @@ const SessionItem = ({
   onSetPanePosition,
   panePosition,
   onTogglePin,
+  onToggleSidebar,
   pinned = false,
   reserveLeadingIconSlot = true,
+  sidebarPinned = false,
   session,
   sessionMenuActions
 }: SessionItemProps) => {
@@ -132,6 +136,9 @@ const SessionItem = ({
   const handleTogglePin = useCallback(() => {
     void onTogglePin?.(session.id)
   }, [onTogglePin, session.id])
+  const handleToggleSidebar = useCallback(() => {
+    onToggleSidebar?.(session)
+  }, [onToggleSidebar, session])
   const handleOpenInNewTab = useCallback(() => {
     onOpenInNewTab?.(session)
   }, [onOpenInNewTab, session])
@@ -166,8 +173,10 @@ const SessionItem = ({
       onSaveToNotes: () => sessionMenuActions.onSaveToNotes(session),
       onSetPanePosition,
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
+      onToggleSidebar: onToggleSidebar ? handleToggleSidebar : undefined,
       panePosition,
       pinned,
+      sidebarPinned,
       sessionName,
       startEdit: startMenuEdit,
       t
@@ -180,14 +189,17 @@ const SessionItem = ({
       handleOpenInNewTab,
       handleOpenInNewWindow,
       handleTogglePin,
+      handleToggleSidebar,
       active,
       isRenaming,
       onOpenInNewTab,
       onOpenInNewWindow,
       onSetPanePosition,
       onTogglePin,
+      onToggleSidebar,
       panePosition,
       pinned,
+      sidebarPinned,
       session,
       sessionMenuActions,
       sessionName,

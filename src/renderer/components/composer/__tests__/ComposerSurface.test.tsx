@@ -738,6 +738,14 @@ describe('ComposerSurface', () => {
     )
   })
 
+  it('keeps regular editor padding independent of the overlay corner control', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    const editorContent = screen.getByTestId('editor-content')
+    expect(editorContent.style.getPropertyValue('--composer-editor-padding')).toBe('6px 15px 0')
+    expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
+  })
+
   it('exposes the pause anchor while a response is streaming', () => {
     render(<ComposerSurface {...baseProps} isLoading sendDisabled />)
 

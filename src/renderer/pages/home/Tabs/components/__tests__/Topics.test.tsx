@@ -14,6 +14,7 @@ import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
 
@@ -515,6 +516,11 @@ import { Topics } from '../Topics'
 const TOPIC_EXPANSION_TIME_KEY = 'ui.topic.expansion.time'
 const TOPIC_EXPANSION_ASSISTANT_KEY = 'ui.topic.expansion.assistant'
 
+const sidebarShortcut = (providerId: string, resourceId: string) => {
+  const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId, resourceId } }
+  return { type: 'shortcut' as const, id: createSidebarShortcutId(target), target }
+}
+
 // The full set of collapsible time groups; the stored cache is a flat list of
 // the ones the user explicitly collapsed (denylist). Empty = everything expanded.
 const ALL_TOPIC_TIME_GROUP_IDS = [
@@ -840,6 +846,8 @@ function groupChevron(groupHeaderButton: HTMLElement): HTMLElement {
 describe('Topics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    topicDataMocks.updateTopic.mockReset().mockResolvedValue(undefined)
+    topicRenameMocks.getTopicMessages.mockReset().mockResolvedValue([])
     clearPendingTopicImageActionsForTest()
     topicStreamStatusMocks.statuses.clear()
     topicRowRenderMocks.counts.clear()
@@ -1620,6 +1628,7 @@ describe('Topics', () => {
       'Generate conversation name',
       'Edit conversation name',
       'Pin Conversation',
+      'Add to sidebar',
       expect.stringMatching(/^Move to/),
       'Open in New Window',
       'Conversation positionLeftRight',
@@ -1637,6 +1646,23 @@ describe('Topics', () => {
       'variant',
       'destructive'
     )
+  })
+
+  it('adds a topic shortcut without changing its conversation pin', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut' as never, [])
+    const { getByText } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Add to sidebar' }))
+
+    await vi.waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar_shortcut' as never)).toEqual([
+        { ...sidebarShortcut('core.topic', 'topic-a'), fallbackLabel: 'Alpha topic' }
+      ])
+    )
+    expect(pinMutationMocks.createPin).not.toHaveBeenCalled()
   })
 
   it('clears a non-active topic from its context menu without switching the conversation', async () => {
@@ -1864,6 +1890,7 @@ describe('Topics', () => {
   })
 
   it('shows a context-menu rename optimistically and restores the persisted name when it fails', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     const pendingUpdate = createDeferred<void>()
     topicDataMocks.updateTopic.mockReturnValueOnce(pendingUpdate.promise)
     const { getByText } = renderTopicList()
@@ -1872,19 +1899,28 @@ describe('Topics', () => {
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     await act(async () => {
-      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
+      await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit conversation name' }))
     })
 
     const input = within(await screen.findByRole('dialog')).getByLabelText('Name')
-    fireEvent.change(input, { target: { value: 'Renamed topic' } })
     await act(async () => {
-      fireEvent.keyDown(input, { key: 'Enter' })
-      await Promise.resolve()
+      await user.clear(input)
+    })
+    await act(async () => {
+      await user.type(input, 'Renamed topic')
+    })
+    expect(input).toHaveValue('Renamed topic')
+    await act(async () => {
+      await user.keyboard('{Enter}')
+    })
+
+    expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
+      name: 'Renamed topic',
+      isNameManuallyEdited: true
     })
 
     expect(await screen.findByText('Renamed topic')).toBeInTheDocument()
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
-    await vi.waitFor(() => expect(topicDataMocks.updateTopic).toHaveBeenCalledOnce())
 
     await act(async () => {
       pendingUpdate.reject(new Error('rename failed'))
@@ -3620,9 +3656,9 @@ describe('Topics', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('pins an assistant to the sidebar from the assistant group menu', async () => {
+  it('keeps repeated add commands pinned with the assistant name', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut' as never, [])
 
     renderTopicList()
 
@@ -3630,19 +3666,22 @@ describe('Topics', () => {
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.click(moreButton)
 
+    const addButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'Add to sidebar' })
+    fireEvent.click(addButton)
+    fireEvent.click(moreButton)
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Add to sidebar' }))
 
     await vi.waitFor(() =>
-      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
-        { type: 'assistant', id: 'assistant-1' }
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar_shortcut' as never)).toEqual([
+        { ...sidebarShortcut('core.assistant', 'assistant-1'), fallbackLabel: 'Alpha Assistant' }
       ])
     )
   })
 
   it('unpins an already pinned assistant from the assistant group menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [
-      { type: 'assistant', id: 'assistant-1' }
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut' as never, [
+      sidebarShortcut('core.assistant', 'assistant-1')
     ])
 
     renderTopicList()
@@ -3654,7 +3693,7 @@ describe('Topics', () => {
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Remove from sidebar' }))
 
     await vi.waitFor(() =>
-      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([])
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar_shortcut' as never)).toEqual([])
     )
   })
 

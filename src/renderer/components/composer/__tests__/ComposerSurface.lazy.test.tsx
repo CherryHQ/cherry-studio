@@ -139,7 +139,7 @@ describe('deferred ComposerSurface', () => {
     expect(input).toBeEnabled()
     expect(input).toHaveClass('w-full')
     expect(input).toHaveAttribute('rows', '1')
-    expect(input).toHaveStyle({ height: '46px', minHeight: '46px', lineHeight: '1.4' })
+    expect(input).toHaveStyle({ height: '46px', minHeight: '46px', padding: '6px 15px 0', lineHeight: '1.4' })
     expect(narrowLayout).toHaveClass('max-w-[calc(800px+3rem)]', 'px-6')
     expect(narrowLayout).toContainElement(inputbar)
     expect(inputbar).toContainElement(screen.getByText('Composer tools'))

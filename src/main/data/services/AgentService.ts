@@ -576,7 +576,10 @@ export class AgentService {
     return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
   }
 
-  listAgents(options: ListOptions & { inTrash?: boolean } = {}): { agents: AgentEntity[]; total: number } {
+  listAgents(options: ListOptions & { ids?: string[]; inTrash?: boolean } = {}): {
+    agents: AgentEntity[]
+    total: number
+  } {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional server-side search. The localized builtin
@@ -584,6 +587,7 @@ export class AgentService {
     const conditions: SQL[] = [
       options.inTrash === true ? isNotNull(agentsTable.deletedAt) : isNull(agentsTable.deletedAt)
     ]
+    if (options.ids) conditions.push(inArray(agentsTable.id, options.ids))
     if (options.search) {
       conditions.push(buildAgentSearchPredicate(options.search))
     }

@@ -12,6 +12,7 @@ import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
@@ -95,6 +96,7 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
+  EmojiIcon: ({ emoji }: { emoji: string }) => <span>{emoji}</span>,
   MenuItem: ({ icon, label, onClick }: { icon?: ReactNode; label: ReactNode; onClick?: () => void }) => (
     <button type="button" onClick={onClick}>
       {icon}
@@ -136,7 +138,7 @@ vi.mock('@data/hooks/usePreference', () => ({
       (value: unknown) => {
         preferenceMocks.values.set(key, value)
         preferenceMocks.setPreference(key, value)
-        // Mutations through useSidebarFavorites call `.catch` on the returned
+        // Sidebar shortcut mutations call `.catch` on the returned
         // promise; resolve so those toggle paths do not throw.
         return Promise.resolve()
       }
@@ -144,14 +146,20 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
+vi.mock('@renderer/data/PreferenceService', () => ({
+  preferenceService: {
+    get: vi.fn(async (key: string) => preferenceMocks.values.get(key)),
+    set: vi.fn(async (key: string, value: unknown) => {
+      preferenceMocks.values.set(key, value)
+      preferenceMocks.setPreference(key, value)
+    })
+  }
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => loggerMocks
   }
-}))
-
-vi.mock('@renderer/components/EmojiIcon', () => ({
-  default: ({ emoji }: { emoji: string }) => <span>{emoji}</span>
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
@@ -469,6 +477,16 @@ vi.mock('@renderer/utils/error', () => ({
 }))
 
 describe('classic layout entity resource list actions', () => {
+  const sidebarShortcut = (providerId: string, resourceId: string, fallbackLabel?: string) => {
+    const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId, resourceId } }
+    return {
+      type: 'shortcut' as const,
+      id: createSidebarShortcutId(target),
+      target,
+      ...(fallbackLabel ? { fallbackLabel } : {})
+    }
+  }
+
   beforeEach(() => {
     MockUseCacheUtils.resetMocks()
     agentDataMocks.agents = [
@@ -1675,7 +1693,7 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.queryByText('agent.session.group.collapse_all')).not.toBeInTheDocument()
   })
 
-  it('offers toggling an agent into the sidebar from the classic rail context menu', () => {
+  it('offers toggling an agent into the sidebar from the classic rail context menu', async () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
@@ -1692,13 +1710,15 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
-      { type: 'agent', id: 'agent-1' }
-    ])
+    await waitFor(() =>
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar_shortcut', [
+        sidebarShortcut('core.agent', 'agent-1', 'Agent 1')
+      ])
+    )
   })
 
-  it('toggles an already-pinned agent out of the sidebar from the classic rail context menu', () => {
-    preferenceMocks.values.set('ui.sidebar.favorites', [{ type: 'agent', id: 'agent-1' }])
+  it('toggles an already-pinned agent out of the sidebar from the classic rail context menu', async () => {
+    preferenceMocks.values.set('ui.sidebar_shortcut', [sidebarShortcut('core.agent', 'agent-1')])
 
     render(
       <AgentResourceList
@@ -1715,10 +1735,10 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [])
+    await waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar_shortcut', []))
   })
 
-  it('offers toggling an assistant into the sidebar from the classic rail context menu', () => {
+  it('offers toggling an assistant into the sidebar from the classic rail context menu', async () => {
     render(
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
     )
@@ -1728,13 +1748,15 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
-      { type: 'assistant', id: 'assistant-1' }
-    ])
+    await waitFor(() =>
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar_shortcut', [
+        sidebarShortcut('core.assistant', 'assistant-1', 'Assistant 1')
+      ])
+    )
   })
 
-  it('toggles an already-pinned assistant out of the sidebar from the classic rail context menu', () => {
-    preferenceMocks.values.set('ui.sidebar.favorites', [{ type: 'assistant', id: 'assistant-1' }])
+  it('toggles an already-pinned assistant out of the sidebar from the classic rail context menu', async () => {
+    preferenceMocks.values.set('ui.sidebar_shortcut', [sidebarShortcut('core.assistant', 'assistant-1')])
 
     render(
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
@@ -1745,6 +1767,6 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [])
+    await waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar_shortcut', []))
   })
 })

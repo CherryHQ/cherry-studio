@@ -40,9 +40,11 @@ export interface TopicMenuActionOptions {
   onOpenInNewTab?: TopicMenuHandler
   onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
+  onToggleSidebar?: TopicMenuHandler
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onStartRename: TopicMenuHandler
   panePosition?: TopicTabPosition
+  sidebarPinned?: boolean
   t: TFunction
   topic: Topic
   topicsLength: number
@@ -65,9 +67,11 @@ export function createTopicActionContext({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
+  onToggleSidebar,
   onSetPanePosition,
   onStartRename,
   panePosition,
+  sidebarPinned,
   t,
   topic,
   topicsLength
@@ -129,6 +133,7 @@ export function createTopicActionContext({
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onToggleSidebar,
     onSetPanePosition,
     onSaveToKnowledge: async (topic) => {
       try {
@@ -147,6 +152,7 @@ export function createTopicActionContext({
     },
     onStartRename,
     panePosition,
+    sidebarPinned,
     t,
     topic,
     topicsLength
@@ -220,9 +226,11 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onToggleSidebar,
     onSetPanePosition,
     onStartRename,
     panePosition,
+    sidebarPinned,
     t,
     topic,
     topicsLength
@@ -246,9 +254,11 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onOpenInNewTab,
         onOpenInNewWindow,
         onPinTopic,
+        onToggleSidebar,
         onSetPanePosition,
         onStartRename,
         panePosition,
+        sidebarPinned,
         t,
         topic,
         topicsLength
@@ -270,9 +280,11 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      onToggleSidebar,
       onSetPanePosition,
       onStartRename,
       panePosition,
+      sidebarPinned,
       t,
       topic,
       topicsLength

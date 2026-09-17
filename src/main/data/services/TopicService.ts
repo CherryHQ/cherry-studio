@@ -681,6 +681,7 @@ export class TopicService {
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'topic')
     const search = buildSearchPredicate(query.q)
+    const idFilter = query.ids ? inArray(topicTable.id, query.ids) : undefined
     const inTrash = query.inTrash === true
 
     const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
@@ -696,7 +697,7 @@ export class TopicService {
         .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
         .from(topicTable)
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
-        .where(and(isNull(topicTable.deletedAt), pinAfter, search))
+        .where(and(isNull(topicTable.deletedAt), idFilter, pinAfter, search))
         .orderBy(asc(pinTable.orderKey), asc(topicTable.id))
         .limit(limit + 1)
         .all()
@@ -753,6 +754,7 @@ export class TopicService {
       .where(
         and(
           inTrash ? isNotNull(topicTable.deletedAt) : isNull(topicTable.deletedAt),
+          idFilter,
           notInArray(topicTable.id, pinnedSubquery),
           topicAfter,
           search
