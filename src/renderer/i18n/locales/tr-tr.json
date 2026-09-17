@@ -4057,6 +4057,8 @@
   "settings.mcp.envTooltip": "Biçim: KEY=value, her satırda bir tane",
   "settings.mcp.fetch.button": "Sunucuları Getir",
   "settings.mcp.fetch.success": "MCP sunucuları başarıyla getirildi",
+  "settings.mcp.filesystem.baseDir": "Çalışma Klasörü",
+  "settings.mcp.filesystem.baseDirPlaceholder": "Varsayılan çalışma klasörünü kullanmak için boş bırakın",
   "settings.mcp.filter.label": "Filtre",
   "settings.mcp.findMore": "Daha Fazla MCP Bul",
   "settings.mcp.headers": "Üst Bilgiler",

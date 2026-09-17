@@ -4057,6 +4057,8 @@
   "settings.mcp.envTooltip": "Ğ¤Ğ¾Ñ€Ğ¼Ğ°Ñ‚: KEY=value, Ğ¿Ğ¾ Ğ¾Ğ´Ğ½Ğ¾Ğ¹ Ğ½Ğ° ÑÑ‚Ñ€Ğ¾ĞºÑƒ",
   "settings.mcp.fetch.button": "ĞŸĞ¾Ğ»ÑƒÑ‡Ğ¸Ñ‚ÑŒ ÑĞµÑ€Ğ²ĞµÑ€Ñ‹",
   "settings.mcp.fetch.success": "Ğ£ÑĞ¿ĞµÑˆĞ½Ğ¾ Ğ¿Ğ¾Ğ»ÑƒÑ‡ĞµĞ½Ñ‹ MCP-ÑĞµÑ€Ğ²ĞµÑ€Ñ‹",
+  "settings.mcp.filesystem.baseDir": "Рабочий каталог",
+  "settings.mcp.filesystem.baseDirPlaceholder": "Оставьте пусто для использования папки рабочего пространства по умолчанию",
   "settings.mcp.filter.label": "Ğ¤Ğ¸Ğ»ÑŒÑ‚Ñ€",
   "settings.mcp.findMore": "ĞĞ°Ğ¹Ñ‚Ğ¸ Ğ±Ğ¾Ğ»ÑŒÑˆĞµ MCP",
   "settings.mcp.headers": "Ğ—Ğ°Ğ³Ğ¾Ğ»Ğ¾Ğ²ĞºĞ¸",

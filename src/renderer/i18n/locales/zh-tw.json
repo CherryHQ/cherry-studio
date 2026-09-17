@@ -4057,6 +4057,8 @@
   "settings.mcp.envTooltip": "æ ¼å¼ï¼šKEY=valueï¼Œæ¯è¡Œä¸€å€‹",
   "settings.mcp.fetch.button": "å–å¾—ä¼ºæœå™¨",
   "settings.mcp.fetch.success": "å·²æˆåŠŸå–å¾— MCP ä¼ºæœå™¨",
+  "settings.mcp.filesystem.baseDir": "工作目錄",
+  "settings.mcp.filesystem.baseDirPlaceholder": "留空以使用預設工作空間資料夾",
   "settings.mcp.filter.label": "ç¯©é¸",
   "settings.mcp.findMore": "æ›´å¤š MCP",
   "settings.mcp.headers": "è«‹æ±‚æ¨™é ­",

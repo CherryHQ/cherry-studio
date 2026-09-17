@@ -4057,6 +4057,8 @@
   "settings.mcp.envTooltip": "Format: KEY=value, one per line",
   "settings.mcp.fetch.button": "Fetch Servers",
   "settings.mcp.fetch.success": "Successfully fetched MCP servers",
+  "settings.mcp.filesystem.baseDir": "Working Directory",
+  "settings.mcp.filesystem.baseDirPlaceholder": "Leave empty to use default workspace folder",
   "settings.mcp.filter.label": "Filter",
   "settings.mcp.findMore": "Find More MCP",
   "settings.mcp.headers": "Headers",

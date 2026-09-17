@@ -4057,6 +4057,8 @@
   "settings.mcp.envTooltip": "å½¢å¼: KEY=value, 1è¡Œã«1ã¤",
   "settings.mcp.fetch.button": "ã‚µãƒ¼ãƒãƒ¼ã‚’å–å¾—",
   "settings.mcp.fetch.success": "MCPã‚µãƒ¼ãƒãƒ¼ã®å–å¾—ã«æˆåŠŸã—ã¾ã—ãŸ",
+  "settings.mcp.filesystem.baseDir": "作業ディレクトリ",
+  "settings.mcp.filesystem.baseDirPlaceholder": "デフォルトのワークスペースフォルダを使用するには空のままにしてください",
   "settings.mcp.filter.label": "ãƒ•ã‚£ãƒ«ã‚¿ãƒ¼",
   "settings.mcp.findMore": "MCP ã‚’è¦‹ã¤ã‘ã‚‹",
   "settings.mcp.headers": "ãƒ˜ãƒƒãƒ€ãƒ¼",

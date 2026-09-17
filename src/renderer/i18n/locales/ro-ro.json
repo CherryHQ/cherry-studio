@@ -4057,6 +4057,8 @@
   "settings.mcp.envTooltip": "Format: CHEIE=valoare, una pe linie",
   "settings.mcp.fetch.button": "Preluare servere",
   "settings.mcp.fetch.success": "Serverele MCP au fost preluate cu succes",
+  "settings.mcp.filesystem.baseDir": "Director de Lucru",
+  "settings.mcp.filesystem.baseDirPlaceholder": "Lăsați gol pentru a folosi folderul implicit al spațiului de lucru",
   "settings.mcp.filter.label": "Filtru",
   "settings.mcp.findMore": "GÄƒseÈ™te mai multe MCP",
   "settings.mcp.headers": "Headere",

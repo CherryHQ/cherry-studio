@@ -4057,6 +4057,8 @@
   "settings.mcp.envTooltip": "Format : CLÃ‰=valeur, une par ligne",
   "settings.mcp.fetch.button": "RÃ©cupÃ©rer les serveurs",
   "settings.mcp.fetch.success": "Serveurs MCP rÃ©cupÃ©rÃ©s avec succÃ¨s",
+  "settings.mcp.filesystem.baseDir": "Répertoire de Travail",
+  "settings.mcp.filesystem.baseDirPlaceholder": "Laisser vide pour utiliser le dossier d'espace de travail par défaut",
   "settings.mcp.filter.label": "Filtre",
   "settings.mcp.findMore": "Plus de serveurs MCP",
   "settings.mcp.headers": "En-tÃªtes",

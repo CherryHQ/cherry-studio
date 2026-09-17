@@ -4057,6 +4057,8 @@
   "settings.mcp.envTooltip": "Formato: CLAVE=valor, una por lÃ­nea",
   "settings.mcp.fetch.button": "Obtener Servidores",
   "settings.mcp.fetch.success": "Servidores MCP obtenidos con Ã©xito",
+  "settings.mcp.filesystem.baseDir": "Directorio de Trabajo",
+  "settings.mcp.filesystem.baseDirPlaceholder": "Dejar vacío para usar la carpeta de área de trabajo predeterminada",
   "settings.mcp.filter.label": "Filtro",
   "settings.mcp.findMore": "MÃ¡s servidores MCP",
   "settings.mcp.headers": "Encabezados",

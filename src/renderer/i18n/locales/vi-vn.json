@@ -4057,6 +4057,8 @@
   "settings.mcp.envTooltip": "Äá»‹nh dáº¡ng: KEY=value, má»—i dÃ²ng má»™t cáº·p",
   "settings.mcp.fetch.button": "Láº¥y MÃ¡y chá»§",
   "settings.mcp.fetch.success": "ÄÃ£ láº¥y thÃ nh cÃ´ng cÃ¡c mÃ¡y chá»§ MCP",
+  "settings.mcp.filesystem.baseDir": "Thư mục Làm Việc",
+  "settings.mcp.filesystem.baseDirPlaceholder": "Để trống để sử dụng thư mục không gian làm việc mặc định",
   "settings.mcp.filter.label": "Lá»c",
   "settings.mcp.findMore": "TÃ¬m thÃªm MCP",
   "settings.mcp.headers": "TiÃªu Ä‘á»",

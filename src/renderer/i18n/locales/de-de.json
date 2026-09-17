@@ -4057,6 +4057,8 @@
   "settings.mcp.envTooltip": "Format: KEY=value, jede Zeile eine Variable",
   "settings.mcp.fetch.button": "Server abrufen",
   "settings.mcp.fetch.success": "MCP-Server erfolgreich abgerufen",
+  "settings.mcp.filesystem.baseDir": "Arbeitsverzeichnis",
+  "settings.mcp.filesystem.baseDirPlaceholder": "Leer lassen, um den Standard-Arbeitsbereich zu verwenden",
   "settings.mcp.filter.label": "Filter",
   "settings.mcp.findMore": "Mehr MCP",
   "settings.mcp.headers": "Request-Header",

@@ -4057,6 +4057,8 @@
   "settings.mcp.envTooltip": "ÎœÎ¿ÏÏ†Î®: KEY=value, ÎºÎ¬Î¸Îµ Î¼Î¹Î± ÏƒÎµ Î¼Î¹Î± Î³ÏÎ±Î¼Î¼Î®",
   "settings.mcp.fetch.button": "Î›Î®ÏˆÎ· Î”Î¹Î±ÎºÎ¿Î¼Î¹ÏƒÏ„ÏÎ½",
   "settings.mcp.fetch.success": "Î•Ï€Î¹Ï„Ï…Ï‡Î®Ï‚ Î±Î½Î¬ÎºÏ„Î·ÏƒÎ· Î´Î¹Î±ÎºÎ¿Î¼Î¹ÏƒÏ„ÏÎ½ MCP",
+  "settings.mcp.filesystem.baseDir": "Κατάλογος Εργασίας",
+  "settings.mcp.filesystem.baseDirPlaceholder": "Αφήστε κενό για χρήση του προεπιλεγμένου φακέλου χώρου εργασίας",
   "settings.mcp.filter.label": "Î¦Î¯Î»Ï„ÏÎ¿",
   "settings.mcp.findMore": "Î ÎµÏÎ¹ÏƒÏƒÏŒÏ„ÎµÏÎ¿Î¹ Î´Î¹Î±ÎºÎ¿Î¼Î¹ÏƒÏ„Î­Ï‚ MCP",
   "settings.mcp.headers": "ÎšÎµÏ†Î±Î»Î¯Î´ÎµÏ‚",

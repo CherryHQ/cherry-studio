@@ -112,7 +112,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   mcpMode: DEFAULT_MCP_MODE,
   maxToolCalls: 100,
   enableMaxToolCalls: true,
-  enableWebSearch: false,
+  enableWebSearch: true,
   enableGenerateImage: false,
   customParameters: []
 }
