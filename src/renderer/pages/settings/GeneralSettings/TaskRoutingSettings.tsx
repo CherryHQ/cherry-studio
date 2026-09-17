@@ -1,4 +1,4 @@
-import { ChevronDown, RotateCcw } from 'lucide-react'
+import { ChevronDown, Pin, PinOff, RotateCcw } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,7 +17,8 @@ import {
 import { useModels } from '@renderer/hooks/useModel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { TASK_CATEGORIES } from '@shared/data/preference/preferenceTypes'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { EMPTY_DERIVED_ROUTING_TABLE } from '@shared/data/types/routing'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -26,11 +27,13 @@ export const TaskRoutingSettings = () => {
   const { theme } = useTheme()
   const [autoEnabled, setAutoEnabled] = usePreference('chat.routing.auto_enabled')
   const [categoryModels, setCategoryModels] = usePreference('chat.routing.category_models')
+  const [pinnedModelId, setPinnedModelId] = usePreference('chat.routing.pinned_model')
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
   const derivedTable = useSharedCacheValue('routing.derived_table') ?? EMPTY_DERIVED_ROUTING_TABLE
   const { models } = useModels()
 
   const getModelName = (id: UniqueModelId) => models.find((m) => m.id === id)?.name ?? id
+  const pinnedModelObj = isUniqueModelId(pinnedModelId) ? models.find((m) => m.id === pinnedModelId) : undefined
 
   const label = t('settings.models.routing.label')
 
@@ -46,6 +49,43 @@ export const TaskRoutingSettings = () => {
           </SettingDescription>
         </div>
         <Switch checked={autoEnabled} onCheckedChange={(checked) => void setAutoEnabled(checked)} aria-label={label} />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.models.routing.pinned_model')}</SettingRowTitle>
+        <div className="flex min-w-0 shrink-0 items-center gap-2">
+          <div className="w-[180px] min-w-0">
+            <ModelSelector
+              multiple={false}
+              value={pinnedModelObj}
+              onSelect={(model: Model | undefined) => void setPinnedModelId(model?.id ?? '')}
+              filter={chatModelFilter}
+              trigger={
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-7.5 min-w-0 flex-1 justify-between px-2.5 text-left font-normal">
+                  <span className="min-w-0 flex-1 truncate">
+                    {pinnedModelObj ? pinnedModelObj.name : t('settings.models.empty')}
+                  </span>
+                  <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+                </Button>
+              }
+            />
+          </div>
+          {pinnedModelObj && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              title={t('settings.models.routing.unpin_model')}
+              onClick={() => void setPinnedModelId('')}>
+              <PinOff size={13} />
+            </Button>
+          )}
+          {!pinnedModelObj && <Pin size={13} className="shrink-0 text-muted-foreground opacity-40" aria-hidden />}
+        </div>
       </SettingRow>
       {autoEnabled &&
         TASK_CATEGORIES.map((category) => {

@@ -60,6 +60,12 @@ function modelExists(uniqueModelId: UniqueModelId): boolean {
  */
 export function routeDefaultModelId(parts: readonly TextPart[], fallback: UniqueModelId): UniqueModelId {
   const preferences = application.get('PreferenceService')
+
+  // A pinned model overrides category routing but not an explicit @-mention (which replaces `fallback`
+  // before this function is ever called).
+  const pinnedModel = preferences.get('chat.routing.pinned_model')
+  if (pinnedModel && isUniqueModelId(pinnedModel) && modelExists(pinnedModel)) return pinnedModel
+
   if (!preferences.get('chat.routing.auto_enabled')) return fallback
 
   try {

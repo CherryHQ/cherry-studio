@@ -278,6 +278,13 @@
       "description": "User-declared request ceiling per credential, for free tiers the provider never reports"
     },
     {
+      "targetKey": "chat.routing.pinned_model",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "UniqueModelId to use for every new conversation, overriding category routing; empty string means no pin"
+    },
+    {
       "targetKey": "chat.context_settings.enabled",
       "type": "boolean",
       "defaultValue": true,

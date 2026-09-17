@@ -113,7 +113,7 @@ Motor tarafı bitti ama tercihleri girecek ekran yok; şu an ayarlar sadece veri
 
 ## Faz 4 — Manuel kontrol (Madde 4)
 
-- [ ] 4.1 Manuel model seçimi zaten var; üstüne "bu seçimi hatırla/sabitle" → doğrula: yeni sohbette aynı model geliyor
+- [x] 4.1 Manuel model seçimi zaten var; üstüne "bu seçimi hatırla/sabitle" → doğrula: yeni sohbette aynı model geliyor
 
 ---
 
@@ -144,6 +144,7 @@ Motor tarafı bitti ama tercihleri girecek ekran yok; şu an ayarlar sadece veri
 - 5.2: Key başına limit girişi `ApiKeyQuotaLimit.tsx` olarak zaten uygulanmıştı; tamamlandı işaretlendi.
 - 6.6/3.4: `TaskRoutingSettings.tsx` yenilendi — otomatik mod: "Auto" badge + türetilmiş tablonun en iyi adayı + skor dökümü (kalite/uyumluluk/sağlık/kota); elle seçim: model seçici + "otomatiğe dön" butonu.
 - 6.7: 4 yeni routing i18n anahtarı 13 kataloga eklendi (`pnpm i18n:sync` + i18n-translator).
+- 4.1: `chat.routing.pinned_model` tercihi eklendi; `routeDefaultModelId` önce bu modeli döndürüyor (elle seçim hâlâ her şeyi geçer). `TaskRoutingSettings` üstüne model seçici + sabitlemeyi-kaldır butonu eklendi. 2 yeni i18n anahtarı 13 dilde çevrildi.
 - Ortam: Visual Studio Build Tools (MSVC 14.44) kuruldu — `better-sqlite3` Electron için derlenebiliyor, kurulum paketi üretimi açıldı.
 - Engel notu: `@paymoapp/electron-shutdown-handler` derlenemediği için `node_modules` içindeki `dist/index.js`'te native yükleme try/catch'e alındı (modülün kendi kodu zaten `addon = null` durumunu karşılıyor). **Yeniden kurulumda tekrar uygulanmalı.**
 
