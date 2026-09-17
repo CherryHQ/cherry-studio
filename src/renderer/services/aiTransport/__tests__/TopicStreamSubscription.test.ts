@@ -400,6 +400,27 @@ describe('TopicStreamSubscription', () => {
     sub.dispose()
   })
 
+  it('delivers live chunks arriving during attach after replay, in protocol order', async () => {
+    // Listeners register before the attach round-trip, so a live chunk emitted
+    // mid-flight must wait for replay instead of jumping ahead of its opener.
+    mock.mockApi.streamAttach.mockImplementationOnce(async () => {
+      mock.emitChunk(TOPIC, A, textChunk('live'))
+      return {
+        status: 'attached',
+        bufferedChunks: [
+          { topicId: TOPIC, executionId: A, attemptId: 1, chunk: { type: 'text-start', id: 't' } },
+          { topicId: TOPIC, executionId: A, attemptId: 1, chunk: textChunk('replay') }
+        ] satisfies StreamChunkPayload[]
+      }
+    })
+    const sub = new TopicStreamSubscription(TOPIC)
+    const sa = sub.register(A, undefined, 1)
+    await tick()
+    mock.emitDone(TOPIC, A, 'success')
+    expect(await readAll(sa)).toEqual([{ type: 'text-start', id: 't' }, textChunk('replay'), textChunk('live')])
+    sub.dispose()
+  })
+
   it('retires covered sibling branches from attach replay when the topic reaches its attempt watermark', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',

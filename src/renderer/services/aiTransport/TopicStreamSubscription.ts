@@ -74,6 +74,9 @@ export class TopicStreamSubscription {
   #ipcUnsubs: Array<() => void> = []
   #attached = false
   #attachInFlight: Promise<void> | null = null
+  // Live chunks arriving while an attach is in flight wait here until replay
+  // is routed, so the overlay reader never sees a delta before its opener.
+  #attachBuffer: StreamChunkPayload[] | null = null
   #disposed = false
   #topicOpen = false
   #terminalAttemptWatermark: number | undefined
@@ -233,6 +236,10 @@ export class TopicStreamSubscription {
 
   #routeChunk(payload: StreamChunkPayload): void {
     if (payload.topicId !== this.#topicId) return
+    if (this.#attachBuffer) {
+      this.#attachBuffer.push(payload)
+      return
+    }
     const { executionId, attemptId } = payload
     if (!executionId || attemptId === undefined) {
       logger.warn('chunk without execution identity dropped', {
@@ -452,6 +459,7 @@ export class TopicStreamSubscription {
     // Register IPC listeners BEFORE attaching so live chunks Main emits the
     // instant its listener registers are not missed.
     this.#setupIpcListeners()
+    this.#attachBuffer = []
     const branchesAtAttach = [...this.#branches.values()]
     this.#attachInFlight = (async () => {
       let shouldReattach = false
@@ -467,7 +475,10 @@ export class TopicStreamSubscription {
               logger.warn('attach replay capped', { total: chunks.length, topicId: this.#topicId })
               replay = capAttachReplayChunks(chunks, MAX_ATTACH_REPLAY_CHUNKS)
             }
+            const live = this.#attachBuffer
+            this.#attachBuffer = null
             for (const payload of replay) this.#routeChunk(payload)
+            if (live) for (const payload of live) this.#routeChunk(payload)
             break
           }
           case 'not-found':
@@ -501,6 +512,9 @@ export class TopicStreamSubscription {
         }
       } finally {
         this.#attachInFlight = null
+        // Non-attached exits leave live chunks undeliverable; drop them so a
+        // later attach never replays stale state out of order.
+        this.#attachBuffer = null
         if (shouldReattach && !this.#disposed) void this.#ensureAttached()
       }
     })()

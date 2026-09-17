@@ -170,7 +170,9 @@ export function evictOldestReplayEntry(buffer: StreamChunkPayload[], openToolInp
  * Compact an execution's buffered chunks for replay. Contiguous delta runs
  * are merged, and a missing `text-start` / `reasoning-start` is synthesized
  * when ring eviction leaves a surviving delta run. A bare end with no
- * surviving content is dropped instead of creating an empty part.
+ * surviving content is dropped instead of creating an empty part, and a tool
+ * output/approval without its retained input is dropped instead of leaving an
+ * orphan the reader rejects.
  */
 export function buildCompactReplay(
   buffer: readonly StreamChunkPayload[],
@@ -180,6 +182,7 @@ export function buildCompactReplay(
   let pending: StreamChunkPayload | undefined
   const openParts = new Set<string>()
   const openToolInputs = new Set<string>()
+  const seenToolInput = new Set<string>()
 
   const scopedKey = (payload: StreamChunkPayload, id: string): string =>
     JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, id])
@@ -235,13 +238,16 @@ export function buildCompactReplay(
 
       case 'tool-input-start': {
         flushPending()
-        openToolInputs.add(toolInputKey(payload, chunk.toolCallId))
+        const key = toolInputKey(payload, chunk.toolCallId)
+        openToolInputs.add(key)
+        seenToolInput.add(key)
         compact.push(payload)
         break
       }
 
       case 'tool-input-available': {
         flushPending()
+        seenToolInput.add(toolInputKey(payload, chunk.toolCallId))
         compact.push(payload)
         break
       }
@@ -271,6 +277,16 @@ export function buildCompactReplay(
           compact.push(payload)
           openToolInputs.delete(key)
           break
+        }
+        // An opener evicted after its terminal output leaves an orphan the AI
+        // SDK reader rejects; drop it so later replay and live output survive.
+        if (
+          chunk.type === 'tool-output-available' ||
+          chunk.type === 'tool-output-error' ||
+          chunk.type === 'tool-output-denied' ||
+          chunk.type === 'tool-approval-request'
+        ) {
+          if (!seenToolInput.has(toolInputKey(payload, chunk.toolCallId))) break
         }
         compact.push(payload)
         break

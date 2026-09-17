@@ -271,6 +271,41 @@ describe('buildCompactReplay', () => {
         { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'ok' } }
       ])
     })
+
+    it('drops orphan tool-output and approval whose opener was evicted after completion', () => {
+      // The opener pin releases once terminal output is buffered, so later
+      // ring eviction can leave the output behind. Replaying it bare makes the
+      // reader reject the stream, so it must be dropped with the opener.
+      const result = buildCompactReplay([
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: 'stale' }
+        },
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-approval-request', toolCallId: 'tc2', approvalId: 'ap1' }
+        },
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc3', toolName: 'read' }
+        },
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-output-available', toolCallId: 'tc3', output: 'fresh' }
+        }
+      ])
+
+      expect(result).toEqual([
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc3', toolName: 'read' }
+        },
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-output-available', toolCallId: 'tc3', output: 'fresh' }
+        }
+      ])
+    })
   })
 
   describe('evictOldestReplayEntry', () => {
