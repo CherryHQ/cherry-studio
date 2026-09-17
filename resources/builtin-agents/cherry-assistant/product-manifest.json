@@ -465,7 +465,7 @@
     }
   ],
   "providers": {
-    "version": "d735955cfb89f72f",
+    "version": "095a427f0d665eba",
     "count": 63,
     "entries": [
       {
@@ -575,6 +575,10 @@
       {
         "id": "grok-cli",
         "name": "Grok CLI"
+      },
+      {
+        "id": "omlx",
+        "name": "oMLX"
       },
       {
         "id": "openai",
@@ -715,10 +719,6 @@
       {
         "id": "minimax-global",
         "name": "minimax-global"
-      },
-      {
-        "id": "omlx",
-        "name": "oMLX"
       }
     ]
   },

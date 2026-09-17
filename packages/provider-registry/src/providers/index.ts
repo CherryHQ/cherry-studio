@@ -93,6 +93,7 @@ export const PROVIDERS: Provider[] = [
   p_claude_code,
   p_openai_codex,
   p_grok_cli,
+  p_omlx,
   p_openai,
   p_opencode,
   p_azure_openai,
@@ -128,6 +129,5 @@ export const PROVIDERS: Provider[] = [
   p_cerebras,
   p_mimo,
   p_zai,
-  p_minimax_global,
-  p_omlx
+  p_minimax_global
 ]

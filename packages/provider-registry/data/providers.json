@@ -1008,6 +1008,33 @@
       "name": "Grok CLI"
     },
     {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "oMLX - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "http://localhost:8000"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:8000",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "omlx",
+      "metadata": {
+        "website": {
+          "docs": "https://github.com/jundot/omlx",
+          "official": "https://omlx.ai"
+        }
+      },
+      "name": "oMLX"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-responses",
       "description": "OpenAI - AI model provider",
@@ -2528,34 +2555,7 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
-    },
-    {
-      "authOptional": true,
-      "availableInEditions": ["global", "cn"],
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "oMLX - AI model provider",
-      "endpointConfigs": {
-        "anthropic-messages": {
-          "adapterFamily": "anthropic",
-          "baseUrl": "http://localhost:8000"
-        },
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "http://localhost:8000",
-          "reasoningFormat": {
-            "type": "openai-chat"
-          }
-        }
-      },
-      "id": "omlx",
-      "metadata": {
-        "website": {
-          "docs": "https://github.com/jundot/omlx",
-          "official": "https://omlx.ai"
-        }
-      },
-      "name": "oMLX"
     }
   ],
-  "version": "d735955cfb89f72f"
+  "version": "095a427f0d665eba"
 }
