@@ -59,6 +59,7 @@ const GeneralSettings: FC = () => {
   const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
+  const [imageRetryMaxAttempts, setImageRetryMaxAttempts] = usePreference('image.retry.max_attempts')
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
@@ -257,6 +258,26 @@ const GeneralSettings: FC = () => {
             onCheckedChange={(checked) => void setRetryEnabled(checked)}
             aria-label={t('settings.models.retry.label')}
           />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle>{t('settings.models.retry.image_max_attempts')}</SettingRowTitle>
+            <SettingDescription className="mt-1.5 leading-5">
+              {t('settings.models.retry.image_max_attempts_description')}
+            </SettingDescription>
+          </div>
+          <div className="w-[220px] shrink-0">
+            <InputNumber
+              min={0}
+              max={10}
+              step={1}
+              className="h-8 rounded-lg px-2.5"
+              aria-label={t('settings.models.retry.image_max_attempts')}
+              value={imageRetryMaxAttempts}
+              onBlur={(value) => void setImageRetryMaxAttempts(value ?? 2)}
+            />
+          </div>
         </SettingRow>
         {retryEnabled && (
           <>

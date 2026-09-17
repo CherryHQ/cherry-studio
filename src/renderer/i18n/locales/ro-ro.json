@@ -4805,6 +4805,8 @@
   "settings.models.retry.fallback_models": "Modele de rezervă",
   "settings.models.retry.fallback_models_count": "{{count}} modele selectate",
   "settings.models.retry.fallback_models_description": "Modele încercate în ordine când modelul principal eșuează",
+  "settings.models.retry.image_max_attempts": "Reîncercări generare imagini",
+  "settings.models.retry.image_max_attempts_description": "Reîncercări pentru generarea directă de imagini la erori tranzitorii. Fiecare reîncercare poate fi facturată din nou — 0 pentru dezactivare.",
   "settings.models.retry.label": "Reîncercarea apelurilor către model",
   "settings.models.retry.max_attempts": "Număr maxim de reîncercări",
   "settings.models.retry.tooltip": "Erorile care permit reîncercarea determină reîncercarea modelului curent până la limita configurată. Dacă eșuează în continuare sau eroarea nu permite reîncercarea, modelele de rezervă sunt încercate o dată fiecare, în ordine. Dacă același model are mai multe chei API, erorile 401/429 trec mai întâi la cheia următoare. Reîncercările și modelele de rezervă se aplică numai înainte de începerea transmiterii conținutului.",
