@@ -1,3 +1,5 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+
 import { loggerService } from '@logger'
 
 import type {
@@ -25,7 +27,15 @@ const POLL_INTERVAL_MS = 1500
 const POLL_TIMEOUT_MS = 10 * 60 * 1000
 const IMAGE_TIMEOUT_MS = 60 * 1000
 
-export interface ComfyuiTransportSettings {
+/** Per-request overrides shared by the transport and the standalone helpers. */
+export interface ComfyuiRequestOptions {
+  /** Extra headers, e.g. the provider's configured extra headers. */
+  headers?: Record<string, string>
+  /** Overrides `fetch` for every request. */
+  fetch?: FetchFunction
+}
+
+export interface ComfyuiTransportSettings extends ComfyuiRequestOptions {
   baseURL?: string
 }
 
@@ -37,8 +47,13 @@ interface UserDataEntry {
 export const WORKFLOW_FILE_EXTENSION = '.json'
 
 /** Saved workflow names, newest first. Directories and non-workflow files are skipped. */
-export async function listWorkflows(baseURL: string, signal?: AbortSignal): Promise<string[]> {
-  const response = await fetch(`${baseURL}/v2/userdata?path=${WORKFLOW_DIR}`, { signal })
+export async function listWorkflows(
+  baseURL: string,
+  signal?: AbortSignal,
+  options: ComfyuiRequestOptions = {}
+): Promise<string[]> {
+  const doFetch = options.fetch ?? fetch
+  const response = await doFetch(`${baseURL}/v2/userdata?path=${WORKFLOW_DIR}`, { signal, headers: options.headers })
   if (!response.ok) throw new Error(`ComfyUI userdata listing failed (HTTP ${response.status})`)
   const entries = (await response.json()) as UserDataEntry[]
   return entries
@@ -46,8 +61,9 @@ export async function listWorkflows(baseURL: string, signal?: AbortSignal): Prom
     .map((entry) => entry.name.slice(0, -WORKFLOW_FILE_EXTENSION.length))
 }
 
-async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal })
+async function fetchJson<T>(url: string, signal?: AbortSignal, options: ComfyuiRequestOptions = {}): Promise<T> {
+  const doFetch = options.fetch ?? fetch
+  const response = await doFetch(url, { signal, headers: options.headers })
   if (!response.ok) throw new Error(`ComfyUI request to ${url} failed (HTTP ${response.status})`)
   return (await response.json()) as T
 }
@@ -71,22 +87,28 @@ function describePromptError(status: number, body: unknown): string {
 
 class ComfyuiTransport implements ImageGenerationTransport {
   private readonly baseURL: string
+  private readonly headers: Record<string, string>
+  private readonly doFetch: FetchFunction
 
   constructor(settings: ComfyuiTransportSettings) {
     this.baseURL = (settings.baseURL || DEFAULT_COMFYUI_BASE_URL).replace(/\/+$/, '')
+    this.headers = settings.headers ?? {}
+    this.doFetch = settings.fetch ?? fetch
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const workflowPath = `${WORKFLOW_DIR}/${input.modelId}${WORKFLOW_FILE_EXTENSION}`
+    const requestOptions = { headers: this.headers, fetch: this.doFetch }
     const [workflow, objectInfo] = await Promise.all([
       // `/userdata/{file}` matches a single path segment, so the separator has to be
       // percent-encoded — `/userdata/workflows/x.json` is a 404, `%2F` is not. The
       // ComfyUI frontend encodes the same parameter.
       fetchJson<Parameters<typeof convertUiWorkflowToPrompt>[0]>(
         `${this.baseURL}/userdata/${encodeURIComponent(workflowPath)}`,
-        input.signal
+        input.signal,
+        requestOptions
       ),
-      fetchJson<ObjectInfo>(`${this.baseURL}/object_info`, input.signal)
+      fetchJson<ObjectInfo>(`${this.baseURL}/object_info`, input.signal, requestOptions)
     ])
 
     const { prompt: graph, warnings } = convertUiWorkflowToPrompt(workflow, objectInfo)
@@ -101,9 +123,9 @@ class ComfyuiTransport implements ImageGenerationTransport {
     applyPrompt(graph, target.nodeId, target.input, input.prompt ?? '')
     applySeed(graph, input.seed, target.samplerId)
 
-    const response = await fetch(`${this.baseURL}/prompt`, {
+    const response = await this.doFetch(`${this.baseURL}/prompt`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...this.headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: graph, client_id: `cherry-studio-${Date.now()}` }),
       signal: input.signal
     })
@@ -135,7 +157,10 @@ class ComfyuiTransport implements ImageGenerationTransport {
             status?: { status_str?: string; messages?: unknown[] }
           }
         >
-      >(`${this.baseURL}/history/${taskId}`, options.signal)
+      >(`${this.baseURL}/history/${taskId}`, options.signal, {
+        headers: this.headers,
+        fetch: this.doFetch
+      })
       const entry = history[taskId]
       if (entry?.outputs && Object.keys(entry.outputs).length > 0) {
         const images = Object.values(entry.outputs).flatMap((output) => output.images ?? [])
@@ -153,7 +178,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
   }
 
   async cancel(): Promise<void> {
-    await fetch(`${this.baseURL}/interrupt`, { method: 'POST' }).catch(() => undefined)
+    await this.doFetch(`${this.baseURL}/interrupt`, { method: 'POST', headers: this.headers }).catch(() => undefined)
   }
 
   /** The AI SDK downloads returned URLs itself, so hand back inline data. */
@@ -169,8 +194,9 @@ class ComfyuiTransport implements ImageGenerationTransport {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), IMAGE_TIMEOUT_MS)
     try {
-      const response = await fetch(`${this.baseURL}/view?${query}`, {
-        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+      const response = await this.doFetch(`${this.baseURL}/view?${query}`, {
+        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
+        headers: this.headers
       })
       if (!response.ok) throw new Error(`ComfyUI could not return ${image.filename} (HTTP ${response.status})`)
       const buffer = Buffer.from(await response.arrayBuffer())
@@ -190,20 +216,29 @@ export function applyPrompt(graph: Record<string, ApiPromptNode>, nodeId: string
 /**
  * ComfyUI seeds are integers, and a workflow usually pins one. Write the sampler that
  * consumes the prompt, so two runs differ; a graph that keeps the seed on a shared node
- * feeding that sampler instead gets it there.
+ * feeding that sampler instead gets it there. Regular samplers read `seed`; advanced
+ * variants (KSamplerAdvanced and friends, which schedule their own noise) read `noise_seed`.
  */
 export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | undefined, samplerId?: string): void {
   if (typeof seed !== 'number' || !Number.isFinite(seed)) return
   const value = Math.trunc(seed)
   const sampler = samplerId ? graph[samplerId] : undefined
-  if (sampler && 'seed' in sampler.inputs) {
-    sampler.inputs.seed = value
-    return
+  if (sampler) {
+    const key = 'seed' in sampler.inputs ? 'seed' : 'noise_seed' in sampler.inputs ? 'noise_seed' : undefined
+    if (key) {
+      sampler.inputs[key] = value
+      return
+    }
   }
   for (const node of Object.values(graph)) {
-    if (!('seed' in node.inputs)) continue
-    node.inputs.seed = value
-    return
+    if ('seed' in node.inputs) {
+      node.inputs.seed = value
+      return
+    }
+    if ('noise_seed' in node.inputs) {
+      node.inputs.noise_seed = value
+      return
+    }
   }
 }
 

@@ -32,7 +32,9 @@ export function createComfyuiProvider(settings: ComfyuiProviderSettings = {}): C
   }
 
   const transport = createComfyuiTransport({
-    baseURL: settings.imageBaseURL || settings.baseURL || DEFAULT_COMFYUI_BASE_URL
+    baseURL: settings.imageBaseURL || settings.baseURL || DEFAULT_COMFYUI_BASE_URL,
+    headers: settings.headers,
+    fetch: settings.fetch
   })
 
   const provider = {

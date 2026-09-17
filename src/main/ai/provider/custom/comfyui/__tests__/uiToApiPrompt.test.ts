@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { convertUiWorkflowToPrompt, findPromptTarget, type ObjectInfo } from '../uiToApiPrompt'
+import { convertUiWorkflowToPrompt, findPromptTarget, type ObjectInfo, type UiNode } from '../uiToApiPrompt'
 
 /** Minimal `GET /object_info` response covering the classes used below. */
 const objectInfo: ObjectInfo = {
@@ -283,6 +283,91 @@ describe('convertUiWorkflowToPrompt', () => {
 
     expect(Object.values(prompt).map((n) => n.class_type)).toEqual(['CLIPTextEncode'])
   })
+
+  it('rewires consumers past a frontend-only pass-through node', () => {
+    const { prompt, warnings } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          { id: 1, type: 'EmptyLatentImage', widgets_values: [512, 512, 1] },
+          {
+            id: 2,
+            type: 'Reroute',
+            inputs: [{ name: '', link: 7 }],
+            outputs: [{ name: 'LATENT', links: [8] }]
+          },
+          {
+            id: 3,
+            type: 'VAEDecode',
+            inputs: [
+              { name: 'samples', link: 8 },
+              { name: 'vae', link: null }
+            ]
+          }
+        ],
+        links: [link(7, 1, 0, 2, 0), link(8, 2, 0, 3, 0)]
+      },
+      objectInfo
+    )
+
+    const producer = Object.entries(prompt).find(([, n]) => n.class_type === 'EmptyLatentImage')![0]
+    const decode = Object.values(prompt).find((n) => n.class_type === 'VAEDecode')!
+    expect(decode.inputs.samples).toEqual([producer, 0])
+    expect(warnings).toEqual([])
+  })
+
+  it('drops a consumer input that points at a muted node', () => {
+    const { prompt, warnings } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          { id: 1, type: 'EmptyLatentImage', mode: 2, widgets_values: [512, 512, 1] },
+          {
+            id: 2,
+            type: 'VAEDecode',
+            inputs: [
+              { name: 'samples', link: 1 },
+              { name: 'vae', link: null }
+            ]
+          }
+        ],
+        links: [link(1, 1, 0, 2, 0)]
+      },
+      objectInfo
+    )
+
+    const decode = Object.values(prompt).find((n) => n.class_type === 'VAEDecode')!
+    expect(decode.inputs.samples).toBeUndefined()
+    expect(warnings.join('\n')).toContain('dropped input samples')
+  })
+
+  it('settles an alias chain deeper than eight bypassed nodes', () => {
+    const nodes: UiNode[] = [{ id: 1, type: 'EmptyLatentImage', widgets_values: [512, 512, 1] }]
+    for (let id = 2; id <= 11; id += 1) {
+      nodes.push({
+        id,
+        type: 'ImageScale',
+        mode: 4,
+        inputs: [{ name: 'image', link: id - 1 }],
+        outputs: [{ name: 'IMAGE', links: [id] }]
+      })
+    }
+    nodes.push({ id: 12, type: 'SaveImage', inputs: [{ name: 'images', link: 11 }], widgets_values: ['out'] })
+    const links = Array.from({ length: 11 }, (_, i) => link(i + 1, i + 1, 0, i + 2, 0))
+
+    const { prompt, warnings } = convertUiWorkflowToPrompt({ nodes, links }, objectInfo)
+
+    const save = Object.values(prompt).find((n) => n.class_type === 'SaveImage')!
+    expect(save.inputs.images).toEqual(['1', 0])
+    expect(warnings).toEqual([])
+  })
+
+  it('wraps an array widget value so it is not read as a node connection', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      { nodes: [{ id: 1, type: 'ArrayWidget', widgets_values: [['a', 'b']] }], links: [] },
+      { ArrayWidget: { input: { required: { frames: ['STRING', {}] } } } }
+    )
+
+    expect(prompt['1'].inputs.frames).toEqual({ __value__: ['a', 'b'] })
+  })
 })
 
 describe('findPromptTarget', () => {
@@ -293,6 +378,20 @@ describe('findPromptTarget', () => {
       '3': {
         class_type: 'KSampler',
         inputs: { positive: ['1', 0], negative: ['2', 0] },
+        _meta: { title: 'KSampler' }
+      }
+    })
+
+    expect(target).toEqual({ nodeId: '1', input: 'text', samplerId: '3' })
+  })
+
+  it('follows the positive conditioning chain to the text node', () => {
+    const target = findPromptTarget({
+      '1': { class_type: 'CLIPTextEncode', inputs: { text: 'a harbour at dusk' }, _meta: { title: 'pos' } },
+      '2': { class_type: 'ConditioningCombine', inputs: { conditioning: ['1', 0] }, _meta: { title: 'combine' } },
+      '3': {
+        class_type: 'KSampler',
+        inputs: { positive: ['2', 0], negative: ['1', 0] },
         _meta: { title: 'KSampler' }
       }
     })

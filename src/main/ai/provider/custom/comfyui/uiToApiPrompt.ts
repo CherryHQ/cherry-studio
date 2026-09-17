@@ -96,6 +96,15 @@ function widgetInputNames(info: ObjectInfo[string], includeAdvanced = false): st
 const isReference = (value: unknown): value is Reference =>
   Array.isArray(value) && value.length === 2 && typeof value[0] === 'string'
 
+/**
+ * In the API format an array is reserved for node connections (`[nodeId, slot]`),
+ * so a widget value that is itself an array is wrapped in an object the backend
+ * unwraps during execution. Matches the ComfyUI frontend's `graphToPrompt`.
+ */
+function wrapWidgetValue(value: unknown): unknown {
+  return Array.isArray(value) ? { __value__: value } : value
+}
+
 export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo): ConversionResult {
   const subgraphs = new Map((ui.definitions?.subgraphs ?? []).map((sub) => [sub.id, sub]))
   const prompt: Record<string, ApiPromptNode> = {}
@@ -160,12 +169,43 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     }
     const out: Record<string, unknown> = {}
     names.forEach((name, index) => {
-      if (index < values.length && !linked.has(name)) out[name] = values[index]
+      if (index < values.length && !linked.has(name)) out[name] = wrapWidgetValue(values[index])
     })
     if (values.length !== names.length) {
       warnings.push(`${node.type}: ${values.length} widget values for ${names.length} widgets`)
     }
     return out
+  }
+
+  /**
+   * A node the prompt cannot contain (bypassed, or a frontend-only class) can
+   * still feed consumers: the frontend passes output slot i through to input
+   * slot i, so alias the output to that input's resolved link.
+   */
+  function passThrough(
+    node: UiNode,
+    kind: string,
+    links: Map<number, UiLink>,
+    remap: Map<number, number>,
+    bindings: Map<number, Map<number, unknown>>
+  ) {
+    const id = remap.get(node.id)!
+    const inputs = node.inputs ?? []
+    const alias: Record<number, unknown> = {}
+    ;(node.outputs ?? []).forEach((output, slot) => {
+      const link = inputs[slot]?.link
+      if (link != null) {
+        const ref = resolveLink(link, links, remap, bindings)
+        if (ref !== undefined) {
+          alias[slot] = ref
+          return
+        }
+      }
+      if ((output.links ?? []).length > 0) {
+        warnings.push(`${kind} ${node.type} output ${slot} has no input to pass through`)
+      }
+    })
+    aliases[String(id)] = alias
   }
 
   function emit(
@@ -176,11 +216,11 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
   ) {
     const id = remap.get(node.id)!
     // Frontend-only classes (MarkdownNote, Note, Reroute, ...) have no backend
-    // node and make the whole prompt fail validation.
+    // node and make the whole prompt fail validation. A consumer of one still
+    // has to resolve, so pass its outputs through like the frontend does for
+    // Reroute; note-like classes without outgoing links vanish entirely.
     if (!objectInfo[node.type]) {
-      if ((node.outputs ?? []).some((slot) => (slot.links ?? []).length > 0)) {
-        warnings.push(`dropped frontend-only node ${node.type} with outgoing links`)
-      }
+      passThrough(node, 'frontend-only', links, remap, bindings)
       return
     }
     const linked = new Set((node.inputs ?? []).filter((slot) => slot.link != null).map((slot) => slot.name))
@@ -220,7 +260,7 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
         if (slot.link != null) {
           byName.set(slot.name, resolveLink(slot.link, links, remap, bindings))
         } else if ('widget' in slot) {
-          byName.set(slot.name, Array.isArray(values) ? values[widgetIndex] : values?.[slot.name])
+          byName.set(slot.name, wrapWidgetValue(Array.isArray(values) ? values[widgetIndex] : values?.[slot.name]))
           widgetIndex += 1
         }
       }
@@ -262,19 +302,10 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     remap: Map<number, number>,
     bindings: Map<number, Map<number, unknown>>
   ) {
-    if (node.mode === 2) return // muted: never runs, nothing consumes its outputs
+    if (node.mode === 2) return // muted: never runs; consumers of it are dropped below
     if (node.mode === 4) {
       // Bypassed: consumers see this node's input instead.
-      const id = remap.get(node.id)!
-      const refs = (node.inputs ?? [])
-        .filter((slot) => slot.link != null)
-        .map((slot) => resolveLink(slot.link!, links, remap, bindings))
-      const alias: Record<number, unknown> = {}
-      ;(node.outputs ?? []).forEach((_, slot) => {
-        if (slot < refs.length) alias[slot] = refs[slot]
-        else warnings.push(`bypassed ${node.type} output ${slot} has no input to pass through`)
-      })
-      aliases[String(id)] = alias
+      passThrough(node, 'bypassed', links, remap, bindings)
       return
     }
     if (subgraphs.has(node.type)) expand(node, links, remap, bindings)
@@ -287,7 +318,10 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
   for (const node of ui.nodes ?? []) walk(node, rootLinks, rootRemap, new Map())
 
   // Aliases can chain (a bypassed node fed by a subgraph), so settle iteratively.
-  for (let pass = 0; pass < 8; pass += 1) {
+  // Every pass resolves at least one hop of each remaining chain, so the number
+  // of alias holders bounds the depth — a fixed point is always reached.
+  const settlePasses = Object.keys(aliases).length + 1
+  for (let pass = 0; pass < settlePasses; pass += 1) {
     let changed = false
     for (const node of Object.values(prompt)) {
       for (const [name, value] of Object.entries(node.inputs)) {
@@ -306,14 +340,28 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     if (!changed) break
   }
 
+  // The frontend drops consumer inputs that still reference a node the prompt
+  // does not contain (muted, or a pass-through with no input to pass), so the
+  // server never sees a node id it cannot resolve.
+  for (const node of Object.values(prompt)) {
+    for (const [name, value] of Object.entries(node.inputs)) {
+      if (!isReference(value) || prompt[value[0]]) continue
+      warnings.push(`dropped input ${name} of ${node.class_type} (node ${value[0]} is not in the prompt)`)
+      delete node.inputs[name]
+    }
+  }
+
   return { prompt, warnings }
 }
 
 /**
  * The node that should receive the user's prompt. A positive and a negative
  * conditioning node both hold a `text` input, so pick the one the sampler
- * actually consumes as its positive conditioning. The sampler is reported with it
- * so a per-run seed can be written where that graph reads its own.
+ * actually consumes as its positive conditioning. That node may chain the
+ * conditioning through combiners before a text encode shows up, so follow
+ * references breadth-first until one carries the prompt as a string. The
+ * sampler is reported with it so a per-run seed can be written where that
+ * graph reads its own.
  */
 export function findPromptTarget(
   prompt: Record<string, ApiPromptNode>
@@ -321,12 +369,22 @@ export function findPromptTarget(
   for (const [samplerId, node] of Object.entries(prompt)) {
     const positive = node.inputs.positive
     if (!isReference(positive)) continue
-    const target = prompt[positive[0]]
-    if (!target) continue
-    const entry = Object.entries(target.inputs).find(
-      ([name, value]) => typeof value === 'string' && (name === 'text' || name === 'prompt')
-    )
-    if (entry) return { nodeId: positive[0], input: entry[0], samplerId }
+    const queue = [positive[0]]
+    const seen = new Set<string>()
+    while (queue.length > 0) {
+      const nodeId = queue.shift()!
+      if (seen.has(nodeId)) continue
+      seen.add(nodeId)
+      const target = prompt[nodeId]
+      if (!target) continue
+      const entry = Object.entries(target.inputs).find(
+        ([name, value]) => typeof value === 'string' && (name === 'text' || name === 'prompt')
+      )
+      if (entry) return { nodeId, input: entry[0], samplerId }
+      for (const value of Object.values(target.inputs)) {
+        if (isReference(value)) queue.push(value[0])
+      }
+    }
   }
   return undefined
 }

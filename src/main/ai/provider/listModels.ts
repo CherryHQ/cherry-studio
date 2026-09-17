@@ -441,11 +441,15 @@ const ovmsFetcher: ModelFetcher = {
 }
 
 const comfyuiFetcher: ModelFetcher = {
-  match: (p) => p.id === SystemProviderIds.comfyui,
+  match: (p) => matchesPreset(p, SystemProviderIds.comfyui),
   fetch: async (provider, signal) => {
     // ComfyUI has no model catalogue: its server serves whatever graphs it can
-    // execute, so the user's saved workflows are the pickable units.
-    const workflows = await listWorkflows(withoutTrailingSlash(getBaseUrl(provider)), signal)
+    // execute, so the user's saved workflows are the pickable units. The same
+    // headers the transport uses, so a preset-derived instance behaves like the
+    // canonical one.
+    const workflows = await listWorkflows(withoutTrailingSlash(getBaseUrl(provider)), signal, {
+      headers: { ...getProviderAppHeaders(provider), ...getExtraHeaders(provider) }
+    })
     return workflows.map((name) =>
       toModel(name, provider, {
         name,
