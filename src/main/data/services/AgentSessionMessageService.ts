@@ -380,6 +380,7 @@ export class AgentSessionMessageService {
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
           WHERE sm.searchable_text != ''
+            AND s.deleted_at IS NULL
             AND ${messageSessionCondition}
             AND ${createdAtCondition}
             AND ${sql.join(ftsConditions, sql` AND `)}
@@ -436,6 +437,7 @@ export class AgentSessionMessageService {
         JOIN agent_session s ON s.id = sm.session_id
         LEFT JOIN agent a ON a.id = s.agent_id
         WHERE agent_session_message_fts MATCH ${matchQuery}
+          AND s.deleted_at IS NULL
           AND ${agentCondition}
           AND ${addressableCondition}
           ${shortTermConditions.length > 0 ? sql`AND ${sql.join(shortTermConditions, sql` AND `)}` : sql``}
@@ -486,7 +488,8 @@ export class AgentSessionMessageService {
           FROM agent_session_message sm
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
-          WHERE ${agentCondition}
+          WHERE s.deleted_at IS NULL
+            AND ${agentCondition}
             AND ${addressableCondition}
             AND ${sql.join(conditions, sql` AND `)}
           ORDER BY length(sm.searchable_text), sm.created_at DESC, sm.id DESC
@@ -534,7 +537,7 @@ export class AgentSessionMessageService {
     return this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId) !== null
   }
 
-  listCreatedInRangeMetadataPage({
+  listLiveCreatedInRangeMetadataPage({
     fromMs,
     toMs,
     cursor: rawCursor,
@@ -560,10 +563,12 @@ export class AgentSessionMessageService {
         sessionId: sessionMessagesTable.sessionId
       })
       .from(sessionMessagesTable)
+      .innerJoin(sessionTable, eq(sessionTable.id, sessionMessagesTable.sessionId))
       .where(
         and(
           gte(sessionMessagesTable.createdAt, fromMs),
           lte(sessionMessagesTable.createdAt, toMs),
+          isNull(sessionTable.deletedAt),
           cursor ? ordering.where(cursor) : undefined
         )
       )
@@ -595,13 +600,7 @@ export class AgentSessionMessageService {
   ): CursorPaginationResponse<AgentSessionMessageEntity> {
     const database = application.get('DbService').getDb()
 
-    const [session] = database
-      .select({ id: sessionTable.id })
-      .from(sessionTable)
-      .where(eq(sessionTable.id, sessionId))
-      .limit(1)
-      .all()
-    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+    this.assertActiveSession(database, sessionId)
 
     const limit = Math.min(options.limit ?? AGENT_SESSION_MESSAGES_DEFAULT_LIMIT, AGENT_SESSION_MESSAGES_MAX_LIMIT)
     const ordering = keysetOrdering(sessionMessagesTable.createdAt, sessionMessagesTable.id, {
@@ -661,13 +660,7 @@ export class AgentSessionMessageService {
     }
     const database = application.get('DbService').getDb()
 
-    const [session] = database
-      .select({ id: sessionTable.id })
-      .from(sessionTable)
-      .where(eq(sessionTable.id, sessionId))
-      .limit(1)
-      .all()
-    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+    this.assertActiveSession(database, sessionId)
 
     const existing = this.findExistingMessageRow(database, sessionId, messageId)
     if (existing?.deliveryStatus === 'accepted' || existing?.deliveryStatus === 'delivering') {
@@ -688,6 +681,7 @@ export class AgentSessionMessageService {
 
   getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {
     const database = application.get('DbService').getDb()
+    this.assertActiveSession(database, sessionId)
     const row = this.findExistingMessageRow(database, sessionId, messageId)
     if (!row) throw DataApiErrorFactory.notFound('Message', messageId)
     return this.rowToEntity(row)
@@ -699,6 +693,7 @@ export class AgentSessionMessageService {
     dto: UpdateAgentSessionMessageDto
   ): AgentSessionMessageEntity {
     const message = application.get('DbService').withWriteTx((tx) => {
+      this.assertActiveSession(tx, sessionId)
       const existing = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
 
@@ -865,7 +860,34 @@ export class AgentSessionMessageService {
     }
   }
 
+  /**
+   * Every resume token still claimed by a session row — the keep-set for the
+   * agent orphan sweep. Trashed sessions are included (their message rows
+   * survive), so a trashed session's runtime state is only reclaimed once the
+   * session is purged and the FK cascade drops its tokens.
+   */
+  listAllRuntimeResumeTokens(): Set<string> {
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .selectDistinct({ runtimeResumeToken: sessionMessagesTable.runtimeResumeToken })
+      .from(sessionMessagesTable)
+      .where(isNotNull(sessionMessagesTable.runtimeResumeToken))
+      .all()
+    return new Set(rows.flatMap((row) => (row.runtimeResumeToken ? [row.runtimeResumeToken] : [])))
+  }
+
   // ── Persistence methods ──────────────────────────────────────────
+
+  private assertActiveSession(db: DbOrTx, sessionId: string): void {
+    const [session] = db
+      .select({ id: sessionTable.id })
+      .from(sessionTable)
+      .where(and(eq(sessionTable.id, sessionId), isNull(sessionTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+  }
 
   private findExistingMessageRow(db: DbOrTx, sessionId: string, messageId: string): SessionMessageRow | null {
     const rows = db
@@ -1179,7 +1201,7 @@ export class AgentSessionMessageService {
       .select({ agentId: sessionTable.agentId, agentName: agentTable.name, sessionName: sessionTable.name })
       .from(sessionTable)
       .leftJoin(agentTable, and(eq(sessionTable.agentId, agentTable.id), isNull(agentTable.deletedAt)))
-      .where(eq(sessionTable.id, input.senderSessionId))
+      .where(and(eq(sessionTable.id, input.senderSessionId), isNull(sessionTable.deletedAt)))
       .limit(1)
       .all()
     if (!sender || sender.agentId !== input.senderAgentId || sender.agentName === null) {
@@ -1192,7 +1214,7 @@ export class AgentSessionMessageService {
     const [receiverSession] = tx
       .select({ agentId: sessionTable.agentId, sessionName: sessionTable.name })
       .from(sessionTable)
-      .where(eq(sessionTable.id, input.receiverSessionId))
+      .where(and(eq(sessionTable.id, input.receiverSessionId), isNull(sessionTable.deletedAt)))
       .limit(1)
       .all()
     if (!receiverSession) {
@@ -1501,7 +1523,7 @@ export class AgentSessionMessageService {
         const callerExists = tx
           .select({ id: sessionTable.id })
           .from(sessionTable)
-          .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+          .where(and(eq(sessionTable.id, request.delivery.sender.sessionId), isNull(sessionTable.deletedAt)))
           .limit(1)
           .all()[0]
         if (!callerExists) {
@@ -1585,7 +1607,7 @@ export class AgentSessionMessageService {
         const callerExists = tx
           .select({ id: sessionTable.id })
           .from(sessionTable)
-          .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+          .where(and(eq(sessionTable.id, request.delivery.sender.sessionId), isNull(sessionTable.deletedAt)))
           .limit(1)
           .all()[0]
         const existingResult = tx
@@ -1664,12 +1686,24 @@ export class AgentSessionMessageService {
       .all()
     const results: AgentSessionMessageEntity[] = []
     const now = new Date().toISOString()
+    const error = { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' }
     for (const request of requests) {
-      if (
-        !request.delivery ||
-        request.delivery.replyPolicy !== 'completion' ||
-        deleting.includes(request.delivery.sender.sessionId)
-      )
+      if (!request.delivery) continue
+      tx.update(sessionMessagesTable)
+        .set({
+          deliveryStatus: 'failed',
+          deliveryTurnRef: null,
+          delivery: { ...request.delivery, outcome: 'interrupted', error, statusAt: now }
+        })
+        .where(
+          and(
+            eq(sessionMessagesTable.id, request.id),
+            inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
+          )
+        )
+        .run()
+
+      if (request.delivery.replyPolicy !== 'completion' || deleting.includes(request.delivery.sender.sessionId))
         continue
       const existingResult = tx
         .select({ id: sessionMessagesTable.id })
@@ -1681,7 +1715,7 @@ export class AgentSessionMessageService {
       const callerExists = tx
         .select({ id: sessionTable.id })
         .from(sessionTable)
-        .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+        .where(and(eq(sessionTable.id, request.delivery.sender.sessionId), isNull(sessionTable.deletedAt)))
         .limit(1)
         .all()[0]
       if (!callerExists) continue
@@ -1702,7 +1736,7 @@ export class AgentSessionMessageService {
               replyPolicy: 'none',
               sourceMessageId: null,
               outcome: 'failed',
-              error: { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' },
+              error,
               statusAt: now
             },
             deliveryStatus: 'accepted',
@@ -1762,7 +1796,7 @@ export class AgentSessionMessageService {
       const callerExists = tx
         .select({ id: sessionTable.id })
         .from(sessionTable)
-        .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+        .where(and(eq(sessionTable.id, request.delivery.sender.sessionId), isNull(sessionTable.deletedAt)))
         .limit(1)
         .get()
       if (!callerExists) continue

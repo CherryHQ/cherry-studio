@@ -35,6 +35,7 @@ const runtimeMocks = vi.hoisted(() => ({
   snapshot: undefined as any,
   bridgeRequest: vi.fn().mockResolvedValue(undefined),
   clientClose: vi.fn().mockResolvedValue(undefined),
+  forkDshSession: vi.fn(),
   resolveInjection: vi.fn(),
   usesDshGateway: vi.fn(),
   harnessOptions: undefined as Record<string, any> | undefined,
@@ -105,6 +106,7 @@ vi.mock('node:fs/promises', () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
   rm: vi.fn().mockResolvedValue(undefined)
 }))
+vi.mock('../dshFork', () => ({ forkDshSession: runtimeMocks.forkDshSession }))
 vi.mock('../dshConnectionSignature', () => ({
   DshInvalidConnectionSnapshotError: class extends Error {},
   captureDshConnectionSnapshot: vi.fn(() => Promise.resolve(runtimeMocks.snapshot))
@@ -203,6 +205,7 @@ beforeEach(() => {
   })
   runtimeMocks.bridgeRequest.mockReset().mockResolvedValue(undefined)
   runtimeMocks.clientClose.mockReset().mockResolvedValue(undefined)
+  runtimeMocks.forkDshSession.mockReset().mockResolvedValue({ resumeToken: 'child', checkpoints: [], publish: [] })
   runtimeMocks.resolveInjection.mockReset().mockReturnValue(baseInjection())
   runtimeMocks.usesDshGateway.mockReset().mockReturnValue(false)
   vi.mocked(DshBridgeServer).mockClear()
@@ -303,6 +306,50 @@ describe('DshRuntimeConnection tracing', () => {
       expect(runtimeMocks.bridgeRequest).not.toHaveBeenCalled()
     } finally {
       await connection.close()
+    }
+  })
+
+  it.each([false, true])('waits for source shutdown before reading stored history (cancel: %s)', async (cancel) => {
+    const driver = new DshRuntimeDriver()
+    const connection = await driver.connect(connectInput)
+    const shutdown = Promise.withResolvers<void>()
+    runtimeMocks.clientClose.mockReturnValueOnce(shutdown.promise)
+    const closing = connection.close()
+    await vi.waitFor(() => expect(runtimeMocks.clientClose).toHaveBeenCalledOnce())
+    const controller = new AbortController()
+    const checkpoint = { runtime: 'dsh' as const, runtimeSessionId: 'session-1', boundary: 7 }
+    const input: RuntimeForkInput = {
+      sourceSessionId: 'session-1',
+      targetSessionId: 'child',
+      targetCwd: '/child',
+      artifactDirectory: '/owned',
+      checkpoint,
+      checkpoints: [checkpoint],
+      signal: controller.signal
+    }
+    const fork = driver.fork(input)
+    const result = fork.then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error })
+    )
+    try {
+      await drain()
+      expect(runtimeMocks.forkDshSession).not.toHaveBeenCalled()
+      if (cancel) {
+        const reason = new Error('fork cancelled during shutdown')
+        controller.abort(reason)
+        await expect(result).resolves.toEqual({ error: reason })
+        expect(runtimeMocks.forkDshSession).not.toHaveBeenCalled()
+      } else {
+        shutdown.resolve()
+        await closing
+        await expect(fork).resolves.toMatchObject({ resumeToken: 'child' })
+        expect(runtimeMocks.forkDshSession).toHaveBeenCalledWith(input, undefined)
+      }
+    } finally {
+      shutdown.resolve()
+      await closing
+      await result
     }
   })
 

@@ -109,6 +109,8 @@ compression settings to Agent forks.
 DSH requests a snapshot from an existing live connection when available. Failure
 of that request is reported rather than retried against potentially stale stored
 history. A cold fork reads stored history without starting the source Agent loop.
+A closing connection remains registered until teardown finishes; Fork waits up to
+60 seconds, cancellably, before reading its persisted history.
 
 Claude and DSH create their own workers and pass them to `runForkWorker`. The
 shared helper returns an opaque result and waits for termination on success,

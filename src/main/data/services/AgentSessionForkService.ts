@@ -26,7 +26,8 @@ export class AgentSessionForkService {
       .innerJoin(agentTable, eq(agentTable.id, agentSessionTable.agentId))
       .where(eq(agentSessionTable.id, sourceSessionId))
       .get()
-    if (!source || source.agent.deletedAt) throw new AgentSessionForkSourceError('source_missing')
+    if (!source || source.session.deletedAt || source.agent.deletedAt)
+      throw new AgentSessionForkSourceError('source_missing')
     const messages = agentSessionMessageService.readForkPrefixTx(tx, sourceSessionId, messageId, excludedIds)
     if (!messages) throw new AgentSessionForkSourceError('source_missing')
     return { ...source, messages }

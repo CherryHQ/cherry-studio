@@ -157,6 +157,21 @@ describe('Agent fork publication', () => {
     }
   )
 
+  it.each(['before-fork', 'before-publication'])('rejects an archived source: %s', async (stage) => {
+    const archive = () => {
+      dbh.db.update(agentSessionTable).set({ deletedAt: Date.now() }).where(eq(agentSessionTable.id, sessionId)).run()
+    }
+    if (stage === 'before-fork') archive()
+    else beforeForkResult = async () => archive()
+
+    await expect(new AgentSessionForkOperations().fork(sessionId, messageId)).rejects.toMatchObject({
+      reason: 'source_missing'
+    })
+    expect(dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable).all()).toEqual([{ id: sessionId }])
+    expect(await readForkResources()).toEqual([])
+    await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('does not clean an in-flight operation while recovering deleted sessions', async () => {
     const entered = Promise.withResolvers<void>()
     const release = Promise.withResolvers<void>()

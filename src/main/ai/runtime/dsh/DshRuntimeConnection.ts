@@ -645,7 +645,26 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  async snapshotForFork(boundary: number, signal?: AbortSignal): Promise<unknown[]> {
+  async snapshotForFork(boundary: number, signal?: AbortSignal): Promise<unknown[] | undefined> {
+    if (this.closePromise) {
+      const timeout = AbortSignal.timeout(60_000)
+      const waitSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
+      waitSignal.throwIfAborted()
+      let onAbort: () => void = () => {}
+      try {
+        await Promise.race([
+          this.closePromise,
+          new Promise<never>((_resolve, reject) => {
+            onAbort = () => reject(waitSignal.reason)
+            waitSignal.addEventListener('abort', onAbort, { once: true })
+          })
+        ])
+      } finally {
+        waitSignal.removeEventListener('abort', onAbort)
+      }
+      // The source has finished flushing; the driver can now use persisted history.
+      return undefined
+    }
     if (!this.bridge || this.closed) throw new Error('DSH connection is closed')
     const result = await this.bridge.request(
       'session/fork-snapshot',
@@ -661,7 +680,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async finishClose(): Promise<void> {
-    this.onClosed()
     this.pendingBridgeEvents.length = 0
     this.sessionEventSeqs.clear()
     this.subagents.close()
@@ -677,6 +695,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
     await this.disposeRuntime()
     this.eventQueue.close()
+    this.onClosed()
   }
 
   /** Best-effort teardown shared by close() and start() failure cleanup. */

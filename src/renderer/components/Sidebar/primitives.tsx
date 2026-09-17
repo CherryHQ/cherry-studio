@@ -1,10 +1,7 @@
 import { EmojiIcon } from '@cherrystudio/ui'
-import MiniAppLogo from '@renderer/components/icons/MiniAppIcon'
 import { isEmoji } from '@renderer/utils/naming'
 
-import type { SidebarMiniAppTab, SidebarUser } from './types'
-
-type MiniAppIconSize = 'sm' | 'md' | 'lg'
+import type { SidebarUser } from './types'
 
 export function ActiveIndicator({ className, glow = false }: { className?: string; glow?: boolean }) {
   return (
@@ -26,25 +23,6 @@ export function DefaultLogo({ title }: { title: string }) {
   return (
     <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 text-sm font-medium text-primary">
       {title ? title.slice(0, 1).toUpperCase() : ''}
-    </div>
-  )
-}
-
-export function MiniAppIcon({ tab, size = 'sm' }: { tab: SidebarMiniAppTab; size?: MiniAppIconSize }) {
-  const pixelSize = size === 'sm' ? 16 : size === 'md' ? 18 : 23
-  const { miniApp } = tab
-
-  if (miniApp.logo) {
-    return <MiniAppLogo app={{ logo: miniApp.logo, name: tab.title }} appearance="sidebar" size={pixelSize} />
-  }
-
-  const fontSize = size === 'sm' ? 'text-[8px]' : size === 'md' ? 'text-[9px]' : 'text-xs'
-
-  return (
-    <div
-      className={`${fontSize} flex flex-shrink-0 items-center justify-center rounded-full bg-muted text-white`}
-      style={{ width: pixelSize, height: pixelSize, background: miniApp.color }}>
-      {tab.title?.[0] ?? ''}
     </div>
   )
 }
@@ -85,7 +63,7 @@ export function UserAvatar({
       {user.avatar && !isTextAvatar(user.avatar) ? (
         <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
       ) : isEmojiAvatar ? (
-        <EmojiIcon emoji={user.avatar!} fluid fontSize={17} />
+        <EmojiIcon emoji={user.avatar!} fluid />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
           {getUserAvatarFallback(user)}

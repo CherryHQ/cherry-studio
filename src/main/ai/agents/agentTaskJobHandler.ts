@@ -61,6 +61,11 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
   },
 
   async onSettled(event) {
+    if (event.status === 'completed' && event.scheduleId) {
+      application
+        .get('DbService')
+        .withWriteTx((tx) => agentTaskService.completeMissedRunTx(tx, event.scheduleId!, event.jobId, Date.now()))
+    }
     if (event.scheduleId) agentTaskService.notifyReadModelChange([event.scheduleId])
     if (event.status !== 'failed' || !event.scheduleId) return
 
