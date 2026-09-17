@@ -14,13 +14,23 @@ import QRCode from 'qrcode'
 
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
-import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
+import {
+  createAgentChannel,
+  createAgentChannelAndWaitForQr,
+  deleteAgentChannel,
+  reconnectAgentChannel,
+  reconnectAgentChannelWithQr,
+  type ChannelAdapter,
+  resolveWorkspaceFile,
+  sanitizeChannelOutput,
+  updateAgentChannel,
+  updateAgentChannelAndWaitForQr
+} from '@main/ai/channels'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import {
   AgentSessionDeliveryStatusSchema,
@@ -987,12 +997,13 @@ export class CherryAutonomyTools {
 
       if (existingChannel) {
         const config = ChannelConfigSchema.parse({ type, ...cfg })
-        channelService.updateChannel(existingChannel.id, {
-          name,
-          config,
-          isActive: true
-        })
-        return await this.configReconnectChannel({ channel_id: existingChannel.id })
+        const { qrUrl } = await updateAgentChannelAndWaitForQr(
+          existingChannel.id,
+          this.agentId,
+          { name, config, isActive: true },
+          30_000
+        )
+        return await this.configReconnectChannel({ channel_id: existingChannel.id }, qrUrl)
       }
     }
     if (authMode === 'credentials') {
@@ -1012,26 +1023,6 @@ export class CherryAutonomyTools {
     const needsQr = authMode === 'qr'
 
     if (needsQr) {
-      const newChannel = channelService.createChannel({
-        type: channelType,
-        name,
-        agentId: this.agentId,
-        workspace: this.workspace,
-        config,
-        isActive: enabled ?? true
-      })
-
-      const channelManager = application.get('ChannelManager')
-      const qrPromise = channelManager.waitForQrUrl(this.agentId, newChannel.id, 30_000)
-      // Fire-and-forget: syncChannel will complete once the user scans
-      channelManager.syncChannel(newChannel.id).catch((err) => {
-        logger.error(`${type} sync failed`, {
-          agentId: this.agentId,
-          channelId: newChannel.id,
-          error: err instanceof Error ? err.message : String(err)
-        })
-      })
-
       const channelLabel = type === 'wechat' ? 'WeChat' : 'Feishu'
       const scanHint =
         type === 'wechat'
@@ -1039,7 +1030,17 @@ export class CherryAutonomyTools {
           : 'scan with Feishu to create a bot app and obtain credentials automatically'
 
       try {
-        const qrUrl = await qrPromise
+        const { channel: newChannel, qrUrl } = await createAgentChannelAndWaitForQr(
+          {
+            type: channelType,
+            name,
+            agentId: this.agentId,
+            workspace: this.workspace,
+            config,
+            isActive: enabled ?? true
+          },
+          30_000
+        )
         const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 })
         // Extract base64 from data URI: "data:image/png;base64,..."
         const base64 = qrDataUrl.split(',')[1]
@@ -1062,12 +1063,8 @@ export class CherryAutonomyTools {
           ]
         }
       } catch (err) {
-        // QR timed out — remove the orphan channel so it doesn't block future connections
-        await this.removeOrphanChannel(newChannel.id)
-
-        logger.warn(`Failed to get ${channelLabel} QR code, orphan channel removed`, {
+        logger.warn(`Failed to get ${channelLabel} QR code`, {
           agentId: this.agentId,
-          channelId: newChannel.id,
           error: err instanceof Error ? err.message : String(err)
         })
         return {
@@ -1082,7 +1079,7 @@ export class CherryAutonomyTools {
       }
     }
 
-    const newChannel = await agentChannelWorkflowService.createChannel({
+    const newChannel = createAgentChannel({
       type: channelType,
       name,
       agentId: this.agentId,
@@ -1118,7 +1115,7 @@ export class CherryAutonomyTools {
       updates.config = { ...existing.config, ...(args.config as Record<string, unknown>) }
     }
 
-    await agentChannelWorkflowService.updateChannel(channelId, updates)
+    updateAgentChannel(channelId, updates)
 
     logger.info('Channel updated via config tool', { agentId: this.agentId, channelId })
     return {
@@ -1135,7 +1132,7 @@ export class CherryAutonomyTools {
     if (channel.agentId !== this.agentId)
       throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
-    await agentChannelWorkflowService.deleteChannel(channelId)
+    await deleteAgentChannel(channelId)
 
     logger.info('Channel removed via config tool', { agentId: this.agentId, channelId, type: channel.type })
     return {
@@ -1143,7 +1140,7 @@ export class CherryAutonomyTools {
     }
   }
 
-  private async configReconnectChannel(args: Record<string, unknown>) {
+  private async configReconnectChannel(args: Record<string, unknown>, preparedQrUrl?: string) {
     const channelId = args.channel_id as string | undefined
     if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for reconnect_channel")
 
@@ -1155,28 +1152,17 @@ export class CherryAutonomyTools {
     const needsQr =
       channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config.app_id && channel.config.app_secret))
 
-    const channelManager = application.get('ChannelManager')
     if (!needsQr) {
-      await channelManager.syncChannel(channelId)
+      await reconnectAgentChannel(channelId)
       return {
         content: [{ type: 'text' as const, text: `Channel "${channelId}" reconnected.` }]
       }
     }
 
-    // QR-based reconnect: sync in background, wait for QR URL
-    const qrPromise = channelManager.waitForQrUrl(this.agentId, channelId, 30_000)
-    channelManager.syncChannel(channelId).catch((err) => {
-      logger.error('Reconnect sync failed', {
-        agentId: this.agentId,
-        channelId,
-        error: err instanceof Error ? err.message : String(err)
-      })
-    })
-
     const channelLabel = channel.type === 'wechat' ? 'WeChat' : 'Feishu'
 
     try {
-      const qrUrl = await qrPromise
+      const qrUrl = preparedQrUrl ?? (await reconnectAgentChannelWithQr(this.agentId, channelId, 30_000))
       const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 })
       const base64 = qrDataUrl.split(',')[1]
 
@@ -1240,22 +1226,6 @@ export class CherryAutonomyTools {
       content: [
         { type: 'text' as const, text: 'Bootstrap has been reset. The next session will run the onboarding flow.' }
       ]
-    }
-  }
-
-  /**
-   * Remove a channel from config that failed to connect (e.g. QR timeout).
-   * Prevents orphaned channels from blocking future connections.
-   */
-  private async removeOrphanChannel(channelId: string): Promise<void> {
-    try {
-      await agentChannelWorkflowService.deleteChannel(channelId)
-    } catch (err) {
-      logger.error('Failed to remove orphan channel', {
-        agentId: this.agentId,
-        channelId,
-        error: err instanceof Error ? err.message : String(err)
-      })
     }
   }
 

@@ -21764,7 +21764,7 @@
       "family": "glm",
       "id": "glm-5-3",
       "inputModalities": ["text"],
-      "maxOutputTokens": 1000000,
+      "maxOutputTokens": 131072,
       "metadata": {},
       "name": "GLM 5.3",
       "openWeights": true,
@@ -22098,5 +22098,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "eb94bb51fd08a3eb"
+  "version": "ace7f3040da21e71"
 }

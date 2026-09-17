@@ -438,6 +438,7 @@ describe('AiStreamManager', () => {
         isMultiModel: false,
         listenerIds: ['l:a']
       })
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
       // One streamText call per execution — 1 for single-model.
       // Passing signal propagation is verified indirectly by abort-path tests
       // (e.g. `abort > sets status and triggers AbortController signal`).
@@ -1429,11 +1430,13 @@ describe('AiStreamManager', () => {
       expect(renderer.doneResults).toHaveLength(0)
       expect(mgr.hasLiveStream('a')).toBe(false)
       expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(true)
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
 
       releasePersistence()
       await terminal
       expect(renderer.doneResults).toHaveLength(1)
       expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(false)
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(false)
     })
 
     it('keeps the terminal dispatch in flight until every cleanup listener settles', async () => {
@@ -1465,11 +1468,13 @@ describe('AiStreamManager', () => {
       await vi.advanceTimersByTimeAsync(0)
       expect(b.doneResults).toHaveLength(1)
       expect(settled).toBe(false)
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(true)
       expect(conversationCompletedEvents).toEqual([])
 
       releaseB()
       await settledPromise
       await terminal
+      expect(mgr.hasUnsettledTopicWork('a')).toBe(false)
       expect(conversationCompletedEvents).toEqual([
         { topicId: 'a', turnId: expect.stringMatching(/^\d+:\d+$/), completedAt: expect.any(Number) }
       ])
@@ -3651,6 +3656,7 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('t', 'p::m')
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'awaiting-approval'])
       expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
+      expect(mgr.hasUnsettledTopicWork('t')).toBe(true)
       expect(conversationCompletedEvents).toEqual([])
     })
 

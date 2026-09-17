@@ -363,6 +363,17 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('exposes the current output identity without retaining a completed turn identity', () => {
+    const service = new AgentSessionRuntimeService()
+    expect(service.getLiveAssistantMessageId('session-1')).toBeUndefined()
+    service.beginTurn(baseTurnInput)
+    expect(service.getLiveAssistantMessageId('session-1')).toBe('assistant-1')
+    service.markTurnTerminal('session-1', 'success')
+    expect(service.getLiveAssistantMessageId('session-1')).toBeUndefined()
+    service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-2' })
+    expect(service.getLiveAssistantMessageId('session-1')).toBe('assistant-2')
+  })
+
   it('aborts live streams before shutdown clears their pending approvals', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -1718,6 +1729,120 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(connection.reconcile).toHaveBeenCalledOnce()
     expect(connection.close).not.toHaveBeenCalled()
+  })
+
+  // Sibling sessions of one agent, both idle-warm. `reconcile` stands in for the driver's
+  // rebuildSignature comparison — `reasoningEffort` is one of its facts.
+  function seedIdleSiblings(service: any, baselineEffort: string) {
+    const connections = new Map<string, { close: ReturnType<typeof vi.fn>; reconcile: ReturnType<typeof vi.fn> }>()
+    for (const sessionId of ['session-1', 'session-2']) {
+      service.beginTurn({
+        ...baseTurnInput,
+        sessionId,
+        topicId: `agent-session:${sessionId}`,
+        assistantMessageId: `assistant-${sessionId}`
+      })
+      const entry = service.entries.get(sessionId)
+      entry.runtimeState.execution = { kind: 'idle' }
+      const connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        reconcile: vi.fn(async (target: any) => (target.reasoningEffort === baselineEffort ? 'current' : 'rebuild'))
+      }
+      entry.runtimeState.connection = { kind: 'connected', connection, occupancy: {} }
+      connections.set(sessionId, connection)
+    }
+    return connections
+  }
+
+  it('keeps idle sibling connections when an agent write changes nothing they serve', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    const connections = seedIdleSiblings(service, 'high')
+
+    // A rename feeds no rebuild fact and no live tool-policy fact, so no session may rebuild.
+    await service.handleAgentUpdated(
+      'agent-1',
+      { name: 'Renamed' },
+      { id: 'agent-1', name: 'Renamed', model: baseTurnInput.modelId, configuration: { reasoning_effort: 'high' } }
+    )
+
+    for (const [sessionId, connection] of connections) {
+      expect(connection.close, sessionId).not.toHaveBeenCalled()
+      expect(connection.reconcile, sessionId).toHaveBeenCalledWith(expect.objectContaining({ reasoningEffort: 'high' }))
+    }
+  })
+
+  it('reads the agent once per session on a push reconcile, not twice', async () => {
+    // `agentService.getAgent` is four uncached queries. `handleAgentUpdated` already holds the
+    // updated entity, so walking every session of that agent must not re-read it per session.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    seedIdleSiblings(service, 'high')
+    mocks.getAgent.mockClear()
+
+    await service.handleAgentUpdated(
+      'agent-1',
+      { name: 'Renamed' },
+      { id: 'agent-1', name: 'Renamed', model: baseTurnInput.modelId, configuration: { reasoning_effort: 'high' } }
+    )
+
+    // None: the target is built from the entity the caller passed in, and a `current` verdict
+    // never reaches the knowledge-scope comparison.
+    expect(mocks.getAgent).not.toHaveBeenCalled()
+  })
+
+  it('compares a target against one agent read, not one per field group', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'high' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    seedIdleSiblings(service, 'high')
+    const entry = service.entries.get('session-1')
+    const target = service.connectionTarget(entry)
+    mocks.getAgent.mockClear()
+
+    expect(service.connectionTargetEquals(entry, target)).toBe(true)
+
+    // The target it builds to compare against and the knowledge scope it resolves come from the
+    // same read.
+    expect(mocks.getAgent).toHaveBeenCalledTimes(1)
+  })
+
+  it('rebuilds idle sibling connections when the agent reasoning effort actually changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'test-runtime',
+      model: baseTurnInput.modelId,
+      configuration: { reasoning_effort: 'low' }
+    })
+    const service: any = new AgentSessionRuntimeService()
+    const connections = seedIdleSiblings(service, 'high')
+
+    await service.handleAgentUpdated(
+      'agent-1',
+      { configuration: { reasoning_effort: 'low' } },
+      { id: 'agent-1', model: baseTurnInput.modelId, configuration: { reasoning_effort: 'low' } }
+    )
+
+    for (const [sessionId, connection] of connections) {
+      expect(connection.close, sessionId).toHaveBeenCalled()
+      expect(connection.reconcile, sessionId).toHaveBeenCalledWith(expect.objectContaining({ reasoningEffort: 'low' }))
+    }
   })
 
   it('queues follow-ups instead of redirecting them into a stale-model live connection', async () => {
@@ -3419,6 +3544,60 @@ describe('AgentSessionRuntimeService', () => {
     connectionClose.resolve()
     await expect(Promise.all([firstClose, repeatedClose])).resolves.toBeDefined()
     expect(connection.close).toHaveBeenCalledOnce()
+  })
+
+  it('lists resume tokens from active and warm-idle entries without duplicates', () => {
+    const service = new AgentSessionRuntimeService()
+    const idleHandle = service.beginTurn(baseTurnInput)
+    getEntry(service).lastResumeToken = 'resume-idle'
+    void terminalListener(idleHandle).onDone({ status: 'success', isTopicDone: true })
+
+    service.beginTurn({
+      ...baseTurnInput,
+      sessionId: 'session-2',
+      topicId: 'agent-session:session-2',
+      assistantMessageId: 'assistant-2'
+    })
+    ;(service as any).entries.get('session-2').lastResumeToken = 'resume-active'
+    service.beginTurn({
+      ...baseTurnInput,
+      sessionId: 'session-3',
+      topicId: 'agent-session:session-3',
+      assistantMessageId: 'assistant-3'
+    })
+    ;(service as any).entries.get('session-3').lastResumeToken = 'resume-idle'
+
+    expect(service.listClaimedResumeTokens()).toEqual(new Set(['resume-idle', 'resume-active']))
+  })
+
+  it('returns a fresh claimed-resume-token snapshot', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    getEntry(service).lastResumeToken = 'resume-1'
+
+    const snapshot = service.listClaimedResumeTokens()
+    ;(snapshot as Set<string>).clear()
+
+    expect(service.listClaimedResumeTokens()).toEqual(new Set(['resume-1']))
+  })
+
+  it('keeps a closing resume token claimed only until its close barrier settles', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const connectionClose = createDeferred<void>()
+    const connection = { close: vi.fn(() => connectionClose.promise), send: vi.fn(), events: [] }
+    const entry = getEntry(service)
+    entry.lastResumeToken = 'resume-closing'
+    entry.connection = connection
+
+    const closing = service.closeSession('session-1')
+
+    expect(service.listClaimedResumeTokens()).toEqual(new Set(['resume-closing']))
+
+    connectionClose.resolve()
+    await closing
+
+    expect(service.listClaimedResumeTokens()).toEqual(new Set())
   })
 
   it('waits for a pending connection attempt when synchronous close cleanup falls back', async () => {
