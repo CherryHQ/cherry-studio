@@ -39,9 +39,8 @@ describe('Claude native forks', () => {
         messageUuid: currentUuid,
         configDir: directory
       }
-      const worker = new Worker(new URL('../../fork/worker.ts', import.meta.url), {
+      const worker = new Worker(new URL('../forkWorker.ts', import.meta.url), {
         workerData: {
-          runtime: 'claude-code',
           entries,
           checkpoint,
           checkpoints: [checkpoint],
@@ -114,6 +113,12 @@ describe('Claude native forks', () => {
     }
   }
 
+  it('rejects malformed native checkpoints before looking for history', async () => {
+    const input = forkInput()
+    input.checkpoint.messageUuid = 'not-a-uuid'
+    await expect(forkClaudeSession(input)).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+  })
+
   it.each(['\n', '\r\n'])('forks the exact UUID on demand and excludes later history (%j)', async (newline) => {
     await mkdir(path.dirname(file), { recursive: true })
     await writeFile(
@@ -169,9 +174,9 @@ vi.mock('@application', () => ({
   application: { get: mocks.applicationGet, getPath: vi.fn(() => '/mock-claude-config') }
 }))
 
-vi.mock('../../fork/worker?nodeWorker', () => ({
+vi.mock('../forkWorker?nodeWorker', () => ({
   default: (options: ConstructorParameters<typeof Worker>[1]) =>
-    new Worker(new URL('../../fork/worker.ts', import.meta.url), options)
+    new Worker(new URL('../forkWorker.ts', import.meta.url), options)
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -1611,59 +1616,64 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('emits a checkpoint after the main assistant transcript is flushed in the configured directory', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'cherry-claude-driver-checkpoint-'))
-    const sessionId = '374c8467-e787-4c67-b890-a3d91b50dba6'
-    const messageUuid = '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03'
-    const queryQueue = createAsyncQueue<any>()
-    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
-    const request = await mocks.buildRequest()
-    mocks.buildRequest.mockResolvedValue({
-      ...request,
-      options: { ...request.options, cwd: directory, env: { CLAUDE_CONFIG_DIR: directory } }
-    })
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet'
-    })
-    try {
-      await connection.send({ message: userMessage() })
-      queryQueue.push({
-        type: 'assistant',
-        uuid: messageUuid,
-        parent_tool_use_id: null,
-        message: { id: 'main-response', content: [{ type: 'text', text: 'answer' }] }
+  it.each([true, false])(
+    'emits only valid native checkpoints at turn completion (valid UUID: %s)',
+    async (validUuid) => {
+      const directory = await mkdtemp(path.join(tmpdir(), 'cherry-claude-driver-checkpoint-'))
+      const sessionId = '374c8467-e787-4c67-b890-a3d91b50dba6'
+      const messageUuid = validUuid ? '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03' : 'malformed-uuid'
+      const queryQueue = createAsyncQueue<any>()
+      mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+      const request = await mocks.buildRequest()
+      mocks.buildRequest.mockResolvedValue({
+        ...request,
+        options: { ...request.options, cwd: directory, env: { CLAUDE_CONFIG_DIR: directory } }
       })
-      queryQueue.push({
-        type: 'assistant',
-        uuid: 'sidechain-uuid',
-        parent_tool_use_id: 'subagent',
-        message: { id: 'subagent-response', content: [{ type: 'text', text: 'subagent' }] }
+      const connection = await new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet'
       })
-      queryQueue.push({ type: 'result', subtype: 'success', session_id: sessionId })
-      const completion = (async () => {
-        for await (const event of connection.events) if (event.type === 'turn-complete') return event
-        throw new Error('missing turn completion')
-      })()
-      await delay(100)
-      const project = path.join(directory, 'projects', 'project')
-      await mkdir(project, { recursive: true })
-      await writeFile(
-        path.join(project, sessionId + '.jsonl'),
-        JSON.stringify({ type: 'assistant', uuid: messageUuid }) + '\n'
-      )
-      await expect(completion).resolves.toMatchObject({
-        type: 'turn-complete',
-        forkAnchor: {
-          checkpoint: { runtimeSessionId: sessionId, messageUuid, configDir: directory }
-        }
-      })
-    } finally {
-      await connection.close()
-      await rm(directory, { recursive: true, force: true })
+      try {
+        await connection.send({ message: userMessage() })
+        queryQueue.push({
+          type: 'assistant',
+          uuid: messageUuid,
+          parent_tool_use_id: null,
+          message: { id: 'main-response', content: [{ type: 'text', text: 'answer' }] }
+        })
+        queryQueue.push({
+          type: 'assistant',
+          uuid: 'sidechain-uuid',
+          parent_tool_use_id: 'subagent',
+          message: { id: 'subagent-response', content: [{ type: 'text', text: 'subagent' }] }
+        })
+        queryQueue.push({ type: 'result', subtype: 'success', session_id: sessionId })
+        const completion = (async () => {
+          for await (const event of connection.events) if (event.type === 'turn-complete') return event
+          throw new Error('missing turn completion')
+        })()
+        await delay(100)
+        const project = path.join(directory, 'projects', 'project')
+        await mkdir(project, { recursive: true })
+        await writeFile(
+          path.join(project, sessionId + '.jsonl'),
+          JSON.stringify({ type: 'assistant', uuid: messageUuid }) + '\n'
+        )
+        await expect(completion).resolves.toMatchObject({
+          type: 'turn-complete',
+          forkAnchor: validUuid
+            ? {
+                checkpoint: { runtimeSessionId: sessionId, messageUuid, configDir: directory }
+              }
+            : undefined
+        })
+      } finally {
+        await connection.close()
+        await rm(directory, { recursive: true, force: true })
+      }
     }
-  })
+  )
 
   it('emits resume token, chunks, and turn-complete events', async () => {
     const queryQueue = createAsyncQueue<any>()

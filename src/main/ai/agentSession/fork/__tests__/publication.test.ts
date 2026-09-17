@@ -87,7 +87,8 @@ describe('Agent fork publication', () => {
           publish: [{ source, target: publishedFile }],
           checkpoints: input.checkpoints.map((checkpoint) => ({
             ...checkpoint,
-            runtimeSessionId: invalidCheckpoint ? '' : 'native-child'
+            runtime: invalidCheckpoint ? '' : checkpoint.runtime,
+            runtimeSessionId: 'native-child'
           }))
         }
       }

@@ -253,6 +253,20 @@ describe('DshRuntimeConnection tracing', () => {
     }
   })
 
+  it('rejects a DSH checkpoint with an invalid native boundary before reading a snapshot', async () => {
+    await expect(
+      new DshRuntimeDriver().fork({
+        sourceSessionId: 'source',
+        targetSessionId: 'child',
+        targetCwd: '/child',
+        artifactDirectory: '/owned',
+        checkpoint: { runtime: 'dsh', runtimeSessionId: 'native', boundary: -1 },
+        checkpoints: [],
+        signal: new AbortController().signal
+      })
+    ).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
+  })
+
   it.each([
     ['DSH connection is closed', 'operation_failed'],
     ['session/fork-snapshot timed out after 60000ms', 'operation_failed'],

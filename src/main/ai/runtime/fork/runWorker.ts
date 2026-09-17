@@ -1,12 +1,11 @@
-import { AgentSessionForkError } from './checkpoint'
-import type { ForkWorkerInput } from './worker'
+import type { Worker } from 'node:worker_threads'
 
-export async function runForkWorker<T>(input: ForkWorkerInput, signal: AbortSignal): Promise<T> {
-  const { default: createForkWorker } = await import('./worker?nodeWorker')
-  signal.throwIfAborted()
-  const worker = createForkWorker({ workerData: input, env: { ...process.env } })
+import { AgentSessionForkError } from './checkpoint'
+
+export async function runForkWorker(worker: Worker, signal: AbortSignal): Promise<unknown> {
   try {
-    return await new Promise<T>((resolve, reject) => {
+    signal.throwIfAborted()
+    return await new Promise<unknown>((resolve, reject) => {
       const onAbort = () => reject(signal.reason)
       const timer = setTimeout(() => reject(new Error('Fork worker timed out')), 60_000)
       const cleanup = () => {
@@ -14,7 +13,7 @@ export async function runForkWorker<T>(input: ForkWorkerInput, signal: AbortSign
         signal.removeEventListener('abort', onAbort)
       }
       signal.addEventListener('abort', onAbort, { once: true })
-      worker.once('message', (message: { result: T; error?: string }) => {
+      worker.once('message', (message: { result: unknown; error?: string }) => {
         cleanup()
         if (message.error) reject(new AgentSessionForkError(message.error))
         else resolve(message.result)

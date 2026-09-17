@@ -12,6 +12,7 @@ import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRunt
 import { buildDshCherryToolName, DSH_AUTO_APPROVED_BRIDGED_TOOLS } from './DshCherryToolBridge'
 import { forkDshSession } from './dshFork'
 import { DshRuntimeConnection } from './DshRuntimeConnection'
+import { parseDshForkCheckpoint } from './forkCheckpoint'
 import { assertDshProviderUsable } from './modelInjection'
 
 export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
@@ -19,12 +20,10 @@ export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
 
   async fork(input: RuntimeForkInput) {
     input.signal.throwIfAborted()
+    const checkpoint = parseDshForkCheckpoint(input.checkpoint)
     let events: unknown[] | undefined
     try {
-      if (input.checkpoint.runtime === 'dsh')
-        events = await this.forkSources
-          .get(input.sourceSessionId)
-          ?.snapshotForFork(input.checkpoint.boundary, input.signal)
+      events = await this.forkSources.get(input.sourceSessionId)?.snapshotForFork(checkpoint.boundary, input.signal)
     } catch (error) {
       input.signal.throwIfAborted()
       if (error instanceof AgentSessionForkError) throw error

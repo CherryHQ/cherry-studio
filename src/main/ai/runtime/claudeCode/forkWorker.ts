@@ -4,36 +4,18 @@ import { parentPort, workerData } from 'node:worker_threads'
 
 import type { SessionKey, SessionStore, SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
 
-import type { RuntimeForkCheckpoint } from './checkpoint'
+import type { ClaudeForkCheckpoint } from './forkCheckpoint'
 
-export type ForkWorkerInput =
-  | {
-      runtime: 'claude-code'
-      entries: SessionStoreEntry[]
-      checkpoint: Extract<RuntimeForkCheckpoint, { runtime: 'claude-code' }>
-      checkpoints: Extract<RuntimeForkCheckpoint, { runtime: 'claude-code' }>[]
-      checkpointEntryCounts?: number[]
-      artifactDirectory: string
-      targetCwd: string
-    }
-  | {
-      runtime: 'dsh'
-      modulePath: string
-      sourceRoot: string
-      targetRoot: string
-      sourceSessionId: string
-      targetSessionId: string
-      targetCwd: string
-      boundary: number
-      checkpoints: Array<{ boundary: number }>
-      events?: unknown[]
-    }
+export interface ClaudeForkWorkerInput {
+  entries: SessionStoreEntry[]
+  checkpoint: ClaudeForkCheckpoint
+  checkpoints: ClaudeForkCheckpoint[]
+  checkpointEntryCounts?: number[]
+  artifactDirectory: string
+  targetCwd: string
+}
 
-async function run(input: ForkWorkerInput): Promise<unknown> {
-  if (input.runtime === 'dsh') {
-    const sdk = await import(/* @vite-ignore */ input.modulePath)
-    return sdk.forkSession(input)
-  }
+async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
   const { checkpoint } = input
   const sourceIds = new Set<string>()
   const mainEntries = input.entries.filter((entry) => !entry.isSidechain)
@@ -151,7 +133,7 @@ function containsSourceUuid(value: unknown, sourceIds: ReadonlySet<string>): boo
   return false
 }
 
-void run(workerData as ForkWorkerInput).then(
+void run(workerData as ClaudeForkWorkerInput).then(
   (result) => parentPort?.postMessage({ result }),
   (error) =>
     parentPort?.postMessage({

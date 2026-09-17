@@ -59,6 +59,7 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExtension'
+import { PiForkCheckpointSchema } from './forkCheckpoint'
 import {
   materializePiProviderStream,
   type PiProviderInjection,
@@ -668,14 +669,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       } catch (checkpointError) {
         logger.warn('Could not capture Pi fork checkpoint', { error: checkpointError })
       }
+      const checkpoint = PiForkCheckpointSchema.safeParse({ runtime: 'pi', runtimeSessionId: this.resumeToken, leafId })
       this.eventQueue.push({
         type: 'turn-complete',
-        forkAnchor:
-          leafId && this.resumeToken
-            ? {
-                checkpoint: { runtime: 'pi', runtimeSessionId: this.resumeToken, leafId }
-              }
-            : undefined
+        forkAnchor: checkpoint.success ? { checkpoint: checkpoint.data } : undefined
       })
     }
     this.lastStopReason = undefined

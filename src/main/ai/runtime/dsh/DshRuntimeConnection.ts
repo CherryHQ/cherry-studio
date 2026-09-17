@@ -71,6 +71,7 @@ import {
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
+import { DshForkCheckpointSchema } from './forkCheckpoint'
 import { type DshProviderInjection, resolveDshProviderInjectionFromSnapshot, usesDshGateway } from './modelInjection'
 
 const logger = loggerService.withContext('DshRuntimeConnection')
@@ -832,14 +833,14 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     switch (reason.kind) {
       case 'completed':
       case 'max-tokens': {
+        const checkpoint = DshForkCheckpointSchema.safeParse({
+          runtime: 'dsh',
+          runtimeSessionId: this.input.sessionId,
+          boundary
+        })
         this.eventQueue.push({
           type: 'turn-complete',
-          forkAnchor:
-            boundary === undefined
-              ? undefined
-              : {
-                  checkpoint: { runtime: 'dsh', runtimeSessionId: this.input.sessionId, boundary }
-                }
+          forkAnchor: checkpoint.success ? { checkpoint: checkpoint.data } : undefined
         })
         return
       }

@@ -5,6 +5,7 @@ import { application } from '@application'
 import { readForkPrefix, readNativeForkHistory } from '@main/ai/runtime/fork'
 
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../fork'
+import { parsePiForkCheckpoint } from './forkCheckpoint'
 import { loadPiSdk } from './piSdk'
 
 export async function forkPiSession(input: RuntimeForkInput): Promise<RuntimeForkResult> {
@@ -12,8 +13,7 @@ export async function forkPiSession(input: RuntimeForkInput): Promise<RuntimeFor
 }
 
 async function preparePiFork(input: RuntimeForkInput): Promise<RuntimeForkResult> {
-  const checkpoint = input.checkpoint
-  if (checkpoint.runtime !== 'pi') throw new AgentSessionForkError('unsupported_checkpoint')
+  const checkpoint = parsePiForkCheckpoint(input.checkpoint)
   if (!/^[a-zA-Z0-9-]+$/.test(checkpoint.runtimeSessionId)) throw new AgentSessionForkError('history_corrupt')
   const sessions = application.getPath('feature.agents.pi.sessions')
   const candidates = (await readdir(sessions)).filter((name) =>
@@ -40,14 +40,10 @@ async function preparePiFork(input: RuntimeForkInput): Promise<RuntimeForkResult
   const file = manager.createBranchedSession(checkpoint.leafId)
   if (!file) throw new AgentSessionForkError('history_corrupt')
   const resumeToken = manager.getSessionId()
-  const checkpoints = input.checkpoints.map((value) => {
-    if (
-      value.runtime !== 'pi' ||
-      value.runtimeSessionId !== checkpoint.runtimeSessionId ||
-      !manager.getEntry(value.leafId)
-    )
+  const checkpoints = input.checkpoints.map(parsePiForkCheckpoint).map((value) => {
+    if (value.runtimeSessionId !== checkpoint.runtimeSessionId || !manager.getEntry(value.leafId))
       throw new AgentSessionForkError('history_corrupt')
-    return { ...value, runtimeSessionId: resumeToken }
+    return parsePiForkCheckpoint({ ...value, runtimeSessionId: resumeToken })
   })
   return { resumeToken, checkpoints, publish: [{ source: file, target: path.join(sessions, path.basename(file)) }] }
 }

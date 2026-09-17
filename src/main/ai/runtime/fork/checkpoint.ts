@@ -1,21 +1,7 @@
 import * as z from 'zod'
 
-// Main-only native locations. Availability is checked against SDK history on demand.
-const identity = { runtimeSessionId: z.string().min(1) }
-export const RuntimeForkCheckpointSchema = z.discriminatedUnion('runtime', [
-  z.strictObject({ runtime: z.literal('pi'), ...identity, leafId: z.string().min(1) }),
-  z.strictObject({
-    runtime: z.literal('claude-code'),
-    ...identity,
-    messageUuid: z.string().uuid(),
-    configDir: z.string().min(1)
-  }),
-  z.strictObject({
-    runtime: z.literal('dsh'),
-    ...identity,
-    boundary: z.number().int().nonnegative()
-  })
-])
+// Only routing is shared; each adapter owns the remaining native checkpoint fields.
+const RuntimeForkCheckpointSchema = z.looseObject({ runtime: z.string().min(1) })
 
 export const RuntimeForkAnchorSchema = z.strictObject({
   checkpoint: RuntimeForkCheckpointSchema,

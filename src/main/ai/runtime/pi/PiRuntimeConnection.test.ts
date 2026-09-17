@@ -10,6 +10,7 @@ import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteG
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
+import { forkPiSession } from './piFork'
 
 const PI_ROOT = '/cherry/Data/Agents/.pi'
 const PI_SESSIONS = '/cherry/Data/Agents/.pi/sessions'
@@ -443,6 +444,20 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs()
+})
+
+it('rejects a Pi checkpoint with a missing native leaf before looking for history', async () => {
+  await expect(
+    forkPiSession({
+      sourceSessionId: 'source',
+      targetSessionId: 'child',
+      targetCwd: '/child',
+      artifactDirectory: '/owned',
+      checkpoint: { runtime: 'pi', runtimeSessionId: 'native' },
+      checkpoints: [],
+      signal: new AbortController().signal
+    })
+  ).rejects.toMatchObject({ reason: 'unsupported_checkpoint' })
 })
 
 describe('PiRuntimeConnection', () => {

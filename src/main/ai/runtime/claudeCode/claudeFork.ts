@@ -7,6 +7,8 @@ import { readForkPrefix, readNativeForkHistory } from '@main/ai/runtime/fork'
 
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../fork'
 import { runForkWorker } from '../fork'
+import { ClaudeForkResultSchema, parseClaudeForkCheckpoint } from './forkCheckpoint'
+import type { ClaudeForkWorkerInput } from './forkWorker'
 
 async function findSession(configDir: string, sessionId: string): Promise<string> {
   if (!/^[a-f0-9-]{36}$/i.test(sessionId)) throw new AgentSessionForkError('history_corrupt')
@@ -27,8 +29,7 @@ export async function forkClaudeSession(input: RuntimeForkInput): Promise<Runtim
 }
 
 async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkResult> {
-  const checkpoint = input.checkpoint
-  if (checkpoint.runtime !== 'claude-code') throw new AgentSessionForkError('unsupported_checkpoint')
+  const checkpoint = parseClaudeForkCheckpoint(input.checkpoint)
   const file = await findSession(checkpoint.configDir, checkpoint.runtimeSessionId)
   const bytes = await readForkPrefix(file)
   const entries: SessionStoreEntry[] = []
@@ -43,8 +44,8 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
   if (end < 0) throw new AgentSessionForkError('history_missing')
   if (!bytes.subarray(0, start).equals(await readForkPrefix(file, start)))
     throw new AgentSessionForkError('history_changed')
-  const checkpoints = input.checkpoints.map((value) => {
-    if (value.runtime !== 'claude-code' || value.runtimeSessionId !== checkpoint.runtimeSessionId) {
+  const checkpoints = input.checkpoints.map(parseClaudeForkCheckpoint).map((value) => {
+    if (value.runtimeSessionId !== checkpoint.runtimeSessionId) {
       throw new AgentSessionForkError('history_changed')
     }
     return value
@@ -56,16 +57,18 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
     if (index < 0) throw new AgentSessionForkError('history_changed')
     return index + 1
   })
-  return runForkWorker<RuntimeForkResult>(
-    {
-      runtime: 'claude-code',
-      entries,
-      checkpoint,
-      checkpoints,
-      checkpointEntryCounts,
-      artifactDirectory: path.join(input.artifactDirectory, 'claude'),
-      targetCwd: input.targetCwd
-    },
-    input.signal
-  )
+  const { default: createWorker } = await import('./forkWorker?nodeWorker')
+  input.signal.throwIfAborted()
+  const workerData: ClaudeForkWorkerInput = {
+    entries,
+    checkpoint,
+    checkpoints,
+    checkpointEntryCounts,
+    artifactDirectory: path.join(input.artifactDirectory, 'claude'),
+    targetCwd: input.targetCwd
+  }
+  const worker = createWorker({ workerData, env: { ...process.env } })
+  const result = ClaudeForkResultSchema.safeParse(await runForkWorker(worker, input.signal))
+  if (!result.success) throw new AgentSessionForkError('history_corrupt')
+  return result.data
 }

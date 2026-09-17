@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 
 import { PersistenceListener, TerminalPersistenceError } from '../../../streamManager/listeners/PersistenceListener'
 import { AgentSessionMessageBackend } from '../AgentSessionMessageBackend'
@@ -53,8 +52,25 @@ describe('AgentSessionMessageBackend', () => {
     })
   })
 
+  it('persists an unknown runtime checkpoint intact without exposing it in public messages', async () => {
+    const anchor = {
+      checkpoint: { runtime: 'future-runtime', native: { cursor: [7, 'entry'], version: 2 }, token: 'opaque-token' }
+    }
+    const backend = new AgentSessionMessageBackend({ sessionId, assistantMessageId, forkAnchor: () => anchor })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+    await listener.onDone({
+      status: 'success',
+      finalMessage: { id: assistantMessageId, role: 'assistant', parts: [{ type: 'text', text: 'Completed answer' }] }
+    })
+    const raw = agentSessionMessageService.readForkPrefixTx(dbh.db, sessionId, assistantMessageId)![0]
+    expect(raw.data.runtimeAnchor).toEqual(anchor)
+    expect(agentSessionMessageService.getSessionMessage(sessionId, assistantMessageId).data).not.toHaveProperty(
+      'runtimeAnchor'
+    )
+  })
+
   it.each(['valid', 'invalid', 'write-failure'] as const)(
-    'preserves the completed answer while validating its checkpoint: %s',
+    'preserves the completed answer while validating its checkpoint envelope: %s',
     async (scenario) => {
       if (scenario === 'write-failure')
         vi.spyOn(agentSessionMessageService, 'saveMessage').mockImplementationOnce(() => {
@@ -64,7 +80,7 @@ describe('AgentSessionMessageBackend', () => {
       const backend = new AgentSessionMessageBackend({
         sessionId,
         assistantMessageId,
-        forkAnchor: () => (scenario === 'invalid' ? ({ checkpoint: { runtime: 'pi' } } as RuntimeForkAnchor) : anchor)
+        forkAnchor: () => (scenario === 'invalid' ? { checkpoint: { runtime: '' } } : anchor)
       })
       const listener = new PersistenceListener({
         topicId: 'agent-session:session-1',

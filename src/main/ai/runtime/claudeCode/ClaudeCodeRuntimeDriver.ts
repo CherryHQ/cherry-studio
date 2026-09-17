@@ -66,6 +66,7 @@ import {
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import { forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
+import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
 import {
   type ClaudeCodeProcessDiagnostics,
   createClaudeCodeProcessExitError,
@@ -735,16 +736,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
           // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
           this.emitPendingSteersAsUndelivered()
-          const forkAnchor = this.lastMainAssistantUuid
-            ? {
-                checkpoint: {
-                  runtime: 'claude-code' as const,
-                  runtimeSessionId: result.sessionId,
-                  messageUuid: this.lastMainAssistantUuid,
-                  configDir: resolveClaudeConfigDirectory(this.spawnOptions?.env)
-                }
-              }
-            : undefined
+          const checkpoint = ClaudeForkCheckpointSchema.safeParse({
+            runtime: 'claude-code',
+            runtimeSessionId: result.sessionId,
+            messageUuid: this.lastMainAssistantUuid,
+            configDir: resolveClaudeConfigDirectory(this.spawnOptions?.env)
+          })
+          const forkAnchor = checkpoint.success ? { checkpoint: checkpoint.data } : undefined
           this.lastMainAssistantUuid = undefined
           this.eventQueue.push({ type: 'turn-complete', forkAnchor })
         }
