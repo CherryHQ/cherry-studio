@@ -726,12 +726,8 @@ export default defineConfig([
       'lifecycle/no-direct-quit': 'warn'
     }
   },
-  // Transaction boundary — a `*Tx` method promises to run entirely on the transaction
-  // handle it was given. Acquiring the DB from the service singleton instead breaks that
-  // promise twice over: the read leaves the caller's transaction, and it inherits
-  // `DbService.getDb()`'s readiness gate, which throws while `onInit()` is still seeding.
-  // v2.0.11 shipped that: an edition filter added to `getNamesByUniqueIdsTx` reached the
-  // singleton three call hops away and aborted startup for upgrading profiles.
+  // Transaction callers keep their database handle through same-class helpers.
+  // Registry resolution accepts explicit context and is covered by the no-global-DB regressions.
   {
     files: ['src/main/**/*.{ts,tsx}'],
     ignores: ['src/main/**/__tests__/**', 'src/main/**/__mocks__/**', 'src/main/**/*.test.*'],
@@ -741,23 +737,31 @@ export default defineConfig([
           'no-ambient-db-in-tx': {
             meta: {
               type: 'problem',
+              schema: [
+                {
+                  type: 'object',
+                  properties: {
+                    followHelpers: { type: 'boolean' },
+                    databaseFreeMethods: { type: 'array', items: { type: 'string' } }
+                  },
+                  additionalProperties: false
+                }
+              ],
               docs: {
-                description:
-                  'Disallow reaching for the DbService singleton, directly or through another service, inside a `*Tx` function.',
-                recommended: true
+                description: 'Disallow ambient database access in transaction methods and their same-class helpers.'
               },
               messages: {
                 ambientDb:
-                  '"{{name}}" inside `{{fn}}` leaves the caller\'s transaction and depends on DbService being ready. Use the `tx` parameter.',
+                  '"{{name}}" is reachable from `{{fn}}` and depends on DbService being ready. Use the `tx` parameter.',
+                contextLookup: '`{{fn}}` must resolve supplied context without looking up another data service.',
                 serviceEscape:
-                  '`{{name}}` is not a `*Tx` method, so `{{fn}}` cannot know whether it opens its own connection. Call a `*Tx` variant, or a pure helper that takes the row.'
+                  '`{{name}}` is reachable from `{{fn}}`. Use a `*Tx` method or an explicit-context resolver.'
               }
             },
             create(context) {
-              // One entry per function scope; `true` marks a `*Tx` function, so a
-              // callback nested inside one is still governed.
-              const txScopes = []
-
+              const { followHelpers = false, databaseFreeMethods = [] } = context.options[0] ?? {}
+              const functions = new Map()
+              const scopes = []
               const declaredName = (node) => {
                 const parent = node.parent
                 if (parent?.type === 'MethodDefinition' || parent?.type === 'Property') {
@@ -768,13 +772,40 @@ export default defineConfig([
                 }
                 return node.id?.type === 'Identifier' ? node.id.name : null
               }
-
               const enter = (node) => {
-                const name = declaredName(node)
-                txScopes.push(name?.endsWith('Tx') ? name : null)
+                const parent = scopes.at(-1)
+                const classBody = node.parent?.type === 'MethodDefinition' ? node.parent.parent : parent?.classBody
+                const scope = { name: declaredName(node), classBody, calls: [], members: [], children: [] }
+                if (parent && parent.classBody === classBody) parent.children.push(scope)
+                functions.set(node, scope)
+                scopes.push(scope)
               }
-              const exit = () => txScopes.pop()
-              const enclosingTx = () => txScopes.findLast?.((name) => name !== null) ?? null
+              const exit = () => scopes.pop()
+
+              const inspectCall = (node, fn) => {
+                const { callee } = node
+                if (
+                  callee.type === 'Identifier' &&
+                  callee.name === 'getDataService' &&
+                  databaseFreeMethods.includes(fn)
+                ) {
+                  return { node, messageId: 'contextLookup', data: { fn } }
+                }
+                if (callee.type !== 'MemberExpression' || callee.property.type !== 'Identifier') return
+                const method = callee.property.name
+                if (method === 'getDb') {
+                  return { node, messageId: 'ambientDb', data: { name: 'getDb()', fn } }
+                }
+                if (callee.object.type !== 'Identifier') return
+                const receiver = callee.object.name
+                if (receiver === 'application' && method === 'get' && node.arguments[0]?.value === 'DbService') {
+                  return { node, messageId: 'ambientDb', data: { name: "application.get('DbService')", fn } }
+                }
+                if (receiver === 'providerRegistryService' && method === 'resolveModel') return
+                if (receiver.endsWith('Service') && !method.endsWith('Tx')) {
+                  return { node, messageId: 'serviceEscape', data: { name: `${receiver}.${method}()`, fn } }
+                }
+              }
 
               return {
                 FunctionDeclaration: enter,
@@ -783,38 +814,42 @@ export default defineConfig([
                 'FunctionExpression:exit': exit,
                 ArrowFunctionExpression: enter,
                 'ArrowFunctionExpression:exit': exit,
-
                 CallExpression(node) {
-                  const fn = enclosingTx()
-                  if (!fn) return
-
-                  const { callee } = node
-                  if (callee.type !== 'MemberExpression' || callee.property.type !== 'Identifier') return
-                  const method = callee.property.name
-
-                  if (method === 'getDb') {
-                    context.report({ node, messageId: 'ambientDb', data: { name: 'getDb()', fn } })
-                    return
+                  scopes.at(-1)?.calls.push(node)
+                },
+                MemberExpression(node) {
+                  if (node.object.type === 'ThisExpression' && node.property.type === 'Identifier') {
+                    scopes.at(-1)?.members.push(node.property.name)
                   }
-
-                  if (callee.object.type !== 'Identifier') return
-                  const receiver = callee.object.name
-
-                  if (receiver === 'application' && method === 'get' && node.arguments[0]?.value === 'DbService') {
-                    context.report({
-                      node,
-                      messageId: 'ambientDb',
-                      data: { name: "application.get('DbService')", fn }
-                    })
-                    return
-                  }
-
-                  if (receiver.endsWith('Service') && !method.endsWith('Tx')) {
-                    context.report({
-                      node,
-                      messageId: 'serviceEscape',
-                      data: { name: `${receiver}.${method}()`, fn }
-                    })
+                },
+                'Program:exit'() {
+                  const reported = new Set()
+                  for (const root of functions.values()) {
+                    if (!root.name?.endsWith('Tx') && !databaseFreeMethods.includes(root.name)) continue
+                    const visited = new Set()
+                    const visit = (scope) => {
+                      if (!scope || visited.has(scope)) return
+                      visited.add(scope)
+                      for (const call of scope.calls) {
+                        const diagnostic = inspectCall(call, root.name)
+                        if (diagnostic && !reported.has(call)) {
+                          context.report(diagnostic)
+                          reported.add(call)
+                        }
+                      }
+                      for (const child of scope.children) visit(child)
+                      if (!followHelpers) return
+                      for (const name of scope.members) {
+                        const method = scope.classBody?.body.find(
+                          (member) =>
+                            member.type === 'MethodDefinition' &&
+                            member.key.type === 'Identifier' &&
+                            member.key.name === name
+                        )
+                        if (method) visit(functions.get(method.value))
+                      }
+                    }
+                    visit(root)
                   }
                 }
               }
@@ -824,7 +859,13 @@ export default defineConfig([
       }
     },
     rules: {
-      'tx-boundary/no-ambient-db-in-tx': 'warn'
+      'tx-boundary/no-ambient-db-in-tx': 'error'
+    }
+  },
+  {
+    files: ['src/main/data/services/ModelService.ts', 'src/main/data/services/ProviderRegistryService.ts'],
+    rules: {
+      'tx-boundary/no-ambient-db-in-tx': ['error', { followHelpers: true, databaseFreeMethods: ['resolveModel'] }]
     }
   },
   // i18n

@@ -5,7 +5,7 @@
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
  * Generated at: 2026-09-15T02:04:31.029Z
- * Total icons: 161
+ * Total icons: 162
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -136,6 +136,7 @@ import { RiverflowIcon } from './riverflow'
 import { RunwayIcon } from './runway'
 import { SearxngIcon } from './searxng'
 import { SensetimeIcon } from './sensetime'
+import { SerplyIcon } from './serply'
 import { SiliconIcon } from './silicon'
 import { SkyworkIcon } from './skywork'
 import { SmitheryIcon } from './smithery'
@@ -298,6 +299,7 @@ export const PROVIDER_ICON_CATALOG = {
   riverflow: RiverflowIcon,
   runway: RunwayIcon,
   searxng: SearxngIcon,
+  serply: SerplyIcon,
   sensetime: SensetimeIcon,
   silicon: SiliconIcon,
   skywork: SkyworkIcon,

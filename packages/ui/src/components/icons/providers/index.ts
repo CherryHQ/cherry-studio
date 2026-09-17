@@ -4,7 +4,7 @@
  * Do not edit manually
  *
  * Generated at: 2026-09-15T02:04:30.876Z
- * Total icons: 161
+ * Total icons: 162
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
 export { Ai302Icon as Ai302 } from './302ai'
@@ -133,6 +133,7 @@ export { RiverflowIcon as Riverflow } from './riverflow'
 export { RunwayIcon as Runway } from './runway'
 export { SearxngIcon as Searxng } from './searxng'
 export { SensetimeIcon as Sensetime } from './sensetime'
+export { SerplyIcon as Serply } from './serply'
 export { SiliconIcon as Silicon } from './silicon'
 export { SkyworkIcon as Skywork } from './skywork'
 export { SmitheryIcon as Smithery } from './smithery'

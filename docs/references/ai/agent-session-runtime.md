@@ -34,7 +34,8 @@ driver internals behind the same host contract.
 | Owner | Responsibility |
 |---|---|
 | `AgentChatContextProvider` | Validates the agent session, persists the user row (plus a pending assistant row on a fresh turn), and either starts a turn or enqueues a follow-up through the runtime. |
-| `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, quiescing, and deletion coordination. |
+| `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, and delivery quiescing. |
+| `AgentLifecycleService` | Coordinates archive, restore, purge, workspace deletion, and Agent-side backup quiescing; see [Agent Lifecycle](./agent-lifecycle.md). |
 | `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
 | `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional `redirect` (mid-turn steer), `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
@@ -348,7 +349,7 @@ backup and shutdown drains cannot be held by a synchronous retry loop. Legacy `c
 rows compare using their effective `claude-code` runtime type.
 
 Session deletion is a mixed operation and therefore uses the IpcApi
-`ai.agent.session.delete`, not DataApi DELETE. `AgentSessionDeliveryService` calls the data service
+`ai.agent.session.delete`, not DataApi DELETE. `AgentLifecycleService` calls the data service
 for one transaction that creates exact failure results before cascading target rows, then closes the
 deleted Sessions' runtimes before kicking only those returned result rows. A caller that has already
 been deleted cannot receive a result; that terminal routing failure is recorded rather than retried.
@@ -801,12 +802,17 @@ parts and runtime close barriers that may still flush external state after their
 The resulting stream writes belong to `AiStreamManager`'s drain. This is distinct from the BaseService
 lifecycle pause and never touches service state.
 `AgentSessionDeliveryService` suppresses accepted-row kicks while a
-hold is live, tracks validation/claim/send handoffs and deletion orchestration in its drain set,
+hold is live, tracks validation/claim/send handoffs in its drain set,
 rechecks the hold and target busy/live state after asynchronous validation before any transaction, then re-kicks
 suppressed target Sessions when the final hold releases. Runtime `closeSession()` also emits the
 generic idle event so accepted work blocked by a stopped turn is not stranded.
 Per-Session kicks use a rerun latch: an idle/terminal wake arriving while the previous single-flight
 kick unwinds is replayed after ownership releases rather than being dropped as a duplicate.
+
+BackupManager reaches these Agent-specific participants through `AgentLifecycleService`.
+The lifecycle owner separately tracks archive/restore/purge work and aggregates it with
+Channel, Delivery, and Runtime drains. Its ingress barrier precedes execution pause;
+see [Backup and shutdown](./agent-lifecycle.md#backup-and-shutdown).
 
 ## Verification
 
