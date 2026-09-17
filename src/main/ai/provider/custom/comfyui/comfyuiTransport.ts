@@ -90,8 +90,11 @@ class ComfyuiTransport implements ImageGenerationTransport {
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const workflowPath = `${WORKFLOW_DIR}/${input.modelId}${WORKFLOW_FILE_EXTENSION}`
     const [workflow, objectInfo] = await Promise.all([
+      // `/userdata/{file}` matches a single path segment, so the separator has to be
+      // percent-encoded — `/userdata/workflows/x.json` is a 404, `%2F` is not. The
+      // ComfyUI frontend encodes the same parameter.
       fetchJson<Parameters<typeof convertUiWorkflowToPrompt>[0]>(
-        `${this.baseURL}/userdata/${workflowPath}`,
+        `${this.baseURL}/userdata/${encodeURIComponent(workflowPath)}`,
         input.signal
       ),
       fetchJson<ObjectInfo>(`${this.baseURL}/object_info`, input.signal)
