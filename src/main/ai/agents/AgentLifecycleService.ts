@@ -2,6 +2,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
+import { followupQueueService } from '@data/services/FollowupQueueService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -362,6 +363,10 @@ export class AgentLifecycleService extends BaseService {
         return { result, scheduleIds }
       })
       agentService.notifyDeleted(agentId, result)
+      if (result.deleted && permanent) {
+        const purgedScopeIds = result.deletedSessionIds ?? result.affectedSessionIds
+        if (purgedScopeIds.length > 0) followupQueueService.notifyPurged()
+      }
       this.syncSchedules(scheduleIds)
       application.get('ChannelManager').reconcileAgent(agentId, true)
       const manager = application.get('AiStreamManager')
