@@ -2033,6 +2033,40 @@ describe('ChatComposer', () => {
     expect((mocks.surfaceProps?.queueContent as any)?.props.items).toHaveLength(2)
   })
 
+  it('keeps Skip/Retry disabled after remounting mid-retry (failure drain still live)', async () => {
+    // First send fails → banner; the retry stays pending across the remount.
+    const onSend = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('send failed'))
+      .mockImplementationOnce(() => new Promise(() => undefined))
+    mocks.topicPending = true
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'first', tokens: [] })
+    })
+
+    mocks.topicPending = false
+    mocks.topicFulfilled = true
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+    // Drain fails → the failure banner owns the queue.
+    await waitFor(() => expect((mocks.surfaceProps?.queueContent as any)?.props.failedItemId).not.toBeNull())
+
+    await act(async () => {
+      await (mocks.surfaceProps?.queueContent as any)?.props.onRetryFailed()
+    })
+    expect(onSend).toHaveBeenCalledTimes(2)
+
+    // Remount: drainingId state resets, but the durable claim survives, so the
+    // banner must stay locked instead of enabling Skip/Retry that silently no-op.
+    view.unmount()
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    expect((mocks.surfaceProps?.queueContent as any)?.props.failedItemId).not.toBeNull()
+    expect((mocks.surfaceProps?.queueContent as any)?.props.isFailureDraining).toBe(true)
+  })
+
   it('restores queued knowledge selection from the user-message parts', async () => {
     const knowledgeBase = {
       id: 'kb-1',
