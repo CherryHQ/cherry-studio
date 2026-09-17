@@ -274,6 +274,61 @@ describe('IpcChatTransport', () => {
     })
   })
 
+  describe('a stop that named its origin', () => {
+    it('sends one abort, with that origin, when the SDK abort fires first', async () => {
+      // The SDK's stop aborts the signal; the transport used to answer with its own request,
+      // which could reach main before the caller's and take the attribution.
+      const abortController = new AbortController()
+      const stream = await transport.sendMessages({ ...baseOptions, abortSignal: abortController.signal })
+      const reader = stream.getReader()
+
+      await transport.withAttributedStop(topicId, async () => {
+        abortController.abort()
+        await ipcMock.request('ai.stream.abort', { topicId, origin: 'user-stop' })
+      })
+
+      expect((await reader.read()).done).toBe(true)
+      expect(mock.mockApi.streamAbort.mock.calls).toEqual([[{ topicId, origin: 'user-stop' }]])
+    })
+
+    it('does not answer an already-aborted signal either', async () => {
+      const abortController = new AbortController()
+      abortController.abort()
+
+      await transport.withAttributedStop(topicId, async () => {
+        const stream = await transport.sendMessages({ ...baseOptions, abortSignal: abortController.signal })
+        expect((await stream.getReader().read()).done).toBe(true)
+      })
+
+      expect(mock.mockApi.streamAbort).not.toHaveBeenCalled()
+    })
+
+    it('leaves a later abort of the topic to the transport again', async () => {
+      await transport.withAttributedStop(topicId, async () => {})
+
+      const abortController = new AbortController()
+      const stream = await transport.sendMessages({ ...baseOptions, abortSignal: abortController.signal })
+      const reader = stream.getReader()
+      abortController.abort()
+      await reader.read()
+
+      expect(mock.mockApi.streamAbort.mock.calls).toEqual([[{ topicId, origin: 'transport-abort-signal' }]])
+    })
+
+    it('only holds back the topic it was given', async () => {
+      const abortController = new AbortController()
+      const stream = await transport.sendMessages({ ...baseOptions, abortSignal: abortController.signal })
+      const reader = stream.getReader()
+
+      await transport.withAttributedStop('another-topic', async () => {
+        abortController.abort()
+        await reader.read()
+      })
+
+      expect(mock.mockApi.streamAbort.mock.calls).toEqual([[{ topicId, origin: 'transport-abort-signal' }]])
+    })
+  })
+
   it('calls streamAbort on abort signal', async () => {
     const abortController = new AbortController()
     const stream = await transport.sendMessages({
