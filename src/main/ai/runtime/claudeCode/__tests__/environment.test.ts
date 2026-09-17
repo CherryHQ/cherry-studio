@@ -137,6 +137,26 @@ describe('resolveAutoCompactWindow', () => {
     ).toBe(219_520)
   })
 
+  // Model-aware path resolves the same URL-less Vertex entry when the model
+  // materializes to anthropic-messages, so catalog Vertex sessions stay trusted.
+  it('trusts a Vertex model on its materialized Anthropic endpoint', () => {
+    expect(
+      resolveAutoCompactWindow(
+        256_000,
+        32_000,
+        {
+          id: 'vertexai',
+          presetProviderId: 'vertexai',
+          defaultChatEndpoint: 'google-generate-content',
+          endpointConfigs: {
+            'anthropic-messages': { adapterFamily: 'google-vertex-anthropic' }
+          }
+        } as never,
+        { endpointTypes: ['anthropic-messages'] } as never
+      )
+    ).toBe(219_520)
+  })
+
   // Trust follows the endpoint that actually serves the model: a model reaching
   // the official endpoint through a non-Anthropic provider default keeps the
   // full budget.
