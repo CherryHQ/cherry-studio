@@ -1,71 +1,57 @@
 import { BaseService } from '@main/core/lifecycle'
+import { getDependencies } from '@main/core/lifecycle/decorators'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
 import type { TopicStatusSnapshotEntry, TopicStreamStatus } from '@shared/ai/transport'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ConversationIslandCommand, ConversationIslandHelperEvent } from '../conversationIslandProtocol'
 
 type CacheListener = (
   value: TopicStatusSnapshotEntry | null | undefined,
   oldValue: TopicStatusSnapshotEntry | null | undefined,
   concreteKey: string
 ) => void
+type PresentCommand = Extract<ConversationIslandCommand, { type: 'present' }>
+type SetExpandedEvent = Extract<ConversationIslandHelperEvent, { type: 'setExpanded' }>
+type OpenActivityEvent = Extract<ConversationIslandHelperEvent, { type: 'openActivity' }>
 
-const mocks = vi.hoisted(() => {
-  type Listener = (...args: unknown[]) => void
-  const screenListeners = new Map<string, Set<Listener>>()
-  const onScreen = (event: string, listener: Listener) => {
-    if (!screenListeners.has(event)) screenListeners.set(event, new Set())
-    screenListeners.get(event)?.add(listener)
-  }
-  const offScreen = (event: string, listener: Listener) => screenListeners.get(event)?.delete(listener)
-
-  return {
-    animationSettingsError: undefined as Error | undefined,
-    activitiesListener: undefined as ((event: any) => void) | undefined,
-    cacheDisposers: new Map<string, ReturnType<typeof vi.fn>>(),
-    cacheSubscriptions: new Map<string, CacheListener>(),
-    createdListeners: [] as Array<(managed: any) => void>,
-    destroyedListeners: [] as Array<(managed: any) => void>,
-    displays: [] as any[],
-    focusedWindowInfos: [] as WindowInfo[],
-    geometryProbe: vi.fn(),
-    geometryResolve: vi.fn(),
-    geometrySize: vi.fn(),
-    i18nSuffix: '',
-    loggerError: vi.fn(),
-    loggerWarn: vi.fn(),
-    name: 'Research notes',
-    agent: { name: 'Coding Agent', configuration: { avatar: '🤖' } } as any,
-    agentId: 'agent-1' as string | null,
-    assistant: { name: 'Research Assistant', emoji: '🔬' } as any,
-    assistantId: 'assistant-1' as string | null,
-    openError: undefined as Error | undefined,
-    powerListener: undefined as (() => void) | undefined,
-    preferenceListeners: new Map<string, (value: any) => void>(),
-    preferences: new Map<string, any>(),
-    prefersReducedMotion: false,
-    resolveName: vi.fn(),
-    resolveAgent: vi.fn(),
-    resolveAgentId: vi.fn(),
-    resolveAssistant: vi.fn(),
-    resolveAssistantId: vi.fn(),
-    screenListeners,
-    screen: {
-      on: vi.fn(onScreen),
-      removeListener: vi.fn(offScreen),
-      emit(event: string, ...args: unknown[]) {
-        for (const listener of screenListeners.get(event) ?? []) listener(...args)
-      },
-      getAllDisplays: vi.fn(() => [] as any[]),
-      getPrimaryDisplay: vi.fn(() => undefined as any),
-      getDisplayMatching: vi.fn((bounds: unknown) => {
-        void bounds
-        return undefined as any
-      })
-    },
-    windows: new Map<string, any>(),
-    windowSequence: 0
-  }
-})
+const mocks = vi.hoisted(() => ({
+  animationSettingsError: undefined as Error | undefined,
+  cacheDisposers: new Map<string, ReturnType<typeof vi.fn>>(),
+  cacheSubscriptions: new Map<string, CacheListener>(),
+  darkAppearance: false,
+  displays: [] as any[],
+  focusedWindowInfos: [] as WindowInfo[],
+  hostCallbacks: undefined as
+    | {
+        onSetExpanded?: (event: SetExpandedEvent) => void
+        onOpenActivity?: (event: OpenActivityEvent) => void
+      }
+    | undefined,
+  hostDismiss: vi.fn(),
+  hostPresent: vi.fn(),
+  hostResetCircuit: vi.fn(),
+  hostShutdown: vi.fn(() => Promise.resolve()),
+  i18nSuffix: '',
+  loggerError: vi.fn(),
+  loggerWarn: vi.fn(),
+  name: 'Research notes',
+  agent: { name: 'Coding Agent', configuration: { avatar: '🤖' } } as any,
+  agentId: 'agent-1' as string | null,
+  assistant: { name: 'Research Assistant', emoji: '🔬' } as any,
+  assistantId: 'assistant-1' as string | null,
+  navigationFocusOrOpen: vi.fn(() => Promise.resolve()),
+  preferenceListeners: new Map<string, (value: any) => void>(),
+  preferences: new Map<string, any>(),
+  prefersReducedMotion: false,
+  resolveName: vi.fn(),
+  resolveAgent: vi.fn(),
+  resolveAgentId: vi.fn(),
+  resolveAssistant: vi.fn(),
+  resolveAssistantId: vi.fn(),
+  sourceWindows: new Map<string, any>(),
+  themeListeners: new Set<() => void>()
+}))
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ error: mocks.loggerError, warn: mocks.loggerWarn }) }
@@ -86,15 +72,39 @@ vi.mock('@main/utils/fullChromeWindows', () => ({
   getFullChromeWindowInfos: () => mocks.focusedWindowInfos
 }))
 
-vi.mock('../macScreenGeometry', () => ({
-  COMPACT_ISLAND_SIZE: { width: 320, height: 38 },
-  probeMacScreenGeometry: (...args: unknown[]) => mocks.geometryProbe(...args),
-  resolveConversationIslandBounds: (...args: unknown[]) => mocks.geometryResolve(...args),
-  resolveConversationIslandSize: (...args: unknown[]) => mocks.geometrySize(...args)
+vi.mock('../ConversationIslandNativeHost', () => ({
+  ConversationIslandNativeHost: class {
+    constructor(options?: {
+      callbacks?: {
+        onSetExpanded?: (event: SetExpandedEvent) => void
+        onOpenActivity?: (event: OpenActivityEvent) => void
+      }
+    }) {
+      mocks.hostCallbacks = options?.callbacks
+    }
+
+    present = mocks.hostPresent
+    dismiss = mocks.hostDismiss
+    resetCircuit = mocks.hostResetCircuit
+    shutdown = mocks.hostShutdown
+  }
 }))
 
 vi.mock('electron', () => ({
-  screen: mocks.screen,
+  nativeTheme: {
+    get shouldUseDarkColors() {
+      return mocks.darkAppearance
+    },
+    on: vi.fn((_event: string, listener: () => void) => mocks.themeListeners.add(listener)),
+    removeListener: vi.fn((_event: string, listener: () => void) => mocks.themeListeners.delete(listener))
+  },
+  screen: {
+    getAllDisplays: vi.fn(() => mocks.displays),
+    getPrimaryDisplay: vi.fn(() => mocks.displays[0]),
+    getDisplayMatching: vi.fn((bounds: { x: number }) =>
+      bounds.x >= 1512 ? mocks.displays.find((display) => display.id === 2) : mocks.displays[0]
+    )
+  },
   systemPreferences: {
     getAnimationSettings: () => {
       if (mocks.animationSettingsError) throw mocks.animationSettingsError
@@ -106,19 +116,6 @@ vi.mock('electron', () => ({
     }
   }
 }))
-
-function createWindow(initialBounds = { x: 0, y: 0, width: 320, height: 38 }) {
-  let bounds = { ...initialBounds }
-  return {
-    getBounds: vi.fn(() => bounds),
-    hide: vi.fn(),
-    isDestroyed: vi.fn(() => false),
-    setBounds: vi.fn((nextBounds: typeof bounds) => {
-      bounds = { ...nextBounds }
-    }),
-    showInactive: vi.fn()
-  }
-}
 
 const services = vi.hoisted(() => {
   const cacheService = {
@@ -140,54 +137,12 @@ const services = vi.hoisted(() => {
     })
   }
 
-  const powerService = {
-    onResume: vi.fn((listener: () => void) => {
-      mocks.powerListener = listener
-      return {
-        dispose: vi.fn(() => {
-          if (mocks.powerListener === listener) mocks.powerListener = undefined
-        })
-      }
-    })
-  }
-
   const windowManager = {
-    close: vi.fn((id: string) => {
-      const window = mocks.windows.get(id)
-      if (!window) return false
-      mocks.windows.delete(id)
-      for (const listener of mocks.destroyedListeners) listener({ id, type: WindowType.ConversationIsland, window })
-      return true
-    }),
-    getWindow: vi.fn((id: string) => mocks.windows.get(id)),
-    onWindowCreatedByType: vi.fn((_type: WindowType, listener: (managed: any) => void) => {
-      mocks.createdListeners.push(listener)
-      return { dispose: vi.fn(() => mocks.createdListeners.splice(mocks.createdListeners.indexOf(listener), 1)) }
-    }),
-    onWindowDestroyedByType: vi.fn((_type: WindowType, listener: (managed: any) => void) => {
-      mocks.destroyedListeners.push(listener)
-      return { dispose: vi.fn(() => mocks.destroyedListeners.splice(mocks.destroyedListeners.indexOf(listener), 1)) }
-    }),
-    open: vi.fn((type: WindowType, args: unknown) => {
-      void args
-      if (mocks.openError) {
-        const error = mocks.openError
-        mocks.openError = undefined
-        throw error
-      }
-      const id = `island-${++mocks.windowSequence}`
-      const window = createWindow()
-      mocks.windows.set(id, window)
-      for (const listener of mocks.createdListeners) listener({ id, type, window })
-      return id
-    }),
-    pushInitData: vi.fn((id: string, snapshot: unknown) => {
-      void snapshot
-      return mocks.windows.has(id)
-    })
+    getWindow: vi.fn((id: string) => mocks.sourceWindows.get(id))
   }
 
-  return { cacheService, powerService, preferenceService, windowManager }
+  const navigationService = { focusOrOpen: mocks.navigationFocusOrOpen }
+  return { cacheService, navigationService, preferenceService, windowManager }
 })
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -200,15 +155,11 @@ vi.mock('@data/services/AgentSessionService', () => ({
 }))
 
 vi.mock('@data/services/AgentService', () => ({
-  agentService: {
-    getAgent: (agentId: string) => mocks.resolveAgent(agentId)
-  }
+  agentService: { getAgent: (agentId: string) => mocks.resolveAgent(agentId) }
 }))
 
 vi.mock('@data/services/AssistantService', () => ({
-  assistantDataService: {
-    getById: (assistantId: string) => mocks.resolveAssistant(assistantId)
-  }
+  assistantDataService: { getById: (assistantId: string) => mocks.resolveAssistant(assistantId) }
 }))
 
 vi.mock('@data/services/TopicService', () => ({
@@ -225,7 +176,7 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       const service = {
         CacheService: services.cacheService,
-        PowerService: services.powerService,
+        ConversationNavigationService: services.navigationService,
         PreferenceService: services.preferenceService,
         WindowManager: services.windowManager
       }[name]
@@ -240,12 +191,20 @@ const { ConversationIslandService } = await import('../ConversationIslandService
 const internalDisplay = { id: 1, bounds: { x: 0, y: 0, width: 1512, height: 982 }, internal: true }
 const externalDisplay = { id: 2, bounds: { x: 1512, y: 0, width: 1920, height: 1080 }, internal: false }
 
+function createSourceWindow(bounds: { x: number; y: number; width: number; height: number }) {
+  return {
+    getBounds: vi.fn(() => bounds),
+    isDestroyed: vi.fn(() => false)
+  }
+}
+
 function emitActivity(
   status: TopicStreamStatus | null,
   changedAt: number,
   topicId = 'topic-1',
   conversationType: 'assistant' | 'agent' = 'assistant',
-  turnId = `${topicId}-turn`
+  turnId = `${topicId}-turn`,
+  awaitingApproval = status === 'awaiting-approval'
 ): void {
   vi.setSystemTime(changedAt)
   const pattern =
@@ -253,8 +212,20 @@ function emitActivity(
       ? 'topic.stream.statuses.agent-session:${sessionId}'
       : 'topic.stream.statuses.${topicId}'
   const concreteTopicId = conversationType === 'agent' ? `agent-session:${topicId}` : topicId
+  const approvalAnchor = {
+    executionId: 'provider::model' as const,
+    attemptId: 1,
+    anchorMessageId: 'assistant-message-1'
+  }
   mocks.cacheSubscriptions.get(pattern)?.(
-    status === null ? null : { status, turnId, activeExecutions: [], awaitingApprovalAnchors: [] },
+    status === null
+      ? null
+      : {
+          status: status === 'awaiting-approval' ? 'streaming' : status,
+          turnId,
+          activeExecutions: awaitingApproval ? [approvalAnchor] : [],
+          awaitingApprovalAnchors: awaitingApproval ? [approvalAnchor] : []
+        },
     null,
     `topic.stream.statuses.${concreteTopicId}`
   )
@@ -265,15 +236,18 @@ function changePreference(key: string, value: unknown): void {
   mocks.preferenceListeners.get(key)?.(value)
 }
 
-function latestSnapshot(): any {
-  const pushed = services.windowManager.pushInitData.mock.lastCall?.[1]
-  if (pushed) return pushed
-  return (services.windowManager.open.mock.lastCall?.[1] as { initData?: unknown } | undefined)?.initData
+function latestPresent(): PresentCommand {
+  const command = mocks.hostPresent.mock.lastCall?.[0] as PresentCommand | undefined
+  if (!command) throw new Error('Expected a native present command')
+  return command
 }
 
-async function flushPromises(): Promise<void> {
-  await Promise.resolve()
-  await Promise.resolve()
+function sendSetExpanded(revision: number, expanded: boolean): void {
+  mocks.hostCallbacks?.onSetExpanded?.({ version: 1, type: 'setExpanded', revision, expanded })
+}
+
+function sendOpenActivity(revision: number, activityId: string): void {
+  mocks.hostCallbacks?.onOpenActivity?.({ version: 1, type: 'openActivity', revision, activityId })
 }
 
 describe('ConversationIslandService', () => {
@@ -285,59 +259,37 @@ describe('ConversationIslandService', () => {
     vi.setSystemTime(0)
     vi.clearAllMocks()
     mocks.animationSettingsError = undefined
-    mocks.activitiesListener = undefined
     mocks.cacheDisposers.clear()
     mocks.cacheSubscriptions.clear()
-    mocks.createdListeners.length = 0
-    mocks.destroyedListeners.length = 0
+    mocks.darkAppearance = false
     mocks.displays = [internalDisplay, externalDisplay]
     mocks.focusedWindowInfos = []
-    mocks.geometryProbe.mockResolvedValue(new Map())
-    mocks.geometryResolve.mockImplementation(
-      (display: any, _geometry: unknown, size: { width: number; height: number }) => ({
-        bounds: { x: display.bounds.x, y: display.bounds.y + 8, ...size },
-        presentation: 'capsule'
-      })
-    )
-    mocks.geometrySize.mockReturnValue({ width: 420, height: 142 })
+    mocks.hostCallbacks = undefined
+    mocks.hostShutdown.mockResolvedValue(undefined)
     mocks.i18nSuffix = ''
     mocks.name = 'Research notes'
     mocks.agent = { name: 'Coding Agent', configuration: { avatar: '🤖' } }
     mocks.agentId = 'agent-1'
     mocks.assistant = { name: 'Research Assistant', emoji: '🔬' }
     mocks.assistantId = 'assistant-1'
-    mocks.openError = undefined
-    mocks.powerListener = undefined
     mocks.preferenceListeners.clear()
     mocks.preferences.clear()
-    mocks.prefersReducedMotion = false
     mocks.preferences.set('feature.conversation_island.enabled', false)
     mocks.preferences.set('app.language', 'en-US')
+    mocks.preferences.set('ui.theme_user.color_primary', '#123ABC')
+    mocks.preferences.set('ui.theme_user.font_family', 'Inter')
+    mocks.prefersReducedMotion = false
     mocks.resolveName.mockImplementation(() => mocks.name)
     mocks.resolveAgent.mockImplementation(() => mocks.agent)
     mocks.resolveAgentId.mockImplementation(() => mocks.agentId)
     mocks.resolveAssistant.mockImplementation(() => mocks.assistant)
     mocks.resolveAssistantId.mockImplementation(() => mocks.assistantId)
-    mocks.screenListeners.clear()
-    mocks.screen.getAllDisplays.mockImplementation(() => mocks.displays)
-    mocks.screen.getPrimaryDisplay.mockImplementation(() => mocks.displays[0])
-    mocks.screen.getDisplayMatching.mockImplementation((value: unknown) => {
-      const bounds = value as { x: number }
-      return bounds.x >= externalDisplay.bounds.x ? externalDisplay : internalDisplay
-    })
-    mocks.windows.clear()
-    mocks.windows.set('main-1', createWindow({ x: 1600, y: 20, width: 1000, height: 700 }))
-    mocks.windowSequence = 0
+    mocks.sourceWindows.clear()
+    mocks.sourceWindows.set('main-1', createSourceWindow({ x: 1600, y: 20, width: 1000, height: 700 }))
+    mocks.themeListeners.clear()
 
     service = new ConversationIslandService()
     await service._doInit()
-    mocks.activitiesListener = (event) => {
-      const pattern =
-        event.target.conversationType === 'agent'
-          ? 'topic.stream.statuses.agent-session:${sessionId}'
-          : 'topic.stream.statuses.${topicId}'
-      mocks.cacheSubscriptions.get(pattern)?.(event.snapshot, null, `topic.stream.statuses.${event.topicId}`)
-    }
   })
 
   afterEach(async () => {
@@ -347,37 +299,25 @@ describe('ConversationIslandService', () => {
     BaseService.resetInstances()
   })
 
-  it('observes assistant and agent-session activity through their exact cache patterns', () => {
+  it('declares only the same-phase services it consumes', () => {
+    expect(getDependencies(ConversationIslandService)).toEqual(['WindowManager', 'ConversationNavigationService'])
+  })
+
+  it('observes assistant and agent-session activities through their exact cache patterns', () => {
     expect([...mocks.cacheSubscriptions.keys()]).toEqual([
       'topic.stream.statuses.${topicId}',
       'topic.stream.statuses.agent-session:${sessionId}'
     ])
   })
 
-  it('projects assistant and agent-session cache activity to navigation targets', () => {
-    mocks.resolveName.mockImplementation(
-      (target: { conversationType: 'assistant' | 'agent'; conversationId: string }) =>
-        `${target.conversationType}:${target.conversationId}`
-    )
+  it('does not present or spawn the helper merely because the feature is enabled', () => {
     changePreference('feature.conversation_island.enabled', true)
 
-    emitActivity('streaming', 100, 'topic-assistant', 'assistant')
-    expect(latestSnapshot()).toMatchObject({
-      activityId: 'topic-assistant',
-      target: { conversationType: 'assistant', conversationId: 'topic-assistant' },
-      title: 'assistant:topic-assistant'
-    })
-
-    emitActivity('aborted', 200, 'topic-assistant', 'assistant')
-    emitActivity('streaming', 300, 'session-1', 'agent')
-    expect(latestSnapshot()).toMatchObject({
-      activityId: 'agent-session:session-1',
-      target: { conversationType: 'agent', conversationId: 'session-1' },
-      title: 'agent:session-1'
-    })
+    expect(mocks.hostResetCircuit).toHaveBeenCalledOnce()
+    expect(mocks.hostPresent).not.toHaveBeenCalled()
   })
 
-  it('retains live activity while disabled without creating resources', async () => {
+  it('retains disabled activity and presents it on its originating display when enabled', () => {
     mocks.focusedWindowInfos = [
       {
         id: 'main-1',
@@ -388,656 +328,310 @@ describe('ConversationIslandService', () => {
         createdAt: 1
       }
     ]
-
     emitActivity('pending', 100)
-
-    expect(services.windowManager.open).not.toHaveBeenCalled()
-    expect(mocks.geometryProbe).not.toHaveBeenCalled()
-    expect(mocks.screenListeners.size).toBe(0)
-    expect(mocks.powerListener).toBeUndefined()
+    expect(mocks.hostPresent).not.toHaveBeenCalled()
 
     changePreference('feature.conversation_island.enabled', true)
-    await flushPromises()
 
-    expect(services.windowManager.open).toHaveBeenCalledOnce()
-    expect(mocks.geometryProbe).toHaveBeenCalledOnce()
-    expect(mocks.geometryResolve).toHaveBeenCalledWith(externalDisplay, expect.any(Map), { width: 320, height: 38 })
+    expect(latestPresent().payload.displayId).toBe(2)
   })
 
-  it('discards terminal activity while disabled or when the feature is disabled', () => {
-    emitActivity('done', 100, 'topic-done')
-    emitActivity('error', 200, 'topic-error')
-
-    expect(vi.getTimerCount()).toBe(0)
-
-    changePreference('feature.conversation_island.enabled', true)
-    expect(services.windowManager.open).not.toHaveBeenCalled()
-
-    emitActivity('done', 300, 'topic-active')
-    expect(services.windowManager.open).toHaveBeenCalledOnce()
-
-    changePreference('feature.conversation_island.enabled', false)
+  it('projects trusted assistant and agent metadata without navigation targets on the wire', () => {
+    mocks.resolveName.mockImplementation(
+      (target: { conversationType: 'assistant' | 'agent'; conversationId: string }) =>
+        `${target.conversationType}:${target.conversationId}`
+    )
     changePreference('feature.conversation_island.enabled', true)
 
-    expect(services.windowManager.open).toHaveBeenCalledOnce()
+    emitActivity('streaming', 100, 'topic-assistant', 'assistant')
+    expect(latestPresent().payload.activities[0]).toEqual({
+      activityId: 'topic-assistant',
+      identityAvatar: '🔬',
+      identityName: 'Research Assistant',
+      state: 'streaming',
+      statusText: 'conversation_island.status.assistant.streaming',
+      title: 'assistant:topic-assistant'
+    })
+    expect(latestPresent().payload.activities[0]).not.toHaveProperty('target')
+
+    emitActivity('aborted', 200, 'topic-assistant', 'assistant')
+    emitActivity('streaming', 300, 'session-1', 'agent')
+    expect(latestPresent().payload.activities[0]).toMatchObject({
+      activityId: 'agent-session:session-1',
+      identityAvatar: '🤖',
+      identityName: 'Coding Agent',
+      title: 'agent:session-1'
+    })
+    expect(latestPresent().payload.activities[0]).not.toHaveProperty('target')
   })
 
-  it('creates one singleton and pushes later state with a cached title', () => {
+  it('sends only the primary item while collapsed but keeps the full activity count', () => {
     changePreference('feature.conversation_island.enabled', true)
+    emitActivity('streaming', 100, 'topic-old')
+    emitActivity('pending', 200, 'topic-new')
 
-    emitActivity('pending', 100)
-    emitActivity('streaming', 200)
-
-    expect(services.windowManager.open).toHaveBeenCalledOnce()
-    expect(services.windowManager.pushInitData).toHaveBeenCalledOnce()
-    expect(mocks.resolveName).toHaveBeenCalledOnce()
-    expect(services.windowManager.pushInitData.mock.calls[0][1]).toMatchObject({
-      title: 'Research notes',
-      state: 'streaming'
+    expect(latestPresent().payload).toMatchObject({
+      expanded: false,
+      primaryActivityId: 'topic-new',
+      activityCountText: 'Total: 2',
+      activities: [{ activityId: 'topic-new' }]
     })
   })
 
-  it('publishes an exit snapshot and closes after 180 ms when normal activity exhausts', async () => {
+  it('keeps frozen expanded order and projects approval state in a complete snapshot', () => {
+    const titles = new Map([
+      ['topic-streaming', 'Streaming research'],
+      ['topic-approval', 'Approval request'],
+      ['topic-new', 'New work']
+    ])
+    mocks.resolveName.mockImplementation((target: { conversationId: string }) => titles.get(target.conversationId))
     changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100)
+    emitActivity('streaming', 100, 'topic-streaming')
+    emitActivity('awaiting-approval', 200, 'topic-approval', 'agent')
 
-    emitActivity(null, 200)
+    sendSetExpanded(latestPresent().revision, true)
+    emitActivity('streaming', 300, 'topic-new')
 
-    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-1', exiting: true })
-    expect(services.windowManager.close).not.toHaveBeenCalled()
-
-    await vi.advanceTimersByTimeAsync(179)
-    expect(services.windowManager.close).not.toHaveBeenCalled()
-
-    await vi.advanceTimersByTimeAsync(1)
-    expect(services.windowManager.close).toHaveBeenCalledWith('island-1')
-  })
-
-  it('cancels exit and reuses the window when a new activity arrives', async () => {
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100, 'topic-1')
-    emitActivity(null, 200, 'topic-1')
-
-    emitActivity('pending', 250, 'topic-2')
-
-    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-2', exiting: false })
-    expect(services.windowManager.open).toHaveBeenCalledOnce()
-
-    await vi.advanceTimersByTimeAsync(180)
-    expect(services.windowManager.close).not.toHaveBeenCalled()
-  })
-
-  it('closes immediately when the island window is invalid at exit', () => {
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100)
-    mocks.windows.get('island-1').isDestroyed.mockReturnValue(true)
-
-    emitActivity(null, 200)
-
-    expect(services.windowManager.pushInitData).not.toHaveBeenCalled()
-    expect(services.windowManager.close).toHaveBeenCalledWith('island-1')
-    expect(vi.getTimerCount()).toBe(0)
-  })
-
-  it('closes immediately when the exit snapshot cannot be presented', () => {
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100)
-    services.windowManager.pushInitData.mockReturnValueOnce(false)
-
-    emitActivity(null, 200)
-
-    expect(services.windowManager.close).toHaveBeenCalledWith('island-1')
-    expect(vi.getTimerCount()).toBe(0)
-  })
-
-  it('does not let an old exit timer close a replacement island window', async () => {
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100)
-    emitActivity(null, 200)
-
-    services.windowManager.open(WindowType.ConversationIsland, {})
-    await vi.advanceTimersByTimeAsync(180)
-
-    expect(mocks.windows.has('island-2')).toBe(true)
-    expect(services.windowManager.close).not.toHaveBeenCalled()
-  })
-
-  it('closes immediately when normal activity exhausts with reduced motion', () => {
-    mocks.prefersReducedMotion = true
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100)
-
-    emitActivity(null, 200)
-
-    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-1', exiting: false, reducedMotion: true })
-    expect(services.windowManager.pushInitData).not.toHaveBeenCalled()
-    expect(services.windowManager.close).toHaveBeenCalledWith('island-1')
-    expect(vi.getTimerCount()).toBe(0)
-  })
-
-  it('shows live approval anchors as awaiting confirmation', () => {
-    changePreference('feature.conversation_island.enabled', true)
-    vi.setSystemTime(100)
-    const approvalAnchor = {
-      executionId: 'provider::model',
-      attemptId: 1,
-      anchorMessageId: 'assistant-message-1'
-    }
-    mocks.activitiesListener?.({
-      topicId: 'agent-session:session-1',
-      target: { conversationType: 'agent', conversationId: 'session-1' },
-      snapshot: {
-        status: 'streaming',
-        turnId: 'turn-1',
-        activeExecutions: [approvalAnchor],
-        awaitingApprovalAnchors: [approvalAnchor]
-      },
-      changedAt: 100
-    })
-
-    expect(services.windowManager.open.mock.calls[0][1]).toMatchObject({
-      initData: {
-        state: 'awaiting-confirmation',
-        statusText: 'conversation_island.status.awaiting_confirmation'
-      }
+    expect(latestPresent().payload).toMatchObject({
+      expanded: true,
+      primaryActivityId: 'agent-session:topic-approval',
+      activities: [
+        { activityId: 'agent-session:topic-approval', state: 'awaiting-confirmation', title: 'Approval request' },
+        { activityId: 'topic-streaming', state: 'streaming', title: 'Streaming research' },
+        { activityId: 'topic-new', state: 'streaming', title: 'New work' }
+      ]
     })
   })
 
-  it('forwards the measured physical notch width to initial and updated snapshots', () => {
-    mocks.geometryResolve.mockReturnValue({
-      bounds: { x: 596, y: 0, width: 320, height: 38 },
-      presentation: 'notch',
-      notchWidth: 184
-    })
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100)
-    emitActivity('streaming', 200)
-    expect(services.windowManager.open.mock.calls[0][1]).toMatchObject({
-      initData: { presentation: 'notch', notchWidth: 184 }
-    })
-    expect(services.windowManager.pushInitData.mock.lastCall?.[1]).toMatchObject({
-      presentation: 'notch',
-      notchWidth: 184
-    })
-  })
-
-  it('resolves the title again when the same topic starts a new turn', () => {
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100, 'topic-1', 'assistant', 'turn-1')
-    emitActivity('aborted', 200, 'topic-1', 'assistant', 'turn-1')
-
-    mocks.name = 'Renamed conversation'
-    emitActivity('pending', 300, 'topic-1', 'assistant', 'turn-2')
-
-    expect(mocks.resolveName).toHaveBeenCalledTimes(2)
-    expect(latestSnapshot()).toMatchObject({ title: 'Renamed conversation' })
-  })
-
-  it('expires terminal activities at their exact TTL, then dismisses after activity exhaustion', async () => {
-    changePreference('feature.conversation_island.enabled', true)
-
-    emitActivity('done', 100)
-    await vi.advanceTimersByTimeAsync(3_999)
-    expect(services.windowManager.close).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(1)
-    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-1', state: 'done', exiting: true })
-    expect(services.windowManager.close).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(179)
-    expect(services.windowManager.close).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(1)
-    expect(services.windowManager.close).toHaveBeenCalledTimes(1)
-
-    emitActivity('error', 5_000, 'topic-error')
-    await vi.advanceTimersByTimeAsync(5_999)
-    expect(services.windowManager.close).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(1)
-    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-error', state: 'error', exiting: true })
-    expect(services.windowManager.close).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(179)
-    expect(services.windowManager.close).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(1)
-    expect(services.windowManager.close).toHaveBeenCalledTimes(2)
-
-    emitActivity('pending', 12_000, 'topic-abort')
-    emitActivity('aborted', 12_100, 'topic-abort')
-    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-abort', state: 'pending', exiting: true })
-    expect(services.windowManager.close).toHaveBeenCalledTimes(2)
-    await vi.advanceTimersByTimeAsync(179)
-    expect(services.windowManager.close).toHaveBeenCalledTimes(2)
-    await vi.advanceTimersByTimeAsync(1)
-    expect(services.windowManager.close).toHaveBeenCalledTimes(3)
-  })
-
-  it('always resolves the title and refreshes localized title and status on language change', () => {
+  it('refreshes appearance, primary color, font, and localized text from Electron-owned state', () => {
     changePreference('feature.conversation_island.enabled', true)
     emitActivity('streaming', 100)
-    expect(mocks.resolveName).toHaveBeenCalledOnce()
-    expect(services.windowManager.open.mock.lastCall?.[1]).toMatchObject({
-      initData: {
-        title: 'Research notes',
-        statusText: 'conversation_island.status.assistant.streaming'
-      }
+    expect(latestPresent().payload.theme).toEqual({
+      appearance: 'light',
+      primaryColor: '#123ABC',
+      fontFamily: 'Inter'
     })
+
+    mocks.darkAppearance = true
+    for (const listener of mocks.themeListeners) listener()
+    expect(latestPresent().payload.theme.appearance).toBe('dark')
+
+    changePreference('ui.theme_user.color_primary', 'rgb(0, 1, 2)')
+    expect(latestPresent().payload.theme.primaryColor).toBe('#00B96B')
+
+    changePreference('ui.theme_user.color_primary', '#0f8')
+    expect(latestPresent().payload.theme.primaryColor).toBe('#0f8')
+
+    changePreference('ui.theme_user.font_family', 'SF Pro')
+    expect(latestPresent().payload.theme.fontFamily).toBe('SF Pro')
 
     mocks.name = ''
     mocks.i18nSuffix = '-fr'
     changePreference('app.language', 'fr-FR')
-
-    expect(mocks.resolveName).toHaveBeenCalledTimes(2)
-    expect(services.windowManager.pushInitData.mock.lastCall?.[1]).toMatchObject({
+    expect(latestPresent().payload.activities[0]).toMatchObject({
       title: 'New Chat-fr',
       statusText: 'conversation_island.status.assistant.streaming-fr'
     })
   })
 
-  it('expands one activity and preserves a complete ordered snapshot as another activity joins', () => {
-    const titles = new Map([
-      ['topic-streaming', 'Streaming research'],
-      ['topic-approval', 'Approval request']
-    ])
-    mocks.resolveName.mockImplementation((target: { conversationId: string }) => titles.get(target.conversationId))
+  it.each([
+    { setting: true, expected: true },
+    { setting: false, expected: false }
+  ])('projects reduced motion $setting into the native payload', ({ setting, expected }) => {
     changePreference('feature.conversation_island.enabled', true)
-    emitActivity('streaming', 100, 'topic-streaming')
+    mocks.prefersReducedMotion = setting
+    emitActivity('pending', 100)
 
-    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
-    expect(latestSnapshot()).toMatchObject({
-      activityId: 'topic-streaming',
-      expanded: true,
-      secondaryCount: 0,
-      activities: [{ activityId: 'topic-streaming' }]
-    })
-
-    emitActivity('awaiting-approval', 200, 'topic-approval', 'agent')
-    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
-
-    expect(latestSnapshot()).toMatchObject({
-      activityId: 'topic-streaming',
-      activityCountText: 'Total: 2',
-      state: 'streaming',
-      statusText: 'conversation_island.status.assistant.streaming',
-      title: 'Streaming research',
-      secondaryCount: 1,
-      expanded: true,
-      exiting: false,
-      reducedMotion: false,
-      activities: [
-        {
-          activityId: 'topic-streaming',
-          state: 'streaming',
-          statusText: 'conversation_island.status.assistant.streaming',
-          title: 'Streaming research'
-        },
-        {
-          activityId: 'agent-session:topic-approval',
-          state: 'awaiting-confirmation',
-          statusText: 'conversation_island.status.awaiting_confirmation',
-          title: 'Approval request'
-        }
-      ]
-    })
+    expect(latestPresent().payload.reducedMotion).toBe(expected)
   })
 
-  it('projects assistant identity once per turn while stream status refreshes', () => {
+  it('falls back to reduced motion when Electron animation settings cannot be read', () => {
     changePreference('feature.conversation_island.enabled', true)
+    mocks.animationSettingsError = new Error('settings unavailable')
+    emitActivity('pending', 100)
 
+    expect(latestPresent().payload.reducedMotion).toBe(true)
+  })
+
+  it('accepts only the current revision for expansion interactions', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100, 'topic-a')
+    emitActivity('streaming', 200, 'topic-b')
+    const compactRevision = latestPresent().revision
+
+    sendSetExpanded(compactRevision - 1, true)
+    expect(latestPresent().payload.expanded).toBe(false)
+
+    sendSetExpanded(compactRevision, true)
+    expect(latestPresent().revision).toBeGreaterThan(compactRevision)
+    expect(latestPresent().payload.expanded).toBe(true)
+    expect(latestPresent().payload.activities).toHaveLength(2)
+  })
+
+  it('collapses with a fresh revision before navigating a valid activity', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('streaming', 100, 'topic-a')
+    emitActivity('pending', 200, 'topic-b')
+    sendSetExpanded(latestPresent().revision, true)
+    const expandedRevision = latestPresent().revision
+    mocks.hostPresent.mockClear()
+    mocks.navigationFocusOrOpen.mockClear()
+
+    sendOpenActivity(expandedRevision, 'topic-a')
+
+    const compact = latestPresent()
+    expect(compact.revision).toBeGreaterThan(expandedRevision)
+    expect(compact.payload).toMatchObject({ expanded: false, activities: [{ activityId: 'topic-b' }] })
+    expect(mocks.navigationFocusOrOpen).toHaveBeenCalledWith(
+      { conversationType: 'assistant', conversationId: 'topic-a' },
+      'Research notes'
+    )
+    expect(mocks.navigationFocusOrOpen.mock.lastCall).toHaveLength(2)
+    expect(mocks.hostPresent.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.navigationFocusOrOpen.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('rejects stale revisions and activity IDs that were not in the current presentation', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('streaming', 100, 'topic-secondary')
+    emitActivity('pending', 200, 'topic-primary')
+    const revision = latestPresent().revision
+
+    sendOpenActivity(revision - 1, 'topic-primary')
+    sendOpenActivity(revision, 'topic-secondary')
+    sendOpenActivity(revision, 'missing')
+
+    expect(mocks.navigationFocusOrOpen).not.toHaveBeenCalled()
+  })
+
+  it('dismisses for disable, resets the circuit on re-enable, and restores live activity', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100)
+    const presentRevision = latestPresent().revision
+    mocks.hostResetCircuit.mockClear()
+
+    changePreference('feature.conversation_island.enabled', false)
+    expect(mocks.hostDismiss).toHaveBeenLastCalledWith(
+      { version: 1, type: 'dismiss', revision: expect.any(Number) },
+      true
+    )
+    expect(mocks.hostDismiss.mock.lastCall?.[0].revision).toBeGreaterThan(presentRevision)
+
+    changePreference('feature.conversation_island.enabled', true)
+    expect(mocks.hostResetCircuit).toHaveBeenCalledOnce()
+    expect(latestPresent().payload.activities[0].activityId).toBe('topic-1')
+  })
+
+  it('uses a normal dismiss when the final activity disappears', () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100)
+    const presentRevision = latestPresent().revision
+
+    emitActivity(null, 200)
+
+    expect(mocks.hostDismiss).toHaveBeenLastCalledWith(
+      { version: 1, type: 'dismiss', revision: expect.any(Number) },
+      false
+    )
+    expect(mocks.hostDismiss.mock.lastCall?.[0].revision).toBeGreaterThan(presentRevision)
+  })
+
+  it('expires terminal activities at their existing TTL before normally dismissing', async () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('done', 100, 'topic-done')
+
+    await vi.advanceTimersByTimeAsync(3_999)
+    expect(mocks.hostDismiss).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(mocks.hostDismiss).toHaveBeenCalledWith(expect.any(Object), false)
+
+    emitActivity('error', 5_000, 'topic-error')
+    mocks.hostDismiss.mockClear()
+    await vi.advanceTimersByTimeAsync(5_999)
+    expect(mocks.hostDismiss).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(mocks.hostDismiss).toHaveBeenCalledWith(expect.any(Object), false)
+  })
+
+  it('caches metadata during one turn and resolves it again for a new turn', () => {
+    changePreference('feature.conversation_island.enabled', true)
     emitActivity('pending', 100, 'topic-1', 'assistant', 'turn-1')
     emitActivity('streaming', 200, 'topic-1', 'assistant', 'turn-1')
-
-    expect(latestSnapshot()).toMatchObject({
-      identityAvatar: '🔬',
-      identityName: 'Research Assistant'
-    })
     expect(mocks.resolveName).toHaveBeenCalledOnce()
-    expect(mocks.resolveAssistantId).toHaveBeenCalledOnce()
     expect(mocks.resolveAssistant).toHaveBeenCalledOnce()
+
+    emitActivity('aborted', 300, 'topic-1', 'assistant', 'turn-1')
+    mocks.name = 'Renamed conversation'
+    emitActivity('pending', 400, 'topic-1', 'assistant', 'turn-2')
+
+    expect(mocks.resolveName).toHaveBeenCalledTimes(2)
+    expect(latestPresent().payload.activities[0].title).toBe('Renamed conversation')
   })
 
-  it('projects agent identity from the session agent', () => {
-    changePreference('feature.conversation_island.enabled', true)
-
-    emitActivity('streaming', 100, 'session-1', 'agent')
-
-    expect(latestSnapshot()).toMatchObject({
-      identityAvatar: '🤖',
-      identityName: 'Coding Agent'
-    })
-    expect(mocks.resolveAgentId).toHaveBeenCalledOnce()
-    expect(mocks.resolveAgent).toHaveBeenCalledWith('agent-1')
-  })
-
-  it('uses localized identity names and default emoji when identity records are unavailable', () => {
+  it('uses localized identity fallbacks without weakening navigation ownership', () => {
     mocks.resolveAssistant.mockImplementation(() => {
       throw new Error('assistant missing')
     })
     changePreference('feature.conversation_island.enabled', true)
-
     emitActivity('pending', 100)
 
-    expect(latestSnapshot()).toMatchObject({
+    expect(latestPresent().payload.activities[0]).toMatchObject({
       identityAvatar: '😀',
       identityName: 'conversation_island.identity.assistant',
       title: 'Research notes'
     })
   })
 
-  it('preserves the session title when the agent identity record is unavailable', () => {
-    mocks.resolveAgent.mockImplementation(() => {
-      throw new Error('agent missing')
-    })
-    changePreference('feature.conversation_island.enabled', true)
-
-    emitActivity('pending', 100, 'session-1', 'agent')
-
-    expect(latestSnapshot()).toMatchObject({
-      identityAvatar: '🤖',
-      identityName: 'conversation_island.identity.agent',
-      title: 'Research notes'
-    })
-  })
-
-  it('retains terminal activities while expanded and prunes them when collapsed', () => {
+  it('retains expired terminal items while expanded and prunes them after collapse', () => {
     changePreference('feature.conversation_island.enabled', true)
     emitActivity('streaming', 100, 'topic-live')
     emitActivity('pending', 200, 'topic-primary')
-    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
+    sendSetExpanded(latestPresent().revision, true)
 
     emitActivity('done', 300, 'topic-primary')
     vi.setSystemTime(4_301)
     changePreference('app.language', 'fr-FR')
-    expect(latestSnapshot()).toMatchObject({
-      expanded: true,
-      activities: [{ activityId: 'topic-primary', state: 'done' }, { activityId: 'topic-live' }]
-    })
-    expect(vi.getTimerCount()).toBe(0)
-
-    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(false)
-    expect(latestSnapshot()).toMatchObject({ activityId: 'topic-live', expanded: false, secondaryCount: 0 })
-    expect(latestSnapshot().activities).toBeUndefined()
-  })
-
-  it('reconciles updates in place, appends new activity, and promotes after removals', () => {
-    const titles = new Map([
-      ['topic-primary', 'Primary'],
-      ['topic-second', 'Second'],
-      ['topic-new', 'New']
+    expect(latestPresent().payload.activities).toMatchObject([
+      { activityId: 'topic-primary', state: 'done' },
+      { activityId: 'topic-live' }
     ])
-    mocks.resolveName.mockImplementation((target: { conversationId: string }) => titles.get(target.conversationId))
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100, 'topic-second')
-    emitActivity('streaming', 200, 'topic-primary')
-    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
 
-    titles.set('topic-second', 'Second turn')
-    emitActivity('awaiting-approval', 300, 'topic-second', 'assistant', 'topic-second-turn-2')
-    emitActivity('streaming', 400, 'topic-new')
-    expect(latestSnapshot()).toMatchObject({
-      activityId: 'topic-primary',
-      expanded: true,
-      activities: [
-        { activityId: 'topic-primary', state: 'streaming', title: 'Primary' },
-        { activityId: 'topic-second', state: 'awaiting-confirmation', title: 'Second turn' },
-        { activityId: 'topic-new', state: 'streaming', title: 'New' }
-      ]
-    })
-
-    emitActivity('aborted', 500, 'topic-primary')
-    expect(latestSnapshot()).toMatchObject({
-      activityId: 'topic-second',
-      expanded: true,
-      activities: [{ activityId: 'topic-second' }, { activityId: 'topic-new' }]
-    })
-
-    emitActivity('aborted', 600, 'topic-new')
-    expect(latestSnapshot()).toMatchObject({
-      activityId: 'topic-second',
-      expanded: true,
-      secondaryCount: 0,
-      activities: [{ activityId: 'topic-second' }]
+    sendSetExpanded(latestPresent().revision, false)
+    expect(latestPresent().payload).toMatchObject({
+      expanded: false,
+      primaryActivityId: 'topic-live',
+      activities: [{ activityId: 'topic-live' }]
     })
   })
 
-  it('clears expansion for display changes, resume, and disable', () => {
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100, 'topic-a')
-    emitActivity('streaming', 200, 'topic-b')
-    const setExpanded = () => {
-      ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
-      expect(latestSnapshot().expanded).toBe(true)
-    }
-
-    setExpanded()
-    mocks.screen.emit('display-added', {}, externalDisplay)
-    expect(latestSnapshot().expanded).toBe(false)
-
-    setExpanded()
-    mocks.screen.emit('display-metrics-changed', {}, internalDisplay, ['bounds'])
-    expect(latestSnapshot().expanded).toBe(false)
-
-    setExpanded()
-    mocks.displays = [externalDisplay]
-    mocks.screen.emit('display-removed', {}, internalDisplay)
-    expect(latestSnapshot().expanded).toBe(false)
-
-    setExpanded()
-    mocks.powerListener?.()
-    expect(latestSnapshot().expanded).toBe(false)
-
-    setExpanded()
-    changePreference('feature.conversation_island.enabled', false)
-    changePreference('feature.conversation_island.enabled', true)
-    expect(services.windowManager.open.mock.lastCall?.[1]).toMatchObject({ initData: { expanded: false } })
-  })
-
-  it('rebuilds expanded titles and status text on language change without changing order', () => {
-    const titles = new Map([
-      ['topic-a', 'Alpha'],
-      ['topic-b', 'Beta']
-    ])
-    mocks.resolveName.mockImplementation((target: { conversationId: string }) => titles.get(target.conversationId))
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('streaming', 100, 'topic-a')
-    emitActivity('pending', 200, 'topic-b')
-    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
-    const order = latestSnapshot().activities.map((activity: { activityId: string }) => activity.activityId)
-
-    titles.set('topic-a', 'Alpha traduit')
-    titles.set('topic-b', 'Bêta traduit')
-    mocks.i18nSuffix = '-fr'
-    changePreference('app.language', 'fr-FR')
-
-    expect(latestSnapshot().activities.map((activity: { activityId: string }) => activity.activityId)).toEqual(order)
-    expect(latestSnapshot().activities).toMatchObject([
-      {
-        activityId: 'topic-b',
-        title: 'Bêta traduit',
-        statusText: 'conversation_island.status.assistant.pending-fr'
-      },
-      {
-        activityId: 'topic-a',
-        title: 'Alpha traduit',
-        statusText: 'conversation_island.status.assistant.streaming-fr'
-      }
-    ])
-  })
-
-  it('derives presentation-independent expanded bounds on the frozen display', () => {
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100, 'topic-a')
-    emitActivity('streaming', 200, 'topic-b')
-    mocks.geometryResolve.mockClear()
-
-    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
-
-    expect(mocks.geometrySize).toHaveBeenLastCalledWith(2)
-    expect(mocks.geometryResolve).toHaveBeenCalledOnce()
-    expect(mocks.geometryResolve).toHaveBeenCalledWith(internalDisplay, expect.any(Map), {
-      width: 420,
-      height: 142
-    })
-    expect(latestSnapshot()).toMatchObject({ expanded: true, presentation: 'capsule' })
-  })
-
-  it.each([
-    { setting: true, expected: true },
-    { setting: false, expected: false }
-  ])('projects reduced motion $setting into the renderer snapshot', ({ setting, expected }) => {
-    changePreference('feature.conversation_island.enabled', true)
-    mocks.prefersReducedMotion = setting
-    emitActivity('pending', 100)
-
-    expect(latestSnapshot()).toMatchObject({ reducedMotion: expected })
-  })
-
-  it('falls back to no animation when Electron animation settings cannot be read', () => {
-    changePreference('feature.conversation_island.enabled', true)
-    mocks.animationSettingsError = new Error('settings unavailable')
-    emitActivity('pending', 100)
-
-    expect(latestSnapshot()).toMatchObject({ reducedMotion: true })
-  })
-
-  it('animates only changed follow-up bounds when reduced motion is disabled', () => {
-    let offset = 0
-    mocks.geometryResolve.mockImplementation(
-      (display: any, _geometry: unknown, size: { width: number; height: number }) => ({
-        bounds: { x: display.bounds.x + offset, y: display.bounds.y + 8, ...size },
-        presentation: 'capsule'
-      })
+  it('awaits host shutdown and removes subscriptions on stop', async () => {
+    const assistantDisposer = mocks.cacheDisposers.get('topic.stream.statuses.${topicId}')
+    const agentDisposer = mocks.cacheDisposers.get('topic.stream.statuses.agent-session:${sessionId}')
+    let resolveShutdown: (() => void) | undefined
+    mocks.hostShutdown.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveShutdown = resolve
+        })
     )
     changePreference('feature.conversation_island.enabled', true)
     emitActivity('pending', 100)
-    const window = mocks.windows.get('island-1')
 
-    expect(window.setBounds).toHaveBeenLastCalledWith({ x: 0, y: 8, width: 320, height: 38 }, false)
-    window.setBounds.mockClear()
-    emitActivity('streaming', 200)
-    expect(window.setBounds).not.toHaveBeenCalled()
-
-    offset = 20
-    emitActivity('awaiting-approval', 300)
-    expect(window.setBounds).toHaveBeenLastCalledWith({ x: 20, y: 8, width: 320, height: 38 }, true)
-
-    mocks.prefersReducedMotion = true
-    offset = 40
-    emitActivity('streaming', 400)
-    expect(window.setBounds).toHaveBeenLastCalledWith({ x: 40, y: 8, width: 320, height: 38 }, false)
-  })
-
-  it('falls back to compact bounds when expanded presentation fails', () => {
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100, 'topic-a')
-    emitActivity('streaming', 200, 'topic-b')
-    const window = mocks.windows.get('island-1')
-    window.setBounds.mockImplementationOnce(() => {
-      throw new Error('expanded resize failed')
+    let stopped = false
+    const stopPromise = service._doStop().then(() => {
+      stopped = true
     })
+    await Promise.resolve()
+    expect(stopped).toBe(false)
+    expect(mocks.hostShutdown).toHaveBeenCalledOnce()
 
-    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
-
-    expect(latestSnapshot()).toMatchObject({ expanded: false })
-    expect(latestSnapshot().activities).toBeUndefined()
-    expect(window.getBounds()).toEqual({ x: 0, y: 8, width: 320, height: 38 })
-    expect(window.showInactive).toHaveBeenCalled()
-  })
-
-  it('dismisses the window when expanded presentation and compact retry both fail', () => {
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100, 'topic-a')
-    emitActivity('streaming', 200, 'topic-b')
-    const window = mocks.windows.get('island-1')
-    window.showInactive.mockClear()
-    window.showInactive.mockImplementationOnce(() => {
-      throw new Error('expanded show failed')
-    })
-    window.showInactive.mockImplementationOnce(() => {
-      throw new Error('compact show failed')
-    })
-
-    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
-
-    expect(window.hide).toHaveBeenCalledOnce()
-    expect(services.windowManager.close).toHaveBeenCalledWith('island-1')
-    expect(mocks.windows.has('island-1')).toBe(false)
-  })
-
-  it('dismisses the expanded window when collapsing to compact bounds fails', () => {
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100, 'topic-a')
-    emitActivity('streaming', 200, 'topic-b')
-    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(true)
-    const window = mocks.windows.get('island-1')
-    expect(window.getBounds().width).toBe(420)
-    window.setBounds.mockImplementationOnce(() => {
-      throw new Error('compact resize failed')
-    })
-
-    ;(service as unknown as { setExpanded(expanded: boolean): void }).setExpanded(false)
-
-    expect(window.hide).toHaveBeenCalledOnce()
-    expect(services.windowManager.close).toHaveBeenCalledWith('island-1')
-    expect(mocks.windows.has('island-1')).toBe(false)
-  })
-
-  it('refreshes geometry for display and resume events only while enabled', async () => {
-    mocks.screen.emit('display-added', {}, externalDisplay)
-    expect(mocks.geometryProbe).not.toHaveBeenCalled()
-
-    changePreference('feature.conversation_island.enabled', true)
-    await flushPromises()
-    expect(mocks.geometryProbe).toHaveBeenCalledTimes(1)
-
-    mocks.screen.emit('display-added', {}, externalDisplay)
-    mocks.screen.emit('display-removed', {}, externalDisplay)
-    mocks.screen.emit('display-metrics-changed', {}, externalDisplay, ['bounds'])
-    mocks.powerListener?.()
-    await flushPromises()
-    expect(mocks.geometryProbe).toHaveBeenCalledTimes(5)
-
-    changePreference('feature.conversation_island.enabled', false)
-    mocks.screen.emit('display-added', {}, externalDisplay)
-    expect(mocks.geometryProbe).toHaveBeenCalledTimes(5)
-    expect(mocks.powerListener).toBeUndefined()
-  })
-
-  it('isolates probe and window failures so a later state can recover', async () => {
-    mocks.geometryProbe.mockRejectedValueOnce(new Error('probe failed'))
-    changePreference('feature.conversation_island.enabled', true)
-    await flushPromises()
-    expect(mocks.loggerWarn).toHaveBeenCalled()
-
-    mocks.openError = new Error('window failed')
-    expect(() => emitActivity('pending', 100)).not.toThrow()
-    expect(mocks.loggerError).toHaveBeenCalled()
-
-    emitActivity('streaming', 200)
-    expect(services.windowManager.open).toHaveBeenCalledTimes(2)
-    expect(mocks.windows.has('island-1')).toBe(true)
-  })
-
-  it('cleans listeners, active probes, timers, and the transient window on stop', async () => {
-    const assistantCacheDisposer = mocks.cacheDisposers.get('topic.stream.statuses.${topicId}')
-    const agentCacheDisposer = mocks.cacheDisposers.get('topic.stream.statuses.agent-session:${sessionId}')
-    let signal: AbortSignal | undefined
-    mocks.geometryProbe.mockImplementationOnce((value: AbortSignal) => {
-      signal = value
-      return new Promise(() => {})
-    })
-    changePreference('feature.conversation_island.enabled', true)
-    emitActivity('pending', 100)
-    emitActivity(null, 200)
-    expect(services.windowManager.close).not.toHaveBeenCalled()
-
-    await service._doStop()
-
-    expect(signal?.aborted).toBe(true)
-    expect(assistantCacheDisposer).toHaveBeenCalledOnce()
-    expect(agentCacheDisposer).toHaveBeenCalledOnce()
+    resolveShutdown?.()
+    await stopPromise
+    expect(assistantDisposer).toHaveBeenCalledOnce()
+    expect(agentDisposer).toHaveBeenCalledOnce()
     expect(mocks.cacheSubscriptions.size).toBe(0)
-    expect(mocks.powerListener).toBeUndefined()
-    expect(mocks.screenListeners.size === 0 || [...mocks.screenListeners.values()].every((set) => set.size === 0)).toBe(
-      true
-    )
-    expect(services.windowManager.close).toHaveBeenCalledOnce()
-    expect(vi.getTimerCount()).toBe(0)
+    expect(mocks.preferenceListeners.size).toBe(0)
+    expect(mocks.themeListeners.size).toBe(0)
   })
 })

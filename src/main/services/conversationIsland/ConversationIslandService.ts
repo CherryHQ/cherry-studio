@@ -5,49 +5,37 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import {
-  BaseService,
-  Conditional,
-  DependsOn,
-  type Disposable,
-  Injectable,
-  onPlatform,
-  Phase,
-  ServicePhase
-} from '@main/core/lifecycle'
-import { WindowType } from '@main/core/window/types'
+import { BaseService, Conditional, DependsOn, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
 import type { TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
-import type {
-  ConversationIslandActivityItem,
-  ConversationIslandSnapshot,
-  ConversationIslandStateKind
-} from '@shared/types/conversationIsland'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
-import { type Display, type Rectangle, screen, systemPreferences } from 'electron'
+import { type Display, nativeTheme, screen, systemPreferences } from 'electron'
 
 import { type ConversationIslandActivity, reduceActivities, selectPrimaryActivity } from './activityReducer'
+import { ConversationIslandNativeHost } from './ConversationIslandNativeHost'
+import type {
+  ConversationIslandActivityItem,
+  ConversationIslandHelperEvent,
+  ConversationIslandPresentationPayload,
+  ConversationIslandStateKind
+} from './conversationIslandProtocol'
 import {
   createExpandedActivityState,
   type ExpandedActivityState,
   reconcileExpandedActivityState,
   resolveExpandedActivities
 } from './expandedActivityState'
-import {
-  COMPACT_ISLAND_SIZE,
-  type ConversationIslandPlacement,
-  type MacScreenGeometry,
-  probeMacScreenGeometry,
-  resolveConversationIslandBounds,
-  resolveConversationIslandSize
-} from './macScreenGeometry'
 
 const logger = loggerService.withContext('Conversation Island')
 const TOPIC_STATUS_PREFIX = 'topic.stream.statuses.'
-const EXIT_ANIMATION_MS = 180
 const DEFAULT_AGENT_AVATAR = '🤖'
+const DEFAULT_PRIMARY_COLOR = '#00B96B'
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
+
+type SetExpandedEvent = Extract<ConversationIslandHelperEvent, { type: 'setExpanded' }>
+type OpenActivityEvent = Extract<ConversationIslandHelperEvent, { type: 'openActivity' }>
 
 interface ConversationActivityChangedEvent {
   topicId: string
@@ -99,10 +87,6 @@ function isTerminal(status: ConversationIslandActivity['status']): boolean {
   return status === 'done' || status === 'error'
 }
 
-function sameBounds(left: Rectangle, right: Rectangle): boolean {
-  return left.x === right.x && left.y === right.y && left.width === right.width && left.height === right.height
-}
-
 function prefersReducedMotion(): boolean {
   try {
     return systemPreferences.getAnimationSettings().prefersReducedMotion
@@ -111,45 +95,32 @@ function prefersReducedMotion(): boolean {
   }
 }
 
+function resolvePrimaryColor(value: unknown): string {
+  return typeof value === 'string' && HEX_COLOR_PATTERN.test(value) ? value : DEFAULT_PRIMARY_COLOR
+}
+
 @Injectable('ConversationIslandService')
 @Conditional(onPlatform('darwin'))
-@DependsOn(['WindowManager', 'PowerService'])
+@DependsOn(['WindowManager', 'ConversationNavigationService'])
 @ServicePhase(Phase.WhenReady)
 export class ConversationIslandService extends BaseService {
   private readonly activities = new Map<string, ConversationIslandActivity>()
   private readonly itemMetadataCache = new Map<string, ActivityItemMetadata>()
-  private geometries = new Map<number, MacScreenGeometry>()
+  private readonly host = new ConversationIslandNativeHost({
+    callbacks: {
+      onSetExpanded: (event) => this.handleSetExpanded(event),
+      onOpenActivity: (event) => this.handleOpenActivity(event)
+    }
+  })
   private enabled = false
   private expandedState: ExpandedActivityState | null = null
-  private windowId: string | null = null
-  private positionedWindowId: string | null = null
   private expiryTimer: ReturnType<typeof setTimeout> | null = null
-  private exitTimer: ReturnType<typeof setTimeout> | null = null
-  private lastSnapshot: ConversationIslandSnapshot | null = null
-  private probeController: AbortController | null = null
-  private screenCleanup: (() => void) | null = null
-  private powerResumeSubscription: Disposable | null = null
+  private revision = 0
+  private currentPresentationRevision: number | null = null
+  private currentPresentationActivityIds = new Set<string>()
+  private hasPresentation = false
 
   protected onInit(): void {
-    const windowManager = application.get('WindowManager')
-    this.registerDisposable(
-      windowManager.onWindowCreatedByType(WindowType.ConversationIsland, ({ id }) => {
-        this.windowId = id
-        this.positionedWindowId = null
-      })
-    )
-    this.registerDisposable(
-      windowManager.onWindowDestroyedByType(WindowType.ConversationIsland, ({ id }) => {
-        if (this.windowId === id) {
-          this.clearExitTimer()
-          this.windowId = null
-          this.positionedWindowId = null
-          this.expandedState = null
-          this.lastSnapshot = null
-        }
-      })
-    )
-
     const cacheService = application.get('CacheService')
     this.registerDisposable(
       cacheService.subscribeSharedChange('topic.stream.statuses.${topicId}', (snapshot, _oldSnapshot, key) =>
@@ -173,16 +144,27 @@ export class ConversationIslandService extends BaseService {
         this.refreshPresentation()
       })
     )
+    this.registerDisposable(
+      preferences.subscribeChange('ui.theme_user.color_primary', () => this.refreshPresentation())
+    )
+    this.registerDisposable(preferences.subscribeChange('ui.theme_user.font_family', () => this.refreshPresentation()))
+
+    const refreshTheme = () => this.refreshPresentation()
+    nativeTheme.on('updated', refreshTheme)
+    this.registerDisposable(() => nativeTheme.removeListener('updated', refreshTheme))
 
     this.setEnabled(preferences.get('feature.conversation_island.enabled'))
   }
 
-  protected onStop(): void {
+  protected async onStop(): Promise<void> {
     this.enabled = false
     this.expandedState = null
-    this.deactivateResources()
+    this.hasPresentation = false
+    this.currentPresentationActivityIds.clear()
+    this.clearExpiryTimer()
     this.activities.clear()
     this.itemMetadataCache.clear()
+    await this.host.shutdown()
   }
 
   private handleConversationActivitySnapshot(
@@ -241,7 +223,8 @@ export class ConversationIslandService extends BaseService {
 
     if (!enabled) {
       this.expandedState = null
-      this.deactivateResources()
+      this.clearExpiryTimer()
+      this.dismiss(true)
       for (const [topicId, activity] of this.activities) {
         if (isTerminal(activity.status)) this.activities.delete(topicId)
       }
@@ -249,46 +232,8 @@ export class ConversationIslandService extends BaseService {
       return
     }
 
-    try {
-      this.activateResources()
-    } catch (error) {
-      logger.error('Failed to activate Conversation Island resources', error as Error)
-      this.deactivateResources()
-      this.enabled = false
-    }
-  }
-
-  private activateResources(): void {
-    const refreshGeometry = () => {
-      this.expandedState = null
-      this.refreshPresentation()
-      this.probeGeometry()
-    }
-
-    screen.on('display-added', refreshGeometry)
-    screen.on('display-removed', refreshGeometry)
-    screen.on('display-metrics-changed', refreshGeometry)
-    this.screenCleanup = () => {
-      screen.removeListener('display-added', refreshGeometry)
-      screen.removeListener('display-removed', refreshGeometry)
-      screen.removeListener('display-metrics-changed', refreshGeometry)
-    }
-    this.powerResumeSubscription = application.get('PowerService').onResume(refreshGeometry)
-
-    this.probeGeometry()
+    this.host.resetCircuit()
     this.refreshPresentation()
-  }
-
-  private deactivateResources(): void {
-    this.expandedState = null
-    this.screenCleanup?.()
-    this.screenCleanup = null
-    this.powerResumeSubscription?.dispose()
-    this.powerResumeSubscription = null
-    this.probeController?.abort()
-    this.probeController = null
-    this.clearExpiryTimer()
-    this.closeIslandWindow()
   }
 
   public setExpanded(expanded: boolean): void {
@@ -314,23 +259,27 @@ export class ConversationIslandService extends BaseService {
     this.refreshPresentation(now)
   }
 
-  private probeGeometry(): void {
-    this.probeController?.abort()
-    const controller = new AbortController()
-    this.probeController = controller
+  private handleSetExpanded(event: SetExpandedEvent): void {
+    if (!this.enabled || event.revision !== this.currentPresentationRevision) return
+    this.setExpanded(event.expanded)
+  }
 
-    void probeMacScreenGeometry(controller.signal)
-      .then((geometries) => {
-        if (!this.enabled || controller.signal.aborted || this.probeController !== controller) return
-        this.geometries = geometries
-        this.refreshPresentation()
-      })
-      .catch((error) => {
-        if (!controller.signal.aborted) logger.warn('Failed to refresh Conversation Island geometry', { error })
-      })
-      .finally(() => {
-        if (this.probeController === controller) this.probeController = null
-      })
+  private handleOpenActivity(event: OpenActivityEvent): void {
+    if (
+      !this.enabled ||
+      event.revision !== this.currentPresentationRevision ||
+      !this.currentPresentationActivityIds.has(event.activityId)
+    ) {
+      return
+    }
+
+    const activity = this.activities.get(event.activityId)
+    if (!activity) return
+    const title = this.buildActivityItem(activity).title
+
+    this.expandedState = null
+    this.refreshPresentation()
+    void application.get('ConversationNavigationService').focusOrOpen(activity.target, title)
   }
 
   private resolveOriginDisplayId(): number {
@@ -361,58 +310,31 @@ export class ConversationIslandService extends BaseService {
   }
 
   private refreshPresentation(now = Date.now()): void {
-    if (!this.enabled) {
-      this.expandedState = null
-      this.closeIslandWindow()
-      this.clearExpiryTimer()
-      return
-    }
+    if (!this.enabled) return
 
     if (this.expandedState) {
       const expandedState = reconcileExpandedActivityState(this.expandedState, this.activities, now)
       this.expandedState = expandedState
-      if (!expandedState) this.expandedState = null
-      else {
+      if (expandedState) {
         const display = screen.getAllDisplays().find((candidate) => candidate.id === expandedState.displayId)
         if (!display) {
           this.expandedState = null
           return this.refreshPresentation(now)
         }
+
         const activities = resolveExpandedActivities(expandedState, this.activities)
         const primary = activities.find((activity) => activity.topicId === expandedState.primaryActivityId)
         if (primary) {
           this.pruneItemMetadataCache()
           this.clearExpiryTimer()
-          try {
-            const size = resolveConversationIslandSize(activities.length)
-            const placement = resolveConversationIslandBounds(display, this.geometries, size)
-            const snapshot = this.buildSnapshot(primary, activities.length - 1, placement, activities)
-            this.showOrUpdateWindow(snapshot, placement.bounds)
-            return
-          } catch (error) {
-            logger.error('Failed to present expanded Conversation Island activity', error as Error)
-            this.expandedState = null
-            try {
-              this.presentCompact(now)
-            } catch (compactError) {
-              logger.error('Failed to restore compact Conversation Island activity', compactError as Error)
-              this.dismissIslandWindow()
-            }
-            this.scheduleNextExpiry(now)
-            return
-          }
+          this.present(primary, activities, display.id)
+          return
         }
-        this.expandedState = null
       }
+      this.expandedState = null
     }
 
-    try {
-      this.presentCompact(now)
-    } catch (error) {
-      logger.error('Failed to present Conversation Island activity', error as Error)
-      this.dismissIslandWindow()
-    }
-
+    this.presentCompact(now)
     this.scheduleNextExpiry(now)
   }
 
@@ -420,15 +342,60 @@ export class ConversationIslandService extends BaseService {
     const selection = selectPrimaryActivity(this.activities, now)
     this.pruneItemMetadataCache()
     if (!selection.primary) {
-      this.beginExit()
+      if (this.hasPresentation) this.dismiss(false)
       this.clearExpiryTimer()
       return
     }
 
     const display = this.resolveActivityDisplay(selection.primary.originDisplayId)
-    const placement = resolveConversationIslandBounds(display, this.geometries, COMPACT_ISLAND_SIZE)
-    const snapshot = this.buildSnapshot(selection.primary, selection.secondaryCount, placement)
-    this.showOrUpdateWindow(snapshot, placement.bounds)
+    this.present(selection.primary, [selection.primary], display.id, selection.secondaryCount + 1)
+  }
+
+  private present(
+    primary: ConversationIslandActivity,
+    activities: ConversationIslandActivity[],
+    displayId: number,
+    activityCount = activities.length
+  ): void {
+    const payload: ConversationIslandPresentationPayload = {
+      displayId,
+      expanded: this.expandedState !== null,
+      reducedMotion: prefersReducedMotion(),
+      theme: this.resolveTheme(),
+      primaryActivityId: primary.topicId,
+      activityCountText: t('conversation_island.activity_count', { count: activityCount }),
+      activities: activities.map((activity) => this.buildActivityItem(activity))
+    }
+    const revision = this.nextRevision()
+
+    this.hasPresentation = true
+    this.currentPresentationRevision = revision
+    this.currentPresentationActivityIds = new Set(payload.activities.map((activity) => activity.activityId))
+    this.host.present({ version: 1, type: 'present', revision, payload })
+  }
+
+  private dismiss(terminateAfterHidden: boolean): void {
+    const revision = this.nextRevision()
+    this.hasPresentation = false
+    this.currentPresentationRevision = revision
+    this.currentPresentationActivityIds.clear()
+    this.host.dismiss({ version: 1, type: 'dismiss', revision }, terminateAfterHidden)
+  }
+
+  private nextRevision(): number {
+    if (this.revision >= Number.MAX_SAFE_INTEGER) throw new Error('Conversation Island revision exhausted')
+    this.revision += 1
+    return this.revision
+  }
+
+  private resolveTheme(): ConversationIslandPresentationPayload['theme'] {
+    const preferences = application.get('PreferenceService')
+    const fontFamily = preferences.get('ui.theme_user.font_family')
+    return {
+      appearance: nativeTheme.shouldUseDarkColors ? 'dark' : 'light',
+      primaryColor: resolvePrimaryColor(preferences.get('ui.theme_user.color_primary')),
+      fontFamily: typeof fontFamily === 'string' ? fontFamily : ''
+    }
   }
 
   private buildActivityItem(activity: ConversationIslandActivity): ConversationIslandActivityItem {
@@ -442,7 +409,6 @@ export class ConversationIslandService extends BaseService {
       activityId: activity.topicId,
       identityAvatar: metadata.identityAvatar,
       identityName: metadata.identityName,
-      target: activity.target,
       state: snapshotState(activity.status),
       statusText: statusText(activity),
       title: metadata.title
@@ -508,45 +474,6 @@ export class ConversationIslandService extends BaseService {
     }
   }
 
-  private buildSnapshot(
-    activity: ConversationIslandActivity,
-    secondaryCount: number,
-    placement: ConversationIslandPlacement,
-    activities?: ConversationIslandActivity[]
-  ): ConversationIslandSnapshot {
-    const activityCount = secondaryCount + 1
-
-    return {
-      ...this.buildActivityItem(activity),
-      activityCountText: t('conversation_island.activity_count', { count: activityCount }),
-      secondaryCount,
-      presentation: placement.presentation,
-      notchWidth: placement.notchWidth,
-      expanded: activities !== undefined,
-      exiting: false,
-      reducedMotion: prefersReducedMotion(),
-      ...(activities ? { activities: activities.map((item) => this.buildActivityItem(item)) } : {})
-    }
-  }
-
-  private showOrUpdateWindow(snapshot: ConversationIslandSnapshot, bounds: Rectangle): void {
-    this.cancelExit()
-    const windowManager = application.get('WindowManager')
-
-    if (this.windowId && !windowManager.pushInitData(this.windowId, snapshot)) this.windowId = null
-    if (!this.windowId) this.windowId = windowManager.open(WindowType.ConversationIsland, { initData: snapshot })
-
-    const window = windowManager.getWindow(this.windowId)
-    if (!window || window.isDestroyed()) throw new Error('Conversation Island window is unavailable')
-    const isInitialPosition = this.positionedWindowId !== this.windowId
-    if (isInitialPosition || !sameBounds(window.getBounds(), bounds)) {
-      window.setBounds(bounds, isInitialPosition ? false : !snapshot.reducedMotion)
-      this.positionedWindowId = this.windowId
-    }
-    window.showInactive()
-    this.lastSnapshot = snapshot
-  }
-
   private scheduleNextExpiry(now: number): void {
     this.clearExpiryTimer()
     let nextExpiry: number | undefined
@@ -577,68 +504,5 @@ export class ConversationIslandService extends BaseService {
     if (!this.expiryTimer) return
     clearTimeout(this.expiryTimer)
     this.expiryTimer = null
-  }
-
-  private clearExitTimer(): void {
-    if (!this.exitTimer) return
-    clearTimeout(this.exitTimer)
-    this.exitTimer = null
-  }
-
-  private beginExit(): void {
-    const windowId = this.windowId
-    const snapshot = this.lastSnapshot
-    if (!windowId || !snapshot || snapshot.reducedMotion) {
-      this.closeIslandWindow()
-      return
-    }
-
-    const windowManager = application.get('WindowManager')
-    const window = windowManager.getWindow(windowId)
-    if (!window || window.isDestroyed()) {
-      this.closeIslandWindow()
-      return
-    }
-    if (this.exitTimer) return
-    if (!windowManager.pushInitData(windowId, { ...snapshot, exiting: true })) {
-      this.closeIslandWindow()
-      return
-    }
-
-    this.exitTimer = setTimeout(() => {
-      this.exitTimer = null
-      if (this.windowId === windowId) this.closeIslandWindow()
-    }, EXIT_ANIMATION_MS)
-    this.exitTimer.unref()
-  }
-
-  private cancelExit(): void {
-    this.clearExitTimer()
-  }
-
-  private closeIslandWindow(): void {
-    this.clearExitTimer()
-    this.lastSnapshot = null
-    this.positionedWindowId = null
-    this.expandedState = null
-    const windowId = this.windowId
-    this.windowId = null
-    if (!windowId) return
-    try {
-      application.get('WindowManager').close(windowId)
-    } catch (error) {
-      logger.error('Failed to close Conversation Island window', error as Error)
-    }
-  }
-
-  private dismissIslandWindow(): void {
-    if (this.windowId) {
-      try {
-        application.get('WindowManager').getWindow(this.windowId)?.hide()
-      } catch (error) {
-        logger.error('Failed to hide Conversation Island window', error as Error)
-      }
-    }
-    this.closeIslandWindow()
   }
 }
