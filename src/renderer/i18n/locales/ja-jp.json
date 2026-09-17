@@ -4134,6 +4134,8 @@
   "settings.doctor.empty.canceled_description": "準備ができたら、もう一度検査を実行してください。",
   "settings.doctor.empty.canceled_title": "検査をキャンセルしました",
   "settings.doctor.empty.description": "基本検査を実行するか、ネットワークとサービスの検査を含めて実行してください。",
+  "settings.doctor.empty.failed_description": "チェックを完了できませんでした。診断をもう一度実行してください。",
+  "settings.doctor.empty.failed_title": "診断に失敗しました",
   "settings.doctor.empty.title": "診断結果はまだありません",
   "settings.doctor.entry.title": "システム診断",
   "settings.doctor.error_category.auth": "未ログイン、または API キーが無効です",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DOCTOR_CHECK_CATALOG, type DoctorCheckId, type DoctorReport } from '../../types/doctor'
-import { doctorScopeKey, isDoctorFixRequest, projectDoctorReport } from '../doctor'
+import { doctorScopeKey, doctorStateCacheKey, isDoctorFixRequest, projectDoctorReport } from '../doctor'
 
 describe('DOCTOR_CHECK_CATALOG', () => {
   it('has no prerequisite cycles', () => {
@@ -66,6 +66,7 @@ describe('projectDoctorReport', () => {
     scope: 'global',
     runId: 'run-1',
     tier: 'quick',
+    selectedCheckIds: ['config-boot-config-valid', 'logs-recent-findings'],
     startedAt: '2026-09-04T00:00:00.000Z',
     finishedAt: '2026-09-04T00:00:01.000Z',
     expiresAt: '2026-09-04T00:10:01.000Z',
@@ -177,5 +178,16 @@ describe('doctorScopeKey', () => {
     expect(doctorScopeKey({ kind: 'agent', agentId: 'a1', providerId: 'deepseek', modelId: 'deepseek-v4-flash' })).toBe(
       'agent:a1:deepseek/deepseek-v4-flash'
     )
+  })
+
+  it('encodes every scope as one legal collision-safe cache-template segment', () => {
+    const keys = [
+      doctorStateCacheKey('global'),
+      doctorStateCacheKey('chat:openai/gpt-4o'),
+      doctorStateCacheKey('agent:a1:deepseek/deepseek-v4-flash'),
+      doctorStateCacheKey('chat:openai:gpt-4o')
+    ]
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(keys.every((key) => /^doctor\.state\.[\w-]+$/.test(key))).toBe(true)
   })
 })

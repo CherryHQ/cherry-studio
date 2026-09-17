@@ -12,6 +12,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { BaseService } from '@main/core/lifecycle'
 import type { DoctorScopeKey } from '@shared/types/doctor'
+import { doctorStateCacheKey } from '@shared/utils/doctor'
 
 import type { DoctorContext } from '../types'
 
@@ -87,7 +88,7 @@ function createReadyService() {
 // The registry mock implements only a few checks; the catalog lists more.
 const MOCKED = ['config-boot-config-valid', 'storage-userdata-location'] as const
 
-const stateOf = (scope: DoctorScopeKey) => application.get('CacheService').getShared(`doctor.state.${scope}`)
+const stateOf = (scope: DoctorScopeKey) => application.get('CacheService').getShared(doctorStateCacheKey(scope))
 const state = () => stateOf('global')
 const warnWithRepair = {
   status: 'warn',
@@ -191,7 +192,7 @@ describe('DoctorService.run', () => {
     await expect(service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })).rejects.toThrow(
       'read failed'
     )
-    expect(state()).toEqual({ status: 'idle' })
+    expect(state()).toMatchObject({ status: 'failed', selectedCheckIds: MOCKED })
     expect((await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })).status).toBe(
       'completed'
     )
@@ -203,6 +204,7 @@ describe('DoctorService.run', () => {
     expect(outcome.status).toBe('completed')
     if (outcome.status !== 'completed') return
     expect(outcome.report.summary).toEqual({ pass: 2, warn: 0, fail: 0, skip: 0, error: 0 })
+    expect(outcome.report.selectedCheckIds).toEqual(MOCKED)
     expect(outcome.report.basics).toMatchObject({
       edition: 'global',
       channel: 'latest',
@@ -212,7 +214,12 @@ describe('DoctorService.run', () => {
     expect(state()).toEqual({ status: 'completed', report: outcome.report })
 
     const published = vi.mocked(application.get('CacheService').setShared).mock.calls.map(([, value]) => value)
-    expect(published[0]).toMatchObject({ status: 'running', results: [], activeCheckIds: [] })
+    expect(published[0]).toMatchObject({
+      status: 'running',
+      selectedCheckIds: MOCKED,
+      results: [],
+      activeCheckIds: []
+    })
     expect(published).toContainEqual(
       expect.objectContaining({
         status: 'running',
@@ -265,7 +272,7 @@ describe('DoctorService.run', () => {
     expect(service.cancel('global', busy.runId)).toEqual({ status: 'canceled' })
     release()
     await expect(first).resolves.toEqual({ status: 'canceled', runId: busy.runId })
-    expect(state()).toEqual({ status: 'canceled', runId: busy.runId })
+    expect(state()).toEqual({ status: 'canceled', runId: busy.runId, selectedCheckIds: MOCKED })
   })
 })
 
@@ -305,11 +312,7 @@ describe('DoctorService scopes', () => {
   })
 
   it('adds model connectivity to a conversation diagnosis without a full live sweep', async () => {
-    const started = await createReadyService().run({
-      tier: 'live',
-      subject: chat,
-      includeConnectivity: true
-    })
+    const started = await createReadyService().runContextualDiagnosis(chat)
     if (started.status !== 'completed') throw new Error('expected report')
     const ids = [
       ...started.report.results.map((entry) => entry.id),
@@ -327,6 +330,7 @@ describe('DoctorService scopes', () => {
     expect(ids).not.toContain('config-boot-config-valid')
     expect(registryMocks.modelConversationRun).not.toHaveBeenCalled()
     expect(started.report.pendingChecks).toEqual([expect.objectContaining({ checkId: 'provider-model-conversation' })])
+    expect(started.report.selectedCheckIds).toEqual(expect.arrayContaining(ids))
   })
 
   it('diagnoses the real Agent model and MCP membership, and refuses a removed association', async () => {
@@ -470,7 +474,7 @@ describe('DoctorService.fix', () => {
     const service = createReadyService()
     const run = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
     if (run.status !== 'completed') throw new Error('expected report')
-    application.get('CacheService').setShared('doctor.state.global', {
+    application.get('CacheService').setShared(doctorStateCacheKey('global'), {
       status: 'completed',
       report: { ...run.report, expiresAt: new Date(0).toISOString() }
     })
@@ -509,7 +513,10 @@ describe('DoctorService.fix', () => {
         ...run.report,
         ...(change === 'superseded' ? { runId: 'replacement' } : { expiresAt: new Date(0).toISOString() })
       }
-      application.get('CacheService').setShared('doctor.state.global', { status: 'completed', report: replacement })
+      application.get('CacheService').setShared(doctorStateCacheKey('global'), {
+        status: 'completed',
+        report: replacement
+      })
       release(warnWithRepair)
       await expect(fixing).resolves.toMatchObject({
         status: 'stale',

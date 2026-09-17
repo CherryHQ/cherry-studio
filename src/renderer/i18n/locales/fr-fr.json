@@ -4134,6 +4134,8 @@
   "settings.doctor.empty.canceled_description": "Relancez les vérifications lorsque vous serez prêt.",
   "settings.doctor.empty.canceled_title": "Vérifications annulées",
   "settings.doctor.empty.description": "Lancez une vérification de base ou incluez les vérifications du réseau et des services.",
+  "settings.doctor.empty.failed_description": "Les vérifications n’ont pas pu aboutir. Relancez le diagnostic.",
+  "settings.doctor.empty.failed_title": "Échec du diagnostic",
   "settings.doctor.empty.title": "Aucun résultat de diagnostic pour le moment",
   "settings.doctor.entry.title": "Diagnostic du système",
   "settings.doctor.error_category.auth": "Not signed in or the API key is invalid",

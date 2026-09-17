@@ -73,6 +73,7 @@ function completedDoctorState(): DoctorState {
       scope: 'global',
       runId: 'completed-run',
       tier: 'quick',
+      selectedCheckIds: [],
       startedAt: new Date(now - 1_000).toISOString(),
       finishedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + 60_000).toISOString(),
@@ -147,13 +148,7 @@ describe('useDoctorController', () => {
     const subject = { kind: 'chat', providerId: 'openai', modelId: 'gpt-4o' } as const
     renderHook(() => useDoctorController({ initialPanel: 'checks', subject, onNavigate: vi.fn() }))
 
-    await waitFor(() =>
-      expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', {
-        tier: 'live',
-        subject,
-        includeConnectivity: true
-      })
-    )
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run_contextual', { subject }))
   })
 
   it('waits for shared-cache hydration before deciding that no report exists', async () => {
@@ -172,6 +167,7 @@ describe('useDoctorController', () => {
         scope: 'global',
         runId: 'hydrated-run',
         tier: 'quick',
+        selectedCheckIds: [],
         startedAt: new Date().toISOString(),
         finishedAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
@@ -203,6 +199,7 @@ describe('useDoctorController', () => {
       status: 'running',
       runId: 'shared-live',
       tier: 'live',
+      selectedCheckIds: [],
       startedAt: new Date().toISOString(),
       activeCheckIds: [],
       results: []
@@ -260,7 +257,7 @@ describe('useDoctorController', () => {
   })
 
   it('switches a report action to the report panel without copying Doctor results into the draft', async () => {
-    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
+    mocks.doctorState = { status: 'canceled', runId: 'run-1', selectedCheckIds: [] }
     const { result } = renderHook(() =>
       useDoctorController({
         subject: { kind: 'global' },
@@ -278,7 +275,7 @@ describe('useDoctorController', () => {
   })
 
   it('hands an empty report draft to an embedded host using only public check identity', async () => {
-    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
+    mocks.doctorState = { status: 'canceled', runId: 'run-1', selectedCheckIds: [] }
     const onReportProblem = vi.fn()
     const { result } = renderHook(() =>
       useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate: vi.fn(), onReportProblem })
@@ -315,6 +312,7 @@ describe('useDoctorController', () => {
       status: 'running',
       runId: 'replacement-run',
       tier: 'quick',
+      selectedCheckIds: [],
       startedAt: new Date().toISOString(),
       activeCheckIds: [],
       results: []
@@ -462,6 +460,7 @@ describe('useDoctorController', () => {
       status: 'running',
       runId: 'run-1',
       tier,
+      selectedCheckIds: [],
       startedAt: '2026-09-04T08:59:00.000Z',
       activeCheckIds: [],
       results: []
@@ -475,7 +474,7 @@ describe('useDoctorController', () => {
   })
 
   it('blocks closing while opening the displayed app data directory and releases it afterwards', async () => {
-    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
+    mocks.doctorState = { status: 'canceled', runId: 'run-1', selectedCheckIds: [] }
     let release!: () => void
     mocks.request.mockImplementation(
       () =>
@@ -506,7 +505,7 @@ describe('useDoctorController', () => {
   })
 
   it('opens the existing application logs directory from the advanced tools', async () => {
-    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
+    mocks.doctorState = { status: 'canceled', runId: 'run-1', selectedCheckIds: [] }
     mocks.request.mockImplementation(async (route: string) =>
       route === 'app.get_info' ? { logsPath: '/Users/local/CherryStudio/logs' } : undefined
     )
@@ -521,7 +520,7 @@ describe('useDoctorController', () => {
   })
 
   it('executes every non-fix backend action with its exact public contract', async () => {
-    mocks.doctorState = { status: 'canceled', runId: 'run-1' }
+    mocks.doctorState = { status: 'canceled', runId: 'run-1', selectedCheckIds: [] }
     const onNavigate = vi.fn()
     const { result } = renderHook(() =>
       useDoctorController({ subject: { kind: 'global' }, initialPanel: 'checks', onNavigate })

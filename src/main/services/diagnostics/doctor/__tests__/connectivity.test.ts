@@ -19,6 +19,7 @@ import { httpReach } from '@main/services/network/probes'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { DOCTOR_REPORT_TTL_MS, type DoctorCheckId, type DoctorExecutionSnapshot } from '@shared/types/doctor'
 import type { DoctorConnectivitySubject } from '@shared/types/doctorConnectivity'
+import { doctorStateCacheKey } from '@shared/utils/doctor'
 
 import { DoctorService } from '../DoctorService'
 
@@ -463,7 +464,7 @@ describe('model connectivity against an HTTP provider', () => {
       checkIds: ['config-boot-config-valid']
     })
     expect(global.status).toBe('completed')
-    const before = structuredClone(application.get('CacheService').getShared('doctor.state.global'))
+    const before = structuredClone(application.get('CacheService').getShared(doctorStateCacheKey('global')))
     const chat = await start()
     const agent = await start({ kind: 'agent', agentId: 'agent' }, 'agent-run')
     dbh.db.update(agentTable).set({ model: null }).run()
@@ -475,7 +476,7 @@ describe('model connectivity against an HTTP provider', () => {
       })
     ).toEqual({ status: 'stale' })
     expect(result(await confirm(chat), 'provider-model-conversation')?.status).toBe('pass')
-    expect(application.get('CacheService').getShared('doctor.state.global')).toEqual(before)
+    expect(application.get('CacheService').getShared(doctorStateCacheKey('global'))).toEqual(before)
     expect(requests).toHaveLength(1)
   })
 
@@ -495,7 +496,7 @@ describe('model connectivity against an HTTP provider', () => {
       requestId: started.report.pendingChecks![0].requestId
     })
     expect(response.status).toBe('completed')
-    expect(application.get('CacheService').getShared('doctor.state.global')).toMatchObject({
+    expect(application.get('CacheService').getShared(doctorStateCacheKey('global'))).toMatchObject({
       status: 'completed',
       report: {
         runId: started.report.runId,

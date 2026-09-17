@@ -20,7 +20,7 @@ import {
   type DoctorState,
   type DoctorSubjectRef
 } from '@shared/types/doctor'
-import { doctorCheckTitleKey, type DoctorPanel, doctorScopeKey } from '@shared/utils/doctor'
+import { doctorCheckTitleKey, type DoctorPanel, doctorScopeKey, doctorStateCacheKey } from '@shared/utils/doctor'
 
 import { createDoctorSession, type DoctorInteraction, doctorSessionReducer } from './doctorSessionReducer'
 
@@ -66,7 +66,7 @@ export function useDoctorController({
 }: UseDoctorControllerOptions) {
   const { t } = useTranslation()
   const scope = doctorScopeKey(subject)
-  const cachedDoctorState = useSharedCacheValue(`doctor.state.${scope}` as const)
+  const cachedDoctorState = useSharedCacheValue(doctorStateCacheKey(scope))
   const [sharedCacheReady, setSharedCacheReady] = useState(() => cacheService.isSharedCacheReady())
   const doctorState = cachedDoctorState ?? IDLE_DOCTOR_STATE
   const { appUpdateState } = useAppUpdateState()
@@ -123,17 +123,18 @@ export function useDoctorController({
   const canChangePanel = !isCloseBlocked && session.interaction.kind !== 'confirm-evidence'
 
   const run = useCallback(
-    async (tier: DoctorRunTier, options?: { includeConnectivity?: boolean }) => {
+    async (mode: DoctorRunTier | 'contextual') => {
+      const tier = mode === 'contextual' ? 'live' : mode
       dispatch({
         type: 'start-interaction',
         interaction: { kind: 'run', tier }
       })
       try {
-        await ipcApi.request('diagnostics.doctor.run', {
-          tier,
-          subject,
-          ...(options?.includeConnectivity ? { includeConnectivity: true } : {})
-        })
+        if (mode === 'contextual' && subject.kind !== 'global') {
+          await ipcApi.request('diagnostics.doctor.run_contextual', { subject })
+        } else {
+          await ipcApi.request('diagnostics.doctor.run', { tier, subject })
+        }
       } catch (error) {
         logger.error('Failed to run system diagnostics', error as Error)
         toast.error(t('settings.doctor.messages.run_failed'))
@@ -162,11 +163,7 @@ export function useDoctorController({
       return
     }
     autoRunRequestedRef.current = true
-    const includeConnectivity = subject.kind !== 'global'
-    void run(
-      includeConnectivity ? 'live' : 'quick',
-      includeConnectivity ? { includeConnectivity: true } : undefined
-    ).finally(() => setIsAutoRunPending(false))
+    void run(subject.kind === 'global' ? 'quick' : 'contextual').finally(() => setIsAutoRunPending(false))
   }, [doctorState.status, initialPanel, initialRunTier, run, sharedCacheReady, subject.kind])
 
   const cancel = useCallback(async () => {

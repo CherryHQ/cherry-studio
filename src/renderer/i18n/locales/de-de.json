@@ -4134,6 +4134,8 @@
   "settings.doctor.empty.canceled_description": "Führen Sie die Prüfungen erneut aus, wenn Sie bereit sind.",
   "settings.doctor.empty.canceled_title": "Prüfungen abgebrochen",
   "settings.doctor.empty.description": "Führen Sie eine grundlegende Prüfung durch oder beziehen Sie Netzwerk- und Dienstprüfungen ein.",
+  "settings.doctor.empty.failed_description": "Die Prüfungen konnten nicht abgeschlossen werden. Führen Sie die Diagnose erneut aus.",
+  "settings.doctor.empty.failed_title": "Diagnose fehlgeschlagen",
   "settings.doctor.empty.title": "Noch kein Diagnoseergebnis",
   "settings.doctor.entry.title": "Systemdiagnose",
   "settings.doctor.error_category.auth": "Not signed in or the API key is invalid",

@@ -9,9 +9,22 @@ type DoctorCheckNoticesController = Pick<DoctorController, 'isInteracting' | 'ru
   readonly viewModel: Pick<DoctorController['viewModel'], 'isStale' | 'rows' | 'status'>
 }
 
-export function DoctorCheckNotices({ controller }: { readonly controller: DoctorCheckNoticesController }) {
+export function DoctorCheckNotices({
+  controller,
+  onRetry = () => controller.run('quick'),
+  retryLabel
+}: {
+  readonly controller: DoctorCheckNoticesController
+  readonly onRetry?: () => void | Promise<void>
+  readonly retryLabel?: 'rerun' | 'run_basic'
+}) {
   const { t } = useTranslation()
   const { session, viewModel } = controller
+  const retryLabelKey =
+    retryLabel ?? (viewModel.status === 'canceled' || viewModel.status === 'failed' ? 'rerun' : 'run_basic')
+  const retryLabelText = t(
+    retryLabelKey === 'rerun' ? 'settings.doctor.actions.rerun' : 'settings.doctor.actions.run_basic'
+  )
 
   return (
     <>
@@ -21,13 +34,9 @@ export function DoctorCheckNotices({ controller }: { readonly controller: Doctor
           showIcon
           description={t('settings.doctor.stale.description')}
           action={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={controller.isInteracting}
-              onClick={() => void controller.run('quick')}>
+            <Button variant="outline" size="sm" disabled={controller.isInteracting} onClick={() => void onRetry()}>
               <RotateCcw className="size-4" aria-hidden />
-              {t('settings.doctor.actions.run_basic')}
+              {retryLabelText}
             </Button>
           }
         />
@@ -42,26 +51,24 @@ export function DoctorCheckNotices({ controller }: { readonly controller: Doctor
           type="info"
           showIcon
           message={t(
-            viewModel.status === 'canceled' ? 'settings.doctor.empty.canceled_title' : 'settings.doctor.empty.title'
+            viewModel.status === 'canceled'
+              ? 'settings.doctor.empty.canceled_title'
+              : viewModel.status === 'failed'
+                ? 'settings.doctor.empty.failed_title'
+                : 'settings.doctor.empty.title'
           )}
           description={t(
             viewModel.status === 'canceled'
               ? 'settings.doctor.empty.canceled_description'
-              : 'settings.doctor.empty.description'
+              : viewModel.status === 'failed'
+                ? 'settings.doctor.empty.failed_description'
+                : 'settings.doctor.empty.description'
           )}
           action={
-            viewModel.status === 'canceled' || viewModel.status === 'idle' ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={controller.isInteracting}
-                onClick={() => void controller.run('quick')}>
+            viewModel.status === 'canceled' || viewModel.status === 'failed' || viewModel.status === 'idle' ? (
+              <Button variant="outline" size="sm" disabled={controller.isInteracting} onClick={() => void onRetry()}>
                 <RotateCcw className="size-4" aria-hidden />
-                {t(
-                  viewModel.status === 'canceled'
-                    ? 'settings.doctor.actions.rerun'
-                    : 'settings.doctor.actions.run_basic'
-                )}
+                {retryLabelText}
               </Button>
             ) : undefined
           }

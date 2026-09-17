@@ -31,6 +31,12 @@ export function doctorScopeKey(ref: DoctorSubjectRef): DoctorScopeKey {
     : `agent:${ref.agentId}`
 }
 
+/** Encodes a semantic scope as one collision-safe cache-template segment (`[\w-]+`). */
+export function doctorStateCacheKey(scope: DoctorScopeKey): `doctor.state.${string}` {
+  const encoded = Array.from(new TextEncoder().encode(scope), (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return `doctor.state.${encoded}`
+}
+
 export function isDoctorScopeKey(value: unknown): value is DoctorScopeKey {
   return value === 'global' || (typeof value === 'string' && /^(chat|agent):./.test(value))
 }

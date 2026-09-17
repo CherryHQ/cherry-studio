@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
 import type { DoctorReport, DoctorSubjectRef } from '@shared/types/doctor'
-import { doctorScopeKey } from '@shared/utils/doctor'
+import { doctorScopeKey, doctorStateCacheKey } from '@shared/utils/doctor'
 
 vi.unmock('@data/hooks/useCache')
 
@@ -23,6 +23,7 @@ function report(subject: DoctorSubjectRef): DoctorReport {
     runId: `run-${subject.kind}`,
     scope: doctorScopeKey(subject),
     tier: 'quick',
+    selectedCheckIds: [subject.kind === 'global' ? 'install-version-channel' : 'provider-model'],
     startedAt: new Date().toISOString(),
     finishedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
@@ -50,7 +51,7 @@ beforeEach(() => {
   request.mockReset()
   request.mockImplementation(async (_route, { subject }) => {
     const completed = report(subject)
-    cacheService.setShared(`doctor.state.${completed.scope}`, { status: 'completed', report: completed })
+    cacheService.setShared(doctorStateCacheKey(completed.scope), { status: 'completed', report: completed })
     return { status: 'completed', report: completed }
   })
 })
@@ -107,18 +108,14 @@ describe('Doctor scope ownership', () => {
     await waitFor(() =>
       expect(second.result.current.viewModel.report?.scope).toBe('agent:support:deepseek/deepseek-reasoner')
     )
-    expect(request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(2)
-    expect(request).toHaveBeenLastCalledWith('diagnostics.doctor.run', {
-      tier: 'live',
-      subject: secondModel,
-      includeConnectivity: true
-    })
+    expect(request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run_contextual')).toHaveLength(2)
+    expect(request).toHaveBeenLastCalledWith('diagnostics.doctor.run_contextual', { subject: secondModel })
   })
 
   it('does not carry a successful fix into a newer report', async () => {
     const subject = { kind: 'global' } as const
     const first = report(subject)
-    cacheService.setShared('doctor.state.global', { status: 'completed', report: first })
+    cacheService.setShared(doctorStateCacheKey('global'), { status: 'completed', report: first })
     const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', subject, onNavigate: vi.fn() }))
     request.mockResolvedValueOnce({ status: 'fixed' })
     await act(async () => {
@@ -126,7 +123,7 @@ describe('Doctor scope ownership', () => {
     })
     expect(result.current.session.fixedCheckIds).toEqual(['config-boot-config-valid'])
     act(() => {
-      cacheService.setShared('doctor.state.global', {
+      cacheService.setShared(doctorStateCacheKey('global'), {
         status: 'completed',
         report: { ...first, runId: 'new-run' }
       })

@@ -4134,6 +4134,8 @@
   "settings.doctor.empty.canceled_description": "準備好後，請重新執行檢查。",
   "settings.doctor.empty.canceled_title": "檢查已取消",
   "settings.doctor.empty.description": "執行基本檢查，或同時檢查網路與服務。",
+  "settings.doctor.empty.failed_description": "檢查未能完成，請重新執行診斷。",
+  "settings.doctor.empty.failed_title": "診斷失敗",
   "settings.doctor.empty.title": "暫無診斷結果",
   "settings.doctor.entry.title": "系統診斷",
   "settings.doctor.error_category.auth": "未登入或金鑰無效",

@@ -61,7 +61,10 @@ export type DoctorSubjectKey = keyof DoctorSubject
 export type DoctorSubjectRef =
   | { readonly kind: 'global' }
   | { readonly kind: 'chat'; readonly providerId: string; readonly modelId: string }
-  | { readonly kind: 'agent'; readonly agentId: string; readonly providerId?: string; readonly modelId?: string }
+  | ({ readonly kind: 'agent'; readonly agentId: string } & (
+      | { readonly providerId?: never; readonly modelId?: never }
+      | { readonly providerId: string; readonly modelId: string }
+    ))
 
 /** Identity of a run's context; suffixes the shared cache key so contexts never share state. */
 export type DoctorScopeKey = 'global' | `chat:${string}` | `agent:${string}`
@@ -517,6 +520,8 @@ export interface DoctorReport {
   readonly runId: string
   readonly scope: DoctorScopeKey
   readonly tier: DoctorRunTier
+  /** Checks selected by Main for this subject, including transitive prerequisites. */
+  readonly selectedCheckIds: readonly DoctorCheckId[]
   readonly startedAt: string
   readonly finishedAt: string
   readonly expiresAt: string
@@ -527,7 +532,7 @@ export interface DoctorReport {
 }
 
 /**
- * Live state of one scope, published on the shared cache (`doctor.state.${scope}`) so every
+ * Live state of one scope, published through `doctorStateCacheKey(scope)` so every
  * window renders the same run without an IPC subscription. Runs in one scope never coexist;
  * a completed run replaces the previous report wholesale (a live run is a superset of quick).
  */
@@ -537,12 +542,17 @@ export type DoctorState =
       readonly status: 'running'
       readonly runId: string
       readonly tier: DoctorRunTier
+      readonly selectedCheckIds: readonly DoctorCheckId[]
       readonly startedAt: string
       readonly results: readonly DoctorCheckResult[]
       readonly activeCheckIds: readonly DoctorCheckId[]
     }
   | { readonly status: 'completed'; readonly report: DoctorReport }
-  | { readonly status: 'canceled'; readonly runId: string }
+  | {
+      readonly status: 'canceled' | 'failed'
+      readonly runId: string
+      readonly selectedCheckIds: readonly DoctorCheckId[]
+    }
 
 /** `busy` carries the in-flight run's id so the caller can cancel it. */
 export type DoctorRunResult =

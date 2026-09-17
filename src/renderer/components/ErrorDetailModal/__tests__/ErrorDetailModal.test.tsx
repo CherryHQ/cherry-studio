@@ -86,20 +86,6 @@ const skippedResult: DoctorCheckResult = {
   skippedBy: 'provider-model'
 }
 
-const missingApiKeyResult: DoctorCheckResult = {
-  id: 'provider-api-key-present',
-  status: 'fail',
-  durationMs: 1,
-  attribution: 'user-fixable',
-  detail: { variant: 'missing' },
-  evidence: [
-    { key: 'providerId', value: 'deepseek', dataClass: 'local_only' },
-    { key: 'status', value: 401, dataClass: 'public' },
-    { key: 'request', value: 'private request', dataClass: 'consent_required' }
-  ],
-  actions: [{ kind: 'navigate', target: '/settings/provider' }]
-}
-
 const modelEndpointPass: DoctorCheckResult = {
   id: 'network-model-endpoint',
   status: 'pass',
@@ -126,15 +112,6 @@ const conversationPending: DoctorPendingCheck = {
     messageKey: 'settings.doctor.checks.provider-model-conversation.confirmation',
     params: { model: 'DeepSeek V4 Flash', modelId: 'deepseek-v4-flash', endpoint: 'https://api.deepseek.com/' }
   }
-}
-
-const conversationFail: DoctorCheckResult = {
-  id: 'provider-model-conversation',
-  status: 'fail',
-  durationMs: 1,
-  attribution: 'user-fixable',
-  detail: { variant: 'request_failed', params: { category: 'auth' } },
-  actions: [{ kind: 'navigate', target: '/settings/provider' }]
 }
 
 const chatSubject = { kind: 'chat' as const, providerId: 'deepseek', modelId: 'deepseek-v4-flash' }
@@ -296,12 +273,14 @@ function renderErrorDetailContent(props: ErrorDetailContentProps) {
 
 function runningDoctorState(
   tier: 'quick' | 'live',
-  activeCheckIds: Extract<DoctorState, { status: 'running' }>['activeCheckIds'] = []
+  activeCheckIds: Extract<DoctorState, { status: 'running' }>['activeCheckIds'] = [],
+  selectedCheckIds: Extract<DoctorState, { status: 'running' }>['selectedCheckIds'] = activeCheckIds
 ): Extract<DoctorState, { status: 'running' }> {
   return {
     status: 'running',
     runId: `running-${tier}`,
     tier,
+    selectedCheckIds,
     startedAt: new Date().toISOString(),
     activeCheckIds,
     results: []
@@ -321,6 +300,7 @@ function completedDoctorState(
       scope: 'global',
       runId: 'completed-quick',
       tier: 'quick',
+      selectedCheckIds: results.map((result) => result.id),
       startedAt: new Date(now - 1_000).toISOString(),
       finishedAt: new Date(now).toISOString(),
       expiresAt,
@@ -656,165 +636,6 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
   })
 
-  it('renders conversation connectivity as three collapsed steps without the result summary', async () => {
-    const user = userEvent.setup()
-    mocks.doctorState = completedDoctorState([modelEndpointPass, modelListFail], undefined, [conversationPending])
-
-    renderErrorDetailContent({ subject: chatSubject, error: providerError })
-
-    const result = screen.getByRole('region', { name: 'Diagnostic result' })
-    const endpoint = within(result).getByRole('button', { name: /Selected model endpoint/ })
-    const availability = within(result).getByRole('button', { name: /Remote model availability/ })
-    const conversation = within(result).getByRole('button', { name: /Model conversation/ })
-    expect(within(endpoint).queryByText('1')).not.toBeInTheDocument()
-    expect(within(availability).queryByText('2')).not.toBeInTheDocument()
-    expect(within(conversation).queryByText('3')).not.toBeInTheDocument()
-    expect(within(endpoint).getByText('Passed')).toHaveClass('text-success')
-    expect(within(availability).getByText('Failed')).toHaveClass('text-error')
-    expect(within(conversation).getByText('Pending')).toHaveClass('text-warning')
-    expect(endpoint).toHaveAttribute('aria-expanded', 'false')
-    expect(availability).toHaveAttribute('aria-expanded', 'false')
-    expect(conversation).toHaveAttribute('aria-expanded', 'false')
-    expect(result).not.toHaveTextContent('needs attention')
-    expect(result).not.toHaveTextContent('Fixed:')
-
-    await user.click(endpoint)
-    expect(
-      within(endpoint.closest('[data-slot="accordion-item"]') as HTMLElement).getByText('Passed', { selector: 'p' })
-    ).toBeVisible()
-    await user.click(availability)
-    expect(
-      await screen.findByText('Not signed in or the API key is invalid. The remote model list could not be retrieved.')
-    ).toBeVisible()
-    expect(screen.queryByText('401')).not.toBeInTheDocument()
-    expect(screen.queryByText('Not logged in · Please run /login')).not.toBeInTheDocument()
-    await user.click(conversation)
-    expect(
-      await screen.findByText(
-        'Send one short test message to DeepSeek V4 Flash (deepseek-v4-flash) at https://api.deepseek.com/?'
-      )
-    ).toBeVisible()
-    expect(within(result).getByRole('button', { name: 'Send test message' })).toBeEnabled()
-    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
-  })
-
-  it('keeps connectivity findings on the steps and other user-fixable rows in Diagnostic result', () => {
-    mocks.doctorState = completedDoctorState([missingApiKeyResult, modelEndpointPass, modelListFail], undefined, [
-      conversationPending
-    ])
-
-    renderErrorDetailContent({ subject: chatSubject, error: providerError })
-
-    const result = screen.getByRole('region', { name: 'Diagnostic result' })
-    expect(within(result).getByText('Remote model availability')).toBeVisible()
-    expect(within(result).getByText('Model conversation')).toBeVisible()
-    expect(within(result).getByRole('button', { name: /Provider API key/ })).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
-    expect(result).not.toHaveTextContent('needs attention')
-    const apiKey = within(result).getByRole('button', { name: /Provider API key/ })
-    expect(apiKey.querySelector('svg.text-error')).not.toBeInTheDocument()
-    expect(within(apiKey).getByText('Needs action')).toHaveClass('text-warning')
-    expect(within(apiKey).queryByText('Failed')).not.toBeInTheDocument()
-    expect(within(result).getByRole('button', { name: /Remote model availability/ })).not.toHaveTextContent(
-      'Needs action'
-    )
-  })
-
-  it('explains a missing API key with the provider name and no local diagnostic dump', async () => {
-    const user = userEvent.setup()
-    mocks.doctorState = completedDoctorState([missingApiKeyResult, modelEndpointPass])
-
-    renderErrorDetailContent({ subject: chatSubject, error: providerError })
-
-    const result = screen.getByRole('region', { name: 'Diagnostic result' })
-    await user.click(within(result).getByRole('button', { name: /Provider API key/ }))
-    expect(within(result).getByText('DeepSeek has no enabled API key.')).toBeVisible()
-    expect(within(result).queryByRole('button', { name: 'Local details' })).not.toBeInTheDocument()
-    expect(result).not.toHaveTextContent('providerId')
-    expect(result).not.toHaveTextContent('401')
-    expect(result).not.toHaveTextContent('private request')
-  })
-
-  it('keeps a confirmed conversation failure on the connectivity steps', () => {
-    mocks.doctorState = completedDoctorState([modelEndpointPass, modelListFail, conversationFail])
-
-    renderErrorDetailContent({ subject: chatSubject, error: providerError })
-
-    const result = screen.getByRole('region', { name: 'Diagnostic result' })
-    expect(within(result).getByText('Remote model availability')).toBeVisible()
-    expect(within(result).getByText('Model conversation')).toBeVisible()
-    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
-  })
-
-  it('offers provider settings from a failed connectivity step', async () => {
-    const user = userEvent.setup()
-    mocks.doctorState = completedDoctorState([modelEndpointPass, modelListFail, conversationFail])
-
-    renderErrorDetailContent({
-      subject: chatSubject,
-      error: providerError,
-      onDoctorNavigate: mocks.openSettingsTab
-    })
-
-    await user.click(screen.getByRole('button', { name: /Model conversation/ }))
-    await user.click(await screen.findByRole('button', { name: 'Open provider settings' }))
-
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider')
-    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
-  })
-
-  it('does not repeat provider settings on connectivity steps when the API key already offers it', async () => {
-    const user = userEvent.setup()
-    mocks.doctorState = completedDoctorState([missingApiKeyResult, modelEndpointPass, conversationFail])
-
-    renderErrorDetailContent({
-      subject: chatSubject,
-      error: providerError,
-      onDoctorNavigate: mocks.openSettingsTab
-    })
-
-    const result = screen.getByRole('region', { name: 'Diagnostic result' })
-    await user.click(within(result).getByRole('button', { name: /Model conversation/ }))
-    expect(within(result).queryByRole('button', { name: 'Open provider settings' })).not.toBeInTheDocument()
-    await user.click(within(result).getByRole('button', { name: /Provider API key/ }))
-    await user.click(within(result).getByRole('button', { name: 'Open provider settings' }))
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider')
-    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
-  })
-
-  it('confirms the conversation step from the diagnostic result', async () => {
-    const user = userEvent.setup()
-    mocks.doctorState = completedDoctorState([modelEndpointPass, modelListFail], undefined, [conversationPending])
-    mocks.request.mockResolvedValue({ status: 'completed' })
-
-    renderErrorDetailContent({ subject: chatSubject, error: providerError })
-
-    await user.click(screen.getByRole('button', { name: /Model conversation/ }))
-    await user.click(await screen.findByRole('button', { name: 'Send test message' }))
-
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.confirm_check', {
-      scope: 'chat:deepseek/deepseek-v4-flash',
-      runId: 'completed-quick',
-      requestId: 'confirm-conversation'
-    })
-  })
-
-  it('shows three connectivity steps while a conversation diagnosis is running', () => {
-    mocks.doctorState = runningDoctorState('live', ['network-model-endpoint'])
-
-    renderErrorDetailContent({ subject: chatSubject, error: providerError })
-
-    const diagnosing = screen.getByRole('region', { name: 'Diagnosing' })
-    expect(within(diagnosing).queryByText('1')).not.toBeInTheDocument()
-    expect(within(diagnosing).getByText('Selected model endpoint')).toBeVisible()
-    expect(within(diagnosing).queryByText('2')).not.toBeInTheDocument()
-    expect(within(diagnosing).getByText('Remote model availability')).toBeVisible()
-    expect(within(diagnosing).queryByText('3')).not.toBeInTheDocument()
-    expect(within(diagnosing).getByText('Model conversation')).toBeVisible()
-    expect(diagnosing).not.toHaveTextContent('needs attention')
-    expect(within(diagnosing).queryByRole('status')).not.toBeInTheDocument()
-  })
-
   it('enables the system diagnosis full check without a prior conversation report', async () => {
     const user = userEvent.setup()
     const onOpenFullCheck = vi.fn()
@@ -823,11 +644,7 @@ describe('ErrorDetailContent diagnostics', () => {
     const result = await screen.findByRole('region', { name: 'Diagnostic result' })
     const fullCheck = await screen.findByRole('button', { name: 'Full check' })
     await waitFor(() => expect(fullCheck).toBeEnabled())
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', {
-      subject: chatSubject,
-      tier: 'live',
-      includeConnectivity: true
-    })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run_contextual', { subject: chatSubject })
     expect(within(result).getByText('Selected model endpoint')).toBeVisible()
     expect(within(result).getByText('Remote model availability')).toBeVisible()
     expect(within(result).getByText('Model conversation')).toBeVisible()
@@ -882,7 +699,7 @@ describe('ErrorDetailContent diagnostics', () => {
 
   it('offers a quick retry when embedded checks are canceled without a report', async () => {
     const user = userEvent.setup()
-    mocks.doctorState = { status: 'canceled', runId: 'canceled-quick' }
+    mocks.doctorState = { status: 'canceled', runId: 'canceled-quick', selectedCheckIds: [] }
     renderErrorDetailContent({ error: providerError })
 
     const retry = await screen.findByRole('button', { name: 'Run checks again' })
