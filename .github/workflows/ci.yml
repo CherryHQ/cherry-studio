@@ -42,6 +42,7 @@ jobs:
             main:
               - 'src/main/**'
               - 'src/preload/**'
+              - 'packages/conversation-island-helper/**'
               - 'tests/helpers/**'
               - 'tests/main.setup.ts'
               - 'tests/__mocks__/main/**'
@@ -268,6 +269,10 @@ jobs:
 
       - name: Install Dependencies
         run: pnpm install
+
+      - name: Test Conversation Island Helper
+        if: matrix.os == 'macos-latest'
+        run: pnpm test:conversation-island-helper
 
       - name: Main and Package Tests
         shell: bash

@@ -6,11 +6,17 @@
  */
 import { readFileSync } from 'node:fs'
 
-import { describe, expect, it } from 'vitest'
+import { Arch } from 'electron-builder'
+import { describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
 // CJS build script — vitest interops the module.exports fine.
-import { assertPrebuiltPackages, conversationIslandPackageFilters, keepPackages } from '../before-pack'
+import {
+  assertPrebuiltPackages,
+  buildConversationIslandHelperForPack,
+  conversationIslandPackageFilters,
+  keepPackages
+} from '../before-pack'
 
 const hostPlatform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
 const foreignPlatform = hostPlatform === 'darwin' ? 'win32' : 'darwin'
@@ -29,6 +35,49 @@ describe('conversationIslandPackageFilters', () => {
 
   it.each(['win32', 'linux'])('excludes the feature outputs from %s packages', (platform) => {
     expect(conversationIslandPackageFilters(platform)).toEqual(featureOutputs)
+  })
+})
+
+describe('buildConversationIslandHelperForPack', () => {
+  it.each([
+    [Arch.arm64, 'arm64'],
+    [Arch.x64, 'x64']
+  ])('builds the helper once for macOS architecture %s', (builderArch, nodeArch) => {
+    const buildConversationIslandHelper = vi.fn()
+
+    buildConversationIslandHelperForPack(
+      { arch: builderArch, packager: { platform: { name: 'mac' } } },
+      { buildConversationIslandHelper }
+    )
+
+    expect(buildConversationIslandHelper).toHaveBeenCalledOnce()
+    expect(buildConversationIslandHelper).toHaveBeenCalledWith({ platform: 'darwin', arch: nodeArch })
+  })
+
+  it.each(['windows', 'linux'])('does not build the helper for %s packages', (platformName) => {
+    const buildConversationIslandHelper = vi.fn()
+
+    buildConversationIslandHelperForPack(
+      { arch: Arch.x64, packager: { platform: { name: platformName } } },
+      { buildConversationIslandHelper }
+    )
+
+    expect(buildConversationIslandHelper).not.toHaveBeenCalled()
+  })
+
+  it('propagates helper build failures', () => {
+    const failure = new Error('Swift build failed')
+
+    expect(() =>
+      buildConversationIslandHelperForPack(
+        { arch: Arch.arm64, packager: { platform: { name: 'mac' } } },
+        {
+          buildConversationIslandHelper: () => {
+            throw failure
+          }
+        }
+      )
+    ).toThrow(failure)
   })
 })
 

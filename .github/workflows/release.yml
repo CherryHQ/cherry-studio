@@ -119,6 +119,10 @@ jobs:
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
+      - name: Test Conversation Island Helper
+        if: matrix.os == 'macos-latest'
+        run: pnpm test:conversation-island-helper
+
       - name: Build Mac
         if: matrix.os == 'macos-latest'
         run: |

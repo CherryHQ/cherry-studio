@@ -5,6 +5,7 @@ const { createRequire } = require('module')
 const path = require('path')
 const { parse } = require('yaml')
 
+const { buildConversationIslandHelper } = require('./build-conversation-island-helper')
 const { ensureLinuxNativeArtifact } = require('./linux-native/download')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
@@ -201,12 +202,25 @@ const buildDshAsarUnpackPatterns = (projectRoot) =>
   ])
 exports.buildDshAsarUnpackPatterns = buildDshAsarUnpackPatterns
 
+const buildConversationIslandHelperForPack = (
+  context,
+  { buildConversationIslandHelper: buildHelper = buildConversationIslandHelper } = {}
+) => {
+  if (context.packager.platform.name !== 'mac') return
+
+  const arch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
+  if (!arch) throw new Error(`Unsupported macOS packaging architecture: ${context.arch}`)
+  buildHelper({ platform: 'darwin', arch })
+}
+exports.buildConversationIslandHelperForPack = buildConversationIslandHelperForPack
+
 exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
   const projectRoot = path.join(__dirname, '..')
 
+  buildConversationIslandHelperForPack(context)
   assertPrebuiltPackages(platform, arch)
 
   const configuredAsarUnpack = context.packager.config.asarUnpack

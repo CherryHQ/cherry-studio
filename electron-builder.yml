@@ -72,6 +72,7 @@ files:
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
+  - "!resources/binaries/darwin-*/conversation-island-helper"
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
 asarUnpack:
   - resources/**
@@ -117,6 +118,12 @@ portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
 mac:
+  minimumSystemVersion: "12.0"
+  binaries:
+    - Contents/Resources/conversation-island-helper
+  extraResources:
+    - from: "resources/binaries/darwin-${arch}/conversation-island-helper"
+      to: "conversation-island-helper"
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
