@@ -107,6 +107,7 @@ describe('GeneralSettings', () => {
       'settings.launch.title',
       'settings.proxy.mode.title',
       'settings.models.context_management.title',
+      'settings.models.routing.label',
       'settings.developer.title'
     ])
   })

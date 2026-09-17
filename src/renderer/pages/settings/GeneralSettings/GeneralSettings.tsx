@@ -26,6 +26,7 @@ import { isValidProxyUrl } from '@renderer/utils/url'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
+import { TaskRoutingSettings } from './TaskRoutingSettings'
 
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
@@ -58,6 +59,7 @@ const GeneralSettings: FC = () => {
   const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
+  const [healthPriorityEnabled, setHealthPriorityEnabled] = usePreference('chat.retry.health_priority_enabled')
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
@@ -224,6 +226,8 @@ const GeneralSettings: FC = () => {
 
       <ContextManagementSettings />
 
+      <TaskRoutingSettings />
+
       <SettingGroup theme={theme}>
         <SettingRow id="setting-general-retry-enabled" className="scroll-mt-6 items-start gap-6">
           <div className="min-w-0 flex-1">
@@ -297,6 +301,20 @@ const GeneralSettings: FC = () => {
                   }
                 />
               </div>
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow className="items-start gap-6">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle>{t('settings.models.retry.health_priority')}</SettingRowTitle>
+                <SettingDescription className="mt-1.5 leading-5">
+                  {t('settings.models.retry.health_priority_description')}
+                </SettingDescription>
+              </div>
+              <Switch
+                checked={healthPriorityEnabled}
+                onCheckedChange={(checked) => void setHealthPriorityEnabled(checked)}
+                aria-label={t('settings.models.retry.health_priority')}
+              />
             </SettingRow>
           </>
         )}

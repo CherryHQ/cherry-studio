@@ -217,9 +217,9 @@
     {
       "targetKey": "chat.retry.enabled",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
-      "description": "Enable model call retry/fallback (v2 新增，非迁移)"
+      "description": "Enable model call retry/fallback (v2 新增，非迁移). Default on: health-ordered automatic fallbacks are useless while retry is off."
     },
     {
       "targetKey": "chat.retry.fallback_model_ids",
@@ -243,6 +243,41 @@
       "description": "Exponential backoff between retry attempts (v2 新增，非迁移)"
     },
     {
+      "targetKey": "chat.retry.model_health",
+      "type": "PreferenceTypes.ModelHealthMemory",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Last health-probe outcome per model, persisted so routing survives a restart"
+    },
+    {
+      "targetKey": "chat.retry.health_priority_enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Order retry fallbacks by probed health then quality score instead of the manual order"
+    },
+    {
+      "targetKey": "chat.routing.auto_enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Route each request to the best model for its detected task category"
+    },
+    {
+      "targetKey": "chat.routing.category_models",
+      "type": "PreferenceTypes.CategoryModelMap",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Preferred models per task category, best first"
+    },
+    {
+      "targetKey": "chat.routing.api_key_limits",
+      "type": "PreferenceTypes.ApiKeyLimitMap",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "User-declared request ceiling per credential, for free tiers the provider never reports"
+    },
+    {
       "targetKey": "chat.context_settings.enabled",
       "type": "boolean",
       "defaultValue": true,
@@ -259,9 +294,10 @@
     {
       "targetKey": "chat.context_settings.max_messages",
       "type": "number",
-      "defaultValue": null,
+      "nullable": true,
+      "defaultValue": 10,
       "status": "classified",
-      "description": "Serve only the last N messages to the model (v1 contextCount successor). null = unlimited. Independent of the master toggle: it bounds how much history is sent, not what happens on overflow"
+      "description": "Serve only the last N messages to the model (v1 contextCount successor). null = unlimited. Independent of the master toggle: it bounds how much history is sent, not what happens on overflow. Defaults to 10 so an unbounded history does not burn a free-tier quota on every turn"
     },
     {
       "targetKey": "chat.context_settings.compress.enabled",

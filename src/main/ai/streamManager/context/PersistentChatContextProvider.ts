@@ -53,6 +53,7 @@ import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
+import { routeDefaultModelId } from './categoryRouting'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import {
   applyDeepestMarker,
@@ -310,7 +311,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
-    const models = resolveModels(req.mentionedModelIds, defaultModelId)
+    // Routing only replaces the default; an explicit `mentionedModelIds` pick still wins below.
+    const models = resolveModels(req.mentionedModelIds, routeDefaultModelId(req.userMessageParts ?? [], defaultModelId))
     const liveGroupAppendMessageId = isRegenerate && ctx.hasLiveStream ? req.appendToLiveGroupMessageId : undefined
     let liveGroupSourceAnchorMessageId: string | undefined
     const turnOptions: AssistantTurnOptions = {

@@ -71,7 +71,8 @@ import {
   buildApiKeyFallbackModels,
   buildFallbackModels,
   createRetryableWrap,
-  readRetryPolicy
+  readRetryPolicy,
+  recordModelHealth
 } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
@@ -1375,7 +1376,12 @@ export class AiService extends BaseService {
 
     try {
       await Promise.race([probe, timeoutPromise])
-      return { latency: performance.now() - start }
+      const latency = performance.now() - start
+      await recordModelHealth(request.uniqueModelId, true, latency)
+      return { latency }
+    } catch (error) {
+      await recordModelHealth(request.uniqueModelId, false)
+      throw error
     } finally {
       if (timeoutHandle) clearTimeout(timeoutHandle)
     }

@@ -38,6 +38,22 @@ export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
 
+/** Last health-probe outcome per model, persisted so routing survives a restart. */
+export type ModelHealthMemory = Record<string, { ok: boolean; checkedAt: number; latency?: number }>
+
+/**
+ * User-declared request ceiling per credential, for free tiers the provider never reports.
+ * Keyed by `providerId::keyId`; actual consumption comes from the AI usage records, not from here.
+ */
+export type ApiKeyLimitMap = Record<string, { limit: number; period: 'daily' | 'monthly' }>
+
+/** Task kinds the router recognises; each maps to the models that are best at it. */
+export const TASK_CATEGORIES = ['code', 'research', 'writing', 'image', 'general'] as const
+export type TaskCategory = (typeof TASK_CATEGORIES)[number]
+
+/** Preferred models per task category, best first. */
+export type CategoryModelMap = Partial<Record<TaskCategory, UniqueModelId[]>>
+
 /**
  * Global default Agent reply language (`agent.language`). Human-readable label
  * ("English", "ไทย"), not an app locale code; null = no constraint injected.

@@ -1,0 +1,84 @@
+// Sends each request to the model configured as best at its kind of work. An explicit pick always
+// wins — this only replaces the default, and only when routing can name a model that still answers.
+
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { modelService } from '@main/data/services/ModelService'
+import { providerService } from '@main/data/services/ProviderService'
+import type { ModelHealthMemory } from '@shared/data/preference/preferenceTypes'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { getModelQualityScore } from '@shared/utils/modelQuality'
+import { classifyTaskCategory, estimateTaskDifficulty } from '@shared/utils/taskCategory'
+
+const logger = loggerService.withContext('CategoryRouting')
+
+type TextPart = { type: string; text?: string }
+
+function promptTextOf(parts: readonly TextPart[]): string {
+  return parts
+    .filter((part) => part.type === 'text' && part.text)
+    .map((part) => part.text)
+    .join(' ')
+}
+
+/** Highest-quality model whose last probe passed, used to rescue a known-broken default. */
+function bestHealthyModelId(health: ModelHealthMemory): UniqueModelId | undefined {
+  return Object.entries(health)
+    .filter(([uniqueModelId, entry]) => entry.ok && isUniqueModelId(uniqueModelId) && modelExists(uniqueModelId))
+    .map(([uniqueModelId]) => uniqueModelId as UniqueModelId)
+    .sort((a, b) => getModelQualityScore(b) - getModelQualityScore(a))[0]
+}
+
+/** A model is only usable if it still exists *and* its provider is switched on. */
+function modelExists(uniqueModelId: UniqueModelId): boolean {
+  try {
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    modelService.getByKey(providerId, modelId)
+    return providerService.getByProviderId(providerId).isEnabled
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Picks the configured model for the request's detected category, preferring one whose last health
+ * probe passed. Returns `fallback` when routing is off, unconfigured, or every candidate is gone.
+ */
+export function routeDefaultModelId(parts: readonly TextPart[], fallback: UniqueModelId): UniqueModelId {
+  const preferences = application.get('PreferenceService')
+  if (!preferences.get('chat.routing.auto_enabled')) return fallback
+
+  try {
+    const promptText = promptTextOf(parts)
+    const category = classifyTaskCategory(promptText)
+    const health = preferences.get('chat.retry.model_health')
+    const candidates = (preferences.get('chat.routing.category_models')[category] ?? []).filter(
+      (id): id is UniqueModelId => isUniqueModelId(id) && modelExists(id)
+    )
+
+    // Nothing mapped for this category: rather than do nothing, rescue a default that is known
+    // broken. A default that still answers (or was never probed) is left alone.
+    // A default left over from onboarding can point at a provider the user has since switched off;
+    // treat that as broken too, otherwise every chat fails with "model may not exist".
+    if (candidates.length === 0) {
+      if (health[fallback]?.ok !== false && modelExists(fallback)) return fallback
+      const rescue = bestHealthyModelId(health)
+      if (rescue) logger.info('replaced a model that failed its last probe', { category, rescue })
+      return rescue ?? fallback
+    }
+
+    // Hard work gets the strongest model configured for the category; easy work gets the weakest
+    // one, so a scarce frontier quota is not spent on a one-line edit.
+    const usable = candidates.filter((id) => health[id]?.ok !== false)
+    const pool = usable.length > 0 ? usable : candidates
+    const difficulty = estimateTaskDifficulty(promptText)
+    const byQuality = [...pool].sort((a, b) => getModelQualityScore(b) - getModelQualityScore(a))
+    const chosen = difficulty === 'hard' ? byQuality[0] : byQuality[byQuality.length - 1]
+    logger.info('routed request by category', { category, difficulty, chosen })
+    return chosen
+  } catch (error) {
+    // Routing is an optimisation; a bad config must not stop the message from being sent.
+    logger.warn('category routing failed, using the default model', { error })
+    return fallback
+  }
+}

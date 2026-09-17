@@ -17,6 +17,7 @@ import { type StoredEndpointConfigOverride, userProviderTable } from '@data/db/s
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
+import { filterKeysWithinQuota } from '@data/services/apiKeyQuota'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import type { ProviderDisplayMetadata, ReasoningProviderContext } from '@data/services/ProviderRegistryService'
@@ -689,7 +690,10 @@ class ProviderService {
       return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
     }
 
-    const enabledKeys = allKeys.filter((k) => k.isEnabled)
+    const enabledKeys = filterKeysWithinQuota(
+      providerId,
+      allKeys.filter((k) => k.isEnabled)
+    )
 
     if (enabledKeys.length === 0) {
       return unknownCredential('')

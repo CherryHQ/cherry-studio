@@ -86,6 +86,9 @@ class PreferencesGenerator {
         targetKeyMap.set(def.targetKey, {
           targetKey: def.targetKey,
           type: def.type,
+          // Carried through so a definition can keep null in a key's type while still giving it a
+          // non-null default; the merge builds a fresh object, so an unlisted field is dropped.
+          nullable: def.nullable,
           defaultValue: def.defaultValue,
           source: 'target-key-definitions',
           sourceCategory: def.source || 'complex',
@@ -207,7 +210,7 @@ class PreferencesGenerator {
 
       // 直接使用targetKey作为键，不进行拆分
       structure.default[item.targetKey] = {
-        type: this.mapType(item.type, item.defaultValue),
+        type: this.mapType(item.type, item.defaultValue, item.nullable),
         defaultValue: item.defaultValue,
         description: `${item.source}/${item.sourceCategory}/${item.originalKey}`,
         originalItem: item
@@ -217,10 +220,16 @@ class PreferencesGenerator {
     return structure
   }
 
-  mapType(itemType, defaultValue) {
+  mapType(itemType, defaultValue, nullable) {
     // 优先使用明确定义的类型，只有当type为unknown时才进行类型推断
     // 'VALUE: null' is a special marker to indicate the value should be null and not overwritten
-    const isNullable = defaultValue === null || defaultValue === undefined || defaultValue === 'VALUE: null'
+    //
+    // `nullable: true` lets a key keep null as a meaningful value while still shipping a non-null
+    // default. Without it nullability is inferred from the default alone, so giving a key a default
+    // silently deletes null from its type — and with it whatever null meant to the UI (for
+    // chat.context_settings.max_messages, "unlimited").
+    const isNullable =
+      nullable === true || defaultValue === null || defaultValue === undefined || defaultValue === 'VALUE: null'
 
     // 如果type不是unknown，直接使用定义好的类型
     if (itemType && itemType !== 'unknown') {
