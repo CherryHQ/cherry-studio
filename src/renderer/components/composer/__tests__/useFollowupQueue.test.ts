@@ -971,11 +971,50 @@ describe('useFollowupQueue', () => {
   })
 
   it('records a sent row for crash recovery', async () => {
+    vi.useFakeTimers()
+    try {
+      cacheService.setPersist('followup.sent_ids', {})
+      wireQuery([row('h', 'head')])
+      const { claimHeadTrigger, deleteTrigger } = wireMutations()
+      claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
+      deleteTrigger.mockRejectedValue(new Error('db down'))
+      const onDrain = vi.fn(async () => true)
+      const { rerender, unmount } = renderHook(
+        ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })),
+        {
+          initialProps: { isFulfilled: false }
+        }
+      )
+
+      await act(async () => {
+        rerender({ isFulfilled: true })
+      })
+
+      expect(onDrain).toHaveBeenCalledOnce()
+      expect(cacheService.getPersist('followup.sent_ids')['h']).toBeDefined()
+      // The failed dequeue keeps retrying in the background while mounted...
+      const attempts = deleteTrigger.mock.calls.length
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000)
+      })
+      expect(deleteTrigger.mock.calls.length).toBeGreaterThan(attempts)
+      // ...and unmounting plus restoring real timers drops the pending retry
+      // instead of leaking it into later tests.
+      act(() => {
+        unmount()
+      })
+    } finally {
+      vi.useRealTimers()
+      cacheService.setPersist('followup.sent_ids', {})
+    }
+  })
+
+  it('drops the journal entry when the row is already gone', async () => {
     cacheService.setPersist('followup.sent_ids', {})
     wireQuery([row('h', 'head')])
     const { claimHeadTrigger, deleteTrigger } = wireMutations()
     claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
-    deleteTrigger.mockRejectedValue(new Error('db down'))
+    deleteTrigger.mockRejectedValue(new DataApiError(ErrorCode.NOT_FOUND, 'gone', 404))
     const onDrain = vi.fn(async () => true)
     try {
       const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
@@ -987,10 +1026,49 @@ describe('useFollowupQueue', () => {
       })
 
       expect(onDrain).toHaveBeenCalledOnce()
-      expect(cacheService.getPersist('followup.sent_ids')['h']).toBeDefined()
+      expect(cacheService.getPersist('followup.sent_ids')).toEqual({})
     } finally {
       cacheService.setPersist('followup.sent_ids', {})
     }
+  })
+
+  it('holds an explicit Pause across the persistence round-trip', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimHeadTrigger, setPausedTrigger } = wireMutations()
+    let resolvePause!: () => void
+    setPausedTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolvePause = () => resolve({ scopeKey: SCOPE, paused: true, createdAt: '', updatedAt: '' })
+      })
+    )
+    const onDrain = vi.fn(async () => true)
+    const markSeen = vi.fn()
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    // Pause while the PUT is still in flight...
+    act(() => {
+      result.current.setPaused(true)
+    })
+    expect(result.current.paused).toBe(true)
+
+    // ...then the completion edge lands before the server echoes it back: the
+    // drain must stay parked instead of sending into a paused queue.
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(claimHeadTrigger).not.toHaveBeenCalled()
+    expect(onDrain).not.toHaveBeenCalled()
+    expect(markSeen).not.toHaveBeenCalled()
+
+    // When the server echoes the pause, the hold releases onto the same value.
+    await act(async () => {
+      resolvePause()
+    })
+    expect(result.current.paused).toBe(true)
   })
 
   it('keeps retrying the claim while the edge stays unacked', async () => {
