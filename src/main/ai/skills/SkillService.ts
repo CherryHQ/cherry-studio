@@ -578,10 +578,15 @@ export class SkillService {
 
     if (renamed) {
       // Move the catalog entry to the new folder, preserving the skill ID and its agent_skills rows.
-      // The previous folder is kept as a recoverable backup until the row is updated: recursive
-      // deletion is not atomic, so deleting it first could strand a half-removed old state.
+      // The previous folder is kept in a rollback marker naming the replacement, so startup recovery
+      // can tell a pre-commit crash (restore the old folder, drop the replacement) from a post-commit
+      // one (drop the marker, keep the replacement). Recursive deletion is not atomic, so deleting
+      // the old folder first could strand a half-removed old state.
       const prevFolderName = renamed.folderName
-      const backupPath = await this.installer.backupReplacedFolder(this.getSkillStoragePath(prevFolderName))
+      const backupPath = await this.installer.backupReplacedFolderForMigration(
+        this.getSkillStoragePath(prevFolderName),
+        folderName
+      )
       try {
         application.get('DbService').withWriteTx((tx) => {
           agentGlobalSkillService.updateTx(tx, renamed.id, {
@@ -825,7 +830,10 @@ export class SkillService {
     this.reconcileInFlight = this.mutationLock
       .runExclusive(async () => {
         const storageRoot = application.getPath('feature.agents.skills')
-        await this.installer.recoverInterruptedInstalls(storageRoot)
+        await this.installer.recoverInterruptedInstalls(
+          storageRoot,
+          (folderName) => this.findCatalogSkillCaseInsensitive(folderName) !== null
+        )
         try {
           await this.ensureSkillPluginManifest()
         } catch (error) {
