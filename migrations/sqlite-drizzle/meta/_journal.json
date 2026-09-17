@@ -154,6 +154,13 @@
       "when": 1788332276777,
       "tag": "0021_majestic_molly_hayes",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1789544579690,
+      "tag": "0022_little_gamma_corps",
+      "breakpoints": true
     }
   ],
   "version": "7"

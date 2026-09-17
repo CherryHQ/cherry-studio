@@ -4,7 +4,11 @@ import type * as PathModule from 'path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { BACKUP_ACTIVE_WRITERS_ERROR_CODE, BACKUP_DISK_FULL_ERROR_CODE } from '@shared/types/backup'
+import {
+  BACKUP_ACTIVE_WRITERS_ERROR_CODE,
+  BACKUP_BACKGROUND_TASKS_ERROR_CODE,
+  BACKUP_DISK_FULL_ERROR_CODE
+} from '@shared/types/backup'
 
 // Mock path module to normalize all paths to POSIX format for cross-platform consistency
 // This ensures path operations work the same way regardless of the actual OS
@@ -102,7 +106,12 @@ const {
     mockChannelHold,
     mockJobManager: {
       pause: vi.fn(() => mockJobHold),
-      drainInFlight: vi.fn(async () => ({ stragglerIds: [], startupRecoveryPending: false }))
+      drainInFlight: vi.fn(
+        async (): Promise<{ stragglerIds: string[]; startupRecoveryPending: boolean }> => ({
+          stragglerIds: [],
+          startupRecoveryPending: false
+        })
+      )
     },
     mockJobHold,
     mockAiStreamManager: {
@@ -880,11 +889,23 @@ describe('BackupManager direct v2 data compatibility', () => {
     }
   })
 
+  it.each([
+    { stragglerIds: ['knowledge-index-job'], startupRecoveryPending: false },
+    { stragglerIds: [], startupRecoveryPending: true }
+  ])('reports unfinished background work without capturing an unsafe snapshot: %j', async (verdict) => {
+    mockJobManager.drainInFlight.mockResolvedValueOnce(verdict)
+
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      BACKUP_BACKGROUND_TASKS_ERROR_CODE
+    )
+    expect(mockDbService.checkpointTruncate).not.toHaveBeenCalled()
+  })
+
   it('fails closed when an AI writer does not drain before the snapshot', async () => {
     mockAiStreamManager.drainInFlight.mockResolvedValueOnce({ stragglerIds: ['topic-1'] })
 
     await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
-      'Background data writes did not quiesce in time'
+      BACKUP_BACKGROUND_TASKS_ERROR_CODE
     )
 
     expect(mockDbService.checkpointTruncate).not.toHaveBeenCalled()
@@ -898,7 +919,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     mockChannelManager.drainInFlight.mockResolvedValueOnce({ stragglerIds: ['channel-admission-1'] })
 
     await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
-      'Background data writes did not quiesce in time'
+      BACKUP_BACKGROUND_TASKS_ERROR_CODE
     )
 
     expect(mockAiStreamManager.pause).not.toHaveBeenCalled()

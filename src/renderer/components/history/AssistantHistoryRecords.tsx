@@ -52,7 +52,8 @@ type HistoryTopicItem = ApiTopic & { assistantId: string | undefined; pinned: bo
 interface AssistantHistoryRecordsProps {
   activeRecordId?: string | null
   onClose: () => void
-  onRecordSelect?: (topic: RendererTopic | null) => void
+  onRecordSelect?: (topic: RendererTopic) => void
+  onActiveRecordChange?: (topic: RendererTopic | null) => void
   toolbarLeading?: ReactNode
 }
 
@@ -60,6 +61,7 @@ const AssistantHistoryRecords = ({
   activeRecordId,
   onClose,
   onRecordSelect,
+  onActiveRecordChange: onActiveTopicChange,
   toolbarLeading
 }: AssistantHistoryRecordsProps) => {
   const { t } = useTranslation()
@@ -219,10 +221,10 @@ const AssistantHistoryRecords = ({
           topic.id,
           (candidate) => candidate.id
         )
-        onRecordSelect?.(nextTopic ? getRendererTopic(nextTopic) : null)
+        onActiveTopicChange?.(nextTopic ? getRendererTopic(nextTopic) : null)
       }
     },
-    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, t, timeSortedTopics]
+    [activeRecordId, deleteTopicById, getRendererTopic, onActiveTopicChange, t, timeSortedTopics]
   )
 
   const handleBulkDeleteTopics = useCallback(
@@ -377,8 +379,8 @@ const AssistantHistoryRecords = ({
     [t]
   )
   const onActiveRecordChange = useCallback(
-    (topic: HistoryTopicItem | null) => onRecordSelect?.(topic ? getRendererTopic(topic) : null),
-    [getRendererTopic, onRecordSelect]
+    (topic: HistoryTopicItem | null) => onActiveTopicChange?.(topic ? getRendererTopic(topic) : null),
+    [getRendererTopic, onActiveTopicChange]
   )
   const rowDescriptor = useMemo(
     () => ({

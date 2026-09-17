@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -612,4 +613,22 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       ).resolves.toBeUndefined()
     })
   })
+})
+
+describe('Browser control permission', () => {
+  it.each(['default', 'bypassPermissions'] as const)(
+    'uses the persistent browser grant in %s mode',
+    async (permissionMode) => {
+      const pref = application.get('PreferenceService')
+      await pref.set('app.browser.agent_control.enabled', true)
+      const context = makeCtx({
+        toolName: 'mcp__browser__click',
+        mountedServers: new Set(['browser']),
+        permissionMode
+      })
+      expect(await evaluate(context)).toBeUndefined()
+      await pref.set('app.browser.agent_control.enabled', false)
+      expect(await evaluate(context)).toMatchObject({ effect: 'deny' })
+    }
+  )
 })
