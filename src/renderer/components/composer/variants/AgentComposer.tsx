@@ -1531,6 +1531,7 @@ const AgentComposerInner = ({
     retryFailed: retryFailedFollowup,
     skipFailed: skipFailedFollowup,
     drainingId: drainingFollowupId,
+    hasLiveSend: hasLiveFollowupSend,
     tryClaimSend: tryClaimFollowupSend,
     releaseSend: releaseFollowupSend
   } = useFollowupQueue({
@@ -1595,7 +1596,9 @@ const AgentComposerInner = ({
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action. A queue send
       // still in flight also queues: sending directly now would run concurrently with it.
-      if ((isStreaming && !options?.steer) || drainingFollowupId !== null) {
+      // `drainingFollowupId` resets on remount, so also probe the durable claim — otherwise a
+      // remounted composer direct-sends while the previous instance's send is still pending.
+      if ((isStreaming && !options?.steer) || drainingFollowupId !== null || hasLiveFollowupSend()) {
         const followupResult = enqueueFollowup(draft, payload)
         if (followupResult !== 'ok') {
           toast.error(t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT }))
@@ -1620,6 +1623,7 @@ const AgentComposerInner = ({
       clearCurrentDraft,
       drainingFollowupId,
       enqueueFollowup,
+      hasLiveFollowupSend,
       isStreaming,
       model,
       sendDisabled,

@@ -280,6 +280,13 @@ export interface FollowupQueueController {
   /** Id of the item currently being sent (auto-drain or claimed manual steer), if any. */
   drainingId: string | null
   /**
+   * Remount-safe "a queue send is in flight for this scope" probe for the
+   * composer's queue-vs-direct decision. `drainingId` state dies on remount,
+   * but the durable claim (persisted marker + live sends) survives — without
+   * this, a remounted composer direct-sends concurrently with the pending send.
+   */
+  hasLiveSend: () => boolean
+  /**
    * Claim the shared send slot for a manual steer. Returns false when another
    * send is already in flight — the caller must not send. A held claim blocks
    * the auto-drain paths until `releaseSend` (or a successful `removeId`).
@@ -755,6 +762,15 @@ export function useFollowupQueue({
     drainHead(head)
   }, [isFulfilled, markSeen, drainHead])
 
+  // Remount-safe liveness probe for the composer's queue-vs-direct decision:
+  // `drainingId` state resets on remount, but the durable claim (persisted
+  // marker + module-level live sends) still names this scope's pending send.
+  const hasLiveSend = useCallback(() => {
+    if (drainingIdRef.current !== null) return true
+    const marker = loadState(scopeKeyRef.current).pendingDrainId ?? null
+    return marker !== null && liveSends.has(marker)
+  }, [])
+
   // Shared exclusive claim between the auto-drain paths and manual steers: only one
   // send may be in flight per queue, whichever path started it.
   const tryClaimSend = useCallback(
@@ -839,6 +855,7 @@ export function useFollowupQueue({
     retryFailed,
     skipFailed,
     drainingId,
+    hasLiveSend,
     tryClaimSend,
     releaseSend
   }

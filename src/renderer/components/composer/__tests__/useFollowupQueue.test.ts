@@ -600,6 +600,36 @@ describe('useFollowupQueue', () => {
     expect(second.result.current.failedItemId).toBeNull()
   })
 
+  it('a remounted instance still observes the previous instance’s pending auto-drain', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi.fn().mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+    const markSeen = vi.fn()
+    seedQueue('s1', [item('h1', 'first')])
+
+    const first = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+    await act(async () => {
+      first.rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    expect(first.result.current.hasLiveSend()).toBe(true)
+
+    // Remount: `drainingId` state resets, but the durable claim survives, so the
+    // new instance must still report the pending send (otherwise a direct send
+    // would run concurrently with it).
+    first.unmount()
+    const second = renderHook(() => useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen, onDrain }))
+    expect(second.result.current.drainingId).toBeNull()
+    expect(second.result.current.hasLiveSend()).toBe(true)
+
+    await act(async () => {
+      resolveDrain(true)
+    })
+    expect(second.result.current.hasLiveSend()).toBe(false)
+  })
+
   it('queueing one conversation does not clobber another conversation\u2019s entry', () => {
     const first = renderHook(() =>
       useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
