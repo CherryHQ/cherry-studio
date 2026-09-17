@@ -120,7 +120,9 @@ function isTrustedClaudeEndpoint(
     // trust needs an absent or explicitly official entry. Non-empty here means
     // official, since a custom baseUrl already returned false above.
     if (entry === undefined) {
-      return true
+      // Without an entry nothing proves the official endpoint serves this
+      // model: a model materializing to another dialect fails closed.
+      return endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
     }
     return typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== ''
   }

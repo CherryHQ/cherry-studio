@@ -423,20 +423,27 @@ export async function buildClaudeCodeSessionSettings(
           window,
           slot.model ?? null,
           slot.trusted
-        )
+        ),
+        declared: slot.contextWindow
       }
     }
     // Only direct sessions omit an unusable primary; in a gateway session the
     // primary is a routed slot like the others and contributes the floor.
-    if (!slot.isGatewaySlot && !hasGatewaySlots) return { window: undefined, cap: undefined }
+    if (!slot.isGatewaySlot && !hasGatewaySlots)
+      return { window: undefined, cap: undefined, declared: slot.contextWindow }
     logger.warn('Gateway slot cannot satisfy the compaction floor; budgeting it at the SDK minimum', {
       providerId: slot.provider?.id ?? slot.providerId,
       contextWindow: slot.contextWindow
     })
-    return { window: MIN_AUTO_COMPACT_WINDOW, cap: Math.min(slot.output, DEFAULT_REQUESTED_OUTPUT_TOKENS) }
+    return {
+      window: MIN_AUTO_COMPACT_WINDOW,
+      cap: Math.min(slot.output, DEFAULT_REQUESTED_OUTPUT_TOKENS),
+      declared: slot.contextWindow
+    }
   })
   const usableResults = slotResults.filter(
-    (result): result is { window: number; cap: number } => result.window !== undefined && result.cap !== undefined
+    (result): result is { window: number; cap: number; declared: number | undefined } =>
+      result.window !== undefined && result.cap !== undefined
   )
   // hasUsableContextWindow below implies the primary slot is usable, so the minimum is safe.
   const autoCompactWindow =
@@ -449,8 +456,14 @@ export async function buildClaudeCodeSessionSettings(
     declaredContextWindow >= MIN_AUTO_COMPACT_WINDOW
   // A gateway-floored primary contributes a bounded cap without a usable
   // declared window, so pin whenever any usable budget exists.
-  if (usableResults.length > 0 && env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined) {
-    env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(Math.min(...usableResults.map((result) => result.cap)))
+  if (usableResults.length > 0) {
+    const safeguardCap = Math.min(...usableResults.map((result) => result.cap))
+    const explicit = Number(env.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
+    // An explicit value (agent env_vars or an inherited shell) bypasses the
+    // per-slot safeguard — clamp it down to the computed cap instead.
+    env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(
+      Number.isInteger(explicit) && explicit > 0 ? Math.min(explicit, safeguardCap) : safeguardCap
+    )
   }
   // Undocumented, and the only way to declare a third-party model's window — without it every
   // non-`claude-*` model is treated as 200K. The budget belongs in `autoCompactWindow`.
@@ -461,6 +474,21 @@ export async function buildClaudeCodeSessionSettings(
   // declare no usable context window. An explicit agent `env_vars` entry still wins.
   if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
     env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(AUTO_COMPACT_TRIGGER_PCT)
+    // A floored window can exceed a small declared window at the trigger
+    // point (80% of a 100K floor + 32K cap against a 64K declaration), so fit
+    // the trigger to the smallest declared window the shared budget covers.
+    if (autoCompactWindow !== undefined) {
+      const declaredWindows = usableResults
+        .map((result) => result.declared)
+        .filter((declared): declared is number => typeof declared === 'number' && Number.isInteger(declared))
+      const pinnedCap = Number(env.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
+      if (declaredWindows.length > 0 && Number.isInteger(pinnedCap) && pinnedCap > 0) {
+        const fitted = Math.floor(((Math.min(...declaredWindows) - pinnedCap) / autoCompactWindow) * 100)
+        if (fitted < AUTO_COMPACT_TRIGGER_PCT) {
+          env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(Math.max(fitted, 1))
+        }
+      }
+    }
   }
   // Opt-out, and only an explicit `false` counts: the runtime's own default stays in charge for
   // every other value (including an unreadable preference), so nothing changes unless asked.

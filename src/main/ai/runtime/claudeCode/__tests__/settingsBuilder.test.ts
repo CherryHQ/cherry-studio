@@ -686,6 +686,42 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '98225' })
   })
 
+  // An explicit output cap (agent env_vars or an inherited shell) must not
+  // bypass the untrusted-channel safeguard: it clamps to the computed cap.
+  it('clamps an explicit output cap to the untrusted-channel safeguard', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000' } }
+    })
+    const untrustedProvider = {
+      id: 'openrouter',
+      presetProviderId: 'openrouter',
+      defaultChatEndpoint: 'openai-chat-completions'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      untrustedProvider,
+      { contextWindow: 256_000, maxOutputTokens: 32_000 }
+    )
+
+    // The 128K explicit cap would outrun the margined room at the trigger
+    // point (80K + 128K against the 128K-real limit), so it shrinks to the
+    // safeguard cap that fits the emitted window (100K - 80K, at the default).
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' })
+  })
+
   it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
     // No context window declared — the percentage still applies.
     const settings = await buildClaudeCodeSessionSettings(
@@ -838,11 +874,15 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' })
+    // The 80% trigger would let the 100K sub-model exceed its declaration
+    // (80K + 32K), so the trigger fits the smallest declared window instead.
+    expect(settings.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '68' })
   })
 
   // A routed sub-model below the SDK floor cannot satisfy the SDK minimum, so it
   // contributes the floor instead of being silently skipped: the shared budget
-  // drops to 100K with the default output pairing (80K + 32K = 112K).
+  // drops to 100K with the default output pairing, and the trigger fits the
+  // 64K declaration (32K + 32K) instead of outrunning it at 80% (80K + 32K).
   it('floors a sub-SDK-minimum gateway sub-model instead of skipping it', async () => {
     const trustedProvider = {
       id: 'anthropic',
@@ -865,6 +905,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' })
+    expect(settings.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '32' })
   })
 
   // A routed sub-model with no declared window cannot be measured, so it also
@@ -1117,7 +1158,8 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   // In a gateway session the primary is also a routed slot: a sub-floor primary
   // contributes the floor instead of being skipped while a larger secondary
-  // (119_168 on its own) sets the pace.
+  // (119_168 on its own) sets the pace. The trigger fits the 64K primary
+  // (32K history + 32K cap) instead of outrunning it at 80% (80K + 32K).
   it('floors a sub-floor primary instead of skipping it in a gateway session', async () => {
     const trustedProvider = {
       id: 'anthropic',
@@ -1141,7 +1183,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
     // The floored primary's bounded cap must reach the CLI even though the
     // sub-floor declared window pins no context window.
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' })
+    expect(settings.env).toMatchObject({
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000',
+      CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '32'
+    })
     expect(settings.env).not.toHaveProperty('CLAUDE_CODE_MAX_CONTEXT_TOKENS')
   })
 
