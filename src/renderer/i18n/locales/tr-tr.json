@@ -178,8 +178,6 @@
   "agent.right_pane.status.task_count": "{{completed}} / {{total}} tamamlandı",
   "agent.right_pane.status.task_progress_compact": "Adım {{current}}/{{total}}",
   "agent.right_pane.status.time": "Süre",
-  "agent.right_pane.status.tool_uses_one": "{{count}} araç çağrısı",
-  "agent.right_pane.status.tool_uses_other": "{{count}} araç çağrısı",
   "agent.right_pane.status.tools": "Araçlar",
   "agent.right_pane.status.total": "Toplam",
   "agent.right_pane.status.view_details": "Ayrıntıları görüntüle",

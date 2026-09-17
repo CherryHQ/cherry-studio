@@ -178,8 +178,6 @@
   "agent.right_pane.status.task_count": "{{completed}} / {{total}} ολοκληρώθηκαν",
   "agent.right_pane.status.task_progress_compact": "Βήμα {{current}}/{{total}}",
   "agent.right_pane.status.time": "Χρόνος",
-  "agent.right_pane.status.tool_uses_one": "{{count}} κλήση εργαλείου",
-  "agent.right_pane.status.tool_uses_other": "{{count}} κλήσεις εργαλείων",
   "agent.right_pane.status.tools": "Εργαλεία",
   "agent.right_pane.status.total": "Σύνολο",
   "agent.right_pane.status.view_details": "Προβολή λεπτομερειών",

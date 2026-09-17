@@ -178,8 +178,6 @@
   "agent.right_pane.status.task_count": "{{completed}} / {{total}} 完了",
   "agent.right_pane.status.task_progress_compact": "ステップ {{current}}/{{total}}",
   "agent.right_pane.status.time": "時間",
-  "agent.right_pane.status.tool_uses_one": "{{count}} ツール呼び出し",
-  "agent.right_pane.status.tool_uses_other": "{{count}} 回のツール呼び出し",
   "agent.right_pane.status.tools": "ツール",
   "agent.right_pane.status.total": "合計",
   "agent.right_pane.status.view_details": "詳細を表示",

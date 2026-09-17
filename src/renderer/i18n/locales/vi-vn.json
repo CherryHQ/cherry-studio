@@ -178,8 +178,6 @@
   "agent.right_pane.status.task_count": "{{completed}} / {{total}} hoàn thành",
   "agent.right_pane.status.task_progress_compact": "Bước {{current}}/{{total}}",
   "agent.right_pane.status.time": "Thời gian",
-  "agent.right_pane.status.tool_uses_one": "{{count}} lệnh gọi công cụ",
-  "agent.right_pane.status.tool_uses_other": "{{count}} lệnh gọi công cụ",
   "agent.right_pane.status.tools": "Công cụ",
   "agent.right_pane.status.total": "Tổng",
   "agent.right_pane.status.view_details": "Xem chi tiết",

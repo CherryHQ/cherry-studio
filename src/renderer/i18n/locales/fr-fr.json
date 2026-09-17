@@ -178,8 +178,6 @@
   "agent.right_pane.status.task_count": "{{completed}} / {{total}} terminé",
   "agent.right_pane.status.task_progress_compact": "Étape {{current}}/{{total}}",
   "agent.right_pane.status.time": "Temps",
-  "agent.right_pane.status.tool_uses_one": "{{count}} appel d'outil",
-  "agent.right_pane.status.tool_uses_other": "{{count}} appels d'outils",
   "agent.right_pane.status.tools": "Outils",
   "agent.right_pane.status.total": "Total",
   "agent.right_pane.status.view_details": "Voir les détails",

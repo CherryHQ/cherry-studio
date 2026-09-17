@@ -178,8 +178,6 @@
   "agent.right_pane.status.task_count": "{{completed}} / {{total}} 已完成",
   "agent.right_pane.status.task_progress_compact": "步骤 {{current}}/{{total}}",
   "agent.right_pane.status.time": "时间",
-  "agent.right_pane.status.tool_uses_one": "{{count}} 次工具调用",
-  "agent.right_pane.status.tool_uses_other": "{{count}} 次工具调用",
   "agent.right_pane.status.tools": "工具",
   "agent.right_pane.status.total": "总计",
   "agent.right_pane.status.view_details": "查看详情",

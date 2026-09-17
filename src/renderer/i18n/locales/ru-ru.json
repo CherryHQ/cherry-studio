@@ -178,8 +178,6 @@
   "agent.right_pane.status.task_count": "{{completed}} / {{total}} завершено",
   "agent.right_pane.status.task_progress_compact": "Шаг {{current}}/{{total}}",
   "agent.right_pane.status.time": "Время",
-  "agent.right_pane.status.tool_uses_one": "{{count}} вызов инструмента",
-  "agent.right_pane.status.tool_uses_other": "{{count}} вызова инструмента",
   "agent.right_pane.status.tools": "Инструменты",
   "agent.right_pane.status.total": "Итого",
   "agent.right_pane.status.view_details": "Просмотр деталей",

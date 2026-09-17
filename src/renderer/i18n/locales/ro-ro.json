@@ -178,8 +178,6 @@
   "agent.right_pane.status.task_count": "{{completed}} / {{total}} finalizat",
   "agent.right_pane.status.task_progress_compact": "Pasul {{current}}/{{total}}",
   "agent.right_pane.status.time": "Timp",
-  "agent.right_pane.status.tool_uses_one": "{{count}} apel de instrument",
-  "agent.right_pane.status.tool_uses_other": "{{count}} apeluri de instrumente",
   "agent.right_pane.status.tools": "Instrumente",
   "agent.right_pane.status.total": "Total",
   "agent.right_pane.status.view_details": "Vezi detalii",
