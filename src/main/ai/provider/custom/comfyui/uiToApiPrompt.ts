@@ -312,10 +312,13 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
 /**
  * The node that should receive the user's prompt. A positive and a negative
  * conditioning node both hold a `text` input, so pick the one the sampler
- * actually consumes as its positive conditioning.
+ * actually consumes as its positive conditioning. The sampler is reported with it
+ * so a per-run seed can be written where that graph reads its own.
  */
-export function findPromptTarget(prompt: Record<string, ApiPromptNode>): { nodeId: string; input: string } | undefined {
-  for (const node of Object.values(prompt)) {
+export function findPromptTarget(
+  prompt: Record<string, ApiPromptNode>
+): { nodeId: string; input: string; samplerId: string } | undefined {
+  for (const [samplerId, node] of Object.entries(prompt)) {
     const positive = node.inputs.positive
     if (!isReference(positive)) continue
     const target = prompt[positive[0]]
@@ -323,7 +326,7 @@ export function findPromptTarget(prompt: Record<string, ApiPromptNode>): { nodeI
     const entry = Object.entries(target.inputs).find(
       ([name, value]) => typeof value === 'string' && (name === 'text' || name === 'prompt')
     )
-    if (entry) return { nodeId: positive[0], input: entry[0] }
+    if (entry) return { nodeId: positive[0], input: entry[0], samplerId }
   }
   return undefined
 }

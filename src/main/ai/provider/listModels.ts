@@ -446,9 +446,9 @@ const comfyuiFetcher: ModelFetcher = {
     // ComfyUI has no model catalogue: its server serves whatever graphs it can
     // execute, so the user's saved workflows are the pickable units.
     const workflows = await listWorkflows(withoutTrailingSlash(getBaseUrl(provider)), signal)
-    return workflows.map((workflow) =>
-      toModel(workflow.name, provider, {
-        name: workflow.name,
+    return workflows.map((name) =>
+      toModel(name, provider, {
+        name,
         ownedBy: 'comfyui',
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
         outputModalities: ['image'],

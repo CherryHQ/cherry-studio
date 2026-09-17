@@ -297,7 +297,7 @@ describe('findPromptTarget', () => {
       }
     })
 
-    expect(target).toEqual({ nodeId: '1', input: 'text' })
+    expect(target).toEqual({ nodeId: '1', input: 'text', samplerId: '3' })
   })
 
   it('returns nothing when no conditioning node carries text', () => {

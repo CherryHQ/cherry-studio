@@ -31,30 +31,19 @@ export interface ComfyuiTransportSettings {
 
 interface UserDataEntry {
   name: string
-  path: string
   type: string
-}
-
-/** A saved workflow as offered in the model list. */
-export interface ComfyuiWorkflow {
-  /** Relative path under the userdata root, used with `GET /userdata/{file}`. */
-  path: string
-  name: string
 }
 
 export const WORKFLOW_FILE_EXTENSION = '.json'
 
-/** Saved workflows, newest first. Directories and non-workflow files are skipped. */
-export async function listWorkflows(baseURL: string, signal?: AbortSignal): Promise<ComfyuiWorkflow[]> {
+/** Saved workflow names, newest first. Directories and non-workflow files are skipped. */
+export async function listWorkflows(baseURL: string, signal?: AbortSignal): Promise<string[]> {
   const response = await fetch(`${baseURL}/v2/userdata?path=${WORKFLOW_DIR}`, { signal })
   if (!response.ok) throw new Error(`ComfyUI userdata listing failed (HTTP ${response.status})`)
   const entries = (await response.json()) as UserDataEntry[]
   return entries
     .filter((entry) => entry.type === 'file' && entry.name.endsWith(WORKFLOW_FILE_EXTENSION))
-    .map((entry) => ({
-      path: entry.path,
-      name: entry.name.slice(0, -WORKFLOW_FILE_EXTENSION.length)
-    }))
+    .map((entry) => entry.name.slice(0, -WORKFLOW_FILE_EXTENSION.length))
 }
 
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
@@ -110,7 +99,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
       )
     }
     applyPrompt(graph, target.nodeId, target.input, input.prompt ?? '')
-    applySeed(graph, input.seed)
+    applySeed(graph, input.seed, target.samplerId)
 
     const response = await fetch(`${this.baseURL}/prompt`, {
       method: 'POST',
@@ -180,7 +169,9 @@ class ComfyuiTransport implements ImageGenerationTransport {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), IMAGE_TIMEOUT_MS)
     try {
-      const response = await fetch(`${this.baseURL}/view?${query}`, { signal: signal ?? controller.signal })
+      const response = await fetch(`${this.baseURL}/view?${query}`, {
+        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+      })
       if (!response.ok) throw new Error(`ComfyUI could not return ${image.filename} (HTTP ${response.status})`)
       const buffer = Buffer.from(await response.arrayBuffer())
       const contentType = response.headers.get('content-type') || 'image/png'
@@ -197,14 +188,21 @@ export function applyPrompt(graph: Record<string, ApiPromptNode>, nodeId: string
 }
 
 /**
- * ComfyUI seeds are integers, and a workflow usually pins one. Replace only the
- * seed of the sampler that consumes the prompt, so two runs can differ.
+ * ComfyUI seeds are integers, and a workflow usually pins one. Write the sampler that
+ * consumes the prompt, so two runs differ; a graph that keeps the seed on a shared node
+ * feeding that sampler instead gets it there.
  */
-export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | undefined): void {
+export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | undefined, samplerId?: string): void {
   if (typeof seed !== 'number' || !Number.isFinite(seed)) return
+  const value = Math.trunc(seed)
+  const sampler = samplerId ? graph[samplerId] : undefined
+  if (sampler && 'seed' in sampler.inputs) {
+    sampler.inputs.seed = value
+    return
+  }
   for (const node of Object.values(graph)) {
     if (!('seed' in node.inputs)) continue
-    node.inputs.seed = Math.trunc(seed)
+    node.inputs.seed = value
     return
   }
 }
