@@ -49,9 +49,11 @@ const imageFile: FileItem = {
 }
 
 const menuActions: FileContextMenuActions = {
+  isSidebarPinned: vi.fn(() => false),
   onRename: vi.fn(),
   onDelete: vi.fn(),
-  onShowInFolder: vi.fn()
+  onShowInFolder: vi.fn(),
+  onToggleSidebar: vi.fn()
 }
 
 function fileGridProps(files: FileItem[], width = 400): ComponentProps<typeof FileGrid> {

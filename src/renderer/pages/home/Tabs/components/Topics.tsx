@@ -58,7 +58,7 @@ import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import {
   cancelTopicRenaming,
   finishTopicRenaming,
@@ -97,6 +97,7 @@ import {
 } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -361,20 +362,55 @@ export function Topics({
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const {
-    assistantFavoriteIds: sidebarAssistantFavoriteIds,
-    toggleAssistant: toggleSidebarAssistant,
-    removeAssistant: removeSidebarAssistant
-  } = useSidebarFavorites()
+    assistants,
+    isLoading: isAssistantsLoading,
+    error: assistantsError,
+    refetch: refreshAssistants
+  } = useAssistantsApi()
+  const { shortcuts: sidebarShortcuts, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
   const sidebarAssistantFavoriteIdSet = useMemo(
-    () => new Set(sidebarAssistantFavoriteIds),
-    [sidebarAssistantFavoriteIds]
+    () =>
+      new Set(
+        sidebarShortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [sidebarShortcuts]
+  )
+  const sidebarTopicFavoriteIdSet = useMemo(
+    () =>
+      new Set(
+        sidebarShortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.TOPIC
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [sidebarShortcuts]
   )
   const handleToggleAssistantSidebar = useCallback(
     (assistantId: string) => {
-      if (sidebarAssistantFavoriteIdSet.has(assistantId)) removeSidebarAssistant(assistantId)
-      else toggleSidebarAssistant(assistantId)
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT, assistantId)
+      setSidebarShortcutPinned(
+        target,
+        !sidebarAssistantFavoriteIdSet.has(assistantId),
+        assistants.find((assistant) => assistant.id === assistantId)?.name
+      )
     },
-    [removeSidebarAssistant, sidebarAssistantFavoriteIdSet, toggleSidebarAssistant]
+    [assistants, setSidebarShortcutPinned, sidebarAssistantFavoriteIdSet]
+  )
+  const handleToggleTopicSidebar = useCallback(
+    (topic: Topic) => {
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.TOPIC, topic.id)
+      setSidebarShortcutPinned(
+        target,
+        !sidebarTopicFavoriteIdSet.has(topic.id),
+        topic.name.trim() || t('chat.conversation.new')
+      )
+    },
+    [setSidebarShortcutPinned, sidebarTopicFavoriteIdSet, t]
   )
   const {
     topics: apiTopics,
@@ -386,12 +422,6 @@ export function Topics({
     refreshError,
     refetch: refetchTopics
   } = assistantTopicsSource
-  const {
-    assistants,
-    isLoading: isAssistantsLoading,
-    error: assistantsError,
-    refetch: refreshAssistants
-  } = useAssistantsApi()
   const {
     groups: assistantGroups,
     isLoading: isAssistantGroupsLoading,
@@ -1607,10 +1637,12 @@ export function Topics({
           onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
           onMoveToAssistant={handleMoveTopicToAssistant}
           onPinTopic={handlePinTopic}
+          onToggleSidebar={handleToggleTopicSidebar}
           onRequestTopicImageAction={handleTopicImageAction}
           onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
           onSwitchTopic={setActiveTopic}
           panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
+          sidebarTopicFavoriteIdSet={sidebarTopicFavoriteIdSet}
           topicsLength={topics.length}
           variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
         />
@@ -1701,10 +1733,12 @@ interface TopicListBodyProps {
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
+  onToggleSidebar: (topic: Topic) => void
   onRequestTopicImageAction: (type: TopicImageActionType, topic: Topic) => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onSwitchTopic: (topic: Topic) => void
   panePosition?: TopicTabPosition
+  sidebarTopicFavoriteIdSet: ReadonlySet<string>
   topicsLength: number
   variant: TopicListBodyVariant
 }
@@ -1729,10 +1763,12 @@ function TopicListBody(props: TopicListBodyProps) {
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onToggleSidebar,
     onRequestTopicImageAction,
     onSetPanePosition,
     onSwitchTopic,
     panePosition,
+    sidebarTopicFavoriteIdSet,
     topicsLength,
     variant
   } = props
@@ -1752,10 +1788,12 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      onToggleSidebar,
       onRequestTopicImageAction,
       onSetPanePosition,
       onSwitchTopic,
       panePosition,
+      sidebarTopicFavoriteIdSet,
       topicsLength
     }),
     [
@@ -1772,10 +1810,12 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      onToggleSidebar,
       onRequestTopicImageAction,
       onSetPanePosition,
       onSwitchTopic,
       panePosition,
+      sidebarTopicFavoriteIdSet,
       topicsLength
     ]
   )
@@ -1823,10 +1863,12 @@ const TopicRow = memo(function TopicRow({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
+  onToggleSidebar,
   onRequestTopicImageAction,
   onSetPanePosition,
   onSwitchTopic,
   panePosition,
+  sidebarTopicFavoriteIdSet,
   topic,
   topicsLength
 }: TopicRowProps) {
@@ -1888,9 +1930,11 @@ const TopicRow = memo(function TopicRow({
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onToggleSidebar,
     onSetPanePosition,
     onStartRename: startMenuRename,
     panePosition,
+    sidebarPinned: sidebarTopicFavoriteIdSet.has(topic.id),
     t,
     topic,
     topicsLength

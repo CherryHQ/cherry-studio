@@ -57,7 +57,10 @@ function buildGroups(resources: ResourceItem[], groups: Group[], filterType?: Re
   })
 }
 
-export function useResourceCatalogController(resourceType: ResourceCatalogControllerType) {
+export function useResourceCatalogController(
+  resourceType: ResourceCatalogControllerType,
+  skillSelection?: { id?: string; onChange: (id: string | undefined) => void }
+) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
@@ -67,7 +70,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const [creatingResource, setCreatingResource] = useState(false)
-  const [selectedSkill, setSelectedSkill] = useState<InstalledSkill | null>(null)
+  const [localSelectedSkill, setLocalSelectedSkill] = useState<InstalledSkill | null>(null)
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
   const [assistantLibraryOpen, setAssistantLibraryOpen] = useState(false)
   const [skillImportOpen, setSkillImportOpen] = useState(false)
@@ -92,6 +95,22 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
     sort: 'name'
   })
 
+  const selectedResource = skillSelection
+    ? allResources.find((resource) => resource.type === 'skill' && resource.id === skillSelection.id)
+    : undefined
+  const selectedSkill = skillSelection
+    ? selectedResource?.type === 'skill'
+      ? selectedResource.raw
+      : null
+    : localSelectedSkill
+  const setSelectedSkill = useCallback(
+    (skill: InstalledSkill | null) => {
+      if (skillSelection) skillSelection.onChange(skill?.id)
+      else setLocalSelectedSkill(skill)
+    },
+    [skillSelection]
+  )
+
   useEffect(() => {
     setActiveGroupId(null)
   }, [resourceType])
@@ -114,15 +133,18 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
     return () => window.clearTimeout(timeoutId)
   }, [createDialogKind, createDialogOpen])
 
-  const handleOpenResource = useCallback((resource: ResourceItem) => {
-    if (resource.type === 'assistant') {
-      setEditDialogTarget({ kind: 'assistant', id: resource.id })
-    } else if (resource.type === 'agent') {
-      setEditDialogTarget({ kind: 'agent', id: resource.id })
-    } else if (resource.type === 'skill') {
-      setSelectedSkill(resource.raw)
-    }
-  }, [])
+  const handleOpenResource = useCallback(
+    (resource: ResourceItem) => {
+      if (resource.type === 'assistant') {
+        setEditDialogTarget({ kind: 'assistant', id: resource.id })
+      } else if (resource.type === 'agent') {
+        setEditDialogTarget({ kind: 'agent', id: resource.id })
+      } else if (resource.type === 'skill') {
+        setSelectedSkill(resource.raw)
+      }
+    },
+    [setSelectedSkill]
+  )
 
   const handleDuplicate = useCallback(
     async (resource: ResourceItem) => {

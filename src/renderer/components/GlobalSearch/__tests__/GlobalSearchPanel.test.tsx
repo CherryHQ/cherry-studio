@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import type {
   EntitySearchResponse,
   SessionMessageContentSearchItem,
@@ -62,7 +63,7 @@ const mocks = vi.hoisted(() => ({
   tabs: [] as Tab[],
   preferenceValues: {
     'app.user.name': 'JD',
-    'ui.sidebar.favorites': [
+    'ui.sidebar_shortcut': [
       { type: 'app', id: 'assistants' },
       { type: 'app', id: 'agents' },
       { type: 'app', id: 'translate' }
@@ -115,7 +116,8 @@ vi.mock('react', async () => {
   }
 })
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUI>()
   const React = await vi.importActual<ReactModule>('react')
   const DropdownMenuContext = React.createContext<{
     open: boolean
@@ -127,6 +129,7 @@ vi.mock('@cherrystudio/ui', async () => {
   } | null>(null)
 
   return {
+    ...actual,
     Button: ({
       children,
       type = 'button',
@@ -634,7 +637,7 @@ describe('GlobalSearchPanel', () => {
     mocks.sessionMessageQueryResult = undefined
     mocks.preferenceValues = {
       'app.user.name': 'JD',
-      'ui.sidebar.favorites': [
+      'ui.sidebar_shortcut': [
         { type: 'app', id: 'assistants' },
         { type: 'app', id: 'agents' },
         { type: 'app', id: 'translate' }
