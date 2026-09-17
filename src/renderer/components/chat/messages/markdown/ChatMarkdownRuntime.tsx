@@ -30,24 +30,19 @@ const EMPTY_CITATION_REGISTRY = new Map()
 const MAX_ANIMATED_CONTENT_LENGTH = 64 * 1024
 const MAX_STREAMING_TRANSFORM_LENGTH = 256 * 1024
 
-export interface ChatMarkdownRuntimeProps extends ChatMarkdownProps {
-  createPlugins?: (singleDollarMath: boolean) => PluginConfig
-}
-
 const createDefaultPlugins = (singleDollarMath: boolean): PluginConfig => ({
   ...defaultMarkdownPlugins,
   math: withMath({ singleDollar: singleDollarMath })
 })
 
-const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
+const ChatMarkdownRuntime: FC<ChatMarkdownProps> = ({
   block,
   inlineHtmlPreviewMode,
   postProcess,
   className,
   components,
   trustedCitations,
-  linkifyFilePaths = false,
-  createPlugins = createDefaultPlugins
+  linkifyFilePaths = false
 }) => {
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useMessageRenderConfig()
@@ -57,7 +52,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
   if (isStreaming) hasStreamedRef.current = true
 
   const parseMarkdownBlocks = useMemo(createLatexMarkdownBlockParser, [])
-  const plugins = useMemo(() => createPlugins(mathEnableSingleDollar), [createPlugins, mathEnableSingleDollar])
+  const plugins = useMemo(() => createDefaultPlugins(mathEnableSingleDollar), [mathEnableSingleDollar])
 
   const content = useMemo(() => {
     if (block.status === 'paused' && isEmpty(block.content)) return t('message.chat.completion.paused')
