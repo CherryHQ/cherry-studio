@@ -2144,6 +2144,38 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-message-style', 'bubble')
   })
 
+  it('opens tool-flow website links in the current session browser pane', async () => {
+    const flowPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'flow-1',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { prompt: 'Inspect the workspace' },
+      output: 'Inspection complete'
+    } as unknown as CherryMessagePart
+    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: [flowPart] }}>
+        <OpenFlowButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    const { openBrowserUrl } = useAgentMessageListProviderValueMock.mock.calls.at(-1)![0]
+    expect(openBrowserUrl).toBeTypeOf('function')
+    const url = 'https://example.com/tool-flow?q=hello#result'
+    await act(() => openBrowserUrl(url))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', url)
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-target-id', 'agent-browser:session-a')
+  })
+
   it('omits artifact opening from tool-flow messages when the files capability is unavailable', () => {
     const flowPart = {
       type: 'dynamic-tool',
