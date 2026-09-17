@@ -49,6 +49,7 @@ const presentCommand: Extract<ConversationIslandCommand, { type: 'present' }> = 
       fontFamily: ''
     },
     primaryActivityId: primaryActivity.activityId,
+    activityCount: 2,
     activityCountText: '2 个活动',
     activities: [primaryActivity, secondaryActivity]
   }
@@ -93,6 +94,16 @@ describe('conversation island protocol', () => {
     ['unsafe revision', { version: 1, type: 'dismiss', revision: Number.MAX_SAFE_INTEGER + 1 }],
     ['fractional display id', { ...presentCommand, payload: { ...presentCommand.payload, displayId: 1.5 } }],
     ['empty activities', { ...presentCommand, payload: { ...presentCommand.payload, activities: [] } }],
+    ['zero activity count', { ...presentCommand, payload: { ...presentCommand.payload, activityCount: 0 } }],
+    ['fractional activity count', { ...presentCommand, payload: { ...presentCommand.payload, activityCount: 1.5 } }],
+    [
+      'unsafe activity count',
+      { ...presentCommand, payload: { ...presentCommand.payload, activityCount: Number.MAX_SAFE_INTEGER + 1 } }
+    ],
+    [
+      'activity count below included activities',
+      { ...presentCommand, payload: { ...presentCommand.payload, activityCount: 1 } }
+    ],
     [
       'duplicate activity ids',
       { ...presentCommand, payload: { ...presentCommand.payload, activities: [primaryActivity, primaryActivity] } }

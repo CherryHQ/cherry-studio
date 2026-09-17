@@ -101,6 +101,7 @@ public struct PresentationPayload: Codable, Equatable, Sendable {
     public let reducedMotion: Bool
     public let theme: PresentationTheme
     public let primaryActivityId: String
+    public let activityCount: Int
     public let activityCountText: String
     public let activities: [PresentationActivity]
 
@@ -110,6 +111,7 @@ public struct PresentationPayload: Codable, Equatable, Sendable {
         reducedMotion: Bool,
         theme: PresentationTheme,
         primaryActivityId: String,
+        activityCount: Int,
         activityCountText: String,
         activities: [PresentationActivity]
     ) {
@@ -118,6 +120,7 @@ public struct PresentationPayload: Codable, Equatable, Sendable {
         self.reducedMotion = reducedMotion
         self.theme = theme
         self.primaryActivityId = primaryActivityId
+        self.activityCount = activityCount
         self.activityCountText = activityCountText
         self.activities = activities
     }
@@ -131,6 +134,7 @@ public struct PresentationPayload: Codable, Equatable, Sendable {
                 "reducedMotion",
                 "theme",
                 "primaryActivityId",
+                "activityCount",
                 "activityCountText",
                 "activities"
             ]
@@ -140,6 +144,7 @@ public struct PresentationPayload: Codable, Equatable, Sendable {
         reducedMotion = try container.decode(Bool.self, forKey: WireKey("reducedMotion"))
         theme = try container.decode(PresentationTheme.self, forKey: WireKey("theme"))
         primaryActivityId = try container.decode(String.self, forKey: WireKey("primaryActivityId"))
+        activityCount = try container.decode(Int.self, forKey: WireKey("activityCount"))
         activityCountText = try container.decode(String.self, forKey: WireKey("activityCountText"))
         activities = try container.decode([PresentationActivity].self, forKey: WireKey("activities"))
 
@@ -147,6 +152,9 @@ public struct PresentationPayload: Codable, Equatable, Sendable {
         guard
             !primaryActivityId.isEmpty,
             !activities.isEmpty,
+            activityCount > 0,
+            activityCount <= conversationIslandMaximumRevision,
+            activityCount >= activities.count,
             activityIds.count == activities.count,
             activityIds.contains(primaryActivityId)
         else {
@@ -160,6 +168,7 @@ public struct PresentationPayload: Codable, Equatable, Sendable {
         case reducedMotion
         case theme
         case primaryActivityId
+        case activityCount
         case activityCountText
         case activities
     }

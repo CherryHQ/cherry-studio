@@ -18,6 +18,7 @@ final class ProtocolTests: XCTestCase {
         XCTAssertEqual(payload.theme.primaryColor, "#00B96B")
         XCTAssertEqual(payload.theme.fontFamily, "")
         XCTAssertEqual(payload.primaryActivityId, "topic-1")
+        XCTAssertEqual(payload.activityCount, 2)
         XCTAssertEqual(payload.activityCountText, "2 个活动")
         XCTAssertEqual(payload.activities.map(\.activityId), ["topic-1", "topic-2"])
         XCTAssertEqual(payload.activities.map(\.state), [.streaming, .awaitingConfirmation])
@@ -114,6 +115,19 @@ final class ProtocolTests: XCTestCase {
     func testRejectsEmptyActivities() throws {
         let line = try mutatedPresentLine { $0["activities"] = [] }
         XCTAssertThrowsError(try ParentCommand.decode(line: line))
+    }
+
+    func testRejectsInvalidActivityCounts() throws {
+        for count in [0, -1, 3.5] {
+            let line = try mutatedPresentLine { $0["activityCount"] = count }
+            XCTAssertThrowsError(try ParentCommand.decode(line: line))
+        }
+
+        let unsafe = try mutatedPresentLine { $0["activityCount"] = 9_007_199_254_740_992 }
+        XCTAssertThrowsError(try ParentCommand.decode(line: unsafe))
+
+        let tooSmall = try mutatedPresentLine { $0["activityCount"] = 1 }
+        XCTAssertThrowsError(try ParentCommand.decode(line: tooSmall))
     }
 
     func testRejectsEmptyActivityId() throws {

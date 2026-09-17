@@ -106,12 +106,7 @@ function resolvePrimaryColor(value: unknown): string {
 export class ConversationIslandService extends BaseService {
   private readonly activities = new Map<string, ConversationIslandActivity>()
   private readonly itemMetadataCache = new Map<string, ActivityItemMetadata>()
-  private readonly host = new ConversationIslandNativeHost({
-    callbacks: {
-      onSetExpanded: (event) => this.handleSetExpanded(event),
-      onOpenActivity: (event) => this.handleOpenActivity(event)
-    }
-  })
+  private host: ConversationIslandNativeHost | null = null
   private enabled = false
   private expandedState: ExpandedActivityState | null = null
   private expiryTimer: ReturnType<typeof setTimeout> | null = null
@@ -121,6 +116,13 @@ export class ConversationIslandService extends BaseService {
   private hasPresentation = false
 
   protected onInit(): void {
+    this.host = new ConversationIslandNativeHost({
+      callbacks: {
+        onSetExpanded: (event) => this.handleSetExpanded(event),
+        onOpenActivity: (event) => this.handleOpenActivity(event)
+      }
+    })
+
     const cacheService = application.get('CacheService')
     this.registerDisposable(
       cacheService.subscribeSharedChange('topic.stream.statuses.${topicId}', (snapshot, _oldSnapshot, key) =>
@@ -157,6 +159,8 @@ export class ConversationIslandService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
+    const host = this.host
+    this.host = null
     this.enabled = false
     this.expandedState = null
     this.hasPresentation = false
@@ -164,7 +168,7 @@ export class ConversationIslandService extends BaseService {
     this.clearExpiryTimer()
     this.activities.clear()
     this.itemMetadataCache.clear()
-    await this.host.shutdown()
+    await host?.shutdown()
   }
 
   private handleConversationActivitySnapshot(
@@ -232,7 +236,7 @@ export class ConversationIslandService extends BaseService {
       return
     }
 
-    this.host.resetCircuit()
+    this.host?.resetCircuit()
     this.refreshPresentation()
   }
 
@@ -279,7 +283,12 @@ export class ConversationIslandService extends BaseService {
 
     this.expandedState = null
     this.refreshPresentation()
-    void application.get('ConversationNavigationService').focusOrOpen(activity.target, title)
+    void application
+      .get('ConversationNavigationService')
+      .focusOrOpen(activity.target, title)
+      .catch((error) =>
+        logger.error('Failed to open Conversation Island activity', { activityId: event.activityId, error })
+      )
   }
 
   private resolveOriginDisplayId(): number {
@@ -363,6 +372,7 @@ export class ConversationIslandService extends BaseService {
       reducedMotion: prefersReducedMotion(),
       theme: this.resolveTheme(),
       primaryActivityId: primary.topicId,
+      activityCount,
       activityCountText: t('conversation_island.activity_count', { count: activityCount }),
       activities: activities.map((activity) => this.buildActivityItem(activity))
     }
@@ -371,7 +381,7 @@ export class ConversationIslandService extends BaseService {
     this.hasPresentation = true
     this.currentPresentationRevision = revision
     this.currentPresentationActivityIds = new Set(payload.activities.map((activity) => activity.activityId))
-    this.host.present({ version: 1, type: 'present', revision, payload })
+    this.host?.present({ version: 1, type: 'present', revision, payload })
   }
 
   private dismiss(terminateAfterHidden: boolean): void {
@@ -379,7 +389,7 @@ export class ConversationIslandService extends BaseService {
     this.hasPresentation = false
     this.currentPresentationRevision = revision
     this.currentPresentationActivityIds.clear()
-    this.host.dismiss({ version: 1, type: 'dismiss', revision }, terminateAfterHidden)
+    this.host?.dismiss({ version: 1, type: 'dismiss', revision }, terminateAfterHidden)
   }
 
   private nextRevision(): number {

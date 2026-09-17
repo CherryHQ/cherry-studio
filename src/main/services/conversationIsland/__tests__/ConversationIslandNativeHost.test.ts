@@ -105,6 +105,7 @@ function present(revision: number): PresentCommand {
       reducedMotion: false,
       theme: { appearance: 'dark', primaryColor: '#00B96B', fontFamily: '' },
       primaryActivityId: activity.activityId,
+      activityCount: 1,
       activityCountText: '1 activity',
       activities: [activity]
     }
@@ -288,6 +289,28 @@ describe('ConversationIslandNativeHost', () => {
     expect(spawnProcess).toHaveBeenCalledTimes(2)
     vi.advanceTimersByTime(1)
     expect(spawnProcess).toHaveBeenCalledTimes(3)
+  })
+
+  it('settles shutdown on close after a process error even when exit is never emitted', async () => {
+    const { children, host } = createHarness()
+    host.present(present(1))
+    const child = children[0]
+    ready(child)
+
+    child.emit('error', new Error('spawn failed'))
+    const shutdownResult = Promise.race([
+      host.shutdown().then(() => 'resolved'),
+      new Promise<string>((resolve) => setTimeout(() => resolve('timed-out'), 1))
+    ])
+    child.emit('close', 1, null)
+    await vi.advanceTimersByTimeAsync(1)
+
+    await expect(shutdownResult).resolves.toBe('resolved')
+    expect(
+      mocks.loggerWarn.mock.calls.filter(([message]) => message === 'Conversation Island native helper failed')
+    ).toHaveLength(1)
+    expect(child.listenerCount('close')).toBe(0)
+    expect(child.listenerCount('exit')).toBe(0)
   })
 
   it('applies the same crash recovery policy to ready timeouts', () => {
@@ -543,6 +566,26 @@ describe('ConversationIslandNativeHost', () => {
     vi.advanceTimersByTime(1)
 
     expect(decoded(child.stdin.ends)).toEqual([{ version: 1, type: 'shutdown' }])
+  })
+
+  it('starts a replacement and replays present received while an idle generation is stopping', () => {
+    const { children, host, spawnProcess } = createHarness()
+    host.present(present(1))
+    const first = children[0]
+    ready(first)
+    host.dismiss(dismiss(2))
+    first.stdout.push(helperEvent({ version: 1, type: 'hidden', revision: 2 }))
+
+    vi.advanceTimersByTime(30_000)
+    expect(decoded(first.stdin.ends)).toEqual([{ version: 1, type: 'shutdown' }])
+
+    host.present(present(3))
+    expect(spawnProcess).toHaveBeenCalledOnce()
+
+    first.exit(0)
+    expect(spawnProcess).toHaveBeenCalledTimes(2)
+    ready(children[1])
+    expect(decoded(children[1].stdin.writes)).toEqual([present(3)])
   })
 
   it('shuts down immediately after hidden when dismissal requests termination', () => {

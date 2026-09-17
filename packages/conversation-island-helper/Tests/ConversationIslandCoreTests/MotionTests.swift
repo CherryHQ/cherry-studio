@@ -52,4 +52,16 @@ final class MotionTests: XCTestCase {
             )
         )
     }
+
+    func testStatusPulseRunsOnlyForVisiblePendingAndStreamingActivities() {
+        XCTAssertTrue(MotionPolicy.shouldPulse(state: .pending, isVisible: true, reducedMotion: false))
+        XCTAssertTrue(MotionPolicy.shouldPulse(state: .streaming, isVisible: true, reducedMotion: false))
+        XCTAssertFalse(MotionPolicy.shouldPulse(state: .awaitingConfirmation, isVisible: true, reducedMotion: false))
+        XCTAssertFalse(MotionPolicy.shouldPulse(state: .streaming, isVisible: false, reducedMotion: false))
+    }
+
+    func testReducedMotionDisablesAllStatusPulses() {
+        XCTAssertFalse(MotionPolicy.shouldPulse(state: .pending, isVisible: true, reducedMotion: true))
+        XCTAssertFalse(MotionPolicy.shouldPulse(state: .streaming, isVisible: true, reducedMotion: true))
+    }
 }

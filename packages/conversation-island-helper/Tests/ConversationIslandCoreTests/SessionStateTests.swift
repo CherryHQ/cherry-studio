@@ -95,6 +95,7 @@ final class SessionStateTests: XCTestCase {
             reducedMotion: reducedMotion,
             theme: PresentationTheme(appearance: .dark, primaryColor: "#00B96B", fontFamily: ""),
             primaryActivityId: "primary",
+            activityCount: 1,
             activityCountText: "1 activity",
             activities: [
                 PresentationActivity(

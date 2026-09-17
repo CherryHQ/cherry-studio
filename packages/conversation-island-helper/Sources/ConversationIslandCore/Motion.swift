@@ -38,6 +38,16 @@ public enum MotionCompletionVisibility: Equatable, Sendable {
     case hidden
 }
 
+public enum MotionPolicy {
+    public static func shouldPulse(
+        state: ActivityState,
+        isVisible: Bool,
+        reducedMotion: Bool
+    ) -> Bool {
+        isVisible && !reducedMotion && (state == .pending || state == .streaming)
+    }
+}
+
 public struct MotionPlan: Equatable, Sendable {
     public let from: MotionTarget
     public let to: MotionTarget

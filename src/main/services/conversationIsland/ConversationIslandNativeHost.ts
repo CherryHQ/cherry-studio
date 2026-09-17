@@ -83,6 +83,7 @@ interface Generation {
   readonly exitPromise: Promise<void>
   resolveExit: () => void
   readonly listeners: {
+    childClose: () => void
     childError: () => void
     childExit: () => void
     stdinClose: () => void
@@ -221,6 +222,7 @@ export class ConversationIslandNativeHost {
       exitPromise,
       resolveExit,
       listeners: {
+        childClose: () => this.handleExit(generation),
         childError: () => this.handleUnexpectedFailure('process-error', generation),
         childExit: () => this.handleExit(generation),
         stdinClose: () => this.handleUnexpectedFailure('stdin-closed', generation),
@@ -244,6 +246,7 @@ export class ConversationIslandNativeHost {
 
   private attachListeners(generation: Generation): void {
     const { child, listeners } = generation
+    child.on('close', listeners.childClose)
     child.on('error', listeners.childError)
     child.on('exit', listeners.childExit)
     child.stdin.on('close', listeners.stdinClose)
@@ -441,7 +444,12 @@ export class ConversationIslandNativeHost {
 
     if (this.current === generation) {
       this.current = null
-      this.pending = null
+      if (!this.closed && !this.circuitOpen && !this.restartTimer && this.desired?.type === 'present') {
+        this.pending = this.desired
+        this.start()
+      } else {
+        this.pending = null
+      }
     }
     this.generations.delete(generation)
     generation.resolveExit()
@@ -515,6 +523,7 @@ export class ConversationIslandNativeHost {
   private removeAllListeners(generation: Generation): void {
     this.removeDataListeners(generation)
     const { child, listeners } = generation
+    child.removeListener('close', listeners.childClose)
     child.removeListener('error', listeners.childError)
     child.removeListener('exit', listeners.childExit)
     child.stdin.removeListener('error', listeners.stdinError)

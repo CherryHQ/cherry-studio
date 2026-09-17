@@ -22,6 +22,7 @@ export interface ConversationIslandPresentationPayload {
     fontFamily: string
   }
   primaryActivityId: string
+  activityCount: number
   activityCountText: string
   activities: ConversationIslandActivityItem[]
 }
@@ -98,6 +99,7 @@ function isPresentationPayload(value: unknown): value is ConversationIslandPrese
       'reducedMotion',
       'theme',
       'primaryActivityId',
+      'activityCount',
       'activityCountText',
       'activities'
     ]) ||
@@ -111,6 +113,8 @@ function isPresentationPayload(value: unknown): value is ConversationIslandPrese
     typeof value.theme.primaryColor !== 'string' ||
     typeof value.theme.fontFamily !== 'string' ||
     !isNonemptyString(value.primaryActivityId) ||
+    !isNonnegativeSafeInteger(value.activityCount) ||
+    value.activityCount === 0 ||
     typeof value.activityCountText !== 'string' ||
     !Array.isArray(value.activities) ||
     value.activities.length === 0 ||
@@ -120,7 +124,11 @@ function isPresentationPayload(value: unknown): value is ConversationIslandPrese
   }
 
   const activityIds = new Set(value.activities.map((activity) => activity.activityId))
-  return activityIds.size === value.activities.length && activityIds.has(value.primaryActivityId)
+  return (
+    activityIds.size === value.activities.length &&
+    activityIds.has(value.primaryActivityId) &&
+    value.activityCount >= value.activities.length
+  )
 }
 
 function isConversationIslandCommand(value: unknown): value is ConversationIslandCommand {

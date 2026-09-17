@@ -28,6 +28,12 @@ const mocks = vi.hoisted(() => ({
         onOpenActivity?: (event: OpenActivityEvent) => void
       }
     | undefined,
+  hostInstances: [] as Array<{
+    dismiss: ReturnType<typeof vi.fn>
+    present: ReturnType<typeof vi.fn>
+    resetCircuit: ReturnType<typeof vi.fn>
+    shutdown: ReturnType<typeof vi.fn>
+  }>,
   hostDismiss: vi.fn(),
   hostPresent: vi.fn(),
   hostResetCircuit: vi.fn(),
@@ -74,6 +80,11 @@ vi.mock('@main/utils/fullChromeWindows', () => ({
 
 vi.mock('../ConversationIslandNativeHost', () => ({
   ConversationIslandNativeHost: class {
+    dismiss: ReturnType<typeof vi.fn>
+    present: ReturnType<typeof vi.fn>
+    resetCircuit: ReturnType<typeof vi.fn>
+    shutdown: ReturnType<typeof vi.fn>
+
     constructor(options?: {
       callbacks?: {
         onSetExpanded?: (event: SetExpandedEvent) => void
@@ -81,12 +92,14 @@ vi.mock('../ConversationIslandNativeHost', () => ({
       }
     }) {
       mocks.hostCallbacks = options?.callbacks
+      this.present = vi.fn((command: unknown) => mocks.hostPresent(command))
+      this.dismiss = vi.fn((command: unknown, terminateAfterHidden: boolean) =>
+        mocks.hostDismiss(command, terminateAfterHidden)
+      )
+      this.resetCircuit = vi.fn(() => mocks.hostResetCircuit())
+      this.shutdown = vi.fn(() => mocks.hostShutdown())
+      mocks.hostInstances.push(this)
     }
-
-    present = mocks.hostPresent
-    dismiss = mocks.hostDismiss
-    resetCircuit = mocks.hostResetCircuit
-    shutdown = mocks.hostShutdown
   }
 }))
 
@@ -265,6 +278,7 @@ describe('ConversationIslandService', () => {
     mocks.displays = [internalDisplay, externalDisplay]
     mocks.focusedWindowInfos = []
     mocks.hostCallbacks = undefined
+    mocks.hostInstances.length = 0
     mocks.hostShutdown.mockResolvedValue(undefined)
     mocks.i18nSuffix = ''
     mocks.name = 'Research notes'
@@ -373,6 +387,7 @@ describe('ConversationIslandService', () => {
     expect(latestPresent().payload).toMatchObject({
       expanded: false,
       primaryActivityId: 'topic-new',
+      activityCount: 2,
       activityCountText: 'Total: 2',
       activities: [{ activityId: 'topic-new' }]
     })
@@ -490,6 +505,24 @@ describe('ConversationIslandService', () => {
     expect(mocks.hostPresent.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.navigationFocusOrOpen.mock.invocationCallOrder[0]
     )
+  })
+
+  it('consumes navigation failures without logging the target or conversation title', async () => {
+    const navigationError = new Error('navigation unavailable')
+    mocks.navigationFocusOrOpen.mockRejectedValueOnce(navigationError)
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('streaming', 100, 'topic-a')
+
+    sendOpenActivity(latestPresent().revision, 'topic-a')
+    await Promise.resolve()
+
+    expect(mocks.loggerError).toHaveBeenCalledWith('Failed to open Conversation Island activity', {
+      activityId: 'topic-a',
+      error: navigationError
+    })
+    const logged = JSON.stringify(mocks.loggerError.mock.calls)
+    expect(logged).not.toContain('conversationType')
+    expect(logged).not.toContain('Research notes')
   })
 
   it('rejects stale revisions and activity IDs that were not in the current presentation', () => {
@@ -633,5 +666,23 @@ describe('ConversationIslandService', () => {
     expect(mocks.cacheSubscriptions.size).toBe(0)
     expect(mocks.preferenceListeners.size).toBe(0)
     expect(mocks.themeListeners.size).toBe(0)
+  })
+
+  it('creates a fresh native host when the service starts again after stop', async () => {
+    changePreference('feature.conversation_island.enabled', true)
+    emitActivity('pending', 100, 'topic-first')
+    const firstHost = mocks.hostInstances[0]
+    expect(firstHost.present).toHaveBeenCalledOnce()
+
+    await service._doStop()
+    expect(firstHost.shutdown).toHaveBeenCalledOnce()
+
+    await service._doInit()
+    expect(mocks.hostInstances).toHaveLength(2)
+    const secondHost = mocks.hostInstances[1]
+    emitActivity('pending', 200, 'topic-second')
+
+    expect(secondHost.present).toHaveBeenCalledOnce()
+    expect(firstHost.present).toHaveBeenCalledOnce()
   })
 })

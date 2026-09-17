@@ -70,36 +70,44 @@ struct IslandView: View {
 
         VStack(spacing: 0) {
             switch model {
-            case let .compact(primary, activityCountText):
+            case let .compact(primary, activityCount, activityCountText):
                 compactSurface(
                     revision: revision,
                     primary: primary,
                     activityCountText: activityCountText,
-                    activityCount: payload.activities.count,
+                    activityCount: activityCount,
                     placement: placement,
                     theme: payload.theme,
+                    reducedMotion: payload.reducedMotion,
                     colors: colors
                 )
             case let .singleDetail(activity):
                 expandedHeader(
                     activity: activity,
                     activityCountText: payload.activityCountText,
-                    activityCount: 1,
+                    activityCount: payload.activityCount,
                     theme: payload.theme,
+                    reducedMotion: payload.reducedMotion,
                     colors: colors
                 )
                 Button {
                     onOpenActivity(revision, activity.activityId)
                 } label: {
-                    singleDetail(activity: activity, theme: payload.theme, colors: colors)
+                    singleDetail(
+                        activity: activity,
+                        theme: payload.theme,
+                        reducedMotion: payload.reducedMotion,
+                        colors: colors
+                    )
                 }
                 .buttonStyle(.plain)
             case let .activityList(activities, primaryActivityId):
                 expandedHeader(
                     activity: activities.first { $0.activityId == primaryActivityId }!,
                     activityCountText: payload.activityCountText,
-                    activityCount: activities.count,
+                    activityCount: payload.activityCount,
                     theme: payload.theme,
+                    reducedMotion: payload.reducedMotion,
                     colors: colors
                 )
                 ScrollView(.vertical, showsIndicators: activities.count > IslandGeometry.maximumVisibleExpandedRows) {
@@ -112,6 +120,7 @@ struct IslandView: View {
                                     activity: activity,
                                     isPrimary: activity.activityId == primaryActivityId,
                                     theme: payload.theme,
+                                    reducedMotion: payload.reducedMotion,
                                     colors: colors
                                 )
                             }
@@ -142,6 +151,7 @@ struct IslandView: View {
         activityCount: Int,
         placement: IslandPlacement,
         theme: PresentationTheme,
+        reducedMotion: Bool,
         colors: SurfaceColors
     ) -> some View {
         Button {
@@ -150,7 +160,7 @@ struct IslandView: View {
             if placement.presentation == .notch, let notchWidth = placement.notchWidth {
                 let sideWidth = max(0, (placement.bounds.width - notchWidth) / 2)
                 HStack(spacing: 0) {
-                    compactStatus(primary, theme: theme, colors: colors)
+                    compactStatus(primary, theme: theme, reducedMotion: reducedMotion, colors: colors)
                         .padding(.leading, 10)
                         .padding(.trailing, 4)
                         .frame(width: sideWidth, alignment: .leading)
@@ -162,7 +172,7 @@ struct IslandView: View {
                 }
             } else {
                 HStack(spacing: 10) {
-                    compactStatus(primary, theme: theme, colors: colors)
+                    compactStatus(primary, theme: theme, reducedMotion: reducedMotion, colors: colors)
                     Spacer(minLength: 8)
                     compactTrailing(primary, activityCountText: activityCountText, activityCount: activityCount, theme: theme)
                 }
@@ -176,12 +186,17 @@ struct IslandView: View {
     private func compactStatus(
         _ activity: PresentationActivity,
         theme: PresentationTheme,
+        reducedMotion: Bool,
         colors: SurfaceColors
     ) -> some View {
         HStack(spacing: 7) {
             StatusDot(
                 color: statusColor(activity.state),
-                isPulsing: viewModel.isVisible && activity.state.isPulsing
+                isPulsing: MotionPolicy.shouldPulse(
+                    state: activity.state,
+                    isVisible: viewModel.isVisible,
+                    reducedMotion: reducedMotion
+                )
             )
             Text(activity.statusText)
                 .font(resolvedFont(theme: theme, size: 12, weight: .medium))
@@ -207,6 +222,7 @@ struct IslandView: View {
         activityCountText: String,
         activityCount: Int,
         theme: PresentationTheme,
+        reducedMotion: Bool,
         colors: SurfaceColors
     ) -> some View {
         HStack(spacing: 8) {
@@ -216,7 +232,7 @@ struct IslandView: View {
                     .font(resolvedFont(theme: theme, size: 12, weight: .semibold))
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                compactStatus(activity, theme: theme, colors: colors)
+                compactStatus(activity, theme: theme, reducedMotion: reducedMotion, colors: colors)
             } else {
                 Circle()
                     .fill(primaryColor(theme))
@@ -237,12 +253,17 @@ struct IslandView: View {
     private func singleDetail(
         activity: PresentationActivity,
         theme: PresentationTheme,
+        reducedMotion: Bool,
         colors: SurfaceColors
     ) -> some View {
         HStack(spacing: 10) {
             StatusDot(
                 color: statusColor(activity.state),
-                isPulsing: viewModel.isVisible && activity.state.isPulsing
+                isPulsing: MotionPolicy.shouldPulse(
+                    state: activity.state,
+                    isVisible: viewModel.isVisible,
+                    reducedMotion: reducedMotion
+                )
             )
             Text(activity.title)
                 .font(resolvedFont(theme: theme, size: 13, weight: .medium))
@@ -262,6 +283,7 @@ struct IslandView: View {
         activity: PresentationActivity,
         isPrimary: Bool,
         theme: PresentationTheme,
+        reducedMotion: Bool,
         colors: SurfaceColors
     ) -> some View {
         HStack(spacing: 10) {
@@ -278,7 +300,11 @@ struct IslandView: View {
                 HStack(spacing: 6) {
                     StatusDot(
                         color: statusColor(activity.state),
-                        isPulsing: viewModel.isVisible && activity.state.isPulsing
+                        isPulsing: MotionPolicy.shouldPulse(
+                            state: activity.state,
+                            isVisible: viewModel.isVisible,
+                            reducedMotion: reducedMotion
+                        )
                     )
                     Text(activity.statusText)
                         .font(resolvedFont(theme: theme, size: 11, weight: .regular))
@@ -449,11 +475,5 @@ private struct SurfaceShape: Shape {
         )
         path.closeSubpath()
         return path
-    }
-}
-
-private extension ActivityState {
-    var isPulsing: Bool {
-        self == .pending || self == .streaming
     }
 }

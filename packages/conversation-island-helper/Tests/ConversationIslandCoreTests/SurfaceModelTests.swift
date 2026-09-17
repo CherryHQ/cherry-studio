@@ -3,18 +3,18 @@ import XCTest
 
 final class SurfaceModelTests: XCTestCase {
     func testCollapsedSurfaceUsesThePayloadPrimaryActivity() {
-        let secondary = activity(id: "secondary", title: "Secondary")
         let primary = activity(id: "primary", title: "Primary")
         let payload = presentation(
             expanded: false,
             primaryActivityId: primary.activityId,
+            activityCount: 2,
             activityCountText: "2 activities",
-            activities: [secondary, primary]
+            activities: [primary]
         )
 
         XCTAssertEqual(
             SurfaceModel(payload: payload),
-            .compact(primary: primary, activityCountText: "2 activities")
+            .compact(primary: primary, activityCount: 2, activityCountText: "2 activities")
         )
     }
 
@@ -47,6 +47,7 @@ final class SurfaceModelTests: XCTestCase {
     private func presentation(
         expanded: Bool,
         primaryActivityId: String = "primary",
+        activityCount: Int = 1,
         activityCountText: String = "1 activity",
         activities: [PresentationActivity]
     ) -> PresentationPayload {
@@ -56,6 +57,7 @@ final class SurfaceModelTests: XCTestCase {
             reducedMotion: false,
             theme: PresentationTheme(appearance: .dark, primaryColor: "#00B96B", fontFamily: ""),
             primaryActivityId: primaryActivityId,
+            activityCount: activityCount,
             activityCountText: activityCountText,
             activities: activities
         )
