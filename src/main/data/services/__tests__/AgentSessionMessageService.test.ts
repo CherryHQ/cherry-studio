@@ -250,6 +250,38 @@ describe('AgentSessionMessageService', () => {
       expect(() => send('deleted-target')).toThrowError(expect.objectContaining({ code: 'TARGET_AGENT_DELETED' }))
     })
 
+    it('rejects delivery from a trashed sender Session without writing to the target', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'trashed-sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0', deletedAt: 100 })
+      await seedSession({ id: 'target', agentId: 'agent-a', name: 'Target', orderKey: 'b1' })
+
+      expect(() =>
+        agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'trashed-sender',
+          receiverSessionId: 'target',
+          content: 'must not be accepted'
+        })
+      ).toThrowError(expect.objectContaining({ code: 'SENDER_FORBIDDEN' }))
+      expect(agentSessionMessageService.listSessionDeliveries('target')).toEqual([])
+    })
+
+    it('rejects delivery to a trashed target Session without writing a message', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'trashed-target', agentId: 'agent-a', name: 'Target', orderKey: 'b1', deletedAt: 100 })
+
+      expect(() =>
+        agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'sender',
+          receiverSessionId: 'trashed-target',
+          content: 'must not be accepted'
+        })
+      ).toThrowError(expect.objectContaining({ code: 'TARGET_SESSION_NOT_FOUND' }))
+      expect(agentSessionMessageService.listSessionDeliveries('trashed-target')).toEqual([])
+    })
+
     it('keeps accepted and delivering rows recoverable until terminal consumption', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
@@ -376,7 +408,91 @@ describe('AgentSessionMessageService', () => {
       ).toEqual([first!.id, request.id].sort())
     })
 
-    it('creates a failure result before deleting a target with an unfinished completion request', async () => {
+    it('does not write a completion result to a trashed caller when finalizing', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      const assistantId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d091'
+      agentSessionMessageService.saveMessage({
+        sessionId: 'target',
+        message: {
+          id: assistantId,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'Completed work' }] }
+        }
+      })
+      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+        expected: ['accepted'],
+        turnRef: assistantId
+      })
+      agentSessionService.delete('sender')
+
+      const result = agentSessionMessageService.finalizeSessionDelivery({
+        requestSessionId: 'target',
+        requestMessageId: request.id,
+        assistantMessageId: assistantId,
+        outcome: 'success'
+      })
+
+      expect(result).toBeNull()
+      expect(
+        dbh.db
+          .select({ id: agentSessionMessageTable.id })
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.sessionId, 'sender'))
+          .all()
+      ).toEqual([])
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'failed',
+        outcome: 'failed',
+        error: { code: 'CALLER_SESSION_DELETED' }
+      })
+    })
+
+    it('does not write an error result to a trashed caller when delivery fails', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      agentSessionService.delete('sender')
+
+      const result = agentSessionMessageService.failSessionDelivery(request, {
+        code: 'TARGET_UNAVAILABLE',
+        message: 'Target unavailable'
+      })
+
+      expect(result).toBeNull()
+      expect(
+        dbh.db
+          .select({ id: agentSessionMessageTable.id })
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.sessionId, 'sender'))
+          .all()
+      ).toEqual([])
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'failed',
+        outcome: 'failed',
+        error: { code: 'TARGET_UNAVAILABLE' }
+      })
+    })
+
+    it('terminalizes an unfinished completion request before moving its target Session to Trash', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedAgent('agent-b', 'Agent B')
       await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
@@ -402,6 +518,14 @@ describe('AgentSessionMessageService', () => {
           outcome: 'failed',
           error: { code: 'TARGET_SESSION_DELETED' }
         }
+      })
+      expect(agentSessionMessageService.listRecoverableSessionDeliveries('target')).toEqual([])
+
+      agentSessionService.restore('target')
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'failed',
+        outcome: 'interrupted',
+        error: { code: 'TARGET_SESSION_DELETED' }
       })
     })
 
@@ -429,10 +553,52 @@ describe('AgentSessionMessageService', () => {
         outcome: 'interrupted',
         error: { code: 'TARGET_AGENT_DELETED' }
       })
-      expect(agentSessionService.getById('target').agentId).toBeNull()
+      expect(agentSessionService.getById('target')).toMatchObject({ id: 'target', agentId: 'agent-b' })
+      const [retained] = await dbh.db
+        .select({ agentId: agentSessionTable.agentId })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'target'))
+      expect(retained.agentId).toBe('agent-b')
       const [result] = agentSessionMessageService.listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
       expect(result.delivery).toMatchObject({
         inReplyTo: request.id,
+        outcome: 'interrupted',
+        error: { code: 'TARGET_AGENT_DELETED' }
+      })
+
+      agentService.restoreAgent('agent-b')
+      expect(agentSessionService.getById('target').agentId).toBe('agent-b')
+    })
+
+    it('does not write an interruption result to a trashed caller when retaining a deleted Agent Session', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+        expected: ['accepted'],
+        turnRef: 'assistant-turn'
+      })
+      agentSessionService.delete('sender')
+
+      agentService.deleteAgent('agent-b', { deleteSessions: false })
+
+      expect(
+        dbh.db
+          .select({ id: agentSessionMessageTable.id })
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.sessionId, 'sender'))
+          .all()
+      ).toEqual([])
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'failed',
         outcome: 'interrupted',
         error: { code: 'TARGET_AGENT_DELETED' }
       })
@@ -986,6 +1152,44 @@ describe('AgentSessionMessageService', () => {
     ).toThrow("Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found")
   })
 
+  it('makes messages unaddressable while their Session is archived', async () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'archived session secret' }] }
+      }
+    })
+    await dbh.db.update(agentSessionTable).set({ deletedAt: 100 }).where(eq(agentSessionTable.id, SESSION_ID))
+
+    expect(() => agentSessionMessageService.listSessionMessages(SESSION_ID)).toThrow(
+      `Session with id '${SESSION_ID}' not found`
+    )
+    expect(() => agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow(
+      `Session with id '${SESSION_ID}' not found`
+    )
+    expect(() =>
+      agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        data: { parts: [{ type: 'text', text: 'changed while archived' }] }
+      })
+    ).toThrow(`Session with id '${SESSION_ID}' not found`)
+    expect(() => agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)).toThrow(
+      `Session with id '${SESSION_ID}' not found`
+    )
+    expect(agentSessionMessageService.search({ q: 'archived session secret' }).items).toEqual([])
+    expect(agentSessionMessageService.searchRanked({ q: 'archived session secret' })).toEqual([])
+
+    agentSessionService.restore(SESSION_ID)
+
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual([
+      { type: 'text', text: 'archived session secret' }
+    ])
+    expect(agentSessionMessageService.search({ q: 'archived session secret' }).items).toHaveLength(1)
+    expect(agentSessionMessageService.searchRanked({ q: 'archived session secret' })).toHaveLength(1)
+  })
+
   it('preserves turnOptions when a data patch sends only parts', () => {
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
@@ -1083,7 +1287,13 @@ describe('AgentSessionMessageService', () => {
     expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 
-  it('pages body-free canonical metadata in a closed range without skipping timestamp ties', async () => {
+  it('pages live-session body-free metadata in a closed range without skipping timestamp ties', async () => {
+    await seedSession({
+      id: 'archived-range-session',
+      name: 'Archived range session',
+      orderKey: 'a1',
+      deletedAt: 250
+    })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
         id: 'range-start',
@@ -1136,6 +1346,15 @@ describe('AgentSessionMessageService', () => {
         updatedAt: 300
       },
       {
+        id: 'archived-range-middle',
+        sessionId: 'archived-range-session',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'must not be exported' }] },
+        status: 'success',
+        createdAt: 250,
+        updatedAt: 250
+      },
+      {
         id: 'range-before',
         sessionId: SESSION_ID,
         role: 'user',
@@ -1155,8 +1374,12 @@ describe('AgentSessionMessageService', () => {
       }
     ])
 
-    const firstPage = agentSessionMessageService.listCreatedInRangeMetadataPage({ fromMs: 100, toMs: 300, limit: 2 })
-    const secondPage = agentSessionMessageService.listCreatedInRangeMetadataPage({
+    const firstPage = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
+      fromMs: 100,
+      toMs: 300,
+      limit: 2
+    })
+    const secondPage = agentSessionMessageService.listLiveCreatedInRangeMetadataPage({
       fromMs: 100,
       toMs: 300,
       limit: 2,
@@ -1178,19 +1401,19 @@ describe('AgentSessionMessageService', () => {
     const plan = dbh.sqlite
       .prepare(
         `EXPLAIN QUERY PLAN
-         SELECT id
+         SELECT agent_session_message.id
          FROM agent_session_message
-         WHERE created_at >= ?
-           AND created_at <= ?
-           AND (created_at < ? OR (created_at = ? AND id > ?))
-         ORDER BY created_at DESC, id ASC
+         INNER JOIN agent_session ON agent_session.id = agent_session_message.session_id
+         WHERE agent_session_message.created_at >= ?
+           AND agent_session_message.created_at <= ?
+           AND agent_session.deleted_at IS NULL
+           AND (agent_session_message.created_at < ? OR (agent_session_message.created_at = ? AND agent_session_message.id > ?))
+         ORDER BY agent_session_message.created_at DESC, agent_session_message.id ASC
          LIMIT ?`
       )
       .all(100, 300, 200, 200, 'cursor-id', 101) as Array<{ detail: string }>
 
-    expect(
-      plan.some(({ detail }) => detail.includes('USING COVERING INDEX agent_session_message_created_at_id_idx'))
-    ).toBe(true)
+    expect(plan.some(({ detail }) => detail.includes('USING INDEX agent_session_message_created_at_id_idx'))).toBe(true)
     expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
   })
 

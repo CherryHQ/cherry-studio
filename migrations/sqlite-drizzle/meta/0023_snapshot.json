@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d0d2806a-ef74-4a7a-a21a-a753c527746a",
+  "id": "f6c0e9b0-adce-44b3-9616-a0e7d1a2f8c4",
   "prevId": "5637ac06-8c5f-4c9f-a11c-508966683923",
   "tables": {
     "agent": {
@@ -79,13 +79,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'{}'"
-        },
-        "group_id": {
-          "name": "group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         },
         "order_key": {
           "name": "order_key",
@@ -172,19 +165,6 @@
           "tableTo": "user_model",
           "columnsFrom": [
             "small_model"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_group_id_group_id_fk": {
-          "name": "agent_group_id_group_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "group",
-          "columnsFrom": [
-            "group_id"
           ],
           "columnsTo": [
             "id"
@@ -727,6 +707,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         }
       },
@@ -4944,6 +4931,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         }
       },

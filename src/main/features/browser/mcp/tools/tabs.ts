@@ -1,4 +1,4 @@
-import * as z from 'zod'
+import { ListTabsSchema, SwitchTabSchema, CloseTabSchema } from '@main/ai/mcp/browserToolDefinitions'
 
 import { BrowserSessionError } from '../../session/BrowserSessionError'
 import type { BrowserController } from '../browserController'
@@ -6,16 +6,6 @@ import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
 // --- list_tabs ---
-
-export const ListTabsSchema = z.object({
-  privateMode: z.boolean().optional().describe('List tabs from private window (default: false)')
-})
-
-export const listTabsToolDefinition = {
-  name: 'list_tabs',
-  description: 'List all open tabs with their IDs, URLs, and titles. Use to see what pages are currently open.',
-  inputSchema: ListTabsSchema
-}
 
 export async function handleListTabs(controller: BrowserController, args: unknown) {
   try {
@@ -30,17 +20,6 @@ export async function handleListTabs(controller: BrowserController, args: unknow
 
 // --- switch_tab ---
 
-export const SwitchTabSchema = z.object({
-  tabId: z.string().describe('Tab ID to switch to'),
-  privateMode: z.boolean().optional().describe('Target private window (default: false)')
-})
-
-export const switchTabToolDefinition = {
-  name: 'switch_tab',
-  description: 'Switch to a specific tab by its ID. Use after list_tabs to activate a different tab.',
-  inputSchema: SwitchTabSchema
-}
-
 export async function handleSwitchTab(controller: BrowserController, args: unknown) {
   try {
     const { tabId, privateMode } = SwitchTabSchema.parse(args)
@@ -54,17 +33,6 @@ export async function handleSwitchTab(controller: BrowserController, args: unkno
 }
 
 // --- close_tab ---
-
-export const CloseTabSchema = z.object({
-  tabId: z.string().describe('Tab ID to close'),
-  privateMode: z.boolean().optional().describe('Target private window (default: false)')
-})
-
-export const closeTabToolDefinition = {
-  name: 'close_tab',
-  description: 'Close a specific tab by its ID. Use to free resources when done with a page.',
-  inputSchema: CloseTabSchema
-}
 
 export async function handleCloseTab(controller: BrowserController, args: unknown) {
   try {

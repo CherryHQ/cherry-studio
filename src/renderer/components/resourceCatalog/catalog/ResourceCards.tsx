@@ -28,7 +28,7 @@ interface ResourceCardProps {
   resource: ResourceItem
   variant?: 'library' | 'settings'
   allGroups: Group[]
-  onDelete: (resource: ResourceItem) => void
+  onDelete: (resource: ResourceItem, permanent?: boolean) => void
   onDuplicate: (resource: ResourceItem) => void
   onEdit: (resource: ResourceItem) => void
   onExport: (resource: ResourceItem) => void

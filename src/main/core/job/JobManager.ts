@@ -15,7 +15,7 @@ import {
 } from '@main/core/lifecycle'
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
+import { isTerminalStatus, JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
@@ -962,6 +962,7 @@ export class JobManager extends BaseService {
     const snapshot = jobService.create(insertRow)
     this.publishState(snapshot)
     const handle = this.handleFor(snapshot)
+    this.notifyEnqueued(handler, snapshot)
 
     if (snapshot.status === 'pending') {
       void this.dispatch(queueName)
@@ -1040,6 +1041,7 @@ export class JobManager extends BaseService {
           return
         }
         this.publishState(persisted)
+        this.notifyEnqueued(handler, persisted)
         logger.info('Job enqueued (tx)', {
           id: persisted.id,
           type,
@@ -1908,14 +1910,28 @@ export class JobManager extends BaseService {
   ): Promise<void> {
     const dbService = application.get('DbService')
     let txFailed: Error | undefined
+    let written = false
     try {
-      jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
+      written = jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
     } catch (err) {
       txFailed = err as Error
       logger.error('finalizeJob: tx failed — synthesizing failed snapshot to release slot', { jobId, status, err })
     }
 
     const persisted = jobService.getById(jobId)
+
+    // The write is skipped when the row is already terminal, so `written === false`
+    // means an earlier finalize won — it published and resolved the waiters. Repeating
+    // that emits a duplicate settle, even when the late status happens to match.
+    if (!txFailed && !written && persisted && isTerminalStatus(persisted.status)) {
+      logger.warn('finalizeJob: already finalized — dropping the late terminal state', {
+        jobId,
+        attempted: status,
+        kept: persisted.status
+      })
+      return
+    }
+
     const snapshot: JobSnapshot | null = persisted ?? (txFailed ? this.synthesizeFailedSnapshot(jobId, txFailed) : null)
 
     if (!snapshot) {
@@ -2375,6 +2391,14 @@ export class JobManager extends BaseService {
 
   private isTerminal(status: JobSnapshot['status']): boolean {
     return status === 'completed' || status === 'failed' || status === 'cancelled'
+  }
+
+  private notifyEnqueued(handler: JobHandler, snapshot: JobSnapshot): void {
+    try {
+      handler.onEnqueued?.(snapshot)
+    } catch (err) {
+      logger.warn('handler.onEnqueued threw — ignoring', { jobId: snapshot.id, type: snapshot.type, err })
+    }
   }
 
   /** Push a job snapshot to the cross-window shared cache (renderer hooks read this). */
