@@ -43,7 +43,11 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 import { doctorScopeKey } from '@shared/utils/doctor'
 
 import Scrollbar from '../Scrollbar'
-import { buildDiagnosticReportDescription, type DiagnosticReportConfig, resolveDiagnosticReportLocation } from './diagnosticReportDescription'
+import {
+  buildDiagnosticReportDescription,
+  type DiagnosticReportConfig,
+  resolveDiagnosticReportLocation
+} from './diagnosticReportDescription'
 import { ErrorBasicInformation } from './ErrorBasicInformation'
 import { ErrorDoctorDiagnostics } from './ErrorDoctorDiagnostics'
 
