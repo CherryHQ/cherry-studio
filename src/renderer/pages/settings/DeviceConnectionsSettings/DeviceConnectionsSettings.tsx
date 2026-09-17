@@ -53,7 +53,7 @@ const DeviceConnectionsSettings: FC = () => {
   const openMobileDownload = () => {
     const language = i18n.resolvedLanguage ?? i18n.language
     const url = language.startsWith('zh') ? 'https://cherryai.com.cn/mobile' : 'https://cherryai.com/mobile'
-    void ipcApi.request('system.shell.open_website', url)
+    void ipcApi.request('system.shell.open_external_website', url)
   }
 
   const clearPairingOffer = useCallback(() => {
