@@ -273,6 +273,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
 }))
 
 vi.mock('@renderer/components/icons/SvgIcon', () => ({
+  McpLogo: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />,
   OpenClawIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />,
   OpenClawSidebarIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />
 }))

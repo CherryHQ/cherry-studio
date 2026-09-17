@@ -3,14 +3,13 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { Mutex } from 'async-mutex'
 
 import { loggerService } from '@logger'
-import { BROWSER_TOOL_NAMES } from '@main/ai/mcp/browserTools'
+import { toolDefinitions, sessionToolDefinitions } from '@main/ai/mcp/browserToolDefinitions'
 
 import type { BrowserSessionService } from '../BrowserSessionService'
 import { BrowserSessionError } from '../session/BrowserSessionError'
 import type { BrowserController } from './browserController'
 import { CdpBrowserController } from './controller'
-import { OpenSchema } from './tools/open'
-import { toolDefinitions, toolHandlers } from './tools/registry'
+import { toolHandlers } from './tools/registry'
 
 const logger = loggerService.withContext('BrowserServer')
 
@@ -19,7 +18,19 @@ export class BrowserServer {
   private readonly controller: BrowserController
   private readonly paneRequests = new Mutex()
   private closing?: Promise<void>
+  private readonly calls = new Map<string, (args: unknown, signal: AbortSignal) => Promise<CallToolResult>>()
+
+  callTool(name: string, args: unknown, signal: AbortSignal): Promise<CallToolResult> {
+    const call = this.calls.get(name)
+    if (!call) throw new BrowserSessionError('not_allowed')
+    return call(args, signal)
+  }
+
   private readonly requests = new Set<Promise<CallToolResult>>()
+
+  get isClosing(): boolean {
+    return this.closing !== undefined
+  }
 
   close(): Promise<void> {
     return (this.closing ??= Promise.resolve().then(async () => {
@@ -42,45 +53,39 @@ export class BrowserServer {
     this.controller = controller ?? new CdpBrowserController(service)
     this.server = new McpServer({ name: '@cherry/browser', version: '0.1.0' })
 
-    const definitions = controller
-      ? toolDefinitions.filter((tool) => BROWSER_TOOL_NAMES.some((name) => name === tool.name))
-      : toolDefinitions
+    const definitions = controller ? sessionToolDefinitions : toolDefinitions
     for (const { name, description, inputSchema } of definitions) {
+      this.calls.set(name, async (args, callSignal) => {
+        const parsed = inputSchema.parse(args)
+        if (this.closing) throw new BrowserSessionError('debugger_unavailable')
+        this.controller.assertAvailable?.()
+        const signal = this.controller.signal ? AbortSignal.any([callSignal, this.controller.signal]) : callSignal
+        const invoke = async () => {
+          signal.throwIfAborted()
+          this.controller.assertAvailable?.()
+          try {
+            this.controller.beginTool?.(signal)
+            return await toolHandlers[name](this.controller, parsed, signal)
+          } finally {
+            this.controller.finishTool?.()
+          }
+        }
+        const request = controller ? this.paneRequests.runExclusive(invoke) : invoke()
+        this.requests.add(request)
+        try {
+          return await request
+        } finally {
+          this.requests.delete(request)
+        }
+      })
       this.server.registerTool(
         name,
         {
-          description:
-            controller && name === 'open'
-              ? 'Navigate the current Agent session browser pane. The user sees the same page. Multiple tabs and private windows are unavailable.'
-              : description,
-          inputSchema:
-            controller && name === 'open'
-              ? OpenSchema.omit({ showWindow: true }).extend({
-                  privateMode: OpenSchema.shape.privateMode.describe('Unsupported by this host; must be false.'),
-                  newTab: OpenSchema.shape.newTab.describe('Unsupported by this host; must be false.')
-                })
-              : inputSchema
+          description,
+          inputSchema
         },
         async (args, extra) => {
-          if (this.closing) throw new BrowserSessionError('debugger_unavailable')
-          this.controller.assertAvailable?.()
-          const signal = this.controller.signal ? AbortSignal.any([extra.signal, this.controller.signal]) : extra.signal
-          const invoke = async () => {
-            signal.throwIfAborted()
-            this.controller.assertAvailable?.()
-            try {
-              return await toolHandlers[name](this.controller, args, signal)
-            } finally {
-              this.controller.finishTool?.()
-            }
-          }
-          const request = controller ? this.paneRequests.runExclusive(invoke) : invoke()
-          this.requests.add(request)
-          try {
-            return await request
-          } finally {
-            this.requests.delete(request)
-          }
+          return this.callTool(name, args, extra.signal)
         }
       )
     }

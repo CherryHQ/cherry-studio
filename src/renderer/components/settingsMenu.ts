@@ -28,6 +28,17 @@ import { createElement } from 'react'
 
 import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
+
+/** Resolve the section label without changing the default settings tab title. */
+export function getSettingsSectionTitleKey(url: string): string | undefined {
+  if (!isSettingsPath(url)) return undefined
+  const pathname = new URL(url, 'https://www.cherry-ai.com').pathname
+  return (
+    settingsMenu.find(({ route }) => pathname === route || pathname.startsWith(`${route}/`))?.titleKey ??
+    (pathname === '/settings/search' ? 'common.search' : undefined)
+  )
+}
 
 export interface SettingsMenuEntry {
   /** Settings section route; also the aggregation key for `.search.ts` leaves */
