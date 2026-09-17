@@ -238,7 +238,7 @@ export class AgentJobsService extends BaseService {
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
-    this.assertAgentExists(agentId)
+    this.assertAgentIsActive(agentId)
     this.assertPromptNotReserved(form.prompt)
     this.assertNameNotReserved(form.name)
     const channelIds = form.channelIds ?? []
@@ -573,8 +573,10 @@ export class AgentJobsService extends BaseService {
   // not-found code (the message reaches the toast through INTERNAL either
   // way), so no AI-domain IpcError code is minted for them — unlike trigger
   // validation, where the form must branch on the code.
-  private assertAgentExists(agentId: string): void {
-    if (agentService.getLifecycleState(agentId) === 'missing') {
+  private assertAgentIsActive(agentId: string): void {
+    // Trashed is refused with missing: the row would register and arm, then the
+    // post-commit read refuses a non-active owner, stranding the schedule.
+    if (agentService.getLifecycleState(agentId) !== 'active') {
       throw new Error(`Agent not found: ${agentId}`)
     }
   }

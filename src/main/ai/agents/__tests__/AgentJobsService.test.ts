@@ -317,6 +317,15 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
     })
 
+    it('refuses a trashed Agent before any write', () => {
+      // Registering first would arm the schedule and only then fail the
+      // post-commit read, stranding an enabled row behind the error.
+      dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
+
+      expect(() => service.createTask(AGENT_ID, form)).toThrow('Agent not found')
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+    })
+
     it('rejects a prompt that only trims to the heartbeat sentinel', () => {
       // The sweep's tolerant identity reads a padded sentinel as a heartbeat
       // row, so an ordinary task carrying one would lose its workspace.
