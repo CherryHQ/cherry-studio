@@ -9716,6 +9716,9 @@
         "openai-chat-completions",
         "anthropic-messages"
       ],
+      "limits": {
+        "maxOutputTokens": 384000
+      },
       "modelId": "deepseek-v4-flash",
       "pricing": {
         "cacheRead": {
@@ -9986,6 +9989,9 @@
         "openai-chat-completions",
         "anthropic-messages"
       ],
+      "limits": {
+        "maxOutputTokens": 384000
+      },
       "modelId": "deepseek-v4-pro",
       "pricing": {
         "cacheRead": {
@@ -44864,5 +44870,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "6dc84a57c36a718a"
+  "version": "a69a841fcbea34d1"
 }
