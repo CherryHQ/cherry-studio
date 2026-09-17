@@ -238,13 +238,16 @@ const ollamaFetcher: ModelFetcher = {
     const contextWindows = await Promise.all(
       models.map((m) => fetchOllamaContextWindow(baseUrl, provider, m.name, signal))
     )
-    return models.map((m, index) =>
-      toModel(m.name, provider, {
+    return models.map((m, index) => {
+      const capabilities: Model['capabilities'] = []
+      if (m.capabilities?.includes('thinking')) capabilities.push(MODEL_CAPABILITY.REASONING)
+      if (m.capabilities?.includes('tools')) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+      return toModel(m.name, provider, {
         ownedBy: 'ollama',
-        capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : [],
+        capabilities,
         ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
       })
-    )
+    })
   }
 }
 
@@ -838,15 +841,20 @@ const lmStudioFetcher: ModelFetcher = {
 
     return dedup(response.models, (m) => m.key).map((m) => {
       const endpointTypes = m.type === 'embedding' ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : undefined
-      const capability =
-        endpointImpliedCapability(endpointTypes?.[0]) ??
-        (m.capabilities?.vision ? MODEL_CAPABILITY.IMAGE_RECOGNITION : undefined)
+      const implied = endpointImpliedCapability(endpointTypes?.[0])
+      const capabilities: Model['capabilities'] = []
+      if (implied) {
+        capabilities.push(implied)
+      } else {
+        if (m.capabilities?.trained_for_tool_use) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+        if (m.capabilities?.vision) capabilities.push(MODEL_CAPABILITY.IMAGE_RECOGNITION)
+      }
 
       return toModel(m.key, provider, {
         name: m.display_name || m.key,
         ownedBy: m.publisher,
         ...(endpointTypes ? { endpointTypes } : {}),
-        ...(capability ? { capabilities: [capability] } : {}),
+        capabilities,
         ...(m.max_context_length ? { contextWindow: m.max_context_length } : {})
       })
     })

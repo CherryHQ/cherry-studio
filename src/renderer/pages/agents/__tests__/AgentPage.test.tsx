@@ -591,6 +591,7 @@ vi.mock('../AgentSidePanel', () => ({
 vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
   AgentResourceList: ({
     activeAgentId,
+    activeSessionId,
     historyRecordsActive,
     agentSessionsSource,
     onAddAgent,
@@ -600,6 +601,7 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     onSelectedAgentClick
   }: {
     activeAgentId?: string | null
+    activeSessionId?: string | null
     historyRecordsActive?: boolean
     agentSessionsSource?: unknown
     onAddAgent?: () => void | Promise<void>
@@ -613,6 +615,7 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     return (
       <div
         data-active-agent-id={activeAgentId ?? ''}
+        data-active-session-id={activeSessionId ?? ''}
         data-history-active={String(Boolean(historyRecordsActive))}
         data-testid="agent-resource-list">
         <button type="button" onClick={() => void onAddAgent?.()}>
@@ -885,6 +888,7 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
     expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-active-agent-id', 'agent-a')
+    expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-active-session-id', 'session-created')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-agent-id', 'agent-a')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true')

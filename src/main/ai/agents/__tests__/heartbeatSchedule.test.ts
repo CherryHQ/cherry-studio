@@ -845,6 +845,40 @@ describe('heartbeatSchedule', () => {
     expect(jobScheduleService.getById(row.id)?.enabled).toBe(false)
   })
 
+  it('keeps archived heartbeat schedules during explicit sync and startup orphan repair', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
+    await jobManager.pauseJobScheduleById(row.id)
+
+    await syncHeartbeatSchedule(AGENT_ID)
+    await repairHeartbeatSchedules()
+
+    expect(jobScheduleService.getById(row.id)).toMatchObject({ enabled: false })
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
+    expect(scheduler.has(`schedule:${row.id}`)).toBe(false)
+  })
+
+  it('retains and pauses a heartbeat created while its agent moves into trash', async () => {
+    seedAgent(AGENT_ID)
+    const original = agentWorkspaceService.findOrCreateByPathResult.bind(agentWorkspaceService)
+    const spy = vi.spyOn(agentWorkspaceService, 'findOrCreateByPathResult').mockImplementation((...args) => {
+      dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
+      return original(...args)
+    })
+    try {
+      await syncHeartbeatSchedule(AGENT_ID)
+    } finally {
+      spy.mockRestore()
+    }
+
+    const [row] = heartbeatRows(AGENT_ID)
+    expect(row).toMatchObject({ enabled: false, metadata: { agentTrash: { resumeOnRestore: true } } })
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
+    expect(scheduler.has(`schedule:${row.id}`)).toBe(false)
+  })
+
   it('removes the row when the agent is deleted mid-sync', async () => {
     // The agent row disappears after sync's existence check but before the
     // schedule commit — the onAgentDeleted sweep has already run, so the
@@ -1303,7 +1337,7 @@ describe('heartbeatSchedule', () => {
     const [row] = heartbeatRows(AGENT_ID)
     const oldWorkspace = (row.jobInputTemplate as AgentTaskInput).workspace
     if (oldWorkspace.type !== 'user') throw new Error('Expected user workspace')
-    agentSessionService.deleteWorkspaceCascadeForDelivery(oldWorkspace.workspaceId)
+    agentSessionService.deleteWorkspaceCascadeWithImpact(oldWorkspace.workspaceId)
     const input = jobScheduleService.getById(row.id)!.jobInputTemplate as AgentTaskInput
     expect(input.workspace).toEqual({ type: 'system' })
     const job = jobService.create({

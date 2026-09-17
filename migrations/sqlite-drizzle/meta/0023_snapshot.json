@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f16879af-9965-4489-9f28-99634a44426d",
+  "id": "f6c0e9b0-adce-44b3-9616-a0e7d1a2f8c4",
   "prevId": "5637ac06-8c5f-4c9f-a11c-508966683923",
   "tables": {
     "agent": {
@@ -630,14 +630,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "type": {
-          "name": "type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'conversation'"
-        },
         "agent_id": {
           "name": "agent_id",
           "type": "text",
@@ -715,6 +707,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         }
       },
@@ -4932,6 +4931,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         }
       },

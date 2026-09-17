@@ -8,5 +8,4 @@
 export { MarkdownHostProvider } from './MarkdownHostProvider'
 export { MarkdownImageRenderer, scrollToMarkdownAnchor, shouldShowMarkdownLinkFavicon } from './MarkdownRenderers'
 export { createLatexMarkdownBlockParser } from './parseLatexMarkdownBlocks'
-export { remarkLatexMath } from './remarkLatexMath'
 export { StaticMarkdown } from './StaticMarkdown'

@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -13,6 +14,7 @@ const controllerMocks = vi.hoisted(() => ({
   createAgent: vi.fn(),
   createAssistant: vi.fn(),
   createGroup: vi.fn(),
+  closeConversationTabs: vi.fn(),
   dataApiGet: vi.fn(),
   duplicateAssistant: vi.fn(),
   groups: [] as Array<{
@@ -23,6 +25,8 @@ const controllerMocks = vi.hoisted(() => ({
     createdAt: string
     updatedAt: string
   }>,
+  invalidate: vi.fn(),
+  ipcRequest: vi.fn(),
   refetch: vi.fn(),
   resourceLibraryOptions: [] as unknown[],
   resourceLibraryState: {
@@ -31,7 +35,8 @@ const controllerMocks = vi.hoisted(() => ({
     isLoading: false,
     resources: [] as ResourceItem[]
   },
-  saveFile: vi.fn()
+  saveFile: vi.fn(),
+  showRecycleBinBatchUndo: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -40,6 +45,23 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: { get: controllerMocks.dataApiGet }
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => controllerMocks.invalidate
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => controllerMocks.closeConversationTabs
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: controllerMocks.ipcRequest }
+}))
+
+vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
+  ...(await importOriginal<typeof RecycleBinFeedback>()),
+  showRecycleBinBatchUndo: controllerMocks.showRecycleBinBatchUndo
 }))
 
 vi.mock('../useResourceLibrary', () => ({
@@ -103,6 +125,12 @@ describe('useResourceCatalogController', () => {
     controllerMocks.createAssistant.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.createAgent.mockResolvedValue({ id: 'agent-created' })
     controllerMocks.dataApiGet.mockResolvedValue([])
+    controllerMocks.invalidate.mockResolvedValue(undefined)
+    controllerMocks.ipcRequest.mockImplementation((route: string) => {
+      if (route === 'ai.agent.sessions.delete') return Promise.resolve({ deletedIds: ['session-1', 'session-2'] })
+      if (route === 'ai.agent.session.restore') return Promise.resolve(undefined)
+      return Promise.reject(new Error(`Unexpected IPC route: ${route}`))
+    })
     controllerMocks.refetch.mockResolvedValue(undefined)
     controllerMocks.resourceLibraryOptions.length = 0
     controllerMocks.groups.length = 0
@@ -299,6 +327,51 @@ describe('useResourceCatalogController', () => {
       expect(controllerMocks.resourceLibraryOptions.at(-1)).toEqual(
         expect.objectContaining({ activeGroupId: null, resourceType: 'assistant' })
       )
+    })
+  })
+
+  it('moves protected Agent sessions directly without opening the owner confirmation', async () => {
+    const protectedAgent = {
+      id: 'agent-protected',
+      type: 'agent',
+      name: 'Cherry Assistant',
+      description: '',
+      avatar: 'C',
+      createdAt: '2026-09-16T00:00:00.000Z',
+      updatedAt: '2026-09-16T00:00:00.000Z',
+      raw: {
+        id: 'agent-protected',
+        name: 'Cherry Assistant',
+        configuration: { builtin_role: 'assistant' }
+      }
+    } as unknown as ResourceItem
+    const { result } = renderHook(() => useResourceCatalogController('agent'))
+
+    act(() => {
+      result.current.gridProps.onDelete(protectedAgent)
+    })
+
+    expect(result.current.dialogs.deleteConfirm).toBeNull()
+    await waitFor(() =>
+      expect(controllerMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.sessions.delete', {
+        agentId: 'agent-protected'
+      })
+    )
+    expect(controllerMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-2'])
+    expect(controllerMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 2,
+      onUndo: expect.any(Function)
+    })
+
+    await expect(controllerMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
+      restored: ['session-1', 'session-2'],
+      failed: []
+    })
+    expect(controllerMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.session.restore', {
+      sessionId: 'session-1'
+    })
+    expect(controllerMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.session.restore', {
+      sessionId: 'session-2'
     })
   })
 })

@@ -165,8 +165,15 @@
     {
       "idx": 23,
       "version": "6",
-      "when": 1789564706397,
-      "tag": "0023_first_dexter_bennett",
+      "when": 1789565251208,
+      "tag": "0023_warm_slayback",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1789636472109,
+      "tag": "0024_lying_shatterstar",
       "breakpoints": true
     }
   ],

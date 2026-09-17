@@ -109,7 +109,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('classifies only proven heartbeat sessions while preserving conversation data', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0023_first_dexter_bennett'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0024_lying_shatterstar'))
     const now = Date.now()
     sqlite
       .prepare(`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
@@ -171,7 +171,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO mcp_server (id, name, type, command, install_source, is_active, created_at, updated_at)
@@ -195,7 +195,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('carries mini_app rows through the kind rebuild and calls every pre-existing one a site', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO mini_app (app_id, name, url, order_key, created_at, updated_at)
@@ -223,7 +223,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('widens the ai_usage_record source_type check to accept mini-app without dropping records', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0019_colorful_gladiator'))
     const now = Date.now()
     // A REALISTIC row, because the table carries four composite identity checks: an
     // `invocation` needs a provider and model, a non-null `source_type` needs a

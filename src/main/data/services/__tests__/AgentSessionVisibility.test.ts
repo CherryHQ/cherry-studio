@@ -70,6 +70,22 @@ describe('background session isolation', () => {
     expect(agentSessionService.getById(unpinnedBackground.id).id).toBe(unpinnedBackground.id)
   })
 
+  it('keeps background sessions out of both active and trash conversation lists', () => {
+    const active = create('needle active')
+    const trashed = create('needle trash')
+    const background = create('needle background', 'background')
+    const trashedBackground = create('needle background trash', 'background')
+    for (const session of [trashed, trashedBackground]) {
+      dbh.db.update(agentSessionTable).set({ deletedAt: Date.now() }).where(eq(agentSessionTable.id, session.id)).run()
+    }
+
+    expect(agentSessionService.listByCursor().items.map((row) => row.id)).toEqual([active.id])
+    expect(agentSessionService.listByCursor({ inTrash: true }).items.map((row) => row.id)).toEqual([trashed.id])
+    expect(agentSessionService.search({ q: 'needle', limit: 10 }).map((row) => row.id)).toEqual([active.id])
+    expect(agentSessionService.listAddressableByCursor({}).items.map((row) => row.sessionId)).toEqual([active.id])
+    expect(agentSessionService.getById(background.id).id).toBe(background.id)
+  })
+
   it('rejects a background ID at the conversation API while retaining internal execution access', async () => {
     const background = create('heartbeat', 'background')
     await expect(
@@ -112,7 +128,7 @@ describe('background session isolation', () => {
 
   it('does not reuse or delete an empty background session as an interactive placeholder', () => {
     const background = create('', 'background')
-    const placeholder = agentSessionService.reuseOrCreatePlaceholderForDelivery({
+    const placeholder = agentSessionService.reuseOrCreatePlaceholderWithImpact({
       agentId: 'agent',
       workspace: { type: 'system' }
     })

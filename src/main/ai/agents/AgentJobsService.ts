@@ -4,7 +4,9 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
   agentTaskService,
+  clearMissedTask,
   HEARTBEAT_PROMPT_SENTINEL,
+  isMissedTask,
   normalizeTaskSessionReuseRevision,
   readTaskSessionReuse,
   writeTaskSessionReuse
@@ -65,14 +67,21 @@ function workspacesEqual(a: AgentSessionWorkspaceSource, b: AgentSessionWorkspac
 function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplate | null {
   if (typeof value !== 'object' || value === null) return null
   const template = value as Partial<AgentTaskJobInputTemplate>
-  const workspace = AgentSessionWorkspaceSourceSchema.safeParse(template.workspace)
-  if (!workspace.success || typeof template.agentId !== 'string') return null
+  if (typeof template.agentId !== 'string') return null
+  let workspace: AgentSessionWorkspaceSource
+  if (template.workspace === undefined) {
+    workspace = { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+  } else {
+    const parsedWorkspace = AgentSessionWorkspaceSourceSchema.safeParse(template.workspace)
+    if (!parsedWorkspace.success) return null
+    workspace = parsedWorkspace.data
+  }
   return {
     agentId: template.agentId,
     prompt: typeof template.prompt === 'string' ? template.prompt : '',
     timeoutMinutes:
       typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
-    workspace: workspace.data,
+    workspace,
     reuseRevision: normalizeTaskSessionReuseRevision(template.reuseRevision)
   }
 }
@@ -85,8 +94,8 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
  * writes: mutate inside one `withWriteTx`, then sync the timer on the
  * deterministic post-commit path.
  *
- * Every by-id command guards through `agentTaskService.getTask`, which rejects
- * non-`agent.task` schedules and other agents' tasks in one lookup.
+ * Every by-id command first requires an active Agent, then guards through
+ * `agentTaskService.getTask`, which rejects non-task and foreign schedules.
  */
 @Injectable('AgentJobsService')
 @ServicePhase(Phase.WhenReady)
@@ -123,7 +132,7 @@ export class AgentJobsService extends BaseService {
           this.pendingHeartbeats.add(agentId)
           return undefined
         }
-        if (!agentService.getAgent(agentId)) {
+        if (agentService.getLifecycleState(agentId) === 'missing') {
           await this.deleteSchedulesForAgent(agentId)
           return 'skipped-missing-agent' as const
         }
@@ -188,16 +197,6 @@ export class AgentJobsService extends BaseService {
     this.isShuttingDown = false
     this.heartbeatAbort = new AbortController()
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
-
-    // The post-commit event also queues cleanup while backup holds defer writes.
-    this.registerDisposable(
-      agentService.onAgentDeleted(({ agentId }) => {
-        // Gate producers during shutdown: the drain in onStop must converge,
-        // not chase an ever-refilling set.
-        if (this.isShuttingDown) return
-        this.requestHeartbeat(agentId)
-      })
-    )
 
     // Creation events cover both new agents and restored built-ins.
     this.registerDisposable(
@@ -281,7 +280,7 @@ export class AgentJobsService extends BaseService {
   }
 
   updateTask(agentId: string, taskId: string, patch: AgentTaskPatch): ScheduledTaskEntity | null {
-    const existing = agentTaskService.getTask(agentId, taskId)
+    const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
     this.assertPromptNotReserved(patch.prompt)
     this.assertNameNotReserved(patch.name)
@@ -327,6 +326,15 @@ export class AgentJobsService extends BaseService {
         })
         bindingCleared = agentSessionService.clearTaskScheduleTx(tx, taskId)
       }
+      if (
+        snapshot &&
+        isMissedTask(snapshot.metadata) &&
+        schedulePatch.trigger &&
+        (schedulePatch.trigger.kind !== 'once' || schedulePatch.trigger.at > Date.now())
+      ) {
+        schedulePatch.metadata = clearMissedTask(schedulePatch.metadata ?? snapshot.metadata)
+        schedulePatch.enabled = false
+      }
       if (templateChanged || reuseConfigChanged) {
         // The armed callback re-reads the row before each fire, so a template
         // write takes effect next fire without touching the timer.
@@ -349,11 +357,11 @@ export class AgentJobsService extends BaseService {
     if (reuseConfigChanged || bindingCleared) agentTaskService.notifyReadModelChange([taskId])
 
     logger.info('Task updated', { taskId, agentId })
-    return agentTaskService.getTask(agentId, taskId)
+    return this.getActiveTask(agentId, taskId)
   }
 
   async pauseTask(agentId: string, taskId: string): Promise<ScheduledTaskEntity | null> {
-    const existing = agentTaskService.getTask(agentId, taskId)
+    const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
     // State-aware no-op: `setEnabled`'s changes>0 only reflects row existence,
     // and pausing an already-paused task would still bump `updatedAt`. The
@@ -361,23 +369,24 @@ export class AgentJobsService extends BaseService {
     if (!existing.enabled) return existing
     await application.get('JobManager').pauseJobScheduleById(taskId)
     logger.info('Task paused', { taskId, agentId })
-    return agentTaskService.getTask(agentId, taskId)
+    return this.getActiveTask(agentId, taskId)
   }
 
   resumeTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
-    const existing = agentTaskService.getTask(agentId, taskId)
+    const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
+    if (existing.status === 'missed') return existing
     // State-aware no-op: resuming an already-enabled task would re-register
     // the SchedulerService timer and reset an interval's phase.
     if (existing.enabled) return existing
     application.get('JobManager').resumeJobScheduleById(taskId)
     logger.info('Task resumed', { taskId, agentId })
-    return agentTaskService.getTask(agentId, taskId)
+    return this.getActiveTask(agentId, taskId)
   }
 
   /** @returns `false` when the task is not found / not owned by `agentId` (no distinction — no existence leak). */
   async deleteTask(agentId: string, taskId: string): Promise<boolean> {
-    const existing = agentTaskService.getTask(agentId, taskId)
+    const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return false
     // Channel subscriptions cascade via the agentChannelTaskTable FK; historical
     // jobs keep their rows with scheduleId set NULL (ON DELETE SET NULL).
@@ -498,8 +507,27 @@ export class AgentJobsService extends BaseService {
 
   /** Run a scheduled agent task now (`ai.agent.task.run`). @returns whether the trigger fired (`false` = not found / not owned). */
   async runTask(agentId: string, taskId: string): Promise<boolean> {
-    const existing = agentTaskService.getTask(agentId, taskId)
+    const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return false
+    if (existing.status === 'missed') {
+      const enqueued = application.get('DbService').withWriteTx((tx) => {
+        const schedule = jobScheduleService.getByIdTx(tx, taskId)
+        if (!schedule || !isMissedTask(schedule.metadata)) return false
+        const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
+        if (!template) return false
+        const missed = schedule.metadata.missed as { reason: string; at: number; jobId?: string }
+        const job = application.get('JobManager').enqueueTx(tx, AGENT_TASK_TYPE, template, {
+          scheduleId: taskId,
+          idempotencyKey: `agent-task-missed:${taskId}:${missed.at}`
+        })
+        jobScheduleService.updateTx(tx, taskId, {
+          metadata: { ...schedule.metadata, missed: { ...missed, jobId: job.id } }
+        })
+        return true
+      })
+      if (enqueued) agentTaskService.notifyReadModelChange([taskId])
+      return enqueued
+    }
     return application.get('JobManager').triggerJobScheduleNowById(taskId)
   }
 
@@ -515,6 +543,7 @@ export class AgentJobsService extends BaseService {
     workspace: AgentSessionWorkspaceSource
     reuseRevision: number
   }): boolean {
+    if (!agentService.agentExists(params.agentId)) return false
     const bound = application.get('DbService').withWriteTx((tx) => {
       const snapshot = jobScheduleService.getByIdTx(tx, params.scheduleId)
       if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return false
@@ -545,9 +574,14 @@ export class AgentJobsService extends BaseService {
   // way), so no AI-domain IpcError code is minted for them — unlike trigger
   // validation, where the form must branch on the code.
   private assertAgentExists(agentId: string): void {
-    if (!agentService.getAgent(agentId)) {
+    if (agentService.getLifecycleState(agentId) === 'missing') {
       throw new Error(`Agent not found: ${agentId}`)
     }
+  }
+
+  private getActiveTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
+    if (!agentService.agentExists(agentId)) return null
+    return agentTaskService.getTask(agentId, taskId)
   }
 
   /**

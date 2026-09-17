@@ -1,22 +1,10 @@
-import * as z from 'zod'
+import { dialogSchema } from '@main/ai/mcp/browserToolDefinitions'
 
 import { settleAction } from '../../actions/settle'
 import { BrowserSessionError } from '../../session/BrowserSessionError'
 import type { BrowserController } from '../browserController'
 import { browserResult } from './result'
-import { targetShape } from './snapshot'
 
-export const dialogSchema = z.strictObject({
-  ...targetShape,
-  accept: z.boolean(),
-  promptText: z.string().max(40_000).optional()
-})
-export const dialogToolDefinition = {
-  name: 'handle_dialog',
-  description:
-    'Accept or dismiss the pending JavaScript dialog. promptText is used for prompts. No blocked command is replayed.',
-  inputSchema: dialogSchema
-}
 export async function handleDialog(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   const { tabId, privateMode, ...input } = dialogSchema.parse(args)
   return browserResult(controller, { tabId, privateMode }, signal, async (session, options) => {

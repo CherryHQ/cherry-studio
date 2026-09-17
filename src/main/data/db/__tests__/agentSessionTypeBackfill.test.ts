@@ -10,7 +10,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 
 /**
- * Regression guard for the heartbeat session-visibility backfill (0023).
+ * Regression guard for the heartbeat session-visibility backfill (0024).
  *
  * The backfill may only retype sessions a heartbeat run created. Keying on
  * the sentinel prompt alone would also hide a legacy user task whose prompt
@@ -22,8 +22,8 @@ import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 
 function readBackfillStatement(): string {
   const dir = resolveMigrationsPath()
-  const file = readdirSync(dir).find((name) => /^0023_.*\.sql$/.test(name))
-  if (!file) throw new Error('0023 agent session type migration not found')
+  const file = readdirSync(dir).find((name) => /^0024_.*\.sql$/.test(name))
+  if (!file) throw new Error('0024 agent session type migration not found')
   const statements = readFileSync(join(dir, file), 'utf-8')
     .split('--> statement-breakpoint')
     .map((chunk) => chunk.trim())
@@ -31,7 +31,7 @@ function readBackfillStatement(): string {
   return statements[1]
 }
 
-describe('agent session type backfill (migration 0023)', () => {
+describe('agent session type backfill (migration 0024)', () => {
   const dbh = setupTestDatabase()
 
   function seedRow(values: {

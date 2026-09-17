@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
+import { ipcApi } from '@renderer/ipc'
+import { restoreRecycleBinItems, showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type {
   GroupItem,
@@ -13,10 +18,13 @@ import type {
   ResourceType
 } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Group } from '@shared/data/types/group'
+import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 import { useAgentMutations } from './agentAdapter'
 import { useAssistantMutations } from './assistantAdapter'
@@ -26,6 +34,7 @@ type ResourceCreateWizardKind = 'assistant' | 'agent'
 type ResourceCatalogControllerType = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 
 const CREATE_DIALOG_EXIT_ANIMATION_MS = 200
+const logger = loggerService.withContext('useResourceCatalogController')
 
 /**
  * Build the top-bar chip list.
@@ -53,6 +62,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
   const [search, setSearch] = useState('')
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
+  const [deletePermanently, setDeletePermanently] = useState(false)
   const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateWizardKind | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -63,8 +73,11 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
   const [skillImportOpen, setSkillImportOpen] = useState(false)
   const [skillMarketplaceOpen, setSkillMarketplaceOpen] = useState(false)
   const [systemSkillOpen, setSystemSkillOpen] = useState(false)
+  const deletingProtectedAgentRef = useRef<string | null>(null)
 
   const isAssistantLibrary = resourceType === 'assistant'
+  const invalidate = useInvalidateCache()
+  const closeConversationTabs = useCloseConversationTabs()
 
   const {
     resources,
@@ -191,6 +204,72 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
     [createAgent, createAssistant, createDialogKind, creatingResource, refetch]
   )
 
+  const refreshProtectedAgentResources = useCallback(async () => {
+    const outcomes = await Promise.allSettled(['/agents', '/agents/*', '/agent-sessions'].map((key) => invalidate(key)))
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') {
+        logger.warn('Failed to refresh protected Agent resources after deleting Sessions', { err: outcome.reason })
+      }
+    }
+  }, [invalidate])
+
+  const restoreSession = useCallback(
+    (sessionId: string) => ipcApi.request('ai.agent.session.restore', { sessionId }),
+    []
+  )
+
+  const handleDeleteProtectedAgentSessions = useCallback(
+    async (resource: Extract<ResourceItem, { type: 'agent' }>) => {
+      if (deletingProtectedAgentRef.current) return
+      deletingProtectedAgentRef.current = resource.id
+
+      try {
+        const result = await ipcApi.request('ai.agent.sessions.delete', { agentId: resource.id })
+        const deletedSessionIds = [...result.deletedIds]
+        await refreshProtectedAgentResources()
+        if (deletedSessionIds.length === 0) {
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
+
+        closeConversationTabs('agents', deletedSessionIds)
+        showRecycleBinBatchUndo({
+          itemCount: deletedSessionIds.length,
+          onUndo: () =>
+            restoreRecycleBinItems({
+              ids: deletedSessionIds,
+              restore: restoreSession,
+              getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+              isNotFound: isAgentSessionNotFoundError,
+              refresh: refreshProtectedAgentResources
+            })
+        })
+      } catch (error) {
+        logger.error('Failed to delete protected Agent Sessions from resource catalog', {
+          resourceId: resource.id,
+          error
+        })
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
+      } finally {
+        deletingProtectedAgentRef.current = null
+      }
+    },
+    [closeConversationTabs, refreshProtectedAgentResources, restoreSession, t]
+  )
+
+  const handleDelete = useCallback(
+    (resource: ResourceItem, permanent = false) => {
+      if (resource.type === 'agent' && isProtectedBuiltinAgentRole(resource.raw.configuration?.builtin_role)) {
+        if (permanent) return
+        void handleDeleteProtectedAgentSessions(resource)
+        return
+      }
+      setDeletePermanently(permanent)
+      setDeleteConfirm(resource)
+    },
+    [handleDeleteProtectedAgentSessions]
+  )
+
   return {
     resourceError,
     refetch,
@@ -202,7 +281,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       onSearchChange: setSearch,
       onEdit: handleOpenResource,
       onDuplicate: handleDuplicate,
-      onDelete: setDeleteConfirm,
+      onDelete: handleDelete,
       onExport: (resource: ResourceItem) => {
         void handleExport(resource)
       },
@@ -226,6 +305,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       createDialogOpen,
       creatingResource,
       deleteConfirm,
+      deletePermanently,
       editDialogTarget,
       selectedSkill,
       skillImportOpen,

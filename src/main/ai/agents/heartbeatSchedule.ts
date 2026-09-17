@@ -202,7 +202,15 @@ export async function syncHeartbeatSchedule(
   const finalize = async (outcome: HeartbeatSyncOutcome): Promise<HeartbeatSyncOutcome> => {
     // Agent deletion may finish during file IO; compensate any writes that followed it.
     if (touchedScheduleIds.length === 0 && !createdWorkspaceId) return outcome
-    if (agentService.getAgent(agentId)) return outcome
+    const state = agentService.getLifecycleState(agentId)
+    if (state === 'active') return outcome
+    if (state === 'trashed') {
+      const scheduleIds = application
+        .get('DbService')
+        .withWriteTx((tx) => agentTaskService.setOwnerStateTx(tx, agentId, 'trashed', Date.now()))
+      for (const scheduleId of scheduleIds) application.get('JobManager').syncJobScheduleTimerById(scheduleId)
+      return 'skipped-missing-agent'
+    }
     const jobManager = application.get('JobManager')
     for (const scheduleId of touchedScheduleIds) {
       await jobManager.unregisterJobScheduleById(scheduleId).catch((error) => {
@@ -502,10 +510,9 @@ function dropOrphanWorkspace(scheduleId: string, workspaceId: string): void {
  * workspace) behind. Per-row isolation, mirroring the sweep.
  */
 async function reapOrphanedScheduleRows(rows: JobScheduleSnapshot[], signal: AbortSignal): Promise<void> {
-  const liveAgents = new Set(agentService.listAgents().agents.map((agent) => agent.id))
   const orphans = rows.filter((row) => {
     const producer = readTemplateAgentId(row)
-    return producer !== null && !liveAgents.has(producer)
+    return producer !== null && agentService.getLifecycleState(producer) === 'missing'
   })
   const reaped: string[] = []
   for (const row of orphans) {

@@ -499,6 +499,46 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.forwardSubagentText).toBe(true)
   })
 
+  it('overrides the SDK default 30-day cleanup for Cherry-managed sessions', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.settings).toMatchObject({ cleanupPeriodDays: 365_000 })
+  })
+
+  it('only overrides commit attribution when the preference explicitly turns it off', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    const priorGet = mocks.applicationGet.getMockImplementation()!
+    // Route the shared preference mock in so the shipping default decides the first assertion.
+    // The pane browser stays off to match the stub every neighbouring test builds against.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
+    mocks.applicationGet.mockImplementation((name: string) =>
+      name === 'PreferenceService' ? MockMainPreferenceServiceExport.preferenceService : priorGet(name)
+    )
+
+    try {
+      const attributed = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      expect(attributed.settings).not.toHaveProperty('attribution')
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.commit_attribution.enabled', false)
+      const hidden = await buildClaudeCodeSessionSettings(session as never, {} as never)
+      expect(hidden.settings).toMatchObject({ attribution: { commit: '', pr: '' } })
+    } finally {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('agent.commit_attribution.enabled', true)
+    }
+  })
+
   async function runSkillDependencyHook(hookName: 'toolGuardHook' | 'skillDependencyAdvisoryHook') {
     const settings = await buildClaudeCodeSessionSettings(
       {

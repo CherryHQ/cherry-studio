@@ -10,5 +10,6 @@ export type BrowserController = Pick<
     readonly signal?: AbortSignal
     takeHostEvents?: (tabId: string) => Record<string, unknown>
     assertAvailable?: () => void
+    beginTool?: (signal: AbortSignal) => void
     finishTool?: () => void
   }

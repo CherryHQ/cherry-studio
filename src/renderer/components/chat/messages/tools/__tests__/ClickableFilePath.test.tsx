@@ -6,6 +6,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 
+import { findBareFilePathMatches } from '../../markdown/plugins/rehypeBareFilePaths'
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../types'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
@@ -189,6 +190,20 @@ describe('ClickableFilePath', () => {
 
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/src/index.tsx')
+    })
+  })
+
+  it('should preserve scanned punctuation while stripping a source location before opening', async () => {
+    const [match] = findBareFilePathMatches('Created /tmp/report(final)[v2].ts:42:5', 'posix')
+    const path = match.path
+    renderWithProvider(<ClickableFilePath path={path} preserveWrappingPunctuation />, {
+      openArtifactFile: mockOpenArtifactFile
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: path }))
+
+    await waitFor(() => {
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/tmp/report(final)[v2].ts')
     })
   })
 
