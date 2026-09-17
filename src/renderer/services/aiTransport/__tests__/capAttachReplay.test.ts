@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import type { StreamChunkPayload } from '@shared/ai/transport'
+
 import { capAttachReplayChunks, MAX_ATTACH_REPLAY_CHUNKS } from '../capAttachReplay'
-import type { StreamChunkPayload } from '../stream'
 
 function textDelta(id: string, delta: string): StreamChunkPayload {
   return { topicId: 't', chunk: { type: 'text-delta', id, delta } }
