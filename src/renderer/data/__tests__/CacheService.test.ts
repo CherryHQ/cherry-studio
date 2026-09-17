@@ -120,6 +120,33 @@ describe('renderer CacheService equality semantics', () => {
     })
   })
 
+  describe('flushPersist (synchronous save)', () => {
+    it('writes pending persist changes to localStorage without waiting for the debounce', async () => {
+      // Flushing writes through to the shared localStorage blob — restore it
+      // afterward so later tests still see pristine storage.
+      const before = localStorage.getItem('cs_cache_persist')
+      try {
+        const service = await createService()
+
+        service.setPersist('ui.sidebar.width', 400)
+        // A hard kill before the debounced save would lose the write; crash-
+        // recovery journals flush to close that window.
+        service.flushPersist()
+
+        const stored = JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}')
+        expect(stored['ui.sidebar.width']).toBe(400)
+      } finally {
+        if (before === null) localStorage.removeItem('cs_cache_persist')
+        else localStorage.setItem('cs_cache_persist', before)
+      }
+    })
+
+    it('is a no-op when nothing is dirty', async () => {
+      const service = await createService()
+      expect(() => service.flushPersist()).not.toThrow()
+    })
+  })
+
   // hasPersist answers "has this key been overridden" (effective value differs
   // from the schema default), NOT "is the key in the backing store" — mirrors the
   // main-process tier. loadPersistCache seeds every key, so membership is always

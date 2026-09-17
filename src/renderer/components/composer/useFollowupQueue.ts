@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
@@ -32,12 +32,16 @@ function isAlreadyResolved(error: unknown): boolean {
 // Crash-recovery journal: ids this profile already sent. Written after a
 // successful send and checked on every claim win, so a row reclaimed after a
 // crash between send and dequeue is dequeued without replaying. Entries are
-// cleared when their row resolves; orphans (row deleted elsewhere) are inert
-// because ids are never reused. All helpers fail open: the journal is
-// hardening, and a broken persist layer must never break draining itself.
+// cleared when their row resolves — including the already-deleted case, so
+// orphaned entries cannot accumulate; remaining orphans (row deleted
+// elsewhere) are inert because ids are never reused. All helpers fail open:
+// the journal is hardening, and a broken persist layer must never break
+// draining itself. Writes flush synchronously: the persist tier debounces
+// saves, which would lose the entry on a hard kill inside the window.
 function markQueueIdSent(id: string): void {
   try {
     cacheService.setPersist('followup.sent_ids', (prev) => ({ ...prev, [id]: Date.now() }))
+    cacheService.flushPersist()
   } catch {
     // Journal unavailable — the reclaim lease still bounds replays.
   }
@@ -61,6 +65,7 @@ function clearSentQueueId(id: string): void {
       }
       return next
     })
+    cacheService.flushPersist()
   } catch {
     // Best effort; a stale entry merely skips one future resend check.
   }
@@ -177,7 +182,23 @@ export function useFollowupQueue({
     () => (Array.isArray(rows) ? rows : []).filter((row) => row.scopeKey === scopeKey).map(toControllerItem),
     [rows, scopeKey]
   )
-  const paused = queueState?.scopeKey === scopeKey ? (queueState?.paused ?? false) : false
+  // Optimistic pause: the PUT + refetch round-trip leaves a window where the
+  // server still reports unpaused — a completion edge landing in that window
+  // would drain against the user's explicit Pause. Hold the requested value
+  // locally until the server echoes it (or the request fails). Scoped, so a
+  // conversation switch never inherits another scope's hold.
+  const [pausedOverride, setPausedOverride] = useState<{ scopeKey: string; paused: boolean } | null>(null)
+  const serverPaused = queueState?.scopeKey === scopeKey ? (queueState?.paused ?? false) : false
+  const paused = pausedOverride && pausedOverride.scopeKey === scopeKey ? pausedOverride.paused : serverPaused
+  useEffect(() => {
+    if (
+      pausedOverride &&
+      queueState?.scopeKey === pausedOverride.scopeKey &&
+      queueState.paused === pausedOverride.paused
+    ) {
+      setPausedOverride(null)
+    }
+  }, [pausedOverride, queueState])
   // Fail closed on the pause flag: while the pause-state read is unloaded,
   // scoped elsewhere, or errored, the drain stays parked instead of sending
   // into a possibly-paused conversation.
@@ -358,8 +379,12 @@ export function useFollowupQueue({
 
   const setPaused = useCallback(
     (nextPaused: boolean) => {
-      void setPausedTrigger({ body: { scopeKey: scopeKeyRef.current, paused: nextPaused } }).catch(() => {
+      const scope = scopeKeyRef.current
+      setPausedOverride({ scopeKey: scope, paused: nextPaused })
+      void setPausedTrigger({ body: { scopeKey: scope, paused: nextPaused } }).catch(() => {
         toast.error(t('message.error.operation_unavailable'))
+        // Release the optimistic hold so a failed Pause cannot park the drain.
+        setPausedOverride((prev) => (prev?.scopeKey === scope ? null : prev))
       })
     },
     [setPausedTrigger, t]
@@ -389,6 +414,9 @@ export function useFollowupQueue({
           if (mountedRef.current) void refetch()
         } catch (error) {
           if (isAlreadyResolved(error)) {
+            // The row is gone, so there is nothing left to protect: drop the
+            // journal entry instead of leaking it.
+            clearSentQueueId(id)
             if (mountedRef.current) void refetch()
             return
           }
@@ -411,8 +439,12 @@ export function useFollowupQueue({
           return true
         } catch (error) {
           // The row is already gone: resolving a deletion against it would
-          // retry a terminal outcome forever.
-          if (isAlreadyResolved(error)) return true
+          // retry a terminal outcome forever. Drop the journal entry too —
+          // there is nothing left to protect.
+          if (isAlreadyResolved(error)) {
+            clearSentQueueId(id)
+            return true
+          }
           // Transient IPC/DB failure — retry before giving up.
         }
       }

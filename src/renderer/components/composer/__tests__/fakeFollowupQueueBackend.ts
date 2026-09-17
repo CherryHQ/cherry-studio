@@ -1,7 +1,7 @@
 import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { vi } from 'vitest'
 
-import type { FollowupQueueItem as FollowupQueueRow } from '@shared/data/types/followupQueue'
+import { STALE_SENDING_CLAIM_MS, type FollowupQueueItem as FollowupQueueRow } from '@shared/data/types/followupQueue'
 
 /**
  * In-test fake for the follow-up queue DataApi endpoints.
@@ -12,11 +12,25 @@ import type { FollowupQueueItem as FollowupQueueRow } from '@shared/data/types/f
  * `useFollowupQueue` drain/enqueue flows without IPC. Unknown paths and
  * mutations delegate to the previous mock implementations.
  *
+ * Claim and reorder semantics mirror production: `claim:head` arbitrates on
+ * the oldest row only (a live `sending` head parks the round instead of
+ * handing out the next row), stale `sending` rows are reclaimable, and
+ * reorders are refused while a live send holds a claim.
+ *
  * Install in `beforeEach` — state is fresh per test.
  */
 export function installFakeFollowupQueueBackend() {
   const state: { rows: FollowupQueueRow[]; paused: boolean } = { rows: [], paused: false }
   let counter = 0
+
+  // Production treats a `sending` row as live (owned) until the reclaim
+  // lease expires; only stale ones are claimable or reorderable-around.
+  const isLiveSending = (row: FollowupQueueRow): boolean =>
+    row.status === 'sending' && Date.parse(row.updatedAt) >= Date.now() - STALE_SENDING_CLAIM_MS
+  const isClaimable = (row: FollowupQueueRow): boolean =>
+    row.status === 'pending' || row.status === 'failed' || (row.status === 'sending' && !isLiveSending(row))
+  const scopedByOrder = (scopeKey: string): FollowupQueueRow[] =>
+    state.rows.filter((candidate) => candidate.scopeKey === scopeKey).sort((a, b) => (a.orderKey < b.orderKey ? -1 : 1))
 
   const defaultQueryImpl = mockUseQuery.getMockImplementation()
   mockUseQuery.mockImplementation(((path: string, options?: unknown) => {
@@ -95,6 +109,11 @@ export function installFakeFollowupQueueBackend() {
           }: {
             body: { moves: Array<{ id: string; anchor: { before?: string; after?: string; position?: string } }> }
           }) => {
+            const first = state.rows.find((row) => row.id === body.moves[0]?.id)
+            if (!first) throw new Error(`fake queue: missing id ${body.moves[0]?.id}`)
+            if (state.rows.some((row) => row.scopeKey === first.scopeKey && isLiveSending(row))) {
+              throw new Error('fake queue: reorder conflicts with an in-flight send')
+            }
             for (const move of body.moves) {
               const index = state.rows.findIndex((row) => row.id === move.id)
               if (index === -1) throw new Error(`fake queue: missing id ${move.id}`)
@@ -118,8 +137,9 @@ export function installFakeFollowupQueueBackend() {
         ...shell,
         trigger: vi.fn(async ({ params }: { params: { id: string } }) => {
           const row = state.rows.find((candidate) => candidate.id === params.id)
-          if (row && (row.status === 'pending' || row.status === 'failed')) {
+          if (row && isClaimable(row)) {
             row.status = 'sending'
+            row.updatedAt = new Date().toISOString()
             return { claimed: true }
           }
           return { claimed: false }
@@ -130,12 +150,12 @@ export function installFakeFollowupQueueBackend() {
       return {
         ...shell,
         trigger: vi.fn(async ({ body }: { body: { scopeKey: string } }) => {
-          const head = state.rows
-            .filter((candidate) => candidate.scopeKey === body.scopeKey)
-            .sort((a, b) => (a.orderKey < b.orderKey ? -1 : 1))
-            .find((candidate) => candidate.status === 'pending' || candidate.status === 'failed')
-          if (!head) return { claimed: false }
+          // Oldest row only, like production: a live head parks the round
+          // instead of handing out the next row.
+          const [head] = scopedByOrder(body.scopeKey)
+          if (!head || !isClaimable(head)) return { claimed: false }
           head.status = 'sending'
+          head.updatedAt = new Date().toISOString()
           return { claimed: true, id: head.id }
         })
       }
