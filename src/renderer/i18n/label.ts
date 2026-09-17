@@ -197,6 +197,8 @@ const sidebarIconKeyMap = {
   assistants: 'title.chat',
   agents: 'title.work',
   paintings: 'title.paintings',
+  videos: 'title.videos',
+  tutor: 'tutor.title',
   translate: 'translate.title',
   mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',

@@ -28,12 +28,14 @@ import {
 import { assistantDataService } from '@data/services/AssistantService'
 import { jobService } from '@data/services/JobService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { videoService } from '@data/services/VideoService'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { buildSyllabusJobHandler } from '@main/services/course/buildSyllabusJobHandler'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
@@ -59,6 +61,7 @@ import { resolveProviderAiSdkConfig } from './provider/config'
 import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
+import { videoGenerationJobHandler } from './provider/custom/tasks/videoGenerationJobHandler'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
@@ -390,6 +393,8 @@ export class AiService extends BaseService {
     // would otherwise overwrite (see installProviderUserAgentInterceptor).
     this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    application.get('JobManager').registerHandler('video-generation.generate', videoGenerationJobHandler)
+    application.get('JobManager').registerHandler('course.build-syllabus', buildSyllabusJobHandler)
     // Install built-in skills, then heal the CLAUDE_CONFIG_DIR/skills mirror once at
     // startup — chained (not two independent fire-and-forgets) so the mirror reconcile
     // always runs after builtin skills have synced to agent_global_skill this boot,
@@ -1122,6 +1127,33 @@ export class AiService extends BaseService {
     // returns a non-OK response with no body), which would otherwise surface as a
     // message-less `Error` the renderer can't show.
     throw new Error(snapshot.error?.message || 'Image generation failed')
+  }
+
+  // ── Video generation ──
+
+  async runVideoRequest(payload: {
+    uniqueModelId: string
+    prompt: string
+    duration?: number
+    resolution?: string
+  }): Promise<{ videoId: string; jobId: string }> {
+    const { providerId, modelId } = parseUniqueModelId(payload.uniqueModelId as `${string}::${string}`)
+    const video = videoService.create({
+      providerId,
+      modelId,
+      prompt: payload.prompt,
+      duration: payload.duration,
+      resolution: payload.resolution
+    })
+    const jobManager = application.get('JobManager')
+    const handle = jobManager.enqueue('video-generation.generate', {
+      uniqueModelId: payload.uniqueModelId as `${string}::${string}`,
+      prompt: payload.prompt,
+      duration: payload.duration,
+      resolution: payload.resolution,
+      videoId: video.id
+    })
+    return { videoId: video.id, jobId: handle.id }
   }
 
   // ── Embedding ──

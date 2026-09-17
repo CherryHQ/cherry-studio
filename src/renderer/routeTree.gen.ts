@@ -52,6 +52,8 @@ import { Route as AppMiniAppIndexRouteImport } from './routes/app/mini-app.index
 import { Route as AppMiniAppAppIdRouteImport } from './routes/app/mini-app/$appId'
 import { Route as AppPaintingsIndexRouteImport } from './routes/app/paintings.index'
 import { Route as AppPaintingsSplatRouteImport } from './routes/app/paintings/$'
+import { Route as AppTutorIndexRouteImport } from './routes/app/tutor.index'
+import { Route as AppVideosIndexRouteImport } from './routes/app/videos.index'
 import { Route as SettingsMcpIndexRouteImport } from './routes/settings/mcp.index'
 import { Route as SettingsMcpSplatRouteImport } from './routes/settings/mcp/$'
 import { Route as SettingsMcpBuiltinRouteImport } from './routes/settings/mcp/builtin'
@@ -279,6 +281,16 @@ const AppPaintingsSplatRoute = AppPaintingsSplatRouteImport.update({
   path: '/paintings/$',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTutorIndexRoute = AppTutorIndexRouteImport.update({
+  id: '/tutor/',
+  path: '/tutor/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppVideosIndexRoute = AppVideosIndexRouteImport.update({
+  id: '/videos/',
+  path: '/videos/',
+  getParentRoute: () => AppRoute,
+} as any)
 const SettingsMcpIndexRoute = SettingsMcpIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -384,6 +396,8 @@ export interface FileRoutesByFullPath {
   '/settings/scheduled-tasks/$taskId': typeof SettingsScheduledTasksTaskIdRoute
   '/app/mini-app/': typeof AppMiniAppIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
+  '/app/tutor/': typeof AppTutorIndexRoute
+  '/app/videos/': typeof AppVideosIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/scheduled-tasks/': typeof SettingsScheduledTasksIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
@@ -436,6 +450,8 @@ export interface FileRoutesByTo {
   '/settings/scheduled-tasks/$taskId': typeof SettingsScheduledTasksTaskIdRoute
   '/app/mini-app': typeof AppMiniAppIndexRoute
   '/app/paintings': typeof AppPaintingsIndexRoute
+  '/app/tutor': typeof AppTutorIndexRoute
+  '/app/videos': typeof AppVideosIndexRoute
   '/settings/mcp': typeof SettingsMcpIndexRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
@@ -492,6 +508,8 @@ export interface FileRoutesById {
   '/settings/scheduled-tasks/$taskId': typeof SettingsScheduledTasksTaskIdRoute
   '/app/mini-app/': typeof AppMiniAppIndexRoute
   '/app/paintings/': typeof AppPaintingsIndexRoute
+  '/app/tutor/': typeof AppTutorIndexRoute
+  '/app/videos/': typeof AppVideosIndexRoute
   '/settings/mcp/': typeof SettingsMcpIndexRoute
   '/settings/scheduled-tasks/': typeof SettingsScheduledTasksIndexRoute
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
@@ -549,6 +567,8 @@ export interface FileRouteTypes {
     | '/settings/scheduled-tasks/$taskId'
     | '/app/mini-app/'
     | '/app/paintings/'
+    | '/app/tutor/'
+    | '/app/videos/'
     | '/settings/mcp/'
     | '/settings/scheduled-tasks/'
     | '/settings/mcp/settings/$serverId'
@@ -601,6 +621,8 @@ export interface FileRouteTypes {
     | '/settings/scheduled-tasks/$taskId'
     | '/app/mini-app'
     | '/app/paintings'
+    | '/app/tutor'
+    | '/app/videos'
     | '/settings/mcp'
     | '/settings/scheduled-tasks'
     | '/settings/mcp/settings/$serverId'
@@ -656,6 +678,8 @@ export interface FileRouteTypes {
     | '/settings/scheduled-tasks/$taskId'
     | '/app/mini-app/'
     | '/app/paintings/'
+    | '/app/tutor/'
+    | '/app/videos/'
     | '/settings/mcp/'
     | '/settings/scheduled-tasks/'
     | '/settings/mcp/settings/$serverId'
@@ -969,6 +993,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPaintingsSplatRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/tutor/': {
+      id: '/app/tutor/'
+      path: '/tutor'
+      fullPath: '/app/tutor/'
+      preLoaderRoute: typeof AppTutorIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/videos/': {
+      id: '/app/videos/'
+      path: '/videos'
+      fullPath: '/app/videos/'
+      preLoaderRoute: typeof AppVideosIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/settings/mcp/': {
       id: '/settings/mcp/'
       path: '/'
@@ -1057,6 +1095,8 @@ interface AppRouteChildren {
   AppPaintingsSplatRoute: typeof AppPaintingsSplatRoute
   AppMiniAppIndexRoute: typeof AppMiniAppIndexRoute
   AppPaintingsIndexRoute: typeof AppPaintingsIndexRoute
+  AppTutorIndexRoute: typeof AppTutorIndexRoute
+  AppVideosIndexRoute: typeof AppVideosIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -1074,6 +1114,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppPaintingsSplatRoute: AppPaintingsSplatRoute,
   AppMiniAppIndexRoute: AppMiniAppIndexRoute,
   AppPaintingsIndexRoute: AppPaintingsIndexRoute,
+  AppTutorIndexRoute: AppTutorIndexRoute,
+  AppVideosIndexRoute: AppVideosIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

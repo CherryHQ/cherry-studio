@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  BookOpen,
   Code,
   FileSearch,
   Folder,
@@ -8,7 +9,8 @@ import {
   MessageSquare,
   MousePointerClick,
   NotepadText,
-  Palette
+  Palette,
+  Video
 } from 'lucide-react'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
@@ -23,6 +25,8 @@ export const SIDEBAR_ICON_COMPONENTS: Record<SidebarAppId, LucideIcon> = {
   assistants: MessageSquare,
   agents: MousePointerClick,
   paintings: Palette,
+  videos: Video,
+  tutor: BookOpen,
   translate: Languages,
   mini_app: LayoutGrid,
   knowledge: FileSearch,

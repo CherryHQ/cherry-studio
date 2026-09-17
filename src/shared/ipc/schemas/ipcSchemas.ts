@@ -35,6 +35,7 @@ import { skillRequestSchemas } from './skill'
 import { type SystemEventSchemas, systemRequestSchemas } from './system'
 import { type TabEventSchemas, tabRequestSchemas } from './tab'
 import { type TranslateEventSchemas, translateRequestSchemas } from './translate'
+import { tutorRequestSchemas } from './tutor'
 import { webSearchRequestSchemas } from './webSearch'
 import { webviewRequestSchemas } from './webview'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -83,6 +84,7 @@ export const ipcRequestSchemas = {
   ...systemRequestSchemas,
   ...tabRequestSchemas,
   ...translateRequestSchemas,
+  ...tutorRequestSchemas,
   ...webSearchRequestSchemas,
   ...webviewRequestSchemas,
   ...windowRequestSchemas

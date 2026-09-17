@@ -3,6 +3,7 @@ import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { ImageTransportDescriptor } from '../imageGenerationModel'
+import type { VideoGenerationJobInput, VideoGenerationJobOutput } from '../videoGenerationModel'
 
 /**
  * Payload for the async image-generation job. Carries only what the handler
@@ -48,5 +49,8 @@ export interface ImageGenerationJobOutput {
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
     'image-generation.generate': ImageGenerationJobPayload
+    'video-generation.generate': VideoGenerationJobInput
   }
 }
+
+export type { VideoGenerationJobInput, VideoGenerationJobOutput }

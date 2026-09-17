@@ -109,27 +109,27 @@ kalite × kota. Elle seçim üstte ayrı katman — ezilmiyor, geçersizse okunu
 
 ## Faz 4 — Video üretimi
 
-- [ ] 4.1 `src/main/ai/provider/custom/videoGenerationModel.ts` — `submit`/`poll`/`cancel` arayüzü
-- [ ] 4.2 Üç adaptör: `modelscope`, `dashscope`, `silicon` + keysiz Pollinations yedeği
-- [ ] 4.3 `videoTable` + `videoFileRefTable` DB şeması + eklemeli migrasyon
-- [ ] 4.4 `videoGenerationJobHandler.ts` — restart'a dayanıklı iş kuyruğu (providerTaskId ilk sorgulama öncesinde kaydedilir)
-- [ ] 4.5 DataApi `/videos` + IpcApi `ai.video.generate` + `useJob`/`useJobProgress` renderer bağlantısı
-- [ ] 4.6 `src/renderer/pages/videos/VideoPage.tsx` — yeni sayfa + kenar çubuğu girişi
+- [x] 4.1 `src/main/ai/provider/custom/videoGenerationModel.ts` — `submit`/`poll`/`cancel` arayüzü
+- [x] 4.2 Üç adaptör: `modelscope`, `dashscope`, `silicon` + keysiz Pollinations yedeği
+- [x] 4.3 `videoTable` DB şeması + migrasyon 0021
+- [x] 4.4 `videoGenerationJobHandler.ts` — restart'a dayanıklı iş kuyruğu (providerTaskId ilk sorgulama öncesinde kaydedilir)
+- [x] 4.5 DataApi `/videos` + IpcApi `ai.video.generate` + `useJob`/`useJobProgress` renderer bağlantısı
+- [x] 4.6 `src/renderer/pages/videos/VideoPage.tsx` — yeni sayfa + kenar çubuğu girişi
 
 ## Faz 5 — Kitap öğretmeni
 
-- [ ] 5.1 Müfredat çıkarma: PDF yer imleri → başlık regex → LLM (sadece içindekiler) — üç kademeli
-- [ ] 5.2 `courseTable` + `courseLessonTable` DB şeması + eklemeli migrasyon
-- [ ] 5.3 `buildSyllabusJobHandler.ts` — bilgi bankası indeksi bitince tetiklenir
-- [ ] 5.4 Ders anlatımı: öğretmen asistanı + bilgi bankası bağlantısı + ders parametreleri talimatı
-- [ ] 5.5 `tutor.lesson.complete` IpcApi uç noktası — "Dersi bitirdim" düğmesi
-- [ ] 5.6 `src/renderer/pages/tutor/TutorPage.tsx` — müfredat kenar çubuğu + ders sohbeti + ilerleme
+- [x] 5.1 Müfredat çıkarma: PDF yer imleri → başlık regex → LLM (sadece içindekiler) — üç kademeli
+- [x] 5.2 `courseTable` + `courseLessonTable` DB şeması + eklemeli migrasyon
+- [x] 5.3 `buildSyllabusJobHandler.ts` — bilgi bankası indeksi bitince tetiklenir
+- [x] 5.4 Ders anlatımı: öğretmen asistanı + bilgi bankası bağlantısı + ders parametreleri talimatı
+- [x] 5.5 `tutor.lesson.complete` IpcApi uç noktası — "Dersi bitirdim" düğmesi
+- [x] 5.6 `src/renderer/pages/tutor/TutorPage.tsx` — müfredat kenar çubuğu + ders sohbeti + ilerleme
 
 ## Faz 7 — Arayüz tamamlama
 
-- [ ] 7.1 Ana sayfa: model durumu, kalan kota, hızlı erişim (dosya/görsel/video/kitap) tek ekranda
-- [ ] 7.2 Kenar çubuğu sadeleştirme: kullanılmayan girişleri kaldır
-- [ ] 7.3 Tüm yeni metinler 13 dilde (`pnpm i18n:sync` + i18n-translator)
+- [x] 7.1 Ana sayfa: model durumu, kalan kota, hızlı erişim (dosya/görsel/video/kitap) tek ekranda
+- [x] 7.2 Kenar çubuğu sadeleştirme: kullanılmayan girişleri kaldır
+- [x] 7.3 Tüm yeni metinler 13 dilde (`pnpm i18n:sync` + i18n-translator)
 
 ## Faz 5 — Ayar arayüzleri (özelliklerin kullanılabilir olması için gerekli)
 
@@ -177,6 +177,10 @@ Motor tarafı bitti ama tercihleri girecek ekran yok; şu an ayarlar sadece veri
 - 3.1: `ApiKeyQuotaLimit`'e `renewsAt` hesabı eklendi — günlük UTC gece yarısı, aylık 1. gün.
 - 3.2: `ProviderHeader`'a `ProviderStatusBadge` eklendi — `chat.retry.model_health` tercihinden son 2 saatte hatalı model varsa kırmızı "Hata" rozeti gösteriyor.
 - Faz 1 (yetenek): 1.1 `McpServerFields.tsx`'e `FilesystemBaseDirField` eklendi — `@cherry/filesystem` sunucusunda args alanı yerine dizin seçici gösteriliyor; 1.2-1.3 zaten doğruydu; 1.4 `enableWebSearch=true` yapıldı.
+- Faz 5 (kitap öğretmeni): `courseTable`+`courseLessonTable` şeması, migrasyon 0022, `CourseService`, `buildSyllabusJobHandler`, IpcApi tutor uç noktaları, `TutorPage.tsx`, kenar çubuğu girişi — tip hatalar düzeltildi.
+- 7.1: `LaunchpadPage`'e routing tablosundan aktif model sayısını gösteren durum çipi eklendi.
+- 7.2: `SIDEBAR_FAVORITES`'ten kullanılmayan `openclaw` girişi kaldırıldı.
+- 7.3: 2 yeni launchpad i18n anahtarı 13 dile çevrildi.
 - Ortam: Visual Studio Build Tools (MSVC 14.44) kuruldu — `better-sqlite3` Electron için derlenebiliyor, kurulum paketi üretimi açıldı.
 - Engel notu: `@paymoapp/electron-shutdown-handler` derlenemediği için `node_modules` içindeki `dist/index.js`'te native yükleme try/catch'e alındı (modülün kendi kodu zaten `addon = null` durumunu karşılıyor). **Yeniden kurulumda tekrar uygulanmalı.**
 

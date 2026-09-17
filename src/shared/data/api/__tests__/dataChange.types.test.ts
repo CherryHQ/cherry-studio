@@ -59,6 +59,7 @@ describe('endpoint classification', () => {
       | '/translate/histories'
       | '/translate/languages'
       | '/ai-usage-records'
+      | '/videos'
     >()
   })
 

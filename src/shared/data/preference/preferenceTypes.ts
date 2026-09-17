@@ -127,13 +127,14 @@ export const SIDEBAR_FAVORITES = [
   'assistants',
   'agents',
   'paintings',
+  'videos',
+  'tutor',
   'translate',
   'mini_app',
   'knowledge',
   'files',
   'code_tools',
-  'notes',
-  'openclaw'
+  'notes'
 ] as const
 
 export type SidebarFavorite = (typeof SIDEBAR_FAVORITES)[number]
