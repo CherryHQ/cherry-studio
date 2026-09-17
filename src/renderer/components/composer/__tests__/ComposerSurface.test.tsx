@@ -596,24 +596,11 @@ describe('ComposerSurface', () => {
     expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
   })
 
-  it('shows the focus hint only while the draft is empty', () => {
-    const fileToken = { id: 'file:file-1', kind: 'file' as const, label: 'notes.md' }
-    const serializedFileToken = { ...fileToken, index: 0, textOffset: 0 }
-    const view = render(<ComposerSurface {...baseProps} />)
+  it('does not render a visual focus reminder', () => {
+    render(<ComposerSurface {...baseProps} />)
 
-    expect(screen.getByText('chat.input.focus_hint')).toBeInTheDocument()
-
-    view.rerender(<ComposerSurface {...baseProps} text="   " />)
     expect(screen.queryByText('chat.input.focus_hint')).not.toBeInTheDocument()
-
-    view.rerender(<ComposerSurface {...baseProps} tokens={[fileToken]} managedTokenKinds={['file']} />)
-    expect(screen.queryByText('chat.input.focus_hint')).not.toBeInTheDocument()
-
-    view.rerender(<ComposerSurface {...baseProps} draftTokens={[serializedFileToken]} />)
-    expect(screen.queryByText('chat.input.focus_hint')).not.toBeInTheDocument()
-
-    view.rerender(<ComposerSurface {...baseProps} />)
-    expect(screen.getByText('chat.input.focus_hint')).toBeInTheDocument()
+    expect(screen.queryByText('聚焦输入框')).not.toBeInTheDocument()
   })
 
   it('renders the AI-generated content disclaimer when the composer enables it', () => {

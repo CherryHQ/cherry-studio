@@ -12,20 +12,19 @@ const state = vi.hoisted(() => ({ active: true }))
 
 vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => state.active }))
 
-function mount(editable = true, hasContent = false) {
-  render(
+function mount(editable = true) {
+  const view = render(
     <CommandContextKeyProvider>
       <CommandProvider>
         <textarea aria-label="Message" />
         <ComposerFocusShortcut
           focus={() => screen.getByRole('textbox', { name: 'Message' }).focus()}
           editable={editable}
-          hasContent={hasContent}
         />
       </CommandProvider>
     </CommandContextKeyProvider>
   )
-  return { input: screen.getByRole('textbox', { name: 'Message' }), user: userEvent.setup() }
+  return { container: view.container, input: screen.getByRole('textbox', { name: 'Message' }), user: userEvent.setup() }
 }
 
 describe('ComposerFocusShortcut', () => {
@@ -35,20 +34,21 @@ describe('ComposerFocusShortcut', () => {
   })
   afterEach(cleanup)
 
-  it('focuses the active composer with the displayed default shortcut', async () => {
-    const { input, user } = mount()
-    expect(screen.getByText('Ctrl+I')).toBeInTheDocument()
+  it('focuses the active composer without rendering a reminder', async () => {
+    const { container, input, user } = mount()
+    expect(container).toHaveTextContent('')
+    expect(screen.queryByText('Ctrl+I')).not.toBeInTheDocument()
     await user.keyboard('{Control>}i{/Control}')
     expect(input).toHaveFocus()
   })
 
-  it('follows a customized binding for both the hint and the action', async () => {
+  it('follows a customized binding without rendering a reminder', async () => {
     MockUsePreferenceUtils.setPreferenceValue('shortcut.chat.input.focus', {
       binding: ['CommandOrControl', 'L'],
       enabled: true
     })
     const { input, user } = mount()
-    expect(screen.getByText('Ctrl+L')).toBeInTheDocument()
+    expect(screen.queryByText('Ctrl+L')).not.toBeInTheDocument()
     await user.keyboard('{Control>}i{/Control}')
     expect(input).not.toHaveFocus()
     await user.keyboard('{Control>}l{/Control}')
@@ -62,14 +62,7 @@ describe('ComposerFocusShortcut', () => {
     expect(input).not.toHaveFocus()
   })
 
-  it('keeps the focus shortcut active when a populated composer hides the hint', async () => {
-    const { input, user } = mount(true, true)
-    expect(screen.queryByText('Ctrl+I')).not.toBeInTheDocument()
-    await user.keyboard('{Control>}i{/Control}')
-    expect(input).toHaveFocus()
-  })
-
-  it.each(['disabled', 'readonly'])('hides the hint and ignores the shortcut when %s', async (mode) => {
+  it.each(['disabled', 'readonly'])('ignores the shortcut when %s', async (mode) => {
     if (mode === 'disabled') {
       MockUsePreferenceUtils.setPreferenceValue('shortcut.chat.input.focus', {
         binding: ['CommandOrControl', 'I'],

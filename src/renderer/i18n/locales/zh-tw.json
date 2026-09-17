@@ -600,7 +600,6 @@
   "chat.input.file_error": "檔案處理錯誤",
   "chat.input.file_not_supported": "模型不支援此檔案類型",
   "chat.input.file_not_supported_count": "{{count}} 個檔案不被支援",
-  "chat.input.focus_hint": "聚焦輸入框",
   "chat.input.followup_queue.edit": "編輯",
   "chat.input.followup_queue.pause": "暫停自動傳送",
   "chat.input.followup_queue.remove": "移除",
