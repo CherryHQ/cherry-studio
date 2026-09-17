@@ -186,13 +186,23 @@ export async function assertAgentDataDirectory(agentsDataRoot: string, agentId: 
   return agentDataPath
 }
 
+export async function removeAgentStorageSubdirectory(agentsDataRoot: string, targetPath: string): Promise<void> {
+  const root = asAbsolutePath(path.resolve(agentsDataRoot))
+  const target = asAbsolutePath(path.resolve(targetPath))
+  if (!isPathInside(target, root)) {
+    throw new Error(`Refusing to recursively remove the Agent storage root or an outside path: ${target}`)
+  }
+
+  const targetStat = await lstatIfExists(target)
+  if (!targetStat) return
+  await assertAgentStoragePath(root, target)
+  if (!targetStat.isDirectory || targetStat.isSymbolicLink) {
+    throw new Error(`Refusing to recursively remove unsafe agent storage path: ${target}`)
+  }
+  await removeDir(target)
+}
+
 export async function removeAgentDataDirectory(agentsDataRoot: string, agentId: string): Promise<void> {
   const agentDataPath = agentDataDirectoryPath(agentsDataRoot, agentId)
-  await assertAgentStoragePath(agentsDataRoot, agentDataPath)
-  const targetStat = await lstatIfExists(agentDataPath)
-  if (!targetStat) return
-  if (!targetStat.isDirectory || targetStat.isSymbolicLink) {
-    throw new Error(`Refusing to recursively remove unsafe agent data path: ${agentDataPath}`)
-  }
-  await removeDir(asAbsolutePath(agentDataPath))
+  await removeAgentStorageSubdirectory(agentsDataRoot, agentDataPath)
 }

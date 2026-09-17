@@ -24,6 +24,7 @@
 | [AI Reference](./references/ai/README.md) | Entry point mapping the AI pipeline docs, src/main/ai code layout, chat-turn flow, runtimes, and key invariants |
 | [Adapter Family](./references/ai/adapter-family.md) | How each endpoint config's adapterFamily field selects the @ai-sdk package, and the two write paths that set it |
 | [Adding an Agent Runtime](./references/ai/adding-a-runtime.md) | Operational checklist for adding an agent runtime via a capability descriptor and a main-process driver package |
+| [Agent Lifecycle](./references/ai/agent-lifecycle.md) | Agent lifecycle command ownership, atomic archive and restore, schedule recovery, purge, and backup quiescing |
 | [Agent Loop](./references/ai/agent-loop.md) | The Agent class wrapping single-pass AI SDK streaming with composeHooks-merged hook contributions and error semantics |
 | [Agent Prompt Layers](./references/ai/agent-prompt-layers.md) | Precedence and lifecycle of agent prompt sources — System Prompt, workspace system.md, SOUL.md persona, and variables |
 | [Agent Session Runtime](./references/ai/agent-session-runtime.md) | Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer |

@@ -1,4 +1,4 @@
-import type { ChildProcess } from 'node:child_process'
+import { type ChildProcess, execFile } from 'node:child_process'
 
 import { Mutex } from 'async-mutex'
 
@@ -134,10 +134,11 @@ export class DeepSeekHarnessService extends BaseService {
         }
 
         let receipt: DeepSeekHarnessConfigReceipt | undefined
+        let runtime: DeepSeekHarnessRuntime | undefined
         try {
           this.url = undefined
           this.setStatus('starting')
-          const runtime = await this.resolveRuntime()
+          runtime = await this.resolveRuntime()
           if (startupAbortController.signal.aborted) {
             throw new Error('DeepSeek Harness startup was cancelled')
           }
@@ -165,6 +166,11 @@ export class DeepSeekHarnessService extends BaseService {
           // publish 'stopped' for a failed launch on its way to 'error'.
           this.url = undefined
           this.setStatus('error')
+          // No storage-content gate by design (#20395): archive-only homes are valid to the
+          // runtime, so only its own startup verdict fails launch; record its version for reports.
+          const aborted = startupAbortController.signal.aborted
+          const dshVersion = !aborted && runtime ? await readDshVersion(runtime.path) : undefined
+          if (!aborted) logger.warn('DeepSeek Harness failed to start', { ...(dshVersion ? { dshVersion } : {}) })
           await this.stopOwnedProcessLocked().catch((stopError) => {
             logger.warn('Failed to stop DeepSeek Harness after launch failure', stopError as Error)
           })
@@ -277,14 +283,11 @@ export class DeepSeekHarnessService extends BaseService {
     permissionMode: DeepSeekHarnessPermissionMode,
     signal: AbortSignal
   ): Promise<string> {
-    const env = {
+    const env = stripManagedCredentialEnv({
       ...runtime.env,
       DSH_HOME: application.getPath('external.deepseek_harness.config'),
       DSH_PERMISSION_MODE: permissionMode
-    }
-    for (const name of Object.keys(env)) {
-      if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
-    }
+    })
 
     const child = crossPlatformSpawn(runtime.path, ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
       cwd: application.getPath('feature.deepseek_harness.workspace'),
@@ -347,6 +350,27 @@ function appendBounded(current: string, chunk: Buffer | string): string {
 
 function sanitizeDiagnostic(value: string, secret?: string): string {
   return redactSecretText(redactLiteral(value, secret)).slice(0, DIAGNOSTIC_LIMIT)
+}
+
+function stripManagedCredentialEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  for (const name of Object.keys(env)) {
+    if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
+  }
+  return env
+}
+
+function readDshVersion(binaryPath: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    execFile(
+      binaryPath,
+      ['--version'],
+      { timeout: 3000, windowsHide: true, env: stripManagedCredentialEnv({ ...process.env }) },
+      (error, stdout) => {
+        if (error) return resolve(undefined)
+        resolve(stdout.split('\n', 1)[0]?.trim().slice(0, 80) || undefined)
+      }
+    )
+  })
 }
 
 function parseReadyUrl(output: string): string | undefined {

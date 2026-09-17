@@ -1,4 +1,5 @@
 export interface BrowserCursorIdentity {
+  scope?: 'agent' | 'topic'
   sessionId: string
   tabId: string
 }

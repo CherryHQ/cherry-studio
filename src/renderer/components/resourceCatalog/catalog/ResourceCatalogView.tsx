@@ -105,7 +105,11 @@ export function ResourceCatalogView({
         )}
       </div>
 
-      <ResourceDeleteConfirmDialog resource={dialogs.deleteConfirm} onClose={() => dialogs.setDeleteConfirm(null)} />
+      <ResourceDeleteConfirmDialog
+        resource={dialogs.deleteConfirm}
+        permanent={dialogs.deletePermanently}
+        onClose={() => dialogs.setDeleteConfirm(null)}
+      />
       {dialogsActivated ? (
         <Suspense fallback={null}>
           <ResourceCatalogDialogs

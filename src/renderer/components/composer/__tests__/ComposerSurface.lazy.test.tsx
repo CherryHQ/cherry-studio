@@ -532,4 +532,31 @@ describe('deferred ComposerSurface', () => {
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Message' }), { key: 'Enter' })
     expect(mocks.toastError).toHaveBeenCalledWith('test.send_blocked')
   })
+  it('keeps the fallback focusable while read-only and ignores draft-changing interactions', async () => {
+    const onTextChange = vi.fn()
+    const onInputHistoryNavigate = vi.fn(() => true)
+    const view = render(<Harness onTextChange={onTextChange} onInputHistoryNavigate={onInputHistoryNavigate} />)
+    const input = screen.getByRole('textbox', { name: 'Message' })
+    input.focus()
+    view.rerender(
+      <Harness editable={false} onTextChange={onTextChange} onInputHistoryNavigate={onInputHistoryNavigate} />
+    )
+
+    expect(input).toBeEnabled()
+    expect(input).toHaveAttribute('readonly')
+    expect(input).toHaveFocus()
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    const transfer = new DataTransfer()
+    transfer.setData('text/plain', 'blocked paste')
+    fireEvent.paste(input, { clipboardData: transfer })
+    fireEvent.drop(input, { dataTransfer: transfer })
+
+    expect(onTextChange).not.toHaveBeenCalled()
+    expect(onInputHistoryNavigate).not.toHaveBeenCalled()
+    expect(mocks.onSendDraft).not.toHaveBeenCalled()
+    await screen.findByTestId('composer-runtime')
+    expect(mocks.runtimeIntent?.transfer).toBeUndefined()
+  })
 })

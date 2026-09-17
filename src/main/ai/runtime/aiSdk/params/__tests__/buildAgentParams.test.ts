@@ -14,6 +14,7 @@ import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 
 const CONVERSATION = { id: 'conversation-1', topicId: 'topic-1' }
+import { createBrowserToolEntries } from '../../../../tools/adapters/aiSdk/builtin/BrowserTools'
 import { createFsReadToolEntry } from '../../../../tools/adapters/aiSdk/builtin/FsReadTool'
 import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
@@ -2100,5 +2101,38 @@ describe('resolveTools fs_read gating', () => {
     )
     expect(tools?.[FS_READ_TOOL_NAME]).toBeDefined()
     expect(tools?.client_tool).toBeDefined()
+  })
+})
+
+describe('assistant browser tool selection', () => {
+  beforeEach(() => {
+    for (const entry of createBrowserToolEntries()) registry.register(entry)
+    preferenceGetMock.mockImplementation((key) => (key === 'app.browser.agent_control.enabled' ? true : null))
+  })
+  afterEach(() => {
+    for (const entry of createBrowserToolEntries()) registry.deregister(entry.name)
+  })
+  it('offers browser tools only to enabled persistent conversations', async () => {
+    const assistant = makeAssistant()
+    const enabled = await resolveTools({ conversation: CONVERSATION }, assistant, makeModel(), false, [])
+    expect([...Object.keys(enabled.tools ?? {}), ...enabled.deferredEntries.map((entry) => entry.name)]).toContain(
+      'browser_open'
+    )
+    const disabled = await resolveTools(
+      { conversation: CONVERSATION },
+      { ...assistant, settings: { ...assistant.settings, enableBrowser: false } },
+      makeModel(),
+      false,
+      []
+    )
+    expect([
+      ...Object.keys(disabled.tools ?? {}),
+      ...disabled.deferredEntries.map((entry) => entry.name)
+    ]).not.toContain('browser_open')
+    const temporary = await resolveTools({ conversation: { id: 'temporary' } }, assistant, makeModel(), false, [])
+    expect([
+      ...Object.keys(temporary.tools ?? {}),
+      ...temporary.deferredEntries.map((entry) => entry.name)
+    ]).not.toContain('browser_open')
   })
 })
