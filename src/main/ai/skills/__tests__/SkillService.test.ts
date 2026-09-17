@@ -1082,6 +1082,23 @@ describe('SkillService', () => {
       }
     })
 
+    it('resolves a stored reserved folder name verbatim instead of re-sanitizing it', async () => {
+      const root = await createTempDir('skill-dir-verbatim-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((_key: string, filename?: string) => {
+        return filename ? path.join(dataSkillsRoot, filename) : dataSkillsRoot
+      })
+      const { skillService } = await setupGithubInstall({})
+
+      try {
+        // A pre-existing POSIX skill stored as `CON` must still resolve to `CON`: the reserved-name
+        // suffix applies when deriving a new folder, never when resolving a stored one.
+        expect(skillService.getSkillDirectory('CON')).toBe(path.join(dataSkillsRoot, 'CON'))
+      } finally {
+        getPathSpy.mockRestore()
+      }
+    })
+
     it('migrates a pre-fix content install to the skill folder on reinstall', async () => {
       const root = await createTempDir('github-migrate-')
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')
@@ -1133,6 +1150,65 @@ describe('SkillService', () => {
           code: 'ENOENT'
         })
       } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('retires the legacy folder before publishing the replacement', async () => {
+      const root = await createTempDir('github-migrate-order-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Repo',
+        folderName: 'content',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'content'), { recursive: true })
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'content', 'SKILL.md'), '# old')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'my-skill',
+        name: 'my-skill',
+        description: 'Migrated skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['SKILL.md'],
+        realInstall: true
+      })
+      const backupSpy = vi.spyOn(skillService['installer'], 'backupReplacedFolderForMigration')
+      const publishSpy = vi.spyOn(skillService['installer'], 'install')
+
+      try {
+        await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
+        })
+
+        // Write-ahead order: no crash window leaves both folders on disk with no marker for
+        // startup recovery to settle.
+        expect(backupSpy).toHaveBeenCalledTimes(1)
+        expect(publishSpy).toHaveBeenCalledTimes(1)
+        expect(backupSpy.mock.invocationCallOrder[0]).toBeLessThan(publishSpy.mock.invocationCallOrder[0])
+      } finally {
+        backupSpy.mockRestore()
+        publishSpy.mockRestore()
         getPathSpy.mockRestore()
         vi.mocked(parseSkillMetadata).mockReset()
       }
