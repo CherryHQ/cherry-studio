@@ -1128,6 +1128,22 @@ export class CacheService {
   }
 
   /**
+   * Synchronously flush pending persist writes to localStorage. The debounced
+   * autosave can otherwise lose hardening writes (e.g. crash-recovery
+   * journals) on a hard kill inside the debounce window. Cheap when clean.
+   */
+  flushPersist(): void {
+    if (this.persistSaveTimer) {
+      clearTimeout(this.persistSaveTimer)
+      this.persistSaveTimer = undefined
+    }
+    if (this.persistDirty) {
+      this.savePersistCache()
+      this.persistDirty = false
+    }
+  }
+
+  /**
    * Broadcast cache sync message to other windows via IPC
    * @param message - Cache sync message to broadcast
    */
