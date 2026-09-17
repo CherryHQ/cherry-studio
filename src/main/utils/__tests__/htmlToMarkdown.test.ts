@@ -119,6 +119,52 @@ describe('applyTableRules', () => {
     ])
   })
 
+  it('holds the column open for every remaining row when the rowspan is 0', () => {
+    // rowspan="0" covers the rest of the row group. Read as a single row, "2 m" moved into the
+    // Product column and the last two rows lost a cell at their end.
+    const markdown = convert(
+      '<table><thead><tr><th>Product</th><th>Variant</th><th>Price</th></tr></thead>' +
+        '<tbody><tr><td rowspan="0">Cable</td><td>1 m</td><td>9 EUR</td></tr>' +
+        '<tr><td>2 m</td><td>12 EUR</td></tr>' +
+        '<tr><td>3 m</td><td>15 EUR</td></tr></tbody></table>'
+    )
+
+    expect(tableRows(markdown)).toEqual([
+      ['Product', 'Variant', 'Price'],
+      ['---', '---', '---'],
+      ['Cable', '1 m', '9 EUR'],
+      ['', '2 m', '12 EUR'],
+      ['', '3 m', '15 EUR']
+    ])
+  })
+
+  it('stops a rowspan of 0 at the end of its row group', () => {
+    const markdown = convert(
+      '<table><thead><tr><th>A</th><th>B</th></tr></thead>' +
+        '<tbody><tr><td rowspan="0">x</td><td>1</td></tr><tr><td>2</td></tr></tbody>' +
+        '<tfoot><tr><td>f1</td><td>f2</td></tr></tfoot></table>'
+    )
+
+    expect(tableRows(markdown)).toEqual([
+      ['A', 'B'],
+      ['---', '---'],
+      ['x', '1'],
+      ['', '2'],
+      ['f1', 'f2']
+    ])
+  })
+
+  it('reads a colspan of 0 as one column', () => {
+    // HTML dropped colspan="0", and a browser reports colSpan === 1 for it.
+    const markdown = convert('<table><tr><th>A</th><th>B</th></tr><tr><td colspan="0">x</td><td>1</td></tr></table>')
+
+    expect(tableRows(markdown)).toEqual([
+      ['A', 'B'],
+      ['---', '---'],
+      ['x', '1']
+    ])
+  })
+
   it('counts the header columns by their spans', () => {
     const markdown = convert(
       '<table><tr><th colspan="2">Size</th><th>Price</th></tr>' + '<tr><td>S</td><td>M</td><td>9 EUR</td></tr></table>'

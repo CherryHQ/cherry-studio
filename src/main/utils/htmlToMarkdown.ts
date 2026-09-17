@@ -2,6 +2,9 @@ import type TurndownService from 'turndown'
 
 // HTML clamps colspan to 1..1000, and a rowspan never reaches past its table.
 const MAX_COLSPAN = 1000
+// colspan="0" was dropped from HTML and a browser reads it as one column, while rowspan="0" still
+// covers every remaining row of the cell's row group.
+const COLSPAN_ZERO = 1
 // A span on a fetched page must not blow the output up: a table is padded to a full grid only
 // while the grid stays within a few cells per real cell, and is written row by row otherwise.
 const GRID_CELLS_PER_CELL = 8
@@ -137,7 +140,7 @@ function measure(table: Element): TableGrid {
   const headerIndex = cells.findIndex((rowCells) => rowCells.length > 0)
   const header = headerIndex >= 0 ? rows[headerIndex] : null
 
-  const layout = layOut(rows, cells)
+  const layout = layOut(table, rows, cells)
   if (layout) return { header, headerWidth: layout.width, ...layout }
   // Past the budget the spans are ignored, so a row is as wide as its own cells. The header still
   // has to reach the widest row, or the cells beyond it fall out of the table. A shorter body row
@@ -150,7 +153,7 @@ function measure(table: Element): TableGrid {
 }
 
 /** Lay the table out on a grid the way a browser does, or return null once it outgrows its budget. */
-function layOut(rows: Element[], cells: Element[][]): Layout | null {
+function layOut(table: Element, rows: Element[], cells: Element[][]): Layout | null {
   const before = new Map<Element, number>()
   const colspan = new Map<Element, number>()
   const widths: number[] = []
@@ -158,6 +161,7 @@ function layOut(rows: Element[], cells: Element[][]): Layout | null {
   let width = 0
   const realCells = cells.reduce((total, rowCells) => total + rowCells.length, 0)
   const budget = Math.min(MAX_GRID_CELLS, MIN_GRID_CELLS + GRID_CELLS_PER_CELL * realCells)
+  const groupDepth = groupDepths(table, rows)
 
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
     let column = 0
@@ -171,8 +175,8 @@ function layOut(rows: Element[], cells: Element[][]): Layout | null {
     }
     for (const cell of cells[rowIndex]) {
       before.set(cell, free())
-      const across = spanOf(cell, 'colspan', MAX_COLSPAN)
-      const down = spanOf(cell, 'rowspan', rows.length - rowIndex)
+      const across = spanOf(cell, 'colspan', MAX_COLSPAN, COLSPAN_ZERO)
+      const down = spanOf(cell, 'rowspan', rows.length - rowIndex, groupDepth[rowIndex])
       if (taken.size + across * down > budget) return null
       colspan.set(cell, across)
       for (let r = 0; r < down; r++) {
@@ -199,7 +203,31 @@ function cellsOf(row: Element): Element[] {
   return Array.from(row.children).filter((child) => child.nodeName === 'TH' || child.nodeName === 'TD')
 }
 
-function spanOf(cell: Element, attribute: 'colspan' | 'rowspan', max: number): number {
+/** The columns or rows a cell covers, clamped to `max`, with `zero` standing for the attribute's 0. */
+function spanOf(cell: Element, attribute: 'colspan' | 'rowspan', max: number, zero: number): number {
+  // `parseInt` is the HTML rule for a non-negative integer, so "12abc" is 12 and whitespace is fine.
   const value = Number.parseInt(cell.getAttribute(attribute) ?? '', 10)
-  return Number.isFinite(value) && value > 0 ? Math.min(value, max) : 1
+  if (!Number.isFinite(value) || value < 0) return 1
+  return Math.min(value === 0 ? zero : value, max)
+}
+
+/** The row group a row sits in: its thead/tbody/tfoot, or the table when the page wrote none. */
+function rowGroupOf(row: Element, table: Element): Element {
+  let parent: Element | null = row.parentElement
+  while (parent && parent !== table) {
+    if (parent.nodeName === 'THEAD' || parent.nodeName === 'TBODY' || parent.nodeName === 'TFOOT') return parent
+    parent = parent.parentElement
+  }
+  return table
+}
+
+/** Rows left in each row's own group, itself included: how far a rowspan="0" reaches. */
+function groupDepths(table: Element, rows: Element[]): number[] {
+  const groups = rows.map((row) => rowGroupOf(row, table))
+  const depths = new Array<number>(rows.length)
+  // A group's rows are contiguous in document order, so one pass from the last row counts them.
+  for (let index = rows.length - 1; index >= 0; index--) {
+    depths[index] = groups[index] === groups[index + 1] ? depths[index + 1] + 1 : 1
+  }
+  return depths
 }
