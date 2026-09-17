@@ -5,7 +5,7 @@ import type { Plugin } from 'unified'
 import { visit } from 'unist-util-visit'
 
 import { Markdown, withMath } from '@cherrystudio/ui'
-import { remarkLatexMath } from '@renderer/components/markdown'
+import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
 import type { BasicPreviewProps } from './types'
 

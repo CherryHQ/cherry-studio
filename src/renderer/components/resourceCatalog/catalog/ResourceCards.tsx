@@ -28,14 +28,14 @@ interface ResourceCardProps {
   resource: ResourceItem
   variant?: 'library' | 'settings'
   allGroups: Group[]
-  onDelete: (resource: ResourceItem) => void
+  onDelete: (resource: ResourceItem, permanent?: boolean) => void
   onDuplicate: (resource: ResourceItem) => void
   onEdit: (resource: ResourceItem) => void
   onExport: (resource: ResourceItem) => void
 }
 
 function hasOverflowActions(resource: ResourceItem) {
-  return resource.type === 'assistant'
+  return resource.type === 'assistant' || resource.type === 'agent'
 }
 
 function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {

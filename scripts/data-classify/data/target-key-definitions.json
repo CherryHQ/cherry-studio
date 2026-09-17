@@ -801,6 +801,13 @@
       "description": "Global command Hooks for all Cherry agent sessions (Pi, Claude Code and DSH)"
     },
     {
+      "targetKey": "data.trash.retention_days",
+      "type": "number",
+      "defaultValue": 30,
+      "status": "classified",
+      "description": "Trash retention in days before automatic purge; 0 = never auto-purge (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "agent.language",
       "type": "PreferenceTypes.AgentLanguagePreference",
       "defaultValue": null,

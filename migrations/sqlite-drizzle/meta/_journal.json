@@ -161,6 +161,13 @@
       "when": 1789544579690,
       "tag": "0022_little_gamma_corps",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1789565251208,
+      "tag": "0023_warm_slayback",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next'
 import {
+  Archive,
   BrushCleaning,
   Copy,
   Database,
@@ -47,8 +48,11 @@ export interface TopicMoveAssistantTarget {
   icon?: ReactNode
 }
 
+type TopicDeleteHandler = (topic: Topic) => void | Promise<void>
+
 export interface TopicActionContext {
   exportMenuOptions: TopicExportMenuOptions
+  isArchiveBlocked: boolean
   isActiveInCurrentTab: boolean
   isRenaming: boolean
   onAutoRename: TopicMenuHandler
@@ -56,7 +60,8 @@ export interface TopicActionContext {
   onCopyImage: TopicMenuHandler
   onCopyMarkdown: TopicMenuHandler
   onCopyPlainText: TopicMenuHandler
-  onDelete: TopicMenuHandler
+  onDelete: TopicDeleteHandler
+  onDeletePermanently?: TopicDeleteHandler
   onExportImage: TopicMenuHandler
   onExportJoplin: TopicMenuHandler
   onExportMarkdown: TopicMenuHandler
@@ -254,6 +259,11 @@ topicActionRegistry.registerCommand({
 topicActionRegistry.registerCommand({
   id: 'topic.delete',
   run: ({ onDelete, topic }) => onDelete(topic)
+})
+
+topicActionRegistry.registerCommand({
+  id: 'topic.delete-permanently',
+  run: ({ onDeletePermanently, topic }) => onDeletePermanently?.(topic)
 })
 
 topicActionRegistry.registerAction({
@@ -504,19 +514,38 @@ topicActionRegistry.registerAction({
 topicActionRegistry.registerAction({
   id: 'topic.delete',
   commandId: 'topic.delete',
-  label: ({ t }) => t('common.delete'),
-  icon: () => <Trash2 size={14} />,
+  label: ({ t }) => t('common.archive'),
+  icon: () => <Archive size={14} />,
   group: 'danger',
   order: 90,
   surface: 'menu',
+  // Deleting the last topic is allowed: the handler selects a neighbour when one exists and
+  // otherwise clears the active topic. Pinned topics must be unpinned before they can be deleted.
+  availability: ({ isArchiveBlocked, t, topic }) => ({
+    visible: !topic.pinned,
+    enabled: !isArchiveBlocked,
+    reason: isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : undefined
+  })
+})
+
+topicActionRegistry.registerAction({
+  id: 'topic.delete-permanently',
+  commandId: 'topic.delete-permanently',
+  label: ({ t }) => t('common.delete_permanently'),
+  icon: () => <Trash2 size={14} />,
+  group: 'danger',
+  order: 100,
+  surface: 'menu',
   danger: true,
-  // Deleting the last topic is allowed — the delete handler opens a fresh empty one afterwards, so
-  // the view is never stranded. Pinned topics must be unpinned before they can be deleted.
-  availability: ({ topic }) => ({ visible: !topic.pinned }),
-  confirm: ({ t }) => ({
-    title: t('chat.topics.manage.delete.confirm.title'),
-    description: t('chat.topics.manage.delete.confirm.content', { count: 1 }),
-    confirmText: t('common.delete'),
+  availability: ({ isArchiveBlocked, t, topic, onDeletePermanently }) => ({
+    visible: !topic.pinned && !!onDeletePermanently,
+    enabled: !isArchiveBlocked,
+    reason: isArchiveBlocked ? t('chat.topics.delete.blocked_generation') : undefined
+  }),
+  confirm: ({ t, topic }) => ({
+    title: t('settings.data.trash.permanent_delete.confirm_title'),
+    description: `${topic.name}\n${t('settings.data.trash.permanent_delete.confirm_content')}`,
+    confirmText: t('common.delete_permanently'),
     cancelText: t('common.cancel'),
     destructive: true
   })

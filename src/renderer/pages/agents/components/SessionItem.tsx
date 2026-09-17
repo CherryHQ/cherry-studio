@@ -1,6 +1,6 @@
-import { PinIcon, Trash2, XIcon } from 'lucide-react'
+import { Archive, PinIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
-import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
@@ -26,12 +26,10 @@ import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
-const DELETE_CONFIRMATION_TIMEOUT = 2000
-
 interface SessionItemProps {
   active?: boolean
   channelType?: string
-  onDelete: (id: string) => void | Promise<void>
+  onDelete: (id: string, permanent?: boolean) => void | Promise<void>
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onOpenRenameDialog: (session: AgentSessionEntity) => void
@@ -127,14 +125,10 @@ const SessionItem = ({
   const hasStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming && !!onTogglePin
   const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
-  const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
-  const deleteConfirmationTimeoutRef = useRef<number | null>(null)
-
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
   const startMenuEdit = useCallback(() => onOpenRenameDialog(session), [onOpenRenameDialog, session])
-  const handleDelete = useCallback(() => {
-    void onDelete(session.id)
-  }, [onDelete, session.id])
+  const handleDelete = useCallback(() => onDelete(session.id), [onDelete, session.id])
+  const handleDeletePermanently = useCallback(() => onDelete(session.id, true), [onDelete, session.id])
   const handleTogglePin = useCallback(() => {
     void onTogglePin?.(session.id)
   }, [onTogglePin, session.id])
@@ -155,6 +149,8 @@ const SessionItem = ({
       onCopyMarkdown: () => sessionMenuActions.onCopyMarkdown(session),
       onCopyPlainText: () => sessionMenuActions.onCopyPlainText(session),
       onDelete: handleDelete,
+      onDeletePermanently: handleDeletePermanently,
+      isBusy: isStreamPending || showAwaitingApprovalBadge,
       onExportImage: () => sessionMenuActions.onExportImage(session),
       onExportJoplin: () => sessionMenuActions.onExportJoplin(session),
       onExportMarkdown: () => sessionMenuActions.onExportMarkdown(session),
@@ -178,6 +174,9 @@ const SessionItem = ({
     }),
     [
       handleDelete,
+      handleDeletePermanently,
+      isStreamPending,
+      showAwaitingApprovalBadge,
       handleOpenInNewTab,
       handleOpenInNewWindow,
       handleTogglePin,
@@ -198,36 +197,9 @@ const SessionItem = ({
   )
 
   const { getActions: getMenuActions, handleMenuAction } = useSessionMenuActions(actionContext)
-
-  const clearDeleteConfirmationTimeout = useCallback(() => {
-    if (deleteConfirmationTimeoutRef.current === null) return
-    window.clearTimeout(deleteConfirmationTimeoutRef.current)
-    deleteConfirmationTimeoutRef.current = null
-  }, [])
-
-  useEffect(() => clearDeleteConfirmationTimeout, [clearDeleteConfirmationTimeout])
-
-  const handleDeleteClick = useCallback(
-    (event: MouseEvent) => {
-      event.stopPropagation()
-
-      if (isConfirmingDeletion || event.ctrlKey || event.metaKey) {
-        clearDeleteConfirmationTimeout()
-        setIsConfirmingDeletion(false)
-        handleDelete()
-        return
-      }
-
-      startTransition(() => {
-        clearDeleteConfirmationTimeout()
-        setIsConfirmingDeletion(true)
-        deleteConfirmationTimeoutRef.current = window.setTimeout(() => {
-          deleteConfirmationTimeoutRef.current = null
-          setIsConfirmingDeletion(false)
-        }, DELETE_CONFIRMATION_TIMEOUT)
-      })
-    },
-    [clearDeleteConfirmationTimeout, handleDelete, isConfirmingDeletion]
+  const deleteAction = useMemo(
+    () => getMenuActions().find((action) => action.id === 'session.delete'),
+    [getMenuActions]
   )
 
   const handlePress = useCallback(
@@ -326,7 +298,7 @@ const SessionItem = ({
         />
       )}
 
-      <ResourceList.ItemActions active={isConfirmingDeletion} pinned={pinned && showPinAction}>
+      <ResourceList.ItemActions pinned={pinned && showPinAction}>
         {showPinAction && (
           <Tooltip title={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')} delay={500}>
             <ResourceList.ItemAction
@@ -339,16 +311,15 @@ const SessionItem = ({
           </Tooltip>
         )}
         {!pinned && (
-          <Tooltip title={t('common.delete')} delay={500}>
+          <Tooltip title={t('common.archive')} delay={500}>
             <ResourceList.ItemAction
-              aria-label={t('common.delete')}
-              data-deleting={isConfirmingDeletion}
-              onClick={handleDeleteClick}>
-              {isConfirmingDeletion ? (
-                <Trash2 size={14} className="size-3.5! text-destructive" />
-              ) : (
-                <XIcon size={14} className="size-3.5!" />
-              )}
+              aria-label={t('common.archive')}
+              disabled={!deleteAction?.availability.enabled}
+              onClick={(event) => {
+                event.stopPropagation()
+                if (deleteAction) void handleMenuAction(deleteAction)
+              }}>
+              <Archive size={14} className="size-3.5!" />
             </ResourceList.ItemAction>
           </Tooltip>
         )}

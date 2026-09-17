@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next'
 import {
+  Archive,
   Copy,
   Database,
   ExternalLink,
@@ -42,7 +43,9 @@ export interface SessionActionContext {
   onCopyImage?: () => void | Promise<void>
   onCopyMarkdown?: () => void | Promise<void>
   onCopyPlainText?: () => void | Promise<void>
-  onDelete: () => void
+  onDelete: () => void | Promise<void>
+  onDeletePermanently?: () => void | Promise<void>
+  isBusy?: boolean
   onExportImage?: () => void | Promise<void>
   onExportJoplin?: () => void | Promise<void>
   onExportMarkdown?: () => void | Promise<void>
@@ -276,6 +279,11 @@ sessionActionRegistry.registerCommand({
   run: ({ onDelete }) => onDelete()
 })
 
+sessionActionRegistry.registerCommand({
+  id: 'session.delete-permanently',
+  run: ({ onDeletePermanently }) => onDeletePermanently?.()
+})
+
 sessionActionRegistry.registerAction({
   id: 'session.auto-rename',
   commandId: 'session.auto-rename',
@@ -480,17 +488,31 @@ sessionActionRegistry.registerAction({
 sessionActionRegistry.registerAction({
   id: 'session.delete',
   commandId: 'session.delete',
-  label: ({ t }) => t('common.delete'),
-  icon: () => <DeleteIcon size={14} className="lucide-custom" />,
+  label: ({ t }) => t('common.archive'),
+  icon: () => <Archive size={14} />,
   group: 'danger',
   order: 90,
   surface: 'menu',
+  availability: ({ pinned, isBusy }) => ({ visible: !pinned, enabled: !isBusy })
+})
+
+sessionActionRegistry.registerAction({
+  id: 'session.delete-permanently',
+  commandId: 'session.delete-permanently',
+  label: ({ t }) => t('common.delete_permanently'),
+  icon: () => <DeleteIcon size={14} className="lucide-custom" />,
+  group: 'danger',
+  order: 100,
+  surface: 'menu',
   danger: true,
-  availability: ({ pinned }) => ({ visible: !pinned }),
-  confirm: ({ t }) => ({
-    title: t('agent.session.delete.title'),
-    description: t('agent.session.delete.content'),
-    confirmText: t('common.delete'),
+  availability: ({ pinned, isBusy, onDeletePermanently }) => ({
+    visible: !pinned && !!onDeletePermanently,
+    enabled: !isBusy
+  }),
+  confirm: ({ t, sessionName }) => ({
+    title: t('settings.data.trash.permanent_delete.confirm_title'),
+    description: `${sessionName}\n${t('settings.data.trash.permanent_delete.confirm_content')}`,
+    confirmText: t('common.delete_permanently'),
     cancelText: t('common.cancel'),
     destructive: true
   })
