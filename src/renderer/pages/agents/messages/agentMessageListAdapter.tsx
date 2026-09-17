@@ -154,7 +154,7 @@ export function useAgentMessageListProviderValue({
     >()
   )
   const displayPartsByMessageId = useMemo(
-    () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response'), { includeEmptySuccess: false }),
+    () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
     [messages, partsByMessageId, t]
   )
   const displayStreamingLayers = useMemo(() => {
@@ -163,8 +163,7 @@ export function useAgentMessageListProviderValue({
     const historyPartsByMessageId = withTerminalErrorFallback(
       messages,
       streamingLayers.historyPartsByMessageId,
-      t('error.no_response'),
-      { includeEmptySuccess: false }
+      t('error.no_response')
     )
     if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
 

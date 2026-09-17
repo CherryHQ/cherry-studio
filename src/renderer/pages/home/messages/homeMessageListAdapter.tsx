@@ -33,7 +33,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
-import { withTerminalErrorFallback } from '@renderer/components/chat/messages/utils/terminalErrorFallback'
+import { withNoResponseFallback } from '@renderer/components/chat/messages/utils/terminalErrorFallback'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -219,13 +219,13 @@ export function useHomeMessageListProviderValue({
   )
 
   const displayPartsByMessageId = useMemo(
-    () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
+    () => withNoResponseFallback(messages, partsByMessageId, t('error.no_response')),
     [messages, partsByMessageId, t]
   )
   const displayStreamingLayers = useMemo(() => {
     if (!streamingLayers) return undefined
 
-    const historyPartsByMessageId = withTerminalErrorFallback(
+    const historyPartsByMessageId = withNoResponseFallback(
       messages,
       streamingLayers.historyPartsByMessageId,
       t('error.no_response')
