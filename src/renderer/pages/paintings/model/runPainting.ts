@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import i18n from '@renderer/i18n/resolver'
 import type { FileMetadata } from '@renderer/types/file'
 import { createPaintingGenerateError, normalizePaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import { aiErrorDetail } from '@shared/ipc/errors/ai'
@@ -11,8 +12,10 @@ const logger = loggerService.withContext('paintings/generation')
 
 /** Concise human message from the serialized provider/AI-SDK error the
  *  `ai.image.generate` route attaches to its IpcError `data`: prefer the
- *  provider message, else the HTTP status, else a response-body snippet. */
+ *  provider message, else the HTTP status, else a response-body snippet.
+ *  A 504 maps to the friendly timeout string — gateway bodies are proxy noise. */
 function aiDetailMessage(detail: SerializedError): string {
+  if (detail.statusCode === 504) return i18n.t('error.http.504')
   if (detail.message) return detail.message
   const status = typeof detail.statusCode === 'number' ? `HTTP ${detail.statusCode}` : ''
   const body = typeof detail.responseBody === 'string' ? detail.responseBody.slice(0, 300) : ''
