@@ -399,6 +399,7 @@ function setupAgentHistory({
 
   const onClose = vi.fn()
   const onRecordSelect = vi.fn()
+  const onActiveRecordChange = vi.fn()
   render(
     <HistoryRecordsView
       mode="agent"
@@ -406,10 +407,11 @@ function setupAgentHistory({
       activeRecordId={activeRecordId}
       onClose={onClose}
       onRecordSelect={onRecordSelect}
+      onActiveRecordChange={onActiveRecordChange}
     />
   )
 
-  return { onClose, onRecordSelect }
+  return { onClose, onRecordSelect, onActiveRecordChange }
 }
 
 let agentHistoryLoaded = false
@@ -731,7 +733,7 @@ describe('HistoryRecordsView agent mode', () => {
       deletedIds: ['session-alpha', 'session-beta'],
       deletedCount: 2
     })
-    const { onClose, onRecordSelect } = setupAgentHistory({
+    const { onClose, onActiveRecordChange } = setupAgentHistory({
       activeRecordId: 'session-alpha',
       sessions: [
         createSession(),
@@ -770,7 +772,7 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     expect(hookMocks.deleteSessions).toHaveBeenCalledWith(['session-alpha', 'session-beta'])
-    expect(onRecordSelect).toHaveBeenCalledWith('session-gamma')
+    expect(onActiveRecordChange).toHaveBeenCalledWith('session-gamma')
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -779,7 +781,7 @@ describe('HistoryRecordsView agent mode', () => {
       deletedIds: ['session-alpha'],
       deletedCount: 1
     })
-    const { onClose, onRecordSelect } = setupAgentHistory({
+    const { onClose, onActiveRecordChange } = setupAgentHistory({
       sessions: [
         createSession(),
         createSession({
@@ -808,7 +810,7 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     expect(hookMocks.deleteSessions).toHaveBeenCalledWith(['session-alpha'])
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -1061,7 +1063,7 @@ describe('HistoryRecordsView agent mode', () => {
   })
 
   it('deletes a session from the history row action column without selecting the row', async () => {
-    const { onClose, onRecordSelect } = setupAgentHistory()
+    const { onClose, onActiveRecordChange } = setupAgentHistory()
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]')
 
     expect(alphaRow).not.toBeNull()
@@ -1076,12 +1078,12 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
 
   it('confirms session deletion and moves the active session when needed', async () => {
-    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1097,11 +1099,11 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
-    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
+    expect(onActiveRecordChange).toHaveBeenCalledWith('session-beta')
   })
 
   it('clears the active session after deleting the last session from history', async () => {
-    const { onRecordSelect } = setupAgentHistory({
+    const { onActiveRecordChange } = setupAgentHistory({
       activeRecordId: 'session-alpha',
       sessions: [createSession()]
     })
@@ -1118,12 +1120,12 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
-    expect(onRecordSelect).toHaveBeenCalledWith(null)
+    expect(onActiveRecordChange).toHaveBeenCalledWith(null)
   })
 
   it('keeps the active session unchanged when history deletion fails', async () => {
     hookMocks.deleteSession.mockResolvedValueOnce(false)
-    const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
+    const { onActiveRecordChange } = setupAgentHistory({ activeRecordId: 'session-alpha' })
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1137,6 +1139,6 @@ describe('HistoryRecordsView agent mode', () => {
     })
 
     await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
   })
 })
