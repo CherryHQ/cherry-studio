@@ -84,3 +84,26 @@ describe('DuplicateTopicSchema', () => {
     expect(() => DuplicateTopicSchema.parse({ nodeId: 'n1', includeDescendants: true })).toThrow()
   })
 })
+
+describe('deletedAt is read-only', () => {
+  // deletedAt is set via Delete (move to Recycle Bin) and cleared via the Restore endpoints;
+  // it must never be writable through the Create/Update DTOs.
+  it('CreateTopicSchema rejects deletedAt', () => {
+    expect(() => CreateTopicSchema.parse({ name: 'n', deletedAt: '2026-07-04T00:00:00.000Z' })).toThrow(/unrecognized/i)
+  })
+
+  it('UpdateTopicSchema rejects deletedAt', () => {
+    expect(() => UpdateTopicSchema.parse({ deletedAt: null })).toThrow(/unrecognized/i)
+  })
+})
+
+describe('ListTopicsQuerySchema', () => {
+  it('accepts a boolean inTrash and defaults to absent', () => {
+    expect(ListTopicsQuerySchema.parse({ inTrash: true })).toEqual({ inTrash: true })
+    expect(ListTopicsQuerySchema.parse({})).toEqual({})
+  })
+
+  it('rejects a non-boolean inTrash (plain z.boolean, no coercion)', () => {
+    expect(() => ListTopicsQuerySchema.parse({ inTrash: 'true' })).toThrow()
+  })
+})

@@ -1,12 +1,17 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
-import { agentChannelSessionTable } from '@data/db/schemas/agentChannel'
+import { agentChannelSessionTable, agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { ErrorCode } from '@shared/data/api/errors'
+
+const notifyDataApiDataChange = vi.hoisted(() => vi.fn())
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange }))
 
 const TELEGRAM_CONFIG = { bot_token: 'test-token-123', allowed_chat_ids: [] }
 const DISCORD_CONFIG = { bot_token: 'test-token-123', allowed_channel_ids: [] }
@@ -14,6 +19,10 @@ const SYSTEM_WORKSPACE = { type: 'system' as const }
 
 describe('AgentChannelService', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   /** Insert a minimal agent row directly so agentId FK constraints are satisfied. */
   async function insertAgent(id: string): Promise<void> {
@@ -24,6 +33,17 @@ describe('AgentChannelService', () => {
       instructions: 'test',
       model: null,
       orderKey: 'a0'
+    })
+  }
+
+  async function insertSchedule(id: string): Promise<void> {
+    await dbh.db.insert(jobScheduleTable).values({
+      id,
+      type: 'agent.task',
+      name: id,
+      trigger: { kind: 'interval', ms: 60_000 },
+      jobInputTemplate: {},
+      catchUpPolicy: { kind: 'skip-missed' }
     })
   }
 
@@ -42,6 +62,14 @@ describe('AgentChannelService', () => {
       expect(channel.name).toBe('My Bot')
       expect(channel.isActive).toBe(true)
       expect(channel.config).toMatchObject({ bot_token: 'test-token-123' })
+      expect(notifyDataApiDataChange).toHaveBeenCalledWith([
+        { endpoint: '/agent-channels', kind: 'membership', entityIds: [channel.id] },
+        {
+          endpoint: '/agent-channels/:channelId',
+          routeParams: { channelId: channel.id },
+          entityIds: [channel.id]
+        }
+      ])
     })
 
     it('creates an inactive channel', async () => {
@@ -204,6 +232,46 @@ describe('AgentChannelService', () => {
       const updated = agentChannelService.updateChannel(channel.id, { isActive: false })
       expect(updated!.isActive).toBe(false)
     })
+
+    it('rejects activation with incomplete credentials without partially updating the row', async () => {
+      const channel = agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'Draft',
+        workspace: SYSTEM_WORKSPACE,
+        config: { bot_token: '', allowed_chat_ids: [] },
+        isActive: false
+      })
+
+      expect(() => agentChannelService.updateChannel(channel.id, { name: 'Changed', isActive: true })).toThrow(
+        expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR })
+      )
+
+      const stored = agentChannelService.getChannel(channel.id)
+      expect(stored).toMatchObject({ name: 'Draft', isActive: false })
+    })
+
+    it('clears task subscriptions atomically when ownership moves to another Agent', async () => {
+      await insertAgent('agent-old')
+      await insertAgent('agent-new')
+      await insertSchedule('schedule-clear')
+      const channel = agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'Rebound',
+        agentId: 'agent-old',
+        workspace: SYSTEM_WORKSPACE,
+        config: TELEGRAM_CONFIG
+      })
+      await dbh.db.insert(agentChannelTaskTable).values({ channelId: channel.id, taskId: 'schedule-clear' })
+
+      agentChannelService.updateChannel(channel.id, { agentId: 'agent-new' })
+
+      expect(
+        dbh.db.select().from(agentChannelTaskTable).where(eq(agentChannelTaskTable.channelId, channel.id)).all()
+      ).toEqual([])
+      expect(dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.id, channel.id)).get()?.agentId).toBe(
+        'agent-new'
+      )
+    })
   })
 
   describe('normalizeChannelConfig (via createChannel)', () => {
@@ -219,15 +287,15 @@ describe('AgentChannelService', () => {
       expect((channel.config as any).bot_token).toBe('tok')
     })
 
-    it('stores an empty object when config is a non-object value', async () => {
-      const channel = agentChannelService.createChannel({
-        type: 'telegram',
-        name: 'Non-obj Config',
-        workspace: SYSTEM_WORKSPACE,
-        config: 'bad-value' as any
-      })
-
-      expect(channel.config).toEqual({})
+    it('rejects a non-object config before writing', () => {
+      expect(() =>
+        agentChannelService.createChannel({
+          type: 'telegram',
+          name: 'Non-obj Config',
+          workspace: SYSTEM_WORKSPACE,
+          config: 'bad-value' as any
+        })
+      ).toThrow(expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR }))
     })
   })
 
@@ -262,7 +330,13 @@ describe('AgentChannelService', () => {
         name: 'Feishu',
         agentId,
         workspace: SYSTEM_WORKSPACE,
-        config: {}
+        config: {
+          app_id: 'app',
+          app_secret: 'secret',
+          encrypt_key: '',
+          verification_token: '',
+          domain: 'feishu'
+        }
       })
       const first = agentSessionService.create({ agentId, name: 'First', workspace: SYSTEM_WORKSPACE })
       const second = agentSessionService.create({ agentId, name: 'Second', workspace: SYSTEM_WORKSPACE })

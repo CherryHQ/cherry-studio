@@ -24,7 +24,7 @@ const CodeMateIcon: SidebarIconComponent = (props) => <Code {...props} viewBox="
  * here is a type error. Kept in the component layer because the values are React
  * components; the navigation data and logic live in `@renderer/utils/sidebar`.
  */
-export const SIDEBAR_ICON_COMPONENTS: Record<SidebarAppId, SidebarIconComponent> = {
+export const SIDEBAR_ICON_COMPONENTS = {
   assistants: MessageSquare,
   agents: MousePointerClick,
   paintings: Palette,
@@ -34,4 +34,4 @@ export const SIDEBAR_ICON_COMPONENTS: Record<SidebarAppId, SidebarIconComponent>
   files: Folder,
   code_tools: CodeMateIcon,
   notes: NotepadText
-}
+} satisfies Record<SidebarAppId, SidebarIconComponent>
