@@ -24,9 +24,9 @@ import type { LanguageModelUsage, ModelMessage } from 'ai'
 import { compactModelMessages } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import { COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN, CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
+import { COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN } from '@main/ai/constants'
+import { resolveCompactionBudgets } from '@main/ai/contextBuild/resolveCompactionBudgets'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
-import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveSummarizeBudget } from '@main/ai/contextBuild/resolveSummarizeBudget'
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
@@ -159,25 +159,19 @@ export const inLoopCompactionFeature: RequestFeature = {
       })
       return {}
     }
-    // Apply a safety margin to the declared window so compaction triggers
-    // earlier when the provider's real limit is smaller than the model's
-    // declared contextWindow (common for third-party models/channels).
-    const effectiveContextWindow = Math.floor(contextWindow * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN)
-    // Against the room the PROMPT actually has, not the whole window: whatever
-    // this request declares as max_tokens is billed alongside the input.
-    const inputRoom = resolveInputRoom(
-      effectiveContextWindow,
+    const thresholdPercent = scope.contextSettings.compress.thresholdPercent
+    // Shared with the durable lane: margined window → input room → trigger → keep.
+    const { effectiveContextWindow, inputRoom, trigger, keepBudget } = resolveCompactionBudgets(
+      contextWindow,
       resolveRequestedMaxOutputTokens(
         scope.request.callOverrides?.maxOutputTokens,
         undefined,
         scope.assistant,
         scope.model,
         scope.endpointType
-      )
+      ),
+      thresholdPercent
     )
-    const thresholdPercent = scope.contextSettings.compress.thresholdPercent
-    const trigger = Math.floor((inputRoom * thresholdPercent) / 100)
-    const keepBudget = Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER)
     // The trigger/keep budgets above belong to the REQUEST model (they describe
     // the chat history it must fit), but the summarize call is issued against
     // the compressor, so its own budget must come from the compressor's window.

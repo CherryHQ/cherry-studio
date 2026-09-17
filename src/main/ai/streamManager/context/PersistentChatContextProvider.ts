@@ -13,7 +13,8 @@ import { ContextPrompts, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import { COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN, CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
+import { COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN } from '@main/ai/constants'
+import { resolveCompactionBudgets } from '@main/ai/contextBuild/resolveCompactionBudgets'
 import { resolveSummarizeBudget } from '@main/ai/contextBuild/resolveSummarizeBudget'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
@@ -36,7 +37,6 @@ import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
-import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
 import { resolveOutputReservation } from '../../contextBuild/resolveOutputReservation'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
 import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
@@ -966,16 +966,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       logger.warn('no model declares a contextWindow — skipping durable compaction for this request', { topicId })
       return serve(effective)
     }
-    // Apply a safety margin to the declared window so compaction triggers
-    // earlier when the provider's real limit is smaller than the model's
-    // declared contextWindow (common for third-party models/channels).
-    const effectiveContextWindow = Math.floor(minContextWindow * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN)
-    // Against the room the PROMPT actually has: whatever this request declares
-    // as max_tokens is billed alongside the input, so it is not history's to use.
-    const inputRoom = resolveInputRoom(effectiveContextWindow, resolveOutputReservation(assistantId, models))
     const thresholdPercent = contextSettings.compress.thresholdPercent
-    const trigger = Math.floor((inputRoom * thresholdPercent) / 100)
-    const keepBudget = Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER)
+    // Shared with the in-loop lane: margined window → input room → trigger → keep.
+    const { effectiveContextWindow, inputRoom, trigger, keepBudget } = resolveCompactionBudgets(
+      minContextWindow,
+      resolveOutputReservation(assistantId, models),
+      thresholdPercent
+    )
     // Selects the media cost tables only; text stays on tokenx, matching the
     // in-loop hook so the two triggers cannot disagree on the same history.
     const dialect = resolveRowDialect(models[0])

@@ -1027,81 +1027,8 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   it('5. over-budget by anchor → contextTokens base tips total over threshold', async () => {
-    // Context window = 4000; effective = floor(4000 * 0.9) = 3600; trigger = floor(3600 * 0.8) = 2880.
-    // a1 carries contextTokens = 3150 (just below 2880... wait, 3150 > 2880, so a1 alone exceeds trigger).
-    // Use contextTokens = 2800 (just below 2880). The new user row u2 has
-    // a tiny text (~5 tokens), so anchor+tail = 2800 + ~5 = ~2805... still under. Use 2870.
-    //
-    // Actually: contextTokens = 2870, u2 text = 'question '.repeat(10) ≈ 10 tokens
-    // → estimate = 2870 + 10 = 2880. Not strictly over (<= is a no-op). Use 2875 + a bit more.
-    //
-    // Use contextTokens = 2875, u2 = 'question '.repeat(10) ≈ 10 tokens → 2885 > 2880. Triggers.
-    // Full-tokenx on these tiny parts alone: a1 text = 'ok' (~1 tok) + u2 (~10 tok) = ~11 tok < 2880 → would NOT trigger.
-    //
-    // keepBudget = floor(3600 * 0.3) = 1080. planKeepBoundary over [a1(~1), u2(~10)] with budget=1080
-    // → all fit (acc=11≤1080), keepStart=1 (u2 is user at idx 1), keepIdx=1 → boundary = recent[0] = a1 → null (keepStart===0 would be null but here keepIdx=1 is fine).
-    // Wait: recent = rows after marker (no marker, d=-1) = [u1_row? No — no marker]. Let me recalculate:
-    // rows = [u1, a1, u2]. effective = same (no marker). d = -1. recent = rows.slice(0) = [u1, a1, u2].
-    // planKeepBoundary([u1,a1,u2], 1080): walk from tail: u2(~10)≤1080→keepStart=2; a1(~1)→11; u1(~10)→21≤1080→keepStart=0 (u1 is user).
-    // keepStart=0 → returns null → no compaction. Hmm, keepStart===0 returns null.
-    //
-    // Fix: add more rows so the kept portion doesn't reach index 0.
-    // [u1, a1(contextTokens=2875), u2, a2, u3]. effective = all 5.
-    // estimateContext: find rightmost assistant with contextTokens → a1 at idx 1.
-    // base=2875, tail = estimate(u2)+estimate(a2)+estimate(u3) = ~10+~5+~5 = ~20 → 2895 > 2880. Triggers.
-    // Full-tokenx: ~10+~5+~10+~5+~5 = ~35 < 2880. Would NOT trigger. ✓
-    //
-    // planKeepBoundary([u1,a1,u2,a2,u3], 1080): walk from tail:
-    //   u3(~5)→5, keepStart=4; a2(~5)→10; u2(~10)→20, keepStart=2; a1(~5)→25; u1(~10)→35 ≤1080, keepStart=0.
-    //   keepStart=0 → null → no compaction via boundary. Hmm.
-    //
-    // Need bigger tail tokens so budget is exceeded before reaching idx 0.
-    // Use MED = 'word '.repeat(300) ≈ 300 tokens. [u1, a1(ctx=2875), u2(MED), a2(MED), u3(MED)].
-    // Full-tokenx: a1_text=~5, u1=~5, u2=300, a2=300, u3=300 → ~910 < 2880. Would NOT trigger.
-    // estimateContext: anchor=a1(idx=1), base=2875, tail=u2(300)+a2(300)+u3(300)=900 → 3775 > 2880. Triggers. ✓
-    // keepBudget=1080. planKeepBoundary: walk from tail: u3(300)→300,ks=4; a2(300)→600; u2(300)→900,ks=2; a1(~5)→905; u1(~5)→910 ≤1080 → ks=0 → null.
-    //
-    // Still null. Use window=10000. effective=9000, trigger=7200, keep=2700.
-    // a1 ctx=7100, u2=MED(300), a2=MED(300), u3=MED(300). tail=900→8000>7200. Triggers.
-    // Full-tokenx: ~5+5+300+300+300=910 < 7200. Would NOT trigger. ✓
-    // keepBudget=2700. walk: u3(300)→300,ks=4; a2(300)→600; u2(300)→900,ks=2; a1(5)→905; u1(5)→910 ≤2700 → ks=0→null. Still null.
-    //
-    // The issue is all rows fit in budget. Need the tail alone to exceed keepBudget.
-    // Use LARGE = 'word '.repeat(2000) ≈ 2000 tokens. window=10000, effective=9000, keep=2700.
-    // [u1(LARGE), a1(ctx=7100), u2(LARGE), a2(LARGE), u3(LARGE)].
-    // estimateContext: base=7100, tail=u2(2000)+a2(2000)+u3(2000)=6000 → 13100>7200. Triggers.
-    // Full-tokenx: u1(2000)+a1(~5)+u2(2000)+a2(2000)+u3(2000)=~8005 > 7200 too. Would also trigger! Bad.
-    //
-    // The requirement: full-tokenx alone would NOT cross threshold, but anchor+delta does.
-    // So: anchor brings in historical real usage that tokenx would never see.
-    // Use a1 small text ('ok'), contextTokens=7100, u2=tiny, a2=tiny, u3=tiny.
-    // Full-tokenx: all tiny = ~15 tok < 7200. Would NOT trigger. ✓
-    // estimateContext: 7100 + ~10 = ~7110 > 7200? No 7110 < 7200.
-    // Use contextTokens=7190 directly? No, that alone exceeds threshold with empty tail.
-    // threshold=7200. contextTokens=7190, tail=u2(20tok)+a2(5tok)+u3(5tok)=30 → 7220>7200. Triggers!
-    // Full-tokenx: a1(~1)+u1(~1)+u2(~20)+a2(~5)+u3(~5)=~32 < 7200. Would NOT. ✓
-    // keepBudget=2700. walk: u3(5)→5,ks=4; a2(5)→10; u2(20)→30,ks=2; a1(1)→31; u1(1)→32 ≤2700 → ks=0→null.
-    //
-    // Still null! The problem is with only tiny messages, keep boundary always includes everything.
-    // I need keepIdx !== null, which requires the budget to be exceeded before reaching index 0.
-    // Use [u1(BIG=500), a1(ctx=7190,text=tiny), u2(tiny=20tok), a2(tiny), u3(tiny)].
-    // keepBudget=2700. walk: u3(5)+a2(5)+u2(20)+a1(1)→31+u1(500)=531 ≤2700 → ks=0→null. Still null.
-    //
-    // Use window=1000. effective=900, trigger=720, keep=270.
-    // [u1(BIG=300tok), a1(ctx=790,text=tiny=1), u2(BIG=300), a2(BIG=300), u3(BIG=300)].
-    // Full-tokenx: 300+1+300+300+300=1201 > 720. Would also trigger!
-    //
-    // The cleanest approach: use small text for u1 and a1 (so full-tokenx misses), but
-    // LARGE text for u2/a2/u3 (so keepBudget is exceeded and boundary is found at u2).
-    // window=10000, effective=9000, trigger=7200, keep=2700.
-    // a1 contextTokens=7100 (real prior usage, huge), text=tiny.
-    // u1=tiny. u2='word '.repeat(2000)=2000tok. a2='word '.repeat(2000). u3='word '.repeat(1000).
-    // estimateContext: base=7100, tail=u2(2000)+a2(2000)+u3(1000)=5000 → 12100>7200. Triggers.
-    // Full-tokenx: u1(~1)+a1(~1)+u2(2000)+a2(2000)+u3(1000)=~5002 < 7200. Would NOT. ✓
-    // keepBudget=floor(9000*0.3)=2700. walk from tail: u3(1000)→1000,ks=4; a2(2000)→3000; u2(2000)→5000>2700 → stop.
-    // keepStart=4, keepIdx=4 (not null, not 0). boundary=recent[3]=a2. ✓ (test asserts only that it triggered)
-    // NOTE: the derivation lines above predate KEEP_BUDGET_RATIO=0.3 (they show the old 0.5 math); the fixture still
-    // triggers under 0.3 — only the boundary moved a1→a2, which this test does not assert.
+    // Anchor carries real prior usage tokenx cannot see, so anchor+tail crosses
+    // the trigger while full-tokenx alone would not; the large tail also finds a keep boundary.
 
     const MED = 'word '.repeat(2000)
     const TRAIL = 'word '.repeat(1000)
