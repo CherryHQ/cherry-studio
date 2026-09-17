@@ -557,7 +557,7 @@ describe('CodeCliPage', () => {
     mockProviders.splice(0, mockProviders.length, provider)
     providersLoadingState.value = false
     unsupportedProviderIds.clear()
-    mockPreferenceState.set('ui.sidebar.favorites', normalizeSidebarShortcutItems([]))
+    mockPreferenceState.set('ui.sidebar_shortcut', normalizeSidebarShortcutItems([]))
     gatewayState.bundle = null
     gatewayState.defaultModelId = undefined
     gatewayState.modelsById.clear()
@@ -598,7 +598,7 @@ describe('CodeCliPage', () => {
     await user.click(screen.getByTestId(`popup-code-cli.toggle-sidebar.${CodeCli.CLAUDE_CODE}`))
 
     await waitFor(() =>
-      expect(mockPreferenceState.get('ui.sidebar.favorites')).toContainEqual(
+      expect(mockPreferenceState.get('ui.sidebar_shortcut')).toContainEqual(
         expect.objectContaining({
           target: {
             kind: 'resource',
@@ -629,7 +629,7 @@ describe('CodeCliPage', () => {
 
   it('keeps an uninstalled pinned Gemini CLI reachable from its sidebar deep link', () => {
     mockPreferenceState.set(
-      'ui.sidebar.favorites',
+      'ui.sidebar_shortcut',
       addSidebarShortcut(normalizeSidebarShortcutItems([]), {
         kind: 'resource',
         locator: { providerId: 'core.code-cli', resourceId: CodeCli.GEMINI_CLI }

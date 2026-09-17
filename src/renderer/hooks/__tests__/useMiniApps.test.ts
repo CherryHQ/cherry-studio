@@ -501,7 +501,7 @@ describe('useMiniApps', () => {
     it('should remove deleted custom miniapps from sidebar favorites', async () => {
       const trigger = vi.fn().mockResolvedValue(undefined)
       MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
-      MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [
+      MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut', [
         sidebarShortcut('core.app', 'assistants'),
         sidebarShortcut('core.mini-app', 'custom-app'),
         sidebarShortcut('core.mini-app', 'other-app')
@@ -514,7 +514,7 @@ describe('useMiniApps', () => {
       })
 
       expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
-      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar_shortcut')).toEqual([
         sidebarShortcut('core.app', 'assistants'),
         sidebarShortcut('core.mini-app', 'other-app')
       ])

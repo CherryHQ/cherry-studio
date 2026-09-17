@@ -376,7 +376,7 @@ export function isSidebarShortcutPinned(
 // The launchpad orders its built-in app tiles through its own preference
 // (`ui.launchpad.app_order`), completely independent of the sidebar favorites
 // order. Mini app tiles are ordered by their global `orderKey` instead, so the
-// launchpad never reads or writes `ui.sidebar.favorites`.
+// launchpad never reads or writes `ui.sidebar_shortcut`.
 
 /**
  * The ordered launchpad app ids. Stored order is filtered to valid app ids and

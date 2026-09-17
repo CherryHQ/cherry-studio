@@ -1609,7 +1609,7 @@ describe('Topics', () => {
   })
 
   it('adds a topic shortcut without changing its conversation pin', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut' as never, [])
     const { getByText } = renderTopicList()
 
     fireEvent.contextMenu(getByText('Alpha topic'))
@@ -1618,7 +1618,7 @@ describe('Topics', () => {
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Add to sidebar' }))
 
     await vi.waitFor(() =>
-      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar_shortcut' as never)).toEqual([
         { ...sidebarShortcut('core.topic', 'topic-a'), fallbackLabel: 'Alpha topic' }
       ])
     )
@@ -3585,7 +3585,7 @@ describe('Topics', () => {
 
   it('keeps repeated add commands pinned with the assistant name', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut' as never, [])
 
     renderTopicList()
 
@@ -3599,7 +3599,7 @@ describe('Topics', () => {
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Add to sidebar' }))
 
     await vi.waitFor(() =>
-      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar_shortcut' as never)).toEqual([
         { ...sidebarShortcut('core.assistant', 'assistant-1'), fallbackLabel: 'Alpha Assistant' }
       ])
     )
@@ -3607,7 +3607,7 @@ describe('Topics', () => {
 
   it('unpins an already pinned assistant from the assistant group menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites' as never, [
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut' as never, [
       sidebarShortcut('core.assistant', 'assistant-1')
     ])
 
@@ -3620,7 +3620,7 @@ describe('Topics', () => {
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Remove from sidebar' }))
 
     await vi.waitFor(() =>
-      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([])
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar_shortcut' as never)).toEqual([])
     )
   })
 

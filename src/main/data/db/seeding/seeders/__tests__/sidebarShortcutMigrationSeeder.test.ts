@@ -3,21 +3,29 @@ import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
+import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { preferenceTable } from '@data/db/schemas/preference'
+import { seeders } from '@data/db/seeding/seederRegistry'
 import { SidebarShortcutMigrationSeeder } from '@data/db/seeding/seeders/sidebarShortcutMigrationSeeder'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 describe('SidebarShortcutMigrationSeeder', () => {
   const dbh = setupTestDatabase()
 
-  function readFavorites(): unknown {
+  const preferenceSeeders = seeders.filter((seeder) =>
+    ['sidebar-shortcut-migration', 'preference'].includes(seeder.name)
+  )
+
+  function readPreference(key = 'ui.sidebar_shortcut'): unknown {
     return dbh.db
       .select({ value: preferenceTable.value })
       .from(preferenceTable)
-      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'ui.sidebar.favorites')))
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))
       .get()?.value
   }
 
@@ -50,9 +58,10 @@ describe('SidebarShortcutMigrationSeeder', () => {
       })
       .run()
 
-    const seeder = new SidebarShortcutMigrationSeeder()
-    seeder.run(dbh.db)
-    const first = readFavorites()
+    const original = dbh.db.select().from(preferenceTable).all()
+    const runner = new SeedRunner(dbh.db)
+    runner.runAll(preferenceSeeders)
+    const first = readPreference()
 
     expect(first).toEqual([
       expect.objectContaining({
@@ -72,8 +81,11 @@ describe('SidebarShortcutMigrationSeeder', () => {
       })
     ])
 
-    seeder.run(dbh.db)
-    expect(readFavorites()).toEqual(first)
+    runner.runAll(preferenceSeeders)
+    expect(readPreference()).toEqual(first)
+    expect(dbh.db.select().from(preferenceTable).where(eq(preferenceTable.key, 'ui.sidebar.favorites')).all()).toEqual(
+      original
+    )
   })
 
   it('migrates mixed values without dropping new or future items', () => {
@@ -95,12 +107,76 @@ describe('SidebarShortcutMigrationSeeder', () => {
 
     new SidebarShortcutMigrationSeeder().run(dbh.db)
 
-    expect(readFavorites()).toEqual([
+    expect(readPreference()).toEqual([
       shortcut,
       expect.objectContaining({
         target: expect.objectContaining({ locator: { providerId: 'core.app', resourceId: 'agents' } })
       }),
       future
     ])
+  })
+
+  it('preserves an intentionally empty legacy sidebar instead of seeding shortcut defaults', () => {
+    dbh.db.insert(preferenceTable).values({ key: 'ui.sidebar.favorites', value: [] }).run()
+
+    new SeedRunner(dbh.db).runAll(preferenceSeeders)
+
+    expect(readPreference()).toEqual([])
+    expect(readPreference('ui.sidebar.favorites')).toEqual([])
+  })
+
+  it('seeds independent old and new defaults on a fresh installation', () => {
+    new SeedRunner(dbh.db).runAll(preferenceSeeders)
+
+    expect(readPreference('ui.sidebar.favorites')).toEqual(DefaultPreferences.default['ui.sidebar.favorites'])
+    expect(readPreference()).toEqual(DefaultPreferences.default['ui.sidebar_shortcut'])
+  })
+
+  it.each([
+    { existing: [] },
+    {
+      existing: [
+        {
+          type: 'shortcut',
+          id: 'sidebar-shortcut:core.app:translate',
+          target: {
+            kind: 'resource',
+            locator: { providerId: 'core.app', resourceId: 'translate' }
+          }
+        }
+      ]
+    }
+  ])('never overwrites an existing shortcut preference: $existing', ({ existing }) => {
+    const legacy = [{ type: 'app', id: 'agents' }]
+    dbh.db
+      .insert(preferenceTable)
+      .values([
+        { key: 'ui.sidebar.favorites', value: legacy },
+        { key: 'ui.sidebar_shortcut', value: existing }
+      ])
+      .run()
+
+    new SidebarShortcutMigrationSeeder().run(dbh.db)
+
+    expect(readPreference()).toEqual(existing)
+    expect(readPreference('ui.sidebar.favorites')).toEqual(legacy)
+  })
+
+  it('copies shortcut-only data from a previous development revision without changing its source', () => {
+    const target: SidebarShortcutTarget = {
+      kind: 'resource',
+      locator: { providerId: 'core.topic', resourceId: 'topic-1' }
+    }
+    const shortcuts = [{ type: 'shortcut', id: createSidebarShortcutId(target), target }]
+    dbh.db.insert(preferenceTable).values({ key: 'ui.sidebar.favorites', value: shortcuts }).run()
+    dbh.db
+      .insert(appStateTable)
+      .values({ key: 'seed:sidebar-shortcut-migration', value: { version: '1' } })
+      .run()
+
+    new SeedRunner(dbh.db).runAll(preferenceSeeders)
+
+    expect(readPreference()).toEqual(shortcuts)
+    expect(readPreference('ui.sidebar.favorites')).toEqual(shortcuts)
   })
 })

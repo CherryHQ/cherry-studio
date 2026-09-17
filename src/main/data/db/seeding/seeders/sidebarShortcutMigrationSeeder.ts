@@ -13,6 +13,7 @@ import {
 import type { DbType, ISeeder } from '../../types'
 
 const SIDEBAR_FAVORITES_KEY = 'ui.sidebar.favorites'
+const SIDEBAR_SHORTCUT_KEY = 'ui.sidebar_shortcut'
 const LEGACY_PROVIDER_BY_TYPE = {
   app: 'core.app',
   mini_app: 'core.mini-app',
@@ -48,10 +49,17 @@ function createShortcut(target: SidebarShortcutTarget, fallbackLabel?: string): 
 
 export class SidebarShortcutMigrationSeeder implements ISeeder {
   readonly name = 'sidebar-shortcut-migration'
-  readonly version = '1'
-  readonly description = 'Migrate legacy sidebar favorites to resource shortcuts'
+  readonly version = '2'
+  readonly description = 'Copy legacy sidebar favorites to a separate resource shortcut preference'
 
   run(db: DbType): void {
+    const existing = db
+      .select({ key: preferenceTable.key })
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, SIDEBAR_SHORTCUT_KEY)))
+      .get()
+    if (existing) return
+
     const [row] = db
       .select({ value: preferenceTable.value })
       .from(preferenceTable)
@@ -64,7 +72,6 @@ export class SidebarShortcutMigrationSeeder implements ISeeder {
         isRecord(value) && typeof value.type === 'string' && value.type in LEGACY_PROVIDER_BY_TYPE ? [value.type] : []
       )
     )
-    if (legacyTypes.size === 0) return
 
     const names = new Map<string, string>()
     if (legacyTypes.has('mini_app')) {
@@ -83,13 +90,11 @@ export class SidebarShortcutMigrationSeeder implements ISeeder {
       }
     }
 
-    let changed = false
     const seen = new Set<string>()
     const migrated: unknown[] = []
 
     for (const value of row.value) {
       if (!isRecord(value)) {
-        changed = true
         continue
       }
 
@@ -102,7 +107,6 @@ export class SidebarShortcutMigrationSeeder implements ISeeder {
         )
         identity = shortcut.id
         next = shortcut
-        changed ||= value.id !== shortcut.id
       } else if (
         typeof value.type === 'string' &&
         value.type in LEGACY_PROVIDER_BY_TYPE &&
@@ -116,26 +120,22 @@ export class SidebarShortcutMigrationSeeder implements ISeeder {
         }
         next = createShortcut(target, names.get(`${legacyType}:${value.id}`))
         identity = createSidebarShortcutId(target)
-        changed = true
       } else if (typeof value.type === 'string' && typeof value.id === 'string' && value.id.length > 0) {
         identity = `${value.type}:${value.id}`
       } else {
-        changed = true
         continue
       }
 
       if (identity && seen.has(identity)) {
-        changed = true
         continue
       }
       if (identity) seen.add(identity)
       migrated.push(next)
     }
 
-    if (!changed) return
-    db.update(preferenceTable)
-      .set({ value: migrated })
-      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, SIDEBAR_FAVORITES_KEY)))
+    db.insert(preferenceTable)
+      .values({ scope: 'default', key: SIDEBAR_SHORTCUT_KEY, value: migrated })
+      .onConflictDoNothing()
       .run()
   }
 }

@@ -374,7 +374,7 @@ describe('LaunchpadPage', () => {
     })
 
     // The launchpad persists mini app order to the shared order key (independent of
-    // the sidebar favorites), never writing `ui.sidebar.favorites`.
+    // the sidebar favorites), never writing `ui.sidebar_shortcut`.
     expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('pinned', [
       expect.objectContaining({ appId: 'docs' }),
       expect.objectContaining({ appId: 'calculator' })

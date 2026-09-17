@@ -203,6 +203,19 @@
     },
     {
       "targetKey": "ui.sidebar.favorites",
+      "type": "PreferenceTypes.SidebarFavoriteItem[]",
+      "defaultValue": [
+        { "id": "agents", "type": "app" },
+        { "id": "assistants", "type": "app" },
+        { "id": "translate", "type": "app" },
+        { "id": "paintings", "type": "app" },
+        { "id": "knowledge", "type": "app" }
+      ],
+      "status": "classified",
+      "description": "Legacy sidebar favorites, preserved as the source for shortcut migration"
+    },
+    {
+      "targetKey": "ui.sidebar_shortcut",
       "type": "PreferenceTypes.SidebarShortcutItem[]",
       "defaultValue": [
         {

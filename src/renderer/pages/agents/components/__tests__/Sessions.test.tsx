@@ -2052,7 +2052,7 @@ describe('Sessions', () => {
   })
 
   it('adds a session shortcut without changing its task pin', async () => {
-    preferenceMocks.values.set('ui.sidebar.favorites', [])
+    preferenceMocks.values.set('ui.sidebar_shortcut', [])
     render(<SessionsForTest />)
 
     fireEvent.contextMenu(screen.getByText('Alpha session'))
@@ -2061,7 +2061,7 @@ describe('Sessions', () => {
     fireEvent.click(within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Add to sidebar' }))
 
     await vi.waitFor(() =>
-      expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([
+      expect(preferenceMocks.values.get('ui.sidebar_shortcut')).toEqual([
         { ...sidebarShortcut('core.agent-session', 'session-a'), fallbackLabel: 'Alpha session' }
       ])
     )
@@ -3646,7 +3646,7 @@ describe('Sessions', () => {
 
   it('pins an agent to the sidebar from the agent group menu', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    preferenceMocks.values.set('ui.sidebar.favorites', [])
+    preferenceMocks.values.set('ui.sidebar_shortcut', [])
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
       isLoading: false,
@@ -3669,7 +3669,7 @@ describe('Sessions', () => {
     fireEvent.click(pinMenuItem as HTMLElement)
 
     await vi.waitFor(() =>
-      expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([
+      expect(preferenceMocks.values.get('ui.sidebar_shortcut')).toEqual([
         { ...sidebarShortcut('core.agent', 'agent-a'), fallbackLabel: 'Alpha agent' }
       ])
     )
@@ -3677,7 +3677,7 @@ describe('Sessions', () => {
 
   it('unpins an already pinned agent from the agent group menu', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    preferenceMocks.values.set('ui.sidebar.favorites', [sidebarShortcut('core.agent', 'agent-a')])
+    preferenceMocks.values.set('ui.sidebar_shortcut', [sidebarShortcut('core.agent', 'agent-a')])
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
       isLoading: false,
@@ -3699,7 +3699,7 @@ describe('Sessions', () => {
 
     fireEvent.click(unpinMenuItem as HTMLElement)
 
-    await vi.waitFor(() => expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([]))
+    await vi.waitFor(() => expect(preferenceMocks.values.get('ui.sidebar_shortcut')).toEqual([]))
   })
 
   it('deletes an agent from the agent group menu', async () => {

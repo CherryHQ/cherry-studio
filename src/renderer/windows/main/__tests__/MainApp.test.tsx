@@ -99,7 +99,7 @@ describe('MainWindowContent', () => {
 
   it('passes the first visible sidebar app as the startup landing tab', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [appShortcut('agents'), appShortcut('translate')])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut', [appShortcut('agents'), appShortcut('translate')])
     MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
 
     render(<MainWindowContent />)
@@ -109,7 +109,7 @@ describe('MainWindowContent', () => {
 
   it('falls back to launchpad when no sidebar app is visible', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut', [])
     MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
 
     render(<MainWindowContent />)

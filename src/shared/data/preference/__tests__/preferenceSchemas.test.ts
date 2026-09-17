@@ -41,8 +41,17 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
   })
 
-  it('defaults sidebar favorites to Agent before Chat for new users', () => {
-    const sidebarFavoritesDefault: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
+  it('preserves the legacy favorites shape independently of resource shortcut defaults', () => {
+    const legacyFavorites: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
+      { type: 'app', id: 'agents' },
+      { type: 'app', id: 'assistants' },
+      { type: 'app', id: 'translate' },
+      { type: 'app', id: 'paintings' },
+      { type: 'app', id: 'knowledge' }
+    ]
+    expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(legacyFavorites)
+
+    const sidebarShortcutsDefault: PreferenceSchemas['default']['ui.sidebar_shortcut'] = [
       'agents',
       'assistants',
       'translate',
@@ -56,7 +65,7 @@ describe('DefaultPreferences', () => {
       return { type: 'shortcut', id: createSidebarShortcutId(target), target }
     })
 
-    expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
+    expect(DefaultPreferences.default['ui.sidebar_shortcut']).toEqual(sidebarShortcutsDefault)
   })
 
   it('pins permission mode on the agent composer toolbar for new users', () => {

@@ -1065,14 +1065,14 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
 
     await waitFor(() =>
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar_shortcut', [
         sidebarShortcut('core.agent', 'agent-1', 'Agent 1')
       ])
     )
   })
 
   it('toggles an already-pinned agent out of the sidebar from the classic rail context menu', async () => {
-    preferenceMocks.values.set('ui.sidebar.favorites', [sidebarShortcut('core.agent', 'agent-1')])
+    preferenceMocks.values.set('ui.sidebar_shortcut', [sidebarShortcut('core.agent', 'agent-1')])
 
     render(
       <AgentResourceList
@@ -1089,7 +1089,7 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
 
-    await waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', []))
+    await waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar_shortcut', []))
   })
 
   it('offers toggling an assistant into the sidebar from the classic rail context menu', async () => {
@@ -1103,14 +1103,14 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
 
     await waitFor(() =>
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar_shortcut', [
         sidebarShortcut('core.assistant', 'assistant-1', 'Assistant 1')
       ])
     )
   })
 
   it('toggles an already-pinned assistant out of the sidebar from the classic rail context menu', async () => {
-    preferenceMocks.values.set('ui.sidebar.favorites', [sidebarShortcut('core.assistant', 'assistant-1')])
+    preferenceMocks.values.set('ui.sidebar_shortcut', [sidebarShortcut('core.assistant', 'assistant-1')])
 
     render(
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
@@ -1121,6 +1121,6 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
 
-    await waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', []))
+    await waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar_shortcut', []))
   })
 })

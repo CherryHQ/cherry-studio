@@ -128,8 +128,14 @@ export type SidebarFavorite = (typeof SIDEBAR_FAVORITES)[number]
  * Leaf items are stored as tagged objects, not bare ids. Keep the `type` values,
  * id semantics, and one ordered heterogeneous top-level array stable: a future
  * `group` variant can then be added as another top-level item without migrating
- * existing flat shortcut values.
+ * existing flat `SidebarFavoriteItem[]` values.
  */
+export type SidebarFavoriteItem =
+  | { type: 'app'; id: SidebarFavorite }
+  | { type: 'mini_app'; id: string }
+  | { type: 'agent'; id: string }
+  | { type: 'assistant'; id: string }
+
 export interface ResourceLocator {
   providerId: string
   resourceId: string

@@ -63,7 +63,7 @@ const mocks = vi.hoisted(() => ({
   tabs: [] as Tab[],
   preferenceValues: {
     'app.user.name': 'JD',
-    'ui.sidebar.favorites': [
+    'ui.sidebar_shortcut': [
       { type: 'app', id: 'assistants' },
       { type: 'app', id: 'agents' },
       { type: 'app', id: 'translate' }
@@ -637,7 +637,7 @@ describe('GlobalSearchPanel', () => {
     mocks.sessionMessageQueryResult = undefined
     mocks.preferenceValues = {
       'app.user.name': 'JD',
-      'ui.sidebar.favorites': [
+      'ui.sidebar_shortcut': [
         { type: 'app', id: 'assistants' },
         { type: 'app', id: 'agents' },
         { type: 'app', id: 'translate' }

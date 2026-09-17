@@ -1,3 +1,4 @@
+import { createMockPreferenceService } from '@test-mocks/renderer/PreferenceService'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createSidebarShortcutId, type SidebarShortcutItem } from '@shared/data/preference/preferenceTypes'
@@ -18,6 +19,23 @@ function createClient(initial: SidebarShortcutItem[] = []) {
 }
 
 describe('SidebarShortcutService', () => {
+  it('writes shortcuts without reading or changing legacy favorites', async () => {
+    const legacy = [{ type: 'app', id: 'translate' }]
+    const preferences = createMockPreferenceService({
+      'ui.sidebar.favorites': legacy,
+      'ui.sidebar_shortcut': []
+    })
+    const service = new SidebarShortcutService(preferences)
+    const target = createSidebarShortcutTarget('core.agent', 'agent-1')
+
+    await service.setPinned(target, true)
+
+    expect(preferences.getCachedValue('ui.sidebar_shortcut')).toEqual([
+      { type: 'shortcut', id: createSidebarShortcutId(target), target }
+    ])
+    expect(preferences.getCachedValue('ui.sidebar.favorites')).toEqual(legacy)
+  })
+
   it('keeps repeated stale add intents pinned and repeated remove intents unpinned', async () => {
     const harness = createClient()
     const service = new SidebarShortcutService(harness.client)

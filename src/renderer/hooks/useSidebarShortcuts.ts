@@ -15,7 +15,7 @@ import { toast } from '../services/toast'
 
 export function useSidebarShortcuts() {
   const { t } = useTranslation()
-  const [stored] = usePreference('ui.sidebar.favorites')
+  const [stored] = usePreference('ui.sidebar_shortcut')
   const shortcuts = useMemo(() => getVisibleSidebarShortcutItems(stored), [stored])
   const normalized = useMemo(() => normalizeSidebarShortcutItems(stored), [stored])
   const needsNormalization = !isEqual(stored, normalized)
