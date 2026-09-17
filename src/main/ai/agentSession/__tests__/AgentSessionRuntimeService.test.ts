@@ -248,6 +248,10 @@ function createDeferred<T>() {
   return { promise, resolve, reject }
 }
 
+const hookShellEnv = Object.fromEntries(
+  Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+)
+
 describe('Agent Hook commands', () => {
   const sessions: AgentHookSession[] = []
   const windows = process.platform === 'win32'
@@ -269,11 +273,7 @@ describe('Agent Hook commands', () => {
   }
   beforeEach(() => {
     hooks = []
-    vi.spyOn(shellEnv, 'getShellEnv').mockResolvedValue(
-      Object.fromEntries(
-        Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
-      )
-    )
+    vi.spyOn(shellEnv, 'getShellEnv').mockResolvedValue(hookShellEnv)
     spawnSpy = vi.mocked(crossSpawn).mockClear()
   })
   afterEach(async () => {
@@ -607,13 +607,7 @@ describe('AgentSessionRuntimeService', () => {
         configuration: { env_vars: { HOOK_AGENT: id }, hooks: [{ ...rule, name: 'legacy', command: 'exit 9' }] }
       }))
       mocks.getSessionById.mockImplementation((id: string) => ({ id, workspace: { path: tmpdir() } }))
-      const envSpy = vi
-        .spyOn(shellEnv, 'getShellEnv')
-        .mockResolvedValue(
-          Object.fromEntries(
-            Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
-          )
-        )
+      const envSpy = vi.spyOn(shellEnv, 'getShellEnv').mockResolvedValue(hookShellEnv)
       const spawnSpy = vi.mocked(crossSpawn).mockClear()
       const service = new AgentSessionRuntimeService()
       try {
@@ -681,34 +675,21 @@ describe('AgentSessionRuntimeService', () => {
           listAvailableTools: vi.fn().mockResolvedValue([])
         })
         mocks.getAgent.mockReturnValue({ id: 'agent-1', type: runtime, model: baseTurnInput.modelId })
+        mocks.getSessionById.mockReturnValue({ id: 'session-1', workspace: { path: tmpdir() } })
+        MockMainPreferenceServiceUtils.setPreferenceValue('agent.hooks', [
+          {
+            id: randomUUID(),
+            name: 'slow-turn-end',
+            event: 'turnEnd',
+            enabled: true,
+            command: process.platform === 'win32' ? 'Start-Sleep -Seconds 30' : 'sleep 30',
+            timeoutMs: 60_000
+          }
+        ])
         const service = new AgentSessionRuntimeService()
-        const hooks = new AgentHookSession({
-          sessionId: 'session-1',
-          agentId: 'agent-1',
-          runtime,
-          getCwd: tmpdir,
-          getConfiguration: () => ({
-            hooks: [
-              {
-                id: randomUUID(),
-                name: 'slow-turn-end',
-                event: 'turnEnd',
-                enabled: true,
-                command: process.platform === 'win32' ? 'Start-Sleep -Seconds 30' : 'sleep 30',
-                timeoutMs: 60_000
-              }
-            ]
-          })
-        })
-        const envSpy = vi
-          .spyOn(shellEnv, 'getShellEnv')
-          .mockResolvedValue(
-            Object.fromEntries(
-              Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
-            )
-          )
+        const envSpy = vi.spyOn(shellEnv, 'getShellEnv').mockResolvedValue(hookShellEnv)
         const spawnSpy = vi.mocked(crossSpawn).mockClear()
-        const hookSpy = vi.spyOn(hooks, 'invoke')
+        const executeSpy = vi.spyOn(processRunner, 'executeCommand')
         try {
           const handle = service.beginTurn({ ...baseTurnInput, agentType: runtime })
           const reader = service
@@ -720,9 +701,6 @@ describe('AgentSessionRuntimeService', () => {
             .getReader()
           await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
           await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(1))
-          await (service as any).hookSessions.get(connection).close()
-          ;(service as any).hookSessions.set(connection, hooks)
-
           events.push({ type: 'turn-complete' })
           let completed = false
           const completion = reader.read().then((result) => {
@@ -754,7 +732,10 @@ describe('AgentSessionRuntimeService', () => {
             done: false
           })
           expect(connection.close).not.toHaveBeenCalled()
-          expect(hookSpy.mock.calls[0][0]).toEqual({ event: 'turnEnd', messageId: 'assistant-1' })
+          expect(JSON.parse(executeSpy.mock.calls[0][2]!.stdin!)).toMatchObject({
+            event: 'turnEnd',
+            messageId: 'assistant-1'
+          })
           expect(child.exitCode).toBeNull()
           expect(child.signalCode).toBeNull()
 
@@ -762,9 +743,8 @@ describe('AgentSessionRuntimeService', () => {
           expect(await processRunner.waitForProcessExit(child, 1000)).toBe(true)
         } finally {
           await service.closeSession('session-1')
-          await hooks.close()
           events.push({ type: 'turn-complete' })
-          hookSpy.mockRestore()
+          executeSpy.mockRestore()
           spawnSpy.mockClear()
           envSpy.mockRestore()
         }
@@ -802,13 +782,7 @@ describe('AgentSessionRuntimeService', () => {
           })
         })
         ;(service as any).hookSessions.set(connection, hooks)
-        const envSpy = vi
-          .spyOn(shellEnv, 'getShellEnv')
-          .mockResolvedValue(
-            Object.fromEntries(
-              Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
-            )
-          )
+        const envSpy = vi.spyOn(shellEnv, 'getShellEnv').mockResolvedValue(hookShellEnv)
         const spawnSpy = vi.mocked(crossSpawn).mockClear()
         const decisions: unknown[] = []
         const request = {

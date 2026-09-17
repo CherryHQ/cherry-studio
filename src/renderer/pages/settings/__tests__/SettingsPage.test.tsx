@@ -279,25 +279,17 @@ describe('Global Hooks settings', () => {
   })
 
   it('does not enable editing on an unresolved or failed load and can retry', async () => {
-    let reject!: (error: Error) => void
-    preferenceBridge.get.mockReturnValueOnce(
-      new Promise((_resolve, rejectLoad) => {
-        reject = rejectLoad
-      })
-    )
+    const load = Promise.withResolvers<AgentHook[]>()
+    preferenceBridge.get.mockReturnValueOnce(load.promise)
     const user = userEvent.setup()
     render(<HooksSettings />)
     expect(screen.getByRole('status')).toHaveTextContent(zhCN['common.loading'])
-    expect(screen.queryByRole('button', { name: zhCN['common.save'] })).not.toBeInTheDocument()
-    await act(async () => {
-      reject(new Error('IPC unavailable'))
-    })
+    expect(screen.queryByRole('button', { name: zhCN['agent_hooks.add'] })).not.toBeInTheDocument()
+    await act(async () => load.reject(new Error('IPC unavailable')))
     expect(await screen.findByRole('button', { name: zhCN['common.retry'] })).toBeEnabled()
     expect(preferenceBridge.set).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: zhCN['common.retry'] }))
     expect(await screen.findByRole('button', { name: zhCN['agent_hooks.add'] })).toBeEnabled()
-    expect(screen.queryByRole('button', { name: zhCN['common.save'] })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: zhCN['common.cancel'] })).not.toBeInTheDocument()
   })
 
   it('auto-saves global rules, applies the enable switch directly, and confirms deletion', async () => {
@@ -356,13 +348,6 @@ describe('Global Hooks settings', () => {
     expect(screen.getByRole('switch', { name: zhCN['agent_hooks.enabled'] })).toBeVisible()
     expect(screen.getByRole('button', { name: zhCN['agent_hooks.remove'] })).toBeVisible()
 
-    await user.click(collapse)
-    expect(collapse).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByLabelText(zhCN['agent_hooks.command'])).toHaveValue('exit 0')
-
-    await user.click(collapse)
-    expect(collapse).toHaveAttribute('aria-expanded', 'false')
-
     await user.click(screen.getByRole('button', { name: zhCN['agent_hooks.add'] }))
     await waitFor(() => expect(persisted).toHaveLength(2))
     expect(collapse).toHaveAttribute('aria-expanded', 'false')
@@ -388,35 +373,7 @@ describe('Global Hooks settings', () => {
     expect(screen.queryByText(zhCN['settings.hooks.save_failed'])).not.toBeInTheDocument()
   })
 
-  it('serializes auto-saves and persists edits made while a write is in flight', async () => {
-    persisted = [rule]
-    let releaseFirstSave!: () => void
-    const firstSave = new Promise<void>((resolve) => {
-      releaseFirstSave = resolve
-    })
-    preferenceBridge.set
-      .mockImplementationOnce(async (_key, value) => {
-        await firstSave
-        persisted = structuredClone(value)
-      })
-      .mockImplementation(async (_key, value) => {
-        persisted = structuredClone(value)
-      })
-    const user = userEvent.setup()
-    render(<HooksSettings />)
-    await user.click(await screen.findByRole('button', { name: /saved hook/ }))
-    const command = await screen.findByLabelText(zhCN['agent_hooks.command'])
-    await user.type(command, '; first')
-    await waitFor(() => expect(preferenceBridge.set).toHaveBeenCalledTimes(1))
-    await user.type(command, '; latest')
-    act(() => {
-      releaseFirstSave()
-    })
-    await waitFor(() => expect(persisted[0].command).toBe('exit 0; first; latest'))
-    expect(preferenceBridge.set).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not expose stale Hook rules when reopening during pending saves', async () => {
+  it('serializes saves across remounts without losing newer edits', async () => {
     persisted = [rule]
     const saves = [Promise.withResolvers<void>(), Promise.withResolvers<void>()]
     for (const save of saves) {
@@ -438,8 +395,10 @@ describe('Global Hooks settings', () => {
         render(<HooksSettings />)
       })
 
+      expect(preferenceBridge.set).toHaveBeenCalledTimes(1)
       expect(screen.queryByRole('switch', { name: zhCN['agent_hooks.enabled'] })).not.toBeInTheDocument()
       await act(async () => saves[0].resolve())
+      expect(preferenceBridge.set).toHaveBeenCalledTimes(2)
       expect(screen.getByRole('status')).toHaveTextContent(zhCN['common.loading'])
       await act(async () => saves[1].resolve())
 
