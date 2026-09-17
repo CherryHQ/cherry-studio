@@ -127,7 +127,7 @@ describe('agent session type backfill (migration 0024)', () => {
   })
 
   it('keeps a sentinel-prompted user schedule that is not in the reserved name space', () => {
-    seedSessions(['sess-user-schedule-sentinel'])
+    seedSessions(['sess-user-schedule-sentinel', 'sess-prefix-only'])
     // Pre-guard, a user could save a task whose prompt is the sentinel; both the
     // fire and its template then carry it. The name is what sync alone mints.
     seedRow({
@@ -137,10 +137,21 @@ describe('agent session type backfill (migration 0024)', () => {
       sessionId: 'sess-user-schedule-sentinel',
       schedulePrompt: '__heartbeat__'
     })
+    // Sharing the `heartbeat_` prefix is not the reserved shape: only `__<suffix>`
+    // marks the disambiguation sync mints.
+    seedRow({
+      id: 'user-schedule-prefix',
+      scheduleId: 'sched-user-prefix',
+      prompt: '__heartbeat__',
+      sessionId: 'sess-prefix-only',
+      schedulePrompt: '__heartbeat__',
+      scheduleName: 'heartbeat_agent-custom'
+    })
 
     dbh.sqlite.exec(readBackfillStatement())
 
     expect(typeOf('sess-user-schedule-sentinel')).toBe('conversation')
+    expect(typeOf('sess-prefix-only')).toBe('conversation')
   })
 
   it('keeps sessions a user task touched, including a sentinel-prompted legacy task', () => {
