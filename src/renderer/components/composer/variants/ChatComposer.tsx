@@ -1523,6 +1523,7 @@ const ChatComposerInner = ({
     retryFailed: retryFailedFollowup,
     skipFailed: skipFailedFollowup,
     drainingId: drainingFollowupId,
+    hasLiveSend: hasLiveFollowupSend,
     tryClaimSend: tryClaimFollowupSend,
     releaseSend: releaseFollowupSend
   } = useFollowupQueue({
@@ -1754,7 +1755,10 @@ const ChatComposerInner = ({
 
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
-      if (canSteer) {
+      // A queue send still in flight also queues: sending directly now would run concurrently with it.
+      // `drainingFollowupId` resets on remount, so also probe the durable claim — otherwise a
+      // remounted composer direct-sends while the previous instance's send is still pending.
+      if (canSteer || drainingFollowupId !== null || hasLiveFollowupSend()) {
         const followupResult = enqueueFollowup(draft, payload)
         if (followupResult !== 'ok') {
           toast.error(t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT }))
@@ -1783,9 +1787,11 @@ const ChatComposerInner = ({
       canSteer,
       clearCurrentDraft,
       commitEditedMessage,
+      drainingFollowupId,
       editingMessageForCurrentTopic,
       enqueueFollowup,
       handleModelSelect,
+      hasLiveFollowupSend,
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
