@@ -12,7 +12,7 @@ const state = vi.hoisted(() => ({ active: true }))
 
 vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => state.active }))
 
-function mount(editable = true) {
+function mount(editable = true, hasContent = false) {
   render(
     <CommandContextKeyProvider>
       <CommandProvider>
@@ -20,6 +20,7 @@ function mount(editable = true) {
         <ComposerFocusShortcut
           focus={() => screen.getByRole('textbox', { name: 'Message' }).focus()}
           editable={editable}
+          hasContent={hasContent}
         />
       </CommandProvider>
     </CommandContextKeyProvider>
@@ -59,6 +60,13 @@ describe('ComposerFocusShortcut', () => {
     const { input, user } = mount()
     await user.keyboard('{Control>}i{/Control}')
     expect(input).not.toHaveFocus()
+  })
+
+  it('keeps the focus shortcut active when a populated composer hides the hint', async () => {
+    const { input, user } = mount(true, true)
+    expect(screen.queryByText('Ctrl+I')).not.toBeInTheDocument()
+    await user.keyboard('{Control>}i{/Control}')
+    expect(input).toHaveFocus()
   })
 
   it.each(['disabled', 'readonly'])('hides the hint and ignores the shortcut when %s', async (mode) => {

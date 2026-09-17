@@ -2313,7 +2313,11 @@ export default function ComposerSurfaceRuntime({
               pasteHandling.setLastFocusedComponent('inputbar')
             }}
           />
-          <ComposerFocusShortcut focus={focusEditor} editable={editable} />
+          <ComposerFocusShortcut
+            focus={focusEditor}
+            editable={editable}
+            hasContent={text.length > 0 || tokens.length > 0 || Boolean(draftTokens?.length)}
+          />
         </div>
         {isCompact ? (
           <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1.5">
