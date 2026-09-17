@@ -150,6 +150,10 @@ describe('executeCommand', () => {
       { env: process.env, signal: controller.signal, result: 'structured' }
     )
     const child = vi.mocked(crossSpawn).mock.results[0].value
+    expect(vi.mocked(crossSpawn).mock.calls[0][2]).toMatchObject({
+      detached: process.platform !== 'win32',
+      windowsHide: true
+    })
     let port = ''
     child.stdout?.on('data', (chunk) => {
       port += chunk.toString()
