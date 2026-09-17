@@ -2,12 +2,11 @@ import { net } from 'electron'
 import * as z from 'zod'
 
 import { loggerService } from '@logger'
-import { isAbortError } from '@main/utils/error'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
 import { isHttpUrl } from '@shared/utils/url'
 
-import { fetchWebSearchContent } from '../../utils/fetchContent'
+import { fetchSearchResultContents } from '../../utils/fetchContent'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { UrlSearchContext } from '../base/context'
 
@@ -159,35 +158,10 @@ export class SearxngProvider extends BaseWebSearchProvider {
       })
     }
 
-    const settledResults = await Promise.allSettled(
-      validItems.map((item) => fetchWebSearchContent(item.url || '', { signal: context.signal }))
+    return fetchSearchResultContents(
+      validItems.map((item) => item.url || ''),
+      { query: context.query, providerLabel: 'Searxng', signal: context.signal }
     )
-
-    const rejectedResults = settledResults.filter((item): item is PromiseRejectedResult => item.status === 'rejected')
-
-    const abortResult = rejectedResults.find((item) => isAbortError(item.reason))
-
-    if (abortResult && context.signal?.aborted) {
-      throw abortResult.reason
-    }
-
-    if (rejectedResults.length > 0) {
-      logger.warn('Some Searxng content fetches failed', {
-        query: context.query,
-        failedCount: rejectedResults.length,
-        totalCount: validItems.length
-      })
-    }
-
-    const fulfilledResults = settledResults.filter(
-      (item): item is PromiseFulfilledResult<WebSearchResult> => item.status === 'fulfilled'
-    )
-
-    if (fulfilledResults.length === 0 && rejectedResults.length > 0) {
-      throw rejectedResults[0].reason
-    }
-
-    return fulfilledResults.map((item) => item.value).filter((item) => item.content.trim().length > 0)
   }
 
   private buildFinalResponse(context: SearxngSearchContext, fetchedResults: WebSearchResult[]): WebSearchResponse {
