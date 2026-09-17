@@ -1,10 +1,11 @@
 import { Bot, Check, Filter, Plus } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Alert, Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiIcon from '@renderer/components/EmojiIcon'
+import { AssistantPresetIcon } from '@renderer/components/resourceCatalog/AssistantPresetIcon'
 import {
   getResourceCreateDefaultAvatar,
   ResourceCreateWizard,
@@ -12,20 +13,26 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resourceCatalog/selectors'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { useAssistantPresetCreation } from '@renderer/hooks/resourceCatalog'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import { isNonChatModel } from '@shared/utils/model'
 
 const logger = loggerService.withContext('AssistantConversationPickerDialog')
 
-export type AssistantConversationSelection =
-  | { type: 'assistant'; assistantId: string }
+export type AssistantConversationSelection = { type: 'assistant'; assistantId: string }
+
+type AssistantConversationPickerSelection =
+  | AssistantConversationSelection
   | { type: 'catalog'; preset: AssistantCatalogPreset }
 
 type AssistantConversationPickerItem = ConversationPickerItem & {
-  selection: AssistantConversationSelection
+  selection: AssistantConversationPickerSelection
 }
 
 // The 助手库 catalog can hold hundreds of presets; render them a page at a time and grow on scroll.
@@ -52,11 +59,21 @@ export function AssistantConversationPickerDialog({
 }: AssistantConversationPickerDialogProps) {
   const { t } = useTranslation()
   const { presets, isLoading: catalogLoading } = useAssistantCatalogPresets({ enabled: open })
+  const {
+    createFromPreset,
+    isLoading: creationDependenciesLoading,
+    error: creationDependenciesError,
+    refetch: refetchCreationDependencies
+  } = useAssistantPresetCreation({ enabled: open })
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   // Seeded from the search query so creating after a fruitless search does not mean retyping the name.
   const [createInitialName, setCreateInitialName] = useState('')
   const [activeTab, setActiveTab] = useState<AssistantPickerTab | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
+  const [configuration, setConfiguration] = useState<{ presetName: string; providerId: string }>()
+  const [isCreatingPreset, setIsCreatingPreset] = useState(false)
+  const isCreatingPresetRef = useRef(false)
+  const creationDependenciesPending = !creationDependenciesError && creationDependenciesLoading
   const { trigger: createAssistant, isLoading: isCreatingAssistant } = useMutation('POST', '/assistants', {
     refresh: ['/assistants']
   })
@@ -84,7 +101,7 @@ export function AssistantConversationPickerDialog({
       presets.map((preset) => ({
         id: `catalog:${preset.id}`,
         name: preset.name,
-        icon: <EmojiIcon emoji={preset.emoji || '🤖'} size={24} fontSize={14} className="mr-0" />,
+        icon: <AssistantPresetIcon preset={preset} size={18} />,
         searchText: [preset.description, preset.prompt].filter(Boolean).join(' '),
         selection: { type: 'catalog' as const, preset }
       })),
@@ -98,14 +115,58 @@ export function AssistantConversationPickerDialog({
     [activeTab, catalogItems, myItems]
   )
 
-  // The picker closes itself before the caller runs its async work (avoids a refetch flash while the
-  // dialog is still mounted), so this just forwards the row's selection.
-  const handleSelect = useCallback((item: AssistantConversationPickerItem) => onSelect(item.selection), [onSelect])
+  useEffect(() => {
+    if (open) return
+    setConfiguration(undefined)
+  }, [open])
+
+  const handleSelect = useCallback(
+    async (item: AssistantConversationPickerItem) => {
+      if (isCreatingPresetRef.current) return
+      setConfiguration(undefined)
+      if (item.selection.type === 'assistant') return onSelect(item.selection)
+
+      isCreatingPresetRef.current = true
+      setIsCreatingPreset(true)
+      try {
+        const result = await createFromPreset(item.selection.preset)
+        if (result.status === 'configuration-required') {
+          setConfiguration({ presetName: item.selection.preset.name, providerId: result.providerId })
+          return
+        }
+        if (result.status === 'created') {
+          await onSelect({ type: 'assistant', assistantId: result.assistant.id })
+        }
+      } catch (error) {
+        logger.error('Failed to create assistant from catalog preset', error as Error)
+        toast.error(formatErrorMessageWithPrefix(error, t('library.assistant_catalog.add_failed')))
+      } finally {
+        isCreatingPresetRef.current = false
+        setIsCreatingPreset(false)
+      }
+    },
+    [createFromPreset, onSelect, t]
+  )
+
+  const handlePickerOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen && isCreatingPresetRef.current) return
+      onOpenChange(nextOpen)
+    },
+    [onOpenChange]
+  )
+
+  const handleConfigureProvider = useCallback(() => {
+    if (!configuration) return
+    onOpenChange(false)
+    openSettingsTab(`/settings/provider?id=${encodeURIComponent(configuration.providerId)}`)
+  }, [configuration, onOpenChange])
 
   // "New assistant" closes the picker and hands off to the shared create dialog, carrying whatever
   // the user had typed as the new assistant's name.
   const handleCreateNew = useCallback(
     (query: string) => {
+      if (isCreatingPresetRef.current) return
       setCreateInitialName(query)
       onOpenChange(false)
       setCreateDialogOpen(true)
@@ -138,12 +199,17 @@ export function AssistantConversationPickerDialog({
     { value: 'catalog', label: t('assistants.presets.title') }
   ]
   const toolbar = (
-    <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+    <Popover
+      open={filterOpen}
+      onOpenChange={(nextOpen) => {
+        if (!isCreatingPresetRef.current) setFilterOpen(nextOpen)
+      }}>
       <PopoverTrigger asChild>
         <button
           type="button"
+          disabled={isCreatingPreset}
           aria-label={t('selector.assistant.filter')}
-          className="group flex size-7 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent">
+          className="group flex size-7 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50">
           <Filter
             size={15}
             className={cn(
@@ -159,9 +225,11 @@ export function AssistantConversationPickerDialog({
             <MenuItem
               key={option.value ?? 'all'}
               label={option.label}
+              disabled={isCreatingPreset}
               className="h-8 rounded-lg px-2.5 text-sm"
               icon={<Check className={cn('size-3.5', activeTab === option.value ? 'opacity-100' : 'opacity-0')} />}
               onClick={() => {
+                if (isCreatingPresetRef.current) return
                 setActiveTab(option.value)
                 setFilterOpen(false)
               }}
@@ -171,12 +239,39 @@ export function AssistantConversationPickerDialog({
       </PopoverContent>
     </Popover>
   )
+  const notice = creationDependenciesError ? (
+    <Alert
+      type="error"
+      showIcon
+      message={t('common.error')}
+      description={creationDependenciesError.message}
+      action={
+        <Button variant="outline" size="sm" onClick={() => void refetchCreationDependencies()}>
+          {t('common.retry')}
+        </Button>
+      }
+      className="rounded-md px-3 py-2 shadow-none"
+    />
+  ) : configuration ? (
+    <Alert
+      type="warning"
+      showIcon
+      message={t('library.assistant_catalog.provider_required_title', { name: configuration.presetName })}
+      description={t('library.assistant_catalog.provider_required_description', { name: configuration.presetName })}
+      action={
+        <Button variant="outline" size="sm" onClick={handleConfigureProvider}>
+          {t('navigate.provider_settings')}
+        </Button>
+      }
+      className="rounded-md px-3 py-2 shadow-none"
+    />
+  ) : undefined
 
   return (
     <>
       <ConversationPickerDialog
         open={open}
-        onOpenChange={onOpenChange}
+        onOpenChange={handlePickerOpenChange}
         items={items}
         labels={{
           title: t('chat.add.assistant.title'),
@@ -186,6 +281,7 @@ export function AssistantConversationPickerDialog({
           loadingText: t('common.loading')
         }}
         toolbar={toolbar}
+        notice={notice}
         // The "新建助手" row stays unless the user filters to 助手库-only (browse-only presets).
         createAction={
           activeTab === 'catalog'
@@ -213,11 +309,12 @@ export function AssistantConversationPickerDialog({
         }
         pageSize={ASSISTANT_CATALOG_PAGE_SIZE}
         isLoading={
-          activeTab === 'catalog'
-            ? catalogLoading
+          isCreatingPreset ||
+          (activeTab === 'catalog'
+            ? catalogLoading || creationDependenciesPending
             : activeTab === 'mine'
               ? assistantsLoading
-              : assistantsLoading || catalogLoading
+              : assistantsLoading || catalogLoading || creationDependenciesPending)
         }
         showCloseButton={false}
         onSelect={handleSelect}

@@ -1,3 +1,4 @@
+import type { OfficialAssistantVendor } from '@renderer/utils/resourceCatalog'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { createUniqueModelId } from '@shared/data/types/model'
 
@@ -20,6 +21,7 @@ export interface AssistantCatalogPreset {
   emoji?: string
   group?: string[]
   defaultModel?: AssistantCatalogModel
+  officialVendor?: OfficialAssistantVendor
 }
 
 export interface AssistantCatalogTab {

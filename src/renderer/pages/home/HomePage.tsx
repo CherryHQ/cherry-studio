@@ -27,7 +27,6 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useAssistants } from '@renderer/hooks/useAssistant'
-import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest'
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
@@ -125,8 +124,7 @@ const HomePage: FC = () => {
     assistants,
     hasLoaded: hasAssistantsLoaded,
     isLoading: isAssistantsLoading,
-    isRefreshing: isAssistantsRefreshing,
-    addAssistant
+    isRefreshing: isAssistantsRefreshing
   } = useAssistants()
   const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
   const validLastUsedAssistantId =
@@ -353,21 +351,6 @@ const HomePage: FC = () => {
     [requestComposerFocus, setActiveTopicAndCloseResourceView]
   )
 
-  const resolveAssistantIdForSelection = useCallback(
-    async (selection: AssistantConversationSelection) => {
-      if (selection.type === 'assistant') return selection.assistantId
-
-      // Reuse an assistant already created from this preset (matched by name, the only persistent
-      // link we have) instead of creating a duplicate every time the preset is picked.
-      const presetName = selection.preset.name.trim()
-      const existing = assistants.find((assistant) => assistant.name === presetName)
-      if (existing) return existing.id
-
-      return (await addAssistant(toCreateAssistantDtoFromCatalogPreset(selection.preset))).id
-    },
-    [addAssistant, assistants]
-  )
-
   const handleAssistantConversationSelect = useCallback(
     async (selection: AssistantConversationSelection) => {
       if (isCreatingTopicRef.current) return
@@ -376,9 +359,7 @@ const HomePage: FC = () => {
       // while it's still visible (which reads as a black/white flash + the dialog reopening).
       setAssistantPickerOpen(false)
       try {
-        const assistantId = await resolveAssistantIdForSelection(selection)
-
-        const result = await reuseOrCreateTopic(assistantId)
+        const result = await reuseOrCreateTopic(selection.assistantId)
         const rendererTopic = mapApiTopicToRendererTopic(result.topic)
 
         activateCreatedTopic(rendererTopic)
@@ -394,7 +375,7 @@ const HomePage: FC = () => {
         isCreatingTopicRef.current = false
       }
     },
-    [activateCreatedTopic, refreshTopics, resolveAssistantIdForSelection, reuseOrCreateTopic, t]
+    [activateCreatedTopic, refreshTopics, reuseOrCreateTopic, t]
   )
 
   const resolveEmptyTopic = useCallback(

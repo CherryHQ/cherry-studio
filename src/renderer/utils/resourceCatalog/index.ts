@@ -22,4 +22,10 @@ export {
   RESOURCE_TYPE_META,
   RESOURCE_TYPE_ORDER
 } from './constants'
+export {
+  getOfficialAssistantIconRef,
+  type OfficialAssistantModelResolution,
+  type OfficialAssistantVendor,
+  resolveOfficialAssistantModel
+} from './officialAssistantPreset'
 export { buildCreateAgentCommand, buildCreateAssistantDto } from './resourceCreate'
