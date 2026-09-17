@@ -211,6 +211,36 @@ describe('DiagnosticBundleService', () => {
     return path.join(uploadRoot, uploadEntries[0])
   }
 
+  it('exports startup diagnostics with no lifecycle services or database available', async () => {
+    vi.mocked(application.get).mockImplementation(() => {
+      throw new Error('Lifecycle not started')
+    })
+    const now = Date.now()
+    const fileName = `app-error.${new Date(now).toISOString().slice(0, 10)}.log`
+    await writeFile(
+      path.join(logsDir, fileName),
+      `${JSON.stringify({
+        timestamp: new Date(now - 1000).toISOString(),
+        level: 'error',
+        message: 'Migration initialization failed',
+        cause: { cause: { code: 'SQLITE_IOERR_TRUNCATE' } }
+      })}\n`
+    )
+    const service = new DiagnosticBundleService()
+    const result = await service.exportStartupBundle('zh-CN')
+    expect(result.status).toBe('saved')
+    const zip = await readZip(destination)
+    expect(zip.entries).toContain(`logs/${fileName}`)
+    const manifest = JSON.parse(zip.contents['diagnostics.json'].toString())
+    expect(manifest.selection.includeChatRecords).toBe(false)
+    expect(manifest.selection.includeTraces).toBe(false)
+    expect(manifest.privacy.uploadedAutomatically).toBe(false)
+    const report = JSON.parse(zip.contents['scan/findings.json'].toString())
+    expect(report.findings.some((finding: { ruleId: string }) => finding.ruleId === 'environment-database-io')).toBe(
+      true
+    )
+  })
+
   it('exports filtered logs, persisted traces, whitelisted system data, and crash inventory', async () => {
     const now = Date.now()
     const logFileName = `app.${formatLogDate(now)}.log`

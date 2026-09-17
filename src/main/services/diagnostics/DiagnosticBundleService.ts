@@ -19,6 +19,7 @@ import {
   removeDir,
   stat
 } from '@main/utils/file'
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
@@ -427,9 +428,25 @@ export class DiagnosticBundleService {
     }
   }
 
+  async exportStartupBundle(language: LanguageVarious): Promise<ExportResult> {
+    return this.runExport(
+      { includeChatRecords: false, includeLogs: true, includeTraces: false, range: '24h' },
+      null,
+      language
+    )
+  }
+
   async exportBundle(input: ExportInput, senderId: WindowId | null): Promise<ExportResult> {
+    return this.runExport(input, senderId)
+  }
+
+  private async runExport(
+    input: ExportInput,
+    senderId: WindowId | null,
+    startupLanguage?: LanguageVarious
+  ): Promise<ExportResult> {
     if (this.inFlightOperation) return { status: 'busy' }
-    const operation = this.performExport(input, senderId)
+    const operation = this.performExport(input, senderId, startupLanguage)
     this.inFlightOperation = operation
     try {
       return await operation
@@ -482,19 +499,25 @@ export class DiagnosticBundleService {
     }
   }
 
-  private async performExport(input: ExportInput, senderId: WindowId | null): Promise<ExportResult> {
-    if (!senderId) throw new Error('Diagnostic bundle export requires a managed window')
-    const parent = application.get('WindowManager').getWindow(senderId)
-    if (!parent) throw new Error('Diagnostic bundle export window is no longer available')
+  private async performExport(
+    input: ExportInput,
+    senderId: WindowId | null,
+    startupLanguage?: LanguageVarious
+  ): Promise<ExportResult> {
+    const parent = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
+    if (!startupLanguage && !parent) throw new Error('Diagnostic bundle export requires a managed window')
 
     const dialogOpenedAt = new Date()
     const suggestedFileName = `cherry-studio-diagnostics-${formatTimestamp(dialogOpenedAt)}.zip`
-    const { canceled, filePath } = await dialog.showSaveDialog(parent, {
+    const options: Electron.SaveDialogOptions = {
       defaultPath: suggestedFileName,
-      filters: [{ name: t('dialog.diagnostic_bundle.zip_filter'), extensions: ['zip'] }],
+      filters: [{ name: t('dialog.diagnostic_bundle.zip_filter', undefined, startupLanguage), extensions: ['zip'] }],
       properties: ['createDirectory', 'showOverwriteConfirmation'],
-      title: t('dialog.diagnostic_bundle.title')
-    })
+      title: t('dialog.diagnostic_bundle.title', undefined, startupLanguage)
+    }
+    const { canceled, filePath } = await (parent
+      ? dialog.showSaveDialog(parent, options)
+      : dialog.showSaveDialog(options))
     if (canceled || !filePath) return { status: 'canceled' }
 
     const destination = AbsoluteFilePathSchema.parse(filePath)
@@ -517,7 +540,9 @@ export class DiagnosticBundleService {
       collection.warnings.add('size_limit_reached')
     }
 
-    const tempRoot = AbsoluteFilePathSchema.parse(await mkdtemp(application.getPath('app.temp', 'diagnostic-bundle-')))
+    const tempRoot = AbsoluteFilePathSchema.parse(
+      await mkdtemp(application.getPath(startupLanguage ? 'sys.temp' : 'app.temp', 'diagnostic-bundle-'))
+    )
     try {
       return await this.buildBundle({
         bundleId: randomUUID(),

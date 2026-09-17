@@ -3,6 +3,22 @@ import type { ScanRule } from '../types'
 /** Host-environment failures: filesystem, disk, databases, native modules. */
 export const environmentRules: readonly ScanRule[] = [
   {
+    id: 'environment-database-io',
+    domain: 'environment',
+    attribution: 'user-fixable',
+    devMessage:
+      'SQLite could not complete a filesystem operation (SQLITE_IOERR). Preserve the database and its WAL/SHM files; check file access and storage availability. This does not by itself prove corruption.',
+    anchors: [/\bSQLITE_IOERR(?:_[A-Z]+)*\b/]
+  },
+  {
+    id: 'environment-database-busy',
+    domain: 'environment',
+    attribution: 'transient',
+    devMessage:
+      'Another database connection prevented SQLite from proceeding (SQLITE_BUSY). Close the other instance normally and retry; do not delete database files.',
+    anchors: [/\bSQLITE_BUSY(?:_[A-Z]+)*\b/]
+  },
+  {
     id: 'environment-permission-denied',
     domain: 'environment',
     attribution: 'user-fixable',
