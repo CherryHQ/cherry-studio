@@ -426,6 +426,18 @@
       }
     },
     {
+      "id": "tab.close",
+      "titleKey": "settings.shortcuts.close_tab",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "W"
+        ]
+      }
+    },
+    {
       "id": "tab.next",
       "titleKey": "settings.shortcuts.next_tab",
       "categoryKey": "settings.shortcuts.general",

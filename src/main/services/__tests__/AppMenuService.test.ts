@@ -152,4 +152,15 @@ describe('AppMenuService', () => {
     expect(copyItem).toMatchObject({ role: 'copy', label: 'Copy' })
     expect(quitItem).toMatchObject({ role: 'quit', label: 'Quit Cherry Studio' })
   })
+
+  it('moves the window-close accelerator off CommandOrControl+W so the tab bar can claim it', async () => {
+    await (service as any).onInit()
+
+    const fileSubmenu = latestTemplate()[1].submenu as MenuItemConstructorOptions[]
+    const closeItem = fileSubmenu.find((item) => item.role === 'close')
+
+    // A native accelerator outranks the renderer keydown, so leaving the default
+    // here would keep Cmd+W closing the window instead of running tab.close.
+    expect(closeItem).toMatchObject({ role: 'close', accelerator: 'CommandOrControl+Shift+W' })
+  })
 })

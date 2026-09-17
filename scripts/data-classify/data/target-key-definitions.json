@@ -744,6 +744,19 @@
       "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
     },
     {
+      "targetKey": "shortcut.tab.close",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "W"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: tab.close (unified command system)"
+    },
+    {
       "targetKey": "shortcut.tab.next",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {

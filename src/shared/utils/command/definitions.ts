@@ -248,6 +248,15 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'tab.close',
+    titleKey: 'settings.shortcuts.close_tab',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'W']
+    }
+  }),
+  defineCommand({
     id: 'tab.next',
     titleKey: 'settings.shortcuts.next_tab',
     categoryKey: 'settings.shortcuts.general',
