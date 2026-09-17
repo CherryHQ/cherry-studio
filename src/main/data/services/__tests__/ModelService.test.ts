@@ -2774,7 +2774,7 @@ describe('ModelService custom-row capabilities healing (#20239)', () => {
 
   it('heals an early-catalog custom row from the current registry', async () => {
     await seedCustomRow()
-    lookupModelMock.mockReturnValue(GLM_REGISTRY_HIT)
+    resolveModelMock.mockReturnValue(GLM_REGISTRY_HIT)
 
     const [model] = modelService.list({ providerId: 'zhipu' })
 
@@ -2783,7 +2783,7 @@ describe('ModelService custom-row capabilities healing (#20239)', () => {
 
   it('keeps the snapshot when the user has explicitly edited capabilities', async () => {
     await seedCustomRow({ capabilitiesExplicit: true })
-    lookupModelMock.mockReturnValue(GLM_REGISTRY_HIT)
+    resolveModelMock.mockReturnValue(GLM_REGISTRY_HIT)
 
     const [model] = modelService.list({ providerId: 'zhipu' })
 
