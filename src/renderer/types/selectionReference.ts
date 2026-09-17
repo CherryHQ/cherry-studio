@@ -1,5 +1,6 @@
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import * as z from 'zod'
+
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 /**
  * Structured references from a document preview selection to the document's
