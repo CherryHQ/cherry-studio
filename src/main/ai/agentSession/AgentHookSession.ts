@@ -68,7 +68,7 @@ export class AgentHookSession {
     return this.run(input, signal)
   }
 
-  // Cancelling a waiter must preserve connection startup and the process-wide shell capture.
+  // Cancelling a caller must preserve startup owned by the connection.
   private async waitForOrAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise<T | undefined> {
     const aborted = Promise.withResolvers<undefined>()
     const onAbort = () => aborted.resolve(undefined)
@@ -103,7 +103,7 @@ export class AgentHookSession {
         cwd
       })
       if (Buffer.byteLength(stdin) > MAX_INPUT_BYTES) throw new Error('Hook input exceeds the 1 MiB limit.')
-      const env = { ...(await this.waitForOrAbort(getShellEnv(), signal)), ...configuration?.env_vars }
+      const env = { ...(await getShellEnv(signal)), ...configuration?.env_vars }
       for (const hook of hooks) {
         if (signal.aborted) return { denied: input.event === 'preToolUse', reason: 'Hook execution was cancelled.' }
         const result = await this.execute(hook, cwd, env, stdin, signal)
@@ -124,6 +124,7 @@ export class AgentHookSession {
       }
       return {}
     } catch (error) {
+      if (signal.aborted) return { denied: input.event === 'preToolUse', reason: 'Hook execution was cancelled.' }
       logger.warn('Unable to execute Agent Hook', { sessionId: this.context.sessionId, event: input.event, error })
       return input.event === 'preToolUse'
         ? { denied: true, reason: `Unable to execute Hook: ${error instanceof Error ? error.message : String(error)}` }

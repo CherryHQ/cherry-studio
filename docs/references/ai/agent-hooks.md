@@ -65,6 +65,10 @@ runtime-specific script protocols.
 Once started, `sessionStart` belongs to the connection, not its first caller. Cancelling
 one turn or tool call does not cancel shared startup or skip it for later calls. Startup
 still obeys command timeouts and is cancelled and drained when the connection closes.
+Environment acquisition follows the same cancellation scope. Concurrent consumers share
+one capture; cancelling its last consumer terminates and drains the login-shell process
+group. Cancelled captures are not cached, and Windows skips registry reads if cancelled
+while loading the registry module.
 
 `turnEnd` runs asynchronously after the host marks the runtime reply complete. It does not
 delay stream completion, persistence, or the next turn. Its message ID stays bound to the

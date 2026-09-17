@@ -381,31 +381,26 @@ describe('Agent Hook commands', () => {
     async (event) => {
       configure('exit 0', event)
       const session = create()
-      const envRequested = createDeferred<void>()
-      const envReady = createDeferred<Record<string, string>>()
-      vi.mocked(shellEnv.getShellEnv).mockImplementationOnce(() => {
-        envRequested.resolve()
-        return envReady.promise
-      })
+      const envRequested = createDeferred<AbortSignal>()
+      vi.mocked(shellEnv.getShellEnv).mockImplementationOnce(
+        (signal) =>
+          new Promise((_resolve, reject) => {
+            signal!.addEventListener('abort', () => reject(signal!.reason), { once: true })
+            envRequested.resolve(signal!)
+          })
+      )
       const controller = new AbortController()
       let cancelled: unknown
       const pending = session.invoke({ event: 'preToolUse' }, controller.signal).then((result) => {
         cancelled = result
       })
-      await envRequested.promise
+      const envSignal = await envRequested.promise
       controller.abort()
-      try {
-        await expect.poll(() => cancelled).toMatchObject({ denied: true, reason: expect.stringContaining('cancelled') })
-        let closed = false
-        const closing = session.close().then(() => {
-          closed = true
-        })
-        await expect.poll(() => closed).toBe(true)
-        await closing
-        expect(spawnSpy).not.toHaveBeenCalled()
-      } finally {
-        envReady.resolve({})
-      }
+      await expect.poll(() => cancelled).toMatchObject({ denied: true, reason: expect.stringContaining('cancelled') })
+      expect(envSignal.aborted).toBe(event === 'preToolUse')
+      await session.close()
+      expect(envSignal.aborted).toBe(true)
+      expect(spawnSpy).not.toHaveBeenCalled()
       await pending
     }
   )
