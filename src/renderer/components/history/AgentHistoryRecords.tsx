@@ -1,3 +1,6 @@
+import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
 import EmojiIcon from '@renderer/components/EmojiIcon'
@@ -13,8 +16,6 @@ import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'
@@ -33,11 +34,18 @@ import { useHistoryRecordsController } from './useHistoryRecordsController'
 interface AgentHistoryRecordsProps {
   activeRecordId?: string | null
   onClose: () => void
-  onRecordSelect?: (sessionId: string | null) => void
+  onRecordSelect?: (sessionId: string) => void
+  onActiveRecordChange?: (sessionId: string | null) => void
   toolbarLeading?: ReactNode
 }
 
-const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarLeading }: AgentHistoryRecordsProps) => {
+const AgentHistoryRecords = ({
+  activeRecordId,
+  onClose,
+  onRecordSelect,
+  onActiveRecordChange: onActiveSessionChange,
+  toolbarLeading
+}: AgentHistoryRecordsProps) => {
   const { t } = useTranslation()
   const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('agents')
@@ -116,10 +124,10 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
           id,
           (session) => session.id
         )
-        onRecordSelect?.(nextSession?.id ?? null)
+        onActiveSessionChange?.(nextSession?.id ?? null)
       }
     },
-    [activeRecordId, deleteSession, isSessionPinned, onRecordSelect, timeSortedSessions]
+    [activeRecordId, deleteSession, isSessionPinned, onActiveSessionChange, timeSortedSessions]
   )
 
   const handleBulkDeleteSessions = useCallback(
@@ -184,8 +192,8 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     [agentById]
   )
   const onActiveRecordChange = useCallback(
-    (session: SessionListItem | null) => onRecordSelect?.(session?.id ?? null),
-    [onRecordSelect]
+    (session: SessionListItem | null) => onActiveSessionChange?.(session?.id ?? null),
+    [onActiveSessionChange]
   )
   const rowDescriptor = useMemo(
     () => ({

@@ -2,11 +2,13 @@
  * Migration context shared between all migrators
  */
 
+import fs from 'fs/promises'
+
+import Store from 'electron-store'
+
 import type { DbType } from '@data/db/types'
 import { type LoggerService, loggerService } from '@logger'
 import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
-import Store from 'electron-store'
-import fs from 'fs/promises'
 
 import { DexieFileReader } from '../utils/DexieFileReader'
 import { DexieSettingsReader, type DexieSettingsRecord } from '../utils/DexieSettingsReader'

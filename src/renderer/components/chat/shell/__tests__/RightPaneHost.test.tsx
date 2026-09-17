@@ -1,4 +1,3 @@
-import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
 import { Activity, useEffect, useState } from 'react'
@@ -6,19 +5,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  CHAT_CENTER_MIN_USABLE_WIDTH
+  getRightPaneWidthPolicy
 } from '../paneLayout'
 import { PersistentRightPaneHost, RightPaneHost } from '../RightPaneHost'
 
 const persistCacheMock = vi.hoisted(() => {
-  const state = { width: 280 }
+  const state = { width: 280, byKey: {} as Record<string, number> }
 
   return {
     state,
     setWidth: vi.fn((width: number) => {
       state.width = width
+    }),
+    setByKey: vi.fn((key: string, width: number) => {
+      state.byKey[key] = width
     })
   }
 })
@@ -41,7 +42,13 @@ vi.mock('@renderer/components/ErrorBoundary', () => ({
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: vi.fn(() => [persistCacheMock.state.width, persistCacheMock.setWidth])
+  usePersistCache: vi.fn((key: string) => [
+    persistCacheMock.state.byKey[key] ?? persistCacheMock.state.width,
+    (width: number) => {
+      persistCacheMock.setByKey(key, width)
+      persistCacheMock.setWidth(width)
+    }
+  ])
 }))
 
 type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
@@ -74,6 +81,9 @@ vi.mock('motion/react', () => ({
   useAnimationControls: () => motionTestState.controls,
   useReducedMotion: () => motionTestState.reducedMotion
 }))
+
+const LIST_POLICY = getRightPaneWidthPolicy('navigation-list')
+const INSPECTOR_POLICY = getRightPaneWidthPolicy('inspector')
 
 function mockMainRegionWidth(width: number) {
   vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
@@ -194,7 +204,7 @@ function stubRect(element: HTMLElement, { top, bottom }: { top: number; bottom: 
     x: 0,
     y: top,
     toJSON: () => ({})
-  } as DOMRect)
+  })
 }
 
 describe('RightPaneHost', () => {
@@ -210,7 +220,9 @@ describe('RightPaneHost', () => {
     restoreResizeObserver?.()
     restoreResizeObserver = null
     persistCacheMock.state.width = ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH
+    persistCacheMock.state.byKey = {}
     persistCacheMock.setWidth.mockClear()
+    persistCacheMock.setByKey.mockClear()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     vi.restoreAllMocks()
@@ -260,13 +272,6 @@ describe('RightPaneHost', () => {
     )
 
     expect(container.querySelector('[data-right-pane-resize-handle]')).not.toBeInTheDocument()
-  })
-
-  it('uses the configured right pane default and minimum widths', () => {
-    expect(ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH).toBe(280)
-    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH).toBe(255)
-    expect(DefaultRendererPersistCache['ui.chat.artifact_pane.width']).toBe(460)
-    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH).toBe(615)
   })
 
   it('lets the pane and the center share space instead of clamping the pane to zero', () => {
@@ -321,6 +326,99 @@ describe('RightPaneHost', () => {
     fireEvent.keyDown(handle as HTMLElement, { key: 'ArrowRight' })
 
     expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
+  })
+
+  it('lets an inspector grow beyond 720px while reserving usable center space', () => {
+    mockMainRegionWidth(2400)
+    render(
+      <div data-main-region>
+        <PersistentRightPaneHost open resizable>
+          <div>Browser</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+    const handle = screen.getByRole('separator')
+    expect(handle).toHaveAttribute('aria-valuemax', '2040')
+    fireEvent.keyDown(handle, { key: 'End' })
+    expect(persistCacheMock.state.width).toBe(2040)
+  })
+
+  it('persists a list pane under its own key and lets it reach the list floor', () => {
+    mockMainRegionWidth(900)
+    persistCacheMock.state.byKey[LIST_POLICY.cacheKey] = 275
+    persistCacheMock.state.byKey[INSPECTOR_POLICY.cacheKey] = 460
+    const { container } = render(
+      <div data-main-region>
+        <PersistentRightPaneHost
+          open
+          resizable
+          minWidth={LIST_POLICY.minWidth}
+          maxWidth={LIST_POLICY.maxWidth}
+          cacheKey={LIST_POLICY.cacheKey}>
+          <div>list pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+    if (!handle) throw new Error('Expected resize handle')
+
+    // The artifact pane's 255 floor must not leak in: the list reports (and reaches) its own 200.
+    expect(handle).toHaveAttribute('aria-valuemin', String(LIST_POLICY.minWidth))
+    expect(handle).toHaveAttribute('aria-valuemax', String(LIST_POLICY.maxWidth))
+
+    fireEvent.keyDown(handle, { key: 'Home' })
+
+    expect(persistCacheMock.setByKey).toHaveBeenCalledWith(LIST_POLICY.cacheKey, LIST_POLICY.minWidth)
+    expect(persistCacheMock.state.byKey[INSPECTOR_POLICY.cacheKey]).toBe(460)
+  })
+
+  it('builds the list pane spacer expression from the list floor', () => {
+    const { container } = render(
+      <PersistentRightPaneHost
+        open
+        resizable
+        width={275}
+        minWidth={LIST_POLICY.minWidth}
+        maxWidth={LIST_POLICY.maxWidth}
+        cacheKey={LIST_POLICY.cacheKey}>
+        <div>list pane</div>
+      </PersistentRightPaneHost>
+    )
+
+    // The reserved space must yield to the list's own 200 floor; leaving the artifact's 255
+    // here would let the pane paint wider than the space reserved for it and cover the center.
+    expect(container.querySelector('[data-right-pane-spacer]')).toHaveStyle({
+      maxWidth: 'max(min(280px, calc(100% - 360px)), min(200px, calc(100% * 200 / 400)))'
+    })
+  })
+
+  it('pins a list pane at its own floor in a narrow main region', () => {
+    mockMainRegionWidth(500)
+    persistCacheMock.state.byKey[LIST_POLICY.cacheKey] = 275
+    const { container } = render(
+      <div data-main-region>
+        <PersistentRightPaneHost
+          open
+          resizable
+          minWidth={LIST_POLICY.minWidth}
+          maxWidth={LIST_POLICY.maxWidth}
+          cacheKey={LIST_POLICY.cacheKey}>
+          <div>list pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+    if (!handle) throw new Error('Expected resize handle')
+
+    // 500 - 360 leaves less than the floor, so 200 is all the pane can show or reach.
+    expect(handle).toHaveAttribute('aria-valuemax', '200')
+
+    fireEvent.keyDown(handle, { key: 'Home' })
+    fireEvent.keyDown(handle, { key: 'End' })
+
+    expect(persistCacheMock.setByKey).not.toHaveBeenCalled()
   })
 
   it('limits the splitter maximum and End key to the currently reachable width', () => {
@@ -738,10 +836,9 @@ describe('RightPaneHost', () => {
 
     fireEvent.mouseUp(document)
 
-    // Exactly one commit, with the last mousemove's clamped width (800 - 20 = 780,
-    // clamped down to the max).
+    // Commit the final width once; inspector panes can grow beyond 720px.
     expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
-    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(ARTIFACT_RIGHT_PANE_MAX_WIDTH)
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(780)
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
     expect(pane).not.toHaveAttribute('data-resizing')
@@ -824,7 +921,7 @@ describe('RightPaneHost', () => {
       window.requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
         rafCallbacks.push(callback)
         return nextRafId++
-      }) as typeof window.requestAnimationFrame
+      })
       window.cancelAnimationFrame = vi.fn()
     })
 

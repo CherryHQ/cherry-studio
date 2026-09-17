@@ -1,14 +1,14 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/ProviderRegistryService'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { getSingleFileRefId } from '@data/services/utils/singleFileRef'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
 
 const rowFor = (dbh: ReturnType<typeof setupTestDatabase>, providerId: string) =>
   dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId))

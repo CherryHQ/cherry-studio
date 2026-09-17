@@ -18,7 +18,6 @@
  * import type { TranslateHistory, CreateTranslateHistoryDto } from '@shared/data/api/schemas/translate'
  * ```
  */
-
 import type { AssertValidSchemas } from '../types'
 import type { AgentChannelSchemas } from './agentChannels'
 import type { AgentSchemas } from './agents'
@@ -26,7 +25,9 @@ import type { AgentSessionMessageSchemas } from './agentSessionMessages'
 import type { AgentSessionSchemas } from './agentSessions'
 import type { AgentWorkspaceSchemas } from './agentWorkspaces'
 import type { AiUsageRecordSchemas } from './aiUsageRecords'
+import type { ApiGatewayPairedDeviceSchemas } from './apiGatewayPairedDevices'
 import type { AssistantSchemas } from './assistants'
+import type { BrowserVisitSchemas } from './browserVisits'
 import type { FileSchemas } from './files'
 import type { GroupSchemas } from './groups'
 import type { JobSchemas } from './jobs'
@@ -60,7 +61,9 @@ import type { TranslateSchemas } from './translate'
  * 2. Import and add to intersection below
  */
 export type ApiSchemas = AssertValidSchemas<
-  TopicSchemas &
+  BrowserVisitSchemas &
+    ApiGatewayPairedDeviceSchemas &
+    TopicSchemas &
     MessageSchemas &
     TemporaryChatSchemas &
     ModelSchemas &

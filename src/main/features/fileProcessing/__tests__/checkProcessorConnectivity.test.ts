@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Pins the probe's verdict table for `FileProcessingService.checkOpenMineruConnectivity`.
  *
@@ -9,7 +11,6 @@
  */
 import type * as LifecycleModule from '@main/core/lifecycle'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { fetchMock, getFileProcessorConfigByIdMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
@@ -37,12 +38,11 @@ vi.mock('../config/resolveProcessorConfig', () => ({
 
 import { FileProcessingService } from '../FileProcessingService'
 
-const configWithHost = (apiHost: string | undefined): FileProcessorMerged =>
-  ({
-    id: 'open-mineru',
-    type: 'api',
-    capabilities: [{ feature: 'document_to_markdown', inputs: ['document'], output: 'markdown', apiHost }]
-  }) as FileProcessorMerged
+const configWithHost = (apiHost: string | undefined): FileProcessorMerged => ({
+  id: 'open-mineru',
+  type: 'api',
+  capabilities: [{ feature: 'document_to_markdown', inputs: ['document'], output: 'markdown', apiHost }]
+})
 
 const probe = () => new FileProcessingService().checkOpenMineruConnectivity()
 

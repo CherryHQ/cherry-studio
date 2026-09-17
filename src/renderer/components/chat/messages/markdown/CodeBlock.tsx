@@ -1,3 +1,7 @@
+import type { Node } from 'mdast'
+import React, { memo, type ReactNode, useCallback, useMemo } from 'react'
+import { useIsCodeFenceIncomplete } from 'streamdown'
+
 import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
@@ -7,17 +11,18 @@ import HtmlArtifactsCard from '@renderer/components/CodeBlockView/HtmlArtifactsC
 import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/filePath'
 import { getCodeBlockId } from '@renderer/utils/markdownLight'
 import { isWin } from '@renderer/utils/platform'
-import type { Node } from 'mdast'
-import React, { memo, useCallback, useMemo } from 'react'
-import { useIsCodeFenceIncomplete } from 'streamdown'
+import { getNodeText } from '@renderer/utils/reactNodeText'
 
 import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
 import type { InlineHtmlPreviewMode } from './ChatMarkdown'
 import { classifyHtmlArtifactSource } from './plugins/remarkHtmlArtifact'
 
 interface Props {
-  /** Absent while a fence is still empty (e.g. the first chunk of a streamed ```html block). */
-  children?: string
+  /**
+   * Strings for fences and non-animated content; animate-span elements for
+   * streamed inline code — and they persist post-settle (streamdown#570).
+   */
+  children?: ReactNode
   className?: string
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   node?: Omit<Node, 'type'>
@@ -40,16 +45,19 @@ const CodeBlock: React.FC<Props> = ({
   isStreaming = false
 }) => {
   const children = rawChildren ?? ''
+  // Each stream tick rebuilds the animate spans, so `children` gets a fresh
+  // reference and memoizing the walk would never hit; recompute per render.
+  const text = getNodeText(children)
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
-  const isMultiline = children?.includes('\n')
+  const isMultiline = text.includes('\n')
   const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
   const language = useMemo(() => {
     return detectedLanguage !== 'xml'
       ? detectedLanguage
-      : /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg[\s>]/i.test(children)
+      : /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg[\s>]/i.test(text)
         ? 'svg'
         : detectedLanguage
-  }, [children, detectedLanguage])
+  }, [text, detectedLanguage])
   const { codeFancyBlock } = useMessageRenderConfig()
   const isIncomplete = useIsCodeFenceIncomplete()
 
@@ -72,17 +80,16 @@ const CodeBlock: React.FC<Props> = ({
     [actions, blockId, id]
   )
 
-  const inlinePath =
-    (language === null || language === 'text') && typeof children === 'string'
-      ? normalizeInlineFilePath(children)
-      : null
+  // Widget swaps race the per-tick span rebuild, so they wait for this block
+  // to stop growing (an unclosed tail fence); part-level state is too coarse.
+  const inlinePath = !isIncomplete && (language === null || language === 'text') ? normalizeInlineFilePath(text) : null
 
   if (inlinePath && isKnownNavigationPath(inlinePath)) {
     return <NavigateToolInline input={{ path: inlinePath }} />
   }
 
   // A plain text fence may be the model's way to present a single generated file or directory path.
-  if (!isWin && inlinePath && isInlineFilePath(children)) {
+  if (!isWin && inlinePath && isInlineFilePath(text)) {
     return (
       <code className={mergeClassNames(className, INLINE_FILE_PATH_CODE_CLASS)}>
         <ClickableFilePath path={inlinePath} />
@@ -97,7 +104,7 @@ const CodeBlock: React.FC<Props> = ({
         const isHtmlArtifactStreaming = inlineHtmlPreviewMode === 'generating' || isStreaming || isIncomplete
         // The single classification for the whole artifact pipeline: it picks the streaming
         // surface here and travels down as `kind` to decide the safety gate once complete.
-        const htmlKind = classifyHtmlArtifactSource(children)
+        const htmlKind = classifyHtmlArtifactSource(text)
 
         if (inlineHtmlPreviewMode) {
           // Too short to classify yet — render nothing rather than pick a surface we would
@@ -112,7 +119,7 @@ const CodeBlock: React.FC<Props> = ({
                 isStreaming={isHtmlArtifactStreaming}
                 maxHeight={MAX_COLLAPSED_CODE_HEIGHT}
                 showToolbar={false}>
-                {children}
+                {text}
               </CodeBlockView>
             )
           }
@@ -120,7 +127,7 @@ const CodeBlock: React.FC<Props> = ({
           return (
             <MessageHtmlArtifact
               artifactId={`${blockId}:${id}`}
-              html={children}
+              html={text}
               onSave={handleSave}
               editable={canSaveCodeBlock}
               kind={htmlKind ?? 'fragment'}
@@ -131,7 +138,7 @@ const CodeBlock: React.FC<Props> = ({
 
         return (
           <HtmlArtifactsCard
-            html={children}
+            html={text}
             onSave={handleSave}
             editable={canSaveCodeBlock}
             isStreaming={isHtmlArtifactStreaming}
@@ -146,7 +153,7 @@ const CodeBlock: React.FC<Props> = ({
         onSave={handleSave}
         editable={canSaveCodeBlock}
         isStreaming={isStreaming || isIncomplete}>
-        {children}
+        {text}
       </CodeBlockView>
     )
   }

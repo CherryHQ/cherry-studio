@@ -70,8 +70,8 @@ const getSlot = (container: HTMLElement, slot: string) => container.querySelecto
 describe('PaintingSkeletonSurface', () => {
   let size = { width: 280, height: 280 }
   let resizeCallback: ResizeObserverCallback | undefined
-  let drawImageMock: ReturnType<typeof vi.fn>
-  let getImageDataMock: ReturnType<typeof vi.fn>
+  let drawImageMock: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  let getImageDataMock: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 
   beforeEach(() => {
     reduceMotionState.value = false

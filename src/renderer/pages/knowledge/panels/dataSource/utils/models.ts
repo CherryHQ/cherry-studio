@@ -1,3 +1,6 @@
+import type { LucideIcon } from 'lucide-react'
+import { FileText, Folder, Link2, StickyNote } from 'lucide-react'
+
 import { formatRelativeTime } from '@renderer/utils/time'
 import {
   getKnowledgeItemDisplayTitle,
@@ -6,8 +9,6 @@ import {
   type KnowledgeItemStatus,
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
-import type { LucideIcon } from 'lucide-react'
-import { FileText, Folder, Link2, StickyNote } from 'lucide-react'
 
 export type DataSourceStatus = 'completed' | 'processing' | 'failed'
 export type DataSourceStatusIcon = 'check' | 'loader' | 'alert'

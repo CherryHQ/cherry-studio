@@ -9,6 +9,10 @@ export const codeCliHandlers: IpcHandlersFor<typeof codeCliRequestSchemas> = {
     // CodeCliService.run() as the single source of truth; the handler just delegates.
     return application.get('CodeCliService').run(input)
   },
+  'code_cli.read_config': async (input) => {
+    // Non-ENOENT read errors propagate to the router's error model by design.
+    return { files: await application.get('CodeCliService').readConfigFiles(input.targets) }
+  },
   'code_cli.write_config': async (input) => {
     try {
       await application.get('CodeCliService').writeConfigFiles(input.cliTool, input.files)

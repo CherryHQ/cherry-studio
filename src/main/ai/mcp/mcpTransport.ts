@@ -1,3 +1,8 @@
+import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
+import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
+import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp'
+import { net } from 'electron'
+
 import { application } from '@application'
 import type { LoggerService } from '@logger'
 import {
@@ -9,13 +14,9 @@ import {
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
-import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
-import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
-import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import { redactDeep } from '@shared/utils/redaction'
-import { net } from 'electron'
 
 import type { McpClientSdk, McpTransport } from './mcpClientSdk'
 import { buildStdioEnvironment, resolveLaunchCommand } from './mcpLaunch'
@@ -83,6 +84,25 @@ function buildHttpOptions(server: McpServer, authProvider: McpOAuthClientProvide
     // without a token a 401 would start a discovery flow instead of surfacing the failure.
     ...(authenticated ? {} : { authProvider })
   }
+}
+
+function getStdioTransportErrorDetails(error: Error): Record<string, number | string> {
+  const spawnError = error as NodeJS.ErrnoException
+  return Object.fromEntries(
+    Object.entries({
+      code: spawnError.code,
+      errno: spawnError.errno,
+      syscall: spawnError.syscall,
+      path: spawnError.path
+    }).filter((entry): entry is [string, number | string] => entry[1] !== undefined)
+  )
+}
+
+function formatStdioTransportError(error: Error, details: Record<string, number | string>): string {
+  const diagnostic = Object.entries(details)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(', ')
+  return diagnostic ? `${error.message} (${diagnostic})` : error.message
 }
 
 async function createInMemory({ sdk, server, args, logger }: CreateTransportInput): Promise<McpTransport> {
@@ -187,6 +207,17 @@ async function createStdio(
   }
 
   const transport = new sdk.StdioClientTransport(transportOptions)
+  transport.onerror = (error) => {
+    const details = getStdioTransportErrorDetails(error)
+    logger.error(`Stdio transport error`, error, details)
+    onServerLog({
+      timestamp: Date.now(),
+      level: 'error',
+      message: formatStdioTransportError(error, details),
+      data: details,
+      source: 'stdio'
+    })
+  }
   const stderrDecoder = new TextDecoder('utf-8', { fatal: false })
   const emitStderr = (message: string) => {
     if (!message.trim()) return

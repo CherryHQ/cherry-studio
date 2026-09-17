@@ -12,10 +12,12 @@ import {
   postJsonToApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
-import { defaultAppHeaders } from '@main/utils/http'
+import { mergeHeaders } from '@main/utils/http'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import {
   createUniqueModelId,
@@ -34,9 +36,8 @@ import {
   matchesPreset
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
-import * as z from 'zod'
 
-import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
+import { defaultHeaders, getBaseUrl, getExtraHeaders, getProviderAppHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
   createVertexModelListRequest,
@@ -50,12 +51,14 @@ import {
   AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
+  LMStudioModelsResponseSchema,
   NewApiModelsResponseSchema,
   OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
   TogetherModelsResponseSchema,
+  TokenDanceModelsResponseSchema,
   VercelGatewayModelsResponseSchema,
   VertexPublisherModelsResponseSchema
 } from './listModelsSchemas'
@@ -68,6 +71,10 @@ const logger = loggerService.withContext('ModelListService')
 type ModelFetcher = {
   match: (provider: Provider) => boolean
   fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<Partial<Model>[]>
+}
+
+function getErrorType(error: unknown) {
+  return error instanceof Error ? error.name : typeof error
 }
 
 function handleOptionalModelListFailure<T>(
@@ -85,7 +92,7 @@ function handleOptionalModelListFailure<T>(
 function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
   logger.warn('Optional model list endpoint failed; continuing with primary models', {
     ...context,
-    error
+    errorType: getErrorType(error)
   })
   return { data: [] }
 }
@@ -138,8 +145,9 @@ function defaultGroup(modelId: string, providerId: string): string {
 
 /** Build a partial v2 Model from API response */
 function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>): Partial<Model> {
+  const safeModelId = apiModelId.replace(/[?#]/g, '')
   return {
-    id: createUniqueModelId(provider.id, apiModelId),
+    id: createUniqueModelId(provider.id, safeModelId),
     providerId: provider.id,
     apiModelId,
     name: extra?.name || apiModelId,
@@ -265,7 +273,11 @@ const geminiFetcher: ModelFetcher = {
     // would persist the key into local logs users attach to bug reports.
     const response = await getFromApi({
       url: `${baseUrl}/v1beta/models`,
-      headers: { ...defaultAppHeaders(), 'x-goog-api-key': apiKey, ...provider.settings?.extraHeaders },
+      headers: mergeHeaders(
+        getProviderAppHeaders(provider),
+        { 'x-goog-api-key': apiKey },
+        provider.settings?.extraHeaders
+      ),
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal
     })
@@ -376,20 +388,14 @@ const vertexFetcher: ModelFetcher = {
 const copilotFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.copilot),
   fetch: async (provider, signal) => {
-    const copilotHeaders = {
-      ...COPILOT_DEFAULT_HEADERS,
-      ...provider.settings.extraHeaders
-    }
+    const copilotHeaders = mergeHeaders(COPILOT_DEFAULT_HEADERS, provider.settings.extraHeaders)
     // getToken exchanges the stored GitHub OAuth token for a Copilot session token.
     // It must NOT carry the provider's `Authorization: Bearer <apiKey>` (added by
     // defaultHeaders) — GitHub's token endpoint rejects the conflicting header with 401.
     const { token } = await copilotService.getToken(null as any, copilotHeaders)
     const response = await getFromApi({
       url: `${withoutTrailingSlash(getBaseUrl(provider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))}/models`,
-      headers: {
-        ...copilotHeaders,
-        Authorization: `Bearer ${token}`
-      },
+      headers: mergeHeaders(copilotHeaders, { Authorization: `Bearer ${token}` }),
       responseSchema: CopilotModelsResponseSchema,
       abortSignal: signal
     })
@@ -454,12 +460,18 @@ type NewApiModelResponseItem = z.infer<typeof NewApiModelsResponseSchema>['data'
 
 const ENDPOINT_TYPE_ALIASES: Record<string, EndpointType> = {
   anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  'anthropic:messages': ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
   embeddings: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
   gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'gemini:generate-content': ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
   'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai:chat-completions': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai:embeddings': ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+  'openai:image-generations': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  'openai:responses': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'openai-video': ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION
@@ -518,6 +530,38 @@ const newApiFetcher: ModelFetcher = {
         ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
       })
     })
+  }
+}
+
+const tokenDanceFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.tokendance),
+  fetch: async (provider, signal) => {
+    const modelsUrl =
+      provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls?.default ??
+      `${formatApiHost(getBaseUrl(provider))}/models`
+    const response = await getFromApi({
+      url: modelsUrl,
+      headers: defaultHeaders(provider),
+      responseSchema: TokenDanceModelsResponseSchema,
+      abortSignal: signal
+    })
+
+    return dedup(response.data, (m) => m.id)
+      .map((m) => {
+        const endpointTypes = normalizeEndpointTypes(m.supported_protocols)
+        if (!endpointTypes) return undefined
+
+        const impliedCapability = endpointImpliedCapability(endpointTypes[0])
+
+        return toModel(m.id, provider, {
+          name: m.name || m.id,
+          description: m.description,
+          contextWindow: m.context_length,
+          endpointTypes,
+          ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+        })
+      })
+      .filter((model): model is Partial<Model> => Boolean(model))
   }
 }
 
@@ -697,12 +741,11 @@ const anthropicFetcher: ModelFetcher = {
     const apiKey = providerService.getRotatedApiKey(provider.id)
     const response = await getFromApi({
       url: `${baseUrl}/models?limit=1000`,
-      headers: {
-        ...defaultAppHeaders(),
-        'x-api-key': apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
-        ...provider.settings?.extraHeaders
-      },
+      headers: mergeHeaders(
+        getProviderAppHeaders(provider),
+        { 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION },
+        provider.settings?.extraHeaders
+      ),
       responseSchema: AnthropicModelsResponseSchema,
       abortSignal: signal
     })
@@ -745,22 +788,68 @@ const openAIFetcher: ModelFetcher = {
   }
 }
 
+async function listOpenAICompatibleModels(
+  provider: Provider,
+  baseUrl: string,
+  signal?: AbortSignal
+): Promise<Partial<Model>[]> {
+  const response = await getFromApi({
+    url: `${baseUrl}/models`,
+    headers: defaultHeaders(provider),
+    responseSchema: OpenAIModelsResponseSchema,
+    abortSignal: signal
+  })
+  return dedup(response.data, (m) => m.id).map((m) =>
+    toModel(m.id, provider, {
+      name: m.name || m.id,
+      ownedBy: m.owned_by
+    })
+  )
+}
+
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
+  fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
+}
+
+// Native v1 lists downloaded models even when JIT loading is disabled.
+const lmStudioFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.lmstudio),
   fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(getBaseUrl(provider))
-    const response = await getFromApi({
-      url: `${baseUrl}/models`,
-      headers: defaultHeaders(provider),
-      responseSchema: OpenAIModelsResponseSchema,
-      abortSignal: signal
-    })
-    return dedup(response.data, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
-        name: m.name || m.id,
-        ownedBy: m.owned_by
+    // Both native and OpenAI-compatible endpoints must resolve from the server root.
+    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false).replace(/\/api\/v[01]$/, ''))
+    let response: z.infer<typeof LMStudioModelsResponseSchema>
+    try {
+      response = await getFromApi({
+        url: `${root}/api/v1/models`,
+        headers: defaultHeaders(provider),
+        responseSchema: LMStudioModelsResponseSchema,
+        abortSignal: signal
       })
-    )
+    } catch (error) {
+      // LM Studio below 0.4.0 has no native v1 — fall back to the endpoint every version serves.
+      // A genuine failure (auth, server down) surfaces from the fallback call instead.
+      logger.warn('LM Studio /api/v1/models failed; falling back to /v1/models', {
+        providerId: provider.id,
+        errorType: getErrorType(error)
+      })
+      return listOpenAICompatibleModels(provider, formatApiHost(root), signal)
+    }
+
+    return dedup(response.models, (m) => m.key).map((m) => {
+      const endpointTypes = m.type === 'embedding' ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : undefined
+      const capability =
+        endpointImpliedCapability(endpointTypes?.[0]) ??
+        (m.capabilities?.vision ? MODEL_CAPABILITY.IMAGE_RECOGNITION : undefined)
+
+      return toModel(m.key, provider, {
+        name: m.display_name || m.key,
+        ownedBy: m.publisher,
+        ...(endpointTypes ? { endpointTypes } : {}),
+        ...(capability ? { capabilities: [capability] } : {}),
+        ...(m.max_context_length ? { contextWindow: m.max_context_length } : {})
+      })
+    })
   }
 }
 
@@ -776,15 +865,10 @@ export async function probeOllamaModel(
   const start = performance.now()
   const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
   const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
-  const headers: Record<string, string> = {
-    ...defaultAppHeaders(),
-    ...getExtraHeaders(provider),
-    'Content-Type': 'application/json'
-  }
-  if (resolved.value) {
-    headers.Authorization = `Bearer ${resolved.value}`
-    headers['X-Api-Key'] = resolved.value
-  }
+  const headers = mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider), {
+    'Content-Type': 'application/json',
+    ...(resolved.value ? { Authorization: `Bearer ${resolved.value}`, 'X-Api-Key': resolved.value } : {})
+  })
   const response = await fetch(`${baseUrl}/show`, {
     method: 'POST',
     headers,
@@ -803,12 +887,14 @@ export async function probeOllamaModel(
 const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
+  lmStudioFetcher,
   geminiFetcher,
   vertexFetcher,
   copilotFetcher,
   ovmsFetcher,
   togetherFetcher,
   newApiFetcher,
+  tokenDanceFetcher,
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,
@@ -829,7 +915,7 @@ export async function listModels(
     const fetcher = fetchers.find((f) => f.match(provider))!
     return await fetcher.fetch(provider, abortSignal, options)
   } catch (error) {
-    logger.error('Error listing models', error as Error, { providerId: provider.id })
+    logger.error('Error listing models', { providerId: provider.id, errorType: getErrorType(error) })
     if (options?.throwOnError) {
       throw error
     }

@@ -1,5 +1,6 @@
-import type { NotesTreeNode } from '@renderer/types/note'
 import { describe, expect, it } from 'vitest'
+
+import type { NotesTreeNode } from '@renderer/types/note'
 
 import { flattenTreeToFiles } from '../NotesTreeService'
 

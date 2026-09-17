@@ -75,6 +75,21 @@ describe('StreamingMarkdown', () => {
     expect(alert?.textContent).toContain('Streaming alert')
   })
 
+  it('animates inline code text like surrounding prose', () => {
+    // Patch narrows streamdown's animate skip set to pre/svg/math, so inline code must get animate spans too.
+    const { container } = render(<StreamingMarkdown id="s5">{'run `npm i` now'}</StreamingMarkdown>)
+    const inlineCode = container.querySelector('p code')
+    expect(inlineCode).not.toBeNull()
+    expect(inlineCode?.querySelector('[data-sd-animate]')).not.toBeNull()
+  })
+
+  it('still skips fenced code blocks (pre stays in the skip set)', () => {
+    const { container } = render(<StreamingMarkdown id="s6">{'```js\nconst a = 1\n```'}</StreamingMarkdown>)
+    const pre = container.querySelector('pre')
+    expect(pre).not.toBeNull()
+    expect(pre?.querySelector('[data-sd-animate]')).toBeNull()
+  })
+
   it('defaults to opacity-only fadeIn (no lingering filter that alters text antialiasing)', () => {
     // blurIn ends at `filter: blur(0)`, which `animation-fill-mode: both`
     // keeps applied; a non-`none` filter drops subpixel AA so streamed bold/CJK

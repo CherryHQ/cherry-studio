@@ -91,7 +91,7 @@ const dshCherryTools = () =>
 export const AGENT_RUNTIME_CAPABILITIES = {
   'claude-code': {
     labelKey: 'library.config.agent.field.runtime.option.claude_code',
-    labelFallback: 'Advanced: Claude Agent',
+    labelFallback: 'Claude Agent',
     permissionModes: ALL_PERMISSION_MODES,
     modelTiers: true,
     heartbeat: true,
@@ -100,7 +100,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     skills: true,
     claudeRegistryTools: true,
     slashCommands: CLAUDE_CODE_BUILTIN_COMMANDS,
-    createDefaults: { permissionMode: 'default' },
+    createDefaults: { permissionMode: 'auto' },
     // Claude Code reaches non-native providers through the local API Gateway, so its picker must use
     // the same routability rule as the gateway model catalog.
     isModelCompatible: (_provider, model) => isGatewayRoutableModel(model),
@@ -117,7 +117,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
   },
   pi: {
     labelKey: 'library.config.agent.field.runtime.option.pi',
-    labelFallback: 'Fast: Pi',
+    labelFallback: 'Pi',
     // Pi has no plan mode. Its `auto` is Cherry's own rule-based gate in the pi approval extension,
     // not Claude's model-side classifier — same user-facing promise, different mechanism.
     permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
@@ -161,7 +161,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     skills: true,
     claudeRegistryTools: false,
     slashCommands: DSH_BUILTIN_COMMANDS,
-    createDefaults: { permissionMode: 'default' },
+    createDefaults: { permissionMode: 'acceptEdits' },
     // Orphan models are rejected: dsh needs the provider's endpoint config to resolve a wire
     // protocol, so no provider ⇒ not drivable. The managed CherryAI default is barred like pi's.
     isModelCompatible: (provider, model) =>

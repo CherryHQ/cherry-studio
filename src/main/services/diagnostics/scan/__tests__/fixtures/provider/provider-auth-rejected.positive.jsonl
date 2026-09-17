@@ -1,0 +1,2 @@
+{"level":"error","message":"Provider request failed with status 401 Unauthorized: invalid api key provided","module":"AiStreamManager","process":"main","appver":"2.0.7","timestamp":"2026-08-20 10:00:00"}
+{"level":"error","message":"Failed to authenticate. API Error: 401 Authentication Fails, Your api key is invalid","stack":"Error: 401 Authentication Fails\n    at ApiClient.request (app.js:100:10)","timestamp":"2026-08-18 09:30:00"}

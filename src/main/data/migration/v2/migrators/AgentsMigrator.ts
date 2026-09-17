@@ -1,3 +1,9 @@
+import path from 'path'
+
+import { eq, inArray, sql } from 'drizzle-orm'
+import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
+import * as z from 'zod'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -22,10 +28,6 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
-import { eq, inArray, sql } from 'drizzle-orm'
-import path from 'path'
-import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
-import * as z from 'zod'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'

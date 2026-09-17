@@ -1,3 +1,6 @@
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, RowFlex } from '@cherrystudio/ui'
 import {
   SettingDivider,
@@ -7,8 +10,6 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ImportPopup from './ImportPopup'
 
@@ -21,7 +22,7 @@ const ImportMenuOptions: FC = () => {
         <SettingTitle>{t('settings.data.import_settings.title')}</SettingTitle>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-import-chatgpt" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.import_settings.chatgpt')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
           <Button onClick={() => ImportPopup.show({ source: 'chatgpt' })} variant="outline">
@@ -30,7 +31,7 @@ const ImportMenuOptions: FC = () => {
         </RowFlex>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-import-claude" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.import_settings.claude')}</SettingRowTitle>
         <RowFlex className="justify-between gap-1.25">
           <Button onClick={() => ImportPopup.show({ source: 'claude' })} variant="outline">

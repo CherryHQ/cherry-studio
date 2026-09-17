@@ -1,3 +1,6 @@
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { dataApiService } from '@data/DataApiService'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
@@ -15,6 +18,7 @@ import {
   type MessageListMeta,
   type MessageListProviderValue,
   type MessageListRuntime,
+  type MessageListSelectAllPagination,
   type MessageListState,
   type MessageRuntime,
   type MessageStreamingLayers
@@ -23,6 +27,7 @@ import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/
 import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
@@ -33,8 +38,7 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
+import { createFilePathHandle } from '@shared/utils/file'
 
 import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
 import {
@@ -55,7 +59,7 @@ function withTerminalErrorFallback(
   for (const message of messages) {
     if (message.role !== 'assistant') continue
     const status = message.metadata?.status
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const parts = partsByMessageId[message.id] ?? message.parts ?? []
     const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
     const needsFallback =
       (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
@@ -94,9 +98,13 @@ interface AgentMessageListParams {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
+  selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  openExternalUrl?: MessageListActions['openExternalUrl']
+  openDiagnosticReport?: MessageListActions['openDiagnosticReport']
+  diagnosticReport?: DiagnosticReportConfig
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
   imageActionConsumer?: 'capture'
@@ -149,9 +157,13 @@ export function useAgentMessageListProviderValue({
   isLoading,
   hasOlder = false,
   loadOlder,
+  selectAllPagination,
   openCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
+  openExternalUrl,
+  openDiagnosticReport,
+  diagnosticReport,
   deleteMessage,
   respondToolApproval,
   imageActionConsumer,
@@ -160,6 +172,7 @@ export function useAgentMessageListProviderValue({
   messageTail
 }: AgentMessageListParams): MessageListProviderValue {
   const { t } = useTranslation()
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
@@ -191,7 +204,7 @@ export function useAgentMessageListProviderValue({
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
-        const parts = displayPartsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+        const parts = displayPartsByMessageId[message.id] ?? message.parts ?? []
         if (parts.length === 0) return true
         return parts.some((part) => !hasPartParentToolCallId(part))
       }),
@@ -238,6 +251,7 @@ export function useAgentMessageListProviderValue({
     errorActions,
     exportActions,
     getMessageActivityState,
+    messageActivityStore,
     headerCapabilities,
     leafCapabilities,
     menuConfig,
@@ -252,9 +266,10 @@ export function useAgentMessageListProviderValue({
     partsByMessageId: displayPartsByMessageId,
     streamingLayers: displayStreamingLayers,
     deleteMessage,
-    persistDiagnosis
+    diagnosticReport,
+    persistDiagnosis,
+    selectAllPagination
   })
-  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
 
   const openPath = useCallback(
     (path: string) => {
@@ -265,6 +280,15 @@ export function useAgentMessageListProviderValue({
 
   const resolvePath = useMemo<MessageListActions['resolvePath']>(
     () => (workspacePath ? (path) => requireWorkspaceFilePath(workspacePath, path) : undefined),
+    [workspacePath]
+  )
+
+  const isDirectory = useCallback<NonNullable<MessageListActions['isDirectory']>>(
+    async (path) => {
+      const resolvedPath = requireWorkspaceFilePath(workspacePath, path)
+      const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(resolvedPath))
+      return metadata?.kind === 'directory'
+    },
     [workspacePath]
   )
 
@@ -363,6 +387,7 @@ export function useAgentMessageListProviderValue({
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
+      messageActivityStore,
       getMessageActivityState,
       ...pickMessageLeafState(leafCapabilities)
     }),
@@ -375,6 +400,7 @@ export function useAgentMessageListProviderValue({
       messageUiStateCache.getMessageUiState,
       messageNavigation,
       messageItems,
+      messageActivityStore,
       messageTail,
       normalInteractionsEnabled,
       displayPartsByMessageId,
@@ -395,12 +421,15 @@ export function useAgentMessageListProviderValue({
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
+      openExternalUrl: openExternalUrl ?? leafCapabilities.openExternalUrl,
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
       resolvePath,
+      isDirectory,
       openPath,
       openArtifactFile,
+      openDiagnosticReport: normalInteractionsEnabled ? openDiagnosticReport : undefined,
       openCitationsPanel,
       openAgentToolFlow,
       abortTool,
@@ -420,13 +449,17 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
+      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,
       locateMessage,
       messageUiStateCache.updateMessageUiState,
+      normalInteractionsEnabled,
       openCitationsPanel,
       openArtifactFile,
+      openDiagnosticReport,
+      openExternalUrl,
       openAgentToolFlow,
       openPath,
       respondToolApproval,

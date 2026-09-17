@@ -1,3 +1,5 @@
+import { nativeTheme, shell, systemPreferences } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac } from '@main/core/platform'
@@ -12,7 +14,6 @@ import { getDeviceType } from '@main/utils/system'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { systemRequestSchemas } from '@shared/ipc/schemas/system'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import { nativeTheme, shell, systemPreferences } from 'electron'
 
 const logger = loggerService.withContext('systemHandlers')
 
@@ -64,11 +65,14 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
   'system.shell.open_path': async (path) => {
     await shell.openPath(path)
   },
+  'system.shell.open_external_website': async (url) => {
+    if (isSafeExternalUrl(url)) await shell.openExternal(url)
+  },
   'system.shell.open_website': async (url) => {
     if (!isSafeExternalUrl(url)) {
       logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
       return
     }
-    await shell.openExternal(url)
+    await application.get('MainWindowService').openWebsite(url)
   }
 }

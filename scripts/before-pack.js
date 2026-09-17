@@ -1,7 +1,7 @@
 const { Arch } = require('electron-builder')
+const { rebuild } = require('@electron/rebuild')
 const { execSync } = require('child_process')
 const fs = require('fs')
-const { createRequire } = require('module')
 const path = require('path')
 const { parse } = require('yaml')
 
@@ -18,6 +18,8 @@ const packages = [
   '@anthropic-ai/claude-agent-sdk-linux-x64-musl',
   '@anthropic-ai/claude-agent-sdk-win32-arm64',
   '@anthropic-ai/claude-agent-sdk-win32-x64',
+  '@deepseek-ai/node-addon-landlock-run-linux-arm64',
+  '@deepseek-ai/node-addon-landlock-run-linux-x64',
   // anydoc converts binary office documents to markdown for the knowledge base.
   // It ships no win32-arm64 build and no wasm fallback, so existing formats use
   // their legacy readers there while newly supported .ppt fails visibly.
@@ -104,6 +106,47 @@ const platformToArch = {
   linuxmusl: 'linuxmusl'
 }
 
+async function prepareNativeModulesForElectron(
+  context,
+  rebuildFn = rebuild,
+  ensureLinuxArtifact = ensureLinuxNativeArtifact
+) {
+  const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
+  const platformName = context.packager.platform.name
+  const platform = platformToArch[platformName]
+  const electronVersion = context.packager.config.electronVersion
+  const projectRoot = path.join(__dirname, '..')
+
+  if (!platform || !electronVersion) {
+    throw new Error(`Cannot resolve Electron rebuild target for ${platformName}-${arch}`)
+  }
+
+  if (platform === 'linux') {
+    if (context.arch !== Arch.arm64 && context.arch !== Arch.x64) {
+      throw new Error(`Unsupported Linux packaging architecture: ${context.arch}`)
+    }
+    const artifact = ensureLinuxArtifact({ projectRoot, arch })
+    process.stdout.write(
+      `${artifact.cached ? 'Verified cached' : 'Downloaded'} GLIBC-compatible better-sqlite3 for ` +
+        `linux-${arch} (${artifact.inspection.sha256})\n`
+    )
+    return
+  }
+
+  // electron-builder's automatic pnpm rebuild can retain the host Node prebuild.
+  // Force the ABI-sensitive addon from source for the exact target before app files are copied.
+  await rebuildFn({
+    buildPath: projectRoot,
+    electronVersion,
+    platform,
+    arch,
+    onlyModules: ['better-sqlite3'],
+    force: true,
+    buildFromSource: true
+  })
+}
+exports.prepareNativeModulesForElectron = prepareNativeModulesForElectron
+
 // Most native packages encode Electron's platform key (win32) in their name, but some
 // (e.g. sqlite-vec) use the npm `windows` convention. Match either so a win32 build keeps
 // sqlite-vec-windows-x64 instead of wrongly excluding it.
@@ -135,92 +178,13 @@ const assertPrebuiltPackages = (platform, arch) => {
 exports.assertPrebuiltPackages = assertPrebuiltPackages
 exports.keepPackages = keepPackages
 
-const resolvePackageManifest = (packageName, require_) => {
-  for (const searchPath of require_.resolve.paths(packageName) ?? []) {
-    const candidate = path.join(searchPath, ...packageName.split('/'), 'package.json')
-    if (!fs.existsSync(candidate)) continue
-
-    const manifestPath = fs.realpathSync(candidate)
-    return { manifest: JSON.parse(fs.readFileSync(manifestPath, 'utf8')), manifestPath }
-  }
-}
-
-const collectDshRuntimePackageNames = (projectRoot) => {
-  const rootManifestPath = path.join(projectRoot, 'package.json')
-  const rootRequire = createRequire(rootManifestPath)
-  const packageNames = new Set()
-  const requiredPeers = new Set()
-  const visitedManifests = new Set()
-
-  const visit = (packageName, require_, optional = false) => {
-    const resolved = resolvePackageManifest(packageName, require_)
-    if (!resolved) {
-      if (optional) return
-      throw new Error(`Missing DSH runtime package ${packageName}`)
-    }
-
-    packageNames.add(packageName)
-    if (visitedManifests.has(resolved.manifestPath)) return
-    visitedManifests.add(resolved.manifestPath)
-
-    const packageRequire = createRequire(resolved.manifestPath)
-    for (const dependency of Object.keys(resolved.manifest.dependencies ?? {})) {
-      visit(dependency, packageRequire)
-    }
-    for (const dependency of Object.keys(resolved.manifest.optionalDependencies ?? {})) {
-      visit(dependency, packageRequire, true)
-    }
-    for (const peer of Object.keys(resolved.manifest.peerDependencies ?? {})) {
-      if (!resolved.manifest.peerDependenciesMeta?.[peer]?.optional) requiredPeers.add(peer)
-    }
-  }
-
-  visit('@cherrystudio/dsh-bridge', rootRequire)
-
-  const missingPeers = [...requiredPeers].filter((peer) => !packageNames.has(peer)).sort()
-  if (missingPeers.length) throw new Error(`Missing production DSH peer dependencies: ${missingPeers.join(', ')}`)
-
-  return [...packageNames].sort()
-}
-exports.collectDshRuntimePackageNames = collectDshRuntimePackageNames
-
-const buildDshAsarUnpackPatterns = (projectRoot) =>
-  collectDshRuntimePackageNames(projectRoot).flatMap((packageName) => [
-    `node_modules/${packageName}/**`,
-    `node_modules/**/node_modules/${packageName}/**`
-  ])
-exports.buildDshAsarUnpackPatterns = buildDshAsarUnpackPatterns
-
 exports.default = async function (context) {
   const arch = context.arch === Arch.arm64 ? 'arm64' : 'x64'
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
-  const projectRoot = path.join(__dirname, '..')
 
+  await prepareNativeModulesForElectron(context)
   assertPrebuiltPackages(platform, arch)
-
-  const configuredAsarUnpack = context.packager.config.asarUnpack
-  const dshAsarUnpack = buildDshAsarUnpackPatterns(projectRoot)
-  context.packager.config.asarUnpack = [
-    ...(Array.isArray(configuredAsarUnpack)
-      ? configuredAsarUnpack
-      : configuredAsarUnpack
-        ? [configuredAsarUnpack]
-        : []),
-    ...dshAsarUnpack
-  ]
-  process.stdout.write(`Unpacking ${dshAsarUnpack.length / 2} DSH runtime dependency packages\n`)
-
-  if (platform === 'linux') {
-    const linuxArch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
-    if (!linuxArch) throw new Error(`Unsupported Linux packaging architecture: ${context.arch}`)
-
-    const artifact = ensureLinuxNativeArtifact({ projectRoot, arch: linuxArch })
-    process.stdout.write(
-      `${artifact.cached ? 'Verified cached' : 'Downloaded'} GLIBC-compatible better-sqlite3 for ` +
-        `linux-${linuxArch} (${artifact.inspection.sha256})\n`
-    )
-  }
 
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)
   execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch} --packaging`, {

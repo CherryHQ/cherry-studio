@@ -1,11 +1,12 @@
-import { Button, type RenderRowArgs } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Icon } from '@iconify/react'
-import { CommandContextMenu, type CommandContextMenuExtraItem, type MaybePromise } from '@renderer/components/command'
-import { getFileIconName } from '@renderer/utils/fileIconName'
 import { ChevronRight } from 'lucide-react'
 import type React from 'react'
 import { useState } from 'react'
+
+import { Button, type RenderRowArgs } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { CommandContextMenu, type CommandContextMenuExtraItem, type MaybePromise } from '@renderer/components/command'
+import { getFileIconName } from '@renderer/utils/fileIconName'
 
 import type { FileTreeAnimationSlot, FileTreeNode, FileTreeRenameSlot } from './types'
 
@@ -73,6 +74,12 @@ export function FileTreeRow(props: FileTreeRowProps) {
     if (isFolder) toggleExpanded()
   }
 
+  const handleRowKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
+    event.preventDefault()
+    handleRowClick()
+  }
+
   const indent = { paddingLeft: `${depth * INDENT_STEP_PX + INDENT_BASE_PX}px` }
 
   const row = (
@@ -80,7 +87,12 @@ export function FileTreeRow(props: FileTreeRowProps) {
       {...effectiveDragHandleProps}
       data-node-id={node.id}
       data-kind={node.kind}
+      role="treeitem"
+      tabIndex={0}
+      aria-selected={isSelected}
+      aria-expanded={isFolder ? isExpanded : undefined}
       onClick={handleRowClick}
+      onKeyDown={handleRowKeyDown}
       title={node.name}
       style={indent}
       className={cn(

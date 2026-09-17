@@ -1,6 +1,8 @@
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import AddModelFormPanel, { type AddModelDrawerFooterBinding } from './AddModelFormPanel'
 import type { AddModelDrawerPrefill } from './types'
@@ -10,11 +12,27 @@ interface AddModelDrawerProps {
   open: boolean
   prefill: AddModelDrawerPrefill | null
   onClose: () => void
+  onSuccess?: (modelIds: UniqueModelId[]) => void
+  showPurposeSelection?: boolean
 }
 
-export default function AddModelDrawer({ providerId, open, prefill, onClose }: AddModelDrawerProps) {
+export default function AddModelDrawer({
+  providerId,
+  open,
+  prefill,
+  onClose,
+  onSuccess,
+  showPurposeSelection
+}: AddModelDrawerProps) {
   const { t } = useTranslation()
   const [footerBinding, setFooterBinding] = useState<AddModelDrawerFooterBinding | null>(null)
+  const handleSuccess = useCallback(
+    (modelIds: UniqueModelId[]) => {
+      onSuccess?.(modelIds)
+      onClose()
+    },
+    [onClose, onSuccess]
+  )
 
   const footer =
     footerBinding != null ? (
@@ -41,8 +59,9 @@ export default function AddModelDrawer({ providerId, open, prefill, onClose }: A
           <AddModelFormPanel
             providerId={providerId}
             prefill={prefill}
-            onSuccess={onClose}
+            onSuccess={handleSuccess}
             onCancel={onClose}
+            showPurposeSelection={showPurposeSelection}
             onDrawerFooterBinding={setFooterBinding}
           />
         </div>

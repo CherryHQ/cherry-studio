@@ -1,7 +1,8 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import AskUserQuestionComposer, { type AskUserQuestionComposerRequest } from '../AskUserQuestionComposer'
 

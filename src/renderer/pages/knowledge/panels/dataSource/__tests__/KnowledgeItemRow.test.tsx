@@ -1,10 +1,10 @@
 import '@testing-library/jest-dom/vitest'
-
-import { toast } from '@renderer/services/toast'
-import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 
 import KnowledgeItemRow from '../KnowledgeItemRow'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'

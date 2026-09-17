@@ -23,9 +23,10 @@
  * - data-retry (transient model-retry/fallback status; shown live, never persisted)
  */
 
+import * as z from 'zod'
+
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { type FileType, FileTypeSchema } from '@shared/types/file'
-import * as z from 'zod'
 
 import type { SerializedError } from '../../types/error'
 import type { CherryMessagePart } from './message'
@@ -264,7 +265,8 @@ const ComposerMessageTokenKindSchema = z.enum([
   'command',
   'knowledge',
   'reference',
-  'quote'
+  'quote',
+  'webviewAnnotation'
 ])
 
 const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
@@ -385,7 +387,7 @@ export function withKnowledgeScopePart(parts: CherryMessagePart[], baseIds: read
     {
       type: KNOWLEDGE_SCOPE_PART_TYPE,
       data: { baseIds: uniqueBaseIds }
-    } as CherryMessagePart
+    }
   ]
 }
 
@@ -469,5 +471,5 @@ export function withCherryMeta<P extends CherryMessagePart>(
       ...existingMeta,
       cherry: { ...existingCherry, ...(patch as Record<string, unknown>) }
     }
-  } as P
+  }
 }

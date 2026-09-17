@@ -1,0 +1,14 @@
+{
+  "name": "data-classify",
+  "version": "2.0.0",
+  "description": "Data classification and code generation tools for Cherry Studio data refactoring",
+  "scripts": {
+    "generate": "node scripts/generate-all.js",
+    "generate:preferences": "node scripts/generate-preferences.js",
+    "generate:boot-config": "node scripts/generate-boot-config.js",
+    "generate:migration": "node scripts/generate-migration.js"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "private": true
+}

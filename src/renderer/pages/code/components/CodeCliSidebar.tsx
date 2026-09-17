@@ -1,8 +1,9 @@
-import { Scrollbar } from '@cherrystudio/ui'
-import type { CodeCli } from '@shared/types/codeCli'
 import { Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Scrollbar } from '@cherrystudio/ui'
+import type { CodeCli } from '@shared/types/codeCli'
 
 import type { CLI_TOOLS } from '../constants/cliTools'
 import type { CodeToolMeta, VersionStatus } from '../types'
@@ -57,7 +58,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
   const { t } = useTranslation()
 
   return (
-    <div data-ui="code.navigation" className="flex h-full min-h-0 w-60 shrink-0 flex-col border-border-subtle border-r">
+    <div data-ui="code.navigation" className="flex h-full min-h-0 w-66 shrink-0 flex-col border-border-subtle border-r">
       <Scrollbar className="min-h-0 flex-1 overflow-x-hidden p-2.5">
         {tools.length === 0 ? (
           <div className="py-8 text-center text-foreground-tertiary text-xs">{t('code.no_tools')}</div>
