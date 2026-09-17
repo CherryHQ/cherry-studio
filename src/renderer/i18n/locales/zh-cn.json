@@ -3042,6 +3042,7 @@
   "provider.cherryai": "CherryAI",
   "provider.cherryin": "CherryIN",
   "provider.claude-code": "Claude Code",
+  "provider.comfyui": "ComfyUI",
   "provider.copilot": "GitHub Copilot",
   "provider.dashscope": "阿里云百炼",
   "provider.deepseek": "深度求索",

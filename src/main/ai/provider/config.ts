@@ -125,7 +125,8 @@ const IMAGE_EXTENSION_PRESETS = [
   SystemProviderIds.silicon,
   SystemProviderIds.doubao,
   SystemProviderIds.dmxapi,
-  SystemProviderIds.tokenhub
+  SystemProviderIds.tokenhub,
+  SystemProviderIds.comfyui
 ] as const
 
 // ── SDK Config Building ──

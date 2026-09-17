@@ -2600,7 +2600,26 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "authOptional": true,
+      "availableInEditions": ["global", "cn"],
+      "description": "ComfyUI - AI model provider",
+      "endpointConfigs": {
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:8188"
+        }
+      },
+      "id": "comfyui",
+      "metadata": {
+        "website": {
+          "docs": "https://docs.comfy.org/development/comfyui-server/comms_routes",
+          "official": "https://www.comfy.org/"
+        }
+      },
+      "name": "ComfyUI"
     }
   ],
-  "version": "c1e12f94463bc3de"
+  "version": "e071806e834539e1"
 }

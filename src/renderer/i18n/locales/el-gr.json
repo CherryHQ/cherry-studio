@@ -3042,6 +3042,7 @@
   "provider.cherryai": "CherryAI",
   "provider.cherryin": "CherryIN",
   "provider.claude-code": "Claude Code",
+  "provider.comfyui": "ComfyUI",
   "provider.copilot": "GitHub Copilot",
   "provider.dashscope": "Alibaba Cloud",
   "provider.deepseek": "DeepSeek",
