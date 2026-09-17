@@ -140,7 +140,12 @@ describe('AgentJobsService', () => {
             abortAndDrain: async () => {}
           }
         case 'AgentSessionRuntimeService':
-          return { isSessionBusy: () => false, closeSession: async () => {} }
+          return {
+            isSessionBusy: () => false,
+            closeSession: async () => {},
+            cancelSessionForks: async () => {},
+            recoverSessionForks: async () => {}
+          }
         case 'AgentSessionDeliveryService':
           return { kick: () => {}, drainSessionQueues: async () => {}, pause: () => ({ dispose() {} }) }
         case 'ChannelManager':
