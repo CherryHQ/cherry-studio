@@ -1084,6 +1084,26 @@ describe('SkillService', () => {
       }
     })
 
+    it('suffixes a repository-root skill whose name is a Windows reserved device name', async () => {
+      const oid = 'a'.repeat(40)
+      const { skillService, installSpy } = await setupGithubInstall({
+        refs: [{ name: 'main', oid }],
+        tree: ['SKILL.md']
+      })
+      vi.mocked(parseSkillMetadata).mockResolvedValue({ name: 'CON' } as never)
+
+      try {
+        await skillService.install({
+          installSource: 'github:https://github.com/owner/some-repo/blob/main/SKILL.md'
+        })
+
+        const installedDirectory = installSpy.mock.calls[0][0]
+        expect(path.basename(installedDirectory)).toBe('CON-skill')
+      } finally {
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
     it('migrates a pre-fix content install to the skill folder on reinstall', async () => {
       const root = await createTempDir('github-migrate-')
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')
@@ -2621,6 +2641,70 @@ describe('SkillService', () => {
       expect(
         await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, SKILL_ID_1))
       ).toHaveLength(1)
+      expect(await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))).toHaveLength(1)
+    })
+
+    it('reconcileSkills drops a migration marker after the catalog commit instead of restoring a duplicate', async () => {
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('my-skill'))
+      const marker = path.join(dataSkillsRoot, '.content.migrating-to.my-skill.bak')
+      await fs.promises.mkdir(marker, { recursive: true })
+      await fs.promises.writeFile(path.join(marker, 'SKILL.md'), '# old')
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'my-skill'), { recursive: true })
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'my-skill', 'SKILL.md'), '# new')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'my-skill',
+        folderName: 'my-skill',
+        source: 'marketplace',
+        sourceUrl: 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md',
+        contentHash: 'a',
+        isEnabled: false
+      })
+      await seedAgent()
+      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
+
+      await skillService.reconcileSkills()
+
+      await expect(fs.promises.access(marker)).rejects.toThrow()
+      await expect(fs.promises.access(path.join(dataSkillsRoot, 'content'))).rejects.toThrow()
+      await expect(fs.promises.readFile(path.join(dataSkillsRoot, 'my-skill', 'SKILL.md'), 'utf8')).resolves.toBe(
+        '# new'
+      )
+      expect(await dbh.db.select().from(agentGlobalSkillTable)).toMatchObject([
+        { id: SKILL_ID_1, folderName: 'my-skill' }
+      ])
+      expect(await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))).toHaveLength(1)
+    })
+
+    it('reconcileSkills restores the old folder and drops the uncommitted replacement before the catalog commit', async () => {
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('content'))
+      const marker = path.join(dataSkillsRoot, '.content.migrating-to.my-skill.bak')
+      await fs.promises.mkdir(marker, { recursive: true })
+      await fs.promises.writeFile(path.join(marker, 'SKILL.md'), '# old')
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'my-skill'), { recursive: true })
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'my-skill', 'SKILL.md'), '# new')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Repo',
+        folderName: 'content',
+        source: 'marketplace',
+        sourceUrl: 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md',
+        contentHash: 'a',
+        isEnabled: false
+      })
+      await seedAgent()
+      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
+
+      await skillService.reconcileSkills()
+
+      await expect(fs.promises.access(marker)).rejects.toThrow()
+      await expect(fs.promises.readFile(path.join(dataSkillsRoot, 'content', 'SKILL.md'), 'utf8')).resolves.toBe(
+        '# old'
+      )
+      await expect(fs.promises.access(path.join(dataSkillsRoot, 'my-skill'))).rejects.toThrow()
+      expect(await dbh.db.select().from(agentGlobalSkillTable)).toMatchObject([
+        { id: SKILL_ID_1, folderName: 'content' }
+      ])
       expect(await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))).toHaveLength(1)
     })
 

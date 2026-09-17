@@ -135,7 +135,10 @@ export class SkillInstaller {
   }
 
   /** Restore every interrupted publish before reconcile considers pruning. */
-  async recoverInterruptedInstalls(storageRoot: string): Promise<void> {
+  async recoverInterruptedInstalls(
+    storageRoot: string,
+    isFolderTracked?: (folderName: string) => boolean
+  ): Promise<void> {
     let entries: fs.Dirent[]
     try {
       entries = await fs.promises.readdir(storageRoot, { withFileTypes: true })
@@ -146,6 +149,12 @@ export class SkillInstaller {
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
+      const migration = entry.name.match(/^\.([^.]+)\.migrating-to\.([^.]+)\.bak$/)
+      if (migration?.[1] && migration?.[2]) {
+        await this.recoverInterruptedMigration(storageRoot, migration[1], migration[2], isFolderTracked)
+        continue
+      }
+
       const backupMatch = entry.name.match(/^\.(.+)\.bak$/)
       if (backupMatch?.[1]) {
         await this.recoverInterruptedInstall(path.join(storageRoot, backupMatch[1]))
@@ -160,12 +169,51 @@ export class SkillInstaller {
   }
 
   /**
-   * Move a replaced library folder aside to a `.bak` rollback marker instead of deleting it.
-   * Startup recovery restores uncommitted markers, so a crash before the caller commits still
-   * brings back the complete old state. Returns null when there is nothing to preserve.
+   * Settle a migration marker by asking the catalog which side of the commit survived the crash.
+   * Post-commit (a row points at the replacement) the marker is a leftover: drop it and keep the
+   * replacement. Pre-commit (no row does) the replacement is uncommitted: restore the old folder
+   * and drop the replacement before reconcile adopts it as a duplicate skill.
    */
-  async backupReplacedFolder(dirPath: string): Promise<string | null> {
-    const backupPath = this.getBackupPath(dirPath)
+  private async recoverInterruptedMigration(
+    storageRoot: string,
+    oldName: string,
+    newName: string,
+    isFolderTracked?: (folderName: string) => boolean
+  ): Promise<void> {
+    const marker = path.join(storageRoot, `.${oldName}.migrating-to.${newName}.bak`)
+    if (isFolderTracked?.(newName)) {
+      await this.safeRemoveDirectory(marker, 'committed skill migration backup')
+      return
+    }
+
+    const oldPath = path.join(storageRoot, oldName)
+    if (await pathExists(oldPath)) {
+      logger.warn('Leaving skill migration backup in place; original folder reappeared', { marker, oldPath })
+      return
+    }
+    try {
+      await fs.promises.rename(marker, oldPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
+    logger.info('Recovered interrupted skill migration', { oldPath, marker })
+
+    // The replacement was installed by the same migration that created the marker: installs refuse
+    // to migrate onto an existing directory, and no catalog row owns it while the old row stands.
+    if (!isFolderTracked?.(newName)) {
+      await this.safeRemoveDirectory(path.join(storageRoot, newName), 'uncommitted skill replacement')
+    }
+  }
+
+  /**
+   * Move a replaced library folder aside to a migration rollback marker that names the replacement
+   * (`.<old>.migrating-to.<new>.bak`) instead of deleting it. The marker name is the write-ahead
+   * record: startup recovery restores the old folder while no catalog row points at the replacement
+   * and drops the marker once one does. Returns null when there is nothing to preserve.
+   */
+  async backupReplacedFolderForMigration(dirPath: string, newFolderName: string): Promise<string | null> {
+    const backupPath = path.join(path.dirname(dirPath), `.${path.basename(dirPath)}.migrating-to.${newFolderName}.bak`)
     try {
       await fs.promises.rename(dirPath, backupPath)
     } catch (error) {
@@ -176,13 +224,15 @@ export class SkillInstaller {
   }
 
   /**
-   * Commit a backup created by `backupReplacedFolder` once the replacement (files + catalog
-   * row) is durable: turn the rollback marker into a `.cleanup` marker and delete it. An
+   * Commit a backup created by `backupReplacedFolderForMigration` once the replacement (files +
+   * catalog row) is durable: turn the rollback marker into a `.cleanup` marker and delete it. An
    * interruption from here on only leaves markers startup recovery deletes.
    */
   async commitReplacedFolder(backupPath: string | null): Promise<void> {
     if (!backupPath) return
-    const marker = path.basename(backupPath).match(/^\.(.+)\.bak$/)
+    const marker =
+      path.basename(backupPath).match(/^\.([^.]+)\.migrating-to\.([^.]+)\.bak$/) ??
+      path.basename(backupPath).match(/^\.(.+)\.bak$/)
     if (!marker?.[1]) throw new Error(`Not a skill backup marker: ${backupPath}`)
     const cleanupPath = path.join(path.dirname(backupPath), `.${marker[1]}.cleanup`)
     await fs.promises.rename(backupPath, cleanupPath)
