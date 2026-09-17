@@ -1255,6 +1255,7 @@
   "error.diagnostic_report.action": "問題上報",
   "error.diagnostic_report.location": "發生位置",
   "error.diagnostic_report.locations.agent": "工作對話",
+  "error.diagnostic_report.locations.work": "工作對話",
   "error.diagnostic_report.locations.home": "一般對話",
   "error.diagnostics.action_required": "需要處理",
   "error.diagnostics.action_required_tag": "待處理",

@@ -1255,6 +1255,7 @@
   "error.diagnostic_report.action": "Report a problem",
   "error.diagnostic_report.location": "Location",
   "error.diagnostic_report.locations.agent": "Agent conversation",
+  "error.diagnostic_report.locations.work": "Work conversation",
   "error.diagnostic_report.locations.home": "Home conversation",
   "error.diagnostics.action_required": "Action required",
   "error.diagnostics.action_required_tag": "Needs action",

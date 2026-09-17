@@ -7,7 +7,8 @@ import {
   buildDiagnosticReportDescription,
   DIAGNOSTIC_REPORT_PREFILL_MAX_BYTES,
   type DiagnosticReportDescriptionLabels,
-  diagnosticReportFields
+  diagnosticReportFields,
+  resolveDiagnosticReportLocation
 } from '../diagnosticReportDescription'
 
 const labels: DiagnosticReportDescriptionLabels = {
@@ -133,5 +134,27 @@ describe('buildDiagnosticReportDescription', () => {
     expect(diagnosticDescriptionByteLength(description)).toBeLessThanOrEqual(DIAGNOSTIC_REPORT_PREFILL_MAX_BYTES)
     expect(description).not.toContain('\uFFFD')
     expect(description).not.toMatch(/\r$/)
+  })
+})
+
+describe('resolveDiagnosticReportLocation', () => {
+  const t = (key: string, options?: { defaultValue?: string }) =>
+    key === 'error.diagnostic_report.locations.work'
+      ? '工作对话'
+      : key === 'error.diagnostic_report.locations.home'
+        ? '普通对话'
+        : (options?.defaultValue ?? key)
+
+  it('maps Agent location ids and leftover Chinese copy to the work-conversation label', () => {
+    expect(resolveDiagnosticReportLocation(t, 'agent', 'zh-CN')).toBe('工作对话')
+    expect(resolveDiagnosticReportLocation(t, 'Agent 对话', 'zh-CN')).toBe('工作对话')
+  })
+
+  it('maps the home location id', () => {
+    expect(resolveDiagnosticReportLocation(t, 'home')).toBe('普通对话')
+  })
+
+  it('leaves already-translated locations unchanged', () => {
+    expect(resolveDiagnosticReportLocation(t, 'Agent conversation')).toBe('Agent conversation')
   })
 })

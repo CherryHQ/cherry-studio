@@ -1255,6 +1255,7 @@
   "error.diagnostic_report.action": "Problem melden",
   "error.diagnostic_report.location": "Ort",
   "error.diagnostic_report.locations.agent": "Agent-Unterhaltung",
+  "error.diagnostic_report.locations.work": "Arbeitsunterhaltung",
   "error.diagnostic_report.locations.home": "Normale Unterhaltung",
   "error.diagnostics.action_required": "Handlungsbedarf",
   "error.diagnostics.action_required_tag": "Handlungsbedarf",

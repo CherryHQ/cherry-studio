@@ -1255,6 +1255,7 @@
   "error.diagnostic_report.action": "Báo cáo sự cố",
   "error.diagnostic_report.location": "Vị trí",
   "error.diagnostic_report.locations.agent": "Cuộc trò chuyện Agent",
+  "error.diagnostic_report.locations.work": "Cuộc trò chuyện công việc",
   "error.diagnostic_report.locations.home": "Cuộc trò chuyện thông thường",
   "error.diagnostics.action_required": "Cần xử lý",
   "error.diagnostics.action_required_tag": "Cần xử lý",

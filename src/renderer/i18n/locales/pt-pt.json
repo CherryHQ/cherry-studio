@@ -1255,6 +1255,7 @@
   "error.diagnostic_report.action": "Comunicar um problema",
   "error.diagnostic_report.location": "Local",
   "error.diagnostic_report.locations.agent": "Conversa com agente",
+  "error.diagnostic_report.locations.work": "Conversa de trabalho",
   "error.diagnostic_report.locations.home": "Conversa normal",
   "error.diagnostics.action_required": "Ação necessária",
   "error.diagnostics.action_required_tag": "Pendente",

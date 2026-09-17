@@ -8,6 +8,22 @@ export interface DiagnosticReportConfig {
   location: string
 }
 
+const AGENT_LOCATION_LABELS = new Set(['agent', 'Agent 对话', 'Agent 對話'])
+
+export function resolveDiagnosticReportLocation(
+  t: (key: string, options?: { defaultValue?: string }) => string,
+  location: string,
+  language?: string
+): string {
+  if (AGENT_LOCATION_LABELS.has(location.trim())) {
+    return t('error.diagnostic_report.locations.work', {
+      defaultValue: language?.toLowerCase().startsWith('zh') ? '工作对话' : 'Work conversation'
+    })
+  }
+  if (location.trim() === 'home') return t('error.diagnostic_report.locations.home')
+  return location
+}
+
 export interface DiagnosticReportDescriptionLabels {
   errorMessage: string
   location: string
