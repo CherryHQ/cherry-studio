@@ -229,7 +229,8 @@ const ShortcutSettings: FC = () => {
       if (!(key in current)) {
         return current
       }
-      const { [key]: _removed, ...rest } = current
+      const rest = { ...current }
+      delete rest[key]
       return rest
     })
   }
@@ -246,7 +247,8 @@ const ShortcutSettings: FC = () => {
         if (!(key in current)) {
           return current
         }
-        const { [key]: _removed, ...rest } = current
+        const rest = { ...current }
+        delete rest[key]
         return rest
       })
 
