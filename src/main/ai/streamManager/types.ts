@@ -161,6 +161,7 @@ export interface ConversationCompletedEvent {
  *   → all done → 'done' | any error (none streaming) → 'error' | all aborted → 'aborted'
  */
 export interface ActiveStream {
+  observationError?: SerializedError
   topicId: string
   /** Unique per stream lifecycle for renderer-side unread/seen tracking. */
   turnId: string
@@ -178,6 +179,18 @@ export interface ActiveStream {
   expiresAt?: number
   /** Timer handle set by chat `lifecycle.cleanup` so `evictStream` can cancel. */
   cleanupTimer?: ReturnType<typeof setTimeout>
+}
+
+export interface TopicStreamSnapshot {
+  topicId: string
+  status: ActiveStream['status'] | 'idle' | 'finalizing'
+  executions: Array<{
+    modelId: UniqueModelId
+    attemptId: number
+    messageId?: string
+    message?: CherryUIMessage
+  }>
+  failed: boolean
 }
 
 // ── Config ──────────────────────────────────────────────────────────

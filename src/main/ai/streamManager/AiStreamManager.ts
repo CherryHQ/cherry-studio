@@ -49,6 +49,7 @@ import type {
 } from '../types'
 import { AiStreamAdmissionError, type LiveExecutionChangeAdmission, type LiveExecutionChangeIntent } from './admission'
 import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
+import type { AgentDispatchOptions } from './context/agentSubmission'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
 import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
@@ -68,6 +69,7 @@ import type {
   StreamErrorResult,
   StreamExecution,
   StreamListener,
+  TopicStreamSnapshot,
   TransportTimings
 } from './types'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
@@ -325,6 +327,7 @@ export class AiStreamManager extends BaseService {
   private readonly _onConversationCompleted = new Emitter<ConversationCompletedEvent>()
   public readonly onConversationCompleted: Event<ConversationCompletedEvent> = this._onConversationCompleted.event
   private readonly activeStreams = new Map<string, ActiveStream>()
+  private readonly topicObservers = new Map<string, Set<() => void>>()
   /** Serialises `prepareDispatch → send` per topic so concurrent `ai.stream.open` requests can't race
    *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
   private readonly dispatchLock = new KeyedMutex()
@@ -409,7 +412,11 @@ export class AiStreamManager extends BaseService {
    * entry points, a concurrent open and approval-continue on the same topic could
    * both see "no live stream" and orphan a row.
    */
-  async dispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<AiStreamOpenResponse> {
+  async dispatch(
+    subscriber: StreamListener,
+    req: MainDispatchRequest,
+    options: AgentDispatchOptions = {}
+  ): Promise<AiStreamOpenResponse> {
     // Gate on the boot reconcile so a placeholder written here is never clobbered by it.
     // No-op after boot (resolved promise); the only caller it can actually block is a
     // stream opened in the boot window before reconcile finished.
@@ -431,7 +438,7 @@ export class AiStreamManager extends BaseService {
           reason: 'paused' as const
         }
       }
-      const admission = dispatchStreamRequest(this, subscriber, req)
+      const admission = dispatchStreamRequest(this, subscriber, req, options)
       this.inFlightDispatches.set(admission, req.topicId)
       try {
         return await admission
@@ -640,6 +647,7 @@ export class AiStreamManager extends BaseService {
   }
 
   protected onDestroy(): void {
+    this.topicObservers.clear()
     this._onApprovalRequested.dispose()
     this._onConversationCompleted.dispose()
   }
@@ -780,6 +788,8 @@ export class AiStreamManager extends BaseService {
       existing.executions.set(model.modelId, nextExecution)
       existing.isMultiModel = existing.executions.size > 1
       existing.status = hasLiveSibling ? 'streaming' : 'pending'
+      existing.observationError = undefined
+      this.publishObservation(input.topicId)
       existing.lifecycle.onActiveExecutionsChanged(existing)
       return {
         mode: 'started',
@@ -861,6 +871,7 @@ export class AiStreamManager extends BaseService {
       isPersistentConversation: input.isPersistentConversation === true
     }
     this.activeStreams.set(input.topicId, stream)
+    this.publishObservation(input.topicId)
     // Chat broadcasts to SharedCache so `useChatWithHistory.resumeActiveStream` can attach; prompt is silent.
     stream.lifecycle.onCreated(stream)
 
@@ -1228,9 +1239,24 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
-  async abortAndDrain(topicId: string, reason: string): Promise<void> {
-    await this.withDispatchLock(topicId, async () => {
+  async abortAndDrain(
+    topicId: string,
+    reason: string,
+    expected?: { attemptId: number; messageId: string; assertAllowed?: () => void }
+  ): Promise<boolean> {
+    return this.withDispatchLock(topicId, async () => {
+      expected?.assertAllowed?.()
       const stream = this.activeStreams.get(topicId)
+      if (
+        expected &&
+        (!stream ||
+          !isLiveStatus(stream.status) ||
+          ![...stream.executions.values()].some(
+            (execution) =>
+              execution.attemptId === expected.attemptId && execution.anchorMessageId === expected.messageId
+          ))
+      )
+        return false
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
       const drainedLoops = new Set(loopPromises)
 
@@ -1261,6 +1287,7 @@ export class AiStreamManager extends BaseService {
         await runtimeClosing
         await drainReplacementLoops()
       }
+      return true
     })
   }
 
@@ -1574,6 +1601,8 @@ export class AiStreamManager extends BaseService {
   broadcastTopicError(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
+    stream.observationError = error
+    this.publishObservation(topicId)
     const exec = modelId ? stream.executions.get(modelId) : undefined
     const isTopicDone = !isLiveStatus(stream.status)
     const result: StreamErrorResult = {
@@ -1627,6 +1656,7 @@ export class AiStreamManager extends BaseService {
       }
     }
     stream.status = 'error'
+    this.publishObservation(topicId)
     this.runTerminalLifecycle(stream)
   }
 
@@ -1644,6 +1674,7 @@ export class AiStreamManager extends BaseService {
     }
     const inFlight = gate
     inFlight.pending += 1
+    this.publishObservation(topicId)
     let released = false
     return () => {
       if (released) return
@@ -1651,6 +1682,7 @@ export class AiStreamManager extends BaseService {
       inFlight.pending -= 1
       if (inFlight.pending > 0) return
       if (this.terminalDispatchInFlight.get(topicId) === inFlight) this.terminalDispatchInFlight.delete(topicId)
+      this.publishObservation(topicId)
       inFlight.release()
     }
   }
@@ -1661,6 +1693,7 @@ export class AiStreamManager extends BaseService {
     stream.lifecycle.cleanup(stream, () => {
       if (this.activeStreams.get(stream.topicId) === stream) {
         this.activeStreams.delete(stream.topicId)
+        this.publishObservation(stream.topicId)
       }
     })
   }
@@ -1808,6 +1841,61 @@ export class AiStreamManager extends BaseService {
   // ── Public: attach / detach ──────────────────────────────────────
   // Registered as IPC handlers in `onInit`. Public so tests can drive
   // the same code path with a fake `WebContents`-shaped sender.
+
+  observeTopic(topicId: string, observer: () => void): Disposable {
+    let observers = this.topicObservers.get(topicId)
+    if (!observers) {
+      observers = new Set()
+      this.topicObservers.set(topicId, observers)
+    }
+    observers.add(observer)
+    const dispose = () => {
+      observers.delete(observer)
+      if (observers.size === 0) this.topicObservers.delete(topicId)
+    }
+    try {
+      observer()
+    } catch (error) {
+      dispose()
+      throw error
+    }
+    return { dispose }
+  }
+
+  getTopicSnapshot(topicId: string): TopicStreamSnapshot {
+    const stream = this.activeStreams.get(topicId)
+    const status = stream?.observationError
+      ? 'error'
+      : this.terminalDispatchInFlight.has(topicId)
+        ? 'finalizing'
+        : (stream?.status ?? 'idle')
+    return {
+      topicId,
+      status,
+      failed: Boolean(stream?.observationError || stream?.status === 'error'),
+      executions: stream
+        ? [...stream.executions.values()].map((execution) => ({
+            modelId: execution.modelId,
+            attemptId: execution.attemptId,
+            messageId: execution.anchorMessageId,
+            // Shared, not cloned: each accumulator snapshot is replaced rather than mutated. Callers must only read it.
+            message: execution.finalMessage
+          }))
+        : []
+    }
+  }
+
+  private publishObservation(topicId: string): void {
+    const observers = this.topicObservers.get(topicId)
+    if (!observers?.size) return
+    for (const observer of [...observers]) {
+      try {
+        observer()
+      } catch (error) {
+        logger.warn('Topic observer failed', { topicId, error })
+      }
+    }
+  }
 
   attach(sender: Electron.WebContents, req: AiStreamAttachRequest): AiStreamAttachResponse {
     const stream = this.activeStreams.get(req.topicId)
@@ -2008,6 +2096,7 @@ export class AiStreamManager extends BaseService {
       accumulatorSeed,
       onAccumulatedSnapshot: (msg) => {
         exec.finalMessage = withCompactionAnchors(msg, exec)
+        if (this.activeStreams.get(topicId)?.executions.get(modelId) === exec) this.publishObservation(topicId)
       }
     })
 
@@ -2185,5 +2274,6 @@ export class AiStreamManager extends BaseService {
       endRootSpan(exec, 'aborted')
     }
     this.activeStreams.delete(topicId)
+    this.publishObservation(topicId)
   }
 }
