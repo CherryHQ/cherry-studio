@@ -22,6 +22,7 @@ import { aiUsageRecordHandlers } from './aiUsageRecords'
 import { apiGatewayPairedDeviceHandlers } from './apiGatewayPairedDevices'
 import { assistantHandlers } from './assistants'
 import { browserVisitHandlers } from './browserVisits'
+import { externalKnowledgeConnectionHandlers } from './externalKnowledgeConnections'
 import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
 import { jobHandlers } from './jobs'
@@ -55,6 +56,7 @@ export const apiHandlers: ApiImplementation = {
   ...assistantHandlers,
   ...agentChannelHandlers,
   ...browserVisitHandlers,
+  ...externalKnowledgeConnectionHandlers,
   ...topicHandlers,
   ...messageHandlers,
   ...fileHandlers,
