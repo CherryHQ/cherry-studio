@@ -105,6 +105,7 @@ export class AgentSessionForkService {
         workspace:
           source.workspace.type === 'system' ? { type: 'system' } : { type: 'user', workspaceId: source.workspace.id }
       },
+      'conversation',
       input.createdAt
     )
     agentSessionMessageService.insertForkMessagesTx(tx, input.targetSessionId, input.messages)

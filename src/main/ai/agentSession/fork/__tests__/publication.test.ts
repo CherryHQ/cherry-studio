@@ -104,6 +104,11 @@ describe('Agent fork publication', () => {
   })
 
   it('publishes an independent child without app_state and keeps its files after source deletion', async () => {
+    const createdAt = Date.now()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(createdAt)
+    beforeForkResult = async () => {
+      now.mockReturnValue(createdAt + 1_000)
+    }
     const notified: string[] = []
     vi.spyOn(agentSessionService, 'notifyReadModelChange').mockImplementation((ids) => {
       expect(dbh.sqlite.inTransaction).toBe(false)
@@ -114,6 +119,10 @@ describe('Agent fork publication', () => {
       }
     })
     const childId = await new AgentSessionForkOperations().fork(sessionId, messageId)
+    expect(dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, childId)).get()).toMatchObject({
+      type: 'conversation',
+      createdAt
+    })
     expect(notified).toEqual([childId])
     expect(agentSessionMessageService.listSessionMessages(childId).items[0].data.parts).toEqual([
       { type: 'text', text: 'Preserved answer' },
