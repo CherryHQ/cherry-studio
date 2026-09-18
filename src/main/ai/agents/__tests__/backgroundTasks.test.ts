@@ -12,7 +12,8 @@ import {
   getDetachedBackgroundTask,
   isPidAlive,
   listDetachedBackgroundTasks,
-  startDetachedBackgroundTask
+  startDetachedBackgroundTask,
+  stopDetachedBackgroundTask
 } from '../backgroundTasks'
 
 // Double quotes survive both POSIX sh and cmd.exe, including spaced paths.
@@ -44,6 +45,20 @@ describe('backgroundTasks', () => {
   })
 
   describe('startDetachedBackgroundTask', () => {
+    it.skipIf(process.platform === 'win32')('stops a detached process group and keeps a stopped record', async () => {
+      const record = await startDetachedBackgroundTask({
+        storageDir,
+        command: `${nodeBin} -e "setInterval(() => {}, 1000)"`,
+        cwd: storageDir
+      })
+      const stopped = await stopDetachedBackgroundTask(storageDir, record.id)
+      expect(stopped?.status).toBe('running')
+      expect(stopped?.stopSignal).toBe('SIGTERM')
+      await vi.waitFor(async () => {
+        expect((await getDetachedBackgroundTask(storageDir, record.id))?.status).toBe('stopped')
+      })
+      expect(await stopDetachedBackgroundTask(storageDir, record.id)).toBeUndefined()
+    })
     it('registers a running record and reports completion with sentinel and log', async () => {
       const onExit = vi.fn()
       const record = await startDetachedBackgroundTask({

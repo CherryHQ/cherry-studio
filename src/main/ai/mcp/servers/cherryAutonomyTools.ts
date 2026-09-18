@@ -26,8 +26,10 @@ import {
   type CompletedBackgroundTask,
   getDetachedBackgroundTask,
   listDetachedBackgroundTasks,
-  startDetachedBackgroundTask
+  startDetachedBackgroundTask,
+  stopDetachedBackgroundTask
 } from '@main/ai/agents/backgroundTasks'
+import { saveBackgroundTaskRecord } from '@main/ai/agents/backgroundTaskStore'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -422,7 +424,7 @@ const BACKGROUND_TASK_TOOL: Tool = {
     properties: {
       action: {
         type: 'string',
-        enum: ['start', 'status', 'list'],
+        enum: ['start', 'status', 'list', 'stop', 'kill'],
         description: 'The action to perform'
       },
       command: {
@@ -435,7 +437,7 @@ const BACKGROUND_TASK_TOOL: Tool = {
       },
       task_id: {
         type: 'string',
-        description: "Task id returned by start (required for 'status')."
+        description: "Task id returned by start (required for 'status', 'stop', and 'kill')."
       }
     },
     required: ['action']
@@ -525,8 +527,14 @@ export class CherryAutonomyTools {
               return await this.backgroundTaskStatus(args)
             case 'list':
               return await this.listBackgroundTasks()
+            case 'stop':
+            case 'kill':
+              return await this.stopBackgroundTask(args, action === 'kill')
             default:
-              throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected start/status/list`)
+              throw new McpError(
+                ErrorCode.InvalidParams,
+                `Unknown action "${action}", expected start/status/list/stop/kill`
+              )
           }
         }
         case SESSION_LIST_TOOL_NAME:
@@ -959,8 +967,15 @@ export class CherryAutonomyTools {
       command,
       cwd: this.workspacePath,
       name: typeof args.name === 'string' ? args.name : undefined,
-      onExit: (task) => this.notifyBackgroundTaskCompletion(task)
+      onExit: (task) => {
+        saveBackgroundTaskRecord(this.agentId, task.record)
+        this.notifyBackgroundTaskCompletion(task)
+      }
     })
+    saveBackgroundTaskRecord(
+      this.agentId,
+      (await getDetachedBackgroundTask(this.backgroundTaskStorageDir, record.id)) ?? record
+    )
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(record, null, 2) }]
     }
@@ -971,6 +986,7 @@ export class CherryAutonomyTools {
     if (!taskId) throw new McpError(ErrorCode.InvalidParams, "'task_id' is required for status")
     const record = await getDetachedBackgroundTask(this.backgroundTaskStorageDir, taskId)
     if (!record) throw new McpError(ErrorCode.InvalidParams, `Task "${taskId}" not found`)
+    saveBackgroundTaskRecord(this.agentId, record)
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(record, null, 2) }]
     }
@@ -978,9 +994,19 @@ export class CherryAutonomyTools {
 
   private async listBackgroundTasks() {
     const tasks = await listDetachedBackgroundTasks(this.backgroundTaskStorageDir)
+    for (const task of tasks) saveBackgroundTaskRecord(this.agentId, task)
     return {
       content: [{ type: 'text' as const, text: JSON.stringify({ tasks }, null, 2) }]
     }
+  }
+
+  private async stopBackgroundTask(args: Record<string, unknown>, force: boolean) {
+    const taskId = typeof args.task_id === 'string' ? args.task_id.trim() : ''
+    if (!taskId) throw new McpError(ErrorCode.InvalidParams, "'task_id' is required for stop/kill")
+    const record = await stopDetachedBackgroundTask(this.backgroundTaskStorageDir, taskId, force)
+    if (!record) throw new McpError(ErrorCode.InvalidParams, `Task "${taskId}" is not running or cannot be verified`)
+    saveBackgroundTaskRecord(this.agentId, record)
+    return { content: [{ type: 'text' as const, text: JSON.stringify(record, null, 2) }] }
   }
 
   /**

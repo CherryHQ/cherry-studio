@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
+import { listAgentBackgroundTasks, stopAgentBackgroundTask } from '@main/ai/agents/backgroundTaskActions'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
@@ -232,6 +233,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.stop_background_task': ({ sessionId, taskId }) =>
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
+  'ai.agent.background_task.list': ({ agentId }) => listAgentBackgroundTasks(agentId),
+  'ai.agent.background_task.stop': ({ agentId, taskId, force }) =>
+    stopAgentBackgroundTask(agentId, taskId, force === true),
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
   'ai.agent.task.create': ({ agentId, ...form }) =>
