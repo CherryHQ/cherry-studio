@@ -70,7 +70,7 @@ export interface ConversionResult {
   warnings: string[]
 }
 
-const WIDGET_TYPES = new Set(['INT', 'FLOAT', 'STRING', 'BOOLEAN'])
+const WIDGET_TYPES = new Set(['INT', 'FLOAT', 'STRING', 'BOOLEAN', 'COMBO'])
 const CONTROL_VALUES = new Set(['fixed', 'increment', 'decrement', 'randomize'])
 
 /** Frontend classes with no backend node: the prompt cannot contain them, so
@@ -78,6 +78,13 @@ const CONTROL_VALUES = new Set(['fixed', 'increment', 'decrement', 'randomize'])
 const FRONTEND_ONLY_CLASSES = new Set(['Reroute', 'Note', 'MarkdownNote'])
 
 export type Reference = [string, number]
+
+/** One hop of an alias resolution: the producer to keep following, or a final value. */
+interface AliasStep {
+  ref?: Reference
+  value?: unknown
+  type?: string
+}
 
 /** Backend widget inputs for a node class, in declaration order. */
 function widgetInputNames(info: ObjectInfo[string], includeAdvanced = false): string[] {
@@ -116,19 +123,20 @@ function isValidConnection(typeA?: string, typeB?: string): boolean {
 /**
  * Which of the bypass node's inputs feeds output `slot`, mirroring the
  * frontend's `_getBypassSlotIndex`: the same-numbered input while the
- * positional types are compatible, else the first exact then compatible
- * type match. Returns -1 when no input can produce the output's type.
+ * positional types are compatible with both the output and the type the
+ * eventual consumer asks for, else the first exact then compatible match.
+ * Returns -1 when no input can satisfy them.
  */
-function bypassInputSlot(node: UiNode, slot: number): number {
+function bypassInputSlot(node: UiNode, slot: number, requestedType?: string): number {
   const inputs = node.inputs ?? []
   const outputType = node.outputs?.[slot]?.type
-  if (outputType == null) return slot
-  if (outputType === '*' || outputType === '') return inputs.length > slot ? slot : 0
+  const type = requestedType ?? outputType
+  if (type == null || type === '*' || type === '') return inputs.length > slot ? slot : 0
   const opposite = inputs[slot]
-  if (opposite && isValidConnection(opposite.type, outputType)) return slot
-  const exact = inputs.findIndex((input) => input.type === outputType)
+  if (opposite && isValidConnection(opposite.type, outputType) && isValidConnection(opposite.type, type)) return slot
+  const exact = inputs.findIndex((input) => input.type === type)
   if (exact !== -1) return exact
-  return inputs.findIndex((input) => isValidConnection(input.type, outputType))
+  return inputs.findIndex((input) => isValidConnection(input.type, outputType) && isValidConnection(input.type, type))
 }
 
 /**
@@ -144,8 +152,15 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
   const subgraphs = new Map((ui.definitions?.subgraphs ?? []).map((sub) => [sub.id, sub]))
   const prompt: Record<string, ApiPromptNode> = {}
   const warnings: string[] = []
-  /** Instance node id -> its output slot's real producer, or a bypassed node's input. */
-  const aliases: Record<string, Record<number, unknown>> = {}
+  /**
+   * Node ids the prompt cannot contain (subgraph instances, bypassed and
+   * frontend-only classes) map each output slot to a resolver. Called with the
+   * type the consuming input declares (mirroring the frontend's
+   * `_getBypassSlotIndex`, whose type propagates down a bypass chain), it
+   * returns the next hop — a real producer reference, a resolved value, or
+   * undefined when nothing fits.
+   */
+  const aliases: Record<string, Record<number, (type?: string) => AliasStep | undefined>> = {}
   let nextId = 1
 
   const linkMap = (links: UiGraph['links']) => {
@@ -187,6 +202,14 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     return [String(target), link.origin_slot] satisfies Reference
   }
 
+  /** The declared type of a prompt node's input, for bypass slot selection. */
+  function consumerInputType(node: ApiPromptNode, name: string): string | undefined {
+    const spec = objectInfo[node.class_type]?.input
+    const entry = (spec?.required?.[name] ?? spec?.optional?.[name]) as unknown[] | undefined
+    const type = Array.isArray(entry) ? entry[0] : undefined
+    return Array.isArray(type) ? type.join(',') : typeof type === 'string' ? type : undefined
+  }
+
   /** Positional widget values, aligned to the backend's declaration order. */
   function widgetValues(node: UiNode, linked: Set<string>): Record<string, unknown> {
     const raw = node.widgets_values
@@ -217,8 +240,8 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
   /**
    * A node the prompt cannot contain (bypassed, or a frontend-only class) can
    * still feed consumers: the frontend passes each output through to the input
-   * that can produce its type (see `bypassInputSlot`), so alias the output to
-   * that input's resolved link.
+   * that can produce the type the consumer asks for (see `bypassInputSlot`),
+   * so alias the output to a resolver over that input's link.
    */
   function passThrough(
     node: UiNode,
@@ -228,18 +251,20 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     bindings: Map<number, Map<number, unknown>>
   ) {
     const id = remap.get(node.id)!
-    const alias: Record<number, unknown> = {}
+    const alias: Record<number, (type?: string) => AliasStep | undefined> = {}
     ;(node.outputs ?? []).forEach((output, slot) => {
-      const inputSlot = bypassInputSlot(node, slot)
-      const link = inputSlot >= 0 ? node.inputs?.[inputSlot]?.link : undefined
-      if (link != null) {
-        const ref = resolveLink(link, links, remap, bindings)
-        if (ref !== undefined) {
-          alias[slot] = ref
-          return
+      const defaultSlot = bypassInputSlot(node, slot, output.type)
+      const defaultLink = defaultSlot >= 0 ? (node.inputs?.[defaultSlot]?.link ?? null) : null
+      if (defaultLink != null) {
+        alias[slot] = (type) => {
+          const inputSlot = bypassInputSlot(node, slot, type)
+          const link = inputSlot >= 0 ? (node.inputs?.[inputSlot]?.link ?? null) : null
+          if (link == null) return undefined
+          const resolved = resolveLink(link, links, remap, bindings)
+          if (resolved === undefined) return undefined
+          return isReference(resolved) ? { ref: resolved, type: node.inputs?.[inputSlot]?.type } : { value: resolved }
         }
-      }
-      if ((output.links ?? []).length > 0) {
+      } else if ((output.links ?? []).length > 0) {
         warnings.push(`${kind} ${node.type} output ${slot} has no input to pass through`)
       }
     })
@@ -323,7 +348,7 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     // Publish the definition's outputs under the instance id so outer nodes can
     // be rewritten to the inner producer.
     const outputNodeId = definition.outputNode?.id
-    const alias: Record<number, unknown> = {}
+    const alias: Record<number, (type?: string) => AliasStep | undefined> = {}
     ;(definition.outputs ?? []).forEach((def, slot) => {
       for (const linkId of def.linkIds ?? []) {
         const link = innerLinks.get(linkId)
@@ -333,7 +358,7 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
           continue
         }
         const origin = innerRemap.get(link.origin_id)
-        if (origin !== undefined) alias[slot] = [String(origin), link.origin_slot]
+        if (origin !== undefined) alias[slot] = () => ({ ref: [String(origin), link.origin_slot] })
         break
       }
     })
@@ -363,23 +388,41 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
   const rootLinks = linkMap(ui.links)
   for (const node of ui.nodes ?? []) walk(node, rootLinks, rootRemap, new Map())
 
-  // Aliases can chain (a bypassed node fed by a subgraph), so settle iteratively.
-  // Every pass resolves at least one hop of each remaining chain, so the number
-  // of alias holders bounds the depth — a fixed point is always reached.
+  // Aliases resolve to a fixed point: a holder's target may itself be another
+  // alias holder (a bypass fed by a bypass), so follow the chain until a real
+  // producer or value shows up, carrying the consumer's type through the way
+  // the frontend does (the chosen input's own type seeds the next hop).
+  const resolveAlias = (ref: Reference, type: string | undefined): unknown => {
+    const seen = new Set<string>()
+    let current = { ref, type }
+    while (true) {
+      if (seen.has(current.ref[0])) {
+        warnings.push(`circular pass-through at ${current.ref[0]}`)
+        return undefined
+      }
+      seen.add(current.ref[0])
+      const holder = aliases[current.ref[0]]?.[current.ref[1]]
+      if (!holder) return current.ref
+      const step = holder(current.type)
+      if (step === undefined) return undefined
+      if (step.ref === undefined) return step.value
+      current = { ref: step.ref, type: step.type }
+    }
+  }
+
   const settlePasses = Object.keys(aliases).length + 1
   for (let pass = 0; pass < settlePasses; pass += 1) {
     let changed = false
     for (const node of Object.values(prompt)) {
       for (const [name, value] of Object.entries(node.inputs)) {
         if (!isReference(value)) continue
-        const alias = aliases[value[0]]
-        if (!alias) continue
-        const target = alias[value[1]]
-        if (target === undefined) {
+        if (!aliases[value[0]]) continue
+        const resolved = resolveAlias(value, consumerInputType(node, name))
+        if (resolved === undefined) {
           warnings.push(`alias ${value[0]} output slot ${value[1]} unresolved`)
           continue
         }
-        node.inputs[name] = target
+        node.inputs[name] = resolved
         changed = true
       }
     }
@@ -400,8 +443,13 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
   return { prompt, warnings }
 }
 
-/** Input names that can carry the prompt; the SDXL text encodes split theirs. */
-const PROMPT_INPUT_NAMES = new Set(['text', 'prompt', 'text_g', 'text_l'])
+/**
+ * Prompt input names by preference; the SDXL, Flux, and SD3 text encodes split
+ * their prompt across named streams, and Lumina2 names its own. The first
+ * recognized stream receives the chat prompt, the workflow-authored values of
+ * the others are preserved.
+ */
+const PROMPT_INPUT_PREFERENCE = ['text', 'prompt', 'text_g', 't5xxl', 'clip_g', 'clip_l', 'text_l', 'user_prompt']
 
 /**
  * The node that should receive the user's prompt. A positive and a negative
@@ -426,10 +474,13 @@ export function findPromptTarget(
       seen.add(nodeId)
       const target = prompt[nodeId]
       if (!target) continue
-      const entry = Object.entries(target.inputs).find(
-        ([name, value]) => typeof value === 'string' && PROMPT_INPUT_NAMES.has(name)
-      )
-      if (entry) return { nodeId, input: entry[0], samplerId }
+      let best: { name: string; rank: number } | undefined
+      for (const [name, value] of Object.entries(target.inputs)) {
+        if (typeof value !== 'string') continue
+        const rank = PROMPT_INPUT_PREFERENCE.indexOf(name)
+        if (rank !== -1 && (best === undefined || rank < best.rank)) best = { name, rank }
+      }
+      if (best) return { nodeId, input: best.name, samplerId }
       for (const value of Object.values(target.inputs)) {
         if (isReference(value)) queue.push(value[0])
       }

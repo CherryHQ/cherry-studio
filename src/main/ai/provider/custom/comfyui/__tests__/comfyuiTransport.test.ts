@@ -166,4 +166,16 @@ describe('applySeed', () => {
     expect(graph['2'].inputs.seed).toEqual(['1', 0])
     expect(graph['1'].inputs.seed).toBe(42)
   })
+
+  it('writes a seed linked from a PrimitiveInt source at its value widget', () => {
+    const graph: Record<string, ApiPromptNode> = {
+      '1': { class_type: 'PrimitiveInt', inputs: { value: 7 }, _meta: { title: 'source' } },
+      '2': { class_type: 'KSampler', inputs: { seed: ['1', 0] }, _meta: { title: 'sampler' } }
+    }
+
+    applySeed(graph, 42, '2')
+
+    expect(graph['2'].inputs.seed).toEqual(['1', 0])
+    expect(graph['1'].inputs.value).toBe(42)
+  })
 })

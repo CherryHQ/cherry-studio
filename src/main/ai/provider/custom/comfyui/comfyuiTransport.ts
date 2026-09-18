@@ -268,7 +268,8 @@ const seedInputKey = (inputs: Record<string, unknown>): 'seed' | 'noise_seed' | 
 /**
  * Write the seed into `inputs[key]`. A linked seed input is rewritten at its
  * source node — the node the sampler pulls the seed from usually holds the
- * pinning widget — so the connection is kept, not severed.
+ * pinning widget (a seed generator, or PrimitiveInt's `value`) — so the
+ * connection is kept, not severed.
  */
 function writeSeed(
   graph: Record<string, ApiPromptNode>,
@@ -279,7 +280,10 @@ function writeSeed(
   const current = inputs[key]
   if (isReference(current)) {
     const source = graph[current[0]]
-    const sourceKey = source ? seedInputKey(source.inputs) : undefined
+    const sourceKey = source
+      ? (seedInputKey(source.inputs) ??
+        ('value' in source.inputs && !isReference(source.inputs.value) ? 'value' : undefined))
+      : undefined
     if (sourceKey) {
       source.inputs[sourceKey] = value
       return

@@ -307,6 +307,40 @@ describe('convertUiWorkflowToPrompt', () => {
     expect(warnings).toEqual([])
   })
 
+  it('rewires past a bypass to the producer the downstream input accepts', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          { id: 1, type: 'ImageProducer', outputs: [{ name: 'IMAGE', type: 'IMAGE', links: [7] }] },
+          { id: 2, type: 'MaskProducer', outputs: [{ name: 'MASK', type: 'MASK', links: [8] }] },
+          {
+            id: 3,
+            type: 'Anything',
+            mode: 4,
+            // The wildcard output matches both, but only the MASK producer is
+            // compatible with what the consumer's mask input declares.
+            inputs: [
+              { name: 'a', type: 'IMAGE', link: 7 },
+              { name: 'b', type: 'MASK', link: 8 }
+            ],
+            outputs: [{ name: '*', type: '*', links: [9] }]
+          },
+          { id: 4, type: 'MaskConsumer', inputs: [{ name: 'mask', type: 'MASK', link: 9 }] }
+        ],
+        links: [link(7, 1, 0, 3, 0), link(8, 2, 0, 3, 1), link(9, 3, 0, 4, 0)]
+      },
+      {
+        ...objectInfo,
+        ImageProducer: { input: {} },
+        MaskProducer: { input: {} },
+        MaskConsumer: { input: { required: { mask: ['MASK'] } } }
+      }
+    )
+
+    const masks = Object.values(prompt).find((n) => n.class_type === 'MaskConsumer')!
+    expect(masks.inputs.mask).toEqual(['2', 0])
+  })
+
   it('omits a muted node entirely', () => {
     const { prompt } = convertUiWorkflowToPrompt(
       {
@@ -439,6 +473,22 @@ describe('convertUiWorkflowToPrompt', () => {
 
     expect(prompt['1'].inputs).toMatchObject({ tag: 'fixed', steps: 1 })
   })
+
+  it('aligns widget values over a COMBO-declared input', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [{ id: 1, type: 'ComboNode', widgets_values: ['Option 2', 3] }],
+        links: []
+      },
+      {
+        ComboNode: {
+          input: { required: { mode: ['COMBO', { options: ['Option 1', 'Option 2'] }], steps: ['INT', {}] } }
+        }
+      }
+    )
+
+    expect(prompt['1'].inputs).toMatchObject({ mode: 'Option 2', steps: 3 })
+  })
 })
 
 describe('findPromptTarget', () => {
@@ -488,5 +538,19 @@ describe('findPromptTarget', () => {
     })
 
     expect(target).toEqual({ nodeId: '1', input: 'text_g', samplerId: '3' })
+  })
+
+  it.each([
+    ['CLIPTextEncodeFlux', { clip_l: 'kept', t5xxl: '' }, 't5xxl'],
+    ['CLIPTextEncodeSD3', { clip_l: 'kept', clip_g: 'kept', t5xxl: '' }, 't5xxl'],
+    ['CLIPLumina2Encode', { system_prompt: 'style', user_prompt: '' }, 'user_prompt']
+  ])('recognizes the %s prompt streams', (classType, inputs, expected) => {
+    const target = findPromptTarget({
+      '1': { class_type: classType, inputs, _meta: { title: 'pos' } },
+      '2': { class_type: 'CLIPTextEncode', inputs: { text: 'blurry' }, _meta: { title: 'neg' } },
+      '3': { class_type: 'KSampler', inputs: { positive: ['1', 0], negative: ['2', 0] }, _meta: { title: 'KSampler' } }
+    })
+
+    expect(target).toEqual({ nodeId: '1', input: expected, samplerId: '3' })
   })
 })
