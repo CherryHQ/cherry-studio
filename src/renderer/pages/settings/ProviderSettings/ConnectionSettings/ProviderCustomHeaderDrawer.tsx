@@ -195,12 +195,16 @@ export function mergeEndpointConfigs(
       delete next.baseUrl
     }
     if (REASONING_FORMAT_ENDPOINT_TYPES.has(type)) {
-      if (draft.reasoningFormat) {
-        next.reasoningFormat = draft.reasoningFormat
-      } else if (snapshot?.[type]?.reasoningFormat !== undefined || next.reasoningFormat === undefined) {
-        delete next.reasoningFormat
+      // The drawer only models the self-hosted override; anything else reads
+      // as `default`. A draft still showing the snapshot option is untouched.
+      const snapshotOption = snapshot?.[type]?.reasoningFormat?.type === 'self-hosted' ? 'self-hosted' : undefined
+      if (draft.reasoningFormat?.type !== snapshotOption) {
+        if (draft.reasoningFormat) {
+          next.reasoningFormat = draft.reasoningFormat
+        } else {
+          delete next.reasoningFormat
+        }
       }
-      // Else untouched here but set elsewhere since — keep the newer value.
     }
     if (!isEmpty(next)) {
       out[type] = next
