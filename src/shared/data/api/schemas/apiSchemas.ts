@@ -28,6 +28,7 @@ import type { AiUsageRecordSchemas } from './aiUsageRecords'
 import type { ApiGatewayPairedDeviceSchemas } from './apiGatewayPairedDevices'
 import type { AssistantSchemas } from './assistants'
 import type { BrowserVisitSchemas } from './browserVisits'
+import type { ExternalKnowledgeSchemas } from './externalKnowledge'
 import type { ExternalKnowledgeConnectionSchemas } from './externalKnowledgeConnections'
 import type { FileSchemas } from './files'
 import type { GroupSchemas } from './groups'
@@ -64,6 +65,7 @@ import type { TranslateSchemas } from './translate'
 export type ApiSchemas = AssertValidSchemas<
   BrowserVisitSchemas &
     ExternalKnowledgeConnectionSchemas &
+    ExternalKnowledgeSchemas &
     ApiGatewayPairedDeviceSchemas &
     TopicSchemas &
     MessageSchemas &
