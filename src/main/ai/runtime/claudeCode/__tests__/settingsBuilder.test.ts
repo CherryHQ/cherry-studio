@@ -1192,6 +1192,56 @@ describe('buildClaudeCodeSessionSettings', () => {
     ).toBe(true)
   })
 
+  it('scopes image Read calls to the subagent alias map when the session model is text-only', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { supportsImages: false, subagentImageSupport: { opus: false, sonnet: false, haiku: true } }
+    )
+    const fire = (event: string, payload: Record<string, unknown>) =>
+      Promise.all(
+        (settings.hooks?.[event]?.[0]?.hooks ?? []).map((hook) =>
+          hook({ hook_event_name: event, ...payload }, 'tool-use-1', {})
+        )
+      )
+
+    await fire('PreToolUse', {
+      tool_name: 'Task',
+      tool_input: { model: 'haiku', subagent_type: 'vision-worker' },
+      tool_use_id: 'task-use-haiku'
+    })
+    await fire('SubagentStart', { agent_id: 'agent-vision', agent_type: 'vision-worker' })
+
+    const allowed = await fire('PreToolUse', {
+      tool_name: 'Read',
+      tool_input: { file_path: '/workspace/project/assets/Preview.png' },
+      tool_use_id: 'read-vision',
+      agent_id: 'agent-vision'
+    })
+    expect(
+      allowed.every(
+        (out) =>
+          (out as { hookSpecificOutput?: { permissionDecision?: string } })?.hookSpecificOutput?.permissionDecision !==
+          'deny'
+      )
+    ).toBe(true)
+
+    const parent = await fire('PreToolUse', {
+      tool_name: 'Read',
+      tool_input: { file_path: '/workspace/project/assets/Preview.png' },
+      tool_use_id: 'read-parent'
+    })
+    expect(parent).toContainEqual(
+      expect.objectContaining({
+        hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' })
+      })
+    )
+  })
+
   it('blocks permanent deletion and destructive Bash for protected built-in Agents', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

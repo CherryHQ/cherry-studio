@@ -86,3 +86,10 @@ export type SteerHolder = {
   /** Session-scoped cleanup — clears pending + evicts the holder. */
   dispose: () => void
 }
+
+/**
+ * Image-input capability for Claude's built-in subagent model aliases, resolved from the
+ * effective connection route (tier models after pinning). The image-read guard evaluates
+ * subagent requests against the matching alias and falls back to the session value.
+ */
+export type SubagentImageSupport = Readonly<Record<'haiku' | 'sonnet' | 'opus', boolean>>
