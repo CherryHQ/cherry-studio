@@ -49,10 +49,8 @@ export const handlePaste = async (
   event: ClipboardEvent,
   supportExts: string[],
   setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void,
-  setText?: (text: string) => void,
   pasteLongTextAsFile?: boolean,
   pasteLongTextThreshold?: number,
-  text?: string,
   resizeTextArea?: () => void,
   t?: (key: string) => string
 ): Promise<boolean> => {
@@ -83,7 +81,6 @@ export const handlePaste = async (
             composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
           }
           setFiles((prevFiles) => [...prevFiles, toComposerAttachment(pastedTextFile)])
-          if (setText && text) setText(text) // 保持输入框内容不变
           if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
         }
         return true
@@ -151,7 +148,6 @@ export const handlePaste = async (
                     origin_name: removeFileExtension(file.name)
                   })
                 ])
-                break
               }
             } else {
               if (t) {

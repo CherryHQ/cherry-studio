@@ -1,10 +1,11 @@
 import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmojiIcon } from '@cherrystudio/ui'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
@@ -12,15 +13,23 @@ import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hook
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
+import {
+  restoreRecycleBinItem,
+  restoreRecycleBinItems,
+  showRecycleBinBatchUndo,
+  showRecycleBinUndo
+} from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
+import { getErrorMessage } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'
 import { HistoryActionContextMenu } from './components/HistoryTableParts'
-import type { HistoryRecordDescriptor, HistoryRowActions } from './historyRecordsDescriptor'
+import type { HistoryBulkDeleteResult, HistoryRecordDescriptor, HistoryRowActions } from './historyRecordsDescriptor'
 import {
   ALL_SOURCE_ID,
   buildAgentSources,
@@ -34,11 +43,18 @@ import { useHistoryRecordsController } from './useHistoryRecordsController'
 interface AgentHistoryRecordsProps {
   activeRecordId?: string | null
   onClose: () => void
-  onRecordSelect?: (sessionId: string | null) => void
+  onRecordSelect?: (sessionId: string) => void
+  onActiveRecordChange?: (sessionId: string | null) => void
   toolbarLeading?: ReactNode
 }
 
-const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarLeading }: AgentHistoryRecordsProps) => {
+const AgentHistoryRecords = ({
+  activeRecordId,
+  onClose,
+  onRecordSelect,
+  onActiveRecordChange: onActiveSessionChange,
+  toolbarLeading
+}: AgentHistoryRecordsProps) => {
   const { t } = useTranslation()
   const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('agents')
@@ -48,7 +64,9 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     pinIdBySessionId,
     isLoadingAll: isSessionsLoading,
     deleteSession,
-    deleteSessions,
+    deleteSessionWithOutcome,
+    reload,
+    restoreSession,
     togglePin
   } = useAgentSessionsSource()
   const { agents } = useAgents()
@@ -110,25 +128,90 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       if (isSessionPinned(id)) return
 
       const success = await deleteSession(id)
-      if (success && activeRecordId === id) {
+      if (!success) return
+
+      if (activeRecordId === id) {
         const nextSession = findAdjacentHistoryRecordAfterBulkDelete(
           timeSortedSessions,
           [id],
           id,
           (session) => session.id
         )
-        onRecordSelect?.(nextSession?.id ?? null)
+        onActiveSessionChange?.(nextSession?.id ?? null)
       }
+
+      const session = sessionItems.find((candidate) => candidate.id === id)
+      showRecycleBinUndo({
+        itemName: session?.name || t('common.unnamed'),
+        onUndo: () =>
+          restoreRecycleBinItem({
+            id,
+            restore: restoreSession,
+            getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+            isNotFound: isAgentSessionNotFoundError,
+            refresh: reload
+          })
+      })
     },
-    [activeRecordId, deleteSession, isSessionPinned, onRecordSelect, timeSortedSessions]
+    [
+      activeRecordId,
+      deleteSession,
+      isSessionPinned,
+      onActiveSessionChange,
+      reload,
+      restoreSession,
+      sessionItems,
+      t,
+      timeSortedSessions
+    ]
   )
 
   const handleBulkDeleteSessions = useCallback(
-    async (ids: string[]): Promise<readonly string[] | undefined> => {
-      const result = await deleteSessions(ids)
-      return result ? result.deletedIds : undefined
+    async (ids: string[]): Promise<HistoryBulkDeleteResult> => {
+      const outcomes = await Promise.allSettled(ids.map((id) => deleteSessionWithOutcome(id, { showFeedback: false })))
+      const staleIds: string[] = []
+      const result = outcomes.reduce<HistoryBulkDeleteResult>(
+        (summary, outcome, index) => {
+          const id = ids[index]
+          if (outcome.status === 'rejected') {
+            summary.failed.push({ id, error: getErrorMessage(outcome.reason) })
+          } else if (outcome.value.status === 'succeeded') {
+            summary.succeeded.push(id)
+          } else {
+            if (outcome.value.status === 'stale') staleIds.push(id)
+            summary.failed.push({
+              id,
+              error: outcome.value.status === 'failed' ? outcome.value.error : t('recycle_bin.already_moved')
+            })
+          }
+          return summary
+        },
+        { succeeded: [], failed: [] }
+      )
+
+      if (result.succeeded.length === 0) {
+        if (staleIds.length === ids.length) toast.info(t('recycle_bin.already_moved'))
+        else toast.error(t('recycle_bin.move_failed'))
+      }
+
+      if (result.succeeded.length > 0) {
+        const deletedIds = [...result.succeeded]
+        showRecycleBinBatchUndo({
+          itemCount: deletedIds.length,
+          onUndo: () =>
+            restoreRecycleBinItems({
+              ids: deletedIds,
+              restore: restoreSession,
+              getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+              isNotFound: isAgentSessionNotFoundError,
+              refresh: reload
+            })
+        })
+      }
+
+      return result
     },
-    [deleteSessions]
+    [deleteSessionWithOutcome, reload, restoreSession, t]
   )
 
   const handleRenameSession = useCallback(
@@ -185,8 +268,8 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     [agentById]
   )
   const onActiveRecordChange = useCallback(
-    (session: SessionListItem | null) => onRecordSelect?.(session?.id ?? null),
-    [onRecordSelect]
+    (session: SessionListItem | null) => onActiveSessionChange?.(session?.id ?? null),
+    [onActiveSessionChange]
   )
   const rowDescriptor = useMemo(
     () => ({
@@ -200,8 +283,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
           <EmojiIcon
             emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
             size={20}
-            fontSize={12}
-            className="mr-0 text-foreground"
+            className="text-foreground"
           />
         )
       },
@@ -259,8 +341,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
                 <EmojiIcon
                   emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
                   size={16}
-                  fontSize={10}
-                  className="mr-0 text-foreground"
+                  className="text-foreground"
                 />
               )
             ) : undefined

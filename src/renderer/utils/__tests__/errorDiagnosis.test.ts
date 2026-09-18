@@ -316,6 +316,28 @@ describe('ErrorDiagnosisService', () => {
       expect(callArgs.prompt).toContain('Network or proxy error')
     })
 
+    it('routes a Chromium DNS failure to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'network', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'net::ERR_NAME_NOT_RESOLVED' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('routes a Chromium connection reset to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'stream', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'net::ERR_CONNECTION_RESET' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
     it('does not route an unrelated ERR_ token near proxy configuration prose to network/proxy context', async () => {
       mockFetchGenerate.mockResolvedValue(
         JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })

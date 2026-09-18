@@ -1,3 +1,4 @@
+import { mockToast } from '@test-mocks/renderer/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'
@@ -14,6 +15,7 @@ import {
 } from '@renderer/utils/message/composerClipboard'
 
 import { ComposerContextProvider } from '../ComposerContext'
+import { COMPOSER_INPUT_MAX_LENGTH } from '../composerDraft'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
@@ -594,6 +596,13 @@ describe('ComposerSurface', () => {
     expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
   })
 
+  it('does not render a visual focus reminder', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    expect(screen.queryByText('chat.input.focus_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('聚焦输入框')).not.toBeInTheDocument()
+  })
+
   it('renders the AI-generated content disclaimer when the composer enables it', () => {
     const view = render(<ComposerSurface {...baseProps} />)
 
@@ -734,6 +743,14 @@ describe('ComposerSurface', () => {
       'data-ui',
       'chat.composer.action.send'
     )
+  })
+
+  it('keeps regular editor padding independent of the overlay corner control', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    const editorContent = screen.getByTestId('editor-content')
+    expect(editorContent.style.getPropertyValue('--composer-editor-padding')).toBe('6px 15px 0')
+    expect(document.querySelector('[data-composer-expand-corner]')).not.toBeNull()
   })
 
   it('exposes the pause anchor while a response is streaming', () => {
@@ -1362,9 +1379,8 @@ describe('ComposerSurface', () => {
   })
 
   it('keeps token structure when an external text update matches the current content', async () => {
-    // Reproduces the long-text paste flow: the editor holds a quote token, PasteService converts
-    // the pasted text into a file and re-applies the unchanged serialized text. The rebuild only
-    // re-tokenizes prompt variables, so it must be skipped or the quote token degrades to text.
+    // An external same-text update (e.g. a tool writing the text back) must skip the rebuild:
+    // it only re-tokenizes prompt variables, so the quote token would degrade to plain text.
     mocks.getJSON.mockReturnValue({
       type: 'doc',
       content: [
@@ -3118,6 +3134,51 @@ describe('ComposerSurface', () => {
 
     const fileUpdater = setFiles.mock.calls[0]?.[0] as (files: (typeof pastedFile)[]) => (typeof pastedFile)[]
     expect(fileUpdater([pastedFile])).toEqual([])
+  })
+
+  it('refuses to replace the pasted text token when the file exceeds the input limit', async () => {
+    const pastedFile = {
+      id: 'file-2',
+      name: 'pasted_text.txt',
+      origin_name: '已粘贴的文本.txt',
+      path: '/tmp/pasted_text.txt',
+      composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+    }
+    const pastedToken = {
+      id: 'file:file-2',
+      kind: 'file' as const,
+      label: '已粘贴的文本.txt',
+      payload: pastedFile
+    }
+    const setFiles = vi.fn()
+
+    // Silently truncating here would drop the tail of the file the moment the
+    // token is replaced — the refusal must keep the token and the file intact.
+    mocks.fsReadText.mockResolvedValue('x'.repeat(COMPOSER_INPUT_MAX_LENGTH + 1))
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'composerToken', attrs: pastedToken }] }]
+    })
+
+    render(<ComposerSurface {...baseProps} tokens={[pastedToken]} managedTokenKinds={['file']} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    render(
+      <>
+        {mocks.editorPresetOptions.renderToken(pastedToken, {
+          selected: false,
+          nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } }
+        })}
+      </>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.paste_text_file' }))
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/pasted_text.txt'))
+    expect(mocks.deleteRange).not.toHaveBeenCalled()
+    expect(mocks.insertContent).not.toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(mockToast.error).toHaveBeenCalledWith('chat.input.paste_text_too_long')
   })
 
   it('does not notify token changes when only text changes', async () => {

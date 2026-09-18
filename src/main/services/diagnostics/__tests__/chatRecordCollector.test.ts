@@ -14,7 +14,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { type ChatRecordCandidate, collectChatRecords, stageChatRecords } from '../chatRecordCollector'
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: { getSessionMessage: vi.fn(), listCreatedInRangeMetadataPage: vi.fn() }
+  agentSessionMessageService: { getSessionMessage: vi.fn(), listLiveCreatedInRangeMetadataPage: vi.fn() }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: vi.fn() }
@@ -134,7 +134,7 @@ describe('chat record collection', () => {
       (id) => normalMessages.find((message) => message.id === id) as never
     )
     vi.mocked(topicService.getById).mockReturnValue(normalTopic)
-    vi.mocked(agentSessionMessageService.listCreatedInRangeMetadataPage).mockReturnValue({
+    vi.mocked(agentSessionMessageService.listLiveCreatedInRangeMetadataPage).mockReturnValue({
       items: [agentMessageMetadata],
       nextCursor: undefined
     })
@@ -211,7 +211,7 @@ describe('chat record collection', () => {
     vi.mocked(messageService.listLiveCreatedInRangeMetadataPage)
       .mockReturnValueOnce({ items: [normalMessageMetadata[0]], nextCursor: 'normal-next' })
       .mockReturnValueOnce({ items: [normalMessageMetadata[1]], nextCursor: undefined })
-    vi.mocked(agentSessionMessageService.listCreatedInRangeMetadataPage).mockReturnValue({
+    vi.mocked(agentSessionMessageService.listLiveCreatedInRangeMetadataPage).mockReturnValue({
       items: [agentMessageMetadata],
       nextCursor: undefined
     })
@@ -270,7 +270,7 @@ describe('chat record collection', () => {
       if (id === 'topic-missing') throw DataApiErrorFactory.notFound('Topic', id)
       return readableTopic
     })
-    vi.mocked(agentSessionMessageService.listCreatedInRangeMetadataPage).mockReturnValue({
+    vi.mocked(agentSessionMessageService.listLiveCreatedInRangeMetadataPage).mockReturnValue({
       items: [],
       nextCursor: undefined
     })
@@ -292,7 +292,7 @@ describe('chat record collection', () => {
       items: [],
       nextCursor: undefined
     })
-    vi.mocked(agentSessionMessageService.listCreatedInRangeMetadataPage).mockReturnValue({
+    vi.mocked(agentSessionMessageService.listLiveCreatedInRangeMetadataPage).mockReturnValue({
       items: messages.map((message) => ({
         createdAt: message.createdAt,
         entityJsonBytes: Buffer.byteLength(JSON.stringify(message), 'utf8'),
@@ -320,7 +320,7 @@ describe('chat record collection', () => {
       items: [{ ...normalMessageMetadata[0], entityJsonBytes: 1 }],
       nextCursor: undefined
     })
-    vi.mocked(agentSessionMessageService.listCreatedInRangeMetadataPage).mockReturnValue({
+    vi.mocked(agentSessionMessageService.listLiveCreatedInRangeMetadataPage).mockReturnValue({
       items: [],
       nextCursor: undefined
     })
@@ -349,7 +349,7 @@ describe('chat record collection', () => {
     vi.mocked(messageService.getById).mockImplementation(
       (id) => (id === changedNewMessage.id ? changedNewMessage : normalMessages[1]) as never
     )
-    vi.mocked(agentSessionMessageService.listCreatedInRangeMetadataPage).mockReturnValue({
+    vi.mocked(agentSessionMessageService.listLiveCreatedInRangeMetadataPage).mockReturnValue({
       items: [],
       nextCursor: undefined
     })

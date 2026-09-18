@@ -6,10 +6,6 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../../ChannelManager', () => ({
-  registerAdapterFactory: vi.fn()
-}))
-
 const mockNetFetch = vi.fn()
 vi.mock('electron', () => ({
   app: { getPath: () => '/mock/userData' },
@@ -22,14 +18,7 @@ vi.mock('ws', () => {
   return { default: Ctor, WebSocket: Ctor }
 })
 
-import '../qq/QqAdapter'
-import { registerAdapterFactory } from '../../ChannelManager'
-
-// Capture the factory at module load — `registerAdapterFactory('qq', …)` runs once on import,
-// and afterEach's restoreAllMocks would otherwise wipe that call history before later tests.
-const qqCall = vi.mocked(registerAdapterFactory).mock.calls.find((c) => c[0] === 'qq')
-if (!qqCall) throw new Error('registerAdapterFactory was not called for qq')
-const qqFactory = qqCall[1] as (channel: any, agentId: string) => any
+import { createQqAdapter } from '../qq/QqAdapter'
 
 function mockBinaryResponse(buf: Buffer, contentType = 'image/png'): Response {
   return {
@@ -49,6 +38,11 @@ function mockOkJson(): Response {
   } as unknown as Response
 }
 
+// PNG signature followed by an empty IDAT chunk: the smallest layout file-type sniffs as image/png.
+const PNG_BYTES = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0, 0x49, 0x44, 0x41, 0x54, 0, 0, 0, 0
+])
+
 function groupMessage(id: string, groupOpenid = 'g1', content = 'hi'): any {
   return {
     id,
@@ -59,12 +53,45 @@ function groupMessage(id: string, groupOpenid = 'g1', content = 'hi'): any {
   }
 }
 
-function createAdapter() {
-  return qqFactory(
-    { id: 'ch-qq-1', type: 'qq', enabled: true, config: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [] } },
-    'agent-1'
-  )
+function createAdapter(): any {
+  return createQqAdapter({
+    channelId: 'ch-qq-1',
+    channelType: 'qq',
+    agentId: 'agent-1',
+    channelConfig: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [] }
+  })
 }
+
+describe('QqAdapter connection lifecycle', () => {
+  beforeEach(() => {
+    mockNetFetch.mockReset()
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('aborts a stalled startup request when disconnected', async () => {
+    let startupSignal: AbortSignal | undefined
+    let rejectStartup!: (error: Error) => void
+    mockNetFetch.mockImplementation((_url: string, init?: RequestInit) => {
+      startupSignal = init?.signal ?? undefined
+      return new Promise((_resolve, reject) => {
+        rejectStartup = reject
+        startupSignal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+      })
+    })
+    const adapter = createAdapter()
+
+    const connecting = adapter.connect()
+    await vi.waitFor(() => expect(mockNetFetch).toHaveBeenCalled())
+
+    const observedSignal = startupSignal
+    await adapter.disconnect()
+    if (!observedSignal) rejectStartup(new Error('test cleanup'))
+    await expect(connecting).resolves.toBeUndefined()
+    expect(observedSignal).toBeInstanceOf(AbortSignal)
+  })
+})
 
 describe('QqAdapter.downloadAttachments', () => {
   beforeEach(() => mockNetFetch.mockReset())
@@ -85,7 +112,7 @@ describe('QqAdapter.downloadAttachments', () => {
   it('downloads a public attachment URL', async () => {
     const adapter = createAdapter()
     vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
-    mockNetFetch.mockResolvedValue(mockBinaryResponse(Buffer.from('img'), 'image/png'))
+    mockNetFetch.mockResolvedValue(mockBinaryResponse(PNG_BYTES, 'image/png'))
 
     const result = await adapter.downloadAttachments([
       { url: 'https://gchat.qpic.cn/a.png', content_type: 'image/png', filename: 'a.png' }
@@ -93,6 +120,33 @@ describe('QqAdapter.downloadAttachments', () => {
 
     expect(result.images).toHaveLength(1)
     expect(mockNetFetch).toHaveBeenCalled()
+  })
+
+  it('routes a ZIP declared as image/png to files under its sniffed type', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const zipBytes = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(64)])
+    mockNetFetch.mockResolvedValue(mockBinaryResponse(zipBytes, 'image/png'))
+
+    const result = await adapter.downloadAttachments([
+      { url: 'https://gchat.qpic.cn/a.png', content_type: 'image/png', filename: 'a.png' }
+    ])
+
+    expect(result.images).toBeUndefined()
+    expect(result.files).toEqual([expect.objectContaining({ filename: 'a.png', media_type: 'application/zip' })])
+  })
+
+  it('routes PNG bytes declared as application/octet-stream to images', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    mockNetFetch.mockResolvedValue(mockBinaryResponse(PNG_BYTES, 'application/octet-stream'))
+
+    const result = await adapter.downloadAttachments([
+      { url: 'https://gchat.qpic.cn/a.bin', content_type: 'application/octet-stream', filename: 'a.bin' }
+    ])
+
+    expect(result.files).toBeUndefined()
+    expect(result.images).toEqual([expect.objectContaining({ media_type: 'image/png' })])
   })
 })
 
@@ -231,16 +285,13 @@ describe('ChannelAdapter.sendFile default', () => {
 describe('QqAdapter GROUP_MESSAGE_CREATE handling', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  function createAdapterWithConfig(config: Record<string, unknown>) {
-    return qqFactory(
-      {
-        id: 'ch-qq-1',
-        type: 'qq',
-        enabled: true,
-        config: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [], ...config }
-      },
-      'agent-1'
-    )
+  function createAdapterWithConfig(config: Record<string, unknown>): any {
+    return createQqAdapter({
+      channelId: 'ch-qq-1',
+      channelType: 'qq',
+      agentId: 'agent-1',
+      channelConfig: { app_id: 'app', client_secret: 'sec', allowed_chat_ids: [], ...config }
+    } as any)
   }
 
   it('mention_only=true (default): discards all GROUP_MESSAGE_CREATE events', async () => {

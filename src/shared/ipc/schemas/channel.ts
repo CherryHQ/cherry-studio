@@ -1,5 +1,11 @@
 import * as z from 'zod'
 
+import {
+  AgentChannelEntitySchema,
+  CreateAgentChannelSchema,
+  UpdateAgentChannelSchema
+} from '@shared/data/api/schemas/agentChannels'
+
 import { defineRoute } from '../define'
 
 /**
@@ -19,6 +25,15 @@ const channelLogEntry = z.object({
   channelId: z.string()
 })
 export const channelRequestSchemas = {
+  'channel.create': defineRoute({ input: CreateAgentChannelSchema, output: AgentChannelEntitySchema }),
+  'channel.update': defineRoute({
+    input: z.strictObject({ channelId: z.string().min(1), updates: UpdateAgentChannelSchema }),
+    output: AgentChannelEntitySchema
+  }),
+  'channel.delete': defineRoute({
+    input: z.strictObject({ channelId: z.string().min(1) }),
+    output: z.void()
+  }),
   'channel.wechat.has_credentials': defineRoute({
     input: z.string(),
     output: z.object({ exists: z.boolean(), userId: z.string().optional() })

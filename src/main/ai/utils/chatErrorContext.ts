@@ -54,8 +54,9 @@ function collectErrorContext(error: unknown, depth: number, hideMessage: boolean
   })
 
   if (typeof source.name === 'string') context.errorName = safeText(source.name, MAX_MESSAGE_CHARS)
-  if (typeof source.message === 'string') {
-    context.errorMessage = hideMessage ? redactToShape(source.message) : safeText(source.message, MAX_MESSAGE_CHARS)
+  const message = typeof source.message === 'string' ? source.message : getSafeProviderErrorMessage({ data: source })
+  if (typeof source.message === 'string' || message) {
+    context.errorMessage = hideMessage ? redactToShape(message) : safeText(message, MAX_MESSAGE_CHARS)
   }
   if (typeof source.url === 'string') context.url = truncate(redactUrlParams(source.url), MAX_MESSAGE_CHARS)
   // Node errno (`ECONNREFUSED`) and JSON-RPC codes — the most stable anchors the log scan has.

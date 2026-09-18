@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
+import { canonicalizePathForContainment } from '@main/utils/file'
 
 export const logger = loggerService.withContext('Mcp:FileSystemServer')
 
@@ -89,9 +90,9 @@ export async function validatePath(requestedPath: string, baseDir?: string): Pro
   const absolute = path.isAbsolute(expandedPath) ? path.resolve(expandedPath) : path.resolve(root, expandedPath)
 
   const resolvedRoot = await resolveRealOrNearestExistingPath(path.resolve(root))
-  const resolvedPath = await resolveRealOrNearestExistingPath(absolute)
+  const resolvedPath = await canonicalizePathForContainment(absolute, { allowMissing: true })
 
-  if (!isPathWithinRoot(resolvedPath, resolvedRoot)) {
+  if (!resolvedPath || !isPathWithinRoot(resolvedPath, resolvedRoot)) {
     throw new Error(`Access denied: Path is outside the configured workspace root: ${requestedPath}`)
   }
 
