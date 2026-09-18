@@ -904,8 +904,9 @@ export class AiStreamManager extends BaseService {
     /** Which layer owns history shaping; omitted means Cherry-managed. */
     contextOwner?: ContextOwner
     /**
-     * Terminal policy for turns with no renderable content. The API gateway
-     * sets this: its external clients own caller-defined tool namespaces.
+     * Terminal policy for turns with no renderable content. Agent sessions,
+     * the API gateway, and mini-app chat set this; ordinary chat leaves it
+     * unset and such turns become a `NoResponseError`.
      */
     allowEmptySuccess?: boolean
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */

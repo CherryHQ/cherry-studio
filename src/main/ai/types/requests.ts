@@ -134,8 +134,10 @@ export interface AiStreamRequest extends AiChatRequest {
    * Agent-owned streams set this: their status panes consume non-message
    * terminal parts, so an empty turn is a legitimate outcome there. The API
    * gateway sets this too: its external clients own caller-defined tool
-   * namespaces the Cherry renderer has no card for. Ordinary chat leaves it
-   * unset and such turns become a `NoResponseError`.
+   * namespaces the Cherry renderer has no card for. Mini-app chat sets this
+   * as well: its contract resolves `{ok:true}` whenever the stream ends and
+   * only text deltas reach the guest. Ordinary chat leaves it unset and such
+   * turns become a `NoResponseError`.
    */
   allowEmptySuccess?: boolean
   /**
