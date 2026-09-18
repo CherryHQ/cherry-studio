@@ -107,7 +107,8 @@ export async function startAgentSessionRun(input: {
         ? [primary, ...extras, ...prepared.listeners.filter((listener) => listener.id !== primary.id)]
         : [...prepared.listeners, ...extras],
       siblingsGroupId: prepared.siblingsGroupId,
-      lifecycle: prepared.lifecycle
+      lifecycle: prepared.lifecycle,
+      isPersistentConversation: agentChatContextProvider.isPersistentConversation
     })
     result = { mode: 'started' }
   })
