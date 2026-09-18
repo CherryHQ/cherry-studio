@@ -1028,7 +1028,7 @@ class BackupManager {
         await this.copyClaudeState(path.join(extractionDir, '.claude'), stagedClaude)
       }
 
-      const chain = this.validateStagedDatabase(workDatabase)
+      const chain = this.prepareStagedDatabase(workDatabase)
       if (!this.isChainBundledPrefix(chain)) {
         throw new Error(
           `${BACKUP_NEWER_VERSION_ERROR_CODE}: This backup was created by a newer version of Cherry Studio (database is ahead of this version) and cannot be restored here. Please update Cherry Studio and try again. Backup appVersion: ${metadata.appVersion ?? 'unknown'}, current: ${app.getVersion()}.`
@@ -1211,7 +1211,7 @@ class BackupManager {
     await this.copyDirWithProgress(source, destination, onProgress, options)
   }
 
-  private validateStagedDatabase(databasePath: string): RestoreJournal['db']['chain'] {
+  private prepareStagedDatabase(databasePath: string): RestoreJournal['db']['chain'] {
     const sqlite = new Database(databasePath, { fileMustExist: true })
     let chain: RestoreJournal['db']['chain']
     try {
@@ -1223,6 +1223,16 @@ class BackupManager {
       chain = readAppliedChain(sqlite)
       if (chain.length === 0) {
         throw new Error('Backup SQLite migration chain is empty')
+      }
+      // A restore must not revive revoked devices or let old commands bypass rolled-back receipts.
+      // Receipts cascade from their device, which needs foreign keys enforced on this raw connection.
+      const hasDevices = sqlite
+        .prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'api_gateway_paired_device'")
+        .get()
+      if (hasDevices) {
+        sqlite.pragma('foreign_keys = ON')
+        sqlite.prepare('DELETE FROM api_gateway_paired_device').run()
+        checkpointTruncateAssert(sqlite)
       }
     } finally {
       sqlite.close()

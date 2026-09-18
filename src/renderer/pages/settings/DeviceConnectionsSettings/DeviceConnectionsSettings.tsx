@@ -130,7 +130,8 @@ const DeviceConnectionsSettings: FC = () => {
         name: pairingOffer.hostname,
         port: pairingOffer.port,
         ips: pairingOffer.addresses,
-        code: pairingOffer.code
+        code: pairingOffer.code,
+        remoteAgent: pairingOffer.remoteAgent
       })
     : null
   const statusKey = connectionReady

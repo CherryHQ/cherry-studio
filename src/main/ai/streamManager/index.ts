@@ -1,7 +1,8 @@
 export { AiStreamAdmissionError } from './admission'
-export { AiStreamManager } from './AiStreamManager'
+export { AiStreamManager, nullStreamListener } from './AiStreamManager'
 export { startAgentSessionRun } from './api/startAgentSessionRun'
 export { agentChatContextProvider } from './context/AgentChatContextProvider'
+export type { AgentDispatchOptions, AgentMessageCommit, AgentMessageReservation } from './context/agentSubmission'
 export { ChannelAdapterListener } from './listeners/ChannelAdapterListener'
 export { PersistenceListener } from './listeners/PersistenceListener'
 export { SseListener } from './listeners/SseListener'
@@ -25,5 +26,6 @@ export type {
   StreamErrorPayload,
   StreamErrorResult,
   StreamListener,
-  StreamPausedResult
+  StreamPausedResult,
+  TopicStreamSnapshot
 } from './types'
