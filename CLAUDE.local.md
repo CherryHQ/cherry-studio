@@ -74,6 +74,35 @@ Kullanıcıdan ayrıca istemesini bekleme: "devam et" cümlesi 3. adımdaki uygu
 
 Madde "güçlü model gerekir" kutusundaysa ve sen Haiku'ysan: başlama, söyle ve dur.
 
+### Otonom döngü — komut beklemeden ilerleme
+
+Kullanıcının açık isteği (2026-09-19): *"ben açık bırakayım benden komut bekleme, görevler belli
+isteklerim belli, aşama aşama kendin otomatik ilerle, eksiksiz olsun, bişey bitmeden diğerine
+geçilmesin."* Yani 4. adımdaki "dur ve bekle" **kalkar**; rapor verip bir sonraki maddeye geçilir.
+
+Her turda sırayla:
+
+1. Sıradaki **tek** maddeyi al (yukarıdaki 1–2. adım).
+2. Bitir. **Yarım bırakma, paralel ikinci maddeye başlama.** Bir madde bitmeden commit yok,
+   commit olmadan sonraki madde yok.
+3. Doğrula ("bitti" ölçütü) → commit → `GOREVLER-2.md` tablosuna tek satır.
+4. Tek paragraf rapor + `ScheduleWakeup` ile bir sonraki turu planla.
+
+**Nerede durulur** (bunlar için gerçekten bekle):
+- Geri alınamaz veya dışarı çıkan bir şey: uzak depoya push, yayın, dış servise veri gönderme.
+- Kullanıcının kararı olan tasarım tercihi (iki makul yol var ve seçim onun zevkine bağlı).
+- Üst üste iki turda aynı madde bitmediyse: dur, neyin tıkadığını söyle.
+- Çalışan API anahtarı gerektiren bir doğrulama: yapabildiğini yap, **yapamadığını açıkça yaz**,
+  maddeyi "kod bitti, canlı doğrulanmadı" diye işaretle ve devam et.
+
+**Bağlam/maliyet kontrolü** — döngü uzun sürecek, şunlara dikkat:
+- Tur başına **tek madde**. Bağlam şişerse özetlenir; erken toparlama derdine düşme.
+- Mekanik işi (çeviri, katalog verisi, tercih anahtarı, arama) **alt ajana** ver.
+- Büyük dosyayı baştan sona okuma; `Grep` ile ilgili satırı bul.
+- **`pnpm run test:renderer` tüm paketi bu makinede 10 dakikadan uzun sürüyor.** Her madde için
+  çalıştırma. Değişen dosyanın testi + o klasörün testleri + `typecheck:node`/`typecheck:web` yeter;
+  tüm paketi yalnızca renderer geneline dokunan bir değişiklikten sonra çalıştır.
+
 ### Bir görev ne zaman "bitti" sayılır
 
 Tip kontrolünün ve kendi yazdığın testin geçmesi **yetmez**. Bir oturumda öyle sayıldı ve beş kusur
@@ -96,9 +125,23 @@ Bitti demeden önce dördünü de yap:
    - Eklediğin şey **ekranda görünüyor** — düğme, satır, sütun, neyse.
    - Bir kez **çalıştırıp** sonucu gör.
 
-   Nasıl: `pnpm dev`'i **arka planda** başlat, sonra çıktısını oku. Açılış logu tek başına
-   "açılıyor mu" sorusunu cevaplar — servis hataları, kayıt dışı bırakılan servisler ve
-   `Bootstrap complete` orada görünür. Ekranda görmek gerekiyorsa kullanıcıdan ekran görüntüsü iste.
+   **Uygulamayı kullanıcıya açtırma — kendin aç.** Açık isteği: *"değişiklik her olduğunda
+   kontrol edeceğim, programı direk açacak şekilde olsun, bana soruyorsun programı açıp
+   bakamıyorum ki."* Yani her arayüz değişikliğinden sonra sırayla sen yap:
+
+   ```powershell
+   Get-Process -Name electron -ErrorAction SilentlyContinue | Stop-Process -Force
+   ./node_modules/.bin/electron-vite build
+   Start-Process ".\node_modules\electron\dist\electron.exe" -ArgumentList "."
+   ```
+
+   Sonra `$env:APPDATA\CherryStudioDev\logs\app.<tarih>.log` içinden `Bootstrap complete`
+   ve servis hatalarını oku. Kullanıcıya "şunu aç ve bak" deme; pencere önünde açık olur,
+   sadece *ne göreceğini* söyle. Ekran görüntüsü ancak kendi göremeyeceğin bir şeyse iste.
+
+   `pnpm dev` **kullanma** — Vite optimizer yarışı yüzünden açılışta takılıyor, derlenmiş
+   sürüm takılmıyor. Kullanıcının masaüstünde `Cherry Studio (dev).cmd` kısayolu da var
+   (aynı komut); `electron.exe`'yi çift tıklamak Electron karşılama ekranını açar, uygulamayı değil.
 
    Testler "buton görünmüyor", "düzen bozuldu", "açılışta çöküyor" gibi şeyleri yakalamaz.
    Bu oturumda sekiz commit tek kez bile ekranda görülmeden yazıldı — bir daha olmayacak.
@@ -116,6 +159,8 @@ Bitti demeden önce dördünü de yap:
 - `pnpm i18n:check` → 35 hata, `el-gr` ve `ru-ru`'da "şüpheli uzunlukta" uyarısı.
 - `TopicNamingService.test.ts` → 7 hata, Latin olmayan dillerde oturum adı tanınmıyor.
 - `AgentContextUsageSummary.test.tsx` → 3 hata.
+- `MessageMetaTool.test.tsx` → 5 hata, hepsi yerelleştirme iddiası (`输出` gibi Çince metin
+  bekliyor, İngilizce geliyor). 2026-09-19'da stash'lenmiş temiz ağaçta doğrulandı.
 
 Ayrıca gerçek veritabanı açan testler bu makinede `NODE_MODULE_VERSION` ile düşer — beklenen.
 

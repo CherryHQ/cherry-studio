@@ -2086,6 +2086,7 @@
   "message.citation": "{{count}}å€‹ã®å¼•ç”¨å†…å®¹",
   "message.citation_source": "å¼•ç”¨å…ƒ {{number}}",
   "message.citations": "å¼•ç”¨å†…å®¹",
+  "message.continue_truncated.label": "返信を続ける",
   "message.conversation_reset": "ä»¥å‰ã®ä¼šè©±å±¥æ­´ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã§ã—ãŸ â€” æ–°ã—ã„ä¼šè©±ã‚’ç¶šè¡Œã—ã¾ã™",
   "message.copied": "ã‚³ãƒ”ãƒ¼ã—ã¾ã—ãŸï¼",
   "message.copy.failed": "ã‚³ãƒ”ãƒ¼ã«å¤±æ•—ã—ã¾ã—ãŸ",

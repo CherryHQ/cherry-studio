@@ -2086,6 +2086,7 @@
   "message.citation": "{{count}} å€‹å¼•ç”¨å…§å®¹",
   "message.citation_source": "å¼•ç”¨ä¾†æº {{number}}",
   "message.citations": "å¼•ç”¨å…§å®¹",
+  "message.continue_truncated.label": "繼續回覆",
   "message.conversation_reset": "æ‰¾ä¸åˆ°å…ˆå‰çš„å°è©±ç´€éŒ„ â€” å°‡åœ¨æ–°çš„å°è©±ä¸­ç¹¼çºŒ",
   "message.copied": "å·²è¤‡è£½ï¼",
   "message.copy.failed": "è¤‡è£½å¤±æ•—",

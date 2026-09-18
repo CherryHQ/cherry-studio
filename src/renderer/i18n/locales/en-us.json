@@ -2086,6 +2086,7 @@
   "message.citation": "{{count}} citations",
   "message.citation_source": "Citation source {{number}}",
   "message.citations": "References",
+  "message.continue_truncated.label": "Continue reply",
   "message.conversation_reset": "Previous conversation history could not be found — continuing in a new conversation",
   "message.copied": "Copied!",
   "message.copy.failed": "Copy failed",

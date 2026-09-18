@@ -955,3 +955,117 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     expect(toolPart?.state).toBe('approval-responded')
   })
 })
+
+describe('PersistentChatContextProvider — prepareContinueDispatch (continue a truncated reply)', () => {
+  const dbh = setupTestDatabase()
+  const provider = new PersistentChatContextProvider()
+
+  const ANCHOR_MODEL_ID = createUniqueModelId('openai', 'gpt-4o-mini')
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    const [providerKey, anchorModelKey] = generateOrderKeySequence(2)
+    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: providerKey })
+    await dbh.db.insert(userModelTable).values({
+      id: ANCHOR_MODEL_ID,
+      providerId: 'openai',
+      modelId: 'gpt-4o-mini',
+      presetModelId: 'gpt-4o-mini',
+      name: 'GPT-4o mini',
+      isEnabled: true,
+      isHidden: false,
+      orderKey: anchorModelKey
+    })
+    await dbh.db.insert(topicTable).values({ id: 'topic-1', activeNodeId: 'a1', orderKey: 'a0' })
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-1', [
+        {
+          id: 'u1',
+          parentId: null,
+          topicId: 'topic-1',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'write me a long list' }] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          // The provider stopped at its token cap mid-sentence.
+          id: 'a1',
+          parentId: 'u1',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: { parts: [{ type: 'text', text: '1. first 2. second 3. thi' }] },
+          status: 'success',
+          siblingsGroupId: 1,
+          modelId: ANCHOR_MODEL_ID,
+          stats: { finishReason: 'length' },
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+    )
+  })
+
+  it('serves the half-written answer back as the trailing message so the model writes on from it', async () => {
+    const beforeCount = messageService.getPathToNode('a1').length
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      { id: ANCHOR_MODEL_ID, name: 'GPT-4o mini', providerId: 'openai', apiModelId: 'gpt-4o-mini' }
+    ] as ReturnType<typeof resolveModels>)
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      { trigger: 'continue-truncated', topicId: 'topic-1', parentAnchorId: 'a1' },
+      { hasLiveStream: false }
+    )
+
+    // Writing into the same row is the whole feature: a new placeholder would leave the
+    // answer split across two messages, which is what the user does by hand today.
+    expect(prepared.models[0].request.messageId).toBe('a1')
+    expect(prepared.siblingsGroupId).toBeUndefined()
+    expect(messageService.getPathToNode('a1').length).toBe(beforeCount)
+
+    expect(flatten(prepared.models[0].request.messages ?? [])).toEqual([
+      { role: 'user', text: 'write me a long list' },
+      { role: 'assistant', text: '1. first 2. second 3. thi' }
+    ])
+    // Continuing under a different model would splice two voices into one message.
+    expect(resolveModels).toHaveBeenCalledWith([ANCHOR_MODEL_ID], ANCHOR_MODEL_ID)
+  })
+
+  it('keeps the written text when no approval decisions come with the request', async () => {
+    await provider.prepareDispatch(
+      makeSubscriber(),
+      { trigger: 'continue-truncated', topicId: 'topic-1', parentAnchorId: 'a1' },
+      { hasLiveStream: false }
+    )
+
+    const anchor = messageService.getById('a1')
+    expect(anchor.status).toBe('pending')
+    expect(anchor.data.parts).toEqual([{ type: 'text', text: '1. first 2. second 3. thi' }])
+  })
+
+  it('refuses to continue while a stream is live on the topic', async () => {
+    // `send` would take the inject branch and drop the models, stranding the row `pending`
+    // while the renderer is told the continuation started.
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        { trigger: 'continue-truncated', topicId: 'topic-1', parentAnchorId: 'a1' },
+        { hasLiveStream: true }
+      )
+    ).rejects.toThrow(/while a stream is live/)
+    expect(messageService.getById('a1').status).toBe('success')
+  })
+
+  it('rejects a user message as the anchor', async () => {
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        { trigger: 'continue-truncated', topicId: 'topic-1', parentAnchorId: 'u1' },
+        { hasLiveStream: false }
+      )
+    ).rejects.toThrow(/anchor must be an assistant message/)
+  })
+})

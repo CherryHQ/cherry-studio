@@ -438,6 +438,8 @@ export interface MessageListActions {
   deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>
   deleteMessageGroupWithConfirm?: (messageIds: readonly string[]) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
+  /** Extend a reply the provider cut off at its token cap, in the same message. */
+  continueTruncatedMessage?: (messageId: string) => void | Promise<void>
 }
 
 export interface MessageListMeta {

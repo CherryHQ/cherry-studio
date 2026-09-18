@@ -63,7 +63,7 @@ import {
   planKeepBoundary,
   summaryRow
 } from './compaction'
-import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
+import type { ContinueDispatchRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 const logger = loggerService.withContext('PersistentChatContextProvider')
@@ -247,7 +247,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
-    if (req.trigger === 'continue-conversation') {
+    // continue-truncated extends a reply cut off at the token cap and wants exactly the same shape:
+    // same row, same model, history ending on the half-written answer so the model picks it up.
+    if (req.trigger === 'continue-conversation' || req.trigger === 'continue-truncated') {
+      // `send` would take the inject branch and drop `prepared.models`, leaving the row `pending`
+      // forever while the renderer is told the continuation started. (The approval path reaches
+      // dispatch through its own guard and only logs there, so it keeps its existing behaviour.)
+      if (ctx.hasLiveStream && req.trigger === 'continue-truncated') {
+        throw new Error('Cannot continue a truncated reply while a stream is live on this topic')
+      }
       return this.prepareContinueDispatch(subscriber, req, topic?.assistantId ?? undefined)
     }
 
@@ -654,22 +662,24 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   }
 
   /**
-   * Resume an assistant turn paused on tool-approval. Reuses the existing
-   * row (no new placeholder, no sibling group). Renderer sends decisions
-   * only; Main applies them to DB-authoritative parts. Backend's
-   * `assistantMessageId === anchor.id` makes the terminal write an update.
+   * Resume an assistant turn paused on tool-approval, or extend one the provider
+   * truncated. Reuses the existing row (no new placeholder, no sibling group).
+   * Renderer sends approval decisions only; Main applies them to DB-authoritative
+   * parts. Backend's `assistantMessageId === anchor.id` makes the terminal write an
+   * update, and the anchor trails the served history, so the accumulator seeds from
+   * the existing parts and the new output lands after them rather than over them.
    */
   private async prepareContinueDispatch(
     subscriber: StreamListener,
-    req: MainContinueConversationRequest,
+    req: ContinueDispatchRequest,
     assistantId: string | undefined
   ): Promise<PreparedDispatch> {
     const anchor = messageService.getById(req.parentAnchorId)
     if (anchor.role !== 'assistant') {
-      throw new Error(`'continue-conversation' anchor must be an assistant message (got '${anchor.role}')`)
+      throw new Error(`'${req.trigger}' anchor must be an assistant message (got '${anchor.role}')`)
     }
     if (anchor.topicId !== req.topicId) {
-      throw new Error(`'continue-conversation' anchor does not belong to topic ${req.topicId}`)
+      throw new Error(`'${req.trigger}' anchor does not belong to topic ${req.topicId}`)
     }
     const knowledgeBaseIds = anchor.parentId
       ? getKnowledgeBaseIdsFromParts(messageService.getById(anchor.parentId).data.parts ?? [])
@@ -677,7 +687,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // Apply decisions to DB parts and flip status to `pending` so resolveCompactedHistory sees the approved state.
     const beforeParts = anchor.data.parts ?? []
-    const updatedParts = applyApprovalDecisions(beforeParts, req.approvalDecisions)
+    const updatedParts =
+      req.trigger === 'continue-conversation' ? applyApprovalDecisions(beforeParts, req.approvalDecisions) : beforeParts
     // Continue uses the original assistant's model — switching mid-approval invalidates approval semantics.
     // `anchor.modelId` is nullable; coalesce null/undefined away first, then a single boundary cast.
     const continueModelId = (anchor.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId

@@ -471,6 +471,28 @@ export function useChatWriteActions(params: Params): Result {
     [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]
   )
 
+  const handleContinueTruncated = useCallback<ChatWriteActions['continueTruncated']>(
+    async (messageId) => {
+      const ack = await ipcApi.request('ai.stream.open', {
+        trigger: 'continue-truncated',
+        topicId: topic.id,
+        parentAnchorId: messageId
+      })
+
+      if (ack.mode === 'blocked') {
+        throw new Error(getStreamBlockedMessage(ack))
+      }
+
+      // No placeholder is reserved — main extends the existing row — but the ack still
+      // carries the execution so the view knows which message went live again.
+      await seedReservedMessages(ack.reservedMessages ?? [], {
+        activeExecutions: ack.activeExecutions,
+        preserveActiveNode: ack.preserveActiveNode
+      })
+    },
+    [seedReservedMessages, topic.id]
+  )
+
   const handleSetActiveNode = useCallback<ChatWriteActions['setActiveNode']>(
     async (messageId) => {
       try {
@@ -539,6 +561,7 @@ export function useChatWriteActions(params: Params): Result {
       pause: handlePause,
       editMessage: handleEditMessage,
       forkAndResend: handleForkAndResend,
+      continueTruncated: handleContinueTruncated,
       setActiveNode: handleSetActiveNode,
       setActiveBranch: handleSetActiveBranch,
       refresh
@@ -554,6 +577,7 @@ export function useChatWriteActions(params: Params): Result {
       handlePause,
       handleEditMessage,
       handleForkAndResend,
+      handleContinueTruncated,
       handleSetActiveNode,
       handleSetActiveBranch,
       refresh

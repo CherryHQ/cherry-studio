@@ -129,7 +129,7 @@ Bir özellik eksik görünüyorsa önce "kapalı mı?" diye bak; çoğu kez yaz�
 | **B2/B3 arayüz** | ✅ | `cb6ef8a` — anahtar satırında tür (ücretsiz/ücretli/deneme) ve aylık kotalarda yenileme günü. **Bulunan boşluk:** `tier`/`renewalAnchor` şemada vardı ama `UpdateApiKeySchema` `strictObject` olduğu için API onları reddediyordu; şema + servis + arayüz birlikte tamamlandı |
 | **C** | ✅ | Oto geçiş düğmesi composer'da (gönder düğmesinin yanı), varsayılan **kapalı**. Kapalıyken `readRetryPolicy` hiç yedek model döndürmüyor — aynı model üzerinde tekrar ve anahtar döndürme etkilenmiyor. Ayrıca kota dolmuş yedek model ve kota dolmuş anahtar artık gerçekten **atlanıyor** (`buildFallbackModels`, `buildApiKeyFallbackModels`), sadece sıralama değişmiyor |
 | **U4 (kısmi)** | ✅ | `5158b41` — U1'in açtığı boşluk: klasör seçilmemişken yedek ekranı hem yolu hem durumu gizliyordu, yani çalışırken boş görünüyordu. Etkin klasör artık girdi ipucunda, durum satırı her koşulda görünüyor. `app.get_info`'ya `defaultBackupPath` eklendi |
-| **R1 (yarısı)** | 🟡 kısmi | **Sinyal bitti:** kesilme artık algılanıyor, normalize ediliyor ve `MessageStats.finishReason` olarak saklanıyor (`stats` JSON sütunu, **migrasyon gerekmedi**). Tek nokta: `observers/usage.ts` `onStepFinish`. 8 test. **Ekran YOK:** kullanıcı henüz kesilmeyi göremiyor ve sürdüremiyor — aşağıya bak |
+| **R1 (elle)** | ✅ | **Sinyal:** kesilme `MessageStats.finishReason`'a yazılıyor (`observers/usage.ts` `onStepFinish`, JSON sütunu, migrasyon gerekmedi). **Ekran:** kesilen asistan mesajının araç çubuğunda "Yanıtı sürdür" düğmesi — yalnız `finishReason === 'length'` iken. **Sürdürme:** yeni `continue-truncated` tetikleyicisi `prepareContinueDispatch`'e gidiyor; aynı satır, aynı model, geçmişin sonunda yarım cevap, `accumulatorSeed` yazılanı koruyor. Canlı akış varken reddediliyor. **Kalan:** otomatikleştirme (tercih + en fazla 3 deneme) |
 | **J3** | ⛔ gereksiz | `ProviderService.resolveApiKey` **zaten senkron round-robin** yapıyor, JS tek iş parçacıklı olduğu için anahtar seçiminde yarış durumu yok. Geriye kalan gerçek ihtiyaç — aynı anahtara paralel istekleri oran sınırına göre sıraya almak — **H1**'in işi, ayrı bir madde değil |
 
 ### ✅ Ekranda doğrulandı (derlenmiş sürüm, 2026-09-19)
@@ -165,8 +165,8 @@ Bunları kendi değişikliğinin sonucu sanma. İkisi de bu oturum başlamadan �
    testleri; Latin olmayan/aksanlı diller (zh-cn, zh-tw, ja-jp, el-gr, ru-ru, ro-ro, vi-vn)
    için `updateSession` çağrılmıyor. Latin/ASCII diller geçiyor.
 
-**Sonraki sırada:** R1 (kesilen cevabı sürdürme — akış yaşam döngüsüne giriyor, güçlü model işi),
-P1 (anahtar yapıştırınca kendini kursun), J2 (arka planda sağlık taraması), D (baş kontrolcü).
+**Sonraki sırada:** P1 (anahtar yapıştırınca kendini kursun), J2 (arka planda sağlık taraması),
+R1'in otomatik yarısı, D (baş kontrolcü).
 
 ---
 

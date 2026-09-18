@@ -2086,6 +2086,7 @@
   "message.citation": "{{count}} citÄƒri",
   "message.citation_source": "SursÄƒ citare {{number}}",
   "message.citations": "ReferinÈ›e",
+  "message.continue_truncated.label": "Continua răspunsul",
   "message.conversation_reset": "Istoricul conversaÈ›iei anterioare nu a putut fi gÄƒsit â€” se continuÄƒ Ã®ntr-o conversaÈ›ie nouÄƒ",
   "message.copied": "Copiat!",
   "message.copy.failed": "Copiere eÈ™uatÄƒ",

@@ -730,6 +730,11 @@ export function useHomeMessageListProviderValue({
     [requireChatWrite]
   )
 
+  const continueTruncatedMessage = useCallback<NonNullable<MessageListActions['continueTruncatedMessage']>>(
+    (messageId) => requireChatWrite('continueTruncatedMessage').continueTruncated(messageId),
+    [requireChatWrite]
+  )
+
   const regenerateMessageUsingModel = useCallback(
     (messageId: string, modelId: UniqueModelId) =>
       requireChatWrite('regenerateMessageUsingModel').regenerate(messageId, { modelId }),
@@ -863,6 +868,7 @@ export function useHomeMessageListProviderValue({
       deleteMessageGroup,
       deleteMessageGroupWithConfirm,
       regenerateMessage,
+      continueTruncatedMessage: normalInteractionsEnabled ? continueTruncatedMessage : undefined,
       requestTranslationLanguages: normalInteractionsEnabled ? requestTranslationLanguages : undefined,
       retryTranslationLanguages: normalInteractionsEnabled ? retryTranslationLanguages : undefined,
       translateMessage,
@@ -877,6 +883,7 @@ export function useHomeMessageListProviderValue({
       bindMessageRuntime,
       bindRuntime,
       canStartNewContext,
+      continueTruncatedMessage,
       copyBranchToNewTopic,
       getMessageDeleteAvailability,
       deleteMessage,

@@ -271,6 +271,14 @@ export const aiRequestSchemas = {
           ...aiStreamRegenerateShape,
           retryMessageId: z.never().optional(),
           appendToLiveGroupMessageId: z.never().optional()
+        }),
+        z.object({
+          trigger: z.literal('continue-truncated'),
+          parentAnchorId: z.string().min(1),
+          userMessageParts: z.never().optional(),
+          targetMode: z.never().optional(),
+          retryMessageId: z.never().optional(),
+          appendToLiveGroupMessageId: z.never().optional()
         })
       ])
     ),

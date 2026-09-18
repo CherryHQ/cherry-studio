@@ -2086,6 +2086,7 @@
   "message.citation": "{{count}} atıf",
   "message.citation_source": "Atıf kaynağı {{number}}",
   "message.citations": "Kaynaklar",
+  "message.continue_truncated.label": "Yanıtı sürdür",
   "message.conversation_reset": "Önceki konuşma geçmişi bulunamadı — yeni bir konuşmada devam ediliyor",
   "message.copied": "Kopyalandı!",
   "message.copy.failed": "Kopyalama başarısız",

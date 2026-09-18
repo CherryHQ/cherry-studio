@@ -2086,6 +2086,7 @@
   "message.citation": "{{count}} Zitate",
   "message.citation_source": "Zitierquelle {{number}}",
   "message.citations": "Zitate",
+  "message.continue_truncated.label": "Antwort fortsetzen",
   "message.conversation_reset": "Vorherige Gesprächshistorie konnte nicht gefunden werden — es wird in einem neuen Gespräch fortgefahren",
   "message.copied": "Kopiert",
   "message.copy.failed": "Kopieren fehlgeschlagen",

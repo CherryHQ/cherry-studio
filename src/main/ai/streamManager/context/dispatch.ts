@@ -32,6 +32,14 @@ export interface MainContinueConversationRequest {
 }
 
 /**
+ * The two requests that extend an existing assistant row instead of opening a new
+ * one: an approval resuming its paused turn, and a reply that hit the token cap.
+ */
+export type ContinueDispatchRequest =
+  | MainContinueConversationRequest
+  | Extract<AiStreamOpenRequest, { trigger: 'continue-truncated' }>
+
+/**
  * Answer a steer message that was persisted while a turn was live. Synthesised
  * by `AiStreamManager.startNextChatTurn` when a finished chat turn has a pending
  * steer queued — it opens a fresh assistant turn anchored on the steer user

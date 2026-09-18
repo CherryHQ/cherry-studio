@@ -2086,6 +2086,7 @@
   "message.citation": "{{count}} conteÃºdo(s) citado(s)",
   "message.citation_source": "Fonte de citaÃ§Ã£o {{number}}",
   "message.citations": "CitaÃ§Ãµes",
+  "message.continue_truncated.label": "Continuar resposta",
   "message.conversation_reset": "HistÃ³rico de conversa anterior nÃ£o foi encontrado ; a continuar numa nova conversa",
   "message.copied": "Copiado",
   "message.copy.failed": "CÃ³pia falhou",

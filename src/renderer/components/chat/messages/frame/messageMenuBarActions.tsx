@@ -5,6 +5,7 @@ import {
   Check,
   CirclePause,
   CopyPlus,
+  CornerDownRight,
   FilePenLine,
   Languages,
   ListChecks,
@@ -209,6 +210,10 @@ registerCommand('message.regenerate', async ({ actions, message }) => {
   await actions.regenerateMessage?.(message.id)
 })
 
+registerCommand('message.continueTruncated', async ({ actions, message }) => {
+  await actions.continueTruncatedMessage?.(message.id)
+})
+
 registerCommand('message.delete', async ({ actions, message }) => {
   await actions.abortMessageTranslation?.(message.id)
   await actions.deleteMessage?.(message.id, {
@@ -352,6 +357,20 @@ registerToolbarAction({
   availability: toolbarAvailability(
     'assistant-regenerate',
     ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.regenerateMessage
+  )
+})
+
+// Free tiers cap output low enough that long answers stop mid-sentence. Regenerate would
+// throw the written half away, so the cut-off case gets its own button — and only then.
+registerToolbarAction({
+  id: 'assistant-continue',
+  commandId: 'message.continueTruncated',
+  label: ({ t }) => t('message.continue_truncated.label'),
+  icon: <CornerDownRight size={15} />,
+  availability: toolbarAvailability(
+    'assistant-continue',
+    ({ actions, isAssistantMessage, message }) =>
+      isAssistantMessage && message.stats?.finishReason === 'length' && !!actions.continueTruncatedMessage
   )
 })
 
