@@ -289,3 +289,15 @@ export const AIHubMixModelsResponseSchema = z.object({
   message: z.string().optional(),
   success: z.boolean().optional()
 })
+
+// === oMLX ===
+
+export const OmlxModelStatusSchema = z.looseObject({
+  id: z.string(),
+  model_type: z.string().optional(),
+  config_model_type: z.string().optional()
+})
+
+export const OmlxModelStatusResponseSchema = z.object({
+  models: z.array(OmlxModelStatusSchema)
+})

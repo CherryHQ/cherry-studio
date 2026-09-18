@@ -55,6 +55,7 @@ import {
   NewApiModelsResponseSchema,
   OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
+  OmlxModelStatusResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
   TogetherModelsResponseSchema,
@@ -815,13 +816,6 @@ const openAICompatibleFetcher: ModelFetcher = {
   fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
 }
 
-/** One record of oMLX `/v1/models/status`. */
-const OmlxModelStatusSchema = z.object({
-  id: z.string(),
-  model_type: z.string().optional(),
-  config_model_type: z.string().optional()
-})
-
 const omlxFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.omlx),
   fetch: async (provider, signal) => {
@@ -829,11 +823,14 @@ const omlxFetcher: ModelFetcher = {
     // as a chat model — including block-diffusion canvas models, which the
     // server only serves through its diffusion lane. `/v1/models/status`
     // reports the model type: keep the models that chat ('llm'/'vlm') and
-    // drop the diffusion families.
+    // drop the diffusion families. The status endpoint hangs off the server
+    // root, and a configured host may already carry the /v1 the OpenAI-
+    // compatible endpoint uses.
+    const root = formatApiHost(getBaseUrl(provider), false).replace(/\/v1$/, '')
     const response = await getFromApi({
-      url: `${withoutTrailingSlash(getBaseUrl(provider))}/v1/models/status`,
+      url: `${root}/v1/models/status`,
       headers: defaultHeaders(provider),
-      responseSchema: z.object({ models: z.array(OmlxModelStatusSchema) }),
+      responseSchema: OmlxModelStatusResponseSchema,
       abortSignal: signal
     })
     return dedup(
