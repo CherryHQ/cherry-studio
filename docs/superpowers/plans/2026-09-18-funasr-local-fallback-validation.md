@@ -31,17 +31,17 @@
 - Test: `src/main/ai/localModel/acquisition/__tests__/tarballArtifact.test.ts`
 - Test: `src/main/ai/localModel/catalog/__tests__/catalog.test.ts`
 
-- [ ] **Step 1: Add failing acquisition tests**
+- [x] **Step 1: Add failing acquisition tests**
 
 Add a fixture whose `darwin-arm64` platform entry supplies `packageName` and `tarballSha256`, then assert the requested npm URL and checksum come from that platform entry. Keep the existing onnxruntime behavior assertion.
 
-- [ ] **Step 2: Run the focused tests and confirm failure**
+- [x] **Step 2: Run the focused tests and confirm failure**
 
 Run: `pnpm test:main src/main/ai/localModel/acquisition/__tests__/tarballArtifact.test.ts src/main/ai/localModel/catalog/__tests__/catalog.test.ts`
 
 Expected: type/test failure because platform entries do not yet own package metadata.
 
-- [ ] **Step 3: Move package metadata to `ArtifactPlatformFiles`**
+- [x] **Step 3: Move package metadata to `ArtifactPlatformFiles`**
 
 Change the contract to:
 
@@ -65,7 +65,7 @@ export interface ArtifactPlatformFiles {
 
 Update `tarballArtifact.ts` to build the registry URL and verify the digest from the selected platform entry. Repeat the current onnxruntime package name and digest in each supported platform entry without changing paths or versions.
 
-- [ ] **Step 4: Run focused tests and commit**
+- [x] **Step 4: Run focused tests and commit**
 
 Expected: both focused test files pass.
 

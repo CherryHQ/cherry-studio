@@ -6,6 +6,7 @@ import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CatalogModule from '../../catalog/catalog'
+import type { SharedArtifact } from '../../catalog/types'
 
 const FAKE_PLATFORM = 'linux'
 const FAKE_ARCH = 'x64'
@@ -19,12 +20,12 @@ const { extractMock, FIXTURE_ARTIFACT } = vi.hoisted(() => ({
   extractMock: vi.fn(),
   FIXTURE_ARTIFACT: {
     id: 'onnxruntime-node' as const,
-    packageName: 'onnxruntime-node',
     version: '1.25.1',
-    tarballSha256: '5576b1313abe30c692fdc1b79cb6763292e7c69664dacb4a33906e98616da392',
     installDirKey: 'feature.onnxruntime.binary' as const,
     platforms: {
       'linux-x64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: '5576b1313abe30c692fdc1b79cb6763292e7c69664dacb4a33906e98616da392',
         tarballPrefix: 'package/bin/napi-v6/linux/x64/',
         installSubdir: 'napi-v6/linux/x64',
         entryFile: 'onnxruntime_binding.node',
@@ -57,7 +58,7 @@ vi.mock('../../catalog/catalog', async (importOriginal) => {
 })
 
 const { localModelStorageService } = await import('../../installation/LocalModelStorageService')
-const { artifactEntryPath, artifactRegistryOrder, isArtifactSupported, removeArtifact } =
+const { artifactEntryPath, artifactRegistryOrder, installArtifact, isArtifactSupported, removeArtifact } =
   await import('../tarballArtifact')
 
 /** A `net.fetch` Response shell streaming `content`. */
@@ -132,6 +133,30 @@ describe('shared artifact acquisition', () => {
     expect(isReady()).toBe(true)
     // The staging dir must not survive the download — not even as an empty shell.
     expect(existsSync(path.join(toolchainDir, '.tmp'))).toBe(false)
+  })
+
+  it('downloads the npm package declared by the current platform', async () => {
+    const artifact = {
+      id: 'onnxruntime-node',
+      packageName: 'wrong-root-package',
+      version: '1.25.1',
+      tarballSha256: '5576b1313abe30c692fdc1b79cb6763292e7c69664dacb4a33906e98616da392',
+      installDirKey: 'feature.onnxruntime.binary',
+      platforms: {
+        'linux-x64': {
+          packageName: 'platform-runtime',
+          tarballSha256: '5576b1313abe30c692fdc1b79cb6763292e7c69664dacb4a33906e98616da392',
+          tarballPrefix: 'package/bin/napi-v6/linux/x64/',
+          installSubdir: 'napi-v6/linux/x64',
+          entryFile: 'onnxruntime_binding.node',
+          supportFiles: ['libonnxruntime.so.1']
+        }
+      }
+    } as unknown as SharedArtifact
+
+    await installArtifact(artifact, new AbortController().signal, undefined, ['npmjs'])
+
+    expect(vi.mocked(net.fetch).mock.calls[0][0]).toContain('/platform-runtime/-/platform-runtime-1.25.1.tgz')
   })
 
   it('does not download again once already ready', async () => {

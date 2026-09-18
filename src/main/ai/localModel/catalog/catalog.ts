@@ -28,38 +28,46 @@ export const SHARED_ARTIFACTS = {
    * `CHERRY_ONNXRUNTIME_BINDING_PATH`. `version` must match package.json's pin. */
   'onnxruntime-node': {
     id: 'onnxruntime-node',
-    packageName: 'onnxruntime-node',
     version: '1.25.1',
-    tarballSha256: '582c44aac00414a5580fe9dcbebcb12c8bf1cc703ab3507203455db842e168f9',
     installDirKey: 'feature.onnxruntime.binary',
     // No darwin-x64: onnxruntime-node ships no binding for it, so both bundles read
     // as `unsupported` on Intel Macs instead of offering a download that cannot work.
     platforms: {
       'darwin-arm64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: '582c44aac00414a5580fe9dcbebcb12c8bf1cc703ab3507203455db842e168f9',
         tarballPrefix: 'package/bin/napi-v6/darwin/arm64/',
         installSubdir: 'napi-v6/darwin/arm64',
         entryFile: 'onnxruntime_binding.node',
         supportFiles: ['libonnxruntime.1.25.1.dylib']
       },
       'linux-x64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: '582c44aac00414a5580fe9dcbebcb12c8bf1cc703ab3507203455db842e168f9',
         tarballPrefix: 'package/bin/napi-v6/linux/x64/',
         installSubdir: 'napi-v6/linux/x64',
         entryFile: 'onnxruntime_binding.node',
         supportFiles: ['libonnxruntime.so.1']
       },
       'linux-arm64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: '582c44aac00414a5580fe9dcbebcb12c8bf1cc703ab3507203455db842e168f9',
         tarballPrefix: 'package/bin/napi-v6/linux/arm64/',
         installSubdir: 'napi-v6/linux/arm64',
         entryFile: 'onnxruntime_binding.node',
         supportFiles: ['libonnxruntime.so.1']
       },
       'win32-x64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: '582c44aac00414a5580fe9dcbebcb12c8bf1cc703ab3507203455db842e168f9',
         tarballPrefix: 'package/bin/napi-v6/win32/x64/',
         installSubdir: 'napi-v6/win32/x64',
         entryFile: 'onnxruntime_binding.node',
         supportFiles: ['onnxruntime.dll', 'DirectML.dll', 'dxil.dll', 'dxcompiler.dll']
       },
       'win32-arm64': {
+        packageName: 'onnxruntime-node',
+        tarballSha256: '582c44aac00414a5580fe9dcbebcb12c8bf1cc703ab3507203455db842e168f9',
         tarballPrefix: 'package/bin/napi-v6/win32/arm64/',
         installSubdir: 'napi-v6/win32/arm64',
         entryFile: 'onnxruntime_binding.node',

@@ -72,6 +72,8 @@ describe('local model catalog', () => {
 
   it.each(artifacts)('$id ships a complete file set for each platform it supports', (artifact) => {
     for (const [platform, files] of Object.entries(artifact.platforms)) {
+      expect(files.packageName, `${artifact.id}/${platform} has no npm package`).toBeTruthy()
+      expect(files.tarballSha256, `${artifact.id}/${platform} has no tarball checksum`).toMatch(/^[0-9a-f]{64}$/)
       expect(files.entryFile, `${artifact.id}/${platform} has no entry file`).toBeTruthy()
       expect(files.installSubdir, `${artifact.id}/${platform} has no install subdir`).toBeTruthy()
       // The entry file is installed separately from the support files; listing it twice
@@ -80,7 +82,6 @@ describe('local model catalog', () => {
       // Flattening relies on the prefix ending at a directory boundary.
       expect(files.tarballPrefix.endsWith('/')).toBe(true)
     }
-    expect(artifact.tarballSha256).toMatch(/^[0-9a-f]{64}$/)
   })
 
   it('throws on an unknown file key rather than yielding an undefined path', () => {
