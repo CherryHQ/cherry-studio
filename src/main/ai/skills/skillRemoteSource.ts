@@ -84,6 +84,11 @@ export interface FetchedSkill {
   tempDir: string
   skillDir: string
   sourceUrl: string
+  /**
+   * True for a repository-root GitHub skill. Only such installs may migrate an existing row to a
+   * new folder; same-URL siblings from other origins are unrelated skills, never renames.
+   */
+  isGithubRoot?: boolean
   /** Fire-and-forget notification to run once the install has committed. */
   onInstalled?: () => void
 }
@@ -205,7 +210,7 @@ async function fetchFromGithub(
   await assertSkillDirectoryWithinLimits(skillDir)
 
   if (target.kind === 'root') {
-    return { skillDir: await renameGithubRootDir(tempDir, skillDir, repo), sourceUrl }
+    return { skillDir: await renameGithubRootDir(tempDir, skillDir, repo), sourceUrl, isGithubRoot: true }
   }
   return { skillDir, sourceUrl }
 }
