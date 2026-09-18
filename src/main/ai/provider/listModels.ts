@@ -448,7 +448,7 @@ const comfyuiFetcher: ModelFetcher = {
     // execute, so the user's saved workflows are the pickable units. The same
     // headers and proxy-aware fetch the transport uses, so a preset-derived
     // instance behaves like the canonical one.
-    const workflows = await listWorkflows(withoutTrailingSlash(getBaseUrl(provider)), signal, {
+    const workflows = await listWorkflows(formatApiHost(getBaseUrl(provider), false), signal, {
       headers: { ...getProviderAppHeaders(provider), ...getExtraHeaders(provider) },
       fetch: customFetch
     })

@@ -367,7 +367,16 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
         if (slot.link != null) {
           byName.set(slot.name, resolveLink(slot.link, links, remap, bindings))
         } else if ('widget' in slot) {
-          byName.set(slot.name, wrapWidgetValue(Array.isArray(values) ? values[widgetIndex] : values?.[slot.name]))
+          // The frontend saves promoted widget values by name alongside the
+          // positional list; a reordered promotion then keys straight instead
+          // of silently swapping positions.
+          const named = instance.widgets_values_named?.[slot.name]
+          byName.set(
+            slot.name,
+            wrapWidgetValue(
+              named !== undefined ? named : Array.isArray(values) ? values[widgetIndex] : values?.[slot.name]
+            )
+          )
           widgetIndex += 1
         }
       }
