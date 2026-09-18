@@ -33,8 +33,10 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
+import { formatErrorMessage } from '@renderer/utils/error'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
@@ -373,6 +375,19 @@ export function useAgentMessageListProviderValue({
   )
 
   const { notifyError } = leafCapabilities
+  const openForkSourceSession = useCallback(
+    async (sourceSessionId: string) => {
+      try {
+        await dataApiService.get(`/agent-sessions/${sourceSessionId}`)
+        openRoute('/app/agents', { sessionId: sourceSessionId })
+      } catch (error) {
+        notifyError(
+          isDataApiNotFoundError(error) ? t('agent_session_fork.source_not_found') : formatErrorMessage(error)
+        )
+      }
+    },
+    [notifyError, t]
+  )
   const forkSession = useCallback(
     async (messageId: string) => {
       if (!sessionId) return
@@ -438,6 +453,7 @@ export function useAgentMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      openForkSourceSession: normalInteractionsEnabled ? openForkSourceSession : undefined,
       forkSession: normalInteractionsEnabled
         ? {
             label: t('agent_session_fork.label'),
@@ -472,6 +488,7 @@ export function useAgentMessageListProviderValue({
     }),
     [
       forkSession,
+      openForkSourceSession,
       t,
       abortTool,
       bindRuntime,

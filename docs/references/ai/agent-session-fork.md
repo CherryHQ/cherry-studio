@@ -25,6 +25,11 @@ history through the selected turn and a native runtime resume reference.
 It does not start or interrupt the source connection. The source can continue
 appending later turns, and deleting it does not invalidate a published child.
 
+The last copied message carries a `data-agent-session-fork` part containing only
+`sourceSessionId`. Its link opens the direct parent after checking it still exists;
+missing or trashed parents produce a frontend error. Forking again replaces inherited
+markers. The link stays at the copied boundary, with no backfill for existing forks.
+
 The new name uses the next available suffix for the Agent, such as `Session (1)`.
 Forking a numbered session advances that suffix instead of nesting it. Queued
 deliveries, live tasks, approval authority, and usage statistics are not inherited.

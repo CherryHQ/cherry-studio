@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -8,6 +8,7 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -263,6 +264,41 @@ describe('useAgentMessageListProviderValue', () => {
       expect(ipcApiRequest).toHaveBeenCalledTimes(1)
       if (scenario === 'success') expect(openRouteMock).toHaveBeenCalledWith('/app/agents', { sessionId: 'child' })
       else expect(openRouteMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['success', 'not-found', 'failure'] as const)(
+    'opens the fork source only after a successful lookup: %s',
+    async (scenario) => {
+      const lookup = Promise.withResolvers<unknown>()
+      dataApiMocks.get.mockReturnValueOnce(lookup.promise)
+      const { result } = renderHook(() =>
+        useAgentMessageListProviderValue({
+          topic: { id: 'agent-session:child', assistantId: 'agent-1', name: 'Child', messages: [] } as unknown as Topic,
+          messages: [],
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'anchor'
+        })
+      )
+      const opening = result.current.actions.openForkSourceSession!('parent')
+      expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/parent')
+      expect(openRouteMock).not.toHaveBeenCalled()
+      if (scenario === 'success') lookup.resolve({ id: 'parent' })
+      else
+        lookup.reject(
+          scenario === 'not-found' ? DataApiErrorFactory.notFound('Session', 'parent') : new Error('Connection failed')
+        )
+      await opening
+      if (scenario === 'success') {
+        expect(openRouteMock).toHaveBeenCalledWith('/app/agents', { sessionId: 'parent' })
+        expect(leafCapabilitiesMock.notifyError).not.toHaveBeenCalled()
+      } else {
+        expect(openRouteMock).not.toHaveBeenCalled()
+        expect(leafCapabilitiesMock.notifyError).toHaveBeenCalledWith(
+          scenario === 'not-found' ? 'agent_session_fork.source_not_found' : 'Connection failed'
+        )
+      }
     }
   )
 

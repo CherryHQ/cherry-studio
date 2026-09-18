@@ -116,6 +116,10 @@ describe('Agent fork publication', () => {
     const childId = await new AgentSessionForkOperations().fork(sessionId, messageId)
     expect(notified).toEqual([childId])
     expect(agentSessionMessageService.listSessionMessages(childId).items[0].data.parts).toEqual([
+      { type: 'text', text: 'Preserved answer' },
+      { type: 'data-agent-session-fork', data: { sourceSessionId: sessionId } }
+    ])
+    expect(agentSessionMessageService.listSessionMessages(sessionId).items[0].data.parts).toEqual([
       { type: 'text', text: 'Preserved answer' }
     ])
     expect(await readForkResources()).toEqual([
@@ -129,10 +133,40 @@ describe('Agent fork publication', () => {
     await new AgentSessionForkOperations().recover()
     expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
     expect(agentSessionMessageService.getLastRuntimeResumeToken(childId)).toBe('native-child')
+    expect(agentSessionMessageService.listSessionMessages(childId).items[0].data.parts?.at(-1)).toEqual({
+      type: 'data-agent-session-fork',
+      data: { sourceSessionId: sessionId }
+    })
     dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, childId)).run()
     await new AgentSessionForkOperations().recover()
     expect(await readForkResources()).toEqual([])
     await expect(readFile(publishedFile)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('replaces inherited links with the direct parent only at the new fork boundary', async () => {
+    const childId = await new AgentSessionForkOperations().fork(sessionId, messageId)
+    const nextMessageId = randomUUID()
+    agentSessionMessageService.saveMessage({
+      sessionId: childId,
+      runtimeResumeToken: 'native-child',
+      runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native-child', leafId: 'next' } },
+      message: {
+        id: nextMessageId,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Next answer' }] }
+      }
+    })
+    publishedFile = path.join(directory, 'native', 'grandchild.jsonl')
+    const grandchildId = await new AgentSessionForkOperations().fork(childId, nextMessageId)
+    const messages = agentSessionMessageService.listSessionMessages(grandchildId).items
+    expect(messages.toReversed().map((message) => message.data.parts)).toEqual([
+      [{ type: 'text', text: 'Preserved answer' }],
+      [
+        { type: 'text', text: 'Next answer' },
+        { type: 'data-agent-session-fork', data: { sourceSessionId: childId } }
+      ]
+    ])
   })
 
   it.each(['database-failure', 'invalid-checkpoint'] as const)(

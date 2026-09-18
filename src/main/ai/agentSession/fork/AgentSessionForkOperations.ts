@@ -288,7 +288,7 @@ function cloneMessages(
   const newIds = rows.map(() => randomUUID()).sort()
   const ids = new Map(rows.map((row, index) => [row.id, newIds[index]]))
   let checkpointIndex = 0
-  return rows.map((row) => {
+  return rows.map((row, index) => {
     const data = structuredClone(row.data)
     const anchor = RuntimeForkAnchorSchema.safeParse(data.runtimeAnchor)
     delete data.runtimeAnchor
@@ -300,7 +300,7 @@ function cloneMessages(
     }
     // Task events are live execution registries, not conversation content.
     data.parts = data.parts
-      ?.filter((part) => part.type !== 'data-agent-task-event')
+      ?.filter((part) => part.type !== 'data-agent-task-event' && part.type !== 'data-agent-session-fork')
       .map((part) => {
         if (part.type === 'data-translation' && part.data.sourceBlockId) {
           return {
@@ -329,6 +329,12 @@ function cloneMessages(
         delete copy.approval
         return copy
       })
+    if (index === rows.length - 1) {
+      data.parts = [
+        ...(data.parts ?? []),
+        { type: 'data-agent-session-fork', data: { sourceSessionId: row.sessionId } }
+      ]
+    }
     return {
       ...row,
       id: ids.get(row.id)!,
