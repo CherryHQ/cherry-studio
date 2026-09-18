@@ -129,6 +129,7 @@ Bir özellik eksik görünüyorsa önce "kapalı mı?" diye bak; çoğu kez yaz�
 | **B2/B3 arayüz** | ✅ | `cb6ef8a` — anahtar satırında tür (ücretsiz/ücretli/deneme) ve aylık kotalarda yenileme günü. **Bulunan boşluk:** `tier`/`renewalAnchor` şemada vardı ama `UpdateApiKeySchema` `strictObject` olduğu için API onları reddediyordu; şema + servis + arayüz birlikte tamamlandı |
 | **C** | ✅ | Oto geçiş düğmesi composer'da (gönder düğmesinin yanı), varsayılan **kapalı**. Kapalıyken `readRetryPolicy` hiç yedek model döndürmüyor — aynı model üzerinde tekrar ve anahtar döndürme etkilenmiyor. Ayrıca kota dolmuş yedek model ve kota dolmuş anahtar artık gerçekten **atlanıyor** (`buildFallbackModels`, `buildApiKeyFallbackModels`), sadece sıralama değişmiyor |
 | **U4 (kısmi)** | ✅ | `5158b41` — U1'in açtığı boşluk: klasör seçilmemişken yedek ekranı hem yolu hem durumu gizliyordu, yani çalışırken boş görünüyordu. Etkin klasör artık girdi ipucunda, durum satırı her koşulda görünüyor. `app.get_info`'ya `defaultBackupPath` eklendi |
+| **R1 (yarısı)** | 🟡 kısmi | **Sinyal bitti:** kesilme artık algılanıyor, normalize ediliyor ve `MessageStats.finishReason` olarak saklanıyor (`stats` JSON sütunu, **migrasyon gerekmedi**). Tek nokta: `observers/usage.ts` `onStepFinish`. 8 test. **Ekran YOK:** kullanıcı henüz kesilmeyi göremiyor ve sürdüremiyor — aşağıya bak |
 | **J3** | ⛔ gereksiz | `ProviderService.resolveApiKey` **zaten senkron round-robin** yapıyor, JS tek iş parçacıklı olduğu için anahtar seçiminde yarış durumu yok. Geriye kalan gerçek ihtiyaç — aynı anahtara paralel istekleri oran sınırına göre sıraya almak — **H1**'in işi, ayrı bir madde değil |
 
 ### ⚠️ Depoda önceden var olan, bize ait OLMAYAN hatalar
@@ -1240,8 +1241,32 @@ Bunları sen istemedin; "bu uygulamayı her gün kullansam beni ne delirtir" diy
 >    (`AiStreamManager.scheduleNextChatTurn`, bugün yalnızca `steer-continuation` için).
 >    Cevap iki ayrı mesaj olarak görünür ama otomatik gelir ve risk çok düşük.
 >
-> **Öneri:** önce (2)'yi yap — kullanıcının "elle devam et yazmak zorunda kalmak" derdini hemen
-> bitirir. (1) ancak tek mesaj şart olduğunda ve zaman varken yapılsın.
+> **GÜNCELLEME — yarısı yapıldı, tasarım netleşti. Yukarıdaki iki yol da geçersiz.**
+>
+> **Bitti:** kesilme algılanıp `MessageStats.finishReason` olarak saklanıyor.
+> Tek dokunulan yer `src/main/ai/runtime/aiSdk/observers/usage.ts` — `onStepFinish` zaten her adımda
+> `message-metadata` yazıyor ve o meta veri veritabanına kadar gidiyor, yani sinyal yolu hazırdı.
+> `stats` bir JSON sütunu olduğu için migrasyon gerekmedi. 8 test.
+>
+> **Kalan: ekran + sürdürme.** Doğru mekanizma `prepareContinueDispatch`
+> (`PersistentChatContextProvider.ts:664`) — onay sonrası turu sürdürmek için yazılmış ve tam
+> istediğimizi yapıyor: **aynı mesaj satırını yeniden kullanıyor**, geçmişi o mesajdan kuruyor
+> (yani model kendi yarım çıktısını görüyor), sonucu `assistantMessageId: anchor.id` ile **aynı
+> mesaja** yazıyor. Yani tek mesajda sürdürme zaten mümkün, yeniden yazmaya gerek yok.
+>
+> **Yapılacak sıra:**
+> 1. `shared/ai/transport/stream.ts` — `AiStreamOpenRequest`'e `'continue-truncated'` tetikleyicisi
+>    (ayrımlı birleşim, diğer dallardaki alanlar `never`).
+> 2. `context/dispatch.ts` + `prepareDispatch` — bu tetikleyiciyi boş `approvalDecisions` ile
+>    `prepareContinueDispatch`'e yönlendir.
+> 3. **⚠ Riskli adım:** `AiStreamManager` kabul mantığında tetikleyiciye göre dallanan yerler var
+>    (`req.trigger !== 'steer-continuation'`, `req.trigger === 'continue-conversation'`). Yeni
+>    tetikleyicinin hangi kovaya düştüğü tek tek kontrol edilmeli — A2'deki takılma tam bu alanda
+>    yaşıyordu.
+> 4. Renderer: `messageMenuBarActions.tsx`'e "devam et" eylemi,
+>    `metadata.stats.finishReason === 'length'` iken görünsün.
+> 5. Otomatikleştirme en son: tercih + deneme sayacı (en fazla 3), elle düğme çalıştığı doğrulandıktan
+>    sonra.
 
 Ücretsiz API'ler `max_tokens`'ı düşük tutar; cevap cümlenin ortasında kesilir
 (`finishReason: 'length'`). Bugün elle "devam et" yazman gerekiyor.
