@@ -6,7 +6,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 
 import { readRetryPolicy } from './aiSdk'
 import { AsyncEventQueue } from './AsyncEventQueue'
-import { selectFallbackModelId } from './claudeCode/modelFallback'
+import { selectFallbackModelId } from './claudeCode'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -114,6 +114,10 @@ export class AgentSessionFallbackConnection implements AgentRuntimeConnection {
         for await (const event of this.current.events) {
           if (this.closed) return
           if (event.type === 'resume-token') this.resumeToken = event.token
+          // Once the turn completes, a later failure belongs to driver-driven work (e.g. an
+          // autonomous round) whose input never passed through send() — replaying the stale
+          // user input would re-run a turn that already produced its result.
+          if (event.type === 'turn-complete') this.lastInput = undefined
           if (event.type === 'background-tasks') this.backgroundTasksRunning = event.tasks.length > 0
           if (event.type === 'background-work-state') this.backgroundWorkActive = event.active
           if (event.type === 'chunk') this.hasActivity = true
