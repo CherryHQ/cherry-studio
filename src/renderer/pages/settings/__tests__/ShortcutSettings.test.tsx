@@ -265,6 +265,30 @@ describe('ShortcutSettings shortcut recorder', () => {
     expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
   })
 
+  it('keeps the system conflict warning after a failed single-key preference retry', async () => {
+    shortcutsMock.shortcuts = [makeShortcut({ binding: ['CommandOrControl', '0'], enabled: true })]
+    shortcutsMock.updatePreference.mockRejectedValue(new Error('persist failed'))
+    renderShortcutSettings()
+    const notify = registrationConflictMock.mock.calls[0]?.[0]
+
+    act(() =>
+      notify({
+        key: 'shortcut.app.search',
+        accelerator: 'CommandOrControl+0',
+        hasConflict: true,
+        reason: 'occupied'
+      })
+    )
+    expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'switch' }))
+
+    await waitFor(() => {
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', { enabled: false })
+    })
+    expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+  })
+
   it('records physical key shortcuts and stops propagation while recording', async () => {
     const parentKeyDown = vi.fn()
     renderShortcutSettings(parentKeyDown)
