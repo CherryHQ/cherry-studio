@@ -169,6 +169,33 @@ describe('CodeBlockView', () => {
     expect(screen.queryByLabelText('Code viewer')).not.toBeInTheDocument()
   })
 
+  it('ignores a save that settles after the split preview was restored to the editor', async () => {
+    const user = userEvent.setup()
+    let finishSave: (saved: boolean) => void = () => {}
+    const onSave = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishSave = resolve
+        })
+    )
+    render(
+      <CodeBlockView language="mermaid" editable onSave={onSave}>
+        graph TD
+      </CodeBlockView>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'code_block.edit.label' }))
+    await user.click(screen.getByRole('button', { name: 'Save from editor' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.more' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.split.label' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.split.restore' }))
+
+    await act(async () => finishSave(true))
+
+    expect(screen.getByRole('textbox', { name: 'Code editor' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Mermaid preview')).not.toBeInTheDocument()
+  })
+
   it('leaves split edit mode once the save succeeds', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn().mockResolvedValue(true)

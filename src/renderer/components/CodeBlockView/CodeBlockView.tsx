@@ -148,6 +148,9 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   )
 
   const toggleSplitView = useCallback(() => {
+    // Restoring the editor from a split preview starts a new session: a save still in
+    // flight from before the split must not close it and discard what was typed since.
+    if (viewState.mode === 'split' && viewState.previousMode === 'edit') editSessionRef.current += 1
     setViewState((current) => {
       // 如果当前是 split 模式，恢复到上一个模式
       if (current.mode === 'split') {
@@ -155,7 +158,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       }
       return { mode: 'split', previousMode: current.mode }
     })
-  }, [])
+  }, [viewState.mode, viewState.previousMode])
 
   const [isRunning, setIsRunning] = useState(false)
   const [executionResult, setExecutionResult] = useState<{ text: string; image?: string } | null>(null)
