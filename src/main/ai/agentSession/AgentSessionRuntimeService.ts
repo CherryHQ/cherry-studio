@@ -1475,6 +1475,33 @@ export class AgentSessionRuntimeService extends BaseService {
     return true
   }
 
+  listSessionInteractions(sessionId: string) {
+    return toolApprovalRegistry.listForSession(sessionId).map((entry) => ({
+      ...entry,
+      anchorId:
+        entry.presentation === 'message'
+          ? agentSessionMessageService.findPendingApprovalAnchor(sessionId, entry.approvalId)
+          : undefined
+    }))
+  }
+
+  getSessionInteractionInput(sessionId: string, approvalId: string): Record<string, unknown> | undefined {
+    if (toolApprovalRegistry.peek(approvalId)?.sessionId !== sessionId) return undefined
+    return toolApprovalRegistry.inputFor(approvalId)
+  }
+
+  readonly onSessionInteractionsChanged = toolApprovalRegistry.onChanged
+
+  respondSessionInteraction(
+    sessionId: string,
+    approvalId: string,
+    decision: DispatchDecision,
+    anchorId?: string
+  ): boolean {
+    if (toolApprovalRegistry.peek(approvalId)?.sessionId !== sessionId) return false
+    return this.respondToolApproval(approvalId, decision, anchorId)
+  }
+
   /**
    * Stop one background task, leaving the turn and the session running. The runtime answers with a
    * `task_notification` carrying status `stopped`, so nothing is updated here. Returns false when

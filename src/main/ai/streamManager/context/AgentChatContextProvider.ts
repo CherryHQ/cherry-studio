@@ -27,6 +27,7 @@ import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/t
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'
+import type { AgentMessageReservation } from './agentSubmission'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
 
@@ -334,43 +335,59 @@ export class AgentChatContextProvider implements ChatContextProvider {
       return this.activateDispatch(persisted, subscriber)
     }
 
-    // Ordinary interactive follow-ups still use the runtime FIFO. Durable cross-Session deliveries
-    // are gated by AgentSessionDeliveryService and never enter this branch.
-    if (application.get('AgentSessionRuntimeService').isSessionBusy(validated.sessionId)) {
+    const reserve = (tx: DbOrTx): AgentMessageReservation => {
+      const expectedAgent = ctx?.commitAgentMessage
+        ? {
+            id: validated.agentId,
+            updatedAt: validated.agentUpdatedAt,
+            model: validated.uniqueModelId,
+            type: validated.agentType
+          }
+        : ctx?.expectedAgentId
+      if (!application.get('AgentSessionRuntimeService').isSessionBusy(validated.sessionId)) {
+        return { mode: 'accepted', persisted: this.persistDispatchTx(tx, validated, expectedAgent) }
+      }
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
-      const savedUserMessage = agentSessionMessageService.saveMessage({
-        sessionId: validated.sessionId,
-        message: {
-          id: validated.userMessageId,
-          role: 'user',
-          status: 'success',
-          data: { parts: validated.userMessageParts }
-        }
-      })
-
-      application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
-        headless: validated.headless,
-        trustedNotifyChannels: validated.trustedNotifyChannels,
-        messageSnapshot: validated.messageSnapshot,
-        reasoningEffort: validated.reasoningEffort,
-        serviceTier: validated.serviceTier,
-        fastMode: validated.fastMode
-      })
-
-      return {
-        topicId: validated.topicId,
-        models: [],
-        reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
-        listeners: [subscriber]
-      }
+      const [userMessage] = agentSessionMessageService.saveMessagesTx(
+        tx,
+        {
+          sessionId: validated.sessionId,
+          messages: [
+            {
+              id: validated.userMessageId,
+              role: 'user',
+              status: 'success',
+              data: { parts: validated.userMessageParts }
+            }
+          ]
+        },
+        expectedAgent
+      )
+      return { mode: 'queued', validated, userMessage }
     }
+    const reservation = ctx?.commitAgentMessage
+      ? ctx.commitAgentMessage(reserve)
+      : application.get('DbService').withWriteTx(reserve)
+    if (reservation.mode === 'accepted') return this.activateDispatch(reservation.persisted, subscriber)
 
-    const persisted = application
-      .get('DbService')
-      .withWriteTx((tx) => this.persistDispatchTx(tx, validated, ctx?.expectedAgentId))
-    return this.activateDispatch(persisted, subscriber)
+    agentSessionService.notifyReadModelChange([validated.sessionId], 'projection')
+    const { userMessage } = reservation
+    application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, userMessage, {
+      headless: validated.headless,
+      trustedNotifyChannels: validated.trustedNotifyChannels,
+      messageSnapshot: validated.messageSnapshot,
+      reasoningEffort: validated.reasoningEffort,
+      serviceTier: validated.serviceTier,
+      fastMode: validated.fastMode
+    })
+    return {
+      topicId: validated.topicId,
+      models: [],
+      reservedMessages: [toReservedAgentUIMessage(userMessage)],
+      listeners: [subscriber]
+    }
   }
 }
 

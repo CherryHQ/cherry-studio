@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 
 const logger = loggerService.withContext('ToolApprovalRegistry')
 
@@ -37,6 +38,8 @@ type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'pres
  * agent-session driver; the SDK-native conversion lives in each driver.
  */
 class ToolApprovalRegistry {
+  private readonly changed = new Emitter<{ sessionId: string }>()
+  readonly onChanged = this.changed.event
   private readonly pending = new Map<string, PendingApproval>()
 
   /**
@@ -67,6 +70,7 @@ class ToolApprovalRegistry {
     }
 
     this.pending.set(approvalId, stored)
+    this.changed.fire({ sessionId: stored.sessionId })
     return true
   }
 
@@ -81,6 +85,25 @@ class ToolApprovalRegistry {
     }
   }
 
+  listForSession(
+    sessionId: string
+  ): Array<Pick<PendingApproval, 'approvalId' | 'toolCallId' | 'toolName' | 'presentation'>> {
+    return [...this.pending.values()]
+      .filter((entry) => entry.sessionId === sessionId)
+      .map((entry) => ({
+        approvalId: entry.approvalId,
+        toolCallId: entry.toolCallId,
+        toolName: entry.toolName,
+        presentation: entry.presentation
+      }))
+  }
+
+  /** A copy, so a reader can never alter the input the runtime resumes with. */
+  inputFor(approvalId: string): Record<string, unknown> | undefined {
+    const entry = this.pending.get(approvalId)
+    return entry && structuredClone(entry.originalInput)
+  }
+
   /** Returns `undefined` for unknown ids (already dispatched / session expired). */
   dispatch(approvalId: string, decision: DispatchDecision): ApprovalRegistration | undefined {
     const entry = this.pending.get(approvalId)
@@ -88,6 +111,7 @@ class ToolApprovalRegistry {
     this.pending.delete(approvalId)
     this.detachAbort(entry)
     entry.resolve(decision)
+    this.changed.fire({ sessionId: entry.sessionId })
     return {
       sessionId: entry.sessionId,
       toolCallId: entry.toolCallId,
@@ -102,6 +126,7 @@ class ToolApprovalRegistry {
       this.pending.delete(approvalId)
       this.detachAbort(entry)
       entry.resolve({ approved: false, reason })
+      this.changed.fire({ sessionId })
       aborted++
     }
     if (aborted > 0) logger.info('Aborted pending approvals', { sessionId, count: aborted, reason })
@@ -116,11 +141,13 @@ class ToolApprovalRegistry {
   clear(reason = 'service-shutdown'): number {
     const count = this.pending.size
     if (count === 0) return 0
+    const sessions = new Set([...this.pending.values()].map((entry) => entry.sessionId))
     for (const [, entry] of this.pending) {
       this.detachAbort(entry)
       entry.resolve({ approved: false, reason })
     }
     this.pending.clear()
+    for (const sessionId of sessions) this.changed.fire({ sessionId })
     logger.info('Cleared all pending approvals', { count, reason })
     return count
   }

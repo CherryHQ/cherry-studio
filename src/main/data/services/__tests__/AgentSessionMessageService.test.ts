@@ -1137,6 +1137,44 @@ describe('AgentSessionMessageService', () => {
       ])
     })
 
+    it('anchors a pending approval to the message that requested it, and to nothing once it is answered', () => {
+      const tool = { type: 'dynamic-tool' as const, toolName: 'screenshot', input: {} }
+      const ANSWERED = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d030'
+      const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d031'
+      for (const [id, part] of [
+        [
+          ANSWERED,
+          {
+            ...tool,
+            toolCallId: 'call-answered',
+            state: 'output-available' as const,
+            output: {},
+            approval: { id: 'approval-answered', approved: true }
+          }
+        ],
+        [
+          PENDING,
+          {
+            ...tool,
+            toolCallId: 'call-pending',
+            state: 'approval-requested' as const,
+            approval: { id: 'approval-pending' }
+          }
+        ]
+      ] as const) {
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          message: { id, role: 'assistant', status: 'success', data: { parts: [part] } }
+        })
+      }
+
+      expect(agentSessionMessageService.findPendingApprovalAnchor(SESSION_ID, 'approval-pending')).toBe(PENDING)
+      expect(agentSessionMessageService.findPendingApprovalAnchor(SESSION_ID, 'approval-answered')).toBeUndefined()
+      expect(
+        agentSessionMessageService.findPendingApprovalAnchor('another-session', 'approval-pending')
+      ).toBeUndefined()
+    })
+
     it('discards resume tokens only for the affected sessions', async () => {
       const OTHER_SESSION_ID = 'session-2'
       await seedSession({ id: OTHER_SESSION_ID, name: 'Other', orderKey: 'a1' })
