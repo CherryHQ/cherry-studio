@@ -1,3 +1,4 @@
+import type { Element as HastElement } from 'hast'
 import type * as HtmlToImage from 'html-to-image'
 import { Base64 } from 'js-base64'
 
@@ -1075,6 +1076,23 @@ export const makeSvgSizeAdaptive = (element: Element): Element => {
   element.removeAttribute('preserveAspectRatio')
 
   return element
+}
+
+/**
+ * Whether an SVG node is a KaTeX-generated math glyph (square roots,
+ * extensible arrows). KaTeX emits bare shape-only SVGs with no id/class or
+ * text content. They must render exactly where KaTeX placed them: wrapping
+ * them in extra boxes (e.g. a `display: contents` context-menu trigger)
+ * stops Chromium from painting the SVG, dropping the root sign from formulas.
+ */
+export function isKatexGeneratedSvg(node: HastElement | undefined): boolean {
+  if (!node || node.tagName !== 'svg') return false
+  const properties = node.properties ?? {}
+  if (properties.id !== undefined || properties.className !== undefined) return false
+  if (!('viewBox' in properties)) return false
+  return !node.children.some(
+    (child) => child.type === 'element' && (child.tagName === 'text' || child.tagName === 'tspan')
+  )
 }
 
 /**
