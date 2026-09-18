@@ -2,6 +2,7 @@
 description: User-configurable same-model retry plus fallback models via ai-retry wrapModel, driven by chat.retry.* preferences
 sources:
   - src/main/ai/runtime/aiSdk/retry
+  - src/main/ai/runtime/claudeCode/modelFallback.ts
   - src/renderer/pages/settings/ModelSettings/ModelSettings.tsx
 ---
 
@@ -133,7 +134,36 @@ with both failed and fallback ids; terminal logs preserve the original error
 and per-attempt diagnostics. All logging goes through
 `loggerService.withContext('ModelRetry')`.
 
+## Agent sessions — turn-level fallback
+
+The wrapper above never reaches agent-session turns: the Claude Code / Pi / DSH
+runtimes do not consume `wrapModel` (they own their provider transport), so
+agent turns had no retry and no fallback at all. The Claude Code runtime driver
+therefore implements its own turn-level fallback
+(`src/main/ai/runtime/claudeCode/modelFallback.ts`):
+
+- When a turn terminally fails on a **retryable provider error** — a result
+  error carrying `api_error_status` 429/5xx, or an `api_error` terminal reason
+  whose diagnostics name a rate limit / quota / overload — **and the turn has
+  produced no content yet**, the driver rebuilds the CLI query from a request
+  materialized for the first configured fallback model and replays the same
+  user message. The host turn stays live; the host learns nothing except the
+  eventual outcome.
+- The fallback is **visible**: a persisted `data-model-fallback` part rides the
+  assistant row and renders as a transcript divider (`ModelFallbackBlock`), so
+  history shows that the reply came from a different model.
+- Configuration is the **same global preference** as chat
+  (`chat.retry.enabled` + `chat.retry.fallback_model_ids`); the fallback is
+  turn-scoped — the next fresh turn reconciles against the agent's model and
+  rebuilds the connection back to it.
+
+Limitations: one fallback attempt per turn; Claude Code runtime only; no
+capability gating (a fallback is picked purely by id, so a non-vision fallback
+can receive image parts); the assistant row keeps the primary model's `modelId`
+stamp — the transcript notice carries the model that actually answered.
+
 ### Embeddings & Rerank — no ai-retry
+
 
 Neither uses the ai-retry model wrapper. There is no cross-model fallback for
 embeddings (vectors from different models live in incompatible spaces and would
