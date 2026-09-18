@@ -89,18 +89,20 @@ const qwenImage3Mode: ImageModeDef = {
 const qwenImage3ImageGeneration = { modes: { edit: qwenImage3Mode, generate: qwenImage3Mode } }
 
 const qwenChatWire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
+  off: {
+    operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false }, delivery: 'provider-option' }]
+  },
   auto: {
     operations: [
-      { target: 'enable_thinking', value: { source: 'literal', value: true } },
-      { target: 'thinking_budget', value: { source: 'budget' } }
+      { target: 'enable_thinking', value: { source: 'literal', value: true }, delivery: 'provider-option' },
+      { target: 'thinking_budget', value: { source: 'budget' }, delivery: 'provider-option' }
     ],
     budget: { missing: { type: 'omit-value' } }
   },
   effort: {
     operations: [
-      { target: 'enable_thinking', value: { source: 'literal', value: true } },
-      { target: 'thinking_budget', value: { source: 'budget' } }
+      { target: 'enable_thinking', value: { source: 'literal', value: true }, delivery: 'provider-option' },
+      { target: 'thinking_budget', value: { source: 'budget' }, delivery: 'provider-option' }
     ],
     budget: { missing: { type: 'omit-value' } }
   }
@@ -168,8 +170,10 @@ const kimiK3Support: ReasoningSupport = {
 }
 
 const effortChatWire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
-  effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }] }
+  off: {
+    operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false }, delivery: 'provider-option' }]
+  },
+  effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' }, delivery: 'provider-option' }] }
 }
 
 const qwen38ChatWire: ReasoningWireProfile = modeWire('reasoning_effort', { off: 'none', effort: EFFORT })

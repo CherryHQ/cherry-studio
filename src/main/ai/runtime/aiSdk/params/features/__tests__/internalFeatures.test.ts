@@ -259,7 +259,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
       await qwenUserText(
         makeScope({
           ...base,
-          reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
+          reasoning: {
+            kind: 'off',
+            selection: 'none',
+            emissions: [{ target: 'enable_thinking', value: false, delivery: 'provider-option' as const }]
+          }
         })
       )
     ).toBe('hello /no_think')
@@ -268,7 +272,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         makeScope({
           ...base,
           assistant: { id: 'a', settings: { reasoning_effort: 'none' } as Assistant['settings'] },
-          reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'enable_thinking', value: true }] }
+          reasoning: {
+            kind: 'auto',
+            selection: 'auto',
+            emissions: [{ target: 'enable_thinking', value: true, delivery: 'provider-option' as const }]
+          }
         })
       )
     ).toBe('hello /think')
@@ -283,7 +291,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
       },
       request: { reasoningEffort: 'none' },
-      reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
+      reasoning: {
+        kind: 'off',
+        selection: 'none',
+        emissions: [{ target: 'enable_thinking', value: false, delivery: 'provider-option' as const }]
+      }
     }
 
     expect(await qwenUserText(makeScope(base))).toBe('hello /no_think')
@@ -350,7 +362,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
               reasoning: { selectableEfforts: ['none', 'auto'] }
             },
             assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-            reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low' }] }
+            reasoning: {
+              kind: 'auto',
+              selection: 'auto',
+              emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' as const }]
+            }
           })
         )
       ).toContain('qwen-enable-thinking')
@@ -370,7 +386,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
             reasoning: {
               kind: 'auto',
               selection: 'auto',
-              emissions: [{ target: 'enable_thinking', value: true }]
+              emissions: [{ target: 'enable_thinking', value: true, delivery: 'provider-option' as const }]
             }
           })
         )
@@ -388,7 +404,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
               reasoning: { selectableEfforts: ['none', 'auto'] }
             },
             assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-            reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low' }] }
+            reasoning: {
+              kind: 'auto',
+              selection: 'auto',
+              emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' as const }]
+            }
           })
         )
       ).not.toContain('qwen-enable-thinking')
@@ -404,7 +424,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
           reasoning: { selectableEfforts: ['none', 'auto'] }
         },
         assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-        reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low' }] }
+        reasoning: {
+          kind: 'auto',
+          selection: 'auto',
+          emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' }]
+        }
       })
       expect(activeNames(unregistered)).toContain('qwen-enable-thinking')
       expect(activeNames(unregistered)).not.toContain('qwen-thinking')
@@ -418,7 +442,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
           reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
         },
         assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-        reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low' }] }
+        reasoning: {
+          kind: 'auto',
+          selection: 'auto',
+          emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' }]
+        }
       })
       expect(activeNames(lmstudio)).toContain('qwen-thinking')
       expect(activeNames(lmstudio)).not.toContain('qwen-enable-thinking')
@@ -433,7 +461,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
           reasoning: { selectableEfforts: ['none', 'auto'] }
         },
         assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-        reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low' }] }
+        reasoning: {
+          kind: 'auto',
+          selection: 'auto',
+          emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' }]
+        }
       })
 
       const plugin = collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.find(
@@ -462,7 +494,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
           reasoning: { selectableEfforts: ['none', 'auto'] }
         },
         assistant: { id: 'a', settings: { reasoning_effort: 'none' } as Assistant['settings'] },
-        reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'reasoningEffort', value: 'none' }] }
+        reasoning: {
+          kind: 'off',
+          selection: 'none',
+          emissions: [{ target: 'reasoningEffort', value: 'none', delivery: 'provider-option' }]
+        }
       })
 
       expect(activeNames(scope)).toContain('qwen-enable-thinking')
