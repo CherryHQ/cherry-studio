@@ -81,10 +81,20 @@ export interface ClaudeCodeHookContext {
 
 export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSettings['hooks'] {
   const { sessionId, cwd, agentDataPath } = ctx
-  const pendingSubagentImageSupport = new Map<string, boolean[]>()
+  type PendingSubagentImageEntry = { toolUseId: string; support: boolean }
+  const pendingSubagentImageSupport = new Map<string, PendingSubagentImageEntry[]>()
   const activeSubagentImageSupport = new Map<string, boolean>()
 
+  const extractSubagentType = (input: Record<string, unknown> | undefined): string =>
+    typeof input?.subagent_type === 'string'
+      ? input.subagent_type
+      : typeof input?.agent_type === 'string'
+        ? input.agent_type
+        : ''
+
   const resolveSubagentImageSupport = (input: Record<string, unknown> | undefined): boolean => {
+    // SDK ignores model overrides for forks and always inherits the parent model.
+    if (extractSubagentType(input) === 'fork') return ctx.supportsImages
     const requestedModel = typeof input?.model === 'string' ? input.model.trim().toLowerCase() : ''
     if (requestedModel === '' || requestedModel === 'inherit') return ctx.supportsImages
     if (requestedModel === 'haiku' || requestedModel === 'sonnet' || requestedModel === 'opus') {
@@ -93,27 +103,46 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return ctx.supportsImages
   }
 
-  const rememberSubagentLaunch = (input: Record<string, unknown> | undefined): void => {
+  const rememberSubagentLaunch = (toolUseId: string | undefined, input: Record<string, unknown> | undefined): void => {
     const modelSupport = resolveSubagentImageSupport(input)
-    const agentType =
-      typeof input?.subagent_type === 'string'
-        ? input.subagent_type
-        : typeof input?.agent_type === 'string'
-          ? input.agent_type
-          : ''
+    const agentType = extractSubagentType(input)
     const queue = pendingSubagentImageSupport.get(agentType) ?? []
-    queue.push(modelSupport)
+    queue.push({ toolUseId: toolUseId ?? '', support: modelSupport })
     pendingSubagentImageSupport.set(agentType, queue)
+  }
+
+  const forgetSubagentLaunch = (toolUseId: string | undefined, input: Record<string, unknown> | undefined): void => {
+    const agentType = extractSubagentType(input)
+    const queueKey = pendingSubagentImageSupport.has(agentType) ? agentType : ''
+    const queue = pendingSubagentImageSupport.get(queueKey)
+    if (!queue?.length) return
+    const idx = toolUseId ? queue.findIndex((entry) => entry.toolUseId === toolUseId) : 0
+    if (idx < 0) return
+    queue.splice(idx, 1)
+    if (queue.length === 0) pendingSubagentImageSupport.delete(queueKey)
+  }
+
+  const forgetPendingSubagentLaunchIfNeeded = (
+    toolName: string,
+    toolInput: unknown,
+    toolUseId: string | undefined
+  ): void => {
+    if (toolName !== 'Task' && toolName !== 'Agent') return
+    const input = toolInput && typeof toolInput === 'object' ? (toolInput as Record<string, unknown>) : undefined
+    if (!(typeof input?.subagent_type === 'string' || typeof input?.agent_type === 'string' || input?.model)) {
+      return
+    }
+    forgetSubagentLaunch(toolUseId, input)
   }
 
   const bindSubagent = (agentId: string, agentType: string): void => {
     const queueKey = pendingSubagentImageSupport.has(agentType) ? agentType : ''
     const queue = pendingSubagentImageSupport.get(queueKey)
-    const modelSupport = queue?.shift()
+    const entry = queue?.shift()
     if (queue?.length === 0) {
       pendingSubagentImageSupport.delete(queueKey)
     }
-    if (modelSupport !== undefined) activeSubagentImageSupport.set(agentId, modelSupport)
+    if (entry !== undefined) activeSubagentImageSupport.set(agentId, entry.support)
   }
 
   // The single policy hook: evaluates the guard table with a fire-time context snapshot. Runs as a
@@ -150,7 +179,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       (toolName === 'Task' || toolName === 'Agent') &&
       (typeof toolInput?.subagent_type === 'string' || typeof toolInput?.agent_type === 'string' || toolInput?.model)
     ) {
-      rememberSubagentLaunch(toolInput)
+      rememberSubagentLaunch(toolUseId ?? input.tool_use_id, toolInput)
     }
     if (!decision) {
       // Soft tier of the bash-repeat-no-progress guard (the hard deny is the guard rule): the
@@ -281,6 +310,20 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
+  // Drop queued capability when the launch never reaches SubagentStart (permission deny/cancel or
+  // tool failure); otherwise a later same-type child can consume the stale entry.
+  const subagentLaunchCleanupHook: HookCallback = async (input, toolUseId): Promise<HookJSONOutput> => {
+    if (!input) return {}
+    if (input.hook_event_name === 'PermissionDenied') {
+      forgetPendingSubagentLaunchIfNeeded(input.tool_name, input.tool_input, toolUseId ?? input.tool_use_id)
+      return {}
+    }
+    if (input.hook_event_name === 'PostToolUseFailure') {
+      forgetPendingSubagentLaunchIfNeeded(input.tool_name, input.tool_input, toolUseId ?? input.tool_use_id)
+    }
+    return {}
+  }
+
   // Feeds the bash-repeat-no-progress guard rule. History is scoped per agent: subagent hook
   // events carry agent_id, and a child's repeated calls must not poison the parent's run
   // detection (and vice versa). A user interrupt (Esc) is a deliberate stop, so it counts as
@@ -358,8 +401,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   return {
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
+    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook, subagentLaunchCleanupHook] }],
     PostToolBatch: [{ hooks: [postToolBatchSteerHook, bashRewriteCleanupHook] }],
+    PermissionDenied: [{ hooks: [subagentLaunchCleanupHook] }],
     SubagentStart: [{ hooks: [subagentStartHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }

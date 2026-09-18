@@ -42,6 +42,8 @@ function makeHooks(
   preToolUse: HookCallback
   subagentStart: HookCallback
   subagentStop: HookCallback
+  /** Shared cleanup for PermissionDenied and PostToolUseFailure abort paths. */
+  subagentLaunchCleanup: HookCallback
 } {
   const table = buildClaudeCodeHooks({
     sessionId: SESSION_ID,
@@ -54,13 +56,19 @@ function makeHooks(
     subagentImageSupport,
     agentsMdLoader: { createPreToolUseHook: () => async () => ({}) } as never
   })
-  if (!table?.PreToolUse?.[0]?.hooks[0] || !table.SubagentStart?.[0]?.hooks[0] || !table.SubagentStop?.[0]?.hooks[0]) {
+  if (
+    !table?.PreToolUse?.[0]?.hooks[0] ||
+    !table.SubagentStart?.[0]?.hooks[0] ||
+    !table.SubagentStop?.[0]?.hooks[0] ||
+    !table.PermissionDenied?.[0]?.hooks[0]
+  ) {
     throw new Error('expected Claude Code subagent hooks')
   }
   return {
     preToolUse: table.PreToolUse[0].hooks[0],
     subagentStart: table.SubagentStart[0].hooks[0],
-    subagentStop: table.SubagentStop[0].hooks[0]
+    subagentStop: table.SubagentStop[0].hooks[0],
+    subagentLaunchCleanup: table.PermissionDenied[0].hooks[0]
   }
 }
 
@@ -206,5 +214,78 @@ describe('Claude Code subagent image capability hooks', () => {
       hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' })
     })
     expect(sessionState.disposeBashScope).toHaveBeenCalledWith(SESSION_ID, 'agent-custom')
+  })
+
+  it.each([
+    {
+      label: 'PermissionDenied',
+      event: {
+        hook_event_name: 'PermissionDenied',
+        tool_name: 'Task',
+        tool_input: { model: 'opus', subagent_type: AGENT_TYPES.vision },
+        tool_use_id: 'stale-vision-launch',
+        reason: 'User denied permission for this tool'
+      }
+    },
+    {
+      label: 'PostToolUseFailure before SubagentStart',
+      event: {
+        hook_event_name: 'PostToolUseFailure',
+        tool_name: 'Agent',
+        tool_input: { model: 'opus', subagent_type: AGENT_TYPES.vision },
+        tool_use_id: 'stale-vision-launch',
+        error: 'launch failed',
+        is_interrupt: true
+      }
+    }
+  ] as const)(
+    'forgets a queued vision capability after $label so a later same-type child cannot steal it',
+    async ({ event }) => {
+      const hooks = makeHooks(false, { opus: true, sonnet: false, haiku: false })
+
+      await hooks.preToolUse(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: event.tool_name,
+          tool_input: event.tool_input,
+          tool_use_id: event.tool_use_id
+        } as never,
+        event.tool_use_id,
+        { signal: new AbortController().signal }
+      )
+      await hooks.subagentLaunchCleanup(event as never, event.tool_use_id, {
+        signal: new AbortController().signal
+      })
+
+      await launchSubagent(hooks, 'sonnet', AGENT_TYPES.vision, 'agent-later')
+
+      await expect(fireRead(hooks.preToolUse, '/workspace/project/diagram.png', 'agent-later')).resolves.toMatchObject({
+        hookSpecificOutput: expect.objectContaining({
+          permissionDecision: 'deny',
+          permissionDecisionReason: expect.stringContaining('does not support image input')
+        })
+      })
+    }
+  )
+
+  it('does not grant fork subagents image capability from a requested model alias', async () => {
+    const hooks = makeHooks(false, { opus: true, sonnet: false, haiku: false })
+
+    await launchSubagent(hooks, 'opus', 'fork', 'agent-fork')
+
+    await expect(fireRead(hooks.preToolUse, '/workspace/project/diagram.png', 'agent-fork')).resolves.toMatchObject({
+      hookSpecificOutput: expect.objectContaining({
+        permissionDecision: 'deny',
+        permissionDecisionReason: expect.stringContaining('does not support image input')
+      })
+    })
+  })
+
+  it('lets fork subagents inherit parent image capability even when a text-only alias is requested', async () => {
+    const hooks = makeHooks(true, { opus: true, sonnet: false, haiku: false })
+
+    await launchSubagent(hooks, 'sonnet', 'fork', 'agent-fork')
+
+    await expect(fireRead(hooks.preToolUse, '/workspace/project/diagram.png', 'agent-fork')).resolves.toEqual({})
   })
 })
