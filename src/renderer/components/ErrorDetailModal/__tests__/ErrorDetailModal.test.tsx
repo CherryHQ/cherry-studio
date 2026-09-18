@@ -25,7 +25,13 @@ const aiDiagnosis: DiagnosisResult = {
 const providerError = {
   name: 'ProviderError',
   message: 'failed',
-  stack: 'private stack',
+  stack: 'private stack'
+} satisfies SerializedError
+
+const upstreamServerError = {
+  name: 'AI_APICallError',
+  message: 'Service Unavailable',
+  stack: null,
   statusCode: 503
 } satisfies SerializedError
 
@@ -737,6 +743,34 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(description).not.toContain('private Doctor evidence')
     expect(description).not.toContain('private stack')
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
+  })
+
+  it('hides the report action for configured upstream 5xx errors', () => {
+    renderErrorDetailContent({
+      diagnosticReport: { location: 'home' },
+      error: upstreamServerError,
+      onOpenDiagnosticReport: vi.fn()
+    })
+
+    expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['insufficient balance', { name: 'ProviderError', message: 'insufficient_balance', stack: null, statusCode: 402 }],
+    ['unknown', { name: 'ProviderError', message: 'something unexplained happened', stack: null }]
+  ] as const)('keeps the report action for %s errors and opens review', async (_label, error) => {
+    const user = userEvent.setup()
+    const onOpenDiagnosticReport = vi.fn()
+
+    renderErrorDetailContent({
+      diagnosticReport: { location: 'home' },
+      error,
+      onOpenDiagnosticReport
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
+    expect(onOpenDiagnosticReport).toHaveBeenCalledOnce()
+    expect(onOpenDiagnosticReport.mock.calls[0][0]).toContain('Location: Home conversation')
   })
 
   it('waits for error details to finish closing before opening report review', async () => {

@@ -276,7 +276,8 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('overloaded') ||
     msg.includes('overload') ||
     msg.includes('service unavailable') ||
-    msg.includes('internal server error')
+    msg.includes('internal server error') ||
+    msg.includes('temporarily unavailable')
   ) {
     return 'server'
   }

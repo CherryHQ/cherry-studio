@@ -60,3 +60,20 @@ describe('classifyErrorCategory transport failures', () => {
     expect(classifyErrorCategory({ text: 'Some totally unrelated failure' })).toBe('unknown')
   })
 })
+
+describe('classifyErrorCategory server failures', () => {
+  it.each([500, 502, 503, 504, 522, 524, 529])('maps HTTP %i to server', (status) => {
+    expect(classifyErrorCategory({ status })).toBe('server')
+  })
+
+  it.each(['Overloaded', 'internal server error', 'service unavailable', 'temporarily unavailable'])(
+    'maps "%s" to server',
+    (text) => {
+      expect(classifyErrorCategory({ text })).toBe('server')
+    }
+  )
+
+  it('does not treat fuzzy upstream compatibility text as server', () => {
+    expect(classifyErrorCategory({ text: 'upstream model compatibility check failed' })).not.toBe('server')
+  })
+})
