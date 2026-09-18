@@ -105,20 +105,44 @@ describe('knowledgeHandlers', () => {
     expect(JSON.stringify(error)).not.toContain(secret)
   })
 
-  it('maps terminal authorization state to a reauthorization-required error', async () => {
-    knowledgeService.validateFeishuConnection.mockRejectedValue(
-      new ExternalKnowledgeRuntimeError('reauthorization-required')
-    )
+  it.each([
+    {
+      runtimeCode: 'scope-missing' as const,
+      ipcCode: 'KNOWLEDGE_FEISHU_SCOPE_MISSING',
+      message: 'Required Feishu permissions were not granted'
+    },
+    {
+      runtimeCode: 'automatic-scope-mismatch' as const,
+      ipcCode: 'KNOWLEDGE_FEISHU_AUTOMATIC_SCOPE_MISMATCH',
+      message: 'The automatically registered Feishu application granted unexpected permissions'
+    },
+    {
+      runtimeCode: 'identity-conflict' as const,
+      ipcCode: 'KNOWLEDGE_FEISHU_IDENTITY_CONFLICT',
+      message: 'The Feishu account does not match this connection'
+    },
+    {
+      runtimeCode: 'identity-unverifiable' as const,
+      ipcCode: 'KNOWLEDGE_FEISHU_IDENTITY_UNVERIFIABLE',
+      message: 'The Feishu account identity could not be verified'
+    },
+    {
+      runtimeCode: 'reauthorization-required' as const,
+      ipcCode: 'KNOWLEDGE_EXTERNAL_REAUTHORIZATION_REQUIRED',
+      message: 'The Feishu connection requires authorization'
+    }
+  ])('maps $runtimeCode to its distinct fixed IPC error', async ({ runtimeCode, ipcCode, message }) => {
+    knowledgeService.validateFeishuConnection.mockRejectedValue(new ExternalKnowledgeRuntimeError(runtimeCode))
 
     const error = await knowledgeHandlers['knowledge.feishu.connection.validate'](
       { connectionId: '01960000-0000-7000-8000-000000000001' },
       ctx
     ).catch((cause) => cause)
 
-    expect(error).toMatchObject({
-      code: knowledgeErrorCodes.EXTERNAL_REAUTHORIZATION_REQUIRED,
-      message: 'The Feishu connection requires authorization'
-    })
+    expect(error).toMatchObject({ code: ipcCode, message })
+    for (const privateValue of ['provider-payload', 'cli_private', 'user_private', 'feishu:credential-private']) {
+      expect(JSON.stringify(error)).not.toContain(privateValue)
+    }
   })
 
   it('delegates registration cancellation and connection removal as void commands', async () => {

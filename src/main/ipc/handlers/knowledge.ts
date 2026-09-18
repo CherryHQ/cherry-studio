@@ -15,8 +15,22 @@ function mapExternalKnowledgeError(error: unknown, fallback: { code: string; mes
           'External Knowledge connection not found'
         )
       case 'scope-missing':
-      case 'automatic-scope-mismatch':
         return new IpcError(knowledgeErrorCodes.FEISHU_SCOPE_MISSING, 'Required Feishu permissions were not granted')
+      case 'automatic-scope-mismatch':
+        return new IpcError(
+          knowledgeErrorCodes.FEISHU_AUTOMATIC_SCOPE_MISMATCH,
+          'The automatically registered Feishu application granted unexpected permissions'
+        )
+      case 'identity-conflict':
+        return new IpcError(
+          knowledgeErrorCodes.FEISHU_IDENTITY_CONFLICT,
+          'The Feishu account does not match this connection'
+        )
+      case 'identity-unverifiable':
+        return new IpcError(
+          knowledgeErrorCodes.FEISHU_IDENTITY_UNVERIFIABLE,
+          'The Feishu account identity could not be verified'
+        )
       case 'credential-unavailable':
         return new IpcError(
           knowledgeErrorCodes.EXTERNAL_CREDENTIAL_UNAVAILABLE,

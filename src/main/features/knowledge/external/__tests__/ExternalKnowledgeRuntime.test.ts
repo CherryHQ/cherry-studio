@@ -1693,6 +1693,7 @@ describe('ExternalKnowledgeRuntime', () => {
       appCredentialSource: 'personal-agent',
       authorizationStatus: 'pending-authorization'
     })
+    expect(JSON.stringify(authorization)).not.toContain('automatic-secret')
     await runtime.cancelUserAuthorization(authorization.authorizationSessionId)
   })
 
