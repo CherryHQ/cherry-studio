@@ -1,6 +1,11 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import { ProgressNotificationSchema, ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
+import {
+  ErrorCode,
+  McpError,
+  ProgressNotificationSchema,
+  ToolListChangedNotificationSchema
+} from '@modelcontextprotocol/sdk/types.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -9,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   listTools: vi.fn(),
   onToolsCacheUpdated: vi.fn(),
   onToolsCacheUpdatedDispose: vi.fn(),
+  refreshTools: vi.fn(),
   listPrompts: vi.fn(),
   getPrompt: vi.fn(),
   callTool: vi.fn()
@@ -75,6 +81,7 @@ describe('createMcpBridgeServer', () => {
       return { dispose: mocks.onToolsCacheUpdatedDispose }
     })
     mocks.listPrompts.mockResolvedValue([])
+    mocks.refreshTools.mockResolvedValue(undefined)
     mocks.getPrompt.mockResolvedValue({
       description: 'Prompt description',
       messages: [{ role: 'user', content: { type: 'text', text: 'Prompt body' } }]
@@ -84,7 +91,8 @@ describe('createMcpBridgeServer', () => {
         return {
           listTools: mocks.listTools,
           onToolsCacheUpdated: mocks.onToolsCacheUpdated,
-          listPrompts: mocks.listPrompts
+          listPrompts: mocks.listPrompts,
+          refreshTools: mocks.refreshTools
         }
       if (name === 'McpRuntimeService') return { getPrompt: mocks.getPrompt, callTool: mocks.callTool }
       throw new Error(`Unexpected application.get(${name})`)
@@ -310,6 +318,131 @@ describe('createMcpBridgeServer', () => {
     expect(handler).toBeDefined()
     await expect(handler!({ method: 'resources/templates/list' }, {})).resolves.toEqual({
       resourceTemplates: []
+    })
+  })
+
+  describe('stale-catalog self-heal on unknown-tool calls (issue #20283)', () => {
+    function callToolHandler() {
+      const sdkServer = createMcpBridgeServer('server-1')
+      const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })
+        ._requestHandlers
+      const handler = handlers.get('tools/call')
+      expect(handler).toBeDefined()
+      return handler!
+    }
+
+    it('kicks a catalog refresh when downstream reports the tool as unknown, rethrowing unchanged', async () => {
+      const unknownTool = new McpError(ErrorCode.MethodNotFound, 'Unknown tool: ghost')
+      mocks.callTool.mockRejectedValue(unknownTool)
+
+      await expect(
+        callToolHandler()(
+          { method: 'tools/call', params: { name: 'ghost', arguments: {} } },
+          { signal: new AbortController().signal }
+        )
+      ).rejects.toBe(unknownTool)
+
+      expect(mocks.refreshTools).toHaveBeenCalledTimes(1)
+      expect(mocks.refreshTools).toHaveBeenCalledWith('server-1')
+    })
+
+    it('heals a live session end to end: refresh lands, notification fires, re-list converges', async () => {
+      const sdkServer = createMcpBridgeServer('server-1')
+      const client = await connectClient(sdkServer)
+
+      const notified = new Promise<void>((resolve) => {
+        client.setNotificationHandler(ToolListChangedNotificationSchema, async () => resolve())
+      })
+
+      // The session snapshot is stale: the model calls a tool the server just removed.
+      mocks.callTool.mockRejectedValue(new McpError(ErrorCode.MethodNotFound, 'Unknown tool: ghost'))
+      // The kicked refresh converges the shared cache and fires the catalog event.
+      mocks.refreshTools.mockImplementation(async () => {
+        mocks.listTools.mockReturnValue([searchTool()])
+        cacheUpdatedListener!({ serverId: 'server-1' })
+      })
+
+      const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })
+        ._requestHandlers
+      await expect(
+        handlers.get('tools/call')!(
+          { method: 'tools/call', params: { name: 'ghost', arguments: {} } },
+          { signal: new AbortController().signal }
+        )
+      ).rejects.toMatchObject({ code: ErrorCode.MethodNotFound })
+
+      await notified
+      const relisted = await client.listTools()
+      expect(relisted.tools.map((tool) => tool.name)).toEqual(['search'])
+
+      await client.close()
+    })
+
+    it('still rethrows the original error when the kicked refresh fails', async () => {
+      const unknownTool = new McpError(ErrorCode.MethodNotFound, 'Unknown tool: ghost')
+      mocks.callTool.mockRejectedValue(unknownTool)
+      mocks.refreshTools.mockRejectedValue(new Error('catalog down'))
+
+      await expect(
+        callToolHandler()(
+          { method: 'tools/call', params: { name: 'ghost', arguments: {} } },
+          { signal: new AbortController().signal }
+        )
+      ).rejects.toBe(unknownTool)
+
+      expect(mocks.refreshTools).toHaveBeenCalledTimes(1)
+    })
+
+    it('kicks a refresh for a serialized unknown-tool error that lost its prototype', async () => {
+      const serialized = { code: ErrorCode.MethodNotFound, message: 'Unknown tool: ghost' }
+      mocks.callTool.mockRejectedValue(serialized)
+
+      await expect(
+        callToolHandler()(
+          { method: 'tools/call', params: { name: 'ghost', arguments: {} } },
+          { signal: new AbortController().signal }
+        )
+      ).rejects.toBe(serialized)
+
+      expect(mocks.refreshTools).toHaveBeenCalledTimes(1)
+      expect(mocks.refreshTools).toHaveBeenCalledWith('server-1')
+    })
+
+    it('does not kick a refresh for other call failures', async () => {
+      const handler = callToolHandler()
+
+      mocks.callTool.mockRejectedValue(new McpError(ErrorCode.InternalError, 'boom'))
+      await expect(
+        handler(
+          { method: 'tools/call', params: { name: 'search', arguments: {} } },
+          { signal: new AbortController().signal }
+        )
+      ).rejects.toMatchObject({ code: ErrorCode.InternalError })
+
+      mocks.callTool.mockRejectedValue(new Error('connection reset'))
+      await expect(
+        handler(
+          { method: 'tools/call', params: { name: 'search', arguments: {} } },
+          { signal: new AbortController().signal }
+        )
+      ).rejects.toThrow('connection reset')
+
+      expect(mocks.refreshTools).not.toHaveBeenCalled()
+    })
+
+    it('does not kick a refresh when the call was cancelled', async () => {
+      const controller = new AbortController()
+      controller.abort()
+      mocks.callTool.mockRejectedValue(controller.signal.reason)
+
+      await expect(
+        callToolHandler()(
+          { method: 'tools/call', params: { name: 'search', arguments: {} } },
+          { signal: controller.signal }
+        )
+      ).rejects.toBe(controller.signal.reason)
+
+      expect(mocks.refreshTools).not.toHaveBeenCalled()
     })
   })
 })

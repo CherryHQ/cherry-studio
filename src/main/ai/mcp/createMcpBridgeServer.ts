@@ -2,11 +2,13 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
   type CallToolResult,
+  ErrorCode,
   GetPromptRequestSchema,
   ListPromptsRequestSchema,
   ListResourcesRequestSchema,
   ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
+  McpError,
   type Progress,
   type Prompt as SdkPrompt,
   ReadResourceRequestSchema,
@@ -58,6 +60,17 @@ function toSdkPrompt(prompt: McpPrompt): SdkPrompt {
   Reflect.deleteProperty(sdkPrompt, 'serverId')
   Reflect.deleteProperty(sdkPrompt, 'serverName')
   return sdkPrompt
+}
+
+/**
+ * True when a downstream tool call failed because the tool is unknown upstream
+ * (MCP `-32601`). `instanceof` covers in-process SDK errors; the code-shape
+ * fallback covers errors re-created across a serialization boundary, which lose
+ * their prototype but keep the numeric code.
+ */
+function isUnknownToolError(error: unknown): boolean {
+  if (error instanceof McpError) return error.code === ErrorCode.MethodNotFound
+  return (error as { code?: unknown } | null | undefined)?.code === ErrorCode.MethodNotFound
 }
 
 // McpResource carries both list metadata and read payload fields; a read content
@@ -197,6 +210,22 @@ export function createMcpBridgeServer(
         logger.debug('MCP bridge: tool call aborted', { mcpId, tool: request.params.name })
       } else {
         logger.error('MCP bridge: failed to call tool', { mcpId, tool: request.params.name, error })
+        if (isUnknownToolError(error)) {
+          // The SDK snapshot names a tool the live server no longer has: this session's
+          // catalog is stale (removed/renamed upstream without a `tools/list_changed`
+          // notification). Kick a background refresh so the shared cache converges and
+          // `onToolsCacheUpdated` → `tools/list_changed` heals the snapshot in place.
+          // Fire-and-forget: the original error below is rethrown unchanged.
+          void application
+            .get('McpCatalogService')
+            .refreshTools(serverConfig.id)
+            .catch((refreshError) =>
+              logger.warn('MCP bridge: failed to refresh tools after unknown-tool call', {
+                mcpId,
+                error: refreshError
+              })
+            )
+        }
       }
       throw error
     }
