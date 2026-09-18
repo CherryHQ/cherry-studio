@@ -446,6 +446,27 @@ vi.mock('@renderer/utils/model', () => ({
     if (supported.length === 1) return undefined
     return currentEffort && supported.includes(currentEffort) ? currentEffort : supported[0]
   },
+  reconcileReasoningEffortForModel: (
+    nextModel: Model,
+    currentEffort?: string,
+    _assistantId?: string,
+    reasoningEffortByModel?: Record<string, string>
+  ) => {
+    const supported = ['default', ...(nextModel.reasoning?.selectableEfforts ?? [])]
+    const pref = reasoningEffortByModel?.[nextModel.id]
+    if (_assistantId !== undefined && pref !== undefined && supported.includes(pref)) {
+      if (currentEffort === pref) return null
+      return { reasoning_effort: pref }
+    }
+    if (supported.length === 1) {
+      const nextEffort = undefined
+      if (nextEffort === currentEffort) return null
+      return { reasoning_effort: nextEffort }
+    }
+    const nextEffort = currentEffort && supported.includes(currentEffort) ? currentEffort : supported[0]
+    if (nextEffort === currentEffort) return null
+    return { reasoning_effort: nextEffort }
+  },
   isAudioModel: () => false,
   isAudioModels: () => false,
   isEmbeddingModel: () => false,
@@ -941,10 +962,49 @@ describe('ChatComposer', () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
     })
 
-    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'high' })
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledTimes(1)
+    const effortUpdater = mocks.updateAssistantSettings.mock.calls[0][0] as (
+      latest: Record<string, unknown>
+    ) => Record<string, unknown>
+    expect(effortUpdater({ reasoning_effort_by_model: { 'other::model': 'low' } })).toEqual({
+      reasoning_effort: 'high',
+      reasoning_effort_by_model: { 'other::model': 'low', [model.id]: 'high' }
+    })
     expect(onSend).toHaveBeenCalledWith('hello', expect.objectContaining({ reasoningEffort: 'high' }))
 
     await act(async () => finishPatch?.())
+  })
+
+  it('remembers the explicit selection per model without discarding other models', async () => {
+    mocks.assistant = {
+      id: 'assistant-1',
+      name: 'Assistant 1',
+      emoji: 'A',
+      modelId: model.id,
+      settings: { enableWebSearch: false, reasoning_effort_by_model: { 'other::model': 'low' } },
+      knowledgeBaseIds: []
+    }
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }],
+        selectableEfforts: ['low' as const, 'high' as const]
+      }
+    }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledTimes(1)
+    const effortUpdater = mocks.updateAssistantSettings.mock.calls[0][0] as (
+      latest: Record<string, unknown>
+    ) => Record<string, unknown>
+    expect(effortUpdater(mocks.assistant.settings)).toEqual({
+      reasoning_effort: 'high',
+      reasoning_effort_by_model: { 'other::model': 'low', [model.id]: 'high' }
+    })
   })
 
   it('persists and snapshots a newly selected service tier before its Assistant PATCH finishes', async () => {
@@ -1450,6 +1510,46 @@ describe('ChatComposer', () => {
     fireEvent.click(screen.getByText('select model 2'))
 
     expect(mocks.setModel).toHaveBeenCalledWith(modelBWithFunctionCall, {})
+  })
+
+  it('does not supersede the target model saved per-model preference when switching with an in-flight selection', () => {
+    mocks.assistant = {
+      ...mocks.assistant,
+      settings: {
+        enableWebSearch: false,
+        reasoning_effort: 'high',
+        reasoning_effort_by_model: { [modelB.id]: 'low' }
+      }
+    }
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }],
+        selectableEfforts: ['low' as const, 'high' as const]
+      }
+    }
+    const modelBWithReasoning = {
+      ...modelB,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }],
+        selectableEfforts: ['low' as const, 'high' as const]
+      }
+    } satisfies Model
+    mocks.selectedModel = modelBWithReasoning
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    // Create an in-flight scalar override for Model A.
+    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
+    mocks.setModel.mockClear()
+
+    fireEvent.click(screen.getByText('select model 2'))
+
+    // Delta-only: `setModel`'s per-model reconcile restores B's saved 'low'.
+    // Passing a scalar-derived reasoning_effort here would clobber it.
+    expect(mocks.setModel).toHaveBeenCalledWith(modelBWithReasoning, {})
   })
 
   it('uses mentioned-model multi-select when requested by the composer toolbar', () => {
