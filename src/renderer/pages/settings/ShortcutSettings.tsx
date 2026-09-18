@@ -305,7 +305,6 @@ const ShortcutSettings: FC = () => {
     }
 
     try {
-      clearSystemConflict(record.key)
       await updatePreference(record.key, {
         binding: record.defaultPreference.binding,
         enabled: record.defaultPreference.enabled
@@ -387,7 +386,6 @@ const ShortcutSettings: FC = () => {
 
     setConflictLabel(null)
     try {
-      clearSystemConflict(record.key)
       await updatePreference(record.key, { binding, enabled: true })
       clearEditingState()
     } catch (error) {
@@ -629,7 +627,6 @@ const ShortcutSettings: FC = () => {
             }
           }
 
-          clearSystemConflict(record.key)
           updatePreference(record.key, { enabled: nextPreference.enabled }).catch((error) => {
             handleUpdateFailure(record, error)
           })
