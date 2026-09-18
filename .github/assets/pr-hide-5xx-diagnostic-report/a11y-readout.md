@@ -1,5 +1,9 @@
 # Accessibility readout
 
+Captured against restarted cherry-electron-dev with CDP on 9222.
+
+Note: current main UI label for `error.diagnostic_report.action` is **报告问题** / **Report a problem** (formerly "Submit diagnostic report").
+
 ## Before (5xx with stubbed eligibility)
 
 ### before-5xx
