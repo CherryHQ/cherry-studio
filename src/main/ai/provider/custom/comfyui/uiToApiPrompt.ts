@@ -96,10 +96,34 @@ interface AliasStep {
 }
 
 interface WidgetNames {
-  names: string[]
+  /** Every positional slot a widget declaration spends, in declaration order.
+   * `null` marks the slot a `forceInput` input would have spent before
+   * frontend 1.16 turned those into sockets — a workflow saved back then
+   * still carries that dummy value, and the frontend's own `migrateWidgets
+   * Values` drops it on load. */
+  positions: (string | null)[]
   /** Widgets whose API value must carry the frontend's CURVE envelope. */
   curves: Set<string>
 }
+
+/** The widget names a node def's positions resolve to, dummies removed. */
+const widgetNames = (acc: WidgetNames): string[] => acc.positions.filter((name): name is string => name !== null)
+
+/** The widget implementation a declaration asks for: an explicit `widgetType`
+ * (`"PAINTER"`, `"hidden"`, …) wins, otherwise the input type — `litegraph
+ * Service.addInputSocket` looks the constructor up under exactly that key. */
+const widgetTypeOf = (type: unknown, config: JsonObject): string =>
+  (config.widgetType as string | undefined) ?? (Array.isArray(type) ? 'COMBO' : (type as string))
+
+/** A declaration spends a positional slot when the frontend renders a widget
+ * for it: a declared `widgetType` names the implementation to instantiate, so
+ * an input whose own type is not a widget type still spends one. */
+const spendsWidgetSlot = (widgetType: string, config: JsonObject, values?: unknown[]): boolean =>
+  config.widgetType !== undefined ||
+  WIDGET_TYPES.has(widgetType) ||
+  NON_SCALAR_WIDGET_TYPES.has(widgetType) ||
+  widgetType === 'CURVE' ||
+  (widgetType === 'COMFY_DYNAMICCOMBO_V3' && values !== undefined)
 
 /** Backend widget inputs for a node class, in declaration order. DynamicCombo
  * (v3) inputs expand into the combo value plus the selected option's child
@@ -110,7 +134,7 @@ function widgetInputNames(
   spec: JsonObject = info.input ?? {},
   prefix?: string,
   values?: unknown[],
-  acc: WidgetNames = { names: [], curves: new Set() }
+  acc: WidgetNames = { positions: [], curves: new Set() }
 ): WidgetNames {
   for (const section of ['required', 'optional'] as const) {
     const sectionSpec = spec[section] as JsonObject | undefined
@@ -122,20 +146,23 @@ function widgetInputNames(
       const type = entry[0]
       const config = (entry.length > 1 && typeof entry[1] === 'object' ? entry[1] : {}) as JsonObject
       if (config.advanced && !includeAdvanced) continue
-      if (Array.isArray(type) || WIDGET_TYPES.has(type as string) || NON_SCALAR_WIDGET_TYPES.has(type as string)) {
-        acc.names.push(fullName)
-        if (config[CONTROL_AFTER_GENERATE]) acc.names.push(CONTROL_AFTER_GENERATE)
+      const widgetType = widgetTypeOf(type, config)
+      const isWidget = spendsWidgetSlot(widgetType, config, values)
+      if (config.forceInput) {
+        // A socket, not a widget: no slot today, a legacy dummy one before 1.16.
+        if (isWidget) acc.positions.push(null)
         continue
       }
-      if (type === 'CURVE') {
-        acc.names.push(fullName)
+      if (!isWidget) continue
+      if (widgetType === 'CURVE') {
+        acc.positions.push(fullName)
         acc.curves.add(fullName)
         continue
       }
-      if (type === 'COMFY_DYNAMICCOMBO_V3' && values) {
-        acc.names.push(fullName)
-        if (config[CONTROL_AFTER_GENERATE]) acc.names.push(CONTROL_AFTER_GENERATE)
-        const selected = values[acc.names.length - 1]
+      acc.positions.push(fullName)
+      if (config[CONTROL_AFTER_GENERATE]) acc.positions.push(CONTROL_AFTER_GENERATE)
+      if (widgetType === 'COMFY_DYNAMICCOMBO_V3') {
+        const selected = values![acc.positions.length - 1]
         const option = (config.options as JsonObject[] | undefined)?.find((candidate) => candidate.key === selected)
         widgetInputNames(info, includeAdvanced, (option?.inputs ?? {}) as JsonObject, fullName, values, acc)
       }
@@ -273,16 +300,27 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
       return namedValues(raw, linked)
     }
     if (!Array.isArray(raw)) return {}
-    const baseNames = widgetInputNames(info, false, undefined, undefined, raw)
-    let names = baseNames.names
-    const curves = baseNames.curves
-    const values = raw
+    const base = widgetInputNames(info, false, undefined, undefined, raw)
+    let names = widgetNames(base)
+    const curves = base.curves
+    // A workflow saved before frontend 1.16 spends a dummy slot on every
+    // `forceInput` input the frontend has since turned into a socket, so its
+    // array only lines up once those dummies are dropped — exactly what the
+    // frontend's own `migrateWidgetsValues` does on load.
+    const aligned =
+      base.positions.length === raw.length ? raw.filter((_, index) => base.positions[index] !== null) : undefined
+    let values = aligned !== undefined && aligned.length === names.length ? aligned : raw
     if (values.length !== names.length) {
-      const widerNames = widgetInputNames(info, true, undefined, undefined, values)
-      if (values.length === widerNames.names.length) {
-        names = widerNames.names
+      // The advanced set has its own slot list, so align it the same way.
+      const wider = widgetInputNames(info, true, undefined, undefined, values)
+      const widerNames = widgetNames(wider)
+      const widerValues =
+        wider.positions.length === values.length ? values.filter((_, index) => wider.positions[index] !== null) : values
+      if (widerValues.length === widerNames.length) {
+        names = widerNames
+        values = widerValues
         curves.clear()
-        for (const curveName of widerNames.curves) curves.add(curveName)
+        for (const curveName of wider.curves) curves.add(curveName)
       }
     }
     const out: Record<string, unknown> = {}

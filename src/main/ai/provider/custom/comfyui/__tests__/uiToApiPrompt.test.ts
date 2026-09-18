@@ -37,7 +37,19 @@ const objectInfo: ObjectInfo = {
       optional: { crop: [['disabled', 'center'], { advanced: true }] }
     }
   },
-  MarkdownNote: { input: { required: { text: ['STRING', {}] } } }
+  MarkdownNote: { input: { required: { text: ['STRING', {}] } } },
+  // `strength` forces its widget into a socket (frontend ≥ 1.16), so it must
+  // not spend a positional slot; `caption`/`styles` declare a widgetType.
+  StyledImage: {
+    input: {
+      required: {
+        image: ['IMAGE'],
+        strength: ['FLOAT', { forceInput: true }],
+        palette: ['PAINTER_INPUT', { widgetType: 'PAINTER' }],
+        steps: ['INT', {}]
+      }
+    }
+  }
 }
 
 // Saved workflows carry a trailing type string; the converter only reads the
@@ -650,6 +662,36 @@ describe('convertUiWorkflowToPrompt', () => {
       'format.input_color_space': 'sRGB'
     })
     expect(prompt['1'].inputs).not.toHaveProperty('format.crf')
+  })
+
+  it('spends no positional slot on a forced input, and one on a widgetType override', () => {
+    const styled = (widgets: unknown[]) => ({
+      nodes: [
+        { id: 1, type: 'EmptyLatentImage', widgets_values: [512, 512, 1] },
+        {
+          id: 2,
+          type: 'StyledImage',
+          inputs: [
+            { name: 'image', link: 9 },
+            { name: 'strength', link: 10 }
+          ],
+          widgets_values: widgets
+        }
+      ],
+      links: [link(9, 1, 0, 2, 0), link(10, 2, 0, 2, 1)]
+    })
+
+    // Frontend ≥ 1.16: `strength` is a socket, so it saves no value, and the
+    // unknown `PAINTER_INPUT` type still spends a slot because it declares one.
+    const current = convertUiWorkflowToPrompt(styled(['80,20,20', 20]), objectInfo)
+    expect(current.prompt['2'].inputs).toMatchObject({ palette: '80,20,20', steps: 20 })
+    expect(current.warnings).toEqual([])
+
+    // A workflow saved before 1.16 carries a dummy for `strength`; it is
+    // dropped instead of shifting every later value onto the wrong input.
+    const legacy = convertUiWorkflowToPrompt(styled([0.5, '80,20,20', 20]), objectInfo)
+    expect(legacy.prompt['2'].inputs).toMatchObject({ palette: '80,20,20', steps: 20 })
+    expect(legacy.warnings).toEqual([])
   })
 })
 
