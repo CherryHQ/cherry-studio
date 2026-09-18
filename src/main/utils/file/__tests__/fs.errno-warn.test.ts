@@ -294,7 +294,7 @@ describe('fsyncDirectoryOf (end-to-end warn observability via atomicWriteFile)',
     // never silenced on any platform (unlike EPERM, which win32 silences —
     // covered in fs.test.ts), so this pins the warn path on every runner OS.
     const target = path.join(tmp, 'data.txt')
-    const fsyncErr = makeErrnoErr('EIO', 'i/o error')
+    const fsyncErr = makeErrnoErr('EIO', `private input at ${target}`)
     mockOpen.mockImplementation(async (p, flags) => {
       if (flags === 'r' && p === path.dirname(target)) {
         throw fsyncErr
@@ -305,14 +305,7 @@ describe('fsyncDirectoryOf (end-to-end warn observability via atomicWriteFile)',
     await atomicWriteFile(target as AbsoluteFilePath, 'payload')
 
     expect(await readFile(target, 'utf-8')).toBe('payload')
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      expect.stringContaining('fsync(dir) failed'),
-      expect.objectContaining({
-        target,
-        code: 'EIO',
-        err: fsyncErr
-      })
-    )
+    expect(mockLoggerWarn).toHaveBeenCalledWith(expect.stringContaining('fsync(dir) failed'), { code: 'EIO' })
   })
 
   it('stays silent when fsync(dir) fails with a silenced errno (EINVAL: FS rejects dir fsync)', async () => {
@@ -432,14 +425,7 @@ describe('atomicWriteFile (write/sync failure cleans up .tmp-{uuid})', () => {
     mockUnlink.mockRejectedValueOnce(unlinkErr)
 
     await expect(atomicWriteFile(target as AbsoluteFilePath, 'payload')).rejects.toBe(renameErr)
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      expect.stringContaining('tmp cleanup failed'),
-      expect.objectContaining({
-        target,
-        code: 'EACCES',
-        err: unlinkErr
-      })
-    )
+    expect(mockLoggerWarn).toHaveBeenCalledWith(expect.stringContaining('tmp cleanup failed'), { code: 'EACCES' })
   })
 
   it('on rename failure + unlink ENOENT: silent (tmp already gone is the desired post-state)', async () => {
@@ -518,14 +504,7 @@ describe('createAtomicWriteStream (tmp leak observability)', () => {
     const err = await consumeStream(stream, 'payload')
 
     expect(err).toBe(renameErr)
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      expect.stringContaining('tmp cleanup failed'),
-      expect.objectContaining({
-        target,
-        code: 'EACCES',
-        err: unlinkErr
-      })
-    )
+    expect(mockLoggerWarn).toHaveBeenCalledWith(expect.stringContaining('tmp cleanup failed'), { code: 'EACCES' })
   })
 
   it('_destroy (pre-commit abort): cleanup runs, no .tmp- residue, no warn on clean unlink', async () => {

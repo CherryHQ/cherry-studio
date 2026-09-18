@@ -98,6 +98,13 @@ Each persistent source table owns its foreign keys and mutations. Deleting a sou
 its refs. FileManager cleanup asks `FileRefService` only whether registered persistent refs remain;
 it does not call per-domain deletion hooks.
 
+Main-process consumers holding automatic internal files across calls use
+`retainTemporaryEntry(id)` and dispose the returned reference when their ownership ends. Each
+reference independently prevents background cleanup; release is idempotent, service stop clears
+references, and explicit deletion remains available. This runtime capability changes no database
+row and is distinct from a source-owned persistent `FileRef`. See
+[Temporary Runtime Retention](./file-entry-cleanup.md#44-temporary-runtime-retention).
+
 ### 1.5 Provider Uploads
 
 The file module has no `file_upload` table or `FileUploadService`. Provider-specific upload
@@ -111,9 +118,9 @@ delegated to focused modules:
 
 #### 1.6.1 Owned State
 
-The service instance owns the keyed content-write lock, active atomic streams, cleanup timestamps,
-and a bounded `VersionCache`. Data repositories and `DanglingCache` are shared dependencies. Keeping
-the version cache per instance gives direct-construction tests isolated state.
+The service instance owns the keyed content-write lock, active atomic streams, temporary reference
+sets, cleanup timestamps, and a bounded `VersionCache`. Data repositories and `DanglingCache` are
+shared dependencies. Keeping the version cache per instance gives direct-construction tests isolated state.
 
 ```text
 src/main/services/file/
@@ -166,6 +173,9 @@ obtained through the application path registry.
 `createInternalEntry` accepts path, URL, base64, or bytes input. It prepares and commits a managed
 blob, then inserts the row with derived size/hash. A failed DB insert triggers best-effort blob
 cleanup.
+
+Creation rollback, atomic-write cleanup, and internal deletion diagnostics report stable errno
+codes and entry IDs where available. They do not log physical paths or raw filesystem/DB errors.
 
 `withTempCopy` creates an isolated directory under
 `application.getPath('feature.files.tempcopy.temp')`, copies the entry into it, invokes the caller,
@@ -323,7 +333,8 @@ make the stored state permanent.
 - FileManager stays entry-native; renderer handle dispatch belongs to the IPC adapter.
 - External paths are referenced, not mirrored, and are never physically removed by entry cleanup.
 - Optimistic concurrency trusts live stat/hash checks rather than cached versions.
-- Automatic entry cleanup is policy- and ref-driven; dangling state never authorizes deletion.
+- Automatic entry cleanup checks policy, persistent refs, and runtime retention; dangling state
+  never authorizes deletion.
 - The generic watcher exposes raw normalized events and does not infer renames.
 
 ## 13. Verification Map
@@ -333,6 +344,7 @@ make the stored state permanent.
 | Entry facade and lifecycle | `src/main/services/file/__tests__/FileManager.integration.test.ts` |
 | Entry creation, mutation, and atomic writes | `src/main/services/file/internal/**/__tests__/` |
 | Cleanup and orphan safety | `src/main/services/file/internal/__tests__/entryCleanup.test.ts`, `orphanSweep.test.ts` |
+| Runtime retention and shutdown | `src/main/services/file/__tests__/FileManager.retention.test.ts` |
 | Watcher contract and fallback | `src/main/services/file/__tests__/watcher.test.ts`, `watcher.errors.test.ts` |
 | Dangling state | `src/main/services/file/__tests__/danglingCache.test.ts` |
 | IpcApi adapter | `src/main/ipc/handlers/__tests__/file.test.ts` |
