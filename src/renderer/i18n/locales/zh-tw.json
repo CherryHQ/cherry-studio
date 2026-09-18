@@ -1258,7 +1258,7 @@
   "deviceConnections.status.stopped": "區域網路存取無法使用",
   "deviceConnections.title": "裝置互聯",
   "deviceConnections.toggle.description": "允許同一區域網路內已配對的裝置連線到這台 Cherry Studio。",
-  "deviceConnections.toggle.risk": "區域網路連線使用明文 HTTP，未加密。已配對的裝置會收到你的模型服務商 API 金鑰，請只在可信網路中開啟，用完後關閉。",
+  "deviceConnections.toggle.risk": "配對裝置可取得你的模型服務商 API 金鑰，並使用桌面的所有 Agent，包括傳送訊息和回應工具審批。配對及設定傳輸使用未加密的 HTTP，請僅連接你信任的裝置和網路。",
   "docs.title": "說明文件",
   "emoji_picker.categories.activities": "活動",
   "emoji_picker.categories.animals_nature": "動物與自然",

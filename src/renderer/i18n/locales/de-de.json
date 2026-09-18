@@ -1258,7 +1258,7 @@
   "deviceConnections.status.stopped": "LAN-Zugriff ist nicht verfügbar",
   "deviceConnections.title": "Geräteverbindungen",
   "deviceConnections.toggle.description": "Gekoppelten Geräten im selben lokalen Netzwerk erlauben, sich mit diesem Cherry Studio zu verbinden.",
-  "deviceConnections.toggle.risk": "Verbindungen im lokalen Netzwerk verwenden unverschlüsseltes HTTP. Gekoppelte Geräte erhalten Ihre Anbieter-API-Schlüssel. Aktivieren Sie dies nur in einem vertrauenswürdigen Netzwerk und schalten Sie es danach wieder aus.",
+  "deviceConnections.toggle.risk": "Gekoppelte Geräte können Ihre Anbieter-API-Schlüssel empfangen und alle Desktop-Agents nutzen, einschließlich des Sendens von Nachrichten und der Beantwortung von Werkzeugfreigaben. Kopplung und Konfigurationsübertragung verwenden unverschlüsseltes HTTP. Verbinden Sie nur Geräte und Netzwerke, denen Sie vertrauen.",
   "docs.title": "Hilfedokumentation",
   "emoji_picker.categories.activities": "Aktivitäten",
   "emoji_picker.categories.animals_nature": "Tiere & Natur",

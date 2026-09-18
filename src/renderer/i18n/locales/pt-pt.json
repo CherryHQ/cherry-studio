@@ -1258,7 +1258,7 @@
   "deviceConnections.status.stopped": "O acesso à rede local está indisponível",
   "deviceConnections.title": "Ligações de dispositivos",
   "deviceConnections.toggle.description": "Permita que dispositivos emparelhados na mesma rede local se liguem a este Cherry Studio.",
-  "deviceConnections.toggle.risk": "As ligações na rede local usam HTTP em texto simples, sem encriptação. Os dispositivos emparelhados recebem as suas chaves API de fornecedor, por isso ative isto apenas numa rede de confiança e desative-o quando terminar.",
+  "deviceConnections.toggle.risk": "Os dispositivos emparelhados podem receber as suas chaves API dos fornecedores e utilizar todos os Agents do computador, incluindo enviar mensagens e responder a pedidos de aprovação de ferramentas. O emparelhamento e a transferência de configurações utilizam HTTP sem encriptação. Ligue apenas dispositivos e redes em que confia.",
   "docs.title": "Documentação de Ajuda",
   "emoji_picker.categories.activities": "Atividades",
   "emoji_picker.categories.animals_nature": "Animais & Natureza",

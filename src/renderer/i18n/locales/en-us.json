@@ -1258,7 +1258,7 @@
   "deviceConnections.status.stopped": "LAN access is unavailable",
   "deviceConnections.title": "Device Connections",
   "deviceConnections.toggle.description": "Allow paired devices on the same local network to connect to this Cherry Studio.",
-  "deviceConnections.toggle.risk": "Local network connections use plain HTTP and are not encrypted. Paired devices receive your provider API keys, so enable this only on a network you trust and turn it off when you are done.",
+  "deviceConnections.toggle.risk": "Paired devices can receive your provider API keys and use all desktop Agents, including sending messages and responding to tool approvals. Pairing and configuration transfers use unencrypted HTTP. Only connect devices and networks you trust.",
   "docs.title": "Docs",
   "emoji_picker.categories.activities": "Activities",
   "emoji_picker.categories.animals_nature": "Animals & Nature",

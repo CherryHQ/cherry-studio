@@ -1258,7 +1258,7 @@
   "deviceConnections.status.stopped": "局域网访问不可用",
   "deviceConnections.title": "设备互联",
   "deviceConnections.toggle.description": "允许同一局域网内已配对的设备连接到这台 Cherry Studio。",
-  "deviceConnections.toggle.risk": "局域网连接使用明文 HTTP，未加密。已配对的设备会收到你的模型服务商 API 密钥，请只在可信网络中开启，用完后关闭。",
+  "deviceConnections.toggle.risk": "配对设备可获取你的模型服务商 API 密钥，并使用桌面的全部 Agent，包括发送消息和响应工具审批。配对及配置传输使用未加密的 HTTP，请仅连接你信任的设备和网络。",
   "docs.title": "帮助文档",
   "emoji_picker.categories.activities": "活动",
   "emoji_picker.categories.animals_nature": "动物与自然",
