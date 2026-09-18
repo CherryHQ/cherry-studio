@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next'
-import { Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
+import { Archive, Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
 
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -9,15 +9,16 @@ import {
   buildResourceEntityMenuActionDescriptor,
   RESOURCE_ICON_TYPE_OPTIONS
 } from '@renderer/components/chat/resourceList/base'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 
 export interface AgentGroupActionContext {
   agentId: string
   assistantIconType: AssistantIconType
-  deleteTasksOnly?: boolean
+  deleteSessionsOnly?: boolean
   deleteAgentDisabled?: boolean
   onEdit: (agentId: string) => void
-  onDeleteAgent: (agentId: string) => void | Promise<void>
+  onDeleteAgent: (agentId: string, permanent?: boolean) => void | Promise<void>
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
   onToggleSidebar: (agentId: string) => void
@@ -57,9 +58,18 @@ for (const type of RESOURCE_ICON_TYPE_OPTIONS) {
 }
 
 agentGroupActionRegistry.registerCommand({
-  id: 'agent-group.delete-agent',
+  id: 'agent-group.archive-agent',
   availability: ({ deleteAgentDisabled }) => ({ enabled: !deleteAgentDisabled }),
   run: ({ agentId, onDeleteAgent }) => onDeleteAgent(agentId)
+})
+
+agentGroupActionRegistry.registerCommand({
+  id: 'agent-group.delete-agent',
+  availability: ({ deleteAgentDisabled, deleteSessionsOnly }) => ({
+    enabled: !deleteAgentDisabled,
+    visible: !deleteSessionsOnly
+  }),
+  run: ({ agentId, onDeleteAgent }) => onDeleteAgent(agentId, true)
 })
 
 agentGroupActionRegistry.registerAction(
@@ -88,7 +98,7 @@ agentGroupActionRegistry.registerAction(
     commandId: 'agent-group.toggle-sidebar',
     label: ({ sidebarPinned, t }) =>
       sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
-    icon: ({ sidebarPinned }) => (sidebarPinned ? <PinOff size={14} /> : <Pin size={14} />),
+    icon: ({ sidebarPinned }) => <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
     order: 22
   })
 )
@@ -105,12 +115,24 @@ agentGroupActionRegistry.registerAction(
 
 agentGroupActionRegistry.registerAction(
   buildResourceEntityMenuActionDescriptor({
+    id: 'agent-group.archive-agent',
+    commandId: 'agent-group.archive-agent',
+    label: ({ deleteSessionsOnly, t }) =>
+      t(deleteSessionsOnly ? 'agent.session.agent.delete.trigger' : 'common.archive'),
+    icon: () => <Archive size={14} />,
+    group: 'danger',
+    order: 40
+  })
+)
+
+agentGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
     id: 'agent-group.delete-agent',
     commandId: 'agent-group.delete-agent',
-    label: ({ deleteTasksOnly, t }) => t(deleteTasksOnly ? 'agent.session.agent.delete.trigger' : 'agent.delete.title'),
+    label: ({ t }) => t('common.delete_permanently'),
     icon: () => <Trash2 size={14} className="lucide-custom text-destructive" />,
     group: 'danger',
-    order: 40,
+    order: 50,
     danger: true
   })
 )

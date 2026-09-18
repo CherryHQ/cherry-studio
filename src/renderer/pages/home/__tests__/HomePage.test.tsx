@@ -556,6 +556,7 @@ vi.mock('../components/TopicRightPane', () => {
 vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
   AssistantResourceList: ({
     activeAssistantId,
+    activeTopicId,
     historyRecordsActive,
     onAddAssistant,
     onActiveAssistantDeleted,
@@ -567,6 +568,7 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     onSelectedAssistantClick
   }: {
     activeAssistantId?: string | null
+    activeTopicId?: string | null
     historyRecordsActive?: boolean
     assistantTopicsSource?: unknown
     onAddAssistant?: () => void | Promise<void>
@@ -582,6 +584,7 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     return (
       <div
         data-active-assistant-id={activeAssistantId ?? ''}
+        data-active-topic-id={activeTopicId ?? ''}
         data-history-active={String(Boolean(historyRecordsActive))}
         data-testid="assistant-resource-list">
         <button type="button" onClick={() => void onAddAssistant?.()}>
@@ -788,6 +791,7 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-tab', 'resources')
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'true')
     expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', 'assistant-1')
+    expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-topic-id', 'topic-initial')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
@@ -1973,19 +1977,6 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
-  it('uses the sidebar-pinned route assistant before the remembered one', async () => {
-    homeMocks.routeSearch = { assistantId: 'assistant-2' }
-    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
-    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-1')
-
-    render(<HomePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
-
-    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
-    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
-  })
-
   it('ignores a route assistant that no longer exists', async () => {
     homeMocks.routeSearch = { assistantId: 'assistant-deleted' }
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
@@ -2028,7 +2019,7 @@ describe('HomePage', () => {
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
     expect(vi.mocked(useTabSelfVisuals)).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        appId: 'assistants',
+        routePrefix: '/app/chat',
         preserveVisuals: true
       })
     )

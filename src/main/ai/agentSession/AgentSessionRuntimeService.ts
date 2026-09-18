@@ -414,6 +414,11 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  getLiveAssistantMessageId(sessionId: string): string | undefined {
+    const entry = this.entries.get(sessionId)
+    return entry ? this.liveTurn(entry)?.assistantMessageId : undefined
+  }
+
   private currentTurn(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
     return getAgentSessionRuntimeCurrentTurn(entry.runtimeState)
   }
@@ -1127,6 +1132,17 @@ export class AgentSessionRuntimeService extends BaseService {
       if (this.isSessionBusy(sessionId)) return true
     }
     return false
+  }
+
+  listClaimedResumeTokens(): ReadonlySet<string> {
+    const claimedResumeTokens = new Set<string>()
+    for (const entry of this.entries.values()) {
+      if (entry.lastResumeToken) claimedResumeTokens.add(entry.lastResumeToken)
+    }
+    for (const closing of this.closingSessions.values()) {
+      if (closing.resumeToken) claimedResumeTokens.add(closing.resumeToken)
+    }
+    return claimedResumeTokens
   }
 
   /**

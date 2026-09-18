@@ -34,6 +34,10 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage }
     <i
       data-ui="chat.composer.action.send"
       className="iconfont icon-ic_send"
+      onMouseDown={(event) => {
+        // Pointer submission should keep focus in the composer.
+        if (event.button === 0) event.preventDefault()
+      }}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       role="button"

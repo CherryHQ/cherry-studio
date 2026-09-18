@@ -1,4 +1,6 @@
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useState } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
@@ -8,9 +10,17 @@ import type { ResourceItem } from '@renderer/types/resourceCatalog'
 
 export function SkillsSettings() {
   const { t } = useTranslation()
+  const { id } = useSearch({ from: '/settings/skills' })
+  const navigate = useNavigate({ from: '/settings/skills' })
   const [scope, setScope] = useState('all')
   const filterResource = (resource: ResourceItem) =>
     scope === 'all' || (resource.type === 'skill' && resource.raw.scope === scope)
+  const handleSelectedSkillIdChange = useCallback(
+    (selectedSkillId: string | undefined) => {
+      void navigate({ search: (previous) => ({ ...previous, id: selectedSkillId }), replace: true })
+    },
+    [navigate]
+  )
 
   return (
     <SettingsContentBody className="min-h-0 flex-1 overflow-hidden pt-4" innerClassName="flex min-h-0 flex-1 flex-col">
@@ -21,6 +31,8 @@ export function SkillsSettings() {
             variant="settings"
             title={t('settings.skills.title')}
             className="min-h-0 flex-1"
+            selectedSkillId={id}
+            onSelectedSkillIdChange={handleSelectedSkillIdChange}
             filterResource={filterResource}
             allowColumnToggle
             toolbarFooter={
