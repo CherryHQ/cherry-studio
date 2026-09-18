@@ -379,7 +379,7 @@ export class AgentSessionMessageService {
           JOIN agent_session_message_fts fts ON sm.fts_rowid = fts.rowid
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
-          WHERE sm.searchable_text != ''
+          WHERE s.type = 'conversation' AND sm.searchable_text != ''
             AND s.deleted_at IS NULL
             AND ${messageSessionCondition}
             AND ${createdAtCondition}
@@ -436,8 +436,8 @@ export class AgentSessionMessageService {
         JOIN agent_session_message sm ON sm.fts_rowid = agent_session_message_fts.rowid
         JOIN agent_session s ON s.id = sm.session_id
         LEFT JOIN agent a ON a.id = s.agent_id
-        WHERE agent_session_message_fts MATCH ${matchQuery}
-          AND s.deleted_at IS NULL
+        WHERE s.type = 'conversation' AND agent_session_message_fts MATCH ${matchQuery}
+            AND s.deleted_at IS NULL
           AND ${agentCondition}
           AND ${addressableCondition}
           ${shortTermConditions.length > 0 ? sql`AND ${sql.join(shortTermConditions, sql` AND `)}` : sql``}
@@ -488,8 +488,8 @@ export class AgentSessionMessageService {
           FROM agent_session_message sm
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
-          WHERE s.deleted_at IS NULL
-            AND ${agentCondition}
+          WHERE s.type = 'conversation' AND ${agentCondition}
+            AND s.deleted_at IS NULL
             AND ${addressableCondition}
             AND ${sql.join(conditions, sql` AND `)}
           ORDER BY length(sm.searchable_text), sm.created_at DESC, sm.id DESC
