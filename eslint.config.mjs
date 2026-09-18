@@ -997,6 +997,59 @@ export default defineConfig([
       'import-x/no-restricted-paths': ['error', { basePath: RENDERER_DIRNAME, zones: [UTILITY_CHILD_ZONE] }]
     }
   },
+  // Remote transport stays independent; AI and data never depend on the remote adapter.
+  {
+    files: ['src/main/services/remoteAccess/{server,secureChannel,protocol,messageProjection}.ts'],
+    plugins: { 'import-x': importX },
+    settings: mainBoundarySettings,
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            BAN_RENDERER_FROM_MAIN,
+            BAN_DRIZZLE_MIGRATOR,
+            { group: ['electron'], message: 'Remote transport and protocol code must not depend on Electron.' }
+          ]
+        }
+      ],
+      'import-x/no-restricted-paths': [
+        'error',
+        {
+          basePath: RENDERER_DIRNAME,
+          zones: [
+            {
+              target: 'src/main/services/remoteAccess',
+              from: ['src/main/ai', 'src/main/data', 'src/main/core', 'src/main/ipc', 'src/main/features'],
+              message:
+                'Keep remote transport and protocol independent; access application services through the remote adapter.'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ['src/main/{ai,data}/**/*.ts'],
+    plugins: { 'import-x': importX },
+    settings: mainBoundarySettings,
+    rules: {
+      'import-x/no-restricted-paths': [
+        'error',
+        {
+          basePath: RENDERER_DIRNAME,
+          zones: [
+            UTILITY_CHILD_ZONE,
+            {
+              target: ['src/main/ai', 'src/main/data'],
+              from: 'src/main/services/remoteAccess',
+              message: 'AI and data own execution and persistence; they must not depend on remote access.'
+            }
+          ]
+        }
+      ]
+    }
+  },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).
   // Scoped to shared-bucket files so it never collides with block P on a pages file. Flips to error once A+C clear.
   {
