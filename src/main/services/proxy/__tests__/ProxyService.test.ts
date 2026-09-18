@@ -113,6 +113,10 @@ describe('resolveProxyConfig', () => {
 describe('ProxyService — preference wiring', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    nodeProxyConfigureMock.mockReset().mockResolvedValue(undefined)
+    sessionSetProxyMock.mockReset().mockResolvedValue(undefined)
+    webviewSetProxyMock.mockReset().mockResolvedValue(undefined)
+    appSetProxyMock.mockReset().mockResolvedValue(undefined)
     MockMainPreferenceServiceUtils.resetMocks()
     intervalRegistrations.length = 0
     getSystemProxyMock.mockResolvedValue({ proxyUrl: 'http://system:1080', noProxy: ['localhost'] })
@@ -235,6 +239,62 @@ describe('ProxyService — preference wiring', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://127.0.0.1:7890')
     await expect(manager.getAppliedSnapshot()).resolves.toMatchObject({ converged: true })
     await expect(manager.getAppliedSnapshot()).resolves.not.toHaveProperty('lastError')
+  })
+
+  it('re-applies the previous config after a partially failed proxy change', async () => {
+    let nodeRoute: string | undefined
+    nodeProxyConfigureMock.mockImplementation(async (config) => {
+      nodeRoute = config.proxyRules
+    })
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://first:1')
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await reconcilerOf(manager).flush()
+
+    sessionSetProxyMock.mockRejectedValueOnce(new Error('Session proxy failed'))
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://second:2')
+    const failed = await manager.getAppliedSnapshot()
+    const failedKey = manager.appliedProxyKey
+    expect(nodeRoute).toBe('http://second:2')
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://first:1')
+    await expect(manager.getAppliedSnapshot()).resolves.toMatchObject({ converged: true })
+    expect(nodeRoute).toBe('http://first:1')
+    expect(failed).toMatchObject({ converged: false, lastError: 'Session proxy failed' })
+    expect(failedKey).toBeNull()
+  })
+
+  it('drains failed session batches before applying newer preferences', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let appRoute: string | undefined
+    appSetProxyMock.mockImplementation(async (config) => {
+      if (config.proxyRules === 'http://first:1') await gate
+      appRoute = config.proxyRules
+    })
+    sessionSetProxyMock.mockRejectedValueOnce(new Error('Session proxy failed'))
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://first:1')
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await vi.waitFor(() => expect(appSetProxyMock).toHaveBeenCalled())
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://second:2')
+    let settled = false
+    const snapshot = manager.getAppliedSnapshot().then((result) => {
+      settled = true
+      return result
+    })
+    // Let a premature fail-fast batch drain its microtasks before releasing the old write.
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    const settledBeforeRelease = settled
+    release()
+    await expect(snapshot).resolves.toMatchObject({ converged: true })
+    expect(appRoute).toBe('http://second:2')
+    expect(settledBeforeRelease).toBe(false)
   })
 
   it('flags a failed OS proxy read while still converging on bare system mode', async () => {
