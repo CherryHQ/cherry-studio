@@ -11,12 +11,25 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
+import {
+  appendNoResponseErrorPart,
+  hasVisibleAgentSessionPart,
+  type NoResponseErrorPartOptions
+} from '@shared/ai/agentSessionNoResponse'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { PersistAssistantInput, PersistedAssistant, PersistenceBackend } from '../../streamManager'
 
 const logger = loggerService.withContext('AgentSessionMessageBackend')
+
+/** Folded into turns that reach `success` without any renderable content (renderer-visible rule). */
+const EMPTY_SUCCESS_NO_RESPONSE_ERROR: NoResponseErrorPartOptions = {
+  message:
+    'This turn produced no output (it may have been interrupted). Resend the message or reply "continue" to recover.',
+  i18nKey: 'agent_turn_no_output',
+  reason: 'empty-success-terminal'
+}
 
 export interface AgentSessionMessageBackendOptions {
   /** Cherry Studio agent-session id. */
@@ -44,7 +57,21 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
 
   persistAssistant(input: PersistAssistantInput): PersistedAssistant {
     const { finalMessage, status, runtimeStats } = input
+    const parts = finalMessage?.parts ?? []
+    // A `success` terminal without any renderer-visible part would render as a misleading empty
+    // bubble on an OK turn; persist it as an error so the UI and delivery outcome reflect reality.
+    const isEmptySuccessTerminal = status === 'success' && !hasVisibleAgentSessionPart(parts)
+    if (isEmptySuccessTerminal) {
+      logger.warn('Downgrading empty successful agent turn to terminal error', {
+        sessionId: this.opts.sessionId,
+        assistantMessageId: this.opts.assistantMessageId
+      })
+    }
     const runtimeResumeToken = this.getRuntimeResumeToken()
+    const persistedStatus = isEmptySuccessTerminal ? 'error' : status
+    const persistedParts = isEmptySuccessTerminal
+      ? appendNoResponseErrorPart({ parts }, EMPTY_SUCCESS_NO_RESPONSE_ERROR)
+      : { parts }
     let forkAnchor: RuntimeForkAnchor | undefined
     if (status === 'success') {
       try {
@@ -64,8 +91,8 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
           message: {
             id: finalMessage?.id ?? this.opts.assistantMessageId,
             role: 'assistant',
-            status,
-            data: { parts: finalMessage?.parts ?? [] },
+            status: persistedStatus,
+            data: persistedParts,
             modelId: this.opts.modelId
           }
         },
