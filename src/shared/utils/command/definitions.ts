@@ -71,6 +71,20 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'app.window.close',
+    titleKey: 'settings.shortcuts.close_window',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'main',
+    keybinding: {
+      // Registered (not editable) so the fixed accelerator participates in the
+      // shared conflict model; the native close role performs the action.
+      defaultBinding: ['CommandOrControl', 'Shift', 'W'],
+      editable: false,
+      // The app menu that owns this accelerator exists on macOS only.
+      supportedPlatforms: ['darwin']
+    }
+  }),
+  defineCommand({
     id: 'app.zoom.in',
     titleKey: 'settings.shortcuts.zoom_in',
     categoryKey: 'settings.shortcuts.general',

@@ -105,8 +105,16 @@ export class AppMenuService extends BaseService {
       {
         type: 'submenu',
         label: t('appMenu.file'),
-        // The bare Command+W accelerator belongs to the tab bar (tab.close); Shift keeps a keyboard path to the window.
-        children: [{ type: 'role', role: 'close', label: t('appMenu.close'), accelerator: 'CommandOrControl+Shift+W' }]
+        // The bare Command+W accelerator belongs to the tab bar (tab.close); Shift keeps a
+        // keyboard path to the window, declared on app.window.close for conflict detection.
+        children: [
+          {
+            type: 'role',
+            role: 'close',
+            label: t('appMenu.close'),
+            accelerator: getShortcutAccelerator('app.window.close')
+          }
+        ]
       },
       {
         type: 'submenu',
