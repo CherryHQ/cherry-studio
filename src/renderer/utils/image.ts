@@ -1079,17 +1079,22 @@ export const makeSvgSizeAdaptive = (element: Element): Element => {
 }
 
 /**
- * Whether an SVG node is a KaTeX-generated math glyph (square roots,
- * extensible arrows). KaTeX emits bare shape-only SVGs with no id/class or
- * text content. They must render exactly where KaTeX placed them: wrapping
- * them in extra boxes (e.g. a `display: contents` context-menu trigger)
- * stops Chromium from painting the SVG, dropping the root sign from formulas.
+ * Whether an SVG node is a KaTeX stretchy glyph (square roots, extensible
+ * arrows). KaTeX emits these with a `400em` width, a `0 0 400000 <h>`
+ * viewBox, and a `* slice` preserveAspectRatio. They must render exactly
+ * where KaTeX placed them: wrapping them in extra boxes (e.g. a
+ * `display: contents` context-menu trigger) stops Chromium from painting
+ * the SVG, dropping the root sign from formulas.
  */
 export function isKatexGeneratedSvg(node: HastElement | undefined): boolean {
   if (!node || node.tagName !== 'svg') return false
   const properties = node.properties ?? {}
   if (properties.id !== undefined || properties.className !== undefined) return false
-  if (!('viewBox' in properties)) return false
+  if (properties.width !== '400em') return false
+  const preserveAspectRatio = properties.preserveAspectRatio
+  if (typeof preserveAspectRatio !== 'string' || !preserveAspectRatio.endsWith(' slice')) return false
+  const viewBox = properties.viewBox
+  if (typeof viewBox !== 'string' || !/^\s*0\s+0\s+400000\s+\d+\s*$/.test(viewBox)) return false
   return !node.children.some(
     (child) => child.type === 'element' && (child.tagName === 'text' || child.tagName === 'tspan')
   )

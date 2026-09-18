@@ -1388,5 +1388,22 @@ describe('utils/image', () => {
       expect(isKatexGeneratedSvg({ ...katexNode, tagName: 'g' })).toBe(false)
       expect(isKatexGeneratedSvg(undefined)).toBe(false)
     })
+
+    it('rejects ordinary user SVGs without the KaTeX stretch signature', () => {
+      const userSvg = {
+        type: 'element',
+        tagName: 'svg',
+        properties: { viewBox: '0 0 100 100' },
+        children: [{ type: 'element', tagName: 'circle', properties: { cx: '50', cy: '50', r: '40' }, children: [] }]
+      } as HastElement
+      expect(isKatexGeneratedSvg(userSvg)).toBe(false)
+      expect(isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, width: '100%' } })).toBe(false)
+      expect(
+        isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, preserveAspectRatio: 'none' } })
+      ).toBe(false)
+      expect(
+        isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, viewBox: '0 0 100 100' } })
+      ).toBe(false)
+    })
   })
 })

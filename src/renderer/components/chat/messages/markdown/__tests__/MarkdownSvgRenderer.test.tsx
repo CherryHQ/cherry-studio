@@ -32,8 +32,8 @@ const katexNode = {
 const userNode = {
   type: 'element',
   tagName: 'svg',
-  properties: { id: 'diagram', viewBox: '0 0 100 50' },
-  children: []
+  properties: { viewBox: '0 0 100 100' },
+  children: [{ type: 'element', tagName: 'circle', properties: { cx: '50', cy: '50', r: '40' }, children: [] }]
 } as Element
 
 describe('chat MarkdownSvgRenderer', () => {
@@ -47,7 +47,7 @@ describe('chat MarkdownSvgRenderer', () => {
   })
 
   it('keeps the context menu wrapper for user SVGs', () => {
-    render(<MarkdownSvgRenderer node={userNode} id="diagram" viewBox="0 0 100 50" />)
+    render(<MarkdownSvgRenderer node={userNode} viewBox="0 0 100 100" />)
 
     expect(screen.getByTestId('svg-context-menu')).toBeInTheDocument()
   })
