@@ -848,6 +848,11 @@ const omlxFetcher: ModelFetcher = {
         .map((m) =>
           toModel(m.id, provider, {
             ownedBy: 'omlx',
+            // An alias renames the model in the UI only: the server still keys
+            // the request on the physical id, so `id`/`apiModelId` stay `m.id`.
+            // Spread conditionally — `toModel` applies `extra` last, so a
+            // present-but-undefined `name` would overwrite the id fallback.
+            ...(m.model_alias ? { name: m.model_alias } : {}),
             // The registry declares an anthropic-messages endpoint for oMLX, and the Claude
             // Agent SDK speaks only that dialect: without the declared endpoint the model
             // falls through to `defaultChatEndpoint` and Claude Code routes it through the

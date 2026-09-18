@@ -297,6 +297,13 @@ export const OmlxModelStatusSchema = z.looseObject({
   model_type: z.string().optional(),
   config_model_type: z.string().optional(),
   is_hidden: z.boolean().optional(),
+  // The operator's display alias. The server only emits it for a model that has
+  // one configured, so its absence means "no alias" rather than an empty name.
+  model_alias: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v ? v : undefined)),
   // The server's effective window and its configured output cap, so a
   // discovered model carries the same limits the server enforces. Either can
   // be an explicit null (the exposed MarkItDown model reports both that way),

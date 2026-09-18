@@ -1374,6 +1374,7 @@ describe('listModels — oMLX', () => {
             id: 'qwen3-coder',
             model_type: 'llm',
             config_model_type: 'qwen3_5',
+            model_alias: 'Coder Pro',
             max_context_window: 262144,
             max_tokens: 32768
           },
@@ -1385,6 +1386,7 @@ describe('listModels — oMLX', () => {
             id: 'markitdown',
             model_type: 'markitdown',
             config_model_type: 'markitdown',
+            model_alias: null,
             max_context_window: null,
             max_tokens: null
           },
@@ -1407,5 +1409,14 @@ describe('listModels — oMLX', () => {
     // A model the server reports no limits for stays unlimited rather than 0.
     expect(models[1].contextWindow).toBeUndefined()
     expect(models[1].maxOutputTokens).toBeUndefined()
+    // An alias renames the model in the picker while the server still keys the
+    // request on the physical id, so only `name` changes.
+    expect(models[0].name).toBe('Coder Pro')
+    expect(models[0].apiModelId).toBe('qwen3-coder')
+    expect(models[0].id).toContain('qwen3-coder')
+    // No alias (absent, or the explicit null the MarkItDown entry carries) keeps
+    // the id as the display name.
+    expect(models[1].name).toBe('vlm-vision')
+    expect(models[2].name).toBe('markitdown')
   })
 })
