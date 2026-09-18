@@ -1218,6 +1218,30 @@ Bunları sen istemedin; "bu uygulamayı her gün kullansam beni ne delirtir" diy
 
 ### R1 — Kesilen cevabı otomatik sürdürme ⭐⭐ (ücretsiz katmanın 1 numaralı derdi)
 
+> **Ön araştırma yapıldı — sıfırdan aramaya gerek yok.**
+>
+> **Kesilmenin görüldüğü yer:** `src/main/ai/runtime/aiSdk/Agent.ts:373` — akış bittikten sonra
+> `const steps = await Promise.resolve(result.steps)` var; `steps.at(-1)?.finishReason === 'length'`
+> kesilmeyi verir. `pendingFinish` (`:333`, `:356`) tam bu noktada tutuluyor, yani bitiş işareti
+> henüz yazılmamış durumda — araya girmek için doğru yer burası.
+>
+> **AI SDK kendiliğinden sürdürmüyor.** `stopWhen` (`loop/toolLoopTermination.ts`) araç çağrısı
+> döngüsünü yönetiyor; araç çağrısı olmayan bir `length` bitişi döngüyü bitiriyor.
+>
+> **İki yol var, ikisinin de bedeli farklı:**
+>
+> 1. **Tek mesajda sürdür (istenen davranış, zor yol).** Aynı `writer` açıkken yeni bir
+>    `streamText` başlatıp parçaları aynı mesaja yazmak. Dokunulan hassas noktalar:
+>    `hasUsedProvidedMessageId` (`:325`) mesaj kimliği tekrarı, `text-start`/`text-delta`/`text-end`
+>    parça eşleşmesi, `steps` ve kullanım (token) muhasebesinin toplanması, araç durumu.
+>    **Yarım yapılırsa bozuk mesaj üretir — ya tam yap ya hiç.**
+> 2. **Devam turu zincirle (kolay yol, farklı UX).** Mevcut tur zincirleme düzeneğini kullanmak
+>    (`AiStreamManager.scheduleNextChatTurn`, bugün yalnızca `steer-continuation` için).
+>    Cevap iki ayrı mesaj olarak görünür ama otomatik gelir ve risk çok düşük.
+>
+> **Öneri:** önce (2)'yi yap — kullanıcının "elle devam et yazmak zorunda kalmak" derdini hemen
+> bitirir. (1) ancak tek mesaj şart olduğunda ve zaman varken yapılsın.
+
 Ücretsiz API'ler `max_tokens`'ı düşük tutar; cevap cümlenin ortasında kesilir
 (`finishReason: 'length'`). Bugün elle "devam et" yazman gerekiyor.
 
