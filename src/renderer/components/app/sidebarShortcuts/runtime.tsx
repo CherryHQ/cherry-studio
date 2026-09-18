@@ -274,14 +274,26 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
     (destination, options) => {
       if (!options?.inNewTab) {
         if (activeTab && destination.matchesCurrent?.(activeTab.url)) return
-        if (activeTab && destination.conversation && findConversationTab([activeTab], destination.conversation)) return
         const existing = destination.conversation
           ? findConversationTab(tabs, destination.conversation)
           : tabs.find(
               (tab) => tab.type === 'route' && (destination.matchesTab?.(tab.url) ?? tab.url === destination.url)
             )
         if (existing) {
-          setActiveTab(existing.id)
+          // Pinned Agent destinations open via ?agentId= so AgentPage can close
+          // Manage Agents after this tab is focused, including background tabs.
+          if (
+            existing.url !== destination.url &&
+            new URLSearchParams(destination.url.split('?')[1] ?? '').has('agentId')
+          ) {
+            updateTab(existing.id, {
+              url: destination.url,
+              title: destination.title,
+              icon: destination.icon,
+              metadata: undefined
+            })
+          }
+          if (existing.id !== activeTab?.id) setActiveTab(existing.id)
           return
         }
         if (activeTab && !activeTab.isPinned) {
