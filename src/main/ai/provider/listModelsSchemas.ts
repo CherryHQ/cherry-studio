@@ -298,9 +298,19 @@ export const OmlxModelStatusSchema = z.looseObject({
   config_model_type: z.string().optional(),
   is_hidden: z.boolean().optional(),
   // The server's effective window and its configured output cap, so a
-  // discovered model carries the same limits the server enforces.
-  max_context_window: z.number().optional(),
-  max_tokens: z.number().optional()
+  // discovered model carries the same limits the server enforces. Either can
+  // be an explicit null (the exposed MarkItDown model reports both that way),
+  // which must not reject the whole response.
+  max_context_window: z
+    .number()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? undefined),
+  max_tokens: z
+    .number()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? undefined)
 })
 
 export const OmlxModelStatusResponseSchema = z.object({

@@ -1379,7 +1379,15 @@ describe('listModels — oMLX', () => {
           },
           { id: 'vlm-vision', model_type: 'vlm', config_model_type: 'qwen3_5' },
           { id: 'diffusiongemma-26B', model_type: 'vlm', config_model_type: 'diffusion_gemma' },
-          { id: 'markitdown', model_type: 'markitdown', config_model_type: 'markitdown' },
+          // The server reports the exposed MarkItDown model with explicit null
+          // limits; they must not reject the whole listing.
+          {
+            id: 'markitdown',
+            model_type: 'markitdown',
+            config_model_type: 'markitdown',
+            max_context_window: null,
+            max_tokens: null
+          },
           { id: 'hidden-model', model_type: 'llm', config_model_type: 'qwen3_5', is_hidden: true }
         ]
       }
