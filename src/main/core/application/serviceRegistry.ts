@@ -41,6 +41,7 @@ import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudServic
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
+import { ComputerUseService } from '@main/services/ComputerUseService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
@@ -95,6 +96,7 @@ import { WebviewService } from '@main/services/WebviewService'
  * Value = service class constructor
  */
 export const services = {
+  ComputerUseService,
   MainNetworkDevtoolsService,
   WindowManager,
   UtilityProcessManager,

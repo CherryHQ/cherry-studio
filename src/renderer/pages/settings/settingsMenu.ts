@@ -10,6 +10,7 @@ import {
   HardDrive,
   Info,
   MonitorSmartphone,
+  MousePointer2,
   Package,
   Palette,
   PictureInPicture2,
@@ -63,6 +64,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/skills',
     titleKey: 'settings.skills.title',
     icon: createElement(ToolCase),
+    groupKey: 'settings.menuGroups.capabilities'
+  },
+  {
+    route: '/settings/computer-use',
+    titleKey: 'settings.computerUse.title',
+    icon: createElement(MousePointer2),
     groupKey: 'settings.menuGroups.capabilities'
   },
   {

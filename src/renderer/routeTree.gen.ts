@@ -27,6 +27,7 @@ import { Route as SettingsApiGatewayRouteImport } from './routes/settings/api-ga
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
 import { Route as SettingsCodeExecutionRouteImport } from './routes/settings/code-execution'
+import { Route as SettingsComputerUseRouteImport } from './routes/settings/computer-use'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsDependenciesRouteImport } from './routes/settings/dependencies'
 import { Route as SettingsDeviceConnectionsRouteImport } from './routes/settings/device-connections'
@@ -152,6 +153,11 @@ const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
 const SettingsCodeExecutionRoute = SettingsCodeExecutionRouteImport.update({
   id: '/code-execution',
   path: '/code-execution',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsComputerUseRoute = SettingsComputerUseRouteImport.update({
+  id: '/computer-use',
+  path: '/computer-use',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsDataRoute = SettingsDataRouteImport.update({
@@ -358,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
+  '/settings/computer-use': typeof SettingsComputerUseRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
   '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
@@ -413,6 +420,7 @@ export interface FileRoutesByTo {
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
+  '/settings/computer-use': typeof SettingsComputerUseRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
   '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
@@ -468,6 +476,7 @@ export interface FileRoutesById {
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/code-execution': typeof SettingsCodeExecutionRoute
+  '/settings/computer-use': typeof SettingsComputerUseRoute
   '/settings/data': typeof SettingsDataRoute
   '/settings/dependencies': typeof SettingsDependenciesRoute
   '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
@@ -526,6 +535,7 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/channels'
     | '/settings/code-execution'
+    | '/settings/computer-use'
     | '/settings/data'
     | '/settings/dependencies'
     | '/settings/device-connections'
@@ -581,6 +591,7 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/channels'
     | '/settings/code-execution'
+    | '/settings/computer-use'
     | '/settings/data'
     | '/settings/dependencies'
     | '/settings/device-connections'
@@ -635,6 +646,7 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/channels'
     | '/settings/code-execution'
+    | '/settings/computer-use'
     | '/settings/data'
     | '/settings/dependencies'
     | '/settings/device-connections'
@@ -805,6 +817,13 @@ declare module '@tanstack/react-router' {
       path: '/code-execution'
       fullPath: '/settings/code-execution'
       preLoaderRoute: typeof SettingsCodeExecutionRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/computer-use': {
+      id: '/settings/computer-use'
+      path: '/computer-use'
+      fullPath: '/settings/computer-use'
+      preLoaderRoute: typeof SettingsComputerUseRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/data': {
@@ -1146,6 +1165,7 @@ interface SettingsRouteChildren {
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsCodeExecutionRoute: typeof SettingsCodeExecutionRoute
+  SettingsComputerUseRoute: typeof SettingsComputerUseRoute
   SettingsDataRoute: typeof SettingsDataRoute
   SettingsDependenciesRoute: typeof SettingsDependenciesRoute
   SettingsDeviceConnectionsRoute: typeof SettingsDeviceConnectionsRoute
@@ -1177,6 +1197,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsCodeExecutionRoute: SettingsCodeExecutionRoute,
+  SettingsComputerUseRoute: SettingsComputerUseRoute,
   SettingsDataRoute: SettingsDataRoute,
   SettingsDependenciesRoute: SettingsDependenciesRoute,
   SettingsDeviceConnectionsRoute: SettingsDeviceConnectionsRoute,
