@@ -272,6 +272,8 @@ entry.
 ## 9. Provider Upload Boundary
 
 FileManager supplies entry reads and `withTempCopy` to callers that need bytes or a temporary path.
+Its read-result MIME and `FileEntry.ext` follow filename/extension metadata, not byte-signature
+recognition. AI attachment preparation owns content recognition before deciding native input.
 It does not cache provider upload identifiers. Any future provider-upload architecture needs its
 own concrete consumers and contract rather than extending the file reference model speculatively.
 
