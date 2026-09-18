@@ -108,3 +108,13 @@ struct CapabilitiesSuccess: Encodable, Sendable {
     let operation = "capabilities"
     let result: CapabilitiesResult
 }
+
+struct InstallAsrAssetsResult: Encodable, Sendable {
+    let locale: String
+    let status = "installed"
+}
+
+struct InstallAsrAssetsSuccess: Encodable, Sendable {
+    let operation = "install_asr_assets"
+    let result: InstallAsrAssetsResult
+}

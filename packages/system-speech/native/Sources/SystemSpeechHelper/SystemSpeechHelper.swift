@@ -29,7 +29,16 @@ enum SystemSpeechHelper {
                 voices: AppleTts.installedVoices()
             )
             write(SuccessEnvelope(value: CapabilitiesSuccess(result: result)))
-        case .installAsrAssets, .transcribe, .synthesize:
+        case let .installAsrAssets(locale):
+            let installedLocale = try await AppleAsr.installAssets(locale: locale)
+            write(
+                SuccessEnvelope(
+                    value: InstallAsrAssetsSuccess(
+                        result: InstallAsrAssetsResult(locale: installedLocale)
+                    )
+                )
+            )
+        case .transcribe, .synthesize:
             throw HelperError(code: .nativeHelperFailed)
         }
     }
