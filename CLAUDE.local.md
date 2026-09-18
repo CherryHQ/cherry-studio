@@ -65,8 +65,12 @@ Böyle bir cümle şu anlama gelir:
 
 1. `GOREVLER-2.md`'nin en üstündeki **durum tablosunu** oku, neyin bittiğini gör.
 2. **Sıra ve bağımlılıklar** bölümündeki dizilimden **sıradaki tek maddeyi** al.
-3. Onu bitir, doğrula (aşağıdaki "bitti" ölçütü), commit'le, tabloya tek satır yaz.
+3. Onu bitir, doğrula (aşağıdaki "bitti" ölçütü — **uygulamayı açmak dahil**), commit'le,
+   tabloya tek satır yaz.
 4. **Sonra dur ve ne yaptığını söyle.** Kullanıcı devam derse bir sonrakine geç.
+
+Kullanıcıdan ayrıca istemesini bekleme: "devam et" cümlesi 3. adımdaki uygulama kontrolünü
+**içerir**. Arayüze dokunan bir maddeyi ekranda görmeden commit'leme.
 
 Madde "güçlü model gerekir" kutusundaysa ve sen Haiku'ysan: başlama, söyle ve dur.
 
@@ -86,8 +90,24 @@ Bitti demeden önce dördünü de yap:
    değiştirdiysen `__tests__/X.test.ts` kırmızıysa görev bitmemiştir.
 3. **Paket testini çalıştır:** `pnpm run test:renderer` ve `pnpm run test:shared`. Dar doğrulama
    19 kırmızı testin fark edilmemesine yol açtı.
-4. **Neyi doğrulamadığını söyle.** Uygulamayı açıp denemediysen "çalışıyor" deme —
-   "derleniyor ve testleri geçiyor" de. Arayüz işlerinde `cherry-electron-dev` becerisini kullan.
+4. **Uygulamayı aç ve gör.** Madde arayüze veya ana süreç servis kaydına dokunuyorsa
+   uygulamayı çalıştır ve şu üçünü doğrula:
+   - Uygulama **açılıyor** (açılış logunda `Bootstrap complete`, servis hata satırı yok).
+   - Eklediğin şey **ekranda görünüyor** — düğme, satır, sütun, neyse.
+   - Bir kez **çalıştırıp** sonucu gör.
+
+   Nasıl: `pnpm dev`'i **arka planda** başlat, sonra çıktısını oku. Açılış logu tek başına
+   "açılıyor mu" sorusunu cevaplar — servis hataları, kayıt dışı bırakılan servisler ve
+   `Bootstrap complete` orada görünür. Ekranda görmek gerekiyorsa kullanıcıdan ekran görüntüsü iste.
+
+   Testler "buton görünmüyor", "düzen bozuldu", "açılışta çöküyor" gibi şeyleri yakalamaz.
+   Bu oturumda sekiz commit tek kez bile ekranda görülmeden yazıldı — bir daha olmayacak.
+
+   > **Not:** `cherry-electron-dev` becerisi bu depoda kayıtlı ama oturumda **kurulu değil**
+   > (denendi, `Unknown skill`). Üstteki "Hazır beceriler" listesine güvenip onu çağırma.
+
+5. **Neyi doğrulamadığını söyle.** Uygulamayı açamadıysan "çalışıyor" deme,
+   "derleniyor ve testleri geçiyor ama ekranda görmedim" de.
 
 ### Bilinen kırmızılar — bunlar senin değil, düzeltmeye çalışma
 
