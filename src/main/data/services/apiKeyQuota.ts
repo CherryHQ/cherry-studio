@@ -3,15 +3,13 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { apiKeyLimitId, apiKeyModelLimitId } from '@shared/utils/apiKeyLimit'
+import { apiKeyLimitId, apiKeyModelLimitId, periodStartOf } from '@shared/utils/apiKeyLimit'
 
 import { aiUsageRecordService } from './AiUsageRecordService'
 
 const logger = loggerService.withContext('ApiKeyQuota')
-
-const DAY_MS = 24 * 60 * 60 * 1000
-const PERIOD_MS = { daily: DAY_MS, monthly: 30 * DAY_MS } as const
 
 export { apiKeyLimitId, apiKeyModelLimitId }
 
@@ -35,7 +33,7 @@ function requestsSince(from: number): Map<string, number> {
  * Returns undefined when no limit is declared (= unlimited).
  */
 export function resolveKeyLimit(
-  limits: Record<string, { limit: number; period: 'daily' | 'monthly' }>,
+  limits: Record<string, { limit: number; period: ApiKeyLimitPeriod }>,
   providerId: string,
   keyId: string,
   modelId?: string
@@ -54,7 +52,7 @@ function keysWithinQuota<T extends Pick<ApiKeyEntry, 'id'>>(
   modelId?: string
 ): T[] {
   const limits = application.get('PreferenceService').get('chat.routing.api_key_limits')
-  const countsByPeriod = new Map<keyof typeof PERIOD_MS, Map<string, number>>()
+  const countsByPeriod = new Map<ApiKeyLimitPeriod, Map<string, number>>()
 
   return keys.filter((key) => {
     const limit = resolveKeyLimit(limits, providerId, key.id, modelId)
@@ -62,7 +60,7 @@ function keysWithinQuota<T extends Pick<ApiKeyEntry, 'id'>>(
 
     let counts = countsByPeriod.get(limit.period)
     if (!counts) {
-      counts = requestsSince(Date.now() - PERIOD_MS[limit.period])
+      counts = requestsSince(periodStartOf(limit.period))
       countsByPeriod.set(limit.period, counts)
     }
     return (counts.get(key.id) ?? 0) < limit.limit

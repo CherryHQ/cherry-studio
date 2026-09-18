@@ -1,6 +1,8 @@
 import { sortBy } from 'es-toolkit/compat'
 import { useCallback, useMemo } from 'react'
 
+import { useQuery } from '@data/hooks/useDataApi'
+import { usePreference } from '@data/hooks/usePreference'
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
@@ -8,12 +10,15 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { getSearchMatchScore } from '@renderer/utils/model'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
+import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { periodStartOf } from '@shared/utils/apiKeyLimit'
 import { isAgentOnlyProvider } from '@shared/utils/provider'
 
 import { MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
+import { getModelPassiveReason, isQuotaExhausted, type ModelPassiveReason, passiveSortRank } from './modelAvailability'
 import type {
   FlatListItem,
   ModelSelectorModelItem,
@@ -57,8 +62,8 @@ function getDuplicateModelNames<T extends Pick<Model, 'name'>>(models: T[]): Set
   return new Set([...nameCounts.entries()].filter(([, count]) => count > 1).map(([name]) => name))
 }
 
-function sortModels(models: Model[]) {
-  return sortBy(models, ['group', 'name'])
+function sortModels(models: Model[], passiveRank: (model: Model) => number) {
+  return sortBy(models, [passiveRank, 'group', 'name'])
 }
 
 function getModelIdentifier(model: Model) {
@@ -96,11 +101,9 @@ export function useModelSelectorData({
     isLoading: isProvidersLoading,
     refetch: refetchProviders
   } = useProviders({ enabled: true }, { enabled })
-  const {
-    models,
-    isLoading: isModelsLoading,
-    refetch: refetchModels
-  } = useModels({ enabled: true }, { fetchEnabled: enabled })
+  // Disabled models stay in the list: they are demoted and badged rather than hidden, so a model
+  // turned off after a failed health check can still be seen — and picked — from here.
+  const { models, isLoading: isModelsLoading, refetch: refetchModels } = useModels(undefined, { fetchEnabled: enabled })
   const {
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
@@ -111,6 +114,77 @@ export function useModelSelectorData({
   } = usePins('model', { enabled })
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
+  const [modelHealth] = usePreference('chat.retry.model_health')
+  const [apiKeyLimits] = usePreference('chat.routing.api_key_limits')
+
+  const quotaPeriods = useMemo(() => {
+    if (!apiKeyLimits || Object.keys(apiKeyLimits).length === 0) return []
+    const periods = new Set<ApiKeyLimitPeriod>()
+    for (const v of Object.values(apiKeyLimits)) periods.add(v.period)
+    return [...periods]
+  }, [apiKeyLimits])
+
+  const quotaStatsParams = useMemo(() => {
+    if (quotaPeriods.length === 0) return undefined
+    const minFrom = Math.min(...quotaPeriods.map((p) => periodStartOf(p)))
+    return {
+      query: {
+        groupBy: 'apiKey' as const,
+        metric: 'requests' as const,
+        from: minFrom,
+        to: Date.now(),
+        limit: 100
+      }
+    }
+  }, [quotaPeriods])
+
+  const { data: quotaUsageData } = useQuery('/ai-usage-records/stats', quotaStatsParams)
+
+  const quotaUsageCounts = useMemo(() => {
+    if (!quotaUsageData) return undefined
+    const counts = new Map<string, number>()
+    for (const bucket of quotaUsageData.buckets) {
+      if (bucket.groupBy === 'apiKey' && bucket.apiKeyId) {
+        counts.set(bucket.apiKeyId, bucket.requestCount)
+      }
+    }
+    return counts
+  }, [quotaUsageData])
+
+  const quotaExhaustedModelIds = useMemo(() => {
+    if (!apiKeyLimits || Object.keys(apiKeyLimits).length === 0) return new Set<string>()
+    const exhausted = new Set<string>()
+    const providerById = new Map(providers.map((p) => [p.id, p]))
+
+    for (const model of models) {
+      const provider = providerById.get(model.providerId)
+      if (!provider) continue
+      if (isQuotaExhausted(provider, model.id, apiKeyLimits, quotaUsageCounts)) {
+        exhausted.add(model.id)
+      }
+    }
+    return exhausted
+  }, [apiKeyLimits, providers, models, quotaUsageCounts])
+
+  const passiveReasonByModelId = useMemo(() => {
+    const providerById = new Map(providers.map((provider) => [provider.id, provider]))
+    const reasons = new Map<UniqueModelId, ModelPassiveReason>()
+
+    for (const model of models) {
+      const provider = providerById.get(model.providerId)
+      if (!provider) continue
+
+      const reason = getModelPassiveReason(model, provider, modelHealth, quotaExhaustedModelIds)
+      if (reason) reasons.set(model.id, reason)
+    }
+
+    return reasons
+  }, [models, providers, modelHealth, quotaExhaustedModelIds])
+
+  const passiveRank = useCallback(
+    (model: Model) => passiveSortRank(passiveReasonByModelId.get(model.id)),
+    [passiveReasonByModelId]
+  )
 
   const baseModelFilter = useCallback(
     (model: Model, provider?: Provider) => filter?.(model, provider) ?? true,
@@ -211,13 +285,13 @@ export function useModelSelectorData({
             const searchScore = getModelSearchScore(searchText, model, provider, providerDisplayName)
             return searchScore === null ? [] : [{ model, searchScore }]
           }),
-          ['searchScore', 'model.group', 'model.name']
+          [({ model }) => passiveRank(model), 'searchScore', 'model.group', 'model.name']
         ).map(({ model }) => model)
       }
 
-      return sortModels(providerModels)
+      return sortModels(providerModels, passiveRank)
     },
-    [modelsByProvider, searchText]
+    [modelsByProvider, searchText, passiveRank]
   )
 
   const createModelItem = useCallback(
@@ -239,10 +313,11 @@ export function useModelSelectorData({
         modelId,
         modelIdentifier: getModelIdentifier(model),
         isPinned,
-        showIdentifier
+        showIdentifier,
+        ...(passiveReasonByModelId.has(modelId) && { passiveReason: passiveReasonByModelId.get(modelId) })
       }
     },
-    []
+    [passiveReasonByModelId]
   )
 
   const { listItems, modelItems } = useMemo(() => {
@@ -278,7 +353,12 @@ export function useModelSelectorData({
         displayGroupsById.set(groupId, { id: groupId, provider, models: modelsWithProvider })
       }
     }
-    const displayGroups = [...displayGroupsById.values()]
+    // A provider whose every model is passive sinks below the usable ones, so a permanently
+    // unusable group (managed CherryAI) cannot hold the prioritized top slot.
+    const displayGroups = sortBy(
+      [...displayGroupsById.values()],
+      [(group) => (group.models.every(({ model }) => passiveReasonByModelId.has(model.id)) ? 1 : 0)]
+    )
     const duplicateModelNamesByDisplayGroup = new Map(
       displayGroups.map((group) => [group.id, getDuplicateModelNames(group.models.map(({ model }) => model))])
     )
@@ -349,6 +429,7 @@ export function useModelSelectorData({
   }, [
     baseModelFilter,
     createModelItem,
+    passiveReasonByModelId,
     pinnedIds,
     searchFilter,
     selectableModelsById,

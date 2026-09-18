@@ -1,5 +1,5 @@
 import { first } from 'es-toolkit/compat'
-import { CircleSlash, Pin, Settings2 } from 'lucide-react'
+import { CircleSlash, Pin, Settings2, TriangleAlert } from 'lucide-react'
 import {
   type KeyboardEvent,
   startTransition,
@@ -225,6 +225,8 @@ function ModelRow({
       </div>
     ) : null
 
+  const passiveLabel = item.passiveReason ? t(`models.passive.${item.passiveReason}`) : undefined
+
   const pinAction = showPinActions ? (
     <ModelSelectorRowActionButton
       disabled={isPinActionDisabled}
@@ -251,9 +253,17 @@ function ModelRow({
         onSelect={() => onSelect(item)}
         rootProps={{ className: 'pr-0.5' }}
         optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
-        <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
+        {passiveLabel && <TriangleAlert className="size-3 shrink-0 text-amber-500" aria-label={passiveLabel} />}
+        <span
+          className={`min-w-0 max-w-full shrink-0 truncate ${passiveLabel ? 'text-muted-foreground' : ''}`}
+          title={item.model.name}>
           {item.model.name}
         </span>
+        {passiveLabel && (
+          <span className="min-w-0 shrink-0 truncate text-amber-600 text-xs dark:text-amber-500" title={passiveLabel}>
+            {passiveLabel}
+          </span>
+        )}
         {disambiguationLabel && (
           <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={disambiguationLabel}>
             | {disambiguationLabel}

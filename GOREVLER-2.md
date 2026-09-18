@@ -161,7 +161,7 @@ Altyapı hazır (anahtar dizisi sınırsız). Yapılacak:
 - UI: bir sağlayıcının anahtarları **yan yana** listelenir, her satırda o anahtarın kendi limiti
   ve kalanı görünür. İki DeepSeek anahtarı iki ayrı satır, iki ayrı limit.
 
-### B2 — Ücretli / ücretsiz / deneme anahtarı
+### B2 — Ücretli / ücretsiz / deneme anahtarı ✅
 
 > *"ücretli API girerim, ücretsiz API girerim"* · *"bazı ortaklaşa API veren siteler var, deneme
 > bir veri, Opus 5'ten 10 kullanım hakkı diyelim"*
@@ -176,7 +176,7 @@ Kullanımı:
 - `'trial'` + `'total'`: bitince o anahtar kalıcı olarak tükenmiş sayılır, pasife düşer (B7).
 - Faz C'deki otomatik geçiş sırası: **ücretsiz → deneme → ücretli**. Ücretli en son harcanır.
 
-### B3 — Yenileme dönemi: takvim + üyelik yıldönümü
+### B3 — Yenileme dönemi: takvim + üyelik yıldönümü ✅
 
 İki sorun var, ikisi de çözülecek.
 
@@ -198,7 +198,7 @@ saatte. Tek bir "ayın 1'i" varsayımı yanlış kalan hak gösterir.
 düzenlenebilir. P1 otomatik doldurmayı dener, tutmazsa sen düzeltirsin.
 P4 tahmini ve B7 pasifliği bu tarihi kullanır.
 
-### B4 — Kullanım sayımı model + sürüm kırılımıyla
+### B4 — Kullanım sayımı model + sürüm kırılımıyla ✅
 
 > *"DeepSeek dedim de, versiyonlarda olsun, hani şu sürüm bu sürüm diye."*
 
@@ -208,7 +208,7 @@ P4 tahmini ve B7 pasifliği bu tarihi kullanır.
 uç noktası ve `useQuery` kancaları aynen kullanılır. V3/V4 ayrı `modelId` olduğu için otomatik
 ayrışır.
 
-### B5 — Web/URL servisleri de sayılsın
+### B5 — Web/URL servisleri de sayılsın ✅
 
 Yeni tercih `chat.routing.service_usage` — `Record<serviceKey, {count, periodStart}>`,
 `serviceKey = ` `` `web::${providerId}` ``. Tavanlar aynı `api_key_limits` içinde (`web::exa`).
@@ -216,7 +216,7 @@ Sayaç tek noktadan: `src/main/services/webSearch/WebSearchService.ts:78` `execu
 arama, `fetchUrls`, 11 sürücü ve yedek yol hepsi buradan geçiyor. Faz F'teki web sağlayıcıları da
 aynı sayacı kullanır.
 
-### B6 — Tek kota tablosu
+### B6 — Tek kota tablosu ✅
 
 > *"hangi API'den bağlı kaç hakkım var"* · *"DeepSeek OpenRouter 20 hak, DeepSeek SiliconFlow
 > 15 hak"* · *"elle manuel artır/azalt yapabileyim"* · *"ayarlarda bir sınır olmasın, istediğim
@@ -231,7 +231,7 @@ Sütunlar: tür (ücretsiz/deneme/ücretli) · dönem (günlük/aylık/toplam) �
 
 Anahtar ekleme akışında **sayı sınırı yok** — UI'da da sınır gösterilmez, "Anahtar ekle" hep açık.
 
-### B7 — Kalan hak model seçicide
+### B7 — Kalan hak model seçicide ✅
 
 > *"token bittiyse de pasif olsun, hangisinde kaç token var bilelim."*
 

@@ -8,10 +8,8 @@ import { InputNumber } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
-import { apiKeyLimitId, apiKeyModelLimitId } from '@shared/utils/apiKeyLimit'
-
-const DAY_MS = 24 * 60 * 60 * 1000
-const PERIOD_TO_MS = { daily: DAY_MS, monthly: 30 * DAY_MS } as const
+import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
+import { apiKeyLimitId, apiKeyModelLimitId, periodRenewsAt, periodStartOf } from '@shared/utils/apiKeyLimit'
 
 interface Props {
   providerId: string
@@ -36,7 +34,7 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
             query: {
               groupBy: 'apiKey' as const,
               metric: 'requests' as const,
-              from: now - PERIOD_TO_MS[entry.period],
+              from: periodStartOf(entry.period),
               to: now,
               limit: 50
             }
@@ -52,18 +50,11 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
 
   const renewsAt = useMemo(() => {
     if (!entry) return null
-    if (entry.period === 'daily') {
-      const d = new Date()
-      d.setUTCHours(24, 0, 0, 0)
-      return d
-    }
-    const d = new Date()
-    d.setUTCMonth(d.getUTCMonth() + 1, 1)
-    d.setUTCHours(0, 0, 0, 0)
-    return d
+    const ms = periodRenewsAt(entry.period)
+    return ms !== null ? new Date(ms) : null
   }, [entry?.period])
 
-  const update = (next: { limit: number; period: 'daily' | 'monthly' } | undefined) => {
+  const update = (next: { limit: number; period: ApiKeyLimitPeriod } | undefined) => {
     const { [limitKey]: _removed, ...rest } = limits
     void setLimits(next ? { ...rest, [limitKey]: next } : rest)
   }
@@ -87,9 +78,11 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
           value={entry?.period ?? 'daily'}
           options={[
             { value: 'daily', label: t('settings.provider.api_key.quota_daily') },
-            { value: 'monthly', label: t('settings.provider.api_key.quota_monthly') }
+            { value: 'weekly', label: t('settings.provider.api_key.quota_weekly') },
+            { value: 'monthly', label: t('settings.provider.api_key.quota_monthly') },
+            { value: 'total', label: t('settings.provider.api_key.quota_total') }
           ]}
-          onChange={(period: 'daily' | 'monthly') => entry && update({ limit: entry.limit, period })}
+          onChange={(period: ApiKeyLimitPeriod) => entry && update({ limit: entry.limit, period })}
         />
       </div>
       {entry && (

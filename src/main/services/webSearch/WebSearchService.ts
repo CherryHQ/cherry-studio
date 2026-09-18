@@ -90,11 +90,42 @@ export class WebSearchService extends BaseService {
       )
     }
 
-    return Promise.allSettled(
+    const results = await Promise.allSettled(
       context.inputs.map((input) =>
         capabilityRunner.call(context.providerDriver, input, context.runtimeConfig, httpOptions)
       )
     )
+
+    const fulfilled = results.filter((r) => r.status === 'fulfilled').length
+    if (fulfilled > 0) {
+      this.incrementServiceUsage(context.provider.id, fulfilled)
+    }
+
+    return results
+  }
+
+  private incrementServiceUsage(providerId: string, count: number): void {
+    try {
+      const prefService = application.get('PreferenceService')
+      const usage = prefService.get('chat.routing.service_usage')
+      const key = `web::${providerId}`
+      const entry = usage[key]
+      const now = Date.now()
+
+      if (entry && entry.periodStart > 0) {
+        prefService.set('chat.routing.service_usage', {
+          ...usage,
+          [key]: { count: entry.count + count, periodStart: entry.periodStart }
+        })
+      } else {
+        prefService.set('chat.routing.service_usage', {
+          ...usage,
+          [key]: { count, periodStart: now }
+        })
+      }
+    } catch (error) {
+      logger.warn('failed to increment service usage counter', { providerId, error })
+    }
   }
 
   private getProviderConfigurationError(context: PreparedWebSearchContext): WebSearchConfigError | undefined {

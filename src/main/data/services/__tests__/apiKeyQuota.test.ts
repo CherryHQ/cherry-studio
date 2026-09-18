@@ -16,7 +16,7 @@ const { apiKeyLimitId, apiKeyModelLimitId, filterKeysWithinQuota } = await impor
 
 const key = (id: string) => ({ id, key: `secret-${id}`, isEnabled: true }) as ApiKeyEntry
 
-function withLimits(limits: Record<string, { limit: number; period: 'daily' | 'monthly' }>) {
+function withLimits(limits: Record<string, { limit: number; period: 'daily' | 'weekly' | 'monthly' | 'total' }>) {
   preferenceGet.mockReturnValue(limits)
 }
 
@@ -104,5 +104,13 @@ describe('filterKeysWithinQuota', () => {
 
     const result = filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek-v4-flash')
     expect(result).toEqual([key('b')])
+  })
+
+  it('total period counts from epoch and never resets', () => {
+    withLimits({ [apiKeyLimitId('openrouter', 'a')]: { limit: 10, period: 'total' } })
+    withRequestCounts({ a: 10 })
+
+    expect(filterKeysWithinQuota('openrouter', [key('a'), key('b')])).toEqual([key('b')])
+    expect(stats).toHaveBeenCalledWith(expect.objectContaining({ from: 0 }))
   })
 })

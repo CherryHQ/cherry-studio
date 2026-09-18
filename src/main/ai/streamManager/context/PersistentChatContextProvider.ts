@@ -558,6 +558,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const containerTraceId = topicService.ensureTraceId(req.topicId)
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
     const [{ span: rootSpan }] = turnRootSpans
+    let didResetRow = false
 
     try {
       const { messages: history, retainedContext } = await this.resolveCompactedHistory(
@@ -602,6 +603,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // update deliberately does not write topic.activeNodeId, so retrying an off-path branch cannot
       // activate it.
       const resetMessage = messageService.resetAssistantForRetry(target.id)
+      didResetRow = true
       const listeners: StreamListener[] = [
         subscriber,
         new PersistenceListener({
@@ -643,6 +645,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         preserveActiveNode: true
       }
     } catch (error) {
+      // The row was already flipped to `pending` for the retry. Without the dispatch it would spin
+      // forever, so put back the failed state the retry was meant to replace.
+      if (didResetRow) messageService.markMessagesError([target.id])
       endTurnRootSpansWithError(turnRootSpans, error)
       throw error
     }

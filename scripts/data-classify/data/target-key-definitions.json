@@ -278,6 +278,13 @@
       "description": "User-declared request ceiling per credential, for free tiers the provider never reports"
     },
     {
+      "targetKey": "chat.routing.service_usage",
+      "type": "PreferenceTypes.ServiceUsageMap",
+      "defaultValue": {},
+      "status": "classified",
+      "description": "Usage counter per web/URL service, keyed by web::providerId"
+    },
+    {
       "targetKey": "chat.routing.pinned_model",
       "type": "string",
       "defaultValue": "",

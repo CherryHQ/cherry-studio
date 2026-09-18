@@ -45,7 +45,11 @@ export type ModelHealthMemory = Record<string, { ok: boolean; checkedAt: number;
  * User-declared request ceiling per credential, for free tiers the provider never reports.
  * Keyed by `providerId::keyId`; actual consumption comes from the AI usage records, not from here.
  */
-export type ApiKeyLimitMap = Record<string, { limit: number; period: 'daily' | 'monthly' }>
+export type ApiKeyLimitPeriod = 'daily' | 'weekly' | 'monthly' | 'total'
+export type ApiKeyLimitMap = Record<string, { limit: number; period: ApiKeyLimitPeriod }>
+
+/** Usage counter per web/URL service, keyed by `web::${providerId}`. */
+export type ServiceUsageMap = Record<string, { count: number; periodStart: number }>
 
 /** Task kinds the router recognises; each maps to the models that are best at it. */
 export const TASK_CATEGORIES = ['code', 'research', 'writing', 'image', 'general'] as const

@@ -55,6 +55,9 @@ const ProviderWebsiteSchema = z.object({
   })
 })
 
+export const ApiKeyTierSchema = z.enum(['free', 'paid', 'trial'])
+export type ApiKeyTier = z.infer<typeof ApiKeyTierSchema>
+
 export const ApiKeyEntrySchema = z.object({
   /** UUID for referencing this key */
   id: z.string().min(1),
@@ -63,7 +66,13 @@ export const ApiKeyEntrySchema = z.object({
   /** User-friendly label */
   label: z.string().optional(),
   /** Whether this key is enabled */
-  isEnabled: z.boolean()
+  isEnabled: z.boolean(),
+  /** Billing tier: free (default), paid, or trial (one-time allowance). */
+  tier: ApiKeyTierSchema.optional(),
+  /** ISO date anchor for renewal (e.g. signup date); period resets relative to this. */
+  renewalAnchor: z.string().optional(),
+  /** IANA timezone for renewal calculation (e.g. "America/New_York"); defaults to UTC. */
+  renewalTimezone: z.string().optional()
 })
 
 export type ApiKeyEntry = z.infer<typeof ApiKeyEntrySchema>

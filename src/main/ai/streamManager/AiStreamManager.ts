@@ -197,6 +197,20 @@ function isLiveStatus(status: ActiveStream['status']): boolean {
   return status === 'pending' || status === 'streaming'
 }
 
+// Generous, but bounded: a terminal loop that never settles must not hold the retry IPC — and so the
+// renderer's spinner — open forever.
+const RETRY_LOOP_SETTLE_TIMEOUT_MS = 60_000
+
+function settlesWithin(promise: Promise<unknown>, timeoutMs: number): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => resolve(false), timeoutMs)
+    void Promise.allSettled([promise]).then(() => {
+      clearTimeout(timer)
+      resolve(true)
+    })
+  })
+}
+
 function isPersistedReplyGroupAnchor(
   messageId: string,
   topicId: string,
@@ -1032,7 +1046,9 @@ export class AiStreamManager extends BaseService {
 
     // Do not reset the row or replace the listener id until the old loop has completed every
     // terminal listener.
-    await execution.loopPromise
+    if (!(await settlesWithin(execution.loopPromise, RETRY_LOOP_SETTLE_TIMEOUT_MS))) {
+      throw new AiStreamAdmissionError(aiStreamAdmissionReasons.EXECUTION_NOT_READY)
+    }
 
     const current = this.activeStreams.get(topicId)
     if (!current) return { mode: 'start-new' }

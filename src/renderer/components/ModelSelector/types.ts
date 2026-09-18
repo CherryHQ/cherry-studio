@@ -5,6 +5,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { CommandId } from '@shared/utils/command'
 
 import type { ModelSelectorTag } from './filters'
+import type { ModelPassiveReason } from './modelAvailability'
 
 export type ModelSelectorSide = 'top' | 'right' | 'bottom' | 'left'
 export type ModelSelectorAlign = 'start' | 'center' | 'end'
@@ -94,6 +95,8 @@ export interface ModelSelectorModelItem {
   modelIdentifier: string
   isPinned: boolean
   showIdentifier: boolean
+  /** Set when the model is demoted: still selectable, but sorted last and badged. */
+  passiveReason?: ModelPassiveReason
 }
 
 export type FlatListItem = ModelSelectorGroupItem | ModelSelectorModelItem
