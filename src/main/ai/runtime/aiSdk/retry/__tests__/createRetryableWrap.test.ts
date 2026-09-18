@@ -409,4 +409,79 @@ describe('createRetryableWrap', () => {
       { type: 'error', error: streamError }
     ])
   })
+
+  describe('onModelOutcome', () => {
+    it('reports success when the primary model answered', async () => {
+      const onModelOutcome = vi.fn()
+      const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy(), onModelOutcome })
+
+      await wrap!(makeFakeLanguageModel('gpt-4', vi.fn().mockResolvedValue(okResult))).doGenerate({ prompt: [] })
+
+      expect(onModelOutcome).toHaveBeenCalledExactlyOnceWith(true)
+    })
+
+    it('reports failure when the primary model is broken', async () => {
+      const onModelOutcome = vi.fn()
+      const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy(), onModelOutcome })
+
+      await expect(
+        wrap!(makeFakeLanguageModel('gpt-4', vi.fn().mockRejectedValue(makeApiError(404)))).doGenerate({ prompt: [] })
+      ).rejects.toThrow()
+
+      expect(onModelOutcome).toHaveBeenCalledExactlyOnceWith(false)
+    })
+
+    it.each([401, 429])('stays silent on HTTP %i, which describes the credential and not the model', async (status) => {
+      const onModelOutcome = vi.fn()
+      const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy(), onModelOutcome })
+
+      await expect(
+        wrap!(makeFakeLanguageModel('gpt-4', vi.fn().mockRejectedValue(makeApiError(status)))).doGenerate({
+          prompt: []
+        })
+      ).rejects.toThrow()
+
+      expect(onModelOutcome).not.toHaveBeenCalled()
+    })
+
+    it('stays silent when the user aborts', async () => {
+      const onModelOutcome = vi.fn()
+      const abort = new Error('aborted')
+      abort.name = 'AbortError'
+      const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy(), onModelOutcome })
+
+      await expect(
+        wrap!(makeFakeLanguageModel('gpt-4', vi.fn().mockRejectedValue(abort))).doGenerate({ prompt: [] })
+      ).rejects.toThrow()
+
+      expect(onModelOutcome).not.toHaveBeenCalled()
+    })
+
+    it('stays silent when this machine cannot reach the network', async () => {
+      const onModelOutcome = vi.fn()
+      const offline = Object.assign(new Error('fetch failed'), { code: 'ENOTFOUND' })
+      const wrap = createRetryableWrap({ fallbacks: [], retryPolicy: policy(), onModelOutcome })
+
+      await expect(
+        wrap!(makeFakeLanguageModel('gpt-4', vi.fn().mockRejectedValue(offline))).doGenerate({ prompt: [] })
+      ).rejects.toThrow()
+
+      expect(onModelOutcome).not.toHaveBeenCalled()
+    })
+
+    it('stays silent when another model served the request', async () => {
+      const onModelOutcome = vi.fn()
+      const wrap = createRetryableWrap({
+        fallbacks: [fallbackOf(makeFakeLanguageModel('claude-x', vi.fn().mockResolvedValue(okResult)))],
+        retryPolicy: policy(),
+        onModelOutcome
+      })
+
+      await wrap!(makeFakeLanguageModel('gpt-4', vi.fn().mockRejectedValue(makeApiError(404)))).doGenerate({
+        prompt: []
+      })
+
+      expect(onModelOutcome).not.toHaveBeenCalled()
+    })
+  })
 })

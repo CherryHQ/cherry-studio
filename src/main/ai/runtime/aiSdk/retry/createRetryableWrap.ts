@@ -75,9 +75,34 @@ export interface CreateRetryableWrapOptions {
   onFallbackActivated?: (fallback: RetryFallback) => void
   /** Restores request-scoped helpers when a new operation starts from the primary model. */
   onPrimaryActivated?: () => void
+  /**
+   * Terminal outcome for the primary model. Only fires while the primary is what actually served
+   * the request — a cross-model fallback means the outcome belongs to that other model instead.
+   */
+  onModelOutcome?: (ok: boolean) => void
 }
 
 const RETRY_BASE_DELAY_MS = 1_000
+
+const CONNECTION_ERROR_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'ETIMEDOUT', 'EAI_AGAIN'])
+
+function isConnectionError(error: Error): boolean {
+  const code = (error as NodeJS.ErrnoException).code ?? (error.cause as NodeJS.ErrnoException | undefined)?.code
+  return code !== undefined && CONNECTION_ERROR_CODES.has(code)
+}
+
+/**
+ * Whether a terminal error says anything about the model itself. An abort is the user's doing and a
+ * connection failure is this machine's, so neither should mark a model unhealthy; 401/429 describe
+ * the credential and its quota, which the quota layer already tracks.
+ */
+function isModelHealthSignal(error: unknown): boolean {
+  const terminal = RetryError.isInstance(error) ? error.lastError : error
+  if (!(terminal instanceof Error)) return false
+  if (terminal.name === 'AbortError' || terminal.name === 'TimeoutError') return false
+  if (APICallError.isInstance(terminal) && (terminal.statusCode === 401 || terminal.statusCode === 429)) return false
+  return !isConnectionError(terminal)
+}
 
 function lazyFallbackRetryable(
   resolveFallback: FallbackResolver,
@@ -281,6 +306,8 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
 
     if (!options.retryPolicy.enabled) return keyPoolModel
 
+    let servedByOtherModel = false
+
     return createRetryableModel({
       model: keyPoolModel,
       retries,
@@ -288,6 +315,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
         const event = describeAttempt(context)
         const failedModelId = context.attempts.at(-1)?.model.modelId
         if (failedModelId && failedModelId !== event.modelId) {
+          servedByOtherModel = true
           logger.warn('falling back to a different model', {
             ...options.diagnosticContext,
             failedModelId,
@@ -301,7 +329,10 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
         retryActive = true
         options.onRetryEvent?.(event)
       },
-      onSuccess: settleRetryStatus,
+      onSuccess: () => {
+        settleRetryStatus()
+        if (!servedByOtherModel) options.onModelOutcome?.(true)
+      },
       onFailure: (context) => {
         const failure = context.error instanceof Error ? context.error : new Error(String(context.error))
         logger.error('model call failed after retries', failure, {
@@ -321,6 +352,7 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
           )
         })
         settleRetryStatus()
+        if (!servedByOtherModel && isModelHealthSignal(context.error)) options.onModelOutcome?.(false)
       }
     })
   }

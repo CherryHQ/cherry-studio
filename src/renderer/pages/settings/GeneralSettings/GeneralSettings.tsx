@@ -45,6 +45,7 @@ const GeneralSettings: FC = () => {
   const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
     'BootConfig.app.disable_hardware_acceleration'
   )
+  const [liteMode, setLiteMode] = usePreference('BootConfig.app.lite_mode')
   const [launchOnBoot, setLaunchOnBoot] = usePreference('app.launch_on_boot')
   const [trayPreferences, setTrayPreferences] = useMultiplePreferences(TRAY_PREFERENCE_KEYS)
   const { enabled: tray, onClose: trayOnClose, onLaunch: launchToTray } = trayPreferences
@@ -126,6 +127,27 @@ const GeneralSettings: FC = () => {
       },
       500
     )
+  }
+
+  // Services are excluded at registration, so the change only lands on the next boot.
+  const handleLiteModeChange = async (checked: boolean) => {
+    const confirmed = await popup.confirm({
+      title: t('settings.lite_mode.confirm.title'),
+      content: t('settings.lite_mode.confirm.content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true
+    })
+    if (!confirmed) return
+
+    try {
+      await setLiteMode(checked)
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+      throw error
+    }
+
+    setTimeoutTimer('handleLiteModeChange', () => void window.api.application.relaunch(), 500)
   }
 
   return (
@@ -221,6 +243,18 @@ const GeneralSettings: FC = () => {
         <SettingRow id="setting-general-hardware-acceleration" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
           <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-general-lite-mode" className="scroll-mt-6">
+          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>{t('settings.lite_mode.title')}</span>
+            <InfoTooltip
+              content={t('settings.lite_mode.tip')}
+              placement="right"
+              iconProps={{ className: 'cursor-pointer' }}
+            />
+          </SettingRowTitle>
+          <Switch checked={liteMode} onCheckedChange={handleLiteModeChange} />
         </SettingRow>
       </SettingGroup>
 

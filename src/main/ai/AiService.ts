@@ -661,6 +661,9 @@ export class AiService extends BaseService {
       wrapModel = createRetryableWrap({
         apiKeyFallbacks,
         retryPolicy,
+        // Real conversations are the only honest health signal; an explicit probe from settings is
+        // rare, so without this the routing table never learns which models actually answer.
+        onModelOutcome: (ok) => void recordModelHealth(model.id, ok),
         diagnosticContext: {
           chatId: request.conversation.topicId,
           messageId: request.messageId,
@@ -824,6 +827,7 @@ export class AiService extends BaseService {
       wrapModel = createRetryableWrap({
         apiKeyFallbacks,
         retryPolicy,
+        onModelOutcome: (ok) => void recordModelHealth(model.id, ok),
         diagnosticContext: { assistantId: request.assistantId },
         fallbacks: buildFallbackModels({
           request,
