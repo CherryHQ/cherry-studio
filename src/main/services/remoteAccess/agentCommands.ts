@@ -67,7 +67,6 @@ export function createSession(context: DeviceContext, input: MethodInput<'sessio
       commandId: input.commandId,
       requestHash: hash,
       agentId: input.agentId,
-      sessionId,
       result: receipt
     })
     return { result: receipt, created: true }
@@ -120,7 +119,6 @@ export async function sendMessage(context: DeviceContext, input: MethodInput<'me
               commandId: input.commandId,
               requestHash: hash,
               agentId: current.agentId!,
-              sessionId: input.sessionId,
               result: receipt
             })
             return reserved
@@ -164,7 +162,6 @@ function reserveAction(context: DeviceContext, method: string, input: { sessionI
       commandId: input.commandId,
       requestHash: requestHash(method, input),
       agentId: session.agentId!,
-      sessionId: input.sessionId,
       result: { status: 'processing', processEpoch }
     })
     return undefined

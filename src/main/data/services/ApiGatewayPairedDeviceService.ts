@@ -14,7 +14,6 @@ import {
   ApiGatewayPairedDeviceMetadataSchema
 } from '@shared/data/types/apiGatewayPairedDevice'
 
-import { remoteCommandService } from './RemoteCommandService'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:ApiGatewayPairedDeviceService')
@@ -84,15 +83,12 @@ export class ApiGatewayPairedDeviceService {
   }
 
   delete(id: string): void {
-    application.get('DbService').withWriteTx((tx) => {
-      const [row] = tx
-        .delete(apiGatewayPairedDeviceTable)
-        .where(eq(apiGatewayPairedDeviceTable.id, id))
-        .returning()
-        .all()
-      if (!row) throw DataApiErrorFactory.notFound('ApiGatewayPairedDevice', id)
-      remoteCommandService.deleteByDeviceTx(tx, id)
-    })
+    const [row] = this.db
+      .delete(apiGatewayPairedDeviceTable)
+      .where(eq(apiGatewayPairedDeviceTable.id, id))
+      .returning()
+      .all()
+    if (!row) throw DataApiErrorFactory.notFound('ApiGatewayPairedDevice', id)
 
     this._onDeleted.fire(id)
     notifyDataApiDataChange([{ endpoint: '/api-gateway/paired-devices', kind: 'membership', entityIds: [id] }])

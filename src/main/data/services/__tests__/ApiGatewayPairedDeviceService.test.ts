@@ -89,7 +89,7 @@ describe('ApiGatewayPairedDeviceService', () => {
   it("removes a revoked device's command receipts and keeps other devices' receipts", () => {
     const revoked = apiGatewayPairedDeviceService.create({ name: 'iPhone', platform: 'ios', tokenHash: 'e'.repeat(64) })
     const kept = apiGatewayPairedDeviceService.create({ name: 'Pixel', platform: 'android', tokenHash: 'f'.repeat(64) })
-    const receipt = { commandId: 'command', requestHash: 'hash', agentId: 'agent', sessionId: null, result: {} }
+    const receipt = { commandId: 'command', requestHash: 'hash', agentId: 'agent', result: {} }
     application.get('DbService').withWriteTx((tx) => {
       remoteCommandService.recordTx(tx, { ...receipt, deviceId: revoked.id })
       remoteCommandService.recordTx(tx, { ...receipt, deviceId: kept.id })

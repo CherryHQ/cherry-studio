@@ -1241,15 +1241,15 @@ class BackupManager {
         throw new Error('Backup SQLite migration chain is empty')
       }
       // A restore must not revive revoked devices or let old commands bypass rolled-back receipts.
-      // Receipts go with them: a cleared device ID never authenticates again, so they are unreachable.
-      const hasTable = sqlite.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?")
-      let cleared = false
-      for (const table of ['api_gateway_paired_device', 'remote_command']) {
-        if (!hasTable.get(table)) continue
-        sqlite.prepare(`DELETE FROM ${table}`).run()
-        cleared = true
+      // Receipts cascade from their device, which needs foreign keys enforced on this raw connection.
+      const hasDevices = sqlite
+        .prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'api_gateway_paired_device'")
+        .get()
+      if (hasDevices) {
+        sqlite.pragma('foreign_keys = ON')
+        sqlite.prepare('DELETE FROM api_gateway_paired_device').run()
+        checkpointTruncateAssert(sqlite)
       }
-      if (cleared) checkpointTruncateAssert(sqlite)
     } finally {
       sqlite.close()
     }
