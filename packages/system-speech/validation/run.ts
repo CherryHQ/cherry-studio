@@ -151,6 +151,7 @@ async function convertWithElectron(
     const stdout: Buffer[] = []
     let stdoutBytes = 0
     let settled = false
+    let killTimer: ReturnType<typeof setTimeout> | undefined
 
     child.stderr.resume()
 
@@ -162,6 +163,7 @@ async function convertWithElectron(
     }
     const abort = () => {
       child.kill('SIGTERM')
+      killTimer ??= setTimeout(() => child.kill('SIGKILL'), 2_000)
       finish(() => reject(speechError('cancelled', signal.reason)))
     }
 
@@ -177,6 +179,7 @@ async function convertWithElectron(
     })
     child.once('error', (error) => finish(() => reject(speechError('audio_conversion_failed', error))))
     child.once('close', (code) => {
+      if (killTimer) clearTimeout(killTimer)
       if (settled) return
       if (code !== 0) {
         finish(() => reject(speechError('audio_conversion_failed')))

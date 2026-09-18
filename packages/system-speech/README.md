@@ -41,3 +41,28 @@ pnpm --filter @cherrystudio/system-speech validate -- offline --locale zh-CN --v
 ```
 
 `roundtrip` synthesizes a local WAV, records it as WebM/Opus in Electron, converts it to mono 16 kHz WAV in the Apple adapter, and transcribes it locally. `offline` runs the same speech operations with network access denied by the macOS sandbox. Both commands delete temporary audio and report only metadata plus whether the transcript was nonempty.
+
+Before a macOS release, also verify the helper inside an unpacked signed application:
+
+```bash
+pnpm build
+pnpm --filter @cherrystudio/system-speech build:native
+pnpm exec electron-builder --dir --mac --arm64 --config packages/system-speech/validation/packaging/electron-builder.yml
+pnpm --filter @cherrystudio/system-speech validate:packaged -- '.validation-pack/mac-arm64/Cherry Studio.app'
+```
+
+## Validation evidence
+
+| Item | Result on 2026-09-18 |
+| --- | --- |
+| Host | macOS 26.3, arm64 |
+| Runtime toolchain | Electron 44.2.0; Apple Swift 6.3.3 |
+| End-user toolchains | `rustc` and `ffmpeg` absent |
+| Locale | Requested `zh-CN`; Apple resolved `zh_CN` |
+| Apple ASR asset | Initial `supported`; final `supported`; no install command run |
+| Apple TTS | Exact compact `zh-CN` voice produced mono 22.05 kHz WAV |
+| Shared recording | `audio/webm;codecs=opus`; system identified the output as WebM |
+| Apple adapter output | PCM16 WAV, mono, 16 kHz |
+| Conversion duration | Source 1.311875 s; derived 1.26 s; difference 0.051875 s |
+| ASR and offline runs | Stopped with `asset_required` before recognition; no network-enabled fallback |
+| Packaged helper | Owner-executable, Developer ID signed, nested strict verification passed, capabilities response passed |

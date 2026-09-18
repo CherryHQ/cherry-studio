@@ -44,15 +44,20 @@ ipcMain.once('system-speech-validation:failed', (_event, message) => {
 
 setTimeout(() => finish(1, { error: 'electron_validation_timeout' }), 30_000).unref()
 
-app.whenReady().then(async () => {
-  const window = new BrowserWindow({
-    show: false,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      preload: path.join(__dirname, 'preload.cjs'),
-      sandbox: true
-    }
+app
+  .whenReady()
+  .then(async () => {
+    const window = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        preload: path.join(__dirname, 'preload.cjs'),
+        sandbox: true
+      }
+    })
+    await window.loadFile(path.join(__dirname, 'dist', 'index.html'))
   })
-  await window.loadFile(path.join(__dirname, 'dist', 'index.html'))
-})
+  .catch((error) => {
+    finish(1, { error: error instanceof Error ? error.message : String(error) })
+  })
