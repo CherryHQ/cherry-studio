@@ -99,6 +99,7 @@ export const PROVIDERS: Provider[] = [
   p_vertexai,
   p_copilot,
   p_moonshot,
+  p_moonshot_global,
   p_baichuan,
   p_dashscope,
   p_stepfun,
@@ -126,6 +127,5 @@ export const PROVIDERS: Provider[] = [
   p_cerebras,
   p_mimo,
   p_zai,
-  p_minimax_global,
-  p_moonshot_global
+  p_minimax_global
 ]

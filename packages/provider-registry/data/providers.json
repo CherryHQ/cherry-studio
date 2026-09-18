@@ -1498,6 +1498,7 @@
       "name": "Moonshot AI",
       "serverTools": [
         {
+          "endpointTypes": ["openai-chat-completions"],
           "id": "web-search",
           "modelScope": "model-dependent",
           "vendors": ["kimi"]
@@ -1569,6 +1570,7 @@
       "presetProviderId": "moonshot",
       "serverTools": [
         {
+          "endpointTypes": ["openai-chat-completions"],
           "id": "web-search",
           "modelScope": "model-dependent",
           "vendors": ["kimi"]
@@ -2600,5 +2602,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "564d67db3baf2f9a"
+  "version": "b16a0877c1c16eb5"
 }

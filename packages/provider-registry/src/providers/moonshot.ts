@@ -25,6 +25,10 @@ export const moonshotServerTools: ProviderServerToolConfig[] = [
   {
     id: 'web-search',
     modelScope: 'model-dependent',
+    // The formula-backed delivery is implemented by the Moonshot OpenAI-compatible extension.
+    // The Anthropic mirror uses the Anthropic adapter and has no compatible Moonshot-native search
+    // contract yet, so advertising this capability there would route the wrong hosted-search tool.
+    endpointTypes: ['openai-chat-completions'],
     modelIdPrefixes: ['kimi-k2', 'kimi-k3', 'kimi-latest'],
     vendors: ['kimi']
   }
