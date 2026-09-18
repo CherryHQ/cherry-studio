@@ -5,6 +5,7 @@ import type { ExternalKnowledgeConnection } from '@shared/data/types/externalKno
 
 import type {
   ExternalKnowledgeCredential,
+  ExternalKnowledgeCredentialReferenceListResult,
   ExternalKnowledgeCredentialReadResult,
   ExternalKnowledgeTokenSet,
   TokenRotationResult
@@ -125,8 +126,8 @@ class MemoryCredentials {
   rotateCalls = 0
 
   assertAvailable = vi.fn()
-  listReferences = vi.fn(async () => ({
-    status: 'ok' as const,
+  listReferences = vi.fn<() => Promise<ExternalKnowledgeCredentialReferenceListResult>>(async () => ({
+    status: 'ok',
     credentialReferences: []
   }))
   read = vi.fn(async (reference: string) => this.values.get(reference) ?? { status: 'missing' as const })
@@ -1566,6 +1567,87 @@ describe('ExternalKnowledgeRuntime', () => {
     await runtime.cancelAppRegistration(begun.registrationSessionId)
 
     expect(signal.aborted).toBe(true)
+  })
+
+  it('allows only one consumer to claim a PersonalAgent registration session', async () => {
+    const registrationResult = deferred<{ appId: string; appSecret: string }>()
+    const provider = createProvider({
+      beginDeviceAuthorization: vi.fn(async () => ({
+        deviceCode: 'device-code',
+        userCode: 'ABCD-EFGH',
+        verificationUri: 'https://accounts.feishu.cn/oauth/v1/device/verify?user_code=ABCD-EFGH',
+        expiresIn: 600,
+        interval: 5
+      }))
+    })
+    const runtime = new ExternalKnowledgeRuntime({
+      connections: new MemoryConnections(),
+      credentials: new MemoryCredentials(),
+      provider,
+      registration: {
+        begin: vi.fn(async () => ({
+          deviceCode: 'registration-code',
+          verificationUri: 'https://accounts.feishu.cn/registration',
+          interval: 5,
+          expiresIn: 600
+        })),
+        poll: vi.fn(() => registrationResult.promise)
+      }
+    })
+    await runtime.start()
+    const registration = await runtime.beginAppRegistration()
+
+    const first = runtime.beginUserAuthorization({
+      kind: 'personal-agent',
+      registrationSessionId: registration.registrationSessionId
+    })
+    const second = runtime
+      .beginUserAuthorization({
+        kind: 'personal-agent',
+        registrationSessionId: registration.registrationSessionId
+      })
+      .catch((error) => error)
+    registrationResult.resolve({ appId: 'cli_automatic', appSecret: 'automatic-secret' })
+
+    await expect(second).resolves.toMatchObject({ code: 'session-not-found' })
+    const authorization = await first
+    expect(provider.beginDeviceAuthorization).toHaveBeenCalledOnce()
+    await runtime.cancelUserAuthorization(authorization.authorizationSessionId)
+  })
+
+  it('can cancel a PersonalAgent registration after its session is claimed', async () => {
+    const runtime = new ExternalKnowledgeRuntime({
+      connections: new MemoryConnections(),
+      credentials: new MemoryCredentials(),
+      provider: createProvider(),
+      registration: {
+        begin: vi.fn(async () => ({
+          deviceCode: 'registration-code',
+          verificationUri: 'https://accounts.feishu.cn/registration',
+          interval: 5,
+          expiresIn: 600
+        })),
+        poll: vi.fn((_domain, _code, options) => {
+          return new Promise<never>((_resolve, reject) => {
+            options.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), {
+              once: true
+            })
+          })
+        })
+      }
+    })
+    await runtime.start()
+    const registration = await runtime.beginAppRegistration()
+    const authorization = runtime
+      .beginUserAuthorization({
+        kind: 'personal-agent',
+        registrationSessionId: registration.registrationSessionId
+      })
+      .catch((error) => error)
+
+    await runtime.cancelAppRegistration(registration.registrationSessionId)
+
+    await expect(authorization).resolves.toMatchObject({ code: 'authorization-failed' })
   })
 
   it('feeds automatic PersonalAgent credentials into the same device authorization flow', async () => {

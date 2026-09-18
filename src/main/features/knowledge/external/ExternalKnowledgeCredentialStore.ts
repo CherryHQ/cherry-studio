@@ -1,11 +1,12 @@
-import { randomUUID } from 'node:crypto'
-import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { safeStorage } from 'electron'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { atomicWriteFile } from '@main/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 const encryptedValueSchema = z
   .string()
@@ -61,13 +62,19 @@ export type ExternalKnowledgeCredentialReferenceListResult =
 
 export type TokenRotationResult = 'updated' | 'missing' | 'stale' | 'corrupt' | 'undecryptable'
 
-export type SafeStorageAdapter = Pick<typeof safeStorage, 'isEncryptionAvailable' | 'encryptString' | 'decryptString'>
+export type SafeStorageAdapter = Pick<
+  typeof safeStorage,
+  'isEncryptionAvailable' | 'getSelectedStorageBackend' | 'encryptString' | 'decryptString'
+>
 
 const electronSafeStorage: SafeStorageAdapter = {
   isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+  getSelectedStorageBackend: () => safeStorage.getSelectedStorageBackend(),
   encryptString: (value) => safeStorage.encryptString(value),
   decryptString: (value) => safeStorage.decryptString(value)
 }
+
+const LINUX_SECURE_STORAGE_BACKENDS = new Set(['gnome_libsecret', 'kwallet', 'kwallet5', 'kwallet6'])
 
 export class ExternalKnowledgeCredentialStoreError extends Error {
   constructor(
@@ -102,7 +109,7 @@ export class ExternalKnowledgeCredentialStore {
 
     const entry = result.file.entries[credentialReference]
     if (!entry) return { status: 'missing' }
-    if (!this.encryption.isEncryptionAvailable()) return { status: 'undecryptable' }
+    if (!this.isEncryptionAvailable()) return { status: 'undecryptable' }
 
     try {
       return { status: 'ok', credential: this.decrypt(entry) }
@@ -112,7 +119,7 @@ export class ExternalKnowledgeCredentialStore {
   }
 
   assertAvailable(): void {
-    if (!this.encryption.isEncryptionAvailable()) {
+    if (!this.isEncryptionAvailable()) {
       throw new ExternalKnowledgeCredentialStoreError(
         'encryption-unavailable',
         'Knowledge credential storage is unavailable'
@@ -123,7 +130,7 @@ export class ExternalKnowledgeCredentialStore {
   async listReferences(): Promise<ExternalKnowledgeCredentialReferenceListResult> {
     const current = await this.readFile()
     if (current.status !== 'ok') return current
-    if (!this.encryption.isEncryptionAvailable()) return { status: 'undecryptable' }
+    if (!this.isEncryptionAvailable()) return { status: 'undecryptable' }
     return { status: 'ok', credentialReferences: Object.keys(current.file.entries) }
   }
 
@@ -161,7 +168,7 @@ export class ExternalKnowledgeCredentialStore {
       if (current.status !== 'ok') return current.status
       const entry = current.file.entries[credentialReference]
       if (!entry) return 'missing'
-      if (!this.encryption.isEncryptionAvailable()) return 'undecryptable'
+      if (!this.isEncryptionAvailable()) return 'undecryptable'
 
       try {
         if (!entry.refreshToken || this.decryptValue(entry.refreshToken) !== expectedRefreshToken) return 'stale'
@@ -279,22 +286,20 @@ export class ExternalKnowledgeCredentialStore {
     return this.encryption.decryptString(Buffer.from(value, 'base64'))
   }
 
-  private async replace(file: CredentialFile): Promise<void> {
-    const filePath = this.filePath
-    const temporaryPath = `${filePath}.${randomUUID()}.tmp`
-    await mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 })
+  private isEncryptionAvailable(): boolean {
+    if (!this.encryption.isEncryptionAvailable()) return false
+    if (process.platform !== 'linux') return true
     try {
-      await writeFile(temporaryPath, `${JSON.stringify(credentialFileSchema.parse(file), null, 2)}\n`, {
-        encoding: 'utf8',
-        mode: 0o600,
-        flag: 'wx'
-      })
-      await chmod(temporaryPath, 0o600)
-      await rename(temporaryPath, filePath)
-      await chmod(filePath, 0o600)
-    } finally {
-      await rm(temporaryPath, { force: true })
+      return LINUX_SECURE_STORAGE_BACKENDS.has(this.encryption.getSelectedStorageBackend())
+    } catch {
+      return false
     }
+  }
+
+  private async replace(file: CredentialFile): Promise<void> {
+    const filePath = AbsoluteFilePathSchema.parse(this.filePath)
+    await mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 })
+    await atomicWriteFile(filePath, `${JSON.stringify(credentialFileSchema.parse(file), null, 2)}\n`, { mode: 0o600 })
   }
 }
 

@@ -96,6 +96,7 @@ type RuntimeOptions = {
 type RegistrationSession = {
   controller: AbortController
   poll: Promise<{ appId: string; appSecret: string }>
+  claimed: boolean
 }
 
 type ResolvedApplicationCredentials = {
@@ -268,7 +269,7 @@ export class ExternalKnowledgeRuntime {
       })
     )
     void poll.catch(() => undefined)
-    this.registrationSessions.set(registrationSessionId, { controller, poll })
+    this.registrationSessions.set(registrationSessionId, { controller, poll, claimed: false })
     return {
       registrationSessionId,
       verificationUri: begun.verificationUri,
@@ -866,7 +867,8 @@ export class ExternalKnowledgeRuntime {
     }
 
     const registration = this.registrationSessions.get(input.registrationSessionId)
-    if (!registration) throw new ExternalKnowledgeRuntimeError('session-not-found')
+    if (!registration || registration.claimed) throw new ExternalKnowledgeRuntimeError('session-not-found')
+    registration.claimed = true
     try {
       return {
         source: 'personal-agent',
@@ -876,7 +878,9 @@ export class ExternalKnowledgeRuntime {
     } catch (error) {
       throw this.authorizationError(error)
     } finally {
-      this.registrationSessions.delete(input.registrationSessionId)
+      if (this.registrationSessions.get(input.registrationSessionId) === registration) {
+        this.registrationSessions.delete(input.registrationSessionId)
+      }
     }
   }
 

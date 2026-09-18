@@ -1,5 +1,5 @@
 import { net } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   FEISHU_REQUIRED_USER_SCOPES,
@@ -23,6 +23,7 @@ function response(body: unknown, options: { status?: number; headers?: Record<st
 
 describe('feishuKnowledgeProvider', () => {
   beforeEach(() => vi.mocked(net.fetch).mockReset())
+  afterEach(() => vi.restoreAllMocks())
 
   it('starts device authorization with all required user scopes', async () => {
     vi.mocked(net.fetch).mockResolvedValueOnce(
@@ -47,7 +48,7 @@ describe('feishuKnowledgeProvider', () => {
       interval: 5
     })
     const [, init] = vi.mocked(net.fetch).mock.calls[0]
-    expect(init?.signal).toBe(signal)
+    expect(init?.signal).toEqual(expect.any(AbortSignal))
     expect(init?.body?.toString()).toBe(
       new URLSearchParams({ client_id: 'cli_test', scope: FEISHU_REQUIRED_USER_SCOPES.join(' ') }).toString()
     )
@@ -176,5 +177,46 @@ describe('feishuKnowledgeProvider', () => {
     const error = await getUserIdentity('access-token').catch((cause: unknown) => cause)
 
     expect(error).toMatchObject({ code: 'transient', terminal: false })
+  })
+
+  it('classifies the internal request timeout as transient', async () => {
+    const timeoutController = new AbortController()
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(timeoutController.signal)
+    let observedSignal: AbortSignal | null | undefined
+    vi.mocked(net.fetch).mockImplementationOnce((_url, init) => {
+      observedSignal = init?.signal
+      return new Promise((_resolve, reject) => {
+        timeoutController.signal.addEventListener('abort', () => reject(timeoutController.signal.reason), {
+          once: true
+        })
+      })
+    })
+    const request = getUserIdentity('access-token').catch((cause: unknown) => cause)
+    await vi.waitFor(() => expect(net.fetch).toHaveBeenCalledOnce())
+
+    timeoutController.abort(new DOMException('request timeout', 'TimeoutError'))
+    const error = await request
+
+    expect(observedSignal).toBe(timeoutController.signal)
+    expect(error).toMatchObject({ code: 'transient', terminal: false })
+  })
+
+  it('preserves caller cancellation when it wins the combined request signal', async () => {
+    const caller = new AbortController()
+    const timeoutController = new AbortController()
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(timeoutController.signal)
+    vi.mocked(net.fetch).mockImplementationOnce(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+        })
+    )
+    const request = getUserIdentity('access-token', caller.signal).catch((cause: unknown) => cause)
+    await vi.waitFor(() => expect(net.fetch).toHaveBeenCalledOnce())
+    const cancellation = new DOMException('caller cancelled', 'AbortError')
+
+    caller.abort(cancellation)
+
+    await expect(request).resolves.toBe(cancellation)
   })
 })

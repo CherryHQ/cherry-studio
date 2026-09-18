@@ -11,6 +11,7 @@ const secretValues = ['app-secret-sentinel', 'access-token-sentinel', 'refresh-t
 function createSafeStorage(): SafeStorageAdapter {
   return {
     isEncryptionAvailable: vi.fn(() => true),
+    getSelectedStorageBackend: vi.fn(() => 'gnome_libsecret' as const),
     encryptString: vi.fn((value: string) => Buffer.from(`sealed:${value}`, 'utf8')),
     decryptString: vi.fn((value: Buffer) => {
       const decoded = value.toString('utf8')
@@ -204,5 +205,57 @@ describe('ExternalKnowledgeCredentialStore', () => {
       message: 'Knowledge credential storage is unavailable'
     })
     expect(JSON.stringify(error)).not.toContain(secretValues[0])
+  })
+
+  it('fails closed for the Linux basic_text safeStorage backend', async () => {
+    const originalPlatform = process.platform
+    const safeStorage = createSafeStorage()
+    vi.mocked(safeStorage.getSelectedStorageBackend).mockReturnValue('basic_text')
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+    const store = new ExternalKnowledgeCredentialStore({ filePath, safeStorage })
+
+    try {
+      expect(() => store.assertAvailable()).toThrowError(expect.objectContaining({ code: 'encryption-unavailable' }))
+      await expect(
+        store.put('credential-ref', { appId: 'cli_test', appSecret: secretValues[0], grantedScopes: [] })
+      ).rejects.toMatchObject({ code: 'encryption-unavailable' })
+      expect(safeStorage.encryptString).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    }
+  })
+
+  it('does not decrypt or rotate credentials after Linux safeStorage falls back to basic_text', async () => {
+    const originalPlatform = process.platform
+    const safeStorage = createSafeStorage()
+    const store = new ExternalKnowledgeCredentialStore({ filePath, safeStorage })
+    await store.put('credential-ref', {
+      appId: 'cli_test',
+      appSecret: secretValues[0],
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      accessTokenExpiresAt: 100,
+      refreshTokenExpiresAt: 200,
+      grantedScopes: ['offline_access']
+    })
+    vi.mocked(safeStorage.decryptString).mockClear()
+    vi.mocked(safeStorage.getSelectedStorageBackend).mockReturnValue('basic_text')
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+
+    try {
+      await expect(store.read('credential-ref')).resolves.toEqual({ status: 'undecryptable' })
+      await expect(
+        store.rotateTokens('credential-ref', 'refresh-1', {
+          accessToken: 'access-2',
+          refreshToken: 'refresh-2',
+          accessTokenExpiresAt: 300,
+          refreshTokenExpiresAt: 400,
+          grantedScopes: ['offline_access']
+        })
+      ).resolves.toBe('undecryptable')
+      expect(safeStorage.decryptString).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    }
   })
 })

@@ -12,6 +12,8 @@ export const FEISHU_IDENTITY_USER_SCOPE = 'auth:user.id:read' as const
 export const FEISHU_REQUIRED_USER_SCOPES = [...FEISHU_KNOWLEDGE_USER_SCOPES, FEISHU_IDENTITY_USER_SCOPE] as const
 export const FEISHU_AUTOMATIC_ALLOWED_SCOPES = new Set<string>(FEISHU_REQUIRED_USER_SCOPES)
 
+const FEISHU_REQUEST_TIMEOUT_MS = 30_000
+
 const deviceAuthorizationSchema = z.object({
   device_code: z.string().min(1),
   user_code: z.string().min(1),
@@ -128,11 +130,14 @@ async function request(
   init: RequestInit,
   options: { allowEmpty?: boolean } = {}
 ): Promise<Record<string, unknown> | null> {
+  const callerSignal = init.signal ?? undefined
+  const timeoutSignal = AbortSignal.timeout(FEISHU_REQUEST_TIMEOUT_MS)
+  const signal = callerSignal ? AbortSignal.any([callerSignal, timeoutSignal]) : timeoutSignal
   let response: Response
   try {
-    response = await net.fetch(url, init)
+    response = await net.fetch(url, { ...init, signal })
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') throw error
+    if (callerSignal?.aborted) throw callerSignal.reason ?? error
     throw new FeishuProviderError('transient', false)
   }
 
