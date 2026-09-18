@@ -166,7 +166,7 @@ export const DiagnosticUploadPanel = function DiagnosticUploadPanel({
         includeChatRecords: true,
         includeLogs: true,
         includeTraces: true,
-        range: '7d'
+        range: '24h'
       })
       acceptSubmissionResult(uploadResult)
     } catch (error) {

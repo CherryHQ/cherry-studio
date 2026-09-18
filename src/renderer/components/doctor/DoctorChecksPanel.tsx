@@ -18,8 +18,8 @@ import { toast } from '@renderer/services/toast'
 import { DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
 import { doctorCheckTitleKey } from '@shared/utils/doctor'
 
+import { DoctorCheckAccordionItems } from './DoctorCheckAccordionItems'
 import { DoctorCheckNotices } from './DoctorCheckNotices'
-import { DoctorCheckAccordionItems } from './DoctorCheckResults'
 
 const logger = loggerService.withContext('DoctorChecksPanel')
 

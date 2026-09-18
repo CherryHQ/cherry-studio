@@ -32,7 +32,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { DoctorCheckAccordionItems } from '../DoctorCheckResults'
+import { DoctorCheckAccordionItems } from '../DoctorCheckAccordionItems'
 import { DoctorChecksPanel } from '../DoctorChecksPanel'
 
 type ControllerOverrides = {

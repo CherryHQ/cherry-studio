@@ -5,10 +5,5 @@ export {
   doctorCheckDetailParams,
   resolveDoctorFixLabel
 } from './doctorContent'
-export {
-  buildDoctorViewModel,
-  canCancelDoctorRun,
-  defaultExpandedDoctorDomains,
-  isDoctorRowExpandedByDefault
-} from './doctorViewModel'
+export { buildDoctorViewModel, canCancelDoctorRun } from './doctorViewModel'
 export { formatDoctorReportForCopy } from './formatDoctorCopy'

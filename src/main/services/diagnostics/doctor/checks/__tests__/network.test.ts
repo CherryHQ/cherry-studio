@@ -188,6 +188,25 @@ describe('network-online', () => {
 })
 
 describe('network-provider-endpoint', () => {
+  it.each([
+    ['dns', 'ENOTFOUND', '/settings/provider'],
+    ['refused', 'ECONNREFUSED', '/settings/provider'],
+    ['timeout', 'ERR_TIMED_OUT', '/settings/provider'],
+    ['proxy_auth', 'HTTP 407', '/settings/general'],
+    ['proxy_unreachable', 'ERR_PROXY_CONNECTION_FAILED', '/settings/general']
+  ])('routes %s failures to the settings that own the problem', async (kind, code, target) => {
+    providers.getByProviderId.mockReturnValue({
+      id: 'openai',
+      endpointConfigs: { 'openai-chat': { baseUrl: 'https://api.openai.example' } }
+    })
+    every({ http: failed(kind, code), verdict: 'unreachable' })
+
+    await expect(checks.providerEndpoint.run({ ...ctx(), subject: { providerId: 'openai' } })).resolves.toMatchObject({
+      status: 'fail',
+      actions: [{ kind: 'navigate', target }]
+    })
+  })
+
   it("probes the subject provider's chat base URL and reports its HTTP verdict", async () => {
     providers.getByProviderId.mockReturnValue({
       id: 'openai',

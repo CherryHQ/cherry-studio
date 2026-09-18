@@ -226,7 +226,7 @@ describe('DiagnosticUploadPanel', () => {
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
   })
 
-  it('defaults to uploading all sources for seven days and blocks submission when unchecked', async () => {
+  it('defaults to uploading all sources for the last 24 hours and blocks submission when unchecked', async () => {
     const user = userEvent.setup()
     render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
 
@@ -257,7 +257,7 @@ describe('DiagnosticUploadPanel', () => {
         includeChatRecords: true,
         includeLogs: true,
         includeTraces: true,
-        range: '7d'
+        range: '24h'
       })
     )
   })
@@ -356,7 +356,7 @@ describe('DiagnosticUploadPanel', () => {
       includeChatRecords: true,
       includeLogs: true,
       includeTraces: true,
-      range: '7d'
+      range: '24h'
     })
   })
 
