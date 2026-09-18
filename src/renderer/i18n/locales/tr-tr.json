@@ -2178,6 +2178,7 @@
   "message.message.style.plain": "Düz",
   "message.message.user_content.collapse": "Daralt",
   "message.message.user_content.expand": "Genişlet",
+  "message.model_fallback": "Birincil model kullanılamıyor ({{reason}}) — {{model}} ile yeniden deneniyor",
   "message.processing": "İşleniyor...",
   "message.restore.failed": "Geri yükleme başarısız",
   "message.restore.success": "Başarıyla geri yüklendi",

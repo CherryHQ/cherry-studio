@@ -2178,6 +2178,7 @@
   "message.message.style.plain": "Simplu",
   "message.message.user_content.collapse": "Restrângere",
   "message.message.user_content.expand": "Extinde",
+  "message.model_fallback": "Modelul principal nu este disponibil ({{reason}}) — se reîncearcă cu {{model}}",
   "message.processing": "Se procesează...",
   "message.restore.failed": "Restaurare eșuată",
   "message.restore.success": "Restaurat cu succes",

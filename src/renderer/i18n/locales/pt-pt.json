@@ -2178,6 +2178,7 @@
   "message.message.style.plain": "Simples",
   "message.message.user_content.collapse": "Colapso",
   "message.message.user_content.expand": "Expandir",
+  "message.model_fallback": "Modelo principal indisponível ({{reason}}) — a tentar novamente com {{model}}",
   "message.processing": "A processar...",
   "message.restore.failed": "Restauração falhou",
   "message.restore.success": "Restauração bem-sucedida",

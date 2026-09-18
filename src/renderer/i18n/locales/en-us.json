@@ -2178,6 +2178,7 @@
   "message.message.style.plain": "Plain",
   "message.message.user_content.collapse": "Collapse",
   "message.message.user_content.expand": "Expand",
+  "message.model_fallback": "Primary model unavailable ({{reason}}) — retrying with {{model}}",
   "message.processing": "Processing...",
   "message.restore.failed": "Restore failed",
   "message.restore.success": "Restored successfully",

@@ -2178,6 +2178,7 @@
   "message.message.style.plain": "プレーン",
   "message.message.user_content.collapse": "折りたたむ",
   "message.message.user_content.expand": "拡大",
+  "message.model_fallback": "メインモデルが利用できません（{{reason}}）— {{model}} で再試行します",
   "message.processing": "処理中...",
   "message.restore.failed": "復元に失敗しました",
   "message.restore.success": "復元に成功しました",

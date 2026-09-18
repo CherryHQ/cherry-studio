@@ -2178,6 +2178,7 @@
   "message.message.style.plain": "Trơn",
   "message.message.user_content.collapse": "Thu gọn",
   "message.message.user_content.expand": "Mở rộng",
+  "message.model_fallback": "Mô hình chính không khả dụng ({{reason}}) — đang thử lại với {{model}}",
   "message.processing": "Đang xử lý...",
   "message.restore.failed": "Khôi phục thất bại",
   "message.restore.success": "Đã khôi phục thành công",

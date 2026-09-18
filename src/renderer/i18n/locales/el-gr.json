@@ -2178,6 +2178,7 @@
   "message.message.style.plain": "Απλός",
   "message.message.user_content.collapse": "Κατάρρευση",
   "message.message.user_content.expand": "Επέκταση",
+  "message.model_fallback": "Το κύριο μοντέλο δεν είναι διαθέσιμο ({{reason}}) — επανάληψη με {{model}}",
   "message.processing": "Επεξεργασία...",
   "message.restore.failed": "Η αποκατάσταση απέτυχε",
   "message.restore.success": "Η αποκατάσταση ήταν επιτυχής",

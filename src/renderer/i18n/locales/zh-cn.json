@@ -2178,6 +2178,7 @@
   "message.message.style.plain": "简洁",
   "message.message.user_content.collapse": "收起",
   "message.message.user_content.expand": "展开",
+  "message.model_fallback": "主模型不可用（{{reason}}），正在改用 {{model}} 重试",
   "message.processing": "正在处理...",
   "message.restore.failed": "恢复失败",
   "message.restore.success": "恢复成功",

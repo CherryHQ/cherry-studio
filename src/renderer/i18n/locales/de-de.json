@@ -2178,6 +2178,7 @@
   "message.message.style.plain": "Schlicht",
   "message.message.user_content.collapse": "Zusammenklappen",
   "message.message.user_content.expand": "Erweitern",
+  "message.model_fallback": "Primärmodell nicht verfügbar ({{reason}}) — Wiederholung mit {{model}}",
   "message.processing": "Wird verarbeitet...",
   "message.restore.failed": "Wiederherstellung fehlgeschlagen",
   "message.restore.success": "Erfolgreich wiederhergestellt",

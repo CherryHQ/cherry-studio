@@ -2178,6 +2178,7 @@
   "message.message.style.plain": "Простой",
   "message.message.user_content.collapse": "Свернуть",
   "message.message.user_content.expand": "Расширить",
+  "message.model_fallback": "Основная модель недоступна ({{reason}}) — повторная попытка с {{model}}",
   "message.processing": "Обрабатывается...",
   "message.restore.failed": "Восстановление не удалось",
   "message.restore.success": "Успешно восстановлено",
