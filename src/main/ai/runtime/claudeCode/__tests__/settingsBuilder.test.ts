@@ -2348,6 +2348,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
     expect(emit).toHaveBeenCalledWith(
       expect.objectContaining({
+        interactionKind: 'question',
         toolCallId: 'tool-use-1',
         toolName: 'AskUserQuestion',
         input,
@@ -3197,6 +3198,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         )
         expect(emit).toHaveBeenCalledWith(
           expect.objectContaining({
+            interactionKind: 'question',
             toolCallId: 'tu-bg-question',
             toolName: 'AskUserQuestion',
             input,

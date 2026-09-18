@@ -70,6 +70,7 @@
       "/settings/device-connections",
       "/settings/file-processing",
       "/settings/general",
+      "/settings/hooks",
       "/settings/local-models",
       "/settings/mcp",
       "/settings/model",

@@ -569,6 +569,7 @@ async function buildToolPermissions(
       })
       if (!pending) return
       emit({
+        ...(toolName === ASK_USER_QUESTION_TOOL_NAME ? { interactionKind: 'question' as const } : {}),
         approvalId,
         toolCallId: opts.toolUseID,
         toolName,

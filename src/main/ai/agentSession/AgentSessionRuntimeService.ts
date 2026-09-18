@@ -78,6 +78,7 @@ import {
 } from '../streamManager'
 import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
+import { AgentHookSession } from './AgentHookSession'
 import {
   type AgentSessionRuntimeConnectionTarget,
   type AgentSessionRuntimeLaunchTarget,
@@ -341,6 +342,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly _onRuntimeIdle = new Emitter<{ sessionId: string }>()
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
+  private readonly hookSessions = new WeakMap<AgentRuntimeConnection, AgentHookSession>()
   private readonly closingSessions = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
@@ -1633,18 +1635,39 @@ export class AgentSessionRuntimeService extends BaseService {
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
 
-    const connection = await driver.connect({
+    const hookSession = new AgentHookSession({
       sessionId: entry.sessionId,
       agentId: entry.agentId,
-      modelId: target.modelId,
-      reasoningEffort: target.reasoningEffort,
-      serviceTier: target.serviceTier,
-      knowledgeBaseIds: target.knowledgeBaseIds,
-      fastMode: target.fastMode,
-      resumeToken: entry.lastResumeToken,
-      trace: this.sessionTraceContext(entry, target.modelId),
-      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
+      runtime: entry.agentType,
+      getConfiguration: () => {
+        const agent = agentService.getAgent(entry.agentId)
+        if (!agent) throw new Error('The agent no longer exists.')
+        return {
+          hooks: application.get('PreferenceService').get('agent.hooks'),
+          env_vars: agent.configuration?.env_vars
+        }
+      },
+      getCwd: () => agentSessionService.getById(entry.sessionId).workspace?.path
     })
+    const connection = await driver
+      .connect({
+        sessionId: entry.sessionId,
+        agentId: entry.agentId,
+        modelId: target.modelId,
+        reasoningEffort: target.reasoningEffort,
+        serviceTier: target.serviceTier,
+        knowledgeBaseIds: target.knowledgeBaseIds,
+        fastMode: target.fastMode,
+        resumeToken: entry.lastResumeToken,
+        trace: this.sessionTraceContext(entry, target.modelId),
+        onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs),
+        onHook: hookSession.invoke
+      })
+      .catch(async (error) => {
+        await hookSession.close()
+        throw error
+      })
+    this.hookSessions.set(connection, hookSession)
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
       await this.closeRuntimeConnection(connection, entry.sessionId)
       return false
@@ -1687,6 +1710,10 @@ export class AgentSessionRuntimeService extends BaseService {
     try {
       for await (const event of connection.events) {
         if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) break
+        if (event.type === 'autonomous-turn-state' && event.state === 'started') {
+          await this.hookSessions.get(connection)?.invoke({ event: 'sessionStart' })
+          if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) break
+        }
         this.handleRuntimeEvent(entry, event, connection)
       }
     } catch (error) {
@@ -1808,7 +1835,8 @@ export class AgentSessionRuntimeService extends BaseService {
         }
         break
       }
-      case 'turn-complete':
+      case 'turn-complete': {
+        const turn = this.currentTurn(entry)
         this.clearApiRetry(entry)
         if (entry.runtimeState.execution.kind === 'turn') {
           this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
@@ -1818,7 +1846,14 @@ export class AgentSessionRuntimeService extends BaseService {
           outcome: { status: 'success' }
         })
         this.refreshContextUsage(entry)
+        if (connection) {
+          void this.hookSessions
+            .get(connection)
+            ?.invoke({ event: 'turnEnd', messageId: turn?.assistantMessageId }, turn?.abortController.signal)
+            .catch((error) => logger.warn('Turn end Hook failed', { sessionId: entry.sessionId, error }))
+        }
         break
+      }
       case 'error':
         this.handleRuntimeError(entry, event.error)
         break
@@ -2343,7 +2378,9 @@ export class AgentSessionRuntimeService extends BaseService {
           approved: false,
           reason: 'The turn ended before this approval request could be presented'
         })
+        return
       }
+      this.notifyInteractionHook(entry, request)
       return
     }
 
@@ -2378,6 +2415,7 @@ export class AgentSessionRuntimeService extends BaseService {
         approvalId: request.approvalId,
         requestedAt: Date.now()
       })
+      this.notifyInteractionHook(entry, request)
     } catch (error) {
       logger.error('Failed to persist background tool approval request', {
         sessionId: entry.sessionId,
@@ -2388,6 +2426,18 @@ export class AgentSessionRuntimeService extends BaseService {
         approved: false,
         reason: 'Unable to present this approval request to the user'
       })
+    }
+  }
+
+  private notifyInteractionHook(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
+    const connection = this.currentConnection(entry)
+    if (connection) {
+      this.hookSessions
+        .get(connection)
+        ?.notifyInteraction(
+          request,
+          request.presentation === 'stream' ? this.currentTurn(entry)?.abortController.signal : undefined
+        )
     }
   }
 
@@ -2445,7 +2495,14 @@ export class AgentSessionRuntimeService extends BaseService {
     // A fresh request starts clean — drop any retry status left over from the previous turn.
     this.clearApiRetry(entry)
     await this.refreshTurnTraceContext(entry, turn)
-    await this.currentConnection(entry)?.send({
+    const connection = this.currentConnection(entry)
+    if (!connection) return
+    await this.hookSessions
+      .get(connection)
+      ?.invoke({ event: 'sessionStart', messageId: turn.userMessage.id }, turn.abortController.signal)
+    if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection || !this.isTurnLive(entry, turn))
+      return
+    await connection.send({
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true
     })
@@ -3235,15 +3292,23 @@ export class AgentSessionRuntimeService extends BaseService {
     void this.closeRuntimeConnection(connection, entry.sessionId)
   }
 
-  private closeRuntimeConnection(connection: AgentRuntimeConnection | undefined, sessionId: string): Promise<void> {
-    if (!connection) return Promise.resolve()
+  private async closeRuntimeConnection(
+    connection: AgentRuntimeConnection | undefined,
+    sessionId: string
+  ): Promise<void> {
+    if (!connection) return
     try {
-      return Promise.resolve(connection.close()).catch((error) => {
-        logger.warn('Agent runtime connection close failed', { sessionId, error })
-      })
+      const hookClosing = this.hookSessions.get(connection)?.close()
+      this.hookSessions.delete(connection)
+      // Start SDK teardown synchronously: an old Claude connection must unbind its
+      // session callbacks before a successor connects, even while its Hook exits.
+      try {
+        await connection.close()
+      } finally {
+        await hookClosing
+      }
     } catch (error) {
       logger.warn('Agent runtime connection close failed', { sessionId, error })
-      return Promise.resolve()
     }
   }
 }

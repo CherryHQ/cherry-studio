@@ -6,6 +6,7 @@ import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import enUS from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -317,6 +318,7 @@ vi.mock('react-i18next', async (importOriginal) => {
       // an object resolves to the mapped value / key, never to itself.
       t: (key: string, fallbackOrOptions?: string | Record<string, unknown>) =>
         ({
+          ...Object.fromEntries(Object.entries(enUS).filter(([key]) => key.startsWith('agent_hooks.'))),
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
           // Permission-mode titles intentionally absent: they fall through to the card
@@ -791,6 +793,12 @@ function createDeferred<T>() {
 }
 
 describe('edit dialogs', () => {
+  it.each(['pi', 'claude-code', 'dsh'] as const)('has no per-agent Hook editor for %s', (type) => {
+    render(<AgentEditDialog open resource={{ ...AGENT, type }} onOpenChange={vi.fn()} />)
+    expect(screen.queryByRole('tab', { name: 'Hooks' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add Hook' })).not.toBeInTheDocument()
+  })
+
   it('binds a prompt to the assistant being edited', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
@@ -1718,7 +1726,7 @@ describe('edit dialogs', () => {
     selectTab('Built-in tools')
     expect(screen.getByText('Knowledge Search')).toBeInTheDocument()
 
-    resolveFirstSave?.()
+    await act(async () => resolveFirstSave?.())
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenLastCalledWith({
         body: expect.objectContaining({ knowledgeBaseIds: ['kb-1'] })

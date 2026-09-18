@@ -37,7 +37,8 @@ function makeServer(
   onToolCall: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }> = () =>
     Promise.reject(new Error('unexpected tool call')),
   readyTimeoutMs?: number,
-  onGuardCheck: DshBridgeServerOptions['onGuardCheck'] = async () => ({ kind: 'allow' })
+  onGuardCheck: DshBridgeServerOptions['onGuardCheck'] = async () => ({ kind: 'allow' }),
+  onHook?: DshBridgeServerOptions['onHook']
 ): Pick<Harness, 'server' | 'events' | 'eventSources' | 'lifecycleEdges'> {
   const events: AgentRuntimeEvent[] = []
   const eventSources: Harness['eventSources'] = []
@@ -50,6 +51,7 @@ function makeServer(
     },
     getInteractionState: () => ({ userResponse }),
     onToolCall,
+    onHook,
     onGuardCheck,
     onSubagentLifecycle: (edge) => lifecycleEdges.push(edge),
     ...(readyTimeoutMs === undefined ? {} : { readyTimeoutMs })
@@ -103,9 +105,16 @@ async function connectPlugin(
 async function makeHarness(
   userResponse: 'stream' | 'message' | 'unavailable' = 'stream',
   onToolCall?: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }>,
-  onGuardCheck?: DshBridgeServerOptions['onGuardCheck']
+  onGuardCheck?: DshBridgeServerOptions['onGuardCheck'],
+  onHook?: DshBridgeServerOptions['onHook']
 ): Promise<Harness> {
-  const { server, events, eventSources, lifecycleEdges } = makeServer(userResponse, onToolCall, undefined, onGuardCheck)
+  const { server, events, eventSources, lifecycleEdges } = makeServer(
+    userResponse,
+    onToolCall,
+    undefined,
+    onGuardCheck,
+    onHook
+  )
   await server.listen()
   const plugin = await connectPlugin(server)
   await server.whenReady()
@@ -120,6 +129,52 @@ afterEach(async () => {
     harness.socket.destroy()
     await harness.server.close()
   }
+})
+
+describe('DSH Agent Hooks', () => {
+  it('returns deny reasons through authenticated RPC and rejects other session identities', async () => {
+    const onHook = vi.fn(async () => ({ denied: true, reason: 'script denied write' }))
+    const { transport } = await makeHarness('stream', undefined, undefined, onHook)
+    const params = {
+      sessionId: SESSION_ID,
+      callId: 'hook-1',
+      event: 'preToolUse',
+      toolName: 'write',
+      toolCallId: 'tool-1',
+      toolInput: { path: 'a' }
+    }
+    expect(await transport.request('hook/run', params)).toEqual({ denied: true, reason: 'script denied write' })
+    await expect(transport.request('hook/run', { ...params, sessionId: 'other' })).rejects.toThrow('wrong session')
+    expect(onHook).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['cancel', 'disconnect'])('cancels owned Hook execution on %s', async (action) => {
+    let activeSignal: AbortSignal | undefined
+    const onHook: NonNullable<DshBridgeServerOptions['onHook']> = async (_input, signal) => {
+      activeSignal = signal
+      await new Promise<void>((resolve) => signal!.addEventListener('abort', () => resolve(), { once: true }))
+      return { denied: true, reason: 'cancelled' }
+    }
+    const { transport, socket } = await makeHarness('stream', undefined, undefined, onHook)
+    const pending = transport
+      .request('hook/run', {
+        sessionId: SESSION_ID,
+        callId: 'hook-1',
+        event: 'preToolUse',
+        toolName: 'write',
+        toolCallId: 'tool-1',
+        toolInput: {}
+      })
+      .catch(() => ({}))
+    await expect.poll(() => activeSignal).toBeDefined()
+    if (action === 'cancel') transport.notify('hook/cancel', { sessionId: SESSION_ID, callId: 'hook-1' })
+    else {
+      socket.end()
+      transport.close()
+    }
+    await expect.poll(() => activeSignal?.aborted).toBe(true)
+    await pending
+  })
 })
 
 describe('DshBridgeServer authentication gate', () => {

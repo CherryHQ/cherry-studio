@@ -374,6 +374,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
+        onHook: this.input.onHook,
         onGuardCheck: async (toolName, args, cwd) => {
           const browserPermission = resolveBrowserToolPermission(toolName)
           if (browserPermission === 'deny')
