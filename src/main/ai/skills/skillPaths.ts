@@ -58,6 +58,15 @@ export function normalizeFolderKey(folderName: string): string {
   return folderName.toLowerCase()
 }
 
+const RESERVED_FOLDER_NAME_SUFFIX = '-skill'
+
+/** Stored stem of a suffixed derivation (`CON-skill` → `CON`); null when the name is not one. */
+export function reservedFolderNameStem(folderName: string): string | null {
+  if (!folderName.endsWith(RESERVED_FOLDER_NAME_SUFFIX)) return null
+  const stem = folderName.slice(0, -RESERVED_FOLDER_NAME_SUFFIX.length)
+  return WINDOWS_RESERVED_FOLDER_NAMES.has(stem.toLowerCase()) ? stem : null
+}
+
 export async function createTempDir(prefix: string): Promise<string> {
   const root = application.getPath('feature.agents.skills.install.temp')
   await fs.promises.mkdir(root, { recursive: true })

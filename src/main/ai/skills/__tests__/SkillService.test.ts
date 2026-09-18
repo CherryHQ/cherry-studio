@@ -1463,6 +1463,62 @@ describe('SkillService', () => {
       }
     })
 
+    it('updates a pre-suffix reserved folder name in place instead of duplicating it', async () => {
+      const root = await createTempDir('github-reserved-reinstall-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'CON',
+        folderName: 'CON',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      const sourceDir = await createTempDir('reserved-source-')
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), '# new')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'CON',
+        name: 'CON',
+        description: 'Reserved-name skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      vi.mocked(findSkillMdPath).mockImplementation(async (directory: string) => path.join(directory, 'SKILL.md'))
+      const skillService = new SkillService()
+      // The publish is stubbed so no reserved folder is created on disk: Windows cannot create
+      // one, and the assertion target is the catalog resolution, not the copy.
+      const publishSpy = vi.spyOn(skillService['installer'], 'install').mockResolvedValue(undefined)
+
+      try {
+        const installed = await skillService['installSkillDir'](sourceDir, 'marketplace', sourceUrl)
+
+        expect(installed).toMatchObject({ id: SKILL_ID_1, folderName: 'CON' })
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+        expect(publishSpy).toHaveBeenCalledWith(sourceDir, path.join(dataSkillsRoot, 'CON'))
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'CON-skill'))).rejects.toMatchObject({
+          code: 'ENOENT'
+        })
+      } finally {
+        publishSpy.mockRestore()
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+        vi.mocked(findSkillMdPath).mockReset()
+      }
+    })
+
     it('uses an explicit tag namespace when a branch has the same name', async () => {
       const tagOid = 'b'.repeat(40)
       const { skillService, installSpy, gitCalls } = await setupGithubInstall({
