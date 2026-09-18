@@ -95,4 +95,27 @@ describe('independent LAN listener lifecycle', () => {
       await service._doDestroy()
     }
   }, 15_000)
+
+  it('reports LAN serving to followers exactly when paired devices can be served', async () => {
+    const service = new ApiGatewayService()
+    const changes: boolean[] = []
+    try {
+      await service._doInit()
+      service.onLanServingChanged((serving) => changes.push(serving))
+      expect(service.isLanServing()).toBe(false)
+
+      await service.setLanEnabled(true)
+      expect(service.isLanServing()).toBe(true)
+
+      await service.setLanEnabled(false)
+      expect(service.isLanServing()).toBe(false)
+
+      await service.setLanEnabled(true)
+      await service.stop()
+      expect(service.isLanServing()).toBe(false)
+      expect(changes).toEqual([true, false, true, false])
+    } finally {
+      await service._doDestroy()
+    }
+  }, 15_000)
 })

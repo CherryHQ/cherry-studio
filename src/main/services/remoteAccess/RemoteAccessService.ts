@@ -16,7 +16,7 @@ const logger = loggerService.withContext('RemoteAccessService')
 
 @Injectable('RemoteAccessService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['AiStreamManager', 'AgentSessionRuntimeService', 'FileManager'])
+@DependsOn(['ApiGatewayService', 'AiStreamManager', 'AgentSessionRuntimeService', 'FileManager'])
 export class RemoteAccessService extends BaseService implements Activatable {
   private server?: RemoteServer
   private identity?: RemoteIdentity
@@ -38,16 +38,7 @@ export class RemoteAccessService extends BaseService implements Activatable {
   })
 
   protected onInit(): void {
-    for (const key of ['feature.api_gateway.enabled', 'feature.api_gateway.host'] as const) {
-      this.registerDisposable(
-        application.get('PreferenceService').subscribeChange(key, () => this.reconciler.request())
-      )
-    }
-    this.registerDisposable(
-      application
-        .get('CacheService')
-        .subscribeSharedChange('feature.api_gateway.lan_running', () => this.reconciler.request())
-    )
+    this.registerDisposable(application.get('ApiGatewayService').onLanServingChanged(() => this.reconciler.request()))
     this.registerDisposable(apiGatewayPairedDeviceService.onDeleted((id) => this.server?.disconnect(id)))
     this.registerInterval(() => this.server?.sweep(), 20_000)
   }
@@ -58,12 +49,7 @@ export class RemoteAccessService extends BaseService implements Activatable {
   }
 
   private isLanEnabled(): boolean {
-    const preferences = application.get('PreferenceService')
-    return (
-      preferences.get('feature.api_gateway.enabled') &&
-      preferences.get('feature.api_gateway.host') === '0.0.0.0' &&
-      application.get('CacheService').getShared('feature.api_gateway.lan_running') === true
-    )
+    return application.get('ApiGatewayService').isLanServing()
   }
 
   async onActivate(): Promise<void> {
