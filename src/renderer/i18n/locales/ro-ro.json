@@ -4122,6 +4122,7 @@
   "settings.doctor.checks.network-model-endpoint.detail.unreachable": "URL-ul de bază configurat nu a putut fi accesat.",
   "settings.doctor.checks.network-model-endpoint.title": "Endpointul modelului selectat",
   "settings.doctor.checks.provider-model-conversation.confirmation": "Trimiteți un mesaj scurt de test către {{model}} ({{modelId}}) la {{endpoint}}? Furnizorul poate percepe taxe de utilizare.",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "Acest furnizor folosește un CLI extern; verificările conversațiilor prin API nu sunt acceptate.",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "Acest model nu acceptă conversații; această verificare a fost omisă.",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "Solicitarea către model a eșuat ({{category}}).",
   "settings.doctor.checks.provider-model-conversation.title": "Test de conversație cu modelul",

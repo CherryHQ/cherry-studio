@@ -4122,6 +4122,7 @@
   "settings.doctor.checks.network-model-endpoint.detail.unreachable": "Không thể kết nối đến URL cơ sở đã cấu hình.",
   "settings.doctor.checks.network-model-endpoint.title": "Điểm cuối của mô hình đã chọn",
   "settings.doctor.checks.provider-model-conversation.confirmation": "Gửi một tin nhắn thử nghiệm ngắn đến {{model}} ({{modelId}}) tại {{endpoint}}? Nhà cung cấp có thể tính phí sử dụng.",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "Nhà cung cấp này sử dụng CLI bên ngoài; không hỗ trợ kiểm tra hội thoại qua API.",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "Mô hình này không hỗ trợ hội thoại; đã bỏ qua kiểm tra này.",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "Yêu cầu đến mô hình thất bại ({{category}}).",
   "settings.doctor.checks.provider-model-conversation.title": "Kiểm tra hội thoại với mô hình",

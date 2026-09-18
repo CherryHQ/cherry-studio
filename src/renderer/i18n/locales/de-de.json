@@ -4122,6 +4122,7 @@
   "settings.doctor.checks.network-model-endpoint.detail.unreachable": "Die konfigurierte Basis-URL war nicht erreichbar.",
   "settings.doctor.checks.network-model-endpoint.title": "Endpunkt des ausgewählten Modells",
   "settings.doctor.checks.provider-model-conversation.confirmation": "Eine kurze Testnachricht an {{model}} ({{modelId}}) unter {{endpoint}} senden? Dabei können Nutzungsgebühren des Anbieters entstehen.",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "Dieser Anbieter verwendet eine externe CLI; API-Konversationsprüfungen werden nicht unterstützt.",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "Dieses Modell unterstützt keine Gespräche; diese Prüfung wurde übersprungen.",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "Die Modellanfrage ist fehlgeschlagen ({{category}}).",
   "settings.doctor.checks.provider-model-conversation.title": "Modell-Gesprächstest",
