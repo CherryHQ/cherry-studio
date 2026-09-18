@@ -336,14 +336,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     const reserve = (tx: DbOrTx): AgentMessageReservation => {
-      const expectedAgent = ctx?.commitAgentMessage
-        ? {
-            id: validated.agentId,
-            updatedAt: validated.agentUpdatedAt,
-            model: validated.uniqueModelId,
-            type: validated.agentType
-          }
-        : ctx?.expectedAgentId
+      const expectedAgent = ctx?.expectedAgentId
       if (!application.get('AgentSessionRuntimeService').isSessionBusy(validated.sessionId)) {
         return { mode: 'accepted', persisted: this.persistDispatchTx(tx, validated, expectedAgent) }
       }
