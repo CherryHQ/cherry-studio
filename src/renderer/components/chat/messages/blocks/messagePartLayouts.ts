@@ -37,7 +37,13 @@ export interface CompletedMessagePartLayout {
   reportEntries: readonly PartEntry[]
 }
 
-const ASSOCIATED_RESULT_PART_TYPES = new Set(['data-error', 'file', 'data-video'])
+const ASSOCIATED_RESULT_PART_TYPES = new Set([
+  'data-error',
+  'data-agent-api-retry',
+  'data-agent-paused',
+  'file',
+  'data-video'
+])
 
 export function isHiddenPart(part: CherryMessagePart): boolean {
   return AGENT_SESSION_HIDDEN_PART_TYPES.has(part.type)
