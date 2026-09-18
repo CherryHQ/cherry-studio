@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "Schnellmodell",
   "settings.models.quick_model.setting_title": "Schnellmodell-Einstellungen",
   "settings.models.quick_model.tooltip": "Leichtes Modell empfohlen, Denkmodell nicht empfohlen",
+  "settings.models.retry.background_scan": "Tote Schlüssel früher erkennen",
+  "settings.models.retry.background_scan_description": "Im Leerlauf eine kleine Anfrage an einen Anbieter senden, der seit einem halben Tag still ist, damit ein widerrufener oder erschöpfter Schlüssel hier statt mitten in einem Gespräch auftaucht. Höchstens ein paar Anfragen pro Anbieter pro Tag; Anbieter, deren Kontingent bereits erschöpft ist, werden übersprungen",
   "settings.models.retry.backoff": "Exponentielles Backoff",
   "settings.models.retry.description": "Wiederholt Chat-, Embedding- und Rerank-Aufrufe; Chat kann auf andere Modelle zurückgreifen",
   "settings.models.retry.fallback_models": "Fallback-Modelle",

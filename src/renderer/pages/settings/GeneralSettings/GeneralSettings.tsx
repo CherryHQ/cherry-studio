@@ -61,6 +61,7 @@ const GeneralSettings: FC = () => {
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
   const [healthPriorityEnabled, setHealthPriorityEnabled] = usePreference('chat.retry.health_priority_enabled')
+  const [backgroundScanEnabled, setBackgroundScanEnabled] = usePreference('chat.retry.background_scan_enabled')
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
@@ -348,6 +349,20 @@ const GeneralSettings: FC = () => {
                 checked={healthPriorityEnabled}
                 onCheckedChange={(checked) => void setHealthPriorityEnabled(checked)}
                 aria-label={t('settings.models.retry.health_priority')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow className="items-start gap-6">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle>{t('settings.models.retry.background_scan')}</SettingRowTitle>
+                <SettingDescription className="mt-1.5 leading-5">
+                  {t('settings.models.retry.background_scan_description')}
+                </SettingDescription>
+              </div>
+              <Switch
+                checked={backgroundScanEnabled}
+                onCheckedChange={(checked) => void setBackgroundScanEnabled(checked)}
+                aria-label={t('settings.models.retry.background_scan')}
               />
             </SettingRow>
           </>

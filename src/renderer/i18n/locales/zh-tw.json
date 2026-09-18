@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "å¿«é€Ÿæ¨¡å‹",
   "settings.models.quick_model.setting_title": "å¿«é€Ÿæ¨¡å‹è¨­å®š",
   "settings.models.quick_model.tooltip": "è«‹é¸æ“‡è¼•é‡æ¨¡å‹ï¼Œä¸¦é¿å…ä½¿ç”¨æ¨ç†æ¨¡å‹ã€‚",
+  "settings.models.retry.background_scan": "在需要前發現失效的金鑰",
+  "settings.models.retry.background_scan_description": "閒置時向已半天未活動的提供商發送一個小請求，這樣被撤銷或餘額用盡的金鑰會在這裡顯示，而不是在對話中途。每個提供商每天最多發送幾個請求；已經超出配額的提供商會被跳過",
   "settings.models.retry.backoff": "æŒ‡æ•¸é€€é¿",
   "settings.models.retry.description": "é‡è©¦èŠå¤©ã€åµŒå…¥èˆ‡é‡æ–°æ’åºçš„å‘¼å«ï¼›èŠå¤©å¤±æ•—æ™‚å¯å›é€€åˆ°å…¶ä»–æ¨¡å‹",
   "settings.models.retry.fallback_models": "å‚™ç”¨æ¨¡å‹",

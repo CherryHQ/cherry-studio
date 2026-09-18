@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "Modelo rÃ¡pido",
   "settings.models.quick_model.setting_title": "ConfiguraciÃ³n del modelo rÃ¡pido",
   "settings.models.quick_model.tooltip": "Elige un modelo ligero y evita los modelos de razonamiento.",
+  "settings.models.retry.background_scan": "Notar una clave muerta antes de necesitarla",
+  "settings.models.retry.background_scan_description": "En tiempo de inactividad, enviar una pequeña solicitud a un proveedor silencioso hace media día, para que una clave revocada o sin saldo aparezca aquí en lugar de en medio de una conversación. Como máximo unos pocos solicitudes por proveedor al día; se omiten proveedores ya sin cuota",
   "settings.models.retry.backoff": "Retroceso exponencial",
   "settings.models.retry.description": "Reintenta las llamadas de chat, embeddings y reordenaciÃ³n; el chat puede recurrir a otros modelos",
   "settings.models.retry.fallback_models": "Modelos de respaldo",

@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "MÃ´ hÃ¬nh Nhanh",
   "settings.models.quick_model.setting_title": "Thiáº¿t láº­p mÃ´ hÃ¬nh nhanh",
   "settings.models.quick_model.tooltip": "Chá»n mÃ´ hÃ¬nh nháº¹ vÃ  trÃ¡nh cÃ¡c mÃ´ hÃ¬nh suy luáº­n.",
+  "settings.models.retry.background_scan": "Chú ý đến khóa chết trước khi cần",
+  "settings.models.retry.background_scan_description": "Khi rảnh rỗi, gửi một yêu cầu nhỏ đến nhà cung cấp im lặng trong nửa ngày, để khóa bị thu hồi hoặc hết tín dụng xuất hiện ở đây thay vì giữa cuộc trò chuyện. Tối đa một vài yêu cầu trên mỗi nhà cung cấp mỗi ngày; những nhà cung cấp đã hết hạn ngạch sẽ bị bỏ qua",
   "settings.models.retry.backoff": "TÄƒng thá»i gian chá» theo cáº¥p sá»‘ nhÃ¢n",
   "settings.models.retry.description": "Thá»­ láº¡i cÃ¡c lá»‡nh gá»i chat, nhÃºng vÃ  xáº¿p háº¡ng láº¡i; chat cÃ³ thá»ƒ chuyá»ƒn sang mÃ´ hÃ¬nh khÃ¡c",
   "settings.models.retry.fallback_models": "MÃ´ hÃ¬nh dá»± phÃ²ng",

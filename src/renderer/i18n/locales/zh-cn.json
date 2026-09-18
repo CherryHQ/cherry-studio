@@ -4397,6 +4397,8 @@
   "settings.models.quick_model.label": "å¿«é€Ÿæ¨¡å‹",
   "settings.models.quick_model.setting_title": "å¿«é€Ÿæ¨¡å‹è®¾ç½®",
   "settings.models.quick_model.tooltip": "å»ºè®®é€‰æ‹©è½»é‡æ¨¡å‹ï¼Œä¸å»ºè®®é€‰æ‹©æ€è€ƒæ¨¡å‹",
+  "settings.models.retry.background_scan": "在需要前发现失效的密钥",
+  "settings.models.retry.background_scan_description": "空闲时向已半天未活动的提供商发送一个小请求，这样被撤销或余额用尽的密钥会在这里显示，而不是在对话中途。每个提供商每天最多发送几个请求；已经超出配额的提供商会被跳过",
   "settings.models.retry.backoff": "æŒ‡æ•°é€€é¿",
   "settings.models.retry.description": "é‡è¯•èŠå¤©ã€åµŒå…¥å’Œé‡æ’è°ƒç”¨ï¼›èŠå¤©å¤±è´¥æ—¶å¯å›é€€åˆ°å…¶ä»–æ¨¡å‹",
   "settings.models.retry.fallback_models": "å›é€€æ¨¡å‹",

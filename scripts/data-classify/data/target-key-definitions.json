@@ -257,6 +257,13 @@
       "description": "Order retry fallbacks by probed health then quality score instead of the manual order"
     },
     {
+      "targetKey": "chat.retry.background_scan_enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "When idle, occasionally probe a provider API key to detect revocation or credit depletion before a user interacts with it"
+    },
+    {
       "targetKey": "chat.routing.auto_enabled",
       "type": "boolean",
       "defaultValue": true,
