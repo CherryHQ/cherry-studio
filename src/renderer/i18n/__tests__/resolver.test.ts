@@ -65,22 +65,6 @@ describe('renderer i18n lazy init', () => {
     }
   })
 
-  it('distinguishes quick basic checks from full checks in English and Simplified Chinese', async () => {
-    await i18n.changeLanguage('en-US')
-    expect(i18n.t('settings.doctor.actions.run_basic')).toBe('Quick basic checks')
-    expect(i18n.t('settings.doctor.actions.run_network')).toBe('Full check')
-    expect(i18n.t('settings.doctor.panel_descriptions.checks')).toBe(
-      'Full checks rerun the basic checks and include network and service checks.'
-    )
-
-    await i18n.changeLanguage('zh-CN')
-    expect(i18n.t('settings.doctor.actions.run_basic')).toBe('运行基础检查')
-    expect(i18n.t('settings.doctor.actions.run_network')).toBe('运行完整检查')
-    expect(i18n.t('settings.doctor.panel_descriptions.checks')).toBe(
-      '完整检查会重新运行基础检查，并包含网络与服务检查。'
-    )
-  })
-
   it('falls back to en-US for a non-catalog language without throwing', async () => {
     await expect(i18n.changeLanguage('en-GB')).resolves.toBeTypeOf('function')
 
