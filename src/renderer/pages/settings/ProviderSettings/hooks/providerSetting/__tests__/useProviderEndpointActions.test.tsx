@@ -321,6 +321,101 @@ describe('useProviderEndpointActions', () => {
     })
   })
 
+  it('serializes an explicit host save behind an in-flight reasoning-format save', async () => {
+    let resolveReasoningPatch!: (value: unknown) => void
+    patchProviderMock.mockImplementationOnce(
+      () =>
+        new Promise<unknown>((resolve) => {
+          resolveReasoningPatch = resolve
+        })
+    )
+
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider,
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://api.openai.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://api.openai.com',
+        anthropicApiHost: '',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
+        apiVersion: '',
+        patchProvider: patchProviderMock
+      })
+    )
+
+    let reasoningPromise!: Promise<boolean>
+    await act(async () => {
+      reasoningPromise = result.current.commitReasoningFormat({ type: 'self-hosted' })
+      await flushEndpointAction()
+    })
+    expect(patchProviderMock).toHaveBeenCalledTimes(1)
+
+    let hostPromise!: Promise<boolean>
+    await act(async () => {
+      hostPromise = result.current.commitApiHost('https://proxy.example.com')
+      await flushEndpointAction()
+    })
+    // The host save waits for the reasoning PATCH instead of racing it.
+    expect(patchProviderMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveReasoningPatch(undefined)
+      expect(await hostPromise).toBe(true)
+      expect(await reasoningPromise).toBe(true)
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).toHaveBeenCalledTimes(2)
+    expect(patchProviderMock).toHaveBeenLastCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://proxy.example.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+  })
+
+  it('keeps a just-committed host when the reasoning format is committed right after', async () => {
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider,
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://proxy.example.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://api.openai.com',
+        anthropicApiHost: '',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
+        apiVersion: '',
+        patchProvider: patchProviderMock
+      })
+    )
+
+    await act(async () => {
+      await result.current.commitApiHost()
+      await flushEndpointAction()
+    })
+    expect(patchProviderMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await result.current.commitReasoningFormat({ type: 'self-hosted' })
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).toHaveBeenCalledTimes(2)
+    expect(patchProviderMock).toHaveBeenLastCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://proxy.example.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+  })
+
   it('shows specific Data API error messages instead of the generic save failure toast', async () => {
     patchProviderMock.mockRejectedValueOnce(
       DataApiErrorFactory.validation({ apiVersion: ['Unsupported version'] }, 'Unsupported API version')

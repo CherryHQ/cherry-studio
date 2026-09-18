@@ -1,4 +1,4 @@
-import { debounce, trim } from 'es-toolkit/compat'
+import { debounce, isEqual, trim } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
 import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api/errors'
+import type { UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isVertexProvider } from '@shared/utils/provider'
@@ -74,6 +75,10 @@ export function useProviderEndpointActions({
   const reasoningPatchInFlightRef = useRef<Promise<void> | null>(null)
   const pendingReasoningFormatRef = useRef<ProviderReasoningFormatSelector | undefined>(undefined)
   const hasPendingReasoningFormatRef = useRef(false)
+  // Latest endpointConfigs this hook persisted. Whole-snapshot writers build on
+  // it because the provider prop may not have re-rendered yet when saves overlap.
+  const lastSentEndpointConfigsRef = useRef<NonNullable<UpdateProviderDto['endpointConfigs']> | null>(null)
+  const providerIdentityRef = useRef(provider?.id)
 
   useEffect(() => {
     lastPersistedApiHostRef.current = trim(providerApiHost)
@@ -81,6 +86,20 @@ export function useProviderEndpointActions({
 
   useEffect(() => {
     providerRef.current = provider
+    if (provider?.id !== providerIdentityRef.current) {
+      providerIdentityRef.current = provider?.id
+      lastSentEndpointConfigsRef.current = null
+      return
+    }
+    if (
+      lastSentEndpointConfigsRef.current &&
+      provider &&
+      !isEqual(provider.endpointConfigs, lastSentEndpointConfigsRef.current)
+    ) {
+      // Configs changed out from under us (our own echo would equal lastSent) —
+      // adopt them so the next snapshot doesn't resurrect stale keys.
+      lastSentEndpointConfigsRef.current = null
+    }
   }, [provider])
 
   useEffect(() => {
@@ -94,9 +113,10 @@ export function useProviderEndpointActions({
         return undefined
       }
 
+      const baseConfigs = lastSentEndpointConfigsRef.current ?? currentProvider.endpointConfigs
       return {
-        ...currentProvider.endpointConfigs,
-        [primaryEndpoint]: { ...currentProvider.endpointConfigs?.[primaryEndpoint], baseUrl }
+        ...baseConfigs,
+        [primaryEndpoint]: { ...baseConfigs?.[primaryEndpoint], baseUrl }
       }
     },
     [primaryEndpoint]
@@ -170,6 +190,7 @@ export function useProviderEndpointActions({
         }) as Promise<void>
       hostPatchInFlightRef.current = trackedHostPatch
       await patchPromise
+      lastSentEndpointConfigsRef.current = nextEndpointConfigs
       lastPersistedApiHostRef.current = trimmedApiHost
       return true
     },
@@ -231,6 +252,17 @@ export function useProviderEndpointActions({
           return false
         }
 
+        // Serialize with an in-flight reasoning-format save: it holds a snapshot
+        // that predates this host value, so writing first would let it clobber
+        // the host (and vice versa once this save is tracked below).
+        if (reasoningPatchInFlightRef.current) {
+          try {
+            await reasoningPatchInFlightRef.current
+          } catch {
+            // Proceed with host save using last known good reasoning format.
+          }
+        }
+
         const nextEndpointConfigs = buildNextApiEndpointConfigs(trimmedApiHost)
         if (!nextEndpointConfigs) {
           return false
@@ -241,7 +273,15 @@ export function useProviderEndpointActions({
         }
 
         if (trimmedApiHost !== lastPersistedApiHostRef.current) {
-          await patchProvider({ endpointConfigs: nextEndpointConfigs })
+          const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
+          const trackedHostPatch = patchPromise
+            .catch(() => undefined)
+            .finally(() => {
+              if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
+            }) as Promise<void>
+          hostPatchInFlightRef.current = trackedHostPatch
+          await patchPromise
+          lastSentEndpointConfigsRef.current = nextEndpointConfigs
           lastPersistedApiHostRef.current = trimmedApiHost
         }
 
@@ -273,22 +313,49 @@ export function useProviderEndpointActions({
       const rawHost = explicitNext !== undefined ? explicitNext : anthropicApiHost
       const trimmedHost = trim(rawHost)
       try {
+        // Serialize with an in-flight reasoning-format save so this
+        // whole-snapshot write doesn't drop its value before re-render.
+        if (reasoningPatchInFlightRef.current) {
+          try {
+            await reasoningPatchInFlightRef.current
+          } catch {
+            // Proceed using last known good endpoint configs.
+          }
+        }
+        const liveProvider = providerRef.current ?? provider
+        const baseConfigs = lastSentEndpointConfigsRef.current ?? liveProvider.endpointConfigs
         if (trimmedHost) {
           const nextEndpointConfigs = {
-            ...provider.endpointConfigs,
+            ...baseConfigs,
             [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
-              ...provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+              ...baseConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
               baseUrl: trimmedHost
             }
           }
-          await patchProvider({ endpointConfigs: nextEndpointConfigs })
+          const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
+          const trackedHostPatch = patchPromise
+            .catch(() => undefined)
+            .finally(() => {
+              if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
+            }) as Promise<void>
+          hostPatchInFlightRef.current = trackedHostPatch
+          await patchPromise
+          lastSentEndpointConfigsRef.current = nextEndpointConfigs
           setAnthropicApiHost(trimmedHost)
           return true
         }
 
-        const nextConfigs = { ...provider.endpointConfigs }
+        const nextConfigs = { ...baseConfigs }
         delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-        await patchProvider({ endpointConfigs: nextConfigs })
+        const patchPromise = patchProvider({ endpointConfigs: nextConfigs })
+        const trackedHostPatch = patchPromise
+          .catch(() => undefined)
+          .finally(() => {
+            if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
+          }) as Promise<void>
+        hostPatchInFlightRef.current = trackedHostPatch
+        await patchPromise
+        lastSentEndpointConfigsRef.current = nextConfigs
         setAnthropicApiHost('')
         return true
       } catch (error) {
@@ -353,14 +420,23 @@ export function useProviderEndpointActions({
       nextEndpoint.reasoningFormat = liveProvider.endpointConfigs[primaryEndpoint]!.reasoningFormat
     }
 
+    const baseConfigs = lastSentEndpointConfigsRef.current ?? liveProvider.endpointConfigs
     const nextEndpointConfigs = {
-      ...liveProvider.endpointConfigs,
+      ...baseConfigs,
       [primaryEndpoint]: nextEndpoint
     }
 
     setApiHost(nextBaseUrl)
     try {
-      await patchProvider({ endpointConfigs: nextEndpointConfigs })
+      const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
+      const trackedHostPatch = patchPromise
+        .catch(() => undefined)
+        .finally(() => {
+          if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
+        }) as Promise<void>
+      hostPatchInFlightRef.current = trackedHostPatch
+      await patchPromise
+      lastSentEndpointConfigsRef.current = nextEndpointConfigs
       lastPersistedApiHostRef.current = nextBaseUrl
       return true
     } catch (error) {
@@ -398,7 +474,9 @@ export function useProviderEndpointActions({
           trimmedDraft !== trim(currentProvider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
         const effectiveBaseUrl = hasPendingHost ? trimmedDraft : undefined
 
-        const baseEndpoint = currentProvider.endpointConfigs?.[primaryEndpoint] as Record<string, unknown> | undefined
+        const baseProvider = providerRef.current ?? currentProvider
+        const baseConfigs = lastSentEndpointConfigsRef.current ?? baseProvider.endpointConfigs
+        const baseEndpoint = baseConfigs?.[primaryEndpoint] as Record<string, unknown> | undefined
         const nextEndpoint: Record<string, unknown> = { ...baseEndpoint }
         if (reasoningFormat === undefined) {
           delete nextEndpoint.reasoningFormat
@@ -410,12 +488,13 @@ export function useProviderEndpointActions({
         }
 
         const nextEndpointConfigs = {
-          ...currentProvider.endpointConfigs,
+          ...baseConfigs,
           [primaryEndpoint]: nextEndpoint
         }
 
         try {
           await patchProvider({ endpointConfigs: nextEndpointConfigs })
+          lastSentEndpointConfigsRef.current = nextEndpointConfigs
           if (hasPendingHost) {
             lastPersistedApiHostRef.current = trimmedDraft
             setApiHost(trimmedDraft)
