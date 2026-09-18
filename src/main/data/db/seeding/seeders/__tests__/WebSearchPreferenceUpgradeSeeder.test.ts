@@ -52,6 +52,19 @@ describe('WebSearchPreferenceUpgradeSeeder', () => {
     expect(readPreference(LEGACY_PREFERENCE_KEY)).toBeUndefined()
   })
 
+  it.each([
+    { existingValue: true, expectedValue: true },
+    { existingValue: false, expectedValue: false }
+  ])('keeps the model-tools value $existingValue a returning user already has', ({ existingValue, expectedValue }) => {
+    writePreference(LEGACY_PREFERENCE_KEY, true)
+    writePreference(MODEL_TOOLS_PREFERRED_KEY, existingValue)
+
+    new SeedRunner(dbh.db).runAll(WEB_SEARCH_PREFERENCE_SEEDERS)
+
+    expect(readPreference(MODEL_TOOLS_PREFERRED_KEY)).toBe(expectedValue)
+    expect(readPreference(LEGACY_PREFERENCE_KEY)).toBeUndefined()
+  })
+
   it('does not overwrite a later user choice when seeders run again', () => {
     writePreference(LEGACY_PREFERENCE_KEY, false)
     const runner = new SeedRunner(dbh.db)

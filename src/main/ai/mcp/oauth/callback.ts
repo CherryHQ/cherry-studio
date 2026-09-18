@@ -12,6 +12,7 @@ const logger = loggerService.withContext('Mcp:OAuthCallbackServer')
 export class CallBackServer {
   private server: Promise<http.Server>
   private events: EventEmitter
+  private authCode?: string
 
   constructor(options: OAuthCallbackServerOptions) {
     const { port, path, events } = options
@@ -28,7 +29,7 @@ export class CallBackServer {
           const url = new URL(req.url, `http://127.0.0.1:${port}`)
           const code = url.searchParams.get('code')
           if (code) {
-            // Emit the code event
+            this.authCode = code
             this.events.emit('auth-code-received', code)
             // Send success response to browser
             const title = t('settings.mcp.oauth.callback.title')
@@ -114,8 +115,8 @@ export class CallBackServer {
   }
 
   async close() {
-    const server = await this.server
-    server.close()
+    // Listen may have failed (getServer rejected) or close may run twice (timeout + finally).
+    await this.server.then((server) => server.close()).catch(() => undefined)
   }
 
   /**
@@ -124,6 +125,7 @@ export class CallBackServer {
    * cancelled / never-completed callback, leaking the connect attempt and its status.
    */
   async waitForAuthCode(timeoutMs = 300_000): Promise<string> {
+    if (this.authCode !== undefined) return this.authCode
     return new Promise((resolve, reject) => {
       const onCode = (code: string) => {
         clearTimeout(timer)
