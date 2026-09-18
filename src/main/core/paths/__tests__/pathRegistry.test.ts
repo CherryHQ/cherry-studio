@@ -39,6 +39,9 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.cherry_account.credentials_file']).toBe(
       path.join('/mock/userData', 'Credentials', 'cherry-account.json')
     )
+    expect(registry['feature.knowledge.credentials_file']).toBe(
+      path.join('/mock/userData', 'Credentials', 'external-knowledge.json')
+    )
   })
 
   it('keeps the Claude config under the Agents data directory', () => {

@@ -20,7 +20,7 @@ vi.mock('../../../../../MainWindowService', () => ({
   windowService: { getMainWindow: () => null }
 }))
 
-vi.mock('../feishu/FeishuAppRegistration', () => ({
+vi.mock('@main/services/feishuAppRegistration', () => ({
   registrationBegin: registrationMocks.begin,
   registrationPoll: registrationMocks.poll
 }))
