@@ -63,6 +63,8 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   openUserProfile: vi.fn()
 }))
 const openRouteMock = vi.hoisted(() => vi.fn())
+const navigateMock = vi.hoisted(() => vi.fn())
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigateMock }))
 const ipcApiRequest = vi.hoisted(() => vi.fn())
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
@@ -283,7 +285,7 @@ describe('useAgentMessageListProviderValue', () => {
       )
       const opening = result.current.actions.openForkSourceSession!('parent')
       expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/parent')
-      expect(openRouteMock).not.toHaveBeenCalled()
+      expect(navigateMock).not.toHaveBeenCalled()
       if (scenario === 'success') lookup.resolve({ id: 'parent' })
       else
         lookup.reject(
@@ -291,10 +293,13 @@ describe('useAgentMessageListProviderValue', () => {
         )
       await opening
       if (scenario === 'success') {
-        expect(openRouteMock).toHaveBeenCalledWith('/app/agents', { sessionId: 'parent' })
+        expect(navigateMock).toHaveBeenCalledWith({
+          to: '/app/agents',
+          search: { sessionId: 'parent', forkReturnSessionId: 'child' }
+        })
         expect(leafCapabilitiesMock.notifyError).not.toHaveBeenCalled()
       } else {
-        expect(openRouteMock).not.toHaveBeenCalled()
+        expect(navigateMock).not.toHaveBeenCalled()
         expect(leafCapabilitiesMock.notifyError).toHaveBeenCalledWith(
           scenario === 'not-found' ? 'agent_session_fork.source_not_found' : 'Connection failed'
         )

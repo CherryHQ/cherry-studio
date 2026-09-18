@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -178,6 +179,7 @@ export function useAgentMessageListProviderValue({
   const { t } = useTranslation()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
+  const navigate = useNavigate()
   const resolvedAgentId = assistantId ?? topic.assistantId
   const messageItemCacheRef = useRef(
     new WeakMap<
@@ -379,14 +381,17 @@ export function useAgentMessageListProviderValue({
     async (sourceSessionId: string) => {
       try {
         await dataApiService.get(`/agent-sessions/${sourceSessionId}`)
-        openRoute('/app/agents', { sessionId: sourceSessionId })
+        await navigate({
+          to: '/app/agents',
+          search: { sessionId: sourceSessionId, forkReturnSessionId: sessionId ?? undefined }
+        })
       } catch (error) {
         notifyError(
           isDataApiNotFoundError(error) ? t('agent_session_fork.source_not_found') : formatErrorMessage(error)
         )
       }
     },
-    [notifyError, t]
+    [navigate, notifyError, sessionId, t]
   )
   const forkSession = useCallback(
     async (messageId: string) => {
