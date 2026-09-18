@@ -603,6 +603,38 @@ describe('DoctorService.fix', () => {
     }
   )
 
+  it('preserves pending confirmation and repair after a delayed run cancellation', async () => {
+    registryMocks.bootConfigRun.mockResolvedValueOnce(warnWithRepair).mockResolvedValueOnce(warnWithRepair)
+    registryMocks.bootConfigRepair.mockResolvedValue({ status: 'requires_relaunch' })
+    const service = createReadyService()
+    const run = await service.run({
+      subject: { kind: 'global' },
+      tier: 'live',
+      checkIds: ['config-boot-config-valid', 'provider-model-conversation']
+    })
+    if (run.status !== 'completed') throw new Error('expected a report')
+    expect(run.report.pendingChecks).toHaveLength(1)
+
+    expect(service.cancel('global', run.report.runId)).toEqual({ status: 'not_running' })
+    expect(state()).toEqual({ status: 'completed', report: run.report })
+    await expect(
+      service.fix({
+        scope: 'global',
+        runId: run.report.runId,
+        checkId: 'config-boot-config-valid',
+        fixId: 'repair'
+      })
+    ).resolves.toMatchObject({ status: 'requires_relaunch', result: { status: 'pass' } })
+    await expect(
+      service.confirmCheck({
+        scope: 'global',
+        runId: run.report.runId,
+        requestId: run.report.pendingChecks![0].requestId
+      })
+    ).resolves.toMatchObject({ status: 'completed', pendingChecks: [] })
+    expect(state()).toMatchObject({ status: 'completed', report: { summary: { pass: 2, warn: 0 } } })
+  })
+
   it('refuses a fix bound to a superseded run', async () => {
     const service = createReadyService()
     await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })

@@ -411,24 +411,30 @@ describe('model connectivity against an HTTP provider', () => {
     expect(requests).toEqual([])
   })
 
-  it('consumes confirmation once and cancels an in-flight request', async () => {
-    const started = await start()
-    const input = { scope: started.scope, runId: started.runId, requestId: started.report.pendingChecks[0].requestId }
-    holdConversation = true
-    const pending = doctor.confirmCheck(input)
-    await vi.waitFor(() => expect(requests).toHaveLength(1))
-    expect(await doctor.confirmCheck(input)).toEqual({ status: 'busy' })
-    expect(await doctor.run({ subject, tier: 'quick', checkIds: ['network-online'] })).toEqual({
-      status: 'busy',
-      runId: started.runId
-    })
-    expect(await doctor.checkConnectivity({ subject, runId: 'new' })).toEqual({ status: 'busy', runId: started.runId })
-    expect(doctor.cancelConnectivity(started.scope, 'wrong-run')).toEqual({ status: 'not_running' })
-    expect(doctor.cancelConnectivity(started.scope, started.runId)).toEqual({ status: 'canceled' })
-    expect(await pending).toEqual({ status: 'canceled' })
-    expect(await doctor.confirmCheck(input)).toEqual({ status: 'stale' })
-    expect(requests).toHaveLength(1)
-  })
+  it.each(['cancel', 'cancelConnectivity'] as const)(
+    'consumes confirmation once and cancels an in-flight request via %s',
+    async (cancel) => {
+      const started = await start()
+      const input = { scope: started.scope, runId: started.runId, requestId: started.report.pendingChecks[0].requestId }
+      holdConversation = true
+      const pending = doctor.confirmCheck(input)
+      await vi.waitFor(() => expect(requests).toHaveLength(1))
+      expect(await doctor.confirmCheck(input)).toEqual({ status: 'busy' })
+      expect(await doctor.run({ subject, tier: 'quick', checkIds: ['network-online'] })).toEqual({
+        status: 'busy',
+        runId: started.runId
+      })
+      expect(await doctor.checkConnectivity({ subject, runId: 'new' })).toEqual({
+        status: 'busy',
+        runId: started.runId
+      })
+      expect(doctor[cancel](started.scope, 'wrong-run')).toEqual({ status: 'not_running' })
+      expect(doctor[cancel](started.scope, started.runId)).toEqual({ status: 'canceled' })
+      expect(await pending).toEqual({ status: 'canceled' })
+      expect(await doctor.confirmCheck(input)).toEqual({ status: 'stale' })
+      expect(requests).toHaveLength(1)
+    }
+  )
 
   it('supersedes a pending connectivity decision with an ordinary run in the same scope', async () => {
     const started = await start()
