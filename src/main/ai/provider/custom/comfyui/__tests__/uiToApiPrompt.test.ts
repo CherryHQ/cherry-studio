@@ -14,7 +14,7 @@ const objectInfo: ObjectInfo = {
     input: {
       required: {
         model: ['MODEL'],
-        seed: ['INT', { default: 0 }],
+        seed: ['INT', { default: 0, control_after_generate: true }],
         steps: ['INT', { default: 20 }],
         cfg: ['FLOAT', { default: 8 }],
         sampler_name: [['euler', 'res_multistep'], {}],
@@ -89,7 +89,7 @@ describe('convertUiWorkflowToPrompt', () => {
               { name: 'latent_image', link: 5 },
               { name: 'denoise', link: null }
             ],
-            widgets_values: [0, 8, 1, 'res_multistep', 'simple', 1]
+            widgets_values: [0, 'fixed', 8, 1, 'res_multistep', 'simple', 1]
           },
           { id: 3, type: 'CheckpointLoaderSimple', widgets_values: ['model.safetensors'] }
         ],
@@ -577,6 +577,16 @@ describe('findPromptTarget', () => {
     expect(
       findPromptTarget({ '1': { class_type: 'SaveImage', inputs: { images: ['2', 0] }, _meta: { title: 'x' } } })
     ).toBeUndefined()
+  })
+
+  it('prefers the seed-carrying sampler over a conditioning transformer', () => {
+    const target = findPromptTarget({
+      '1': { class_type: 'ConditioningTransformer', inputs: { positive: ['3', 0] }, _meta: { title: 'forwarder' } },
+      '2': { class_type: 'KSampler', inputs: { seed: 7, positive: ['3', 0] }, _meta: { title: 'KSampler' } },
+      '3': { class_type: 'CLIPTextEncode', inputs: { text: '' }, _meta: { title: 'pos' } }
+    })
+
+    expect(target).toEqual({ nodeId: '3', input: 'text', samplerId: '2' })
   })
 
   it('recognizes the SDXL text encodes as prompt targets', () => {

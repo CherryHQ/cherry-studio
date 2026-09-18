@@ -71,7 +71,9 @@ export interface ConversionResult {
 }
 
 const WIDGET_TYPES = new Set(['INT', 'FLOAT', 'STRING', 'BOOLEAN', 'COMBO'])
-const CONTROL_VALUES = new Set(['fixed', 'increment', 'decrement', 'randomize'])
+/** Widget declarations with this config flag spend an extra positional value
+ * for the control_after_generate pseudo-widget, which never reaches the prompt. */
+const CONTROL_AFTER_GENERATE = 'control_after_generate'
 
 /** Frontend classes with no backend node: the prompt cannot contain them, so
  * their outputs pass through to their input like the frontend's graphToPrompt. */
@@ -109,10 +111,12 @@ function widgetInputNames(
       if (config.advanced && !includeAdvanced) continue
       if (Array.isArray(type) || WIDGET_TYPES.has(type as string)) {
         names.push(fullName)
+        if (config[CONTROL_AFTER_GENERATE]) names.push(CONTROL_AFTER_GENERATE)
         continue
       }
       if (type === 'COMFY_DYNAMICCOMBO_V3' && values) {
         names.push(fullName)
+        if (config[CONTROL_AFTER_GENERATE]) names.push(CONTROL_AFTER_GENERATE)
         const selected = values[names.length - 1]
         const option = (config.options as JsonObject[] | undefined)?.find((candidate) => candidate.key === selected)
         widgetInputNames(info, includeAdvanced, (option?.inputs ?? {}) as JsonObject, fullName, values, names)
@@ -233,23 +237,16 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     const raw = node.widgets_values
     const info = objectInfo[node.type]
     if (!info || !Array.isArray(raw)) return {}
-    let values = raw
-    // A trailing control_after_generate pseudo-widget pads the saved values.
-    // Drop it only when the remainder lines up with a widget count — a
-    // legitimate widget value that happens to read 'fixed' must not be
-    // removed, which would shift every later value.
-    if (values.length !== widgetInputNames(info, false, undefined, undefined, values).length) {
-      const filtered = values.filter((v) => !(typeof v === 'string' && CONTROL_VALUES.has(v)))
-      if (filtered.length === widgetInputNames(info, false, undefined, undefined, filtered).length) values = filtered
-    }
-    let names = widgetInputNames(info, false, undefined, undefined, values)
+    let names = widgetInputNames(info, false, undefined, undefined, raw)
+    const values = raw
     if (values.length !== names.length) {
       const widerNames = widgetInputNames(info, true, undefined, undefined, values)
       if (values.length === widerNames.length) names = widerNames
     }
     const out: Record<string, unknown> = {}
     names.forEach((name, index) => {
-      if (index < values.length && !linked.has(name)) out[name] = wrapWidgetValue(values[index])
+      if (name === CONTROL_AFTER_GENERATE || index >= values.length || linked.has(name)) return
+      out[name] = wrapWidgetValue(values[index])
     })
     if (values.length !== names.length) {
       warnings.push(`${node.type}: ${values.length} widget values for ${names.length} widgets`)
@@ -273,18 +270,18 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     const id = remap.get(node.id)!
     const alias: Record<number, (type?: string) => AliasStep | undefined> = {}
     ;(node.outputs ?? []).forEach((output, slot) => {
-      const defaultSlot = bypassInputSlot(node, slot, output.type)
-      const defaultLink = defaultSlot >= 0 ? (node.inputs?.[defaultSlot]?.link ?? null) : null
-      if (defaultLink != null) {
-        alias[slot] = (type) => {
-          const inputSlot = bypassInputSlot(node, slot, type)
-          const link = inputSlot >= 0 ? (node.inputs?.[inputSlot]?.link ?? null) : null
-          if (link == null) return undefined
-          const resolved = resolveLink(link, links, remap, bindings)
-          if (resolved === undefined) return undefined
-          return isReference(resolved) ? { ref: resolved, type: node.inputs?.[inputSlot]?.type } : { value: resolved }
-        }
-      } else if ((output.links ?? []).length > 0) {
+      // The resolver selects per requested type at resolve time, so it is
+      // created unconditionally — an output whose positional input is unlinked
+      // can still be fed by a later type-compatible input.
+      alias[slot] = (type) => {
+        const inputSlot = bypassInputSlot(node, slot, type)
+        const link = inputSlot >= 0 ? (node.inputs?.[inputSlot]?.link ?? null) : null
+        if (link == null) return undefined
+        const resolved = resolveLink(link, links, remap, bindings)
+        if (resolved === undefined) return undefined
+        return isReference(resolved) ? { ref: resolved, type: node.inputs?.[inputSlot]?.type } : { value: resolved }
+      }
+      if ((output.links ?? []).length > 0 && !(node.inputs ?? []).some((input) => input.link != null)) {
         warnings.push(`${kind} ${node.type} output ${slot} has no input to pass through`)
       }
     })
@@ -380,7 +377,12 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
           continue
         }
         const origin = innerRemap.get(link.origin_id)
-        if (origin !== undefined) alias[slot] = () => ({ ref: [String(origin), link.origin_slot], type: def.type })
+        if (origin !== undefined) {
+          // The incoming consumer type rides into the subgraph (the frontend
+          // resolves nested producers with it); the declared output type is
+          // only the fallback when the consumer's type is unknown.
+          alias[slot] = (type) => ({ ref: [String(origin), link.origin_slot], type: type ?? def.type })
+        }
         break
       }
     })
@@ -485,7 +487,16 @@ const PROMPT_INPUT_PREFERENCE = ['text', 'prompt', 'text_g', 't5xxl', 'clip_g', 
 export function findPromptTarget(
   prompt: Record<string, ApiPromptNode>
 ): { nodeId: string; input: string; samplerId: string } | undefined {
-  for (const [samplerId, node] of Object.entries(prompt)) {
+  // Prefer real samplers — nodes that hold their own seed or take the latent —
+  // over conditioning transformers that merely forward a positive stream, so
+  // the per-run seed is written where the graph samples, not into a side
+  // branch.
+  const withPositive = Object.entries(prompt).filter(([, node]) => isReference(node.inputs.positive))
+  const isSampler = ([, node]): boolean =>
+    'seed' in node.inputs || 'noise_seed' in node.inputs || 'latent_image' in node.inputs
+  const ordered = [...withPositive.filter(isSampler), ...withPositive.filter((entry) => !isSampler(entry))]
+
+  for (const [samplerId, node] of ordered) {
     const positive = node.inputs.positive
     if (!isReference(positive)) continue
     const queue = [positive[0]]
