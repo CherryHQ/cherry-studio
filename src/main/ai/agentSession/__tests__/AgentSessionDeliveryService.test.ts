@@ -122,6 +122,10 @@ vi.mock('@data/services/AgentTaskService', () => ({
   }
 }))
 
+// Delivery tests assert retries, not cross-window convergence — the owner-deletion
+// integration test covers the real notify payload, so keep queue notifications a no-op here.
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: vi.fn() }))
+
 vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
   agentChatContextProvider: {
     validateDispatch: mocks.validateDispatch,
