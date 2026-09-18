@@ -73,15 +73,8 @@ describe('deepseek endpoint matrix', () => {
     })
   })
 
-  it('advertises the Responses API built-in web search tool', () => {
-    expect(provider('deepseek').serverTools).toEqual([
-      {
-        id: 'web-search',
-        modelScope: 'model-dependent',
-        modelIdPrefixes: ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'],
-        endpointTypes: ['openai-responses']
-      }
-    ])
+  it('does not advertise unsupported built-in web search', () => {
+    expect(provider('deepseek').serverTools ?? []).not.toContainEqual(expect.objectContaining({ id: 'web-search' }))
   })
 
   /**

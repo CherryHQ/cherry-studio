@@ -84,14 +84,6 @@ export default defineProvider({
       reasoningFormat: { type: 'openai-responses' }
     }
   },
-  serverTools: [
-    {
-      id: 'web-search',
-      modelScope: 'model-dependent',
-      modelIdPrefixes: ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'],
-      endpointTypes: ['openai-responses']
-    }
-  ],
   metadata: {
     website: {
       apiKey: 'https://platform.deepseek.com/api_keys',

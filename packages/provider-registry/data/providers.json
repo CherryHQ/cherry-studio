@@ -300,14 +300,7 @@
           "official": "https://deepseek.com/"
         }
       },
-      "name": "deepseek",
-      "serverTools": [
-        {
-          "endpointTypes": ["openai-responses"],
-          "id": "web-search",
-          "modelScope": "model-dependent"
-        }
-      ]
+      "name": "deepseek"
     },
     {
       "availableInEditions": ["global"],
@@ -2529,5 +2522,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e47c80cffa19d83b"
+  "version": "b59a953f651bdda2"
 }
