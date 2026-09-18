@@ -29,6 +29,7 @@
     "test:native": "swift test --package-path native",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "validate": "tsx validation/run.ts",
+    "validate:packaged": "tsx validation/smokePackagedHelper.ts",
     "validate:webm": "pnpm exec vite build --config validation/electron/vite.config.ts && electron validation/electron/main.cjs"
   },
   "devDependencies": {
