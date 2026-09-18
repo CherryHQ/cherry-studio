@@ -406,6 +406,39 @@ describe('convertUiWorkflowToPrompt', () => {
 
     expect(prompt['1'].inputs.frames).toEqual({ __value__: ['a', 'b'] })
   })
+
+  it('submits an unknown executable class as-is instead of rewiring it', () => {
+    const { prompt, warnings } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          { id: 1, type: 'CustomSamplerPack', widgets_values: ['ckpt'], outputs: [{ name: 'MODEL', links: [2] }] },
+          {
+            id: 2,
+            type: 'KSampler',
+            inputs: [{ name: 'model', link: 2 }],
+            widgets_values: [0, 20, 8, 'euler', 'normal']
+          }
+        ],
+        links: [link(2, 1, 0, 2, 0)]
+      },
+      { KSampler: objectInfo.KSampler }
+    )
+
+    expect(Object.values(prompt).some((n) => n.class_type === 'CustomSamplerPack')).toBe(true)
+    expect(warnings.join('\n')).toContain('not in object_info')
+  })
+
+  it('keeps a legitimate widget value that reads like a control value', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [{ id: 1, type: 'WidgetTagger', widgets_values: ['fixed', 1, 'randomize'] }],
+        links: []
+      },
+      { WidgetTagger: { input: { required: { tag: ['STRING', {}], steps: ['INT', {}] } } } }
+    )
+
+    expect(prompt['1'].inputs).toMatchObject({ tag: 'fixed', steps: 1 })
+  })
 })
 
 describe('findPromptTarget', () => {

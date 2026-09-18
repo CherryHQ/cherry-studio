@@ -73,6 +73,10 @@ export interface ConversionResult {
 const WIDGET_TYPES = new Set(['INT', 'FLOAT', 'STRING', 'BOOLEAN'])
 const CONTROL_VALUES = new Set(['fixed', 'increment', 'decrement', 'randomize'])
 
+/** Frontend classes with no backend node: the prompt cannot contain them, so
+ * their outputs pass through to their input like the frontend's graphToPrompt. */
+const FRONTEND_ONLY_CLASSES = new Set(['Reroute', 'Note', 'MarkdownNote'])
+
 export type Reference = [string, number]
 
 /** Backend widget inputs for a node class, in declaration order. */
@@ -189,15 +193,17 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     const info = objectInfo[node.type]
     if (!info || !Array.isArray(raw)) return {}
     let values = raw
-    if (values.length > widgetInputNames(info).length) {
+    const baseNames = widgetInputNames(info)
+    const widerNames = widgetInputNames(info, true)
+    // A trailing control_after_generate pseudo-widget pads the saved values.
+    // Drop it only when the remainder lines up with a widget count — a
+    // legitimate widget value that happens to read 'fixed' must not be
+    // removed, which would shift every later value.
+    if (values.length !== baseNames.length && values.length !== widerNames.length) {
       const filtered = values.filter((v) => !(typeof v === 'string' && CONTROL_VALUES.has(v)))
-      if (filtered.length !== values.length) values = filtered
+      if (filtered.length === baseNames.length || filtered.length === widerNames.length) values = filtered
     }
-    let names = widgetInputNames(info)
-    if (values.length !== names.length) {
-      const wider = widgetInputNames(info, true)
-      if (values.length === wider.length) names = wider
-    }
+    const names = values.length === widerNames.length ? widerNames : baseNames
     const out: Record<string, unknown> = {}
     names.forEach((name, index) => {
       if (index < values.length && !linked.has(name)) out[name] = wrapWidgetValue(values[index])
@@ -251,9 +257,17 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     // node and make the whole prompt fail validation. A consumer of one still
     // has to resolve, so pass its outputs through like the frontend does for
     // Reroute; note-like classes without outgoing links vanish entirely.
+    // A class that is not in object_info but is not frontend-only is emitted
+    // as-is — an executable custom node missing from a stale snapshot still
+    // runs, and one the server does not know fails its own validation naming
+    // the class, instead of being silently rewired.
     if (!objectInfo[node.type]) {
-      passThrough(node, 'frontend-only', links, remap, bindings)
-      return
+      if (!FRONTEND_ONLY_CLASSES.has(node.type)) {
+        warnings.push(`${node.type} is not in object_info; submitting it as-is for the server to validate`)
+      } else {
+        passThrough(node, 'frontend-only', links, remap, bindings)
+        return
+      }
     }
     const linked = new Set((node.inputs ?? []).filter((slot) => slot.link != null).map((slot) => slot.name))
     const inputs: Record<string, unknown> = {}

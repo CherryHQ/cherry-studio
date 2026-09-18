@@ -184,33 +184,24 @@ class ComfyuiTransport implements ImageGenerationTransport {
   }
 
   /**
-   * Cancel one generation. `/interrupt` stops whatever prompt the server is
-   * currently executing, so consult the queue first: a running id is
-   * interrupted, a queued one is deleted from the queue, a finished one
-   * matches neither and needs no request.
+   * Cancel one generation. Queue entries key the prompt id at index 1
+   * (`[number, prompt_id, prompt, extra_data, outputs]`), so dequeue by
+   * `POST /queue {"delete": [id]}` — its filter matches index 1 — and
+   * interrupt by `POST /interrupt {"prompt_id": id}`, which the server only
+   * honours when this generation is the one executing. A finished id matches
+   * neither and both requests no-op.
    */
   async cancel(taskId: string): Promise<void> {
-    try {
-      const queue = await fetchJson<{ queue_running?: unknown[][]; queue_pending?: unknown[][] }>(
-        `${this.baseURL}/queue`,
-        undefined,
-        { headers: this.headers, fetch: this.doFetch }
-      )
-      const running = queue.queue_running?.some((item) => item[0] === taskId) ?? false
-      const queued = queue.queue_pending?.some((item) => item[0] === taskId) ?? false
-      if (running) {
-        await this.doFetch(`${this.baseURL}/interrupt`, { method: 'POST', headers: this.headers })
-      } else if (queued) {
-        await this.doFetch(`${this.baseURL}/queue`, {
-          method: 'POST',
-          headers: { ...this.headers, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ delete: [taskId] })
-        })
-      }
-    } catch {
-      // Best effort: leave the generation running rather than interrupting
-      // a prompt that may belong to someone else.
-    }
+    await this.doFetch(`${this.baseURL}/queue`, {
+      method: 'POST',
+      headers: { ...this.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delete: [taskId] })
+    }).catch(() => undefined)
+    await this.doFetch(`${this.baseURL}/interrupt`, {
+      method: 'POST',
+      headers: { ...this.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt_id: taskId })
+    }).catch(() => undefined)
   }
 
   /** The AI SDK downloads returned URLs itself, so hand back inline data. */
