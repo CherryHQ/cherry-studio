@@ -4,6 +4,7 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
+import { normalizeMainWindowRoute } from '@shared/utils/navigationRoute'
 
 /**
  * Route allowlist for externally-triggered main-window navigation (protocol
@@ -145,18 +146,19 @@ export function acknowledgeMainWindowNavigation(windowId: string, requestId: num
  */
 export function openRouteInMainWindow(path: string): void {
   const mainWindowService = application.get('MainWindowService')
+  const targetPath = normalizeMainWindowRoute(path)
 
   const mainWindowId = resolveLiveMainWindowId()
 
   if (mainWindowId) {
-    application.get('IpcApiService').send(mainWindowId, 'navigation.open_route_requested', { to: path })
+    application.get('IpcApiService').send(mainWindowId, 'navigation.open_route_requested', { to: targetPath })
     mainWindowService.showMainWindow()
     return
   }
 
   mainWindowService.showMainWindow({
     kind: 'navigation',
-    to: path,
+    to: targetPath,
     requestId: nextNavigationRequestId++
   } satisfies MainWindowInitData)
 }
