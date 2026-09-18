@@ -66,9 +66,9 @@ import {
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
 import {
+  collectRequestBodyKeys,
   extractReasoningBodyParams,
   filterReasoningForProviderOptions,
-  isRequestBodyTarget,
   normalizeRequestedSelection,
   resolveReasoningInvocation
 } from '../../../utils/reasoningSerializers'
@@ -569,6 +569,7 @@ function buildAgentOptions(
     aiSdkProviderId,
     endpointType,
     reasoning,
+    reasoningProfile,
     serviceTierControl
   } = scope
 
@@ -650,8 +651,15 @@ function buildAgentOptions(
   // otherwise透传 them via providerOptions, but Responses would not — unifying
   // here keeps `profile < custom < callOverrides` consistent across endpoints.
   // Only the effective provider namespace contributes to the HTTP body; other
-  // providers' overrides must not leak across endpoints.
-  const callOverridesBodyParams = extractCallOverridesBodyParams(request.callOverrides, sdkConfig.providerOptionsKey)
+  // providers' overrides must not leak across endpoints. Only wire-declared
+  // body keys move — a provider-option wire (e.g. NVIDIA NIM) keeps its
+  // overrides in providerOptions.
+  const requestBodyKeys = collectRequestBodyKeys(reasoningProfile.wire)
+  const callOverridesBodyParams = extractCallOverridesBodyParams(
+    request.callOverrides,
+    sdkConfig.providerOptionsKey,
+    requestBodyKeys
+  )
   if (Object.keys(callOverridesBodyParams).length > 0) rawBodyLayers.push(callOverridesBodyParams)
 
   if (rawBodyLayers.length > 0) {
@@ -670,7 +678,8 @@ function buildAgentOptions(
   const callOverrides = stripRequestBodyFromCallOverrides(
     request.callOverrides,
     callOverridesBodyParams,
-    sdkConfig.providerOptionsKey
+    sdkConfig.providerOptionsKey,
+    requestBodyKeys
   )
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
@@ -742,9 +751,15 @@ function resolveEffectiveThinkingBudget(
     : undefined
 }
 
-function extractCallOverridesBodyParams(
+/**
+ * Split per-request providerOptions overrides into raw-body params. Only
+ * wire-declared body keys move — everything else stays for the SDK to
+ * forward. Exported for unit testing.
+ */
+export function extractCallOverridesBodyParams(
   callOverrides: CallOverrides | undefined,
-  providerOptionsKey?: string
+  providerOptionsKey?: string,
+  requestBodyKeys: Set<string> = new Set()
 ): Record<string, unknown> {
   if (!callOverrides?.providerOptions) return {}
   const body: Record<string, unknown> = {}
@@ -759,15 +774,17 @@ function extractCallOverridesBodyParams(
       if (value === undefined) continue
       // Dotted body-routed keys (e.g. `chat_template_kwargs.enable_thinking`) must
       // expand to a nested object, not a flat key, so the later deep-merge preserves
-      // sibling fields like `foo`. Check dotted form before the generic body-target
-      // branch, otherwise `isRequestBodyTarget` would shadow it.
+      // sibling fields like `foo`. Only wire-declared body keys move — anything
+      // else stays in providerOptions for the SDK to forward.
       if (key.startsWith('chat_template_kwargs.')) {
+        if (!requestBodyKeys.has('chat_template_kwargs')) continue
         const rest = key.slice('chat_template_kwargs.'.length)
         const bag = (body['chat_template_kwargs'] ??= {}) as Record<string, unknown>
         bag[rest] = value
         continue
       }
       if (key === 'chat_template_kwargs') {
+        if (!requestBodyKeys.has('chat_template_kwargs')) continue
         if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
           body[key] = merge(
             {},
@@ -780,12 +797,14 @@ function extractCallOverridesBodyParams(
         continue
       }
       if (key.startsWith('extra_body.')) {
+        if (!requestBodyKeys.has('extra_body')) continue
         const rest = key.slice('extra_body.'.length)
         const bag = (body['extra_body'] ??= {}) as Record<string, unknown>
         bag[rest] = value
         continue
       }
       if (key === 'extra_body') {
+        if (!requestBodyKeys.has('extra_body')) continue
         if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
           body[key] = merge(
             {},
@@ -798,7 +817,7 @@ function extractCallOverridesBodyParams(
         continue
       }
       // Generic body-routed targets declared with explicit delivery.
-      if (isRequestBodyTarget(key as any)) {
+      if (requestBodyKeys.has(key)) {
         if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
           body[key] = merge(
             {},
@@ -814,10 +833,16 @@ function extractCallOverridesBodyParams(
   return body
 }
 
-function stripRequestBodyFromCallOverrides(
+/**
+ * Remove from callOverrides the keys extraction moved to the raw body, so a
+ * Chat request does not double-send them and a Responses request does not
+ * silently drop them from providerOptions. Exported for unit testing.
+ */
+export function stripRequestBodyFromCallOverrides(
   callOverrides: CallOverrides | undefined,
   bodyParams: Record<string, unknown>,
-  providerOptionsKey?: string
+  providerOptionsKey?: string,
+  requestBodyKeys: Set<string> = new Set()
 ): CallOverrides | undefined {
   if (!callOverrides?.providerOptions || Object.keys(bodyParams).length === 0) return callOverrides
   const bodyKeys = new Set(Object.keys(bodyParams))
@@ -833,15 +858,16 @@ function stripRequestBodyFromCallOverrides(
       nextProviderOptions[pid] = opts
       continue
     }
+    // Only strip what extraction moved to the body — a provider-option wire
+    // keeps its overrides here for the SDK to forward.
+    const isBodyRouted = (key: string): boolean => {
+      if (bodyKeys.has(key)) return true
+      if (key.startsWith('chat_template_kwargs.')) return requestBodyKeys.has('chat_template_kwargs')
+      if (key.startsWith('extra_body.')) return requestBodyKeys.has('extra_body')
+      return requestBodyKeys.has(key)
+    }
     const filtered = Object.fromEntries(
-      Object.entries(opts as Record<string, unknown>).filter(([k]) => {
-        if (bodyKeys.has(k)) return false
-        if (k.startsWith('chat_template_kwargs.')) return false
-        if (k.startsWith('extra_body.')) return false
-        if (k === 'extra_body' || k === 'chat_template_kwargs') return false
-        if (isRequestBodyTarget(k as any)) return false
-        return true
-      })
+      Object.entries(opts as Record<string, unknown>).filter(([k]) => !isBodyRouted(k))
     )
     if (Object.keys(filtered).length !== Object.keys(opts).length) mutated = true
     if (Object.keys(filtered).length > 0) nextProviderOptions[pid] = filtered as NonNullable<ProviderOptions[string]>

@@ -12,7 +12,7 @@ import {
 import { readProviderRegistry } from '@cherrystudio/provider-registry/node'
 
 import { makeModel } from '../../__tests__/fixtures'
-import { encodeReasoningInvocation, resolveReasoningInvocation } from '../reasoningSerializers'
+import { collectRequestBodyKeys, encodeReasoningInvocation, resolveReasoningInvocation } from '../reasoningSerializers'
 
 describe('Claude Opus 5.5 reasoning requests', () => {
   const controls = inferReasoningControls('claude-opus-5-5')
@@ -144,6 +144,34 @@ describe('resolveReasoningInvocation budget constraints', () => {
     const enabled = resolveReasoningInvocation({ selection: 'high', model, profile })
     expect(enabled.kind).toBe('effort')
     expect(encodeReasoningInvocation(enabled)).toEqual({ chat_template_kwargs: { enable_thinking: true } })
+  })
+})
+
+describe('collectRequestBodyKeys', () => {
+  it('collects the self-hosted body key from every mode', () => {
+    expect(collectRequestBodyKeys(REASONING_FORMAT_PROFILES['self-hosted'].wire)).toEqual(
+      new Set(['chat_template_kwargs'])
+    )
+  })
+
+  it('ignores provider-option wires such as NVIDIA NIM', () => {
+    const profile: ReasoningWireProfile = {
+      auto: {
+        operations: [
+          {
+            target: 'chat_template_kwargs.enable_thinking',
+            value: { source: 'literal', value: true },
+            delivery: 'provider-option' as const
+          }
+        ]
+      }
+    }
+    expect(collectRequestBodyKeys(profile)).toEqual(new Set())
+  })
+
+  it('returns no keys for disabled or missing profiles', () => {
+    expect(collectRequestBodyKeys({ disabled: true })).toEqual(new Set())
+    expect(collectRequestBodyKeys(undefined)).toEqual(new Set())
   })
 })
 

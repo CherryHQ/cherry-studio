@@ -270,6 +270,24 @@ export function isRequestBodyTarget(_target: ReasoningWireTarget, delivery?: Rea
   return delivery === 'request-body'
 }
 
+/**
+ * Top-level raw-body keys the wire declares across all its modes
+ * (`chat_template_kwargs`, `extra_body`). Callers use this to route
+ * per-request overrides: only a declared key may leave providerOptions
+ * for the raw HTTP body, so a provider-option wire (e.g. NVIDIA NIM) is
+ * never promoted by a name-prefix heuristic.
+ */
+export function collectRequestBodyKeys(profile: ReasoningWireProfile | undefined): Set<string> {
+  const keys = new Set<string>()
+  if (!profile || profile.disabled) return keys
+  for (const mode of [profile.default, profile.off, profile.auto, profile.effort]) {
+    for (const operation of mode?.operations ?? []) {
+      if (operation.delivery === 'request-body') keys.add(operation.target.split('.')[0])
+    }
+  }
+  return keys
+}
+
 function isBodyEmission(emission: ResolvedReasoningEmission): boolean {
   return emission.delivery === 'request-body'
 }
