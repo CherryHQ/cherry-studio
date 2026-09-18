@@ -34,7 +34,7 @@ import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/e
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryProviderId } from '@shared/data/presets/cherryai'
-import type { EndpointType } from '@shared/data/types/model'
+import type { EndpointType, UniqueModelId } from '@shared/data/types/model'
 import type {
   ApiKeyEntry,
   ApiKeyTier,
@@ -679,7 +679,7 @@ class ProviderService {
    * actually serves the request. An explicit override is never rotated, but is
    * matched back to a stored key when possible.
    */
-  resolveApiKey(providerId: string, override?: string): ResolvedProviderApiKey {
+  resolveApiKey(providerId: string, override?: string, modelId?: UniqueModelId): ResolvedProviderApiKey {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
@@ -691,9 +691,12 @@ class ProviderService {
       return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
     }
 
+    // Without the model, a model-scoped ceiling would be honoured on the fallback path and ignored
+    // here — the same key would look spent to one and available to the other.
     const enabledKeys = filterKeysWithinQuota(
       providerId,
-      allKeys.filter((k) => k.isEnabled)
+      allKeys.filter((k) => k.isEnabled),
+      modelId
     )
 
     if (enabledKeys.length === 0) {

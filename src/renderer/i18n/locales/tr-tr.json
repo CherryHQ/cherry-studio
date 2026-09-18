@@ -4533,6 +4533,8 @@
   "settings.provider.api_key.quota_limit": "İstek limiti",
   "settings.provider.api_key.quota_monthly": "ayda",
   "settings.provider.api_key.quota_renews_at": "{{date}} tarihinde yenilenir",
+  "settings.provider.api_key.quota_scope": "İçin",
+  "settings.provider.api_key.quota_scope_all": "Tüm modeller",
   "settings.provider.api_key.quota_total": "toplam",
   "settings.provider.api_key.quota_unlimited": "Sınırsız",
   "settings.provider.api_key.quota_used": "{{used}} / {{limit}} kullanıldı",

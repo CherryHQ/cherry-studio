@@ -21,6 +21,11 @@ interface ModelSelectorCommonProps {
   showTagFilter?: boolean
   showPinnedModels?: boolean
   showPinActions?: boolean
+  /**
+   * Also list models turned off in settings, demoted and badged rather than hidden. Only the chat
+   * picker wants this — elsewhere offering a disabled model just lets it be chosen and then fail.
+   */
+  showDisabledModels?: boolean
   isModelDisabled?: ModelSelectorFilter
   includeAgentOnlyModels?: boolean
   prioritizedProviderIds?: readonly string[]
@@ -110,6 +115,7 @@ export interface UseModelSelectorDataOptions {
   filter?: ModelSelectorFilter
   showTagFilter?: boolean
   showPinnedModels?: boolean
+  showDisabledModels?: boolean
   prioritizedProviderIds?: readonly string[]
 }
 

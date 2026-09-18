@@ -4533,6 +4533,8 @@
   "settings.provider.api_key.quota_limit": "è«‹æ±‚ä¸Šé™",
   "settings.provider.api_key.quota_monthly": "æ¯æœˆ",
   "settings.provider.api_key.quota_renews_at": "將於 {{date}} 更新",
+  "settings.provider.api_key.quota_scope": "套用至",
+  "settings.provider.api_key.quota_scope_all": "所有模型",
   "settings.provider.api_key.quota_total": "總計",
   "settings.provider.api_key.quota_unlimited": "ç„¡é™åˆ¶",
   "settings.provider.api_key.quota_used": "已使用 {{used}} / {{limit}}",

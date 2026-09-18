@@ -4533,6 +4533,8 @@
   "settings.provider.api_key.quota_limit": "LimitÄƒ de cereri",
   "settings.provider.api_key.quota_monthly": "pe lunÄƒ",
   "settings.provider.api_key.quota_renews_at": "Se reînnoi pe {{date}}",
+  "settings.provider.api_key.quota_scope": "Se aplică la",
+  "settings.provider.api_key.quota_scope_all": "Toate modelele",
   "settings.provider.api_key.quota_total": "total",
   "settings.provider.api_key.quota_unlimited": "Nelimitat",
   "settings.provider.api_key.quota_used": "{{used}} / {{limit}} utilizate",

@@ -4533,6 +4533,8 @@
   "settings.provider.api_key.quota_limit": "Limite de pedidos",
   "settings.provider.api_key.quota_monthly": "por mÃªs",
   "settings.provider.api_key.quota_renews_at": "Renova {{date}}",
+  "settings.provider.api_key.quota_scope": "Aplica-se a",
+  "settings.provider.api_key.quota_scope_all": "Todos os modelos",
   "settings.provider.api_key.quota_total": "total",
   "settings.provider.api_key.quota_unlimited": "Ilimitado",
   "settings.provider.api_key.quota_used": "{{used}} / {{limit}} utilizadas",

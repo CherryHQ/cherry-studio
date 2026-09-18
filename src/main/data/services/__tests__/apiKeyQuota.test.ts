@@ -79,11 +79,11 @@ describe('filterKeysWithinQuota', () => {
   it('model-scoped limit takes precedence over key-level limit', () => {
     withLimits({
       [apiKeyLimitId('deepseek', 'a')]: { limit: 100, period: 'daily' },
-      [apiKeyModelLimitId('deepseek', 'a', 'deepseek-v4-flash')]: { limit: 5, period: 'daily' }
+      [apiKeyModelLimitId('deepseek', 'a', 'deepseek::deepseek-v4-flash')]: { limit: 5, period: 'daily' }
     })
     withRequestCounts({ a: 5 })
 
-    expect(filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek-v4-flash')).toEqual([key('b')])
+    expect(filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek::deepseek-v4-flash')).toEqual([key('b')])
   })
 
   it('falls back to key-level limit when no model-scoped limit exists', () => {
@@ -92,17 +92,17 @@ describe('filterKeysWithinQuota', () => {
     })
     withRequestCounts({ a: 10 })
 
-    expect(filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek-v4-flash')).toEqual([key('b')])
+    expect(filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek::deepseek-v4-flash')).toEqual([key('b')])
   })
 
   it('two keys with separate model-scoped limits filter independently', () => {
     withLimits({
-      [apiKeyModelLimitId('deepseek', 'a', 'deepseek-v4-flash')]: { limit: 20, period: 'daily' },
-      [apiKeyModelLimitId('deepseek', 'b', 'deepseek-v4-flash')]: { limit: 15, period: 'daily' }
+      [apiKeyModelLimitId('deepseek', 'a', 'deepseek::deepseek-v4-flash')]: { limit: 20, period: 'daily' },
+      [apiKeyModelLimitId('deepseek', 'b', 'deepseek::deepseek-v4-flash')]: { limit: 15, period: 'daily' }
     })
     withRequestCounts({ a: 20, b: 10 })
 
-    const result = filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek-v4-flash')
+    const result = filterKeysWithinQuota('deepseek', [key('a'), key('b')], 'deepseek::deepseek-v4-flash')
     expect(result).toEqual([key('b')])
   })
 

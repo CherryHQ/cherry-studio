@@ -170,6 +170,7 @@ export function ChatConversationControls({
           multiSelectMode={mentionedModelMultiSelectMode}
           onMultiSelectModeChange={handleMentionedModelMultiSelectModeChange}
           filter={chatModelFilter}
+          showDisabledModels
           shortcut="chat.model.select"
           side={side}
           align="start"
@@ -195,6 +196,7 @@ export function ChatConversationControls({
           value={model}
           onSelect={onModelSelect}
           filter={chatModelFilter}
+          showDisabledModels
           shortcut="chat.model.select"
           side={side}
           align="start"

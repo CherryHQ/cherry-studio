@@ -4533,6 +4533,8 @@
   "settings.provider.api_key.quota_limit": "Request limit",
   "settings.provider.api_key.quota_monthly": "per month",
   "settings.provider.api_key.quota_renews_at": "Renews {{date}}",
+  "settings.provider.api_key.quota_scope": "Applies to",
+  "settings.provider.api_key.quota_scope_all": "All models",
   "settings.provider.api_key.quota_total": "total",
   "settings.provider.api_key.quota_unlimited": "Unlimited",
   "settings.provider.api_key.quota_used": "{{used}} / {{limit}} used",

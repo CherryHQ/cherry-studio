@@ -1,12 +1,19 @@
 // Shared so the settings form and the credential picker agree on one key shape.
 
 import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 /** Identifies a credential's quota entry in `chat.routing.api_key_limits`. */
 export const apiKeyLimitId = (providerId: string, keyId: string) => `${providerId}::${keyId}`
 
-/** Model-scoped limit: checked first, falls back to `apiKeyLimitId` if absent. */
-export const apiKeyModelLimitId = (providerId: string, keyId: string, modelId: string) =>
+/**
+ * Model-scoped limit: checked first, falls back to `apiKeyLimitId` if absent.
+ *
+ * `modelId` is the full {@link UniqueModelId} (`providerId::modelId`), which is what `Model.id`
+ * already holds — so the composed id repeats the provider, e.g. `openai::key1::openai::gpt-4o`.
+ * Every reader and writer must pass the same shape: a bare model id silently matches nothing.
+ */
+export const apiKeyModelLimitId = (providerId: string, keyId: string, modelId: UniqueModelId) =>
   `${providerId}::${keyId}::${modelId}`
 
 /**

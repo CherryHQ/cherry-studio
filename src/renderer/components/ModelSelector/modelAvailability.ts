@@ -1,5 +1,5 @@
 import type { ApiKeyLimitMap, ModelHealthMemory } from '@shared/data/preference/preferenceTypes'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { apiKeyLimitId, apiKeyModelLimitId } from '@shared/utils/apiKeyLimit'
 import { isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
@@ -31,7 +31,7 @@ function hasUsableCredential(provider: Provider): boolean {
  */
 export function isQuotaExhausted(
   provider: Provider,
-  modelId: string,
+  modelId: UniqueModelId,
   limits: ApiKeyLimitMap | null | undefined,
   usageCounts: ReadonlyMap<string, number> | undefined
 ): boolean {

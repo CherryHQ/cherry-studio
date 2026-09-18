@@ -4533,6 +4533,8 @@
   "settings.provider.api_key.quota_limit": "Ğ›Ğ¸Ğ¼Ğ¸Ñ‚ Ğ·Ğ°Ğ¿Ñ€Ğ¾ÑĞ¾Ğ²",
   "settings.provider.api_key.quota_monthly": "Ğ² Ğ¼ĞµÑÑÑ†",
   "settings.provider.api_key.quota_renews_at": "Обновляется {{date}}",
+  "settings.provider.api_key.quota_scope": "Применяется к",
+  "settings.provider.api_key.quota_scope_all": "Все модели",
   "settings.provider.api_key.quota_total": "всего",
   "settings.provider.api_key.quota_unlimited": "Ğ‘ĞµĞ· Ğ¾Ğ³Ñ€Ğ°Ğ½Ğ¸Ñ‡ĞµĞ½Ğ¸Ğ¹",
   "settings.provider.api_key.quota_used": "{{used}} / {{limit}} использовано",

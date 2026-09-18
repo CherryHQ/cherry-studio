@@ -4533,6 +4533,8 @@
   "settings.provider.api_key.quota_limit": "Giá»›i háº¡n yÃªu cáº§u",
   "settings.provider.api_key.quota_monthly": "má»—i thÃ¡ng",
   "settings.provider.api_key.quota_renews_at": "Gia hạn {{date}}",
+  "settings.provider.api_key.quota_scope": "Áp dụng cho",
+  "settings.provider.api_key.quota_scope_all": "Tất cả mô hình",
   "settings.provider.api_key.quota_total": "tổng cộng",
   "settings.provider.api_key.quota_unlimited": "KhÃ´ng giá»›i háº¡n",
   "settings.provider.api_key.quota_used": "{{used}} / {{limit}} đã dùng",

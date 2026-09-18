@@ -4533,6 +4533,8 @@
   "settings.provider.api_key.quota_limit": "ãƒªã‚¯ã‚¨ã‚¹ãƒˆä¸Šé™",
   "settings.provider.api_key.quota_monthly": "1ã‹æœˆã‚ãŸã‚Š",
   "settings.provider.api_key.quota_renews_at": "{{date}}に更新されます",
+  "settings.provider.api_key.quota_scope": "適用対象",
+  "settings.provider.api_key.quota_scope_all": "すべてのモデル",
   "settings.provider.api_key.quota_total": "合計",
   "settings.provider.api_key.quota_unlimited": "ç„¡åˆ¶é™",
   "settings.provider.api_key.quota_used": "{{used}} / {{limit}} 使用済み",

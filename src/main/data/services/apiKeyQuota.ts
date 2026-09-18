@@ -4,6 +4,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { apiKeyLimitId, apiKeyModelLimitId, periodStartOf } from '@shared/utils/apiKeyLimit'
 
@@ -36,7 +37,7 @@ export function resolveKeyLimit(
   limits: Record<string, { limit: number; period: ApiKeyLimitPeriod }>,
   providerId: string,
   keyId: string,
-  modelId?: string
+  modelId?: UniqueModelId
 ) {
   if (modelId) {
     const modelLimit = limits[apiKeyModelLimitId(providerId, keyId, modelId)]
@@ -49,7 +50,7 @@ export function resolveKeyLimit(
 function keysWithinQuota<T extends Pick<ApiKeyEntry, 'id'>>(
   providerId: string,
   keys: readonly T[],
-  modelId?: string
+  modelId?: UniqueModelId
 ): T[] {
   const limits = application.get('PreferenceService').get('chat.routing.api_key_limits')
   const countsByPeriod = new Map<ApiKeyLimitPeriod, Map<string, number>>()
@@ -74,7 +75,7 @@ function keysWithinQuota<T extends Pick<ApiKeyEntry, 'id'>>(
 export function filterKeysWithinQuota(
   providerId: string,
   keys: readonly ApiKeyEntry[],
-  modelId?: string
+  modelId?: UniqueModelId
 ): ApiKeyEntry[] {
   try {
     const withinQuota = keysWithinQuota(providerId, keys, modelId)
@@ -95,7 +96,7 @@ export function isProviderQuotaExhausted(
   providerId: string,
   // Deliberately narrower than ApiKeyEntry: the runtime Provider carries keys without their secret.
   keys: readonly Pick<ApiKeyEntry, 'id' | 'isEnabled'>[],
-  modelId?: string
+  modelId?: UniqueModelId
 ): boolean {
   const usable = keys.filter((key) => key.isEnabled)
   if (usable.length === 0) return false

@@ -68,6 +68,8 @@ export class ModelRoutingService extends BaseService {
   private collectSources(): { models: RoutableModel[]; exhaustedProviderIds: Set<string> } {
     const enabledProviders = providerService.list({ enabled: true })
     const exhaustedProviderIds = new Set(
+      // Provider-wide on purpose: the table ranks providers, and a model-scoped ceiling only
+      // describes one of their models. The per-request paths apply that finer check themselves.
       enabledProviders.filter((provider) => isProviderQuotaExhausted(provider.id, provider.apiKeys)).map((p) => p.id)
     )
     const enabledProviderIds = new Set(enabledProviders.map((provider) => provider.id))

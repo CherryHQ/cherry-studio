@@ -94,6 +94,7 @@ export function useModelSelectorData({
   filter,
   showTagFilter = true,
   showPinnedModels = true,
+  showDisabledModels = false,
   prioritizedProviderIds = []
 }: UseModelSelectorDataOptions): UseModelSelectorDataResult {
   const {
@@ -101,9 +102,13 @@ export function useModelSelectorData({
     isLoading: isProvidersLoading,
     refetch: refetchProviders
   } = useProviders({ enabled: true }, { enabled })
-  // Disabled models stay in the list: they are demoted and badged rather than hidden, so a model
-  // turned off after a failed health check can still be seen — and picked — from here.
-  const { models, isLoading: isModelsLoading, refetch: refetchModels } = useModels(undefined, { fetchEnabled: enabled })
+  // With `showDisabledModels`, a model turned off after a failed health check stays visible —
+  // demoted and badged rather than hidden — so it can still be seen and picked from here.
+  const {
+    models,
+    isLoading: isModelsLoading,
+    refetch: refetchModels
+  } = useModels(showDisabledModels ? undefined : { enabled: true }, { fetchEnabled: enabled })
   const {
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
@@ -141,7 +146,9 @@ export function useModelSelectorData({
   const { data: quotaUsageData } = useQuery('/ai-usage-records/stats', quotaStatsParams)
 
   const quotaUsageCounts = useMemo(() => {
-    if (!quotaUsageData) return undefined
+    // Every ModelSelector in the app runs this, so a stats payload without buckets must degrade to
+    // "usage unknown" rather than throw and take the whole picker down with it.
+    if (!Array.isArray(quotaUsageData?.buckets)) return undefined
     const counts = new Map<string, number>()
     for (const bucket of quotaUsageData.buckets) {
       if (bucket.groupBy === 'apiKey' && bucket.apiKeyId) {

@@ -4533,6 +4533,8 @@
   "settings.provider.api_key.quota_limit": "Anfragelimit",
   "settings.provider.api_key.quota_monthly": "pro Monat",
   "settings.provider.api_key.quota_renews_at": "Erneuert {{date}}",
+  "settings.provider.api_key.quota_scope": "Gilt für",
+  "settings.provider.api_key.quota_scope_all": "Alle Modelle",
   "settings.provider.api_key.quota_total": "insgesamt",
   "settings.provider.api_key.quota_unlimited": "Unbegrenzt",
   "settings.provider.api_key.quota_used": "{{used}} / {{limit}} verwendet",

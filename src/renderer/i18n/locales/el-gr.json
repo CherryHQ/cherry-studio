@@ -4533,6 +4533,8 @@
   "settings.provider.api_key.quota_limit": "ÎŒÏÎ¹Î¿ Î±Î¹Ï„Î·Î¼Î¬Ï„Ï‰Î½",
   "settings.provider.api_key.quota_monthly": "Î±Î½Î¬ Î¼Î®Î½Î±",
   "settings.provider.api_key.quota_renews_at": "Ανανεώνεται {{date}}",
+  "settings.provider.api_key.quota_scope": "Ισχύει για",
+  "settings.provider.api_key.quota_scope_all": "Όλα τα μοντέλα",
   "settings.provider.api_key.quota_total": "σύνολο",
   "settings.provider.api_key.quota_unlimited": "Î‘Ï€ÎµÏÎ¹ÏŒÏÎ¹ÏƒÏ„Î¿",
   "settings.provider.api_key.quota_used": "{{used}} / {{limit}} χρησιμοποιήθηκαν",

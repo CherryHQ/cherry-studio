@@ -1,23 +1,27 @@
 // Free tiers the provider never reports: the ceiling is declared here, and credential selection
 // skips a key that already reached it. Empty means unlimited, which is the default.
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InputNumber } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
+import { useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyTier } from '@shared/data/types/provider'
 import { apiKeyLimitId, apiKeyModelLimitId, periodRenewsAt, periodStartOf } from '@shared/utils/apiKeyLimit'
+
+const ALL_MODELS = 'all' as const
 
 interface Props {
   providerId: string
   keyId: string
-  /** When set, manages a model-scoped limit that takes precedence over the key-level one. */
-  modelId?: string
+  /** Pins the widget to one model instead of letting it be chosen here. */
+  modelId?: UniqueModelId
 }
 
 export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
@@ -25,7 +29,16 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
   const [storedLimits, setLimits] = usePreference('chat.routing.api_key_limits')
   // Preferences read as null until the store hydrates, and this drawer renders before that.
   const limits = storedLimits ?? {}
-  const limitKey = modelId ? apiKeyModelLimitId(providerId, keyId, modelId) : apiKeyLimitId(providerId, keyId)
+
+  // A free tier often meters each model separately, so the ceiling can be scoped to one of them.
+  // Without this the model-scoped limit the runtime already honours had no way to be written.
+  const { models } = useModels({ providerId })
+  const [pickedModelId, setPickedModelId] = useState<UniqueModelId | typeof ALL_MODELS>(modelId ?? ALL_MODELS)
+  const scopedModelId = modelId ?? (pickedModelId === ALL_MODELS ? undefined : pickedModelId)
+
+  const limitKey = scopedModelId
+    ? apiKeyModelLimitId(providerId, keyId, scopedModelId)
+    : apiKeyLimitId(providerId, keyId)
   const entry = limits[limitKey]
 
   const { provider, updateApiKey } = useProvider(providerId)
@@ -76,6 +89,19 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
 
   return (
     <div className="flex flex-col gap-1 px-4 pb-2">
+      {!modelId && models.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-xs">{t('settings.provider.api_key.quota_scope')}</span>
+          <Selector
+            value={pickedModelId}
+            options={[
+              { value: ALL_MODELS, label: t('settings.provider.api_key.quota_scope_all') },
+              ...models.map((model) => ({ value: model.id, label: model.name }))
+            ]}
+            onChange={(next: UniqueModelId | typeof ALL_MODELS) => setPickedModelId(next)}
+          />
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <span className="text-muted-foreground text-xs">{t('settings.provider.api_key.quota_limit')}</span>
         <div className="w-[110px]">

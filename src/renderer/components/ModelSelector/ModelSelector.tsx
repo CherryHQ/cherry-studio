@@ -350,6 +350,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     filter,
     showTagFilter = true,
     showPinnedModels = true,
+    showDisabledModels = false,
     showPinActions = true,
     isModelDisabled,
     includeAgentOnlyModels = false,
@@ -508,6 +509,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     filter,
     prioritizedProviderIds,
     showPinnedModels,
+    showDisabledModels,
     showTagFilter
   })
   const listItemsRef = useRef(listItems)
