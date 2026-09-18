@@ -1152,6 +1152,45 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     expect(client.connectCalls.map((c) => c.kind)).toEqual(['streamableHttp', 'streamableHttp'])
   })
 
+  it.each([false, true])(
+    'reauthorizes through a fresh connection after credentials expire (initial OAuth: %s)',
+    async (initialOAuth) => {
+      mcpSdkMock.state.failStreamable = initialOAuth
+      mcpSdkMock.state.failStreamableUnauthorized = initialOAuth
+      callbackServerMock.waitForAuthCode.mockImplementation(async () => {
+        mcpSdkMock.state.failStreamable = false
+        mcpSdkMock.state.failStreamableUnauthorized = false
+        return 'auth-code'
+      })
+      const service = new McpRuntimeService()
+      const server = urlServer('streamableHttp')
+      const client = (await (service as any).getOrCreateClient(server)) as MockClient
+      const authProvider = mcpSdkMock.streamableHttpTransports.at(-1)!.opts.authProvider
+      const callbacksBefore = callbackServerMock.instances.length
+      vi.mocked(open).mockClear()
+
+      await expect(authProvider.redirectToAuthorization(new URL('https://auth.example.com/expired'))).rejects.toThrow(
+        'Unauthorized'
+      )
+      expect(callbackServerMock.instances).toHaveLength(callbacksBefore)
+      expect(open).not.toHaveBeenCalled()
+
+      client.ping.mockImplementation(async () => {
+        await authProvider.redirectToAuthorization(new URL('https://auth.example.com/expired'))
+        throw new Error('Unauthorized')
+      })
+      mcpSdkMock.state.failStreamable = true
+      mcpSdkMock.state.failStreamableUnauthorized = true
+      const replacement = (await (service as any).getOrCreateClient(server)) as MockClient
+
+      expect(replacement).not.toBe(client)
+      expect(replacement.connectCalls.map((call) => call.kind)).toEqual(['streamableHttp', 'streamableHttp'])
+      expect(callbackServerMock.instances).toHaveLength(callbacksBefore + 1)
+      expect(callbackServerMock.instances.every((callback) => callback.close.mock.calls.length === 1)).toBe(true)
+      expect(open).toHaveBeenCalledExactlyOnceWith('https://auth.example.com/authorize')
+    }
+  )
+
   it('waits for the OAuth callback to listen before opening the browser', async () => {
     let resolveListen!: (value: unknown) => void
     callbackServerMock.getServer = new Promise((resolve) => {

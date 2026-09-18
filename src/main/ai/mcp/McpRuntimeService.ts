@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events'
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 
@@ -17,6 +18,7 @@ import { loggerService } from '@logger'
 import { TraceMethod, withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
 import { clampImageForModel } from '@main/utils/image'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
@@ -39,7 +41,7 @@ import type { McpPackageService } from './McpPackageService'
 import { redactCacheKey } from './mcpRedact'
 import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { createTransport, isMcpOAuthEnabled } from './mcpTransport'
-import type { CallBackServer } from './oauth/callback'
+import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
@@ -579,6 +581,27 @@ export class McpRuntimeService extends BaseService {
     const candidates = getTransportCandidates(server)
     const transportTypes: (McpServerType | undefined)[] = candidates ?? [undefined]
 
+    let callbackServer: CallBackServer | undefined
+    authProvider.prepareAuthorization = async () => {
+      callbackServer ??= new CallBackServer({
+        port: authProvider.config.callbackPort,
+        path: authProvider.config.callbackPath,
+        events: new EventEmitter()
+      })
+      try {
+        await callbackServer.getServer
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException)?.code
+        throw new Error(
+          t('settings.mcp.oauth.callback.listen_error', {
+            port: authProvider.config.callbackPort,
+            reason: code ?? (error instanceof Error ? error.message : String(error))
+          }),
+          { cause: error }
+        )
+      }
+    }
+
     try {
       let lastError: unknown
 
@@ -589,11 +612,10 @@ export class McpRuntimeService extends BaseService {
           await client.connect(transport, connectOptions)
           return
         } catch (error: any) {
-          const oauthCallback = authProvider.callbackServer
           if (
             error instanceof Error &&
             isMcpOAuthEnabled(server) &&
-            oauthCallback &&
+            callbackServer &&
             (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
           ) {
             logger.debug(`Authentication required for server: ${server.name}`)
@@ -603,7 +625,7 @@ export class McpRuntimeService extends BaseService {
               transport: transport as SSEClientTransport | StreamableHTTPClientTransport,
               createServerTransport,
               typeOverride: candidateType,
-              callbackServer: oauthCallback
+              callbackServer
             })
             return
           }
@@ -627,7 +649,8 @@ export class McpRuntimeService extends BaseService {
       await client.close().catch(() => undefined)
       throw lastError ?? new Error('Failed to connect to MCP server')
     } finally {
-      await authProvider.callbackServer?.close()
+      authProvider.prepareAuthorization = undefined
+      await callbackServer?.close()
     }
   }
 
