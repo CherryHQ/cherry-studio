@@ -28,6 +28,11 @@ export const followupQueueTable = sqliteTable(
     payload: text({ mode: 'json' }).$type<ComposerQueuedMessagePayload>().notNull(),
     // Drain status for cross-window send arbitration
     status: text().$type<FollowupQueueStatus>().notNull().default('pending'),
+    // Set when the owning window's send succeeds, before the dequeue write.
+    // A row reclaimed after a crash between send and dequeue carries this, so
+    // the new owner dequeues without replaying. Dies with the row — unlike the
+    // former client journal it cannot leak or lose cross-window updates.
+    sentAt: integer(),
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },

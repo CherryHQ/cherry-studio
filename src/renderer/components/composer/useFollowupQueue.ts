@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { cacheService } from '@data/CacheService'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { ClaimHeadFollowupQueueResult } from '@shared/data/api/schemas/followupQueues'
-import { FOLLOWUP_QUEUE_LIMIT, type FollowupQueueItem as FollowupQueueRow } from '@shared/data/types/followupQueue'
+import {
+  FOLLOWUP_QUEUE_HEARTBEAT_MS,
+  FOLLOWUP_QUEUE_LIMIT,
+  type FollowupQueueItem as FollowupQueueRow
+} from '@shared/data/types/followupQueue'
 
 import type { ComposerSerializedDraft } from './tokens'
 
@@ -29,47 +32,11 @@ function isAlreadyResolved(error: unknown): boolean {
   return error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
 }
 
-// Crash-recovery journal: ids this profile already sent. Written after a
-// successful send and checked on every claim win, so a row reclaimed after a
-// crash between send and dequeue is dequeued without replaying. Entries are
-// cleared when their row resolves — including the already-deleted case, so
-// orphaned entries cannot accumulate; remaining orphans (row deleted
-// elsewhere) are inert because ids are never reused. All helpers fail open:
-// the journal is hardening, and a broken persist layer must never break
-// draining itself. Writes flush synchronously: the persist tier debounces
-// saves, which would lose the entry on a hard kill inside the window.
-function markQueueIdSent(id: string): void {
-  try {
-    cacheService.setPersist('followup.sent_ids', (prev) => ({ ...prev, [id]: Date.now() }))
-    cacheService.flushPersist()
-  } catch {
-    // Journal unavailable — the reclaim lease still bounds replays.
-  }
-}
-
-function wasQueueIdSent(id: string): boolean {
-  try {
-    return cacheService.getPersist('followup.sent_ids')[id] !== undefined
-  } catch {
-    return false
-  }
-}
-
-function clearSentQueueId(id: string): void {
-  try {
-    cacheService.setPersist('followup.sent_ids', (prev) => {
-      if (prev[id] === undefined) return prev
-      const next: Record<string, number> = {}
-      for (const key of Object.keys(prev)) {
-        if (key !== id) next[key] = prev[key]
-      }
-      return next
-    })
-    cacheService.flushPersist()
-  } catch {
-    // Best effort; a stale entry merely skips one future resend check.
-  }
-}
+// Crash recovery rides the row itself: the owner records its successful send
+// server-side (`sentAt`) before resolving, so a row reclaimed after a crash
+// between send and dequeue is dequeued without replaying. The marker dies
+// with its row, so — unlike a client snapshot journal — it can neither leak
+// nor lose concurrent cross-window updates.
 
 // Main stores draft/payload as opaque JSON and never interprets them; only the
 // renderer reads tokens back, so the row is narrowed at this single boundary.
@@ -171,6 +138,8 @@ export function useFollowupQueue({
   const { trigger: markFailedTrigger } = useMutation('POST', '/followup-queues/:id/fail', {
     refresh: ['/followup-queues']
   })
+  const { trigger: markSentTrigger } = useMutation('POST', '/followup-queues/:id/sent')
+  const { trigger: heartbeatTrigger } = useMutation('POST', '/followup-queues/:id/heartbeat')
   const { trigger: setPausedTrigger } = useMutation('PUT', '/followup-queue-states', {
     refresh: ['/followup-queue-states']
   })
@@ -241,6 +210,11 @@ export function useFollowupQueue({
   const drainBusyScopesRef = useRef(new Set<string>())
   // Background resolve retries that outlive the drain that scheduled them.
   const pendingResolveRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  // Ownership heartbeats, one per in-flight owned send. These also outlive the
+  // drain that started them: the send promise continues past unmount and must
+  // keep its claim fresh until it settles. Stopped by settleItem, the single
+  // choke point for every owned-claim resolution.
+  const pendingHeartbeatRef = useRef(new Map<string, ReturnType<typeof setInterval>>())
   // Background claim retries, unlike resolve retries, belong to the live edge:
   // they stop when the hook unmounts.
   const pendingClaimRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
@@ -312,7 +286,6 @@ export function useFollowupQueue({
         }
         try {
           await removeTrigger({ params: { id } })
-          clearSentQueueId(id)
         } catch {
           toast.error(t('message.error.operation_unavailable'))
           // Release the won claim so the item returns to the queue instead of
@@ -353,8 +326,6 @@ export function useFollowupQueue({
       }
       try {
         await removeTrigger({ params: { id } })
-        clearSentQueueId(id)
-        return item
       } catch {
         toast.error(t('message.error.operation_unavailable'))
         // Release the won claim so the item returns to the queue instead of
@@ -366,8 +337,25 @@ export function useFollowupQueue({
         }
         return undefined
       }
+      if (claim.alreadySent) {
+        // The content was already sent before a crash: the delete above is the
+        // correct dequeue, but restoring its draft would invite a resend.
+        return undefined
+      }
+      if (scopeKeyRef.current !== scope) {
+        // Scope moved while DELETE was pending: the row is gone, but its draft
+        // belongs to the old scope — put it back at the end of that scope's
+        // queue instead of restoring it into the new composer.
+        try {
+          await enqueueTrigger({ body: { scopeKey: scope, draft: item.draft, payload: item.payload } })
+        } catch {
+          toast.error(t('message.error.operation_unavailable'))
+        }
+        return undefined
+      }
+      return item
     },
-    [claimItem, removeTrigger, markFailedTrigger, t]
+    [claimItem, removeTrigger, enqueueTrigger, markFailedTrigger, t]
   )
 
   const reorder = useCallback(
@@ -421,6 +409,33 @@ export function useFollowupQueue({
     [setPausedTrigger, t]
   )
 
+  // Ownership heartbeat while an owned send is in flight: refreshes the claim
+  // lease so a slow send is never reclaimed and replayed by another window.
+  // Started on a claim win, stopped by settleItem (the single choke point for
+  // every owned-claim resolution). Transport failures keep beating — the send
+  // still owns the row until it settles — and a dead row stops the timer.
+  const startHeartbeat = useCallback(
+    (id: string) => {
+      if (pendingHeartbeatRef.current.has(id)) return
+      const tick = () => {
+        void (async () => {
+          try {
+            const result = await heartbeatTrigger({ params: { id } })
+            if (!result.live) {
+              const timer = pendingHeartbeatRef.current.get(id)
+              if (timer !== undefined) clearInterval(timer)
+              pendingHeartbeatRef.current.delete(id)
+            }
+          } catch {
+            // Retry on the next tick; the reclaim lease still bounds a stall.
+          }
+        })()
+      }
+      pendingHeartbeatRef.current.set(id, setInterval(tick, FOLLOWUP_QUEUE_HEARTBEAT_MS))
+    },
+    [heartbeatTrigger]
+  )
+
   // Background resolve that never gives up while the row is unsettled:
   // after the inline attempts fail, the row would otherwise sit `sending`
   // until the reclaim lease expires and a later claim replays an already-sent
@@ -441,13 +456,10 @@ export function useFollowupQueue({
         try {
           if (sent) await removeTrigger({ params: { id } })
           else await markFailedTrigger({ params: { id } })
-          if (sent) clearSentQueueId(id)
           if (mountedRef.current) void refetch()
         } catch (error) {
           if (isAlreadyResolved(error)) {
-            // The row is gone, so there is nothing left to protect: drop the
-            // journal entry instead of leaking it.
-            clearSentQueueId(id)
+            // The row is gone, so the dequeue already took effect.
             if (mountedRef.current) void refetch()
             return
           }
@@ -459,21 +471,22 @@ export function useFollowupQueue({
   }
 
   // Resolve a won claim: dequeue on success, mark failed otherwise. Retried so
-  // a successful send is not replayed after a lost dequeue write.
+  // a successful send is not replayed after a lost dequeue write. Also stops
+  // the ownership heartbeat: every owned claim ends here.
   const settleItem = useCallback(
     async (id: string, sent: boolean) => {
+      const heartbeatTimer = pendingHeartbeatRef.current.get(id)
+      if (heartbeatTimer !== undefined) clearInterval(heartbeatTimer)
+      pendingHeartbeatRef.current.delete(id)
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           if (sent) await removeTrigger({ params: { id } })
           else await markFailedTrigger({ params: { id } })
-          if (sent) clearSentQueueId(id)
           return true
         } catch (error) {
           // The row is already gone: resolving a deletion against it would
-          // retry a terminal outcome forever. Drop the journal entry too —
-          // there is nothing left to protect.
+          // retry a terminal outcome forever.
           if (isAlreadyResolved(error)) {
-            clearSentQueueId(id)
             return true
           }
           // Transient IPC/DB failure — retry before giving up.
@@ -510,18 +523,29 @@ export function useFollowupQueue({
           await settleItem(id, false)
           return false
         }
-        if (wasQueueIdSent(id)) {
+        if (claim.alreadySent) {
           // Crash recovery: already sent before dying — dequeue silently.
           await settleItem(id, true)
           return true
         }
+        startHeartbeat(id)
         let sent = false
         try {
           sent = await send(item.payload)
         } catch {
           sent = false
         }
-        if (sent) markQueueIdSent(id)
+        if (sent) {
+          // Record the send before resolving: a crash after this point replays
+          // as a skip (via the check above), never as a second send. Best
+          // effort — when it fails the resolve retry still dequeues, and the
+          // reclaim lease bounds the residual replay window.
+          try {
+            await markSentTrigger({ params: { id } })
+          } catch {
+            // Fall through to settle; see above.
+          }
+        }
         const settled = await settleItem(id, sent)
         if (!settled && sent) {
           toast.error(t('message.error.operation_unavailable'))
@@ -531,7 +555,7 @@ export function useFollowupQueue({
         activeIdsRef.current.delete(id)
       }
     },
-    [claimItem, settleItem, t]
+    [claimItem, settleItem, startHeartbeat, markSentTrigger, t]
   )
 
   // Background claim retry while the completion edge stays unacked: a claim
@@ -588,6 +612,19 @@ export function useFollowupQueue({
         if (scopeKeyRef.current === scope && itemsRef.current[0]) markSeenRef.current()
         return
       }
+      // Scope switched mid-flight: release the claim without sending or
+      // acking — the head belongs to the previous scope's conversation.
+      if (scopeKeyRef.current !== scope) {
+        await settleItem(won.id, false)
+        return
+      }
+      if (won.alreadySent) {
+        // Crash recovery: this profile already sent this row before dying, so
+        // dequeue without replaying. The edge is acked — the queue made progress.
+        await settleItem(won.id, true)
+        markSeenRef.current()
+        return
+      }
       const target = itemsRef.current.find((entry) => entry.id === won.id)
       if (!target) {
         // Won the true head but the mirror hasn't caught up: release it back
@@ -598,20 +635,8 @@ export function useFollowupQueue({
         void refetch()
         return
       }
-      // Scope switched mid-flight: release the claim without sending or
-      // acking — the head belongs to the previous scope's conversation.
-      if (scopeKeyRef.current !== scope) {
-        await settleItem(won.id, false)
-        return
-      }
-      if (wasQueueIdSent(won.id)) {
-        // Crash recovery: this profile already sent this row before dying, so
-        // dequeue without replaying. The edge is acked — the queue made progress.
-        await settleItem(won.id, true)
-        markSeenRef.current()
-        return
-      }
       markSeenRef.current()
+      startHeartbeat(won.id)
       let sent = false
       try {
         sent = await onDrainRef.current(target.payload)
@@ -619,8 +644,16 @@ export function useFollowupQueue({
         sent = false
       }
       // Record the send before resolving: a crash after this point replays as
-      // a skip (via the check above), never as a second send.
-      if (sent) markQueueIdSent(won.id)
+      // a skip (via the check above), never as a second send. Best effort —
+      // when it fails the resolve retry still dequeues, and the reclaim lease
+      // bounds the residual replay window.
+      if (sent) {
+        try {
+          await markSentTrigger({ params: { id: won.id } })
+        } catch {
+          // Fall through to settle; see above.
+        }
+      }
       const settled = await settleItem(won.id, sent)
       if (!settled && sent) {
         toast.error(t('message.error.operation_unavailable'))

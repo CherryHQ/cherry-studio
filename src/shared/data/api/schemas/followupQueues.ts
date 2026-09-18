@@ -49,7 +49,9 @@ export type SetFollowupQueueStateDto = z.infer<typeof SetFollowupQueueStateSchem
 
 /** Response for `POST /followup-queues/:id/claim`. */
 export const ClaimFollowupQueueSchema = z.strictObject({
-  claimed: z.boolean()
+  claimed: z.boolean(),
+  /** True when the row was already sent before this claim was won (crash recovery: dequeue, don't resend). */
+  alreadySent: z.boolean()
 })
 export type ClaimFollowupQueueResult = z.infer<typeof ClaimFollowupQueueSchema>
 
@@ -61,10 +63,16 @@ export type ClaimFollowupQueueHeadDto = z.infer<typeof ClaimFollowupQueueHeadSch
 
 /** Response for `POST /followup-queues/claim:head` — a won claim carries the row id. */
 export const ClaimHeadFollowupQueueSchema = z.union([
-  z.strictObject({ claimed: z.literal(true), id: FollowupQueueIdSchema }),
+  z.strictObject({ claimed: z.literal(true), id: FollowupQueueIdSchema, alreadySent: z.boolean() }),
   z.strictObject({ claimed: z.literal(false) })
 ])
 export type ClaimHeadFollowupQueueResult = z.infer<typeof ClaimHeadFollowupQueueSchema>
+
+/** Response for `POST /followup-queues/:id/heartbeat` — whether the caller still owns a live claim. */
+export const HeartbeatFollowupQueueSchema = z.strictObject({
+  live: z.boolean()
+})
+export type HeartbeatFollowupQueueResult = z.infer<typeof HeartbeatFollowupQueueSchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -136,6 +144,32 @@ export type FollowupQueueSchemas = {
     POST: {
       body: ClaimFollowupQueueHeadDto
       response: ClaimHeadFollowupQueueResult
+    }
+  }
+
+  /**
+   * Mark-sent endpoint — records a successful send on a `sending` row before
+   * the dequeue write. A row reclaimed after a crash between send and dequeue
+   * carries this, so the new owner dequeues without replaying.
+   * @example POST /followup-queues/abc123/sent
+   */
+  '/followup-queues/:id/sent': {
+    POST: {
+      params: { id: string }
+      response: void
+    }
+  }
+
+  /**
+   * Ownership heartbeat — refreshes the claim lease on a live `sending` row
+   * while its owner's send is still in flight, so a slow send is never
+   * reclaimed and replayed by another window.
+   * @example POST /followup-queues/abc123/heartbeat
+   */
+  '/followup-queues/:id/heartbeat': {
+    POST: {
+      params: { id: string }
+      response: HeartbeatFollowupQueueResult
     }
   }
 

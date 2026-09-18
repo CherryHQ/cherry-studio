@@ -90,13 +90,13 @@ describe('FollowupQueueService', () => {
       const item = enqueueIn(SCOPE_A, 'a')
       notifyDataApiDataChangeMock.mockClear()
 
-      expect(followupQueueService.claim(item.id)).toEqual({ claimed: true })
+      expect(followupQueueService.claim(item.id)).toEqual({ claimed: true, alreadySent: false })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
         { endpoint: '/followup-queues', kind: 'projection', entityIds: [item.id] }
       ])
       notifyDataApiDataChangeMock.mockClear()
       // Second window racing the same head loses without writing or notifying.
-      expect(followupQueueService.claim(item.id)).toEqual({ claimed: false })
+      expect(followupQueueService.claim(item.id)).toEqual({ claimed: false, alreadySent: false })
       expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
 
       const [row] = followupQueueService.listByScope(SCOPE_A)
@@ -105,10 +105,10 @@ describe('FollowupQueueService', () => {
 
     it('should reclaim failed rows for retry', () => {
       const item = enqueueIn(SCOPE_A, 'a')
-      expect(followupQueueService.claim(item.id)).toEqual({ claimed: true })
+      expect(followupQueueService.claim(item.id)).toEqual({ claimed: true, alreadySent: false })
       followupQueueService.markFailed(item.id)
 
-      expect(followupQueueService.claim(item.id)).toEqual({ claimed: true })
+      expect(followupQueueService.claim(item.id)).toEqual({ claimed: true, alreadySent: false })
     })
 
     it('should reclaim crash-orphaned sending rows but not live ones', async () => {
@@ -137,8 +137,8 @@ describe('FollowupQueueService', () => {
         }
       ])
 
-      expect(followupQueueService.claim(staleId)).toEqual({ claimed: true })
-      expect(followupQueueService.claim(liveId)).toEqual({ claimed: false })
+      expect(followupQueueService.claim(staleId)).toEqual({ claimed: true, alreadySent: false })
+      expect(followupQueueService.claim(liveId)).toEqual({ claimed: false, alreadySent: false })
     })
   })
 
@@ -148,7 +148,7 @@ describe('FollowupQueueService', () => {
       const second = enqueueIn(SCOPE_A, 'b')
       notifyDataApiDataChangeMock.mockClear()
 
-      expect(followupQueueService.claimHead(SCOPE_A)).toEqual({ claimed: true, id: first.id })
+      expect(followupQueueService.claimHead(SCOPE_A)).toEqual({ claimed: true, id: first.id, alreadySent: false })
 
       // The head is now owned: a second claim finds it unclaimable instead of
       // handing out the next row (one drain per arbitration round).
@@ -185,7 +185,7 @@ describe('FollowupQueueService', () => {
         }
       ])
 
-      expect(followupQueueService.claimHead(SCOPE_A)).toEqual({ claimed: true, id: staleId })
+      expect(followupQueueService.claimHead(SCOPE_A)).toEqual({ claimed: true, id: staleId, alreadySent: false })
     })
   })
 
@@ -207,6 +207,79 @@ describe('FollowupQueueService', () => {
       followupQueueService.markFailed(pending.id)
       expect(followupQueueService.listByScope(SCOPE_A)[1]).toMatchObject({ id: pending.id, status: 'pending' })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('markSent', () => {
+    it('should record the send on an owned row and report it on the next claim', () => {
+      const item = enqueueIn(SCOPE_A, 'a')
+      const other = enqueueIn(SCOPE_A, 'b')
+      expect(followupQueueService.claim(item.id)).toEqual({ claimed: true, alreadySent: false })
+      notifyDataApiDataChangeMock.mockClear()
+
+      followupQueueService.markSent(item.id)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/followup-queues', kind: 'projection', entityIds: [item.id] }
+      ])
+      const [row] = followupQueueService.listByScope(SCOPE_A)
+      expect(row).toMatchObject({ id: item.id, status: 'sending' })
+      expect(row?.sentAt).not.toBeNull()
+
+      // Crash between send and dequeue: reclaiming owners see the marker
+      // instead of resending, on both claim paths.
+      followupQueueService.markFailed(item.id)
+      expect(followupQueueService.claimHead(SCOPE_A)).toEqual({ claimed: true, id: item.id, alreadySent: true })
+      expect(followupQueueService.claim(other.id)).toEqual({ claimed: true, alreadySent: false })
+    })
+
+    it('should ignore rows that are not sending', () => {
+      const pending = enqueueIn(SCOPE_A, 'a')
+      notifyDataApiDataChangeMock.mockClear()
+
+      followupQueueService.markSent(pending.id)
+
+      expect(followupQueueService.listByScope(SCOPE_A)[0]).toMatchObject({ id: pending.id, status: 'pending' })
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('heartbeat', () => {
+    it('should refresh the lease on a live claim and go quiet otherwise', () => {
+      const item = enqueueIn(SCOPE_A, 'a')
+      followupQueueService.claim(item.id)
+      notifyDataApiDataChangeMock.mockClear()
+
+      expect(followupQueueService.heartbeat(item.id)).toEqual({ live: true })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/followup-queues', kind: 'projection', entityIds: [item.id] }
+      ])
+
+      // A pending row holds no claim: nothing to refresh.
+      const pending = enqueueIn(SCOPE_A, 'b')
+      notifyDataApiDataChangeMock.mockClear()
+      expect(followupQueueService.heartbeat(pending.id)).toEqual({ live: false })
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+
+      expect(followupQueueService.heartbeat('33333333-3333-7333-8333-333333333333')).toEqual({ live: false })
+    })
+
+    it('should refuse to refresh a stale orphan (reclaim path owns it)', async () => {
+      const staleId = '11111111-1111-7111-8111-111111111111'
+      await dbh.db.insert(followupQueueTable).values([
+        {
+          id: staleId,
+          scopeKey: SCOPE_A,
+          draft: draft('stale'),
+          payload: payload('stale'),
+          status: 'sending',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: Date.now() - 31 * 60 * 1000
+        }
+      ])
+
+      expect(followupQueueService.heartbeat(staleId)).toEqual({ live: false })
     })
   })
 
@@ -265,7 +338,7 @@ describe('FollowupQueueService', () => {
     it('should refuse reorders while a live send holds a claim', () => {
       const first = enqueueIn(SCOPE_A, 'a')
       const second = enqueueIn(SCOPE_A, 'b')
-      expect(followupQueueService.claim(first.id)).toEqual({ claimed: true })
+      expect(followupQueueService.claim(first.id)).toEqual({ claimed: true, alreadySent: false })
 
       // Moving rows under a live send could expose a pending row that another
       // window's auto-drain claims and sends concurrently with the live owner.

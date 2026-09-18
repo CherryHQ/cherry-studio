@@ -7,6 +7,8 @@ const {
   claimMock,
   claimHeadMock,
   markFailedMock,
+  markSentMock,
+  heartbeatMock,
   reorderMock,
   reorderBatchMock,
   getStateMock,
@@ -18,6 +20,8 @@ const {
   claimMock: vi.fn(),
   claimHeadMock: vi.fn(),
   markFailedMock: vi.fn(),
+  markSentMock: vi.fn(),
+  heartbeatMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   getStateMock: vi.fn(),
@@ -32,6 +36,8 @@ vi.mock('@data/services/FollowupQueueService', () => ({
     claim: claimMock,
     claimHead: claimHeadMock,
     markFailed: markFailedMock,
+    markSent: markSentMock,
+    heartbeat: heartbeatMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
     getState: getStateMock,
@@ -49,6 +55,7 @@ const ITEM = {
   draft: { text: 'a', tokens: [] },
   payload: { text: 'a', userMessageParts: [] },
   status: 'pending',
+  sentAt: null,
   orderKey: 'a0',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z'
@@ -106,27 +113,27 @@ describe('followupQueueHandlers', () => {
 
   describe('/followup-queues/:id/claim', () => {
     it('should delegate POST to claim and return the verdict', async () => {
-      claimMock.mockReturnValueOnce({ claimed: true })
+      claimMock.mockReturnValueOnce({ claimed: true, alreadySent: false })
 
       const result = await followupQueueHandlers['/followup-queues/:id/claim'].POST({
         params: { id: ITEM_ID }
       })
 
       expect(claimMock).toHaveBeenCalledWith(ITEM_ID)
-      expect(result).toEqual({ claimed: true })
+      expect(result).toEqual({ claimed: true, alreadySent: false })
     })
   })
 
   describe('/followup-queues/claim:head', () => {
     it('should delegate POST to claimHead and return the verdict', async () => {
-      claimHeadMock.mockReturnValueOnce({ claimed: true, id: ITEM_ID })
+      claimHeadMock.mockReturnValueOnce({ claimed: true, id: ITEM_ID, alreadySent: false })
 
       const result = await followupQueueHandlers['/followup-queues/claim:head'].POST({
         body: { scopeKey: SCOPE }
       })
 
       expect(claimHeadMock).toHaveBeenCalledWith(SCOPE)
-      expect(result).toEqual({ claimed: true, id: ITEM_ID })
+      expect(result).toEqual({ claimed: true, id: ITEM_ID, alreadySent: false })
     })
   })
 
@@ -134,6 +141,26 @@ describe('followupQueueHandlers', () => {
     it('should delegate POST to markFailed', async () => {
       await followupQueueHandlers['/followup-queues/:id/fail'].POST({ params: { id: ITEM_ID } })
       expect(markFailedMock).toHaveBeenCalledWith(ITEM_ID)
+    })
+  })
+
+  describe('/followup-queues/:id/sent', () => {
+    it('should delegate POST to markSent', async () => {
+      await followupQueueHandlers['/followup-queues/:id/sent'].POST({ params: { id: ITEM_ID } })
+      expect(markSentMock).toHaveBeenCalledWith(ITEM_ID)
+    })
+  })
+
+  describe('/followup-queues/:id/heartbeat', () => {
+    it('should delegate POST to heartbeat and return liveness', async () => {
+      heartbeatMock.mockReturnValueOnce({ live: true })
+
+      const result = await followupQueueHandlers['/followup-queues/:id/heartbeat'].POST({
+        params: { id: ITEM_ID }
+      })
+
+      expect(heartbeatMock).toHaveBeenCalledWith(ITEM_ID)
+      expect(result).toEqual({ live: true })
     })
   })
 

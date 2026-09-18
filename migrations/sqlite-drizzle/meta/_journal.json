@@ -189,6 +189,13 @@
       "when": 1790242863366,
       "tag": "0026_clammy_the_renegades",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1790466968942,
+      "tag": "0027_early_red_ghost",
+      "breakpoints": true
     }
   ],
   "version": "7"
