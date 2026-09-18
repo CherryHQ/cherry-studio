@@ -39,7 +39,6 @@ export function wrapForwardedHook<F extends (...args: never[]) => unknown>(
  */
 export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: AgentLoopHooks): ToolSet | undefined {
   if (!tools) return tools
-  if (!hooks.onToolExecutionStart && !hooks.onToolExecutionEnd) return tools
 
   const wrapped: ToolSet = {}
   for (const [name, tool] of Object.entries(tools)) {

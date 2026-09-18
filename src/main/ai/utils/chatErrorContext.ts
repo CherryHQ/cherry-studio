@@ -1,9 +1,10 @@
 import { getSafeAiSdkErrorDiscriminants, getSafeProviderErrorMessage } from '@shared/ai/providerError'
-import { redactUrlParams } from '@shared/utils/redaction'
+import { redactSecretText, redactUrlParams } from '@shared/utils/redaction'
 
 import { redactToShape } from './redactToShape'
 
 const MAX_MESSAGE_CHARS = 500
+const MAX_STACK_CHARS = 4000
 const MAX_RESPONSE_INPUT_CHARS = 16_384
 /** RetryError → APICallError is the common chain; anything deeper is noise. */
 const MAX_NESTED_DEPTH = 2
@@ -15,6 +16,17 @@ function truncate(text: string, max: number): string {
 function safeText(value: unknown, max: number): string {
   const text = typeof value === 'string' ? value : String(value)
   return truncate(getSafeProviderErrorMessage({ message: text }) || `<string:${text.length}>`, max)
+}
+
+function safeUrl(value: string): string {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '<invalid-url>'
+    url.hash = ''
+    return truncate(redactUrlParams(url.toString()), MAX_MESSAGE_CHARS)
+  } catch {
+    return '<invalid-url>'
+  }
 }
 
 function responseShape(value: unknown): unknown {
@@ -58,7 +70,10 @@ function collectErrorContext(error: unknown, depth: number, hideMessage: boolean
   if (typeof source.message === 'string' || message) {
     context.errorMessage = hideMessage ? redactToShape(message) : safeText(message, MAX_MESSAGE_CHARS)
   }
-  if (typeof source.url === 'string') context.url = truncate(redactUrlParams(source.url), MAX_MESSAGE_CHARS)
+  if (!hideMessage && typeof source.stack === 'string') {
+    context.stack = redactSecretText(source.stack).slice(0, MAX_STACK_CHARS)
+  }
+  if (typeof source.url === 'string') context.url = safeUrl(source.url)
   // Node errno (`ECONNREFUSED`) and JSON-RPC codes — the most stable anchors the log scan has.
   if (typeof source.code === 'number') context.code = source.code
   if (typeof source.code === 'string') context.code = safeText(source.code, MAX_MESSAGE_CHARS)

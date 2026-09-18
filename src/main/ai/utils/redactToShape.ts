@@ -4,7 +4,6 @@ const MAX_DEPTH = 5
 const MAX_ARRAY_ITEMS = 8
 const MAX_OBJECT_KEYS = 32
 const MAX_NODES = 128
-const MAX_LABEL_CHARS = 80
 const MAX_SHAPE_BYTES = 4096
 
 type PayloadKind = 'tool' | 'request' | 'response' | 'headers'
@@ -25,6 +24,52 @@ const REQUEST_LABELS = new Set(['model', 'tools[].name', 'tools[].function.name'
 const ROLE_PATH = /^(messages|contents)\[\]\.role$/
 const TYPE_PATH = /^(messages\[\]\.content\[\]|tools\[\])\.type$/
 const RESPONSE_CODE_PATH = /^(error\.|detail\.error\.|detail\.)?(code|type)$/
+const RATE_LIMIT_HEADER = /^(retry-after|x-ratelimit-(limit|remaining|reset)-(requests|tokens))$/
+const REQUEST_FIELDS = new Set([
+  'stream',
+  'thinking',
+  'messages',
+  'contents',
+  'tools',
+  'messages[].content',
+  'messages[].content[].text',
+  'messages[].content[].image_url',
+  'messages[].content[].input',
+  'contents[].parts',
+  'contents[].parts[].text',
+  'tools[].function',
+  'tools[].description',
+  'tools[].parameters',
+  'tools[].input_schema',
+  'tools[].function.description',
+  'tools[].function.parameters'
+])
+const RESPONSE_FIELDS = new Set([
+  'error',
+  'error.message',
+  'detail',
+  'detail.message',
+  'detail.error',
+  'detail.error.message',
+  'message',
+  'choices',
+  'choices[].message',
+  'choices[].message.role',
+  'choices[].message.content'
+])
+
+function keepKey(path: string, kind: PayloadKind): boolean {
+  if (kind === 'request')
+    return (
+      REQUEST_FIELDS.has(path) ||
+      REQUEST_NUMBERS.has(path) ||
+      REQUEST_LABELS.has(path) ||
+      ROLE_PATH.test(path) ||
+      TYPE_PATH.test(path)
+    )
+  if (kind === 'response') return RESPONSE_FIELDS.has(path) || RESPONSE_CODE_PATH.test(path)
+  return kind === 'headers' && (path === 'content-type' || RATE_LIMIT_HEADER.test(path))
+}
 
 function keepScalar(value: unknown, path: string, kind: PayloadKind): boolean {
   if (kind === 'request') {
@@ -43,15 +88,12 @@ function keepScalar(value: unknown, path: string, kind: PayloadKind): boolean {
   if (kind === 'headers' && typeof value === 'string') {
     if (path === 'content-type')
       return /^(application\/json|text\/event-stream|text\/plain)(;\s*charset=utf-8)?$/i.test(value)
-    return (
-      /^(retry-after|x-ratelimit-(limit|remaining|reset)-(requests|tokens))$/.test(path) &&
-      /^[\d.smhd-]{1,40}$/.test(value)
-    )
+    return RATE_LIMIT_HEADER.test(path) && /^[\d.smhd-]{1,40}$/.test(value)
   }
   return false
 }
 
-/** Payload values are private by default; only protocol fields at known paths survive. */
+/** Payload keys and values are private by default; only protocol fields at known paths survive. */
 export function redactToShape(value: unknown, kind: PayloadKind = 'tool'): unknown {
   let nodes = 0
   const shape = (val: unknown, depth: number, path: string): unknown => {
@@ -80,9 +122,11 @@ export function redactToShape(value: unknown, kind: PayloadKind = 'tool'): unkno
         break
       }
       keys += 1
-      const label = key.length <= MAX_LABEL_CHARS ? key : `<key:${keys}:${key.length}>`
       const entry = (val as Record<string, unknown>)[key]
-      const entryPath = path ? `${path}.${key}` : key
+      const candidatePath = path ? `${path}.${key}` : key
+      const knownKey = !/[.[\]]/.test(key) && keepKey(candidatePath, kind)
+      const label = knownKey ? key : `<key:${keys}:${key.length}>`
+      const entryPath = knownKey ? candidatePath : '<private>'
       // Only allowlisted protocol fields bypass the sensitive-key match, including token limits.
       out[label] =
         isSensitiveKey(key) && !keepScalar(entry, entryPath, kind) ? REDACTED : shape(entry, depth + 1, entryPath)

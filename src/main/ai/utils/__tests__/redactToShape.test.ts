@@ -5,6 +5,28 @@ import { REDACTED } from '@shared/utils/redaction'
 import { redactToShape } from '../redactToShape'
 
 describe('redactToShape', () => {
+  it.each(['tool', 'request', 'response', 'headers'] as const)('hides user-controlled keys in %s payloads', (kind) => {
+    const shape = redactToShape({ 'alice@example.com': { 'private diagnosis': 'private result' } }, kind)
+    const serialized = JSON.stringify(shape)
+
+    expect(serialized).not.toContain('alice@example.com')
+    expect(serialized).not.toContain('private diagnosis')
+    expect(serialized).not.toContain('private result')
+    expect(serialized).toContain('<string:14>')
+  })
+
+  it('does not mistake user keys containing protocol paths for protocol metadata', () => {
+    const request = redactToShape(
+      { 'tools[].function.name': 'private-name', 'thinking.budget_tokens': 123456 },
+      'request'
+    )
+    const response = redactToShape({ 'error.code': 'private-code' }, 'response')
+
+    expect(JSON.stringify(request)).not.toContain('private-name')
+    expect(JSON.stringify(request)).not.toContain('123456')
+    expect(JSON.stringify(response)).not.toContain('private-code')
+  })
+
   it('preserves allowlisted request metadata only at protocol paths', () => {
     const shape = redactToShape(
       {
@@ -29,11 +51,9 @@ describe('redactToShape', () => {
       max_tokens: 4096,
       thinking: { budget_tokens: 1024 },
       messages: [{ role: 'user', content: [{ type: 'text', text: '<string:7>' }] }],
-      tools: [{ type: 'function', function: { name: 'search_web', description: '<string:19>' } }],
-      arguments: { model: '<string:13>', max_tokens: REDACTED, role: '<string:12>' },
-      token: REDACTED,
-      password: REDACTED
+      tools: [{ type: 'function', function: { name: 'search_web', description: '<string:19>' } }]
     })
+    expect(JSON.stringify(shape)).not.toMatch(/private|123456/)
   })
 
   it('hides short and empty user content and every tool argument value', () => {
@@ -49,51 +69,44 @@ describe('redactToShape', () => {
       nested: ['private result', 123n]
     })
 
-    expect(shape).toMatchObject({
-      content: '<string:7>',
-      text: '<string:0>',
-      query: '<string:13>',
-      path: '<string:12>',
-      model: '<string:13>',
-      role: '<string:12>',
-      age: '<number>',
-      consent: '<boolean>',
-      nested: ['<string:14>', '<bigint>']
-    })
+    expect(Object.values(shape as Record<string, unknown>)).toEqual([
+      '<string:7>',
+      '<string:0>',
+      '<string:13>',
+      '<string:12>',
+      '<string:13>',
+      '<string:12>',
+      '<number>',
+      '<boolean>',
+      ['<string:14>', '<bigint>']
+    ])
   })
 
-  it('redacts sensitive keys regardless of value type', () => {
-    expect(redactToShape({ password: 123456, token: 987654, auth: false, nested: { api_key: 123n } })).toEqual({
-      password: REDACTED,
-      token: REDACTED,
-      auth: REDACTED,
-      nested: { api_key: REDACTED }
-    })
+  it.each([123456, false, 123n])('redacts sensitive fields with value %s', (value) => {
+    const shape = redactToShape({ password: value, token: value, auth: value }) as Record<string, unknown>
+    expect(Object.values(shape)).toEqual([REDACTED, REDACTED, REDACTED])
   })
 
   it('retains only allowlisted response headers, including token rate limits', () => {
-    expect(
-      redactToShape(
-        {
-          'content-type': 'application/json',
-          'x-ratelimit-remaining-tokens': '1200',
-          'retry-after': '30',
-          'set-cookie': 'private',
-          authorization: 123456,
-          'x-custom-header': 'private',
-          'x-ratelimit-limit-requests': 'private'
-        },
-        'headers'
-      )
-    ).toMatchObject({
+    const shape = redactToShape(
+      {
+        'content-type': 'application/json',
+        'x-ratelimit-remaining-tokens': '1200',
+        'retry-after': '30',
+        'set-cookie': 'private',
+        authorization: 123456,
+        'x-custom-header': 'private',
+        'x-ratelimit-limit-requests': 'private'
+      },
+      'headers'
+    )
+    expect(shape).toMatchObject({
       'content-type': 'application/json',
       'x-ratelimit-remaining-tokens': '1200',
       'retry-after': '30',
-      'set-cookie': REDACTED,
-      authorization: REDACTED,
-      'x-custom-header': '<string:7>',
       'x-ratelimit-limit-requests': '<string:7>'
     })
+    expect(JSON.stringify(shape)).not.toMatch(/private|123456|x-custom-header/)
   })
 
   it('bounds wide and branching objects, including long property names', () => {

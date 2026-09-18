@@ -20,6 +20,38 @@ function apiCallError(): APICallError {
 }
 
 describe('chatErrorContext', () => {
+  it.each(['#access_token=fragment-secret', '#access_token%3Dfragment-secret', '#fragment-secret'])(
+    'removes URL fragments from the diagnostic route: %s',
+    (fragment) => {
+      const context = chatErrorContext({
+        url: `https://user:password@api.example.com/v1/chat?token=query-secret${fragment}`
+      })
+      expect(context.url).toContain('api.example.com/v1/chat')
+      const url = new URL(context.url as string)
+      expect(url.hash).toBe('')
+      expect(JSON.stringify(context)).not.toMatch(/fragment-secret|query-secret|user|password/)
+    }
+  )
+
+  it('does not fall back to raw text when a diagnostic URL is malformed', () => {
+    expect(JSON.stringify(chatErrorContext({ url: 'https://[invalid/#access_token=fragment-secret' }))).not.toContain(
+      'fragment-secret'
+    )
+  })
+
+  it('retains bounded, redacted stack frames for ordinary runtime errors and their causes', () => {
+    const cause = new Error('connection reset')
+    cause.stack = 'Error: connection reset\n    at connect (transport.ts:12:3)'
+    const error = new Error('socket hang up', { cause })
+    error.stack = `Error: token=private-token\n    at send (client.ts:24:5)\n${'    at retry (retry.ts:1:1)\n'.repeat(200)}`
+    const context = chatErrorContext(error)
+
+    expect(context.stack).toContain('at send (client.ts:24:5)')
+    expect(context.cause).toMatchObject({ stack: cause.stack })
+    expect(String(context.stack).length).toBeLessThanOrEqual(4000)
+    expect(JSON.stringify(context)).not.toContain('private-token')
+  })
+
   it('retains the message and nested cause of a plain error object', () => {
     expect(
       chatErrorContext({ name: 'TransportError', message: 'socket hang up', cause: { message: 'connection reset' } })
