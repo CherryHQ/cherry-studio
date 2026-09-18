@@ -215,6 +215,18 @@ describe('UserPopup', () => {
     expect(image).toHaveAttribute('src', avatar)
   })
 
+  it('lets a space be typed inside the name and stores the name without surrounding whitespace', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', '')
+    showUserPopup()
+
+    const input = await screen.findByPlaceholderText('settings.general.user_name.placeholder')
+    await user.type(input, 'John Doe ')
+
+    expect(input).toHaveValue('John Doe ')
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('John Doe')
+  })
+
   it('only customizes avatar picker popover width and padding', async () => {
     showUserPopup()
 
