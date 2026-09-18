@@ -113,6 +113,7 @@
   "paintings.generate_failed": "Αποτυχία δημιουργίας εικόνας",
   "paintings.image_mix_failed": "Αποτυχία ανάμειξης εικόνων",
   "selection.name": "Βοηθός Επιλογής Λέξεων",
+  "settings.mcp.oauth.callback.listen_error": "Δεν ήταν δυνατή η ακρόαση για την επιστροφή κλήσης OAuth στη διεύθυνση 127.0.0.1:{{port}} ({{reason}}). Ελέγξτε ότι η θύρα είναι διαθέσιμη και δοκιμάστε ξανά.",
   "settings.mcp.oauth.callback.message": "Μπορείτε να κλείσετε αυτήν τη σελίδα και να επιστρέψετε στο Cherry Studio",
   "settings.mcp.oauth.callback.title": "Επιτυχής Ταυτοποίηση",
   "settings.title": "Ρυθμίσεις",

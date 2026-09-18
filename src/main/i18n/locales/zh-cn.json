@@ -113,6 +113,7 @@
   "paintings.generate_failed": "生成图像失败",
   "paintings.image_mix_failed": "图像混合失败",
   "selection.name": "划词助手",
+  "settings.mcp.oauth.callback.listen_error": "无法在 127.0.0.1:{{port}} 监听 OAuth 回调（{{reason}}）。请检查端口是否可用后重试。",
   "settings.mcp.oauth.callback.message": "您可以关闭此页面并返回 Cherry Studio",
   "settings.mcp.oauth.callback.title": "认证成功",
   "settings.title": "设置",

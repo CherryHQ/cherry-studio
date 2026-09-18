@@ -113,6 +113,7 @@
   "paintings.generate_failed": "Nu s-a putut genera imaginea",
   "paintings.image_mix_failed": "Nu s-au putut combina imaginile",
   "selection.name": "Asistent de selecție",
+  "settings.mcp.oauth.callback.listen_error": "Nu s-a putut asculta pentru răspunsul OAuth la 127.0.0.1:{{port}} ({{reason}}). Verificați dacă portul este disponibil și încercați din nou.",
   "settings.mcp.oauth.callback.message": "Poți închide această pagină și te poți întoarce la Cherry Studio",
   "settings.mcp.oauth.callback.title": "Autentificare reușită",
   "settings.title": "Setări",

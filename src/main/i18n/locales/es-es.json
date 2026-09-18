@@ -113,6 +113,7 @@
   "paintings.generate_failed": "Error al generar la imagen",
   "paintings.image_mix_failed": "Error al mezclar imágenes",
   "selection.name": "Asistente de selección de palabras",
+  "settings.mcp.oauth.callback.listen_error": "No se pudo escuchar la devolución de llamada OAuth en 127.0.0.1:{{port}} ({{reason}}). Comprueba que el puerto esté disponible e inténtalo de nuevo.",
   "settings.mcp.oauth.callback.message": "Puede cerrar esta página y volver a Cherry Studio",
   "settings.mcp.oauth.callback.title": "Autenticación Exitosa",
   "settings.title": "Configuración",

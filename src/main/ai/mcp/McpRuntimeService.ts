@@ -1,4 +1,3 @@
-import { EventEmitter } from 'events'
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 
@@ -40,7 +39,7 @@ import type { McpPackageService } from './McpPackageService'
 import { redactCacheKey } from './mcpRedact'
 import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { createTransport, isMcpOAuthEnabled } from './mcpTransport'
-import { CallBackServer } from './oauth/callback'
+import type { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
@@ -580,10 +579,6 @@ export class McpRuntimeService extends BaseService {
     const candidates = getTransportCandidates(server)
     const transportTypes: (McpServerType | undefined)[] = candidates ?? [undefined]
 
-    // The SDK opens the browser during connect(), so the localhost callback must already be
-    // listening — a redirect landing before listen() completes is refused, and awaiting here
-    // turns a bind failure into an immediate error instead of a 5-minute auth-code timeout.
-    const oauthCallback = isMcpOAuthEnabled(server) ? await this.startOAuthCallback(authProvider) : undefined
     try {
       let lastError: unknown
 
@@ -594,6 +589,7 @@ export class McpRuntimeService extends BaseService {
           await client.connect(transport, connectOptions)
           return
         } catch (error: any) {
+          const oauthCallback = authProvider.callbackServer
           if (
             error instanceof Error &&
             isMcpOAuthEnabled(server) &&
@@ -631,29 +627,8 @@ export class McpRuntimeService extends BaseService {
       await client.close().catch(() => undefined)
       throw lastError ?? new Error('Failed to connect to MCP server')
     } finally {
-      await oauthCallback?.close()
+      await authProvider.callbackServer?.close()
     }
-  }
-
-  /**
-   * Starts the localhost OAuth callback and waits until it listens. Awaiting surfaces a bind
-   * failure (e.g. the port is already in use) immediately instead of after the auth-code timeout.
-   */
-  private async startOAuthCallback(authProvider: McpOAuthClientProvider): Promise<CallBackServer> {
-    const callbackServer = new CallBackServer({
-      port: authProvider.config.callbackPort,
-      path: authProvider.config.callbackPath || '/oauth/callback',
-      events: new EventEmitter()
-    })
-    try {
-      await callbackServer.getServer
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code
-      throw new Error(
-        `OAuth callback could not listen on 127.0.0.1:${authProvider.config.callbackPort}${code ? ` (${code})` : ''}: free the port and retry`
-      )
-    }
-    return callbackServer
   }
 
   private async finishOAuth({

@@ -113,6 +113,7 @@
   "paintings.generate_failed": "Failed to generate image",
   "paintings.image_mix_failed": "Failed to mix images",
   "selection.name": "Selection Assistant",
+  "settings.mcp.oauth.callback.listen_error": "Could not listen for the OAuth callback on 127.0.0.1:{{port}} ({{reason}}). Check that the port is available and retry.",
   "settings.mcp.oauth.callback.message": "You can close this page and return to Cherry Studio",
   "settings.mcp.oauth.callback.title": "Authentication Successful",
   "settings.title": "Settings",

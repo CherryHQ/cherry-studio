@@ -1,3 +1,5 @@
+import { EventEmitter } from 'events'
+
 import type { OAuthClientProvider, OAuthDiscoveryState } from '@modelcontextprotocol/sdk/client/auth'
 import type {
   OAuthClientInformation,
@@ -9,7 +11,9 @@ import { sanitizeUrl } from 'strict-url-sanitise'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { t } from '@main/i18n'
 
+import { CallBackServer } from './callback'
 import { JsonFileStorage } from './storage'
 import type { OAuthProviderOptions } from './types'
 
@@ -19,6 +23,7 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   private storage: JsonFileStorage
   private lastDiscoveredAuthServerUrl?: string
   public readonly config: Required<OAuthProviderOptions>
+  public callbackServer?: CallBackServer
 
   constructor(options: OAuthProviderOptions) {
     const configDir = application.getPath('feature.mcp.oauth')
@@ -99,6 +104,24 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
+    // Only interactive authorization needs a callback port; ordinary connections and token refreshes do not.
+    this.callbackServer ??= new CallBackServer({
+      port: this.config.callbackPort,
+      path: this.config.callbackPath,
+      events: new EventEmitter()
+    })
+    try {
+      await this.callbackServer.getServer
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code
+      throw new Error(
+        t('settings.mcp.oauth.callback.listen_error', {
+          port: this.config.callbackPort,
+          reason: code ?? (error instanceof Error ? error.message : String(error))
+        }),
+        { cause: error }
+      )
+    }
     try {
       // Open the browser to the authorization URL
       await open(sanitizeUrl(authorizationUrl.toString()))

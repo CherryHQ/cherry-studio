@@ -2,12 +2,15 @@ import crypto from 'node:crypto'
 
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import open from 'open'
 import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
+
+vi.mock('open', () => ({ default: vi.fn().mockResolvedValue(undefined) }))
 
 const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
@@ -68,7 +71,9 @@ const mcpSdkMock = vi.hoisted(() => {
     kind = 'streamableHttp' as const
     close = vi.fn().mockResolvedValue(undefined)
     finishAuth = vi.fn().mockResolvedValue(undefined)
-    constructor(url: unknown, opts?: unknown) {
+    authProvider?: { redirectToAuthorization(url: URL): Promise<void> }
+    constructor(url: unknown, opts?: { authProvider?: StreamableHTTPClientTransport['authProvider'] }) {
+      this.authProvider = opts?.authProvider
       streamableHttpTransports.push({ url, opts })
     }
   }
@@ -92,7 +97,7 @@ const mcpSdkMock = vi.hoisted(() => {
     constructor() {
       clients.push(this)
     }
-    async connect(transport: { kind: string }) {
+    async connect(transport: { kind: string; authProvider?: StreamableHTTPClientTransport['authProvider'] }) {
       // Mirror MCP SDK Protocol.connect: _transport is set before start() runs, and a failed
       // start() leaves it set. This is what makes the fallback retry fail unless client.close()
       // resets it — the test would not catch that regression otherwise.
@@ -106,6 +111,7 @@ const mcpSdkMock = vi.hoisted(() => {
       }
       if (mcpSdkMock.state.failStreamable) {
         if (mcpSdkMock.state.failStreamableUnauthorized) {
+          await transport.authProvider?.redirectToAuthorization(new URL('https://auth.example.com/authorize'))
           const error = new Error('Unauthorized')
           error.name = 'UnauthorizedError'
           throw error
@@ -1075,6 +1081,9 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     callbackServerMock.waitForAuthCode.mockReset().mockResolvedValue('auth-code')
     callbackServerMock.getServer = Promise.resolve(undefined as unknown)
     callbackServerMock.instances.length = 0
+    vi.mocked(open)
+      .mockReset()
+      .mockResolvedValue(undefined as never)
   })
 
   function urlServer(type: 'sse' | 'streamableHttp'): McpServer {
@@ -1143,10 +1152,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     expect(client.connectCalls.map((c) => c.kind)).toEqual(['streamableHttp', 'streamableHttp'])
   })
 
-  it('listens on the OAuth callback before connecting (issue #20624)', async () => {
-    // The SDK opens the browser during connect(), so a redirect arriving before listen()
-    // completes is refused. Hold the listen promise open and prove no connect is attempted
-    // until the callback server reports it is listening.
+  it('waits for the OAuth callback to listen before opening the browser', async () => {
     let resolveListen!: (value: unknown) => void
     callbackServerMock.getServer = new Promise((resolve) => {
       resolveListen = resolve
@@ -1162,19 +1168,20 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     const service = new McpRuntimeService()
     const connectPromise = (service as any).getOrCreateClient(urlServer('streamableHttp'))
 
-    // Wait until the implementation created the callback server (it awaits listen next),
-    // then prove no connect was attempted while listening was still pending.
     await vi.waitFor(() => expect(callbackServerMock.instances).toHaveLength(1))
-    expect(mcpSdkMock.clients.at(-1)?.connectCalls ?? []).toEqual([])
+    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
+    expect(open).not.toHaveBeenCalled()
 
     resolveListen(undefined)
     const client = (await connectPromise) as unknown as MockClient
     expect(client.connectCalls.map((c) => c.kind)).toEqual(['streamableHttp', 'streamableHttp'])
+    expect(open).toHaveBeenCalledWith('https://auth.example.com/authorize')
+    expect(callbackServerMock.instances[0]?.close).toHaveBeenCalledTimes(1)
   })
 
   it('fails fast when the OAuth callback port is busy (issue #20624)', async () => {
-    // A bind failure used to surface only as a 5-minute auth-code timeout with nothing
-    // listening. It must reject immediately with the port in the message instead.
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
     callbackServerMock.getServer = Promise.reject(
       Object.assign(new Error('listen EADDRINUSE: address already in use 127.0.0.1:12346'), { code: 'EADDRINUSE' })
     )
@@ -1189,14 +1196,34 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
 
     expect(callbackServerMock.waitForAuthCode).not.toHaveBeenCalled()
     expect(mcpSdkMock.clients.length).toBe(clientsBefore + 1)
-    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([])
+    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
+    expect(open).not.toHaveBeenCalled()
+    expect(callbackServerMock.instances[0]?.close).toHaveBeenCalledTimes(1)
   })
 
-  it('closes the pre-started OAuth callback when connect succeeds without auth', async () => {
+  it('connects concurrent non-interactive servers even when the callback port is unavailable', async () => {
+    callbackServerMock.getServer = Promise.reject(new Error('EADDRINUSE'))
+    callbackServerMock.getServer.catch(() => undefined)
     const service = new McpRuntimeService()
-    await (service as any).getOrCreateClient(urlServer('streamableHttp'))
+    const servers = ['first', 'second'].map((id) => ({ ...urlServer('streamableHttp'), id }))
 
-    expect(callbackServerMock.instances).toHaveLength(1)
+    const clients = await Promise.all(servers.map((server) => (service as any).getOrCreateClient(server)))
+
+    expect(clients).toHaveLength(2)
+    for (const client of clients) expect(client.connectCalls).toEqual([{ kind: 'streamableHttp' }])
+    expect(callbackServerMock.instances).toHaveLength(0)
+  })
+
+  it('releases the callback port when opening the browser fails', async () => {
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableUnauthorized = true
+    vi.mocked(open).mockRejectedValue(new Error('browser launch failed'))
+    const service = new McpRuntimeService()
+
+    await expect((service as any).getOrCreateClient(urlServer('streamableHttp'))).rejects.toThrow(
+      'browser launch failed'
+    )
+
     expect(callbackServerMock.instances[0]?.close).toHaveBeenCalledTimes(1)
   })
 
