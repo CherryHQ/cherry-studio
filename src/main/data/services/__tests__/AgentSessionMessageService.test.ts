@@ -664,7 +664,13 @@ describe('AgentSessionMessageService', () => {
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
       const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
       expect(row.status).toBe('error')
-      expect(row.data).toEqual(finalizedData)
+      expect(row.data.parts).toEqual([
+        { type: 'text', text: 'terminalized' },
+        expect.objectContaining({
+          type: 'data-error',
+          data: expect.objectContaining({ reason: 'crash-orphan-reconcile' })
+        })
+      ])
       expect(session.lastActivityAt).toBe(1_000)
     })
 
@@ -975,6 +981,17 @@ describe('AgentSessionMessageService', () => {
 
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('error')
     expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('resume-token')
+    const terminalized = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(terminalized.data.parts).toEqual([
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({
+          name: 'AgentRuntimeError',
+          i18nKey: 'agent_turn_failed_no_detail',
+          reason: 'terminal-error'
+        })
+      })
+    ])
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
       {
         endpoint: '/agent-sessions/:sessionId/messages',
@@ -982,6 +999,31 @@ describe('AgentSessionMessageService', () => {
         routeParams: { sessionId: SESSION_ID },
         entityIds: [ASSISTANT_MESSAGE_ID]
       }
+    ])
+  })
+
+  it('merges the no-response error part into existing parts when terminalizing', () => {
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [{ type: 'text', text: 'partial answer' }] }
+      }
+    })
+
+    agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    // A second call is a no-op: the row is no longer pending, so the part is not duplicated.
+    agentSessionMessageService.markAssistantMessageTerminalError(SESSION_ID, ASSISTANT_MESSAGE_ID)
+
+    const terminalized = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(terminalized.data.parts).toEqual([
+      { type: 'text', text: 'partial answer' },
+      expect.objectContaining({
+        type: 'data-error',
+        data: expect.objectContaining({ reason: 'terminal-error' })
+      })
     ])
   })
 

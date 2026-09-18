@@ -41,7 +41,7 @@ describe('AgentSessionMessageBackend', () => {
     expect(onPersistFailed).toHaveBeenCalledOnce()
   })
 
-  it('terminalizes an empty successful Agent reply on its reserved placeholder', async () => {
+  it('downgrades an empty successful Agent reply to a terminal error on its reserved placeholder', async () => {
     const backend = new AgentSessionMessageBackend({
       sessionId: 'session-1',
       assistantMessageId: 'assistant-1'
@@ -56,8 +56,71 @@ describe('AgentSessionMessageBackend', () => {
         message: {
           id: 'assistant-1',
           role: 'assistant',
+          status: 'error',
+          data: { parts: [expect.objectContaining({ type: 'data-error' })] },
+          modelId: undefined
+        }
+      },
+      { publishDataChange: true }
+    )
+    const saved = mocks.saveMessage.mock.calls[0][0]
+    expect(saved.message.data.parts[0].data).toMatchObject({
+      name: 'AgentRuntimeError',
+      i18nKey: 'agent_turn_no_output',
+      reason: 'empty-success-terminal'
+    })
+  })
+
+  it('downgrades a successful turn whose only parts are hidden or empty to a terminal error', async () => {
+    const backend = new AgentSessionMessageBackend({
+      sessionId: 'session-1',
+      assistantMessageId: 'assistant-1'
+    })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+
+    await listener.onDone({
+      status: 'success',
+      finalMessage: {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          { type: 'step-start' },
+          { type: 'data-agent-task-event', data: { event: 'started', taskId: 'task-1' } },
+          { type: 'text', text: '   ' },
+          { type: 'reasoning', state: 'done', text: '' }
+        ]
+      } as never
+    })
+
+    const saved = mocks.saveMessage.mock.calls[0][0]
+    expect(saved.message.status).toBe('error')
+    expect(saved.message.data.parts.filter((part: { type: string }) => part.type === 'data-error')).toHaveLength(1)
+  })
+
+  it('persists a successful turn with visible content unchanged', async () => {
+    const backend = new AgentSessionMessageBackend({
+      sessionId: 'session-1',
+      assistantMessageId: 'assistant-1'
+    })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+
+    await listener.onDone({
+      status: 'success',
+      finalMessage: {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'answer' }]
+      }
+    })
+
+    expect(mocks.saveMessage).toHaveBeenCalledWith(
+      {
+        sessionId: 'session-1',
+        message: {
+          id: 'assistant-1',
+          role: 'assistant',
           status: 'success',
-          data: { parts: [] },
+          data: { parts: [{ type: 'text', text: 'answer' }] },
           modelId: undefined
         }
       },

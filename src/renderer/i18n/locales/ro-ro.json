@@ -1238,6 +1238,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Înglobări (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_turn_failed_no_detail": "Rularea a eșuat, dar nu s-au capturat detalii despre eroare.",
+  "error.agent_turn_no_output": "Această rulare nu a produs nicio ieșire (posibil a fost întreruptă). Retrimiteți mesajul sau răspundeți „continuare” pentru a relua.",
   "error.api_gateway_required": "Acest model trebuie să fie conectat prin serverul API local Cherry Studio, care este în prezent dezactivat. Activează-l pentru a rula acest agent.",
   "error.availableProviders": "Furnizori disponibili",
   "error.availableTools": "Instrumente disponibile",

@@ -1238,6 +1238,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Einbettungen (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_turn_failed_no_detail": "Der Durchlauf ist fehlgeschlagen, ohne dass Fehlerdetails erfasst wurden.",
+  "error.agent_turn_no_output": "Dieser Durchlauf hat keine Ausgabe erzeugt (möglicherweise wurde er unterbrochen). Senden Sie die Nachricht erneut oder antworten Sie mit „Weiter“, um fortzufahren.",
   "error.api_gateway_required": "Dieses Modell muss über das lokale API-Gateway von Cherry Studio gebrückt werden, das derzeit deaktiviert ist. Aktivieren Sie es, um diesen Agenten auszuführen.",
   "error.availableProviders": "Verfügbare Anbieter",
   "error.availableTools": "Verfügbare Tools",

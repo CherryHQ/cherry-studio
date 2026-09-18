@@ -1238,6 +1238,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Embeddings (OpenAI)",
   "endpoint_type.openai-response": "Resposta OpenAI",
+  "error.agent_turn_failed_no_detail": "A execução falhou, mas não foram capturados detalhes do erro.",
+  "error.agent_turn_no_output": "Esta execução não produziu qualquer saída (pode ter sido interrompida). Reenvie a mensagem ou responda «continuar» para repetir.",
   "error.api_gateway_required": "Este modelo deve ser ligado através da API Gateway local do Cherry Studio, que atualmente está desativada. Ative-a para executar este agente.",
   "error.availableProviders": "Fornecedores disponíveis",
   "error.availableTools": "Ferramentas disponíveis",

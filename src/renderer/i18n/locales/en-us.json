@@ -1238,6 +1238,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Embeddings (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_turn_failed_no_detail": "The turn failed, but no error detail was captured.",
+  "error.agent_turn_no_output": "This turn produced no output (it may have been interrupted). Resend the message or reply \"continue\" to recover.",
   "error.api_gateway_required": "This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
   "error.availableProviders": "Available Providers",
   "error.availableTools": "Available Tools",

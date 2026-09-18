@@ -1238,6 +1238,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Vektör Gömmeleri (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_turn_failed_no_detail": "Tur başarısız oldu, ancak hata ayrıntısı yakalanamadı.",
+  "error.agent_turn_no_output": "Bu tur çıktı üretmedi (kesilmiş olabilir). İletiyi yeniden gönderin veya devam etmek için \"devam\" yanıtını verin.",
   "error.api_gateway_required": "Bu model, şu anda devre dışı olan Cherry Studio'nun yerel API Ağ Geçidi'ni kullanarak köprülenmelidir. Bu ajanı çalıştırmak için etkinleştirin.",
   "error.availableProviders": "Kullanılabilir Sağlayıcılar",
   "error.availableTools": "Kullanılabilir Araçlar",

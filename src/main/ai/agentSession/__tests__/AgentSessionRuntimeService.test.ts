@@ -5450,8 +5450,16 @@ describe('AgentSessionRuntimeService', () => {
         message: {
           id: 'assistant-1',
           role: 'assistant',
-          status: 'success',
-          data: { parts: [] },
+          // An empty success is downgraded to a terminal error by the persistence backend.
+          status: 'error',
+          data: {
+            parts: [
+              {
+                type: 'data-error',
+                data: expect.objectContaining({ name: 'AgentRuntimeError', reason: 'empty-success-terminal' })
+              }
+            ]
+          },
           modelId: 'claude-code::claude-sonnet-4-5'
         }
       },

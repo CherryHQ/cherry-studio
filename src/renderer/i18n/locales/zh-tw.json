@@ -1238,6 +1238,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "嵌入向量（OpenAI）",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_turn_failed_no_detail": "回合執行失敗，但未擷取到錯誤詳情。",
+  "error.agent_turn_no_output": "回合未產生輸出（可能已被中斷）。重新傳送訊息或回覆「繼續」即可恢復。",
   "error.api_gateway_required": "此模型必須透過 Cherry Studio 的本機 API Gateway 橋接，但閘道目前為停用狀態。請啟用它才能執行此智能體。",
   "error.availableProviders": "可用供應商",
   "error.availableTools": "可用工具",

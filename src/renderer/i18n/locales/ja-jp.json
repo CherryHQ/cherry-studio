@@ -1238,6 +1238,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "埋め込み（OpenAI）",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_turn_failed_no_detail": "ターンは失敗しましたが、エラーの詳細を取得できませんでした。",
+  "error.agent_turn_no_output": "このターンは出力を生成しませんでした（中断された可能性があります）。メッセージを再送信するか、「続行」と返信してください。",
   "error.api_gateway_required": "このモデルはCherry StudioのローカルAPIサーバーを通してブリッジする必要がありますが、現在は無効です。このエージェントを実行するには有効化してください。",
   "error.availableProviders": "利用可能なプロバイダー",
   "error.availableTools": "利用可能なツール",

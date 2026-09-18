@@ -8,10 +8,26 @@
  */
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { loggerService } from '@logger'
+import {
+  appendNoResponseErrorPart,
+  hasVisibleAgentSessionPart,
+  type NoResponseErrorPartOptions
+} from '@shared/ai/agentSessionNoResponse'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../../streamManager'
+
+const logger = loggerService.withContext('AgentSessionMessageBackend')
+
+/** Folded into turns that reach `success` without any renderable content (renderer-visible rule). */
+const EMPTY_SUCCESS_NO_RESPONSE_ERROR: NoResponseErrorPartOptions = {
+  message:
+    'This turn produced no output (it may have been interrupted). Resend the message or reply "continue" to recover.',
+  i18nKey: 'agent_turn_no_output',
+  reason: 'empty-success-terminal'
+}
 
 export interface AgentSessionMessageBackendOptions {
   /** Cherry Studio agent-session id. */
@@ -38,6 +54,16 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
 
   persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, runtimeStats } = input
+    const parts = finalMessage?.parts ?? []
+    // A `success` terminal without any renderer-visible part would render as a misleading empty
+    // bubble on an OK turn; persist it as an error so the UI and delivery outcome reflect reality.
+    const isEmptySuccessTerminal = status === 'success' && !hasVisibleAgentSessionPart(parts)
+    if (isEmptySuccessTerminal) {
+      logger.warn('Downgrading empty successful agent turn to terminal error', {
+        sessionId: this.opts.sessionId,
+        assistantMessageId: this.opts.assistantMessageId
+      })
+    }
     const runtimeResumeToken = this.getRuntimeResumeToken()
     agentSessionMessageService.saveMessage(
       {
@@ -47,8 +73,10 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         message: {
           id: finalMessage?.id ?? this.opts.assistantMessageId,
           role: 'assistant',
-          status,
-          data: { parts: finalMessage?.parts ?? [] },
+          status: isEmptySuccessTerminal ? 'error' : status,
+          data: isEmptySuccessTerminal
+            ? appendNoResponseErrorPart({ parts }, EMPTY_SUCCESS_NO_RESPONSE_ERROR)
+            : { parts },
           modelId: this.opts.modelId
         }
       },
