@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, copyFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, copyFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -57,7 +57,7 @@ async function createSession(excludeTools?: string[]) {
 }
 
 describe('Pi managed Bash SDK contract', () => {
-  it('forks a native source, child and grandchild at the exact leaf without mutating the source manager', async () => {
+  it.each([false, true])('forks at the exact leaf (older duplicate: %s)', async (duplicate) => {
     const directory = await mkdtemp(path.join(tmpdir(), 'cherry-pi-native-fork-'))
     directories.push(directory)
     const sessions = path.join(directory, 'sessions')
@@ -67,6 +67,11 @@ describe('Pi managed Bash SDK contract', () => {
       key === 'feature.agents.pi.sessions' ? sessions : originalPath(key, ...args)
     )
     const manager = SessionManager.create(directory, sessions)
+    if (duplicate)
+      await writeFile(
+        path.join(sessions, `2000-01-01T00-00-00-000Z_${manager.getSessionId()}.jsonl`),
+        JSON.stringify(manager.getHeader()) + '\n'
+      )
     manager.appendMessage({ role: 'user', content: 'PAST_ONLY', timestamp: 1 })
     manager.appendMessage({
       role: 'assistant',

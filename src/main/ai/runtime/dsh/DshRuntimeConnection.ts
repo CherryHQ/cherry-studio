@@ -134,6 +134,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private compositionPath?: string
   private resumeToken?: string
   private closed = false
+  private startPromise?: Promise<this>
   private closePromise?: Promise<void>
   private turnActive = false
   /** Monotonic host-turn identity; child items pin it at open so they never split across streams. */
@@ -240,7 +241,11 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  async start(): Promise<this> {
+  start(): Promise<this> {
+    return (this.startPromise ??= this.startRuntime())
+  }
+
+  private async startRuntime(): Promise<this> {
     if (this.input.resumeToken) assertValidDshResumeToken(this.input.resumeToken)
     const runtimeExecutable = await resolveDshBunRuntime()
     const resolveInjection = async (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> => {
@@ -646,22 +651,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async snapshotForFork(boundary: number, signal?: AbortSignal): Promise<unknown[] | undefined> {
+    if (this.startPromise) await this.waitForForkTransition(this.startPromise, signal)
+    signal?.throwIfAborted()
     if (this.closePromise) {
-      const timeout = AbortSignal.timeout(60_000)
-      const waitSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
-      waitSignal.throwIfAborted()
-      let onAbort: () => void = () => {}
-      try {
-        await Promise.race([
-          this.closePromise,
-          new Promise<never>((_resolve, reject) => {
-            onAbort = () => reject(waitSignal.reason)
-            waitSignal.addEventListener('abort', onAbort, { once: true })
-          })
-        ])
-      } finally {
-        waitSignal.removeEventListener('abort', onAbort)
-      }
+      await this.waitForForkTransition(this.closePromise, signal)
       // The source has finished flushing; the driver can now use persisted history.
       return undefined
     }
@@ -672,6 +665,20 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       { timeoutMs: 60_000, signal }
     )
     return result.events
+  }
+
+  private async waitForForkTransition(transition: Promise<unknown>, signal?: AbortSignal): Promise<void> {
+    const timeout = AbortSignal.timeout(60_000)
+    const waitSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
+    waitSignal.throwIfAborted()
+    const aborted = Promise.withResolvers<never>()
+    const onAbort = () => aborted.reject(waitSignal.reason)
+    waitSignal.addEventListener('abort', onAbort, { once: true })
+    try {
+      await Promise.race([transition, aborted.promise])
+    } finally {
+      waitSignal.removeEventListener('abort', onAbort)
+    }
   }
 
   close(): Promise<void> {

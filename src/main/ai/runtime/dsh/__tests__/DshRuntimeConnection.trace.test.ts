@@ -309,13 +309,31 @@ describe('DshRuntimeConnection tracing', () => {
     }
   })
 
-  it.each([false, true])('waits for source shutdown before reading stored history (cancel: %s)', async (cancel) => {
+  it.each([
+    ['startup', false],
+    ['startup', true],
+    ['shutdown', false],
+    ['shutdown', true]
+  ])('waits for source %s before forking (cancel: %s)', async (phase, cancel) => {
     const driver = new DshRuntimeDriver()
-    const connection = await driver.connect(connectInput)
-    const shutdown = Promise.withResolvers<void>()
-    runtimeMocks.clientClose.mockReturnValueOnce(shutdown.promise)
-    const closing = connection.close()
-    await vi.waitFor(() => expect(runtimeMocks.clientClose).toHaveBeenCalledOnce())
+    const transition = Promise.withResolvers<void>()
+    const starting = phase === 'startup'
+    if (starting)
+      runtimeMocks.resolveBun.mockImplementationOnce(async () => {
+        await transition.promise
+        return '/bundled/bun'
+      })
+    const connecting = driver.connect(connectInput)
+    let closing: Promise<void> | undefined
+    if (!starting) {
+      const connection = await connecting
+      runtimeMocks.clientClose.mockReturnValueOnce(transition.promise)
+      closing = Promise.resolve(connection.close())
+      await vi.waitFor(() => expect(runtimeMocks.clientClose).toHaveBeenCalledOnce())
+    }
+    runtimeMocks.bridgeRequest.mockImplementation(async (method) =>
+      method === 'session/fork-snapshot' ? { events: [] } : undefined
+    )
     const controller = new AbortController()
     const checkpoint = { runtime: 'dsh' as const, runtimeSessionId: 'session-1', boundary: 7 }
     const input: RuntimeForkInput = {
@@ -336,19 +354,20 @@ describe('DshRuntimeConnection tracing', () => {
       await drain()
       expect(runtimeMocks.forkDshSession).not.toHaveBeenCalled()
       if (cancel) {
-        const reason = new Error('fork cancelled during shutdown')
+        const reason = new Error(`fork cancelled during ${phase}`)
         controller.abort(reason)
         await expect(result).resolves.toEqual({ error: reason })
         expect(runtimeMocks.forkDshSession).not.toHaveBeenCalled()
       } else {
-        shutdown.resolve()
+        transition.resolve()
         await closing
         await expect(fork).resolves.toMatchObject({ resumeToken: 'child' })
-        expect(runtimeMocks.forkDshSession).toHaveBeenCalledWith(input, undefined)
+        expect(runtimeMocks.forkDshSession).toHaveBeenCalledWith(input, starting ? [] : undefined)
       }
     } finally {
-      shutdown.resolve()
+      transition.resolve()
       await closing
+      await (await connecting).close()
       await result
     }
   })
@@ -384,6 +403,9 @@ describe('DshRuntimeConnection tracing', () => {
         failure = error
       })
     try {
+      await vi.waitFor(() =>
+        expect(runtimeMocks.bridgeRequest.mock.calls.some(([method]) => method === 'session/fork-snapshot')).toBe(true)
+      )
       controller.abort(reason)
       await vi.waitFor(() => expect(failure).toBe(reason))
       expect(runtimeMocks.clientClose).not.toHaveBeenCalled()

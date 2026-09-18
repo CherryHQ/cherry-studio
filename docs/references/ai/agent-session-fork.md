@@ -102,15 +102,15 @@ compression settings to Agent forks.
 
 | Adapter | Native boundary | Fork implementation |
 |---|---|---|
-| Pi | Runtime session ID and leaf ID | Opens a staged native snapshot with `SessionManager`, branches at the leaf, and maps checkpoints to the child session ID |
+| Pi | Runtime session ID and leaf ID | Stages the newest matching native file, as normal resume does, then branches with `SessionManager` and maps checkpoints to the child session ID |
 | Claude Code | Runtime session ID, main assistant UUID, and config directory | Its private worker calls the SDK fork API and maps assistant UUIDs into the child's transcript |
 | DSH | Runtime session ID and completed `turn/end` boundary | Its private worker calls the bundled bridge fork entry with a live snapshot or stored native history; the bridge creates and persists a seeded child |
 
-DSH requests a snapshot from an existing live connection when available. Failure
+DSH waits for an existing connection to finish startup before requesting a snapshot. Failure
 of that request is reported rather than retried against potentially stale stored
 history. A cold fork reads stored history without starting the source Agent loop.
-A closing connection remains registered until teardown finishes; Fork waits up to
-60 seconds, cancellably, before reading its persisted history.
+A closing connection remains registered until teardown finishes before Fork reads
+its persisted history. Startup and shutdown waits are cancellable and limited to 60 seconds each.
 
 Claude and DSH create their own workers and pass them to `runForkWorker`. The
 shared helper returns an opaque result and waits for termination on success,

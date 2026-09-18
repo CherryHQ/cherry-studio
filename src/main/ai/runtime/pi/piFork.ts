@@ -1,4 +1,4 @@
-import { mkdir, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -7,6 +7,7 @@ import { readForkPrefix, readNativeForkHistory } from '@main/ai/runtime/fork'
 import { AgentSessionForkError, type RuntimeForkInput, type RuntimeForkResult } from '../fork'
 import { parsePiForkCheckpoint } from './forkCheckpoint'
 import { loadPiSdk } from './piSdk'
+import { resolveResumeTokenSessionFile } from './piSessionFile'
 
 export async function forkPiSession(input: RuntimeForkInput): Promise<RuntimeForkResult> {
   return readNativeForkHistory(() => preparePiFork(input))
@@ -16,12 +17,8 @@ async function preparePiFork(input: RuntimeForkInput): Promise<RuntimeForkResult
   const checkpoint = parsePiForkCheckpoint(input.checkpoint)
   if (!/^[a-zA-Z0-9-]+$/.test(checkpoint.runtimeSessionId)) throw new AgentSessionForkError('history_corrupt')
   const sessions = application.getPath('feature.agents.pi.sessions')
-  const candidates = (await readdir(sessions)).filter((name) =>
-    name.endsWith('_' + checkpoint.runtimeSessionId + '.jsonl')
-  )
-  if (candidates.length !== 1)
-    throw new AgentSessionForkError(candidates.length ? 'history_corrupt' : 'history_missing')
-  const sourceFile = path.join(sessions, candidates[0])
+  const sourceFile = resolveResumeTokenSessionFile(checkpoint.runtimeSessionId, sessions)
+  if (!sourceFile) throw new AgentSessionForkError('history_missing')
   const source = await readForkPrefix(sourceFile)
   // The SDK tolerates malformed trailing lines; a fork must not silently omit history.
   for (const line of source.toString('utf8').trimEnd().split('\n')) JSON.parse(line)
