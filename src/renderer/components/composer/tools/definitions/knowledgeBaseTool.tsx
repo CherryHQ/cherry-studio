@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { loggerService } from '@logger'
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
@@ -68,6 +68,15 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
   // Auto-link PATCHes run strictly one at a time, each body computed from the previous
   // outcome: a failed link must not leak into the next pick's body, and a carried one forward.
   const linkQueueRef = useRef<Promise<boolean>>(Promise.resolve(true))
+  // An unmounted runtime's refs freeze on the old assistant, so a queued link can no
+  // longer observe a switch through them; only liveness can veto it now.
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const unconfiguredBaseIds = useMemo(() => {
     if (!isChatScope) return new Set<string>()
@@ -81,8 +90,9 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
       // PATCH runs, dropping the link beats silently widening another assistant.
       const assistantAtPick = assistantSnapshotRef.current
       // Scope is the assistant id, not the snapshot object: refresh deliveries mint new
-      // same-id snapshots mid-flight and must not read as a switch.
-      const pickStillInScope = () => assistantSnapshotRef.current?.id === assistantAtPick?.id
+      // same-id snapshots mid-flight and must not read as a switch. Unmounting (Chat drops
+      // the runtime while a switch's assistant query loads) must read the same as a switch.
+      const pickStillInScope = () => mountedRef.current && assistantSnapshotRef.current?.id === assistantAtPick?.id
       const run = async (): Promise<boolean> => {
         if (!assistantAtPick || !pickStillInScope()) return false
         const currentIds = latestKnowledgeBaseIdsRef.current ?? assistantAtPick.knowledgeBaseIds ?? []
