@@ -185,6 +185,35 @@ describe('AgentSessionMessageService', () => {
       ])
     })
 
+    it('atomically creates a Session for an explicit target Agent', async () => {
+      await seedAgent('agent-a', 'Sender Agent')
+      await seedAgent('agent-b', 'Target Agent')
+      await seedSession({ id: 'sender-target', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'target-workspace',
+        name: 'Target workspace',
+        path: '/tmp/target-workspace',
+        type: 'user',
+        orderKey: 'workspace-target'
+      })
+
+      const created = agentSessionMessageService.createSessionWithDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender-target',
+        targetAgentId: 'agent-b',
+        sessionName: 'Target work',
+        workspace: { type: 'user', workspaceId: 'target-workspace' },
+        content: 'Work for target'
+      })
+
+      expect(created.session.agentId).toBe('agent-b')
+      expect(created.message.delivery).toMatchObject({
+        sender: { agentId: 'agent-a', sessionId: 'sender-target' },
+        receiver: { agentId: 'agent-b', sessionId: created.session.id },
+        status: 'accepted'
+      })
+    })
+
     it('rolls back the new Session when the sender identity is stale', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedAgent('agent-b', 'Agent B')
