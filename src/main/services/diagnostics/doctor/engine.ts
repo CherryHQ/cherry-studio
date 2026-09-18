@@ -86,7 +86,7 @@ async function probe<Outcome>(
     throw new Error(`Timed out after ${check.timeoutMs}ms`)
   })
   try {
-    const outcome = await Promise.race([check.run(signal), deadline])
+    const outcome = await Promise.race([new Promise<Outcome>((resolve) => resolve(check.run(signal))), deadline])
     return { ...outcome, durationMs: now() - started }
   } catch (error) {
     // Whatever the probe threw while aborted, the cause the caller needs is the abort reason.
