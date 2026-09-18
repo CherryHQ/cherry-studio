@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.2",
+    "electron": "44.2.0",
     "tsdown": "^0.22.14",
     "tsx": "^4.21.0",
     "typescript": "7.0.2",

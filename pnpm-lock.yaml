@@ -1986,6 +1986,9 @@ importers:
       '@types/node':
         specifier: ^24.10.2
         version: 24.10.4
+      electron:
+        specifier: 44.2.0
+        version: 44.2.0
       tsdown:
         specifier: ^0.22.14
         version: 0.22.14(oxc-resolver@11.21.2)(tsx@4.21.0)(typescript@7.0.2)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))

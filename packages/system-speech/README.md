@@ -8,7 +8,7 @@ The package never calls a remote speech provider. `capabilities`, `roundtrip`, a
 pnpm --filter @cherrystudio/system-speech validate -- install-asr-assets --locale zh-CN --confirm-download
 ```
 
-Run that command only after the user explicitly requests the download. Missing ASR assets return `asset_required`; unavailable voices return `voice_unavailable` without substitution. All audio input and output uses caller-owned local paths.
+Run that command only after the user explicitly requests the download. A `supported` asset status means the locale is available but its ASR asset is not installed. Missing ASR assets return `asset_required`; unavailable voices return `voice_unavailable` without substitution. All audio input and output uses caller-owned local paths.
 
 End users do not need Rust, Swift, Xcode, or ffmpeg. Release builds ship the precompiled Swift helper. Maintainers need Xcode 26 or later only when building the macOS helper.
 
@@ -22,3 +22,22 @@ pnpm --filter @cherrystudio/system-speech test:native
 ```
 
 Runtime validation commands are added with the validation runner. Generated audio and transcripts must not be committed or written to logs.
+
+## Runtime validation
+
+Build the package and the helper before running validation:
+
+```bash
+pnpm --filter @cherrystudio/system-speech build
+pnpm --filter @cherrystudio/system-speech build:native
+pnpm --filter @cherrystudio/system-speech validate -- capabilities --locale zh-CN
+```
+
+After the user has explicitly installed the reported ASR asset, select an exact voice ID from `capabilities` and run:
+
+```bash
+pnpm --filter @cherrystudio/system-speech validate -- roundtrip --locale zh-CN --voice-id '<voice-id>' --text '你好，Cherry Studio。'
+pnpm --filter @cherrystudio/system-speech validate -- offline --locale zh-CN --voice-id '<voice-id>' --text '你好，Cherry Studio。'
+```
+
+`roundtrip` synthesizes a local WAV, records it as WebM/Opus in Electron, converts it to mono 16 kHz WAV in the Apple adapter, and transcribes it locally. `offline` runs the same speech operations with network access denied by the macOS sandbox. Both commands delete temporary audio and report only metadata plus whether the transcript was nonempty.
