@@ -159,6 +159,16 @@ describe('DoctorContext.share', () => {
 })
 
 describe('DoctorService.run', () => {
+  it('rejects an explicit check outside the tier without replacing the last report', async () => {
+    const service = createReadyService()
+    const previous = await service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
+    if (previous.status !== 'completed') throw new Error('expected report')
+    await expect(
+      service.run({ subject: { kind: 'global' }, tier: 'quick', checkIds: ['network-dns-resolution'] })
+    ).rejects.toThrow('unavailable in tier quick')
+    expect(state()).toEqual({ status: 'completed', report: previous.report })
+  })
+
   it('rejects early calls without publishing a running state', async () => {
     await expect(
       new DoctorService().run({ subject: { kind: 'global' }, tier: 'quick', checkIds: MOCKED })
@@ -469,6 +479,26 @@ describe('DoctorService scopes', () => {
 })
 
 describe('DoctorService.fix', () => {
+  it.each(['absent', 'passed', 'not offered'] as const)(
+    'refuses a repair whose original finding was %s',
+    async (finding) => {
+      const service = createReadyService()
+      if (finding === 'not offered') registryMocks.bootConfigRun.mockResolvedValue({ ...warnWithRepair, actions: [] })
+      const run = await service.run({
+        subject: { kind: 'global' },
+        tier: 'quick',
+        checkIds: finding === 'absent' ? ['storage-userdata-location'] : MOCKED
+      })
+      if (run.status !== 'completed') throw new Error('expected report')
+      registryMocks.bootConfigRun.mockResolvedValue(warnWithRepair)
+      await expect(
+        service.fix({ scope: 'global', runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
+      ).resolves.toMatchObject({ status: 'stale', reason: 'finding_changed' })
+      expect(registryMocks.bootConfigRepair).not.toHaveBeenCalled()
+      expect(state()).toEqual({ status: 'completed', report: run.report })
+    }
+  )
+
   it('rejects expired reports without performing a fix', async () => {
     registryMocks.bootConfigRun.mockResolvedValue(warnWithRepair)
     const service = createReadyService()

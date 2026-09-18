@@ -9,6 +9,12 @@ const { netFetchMock, getCatalogVersionMock, notifyDataChangeMock, readActiveMan
     writeSnapshotMock: vi.fn()
   }))
 
+vi.mock('@main/services/AppUpdaterService', () => ({ RELEASE_HISTORY_URL: 'https://updates.example' }))
+vi.mock('@main/services/cherryCloud/CherryCloudService', () => ({
+  resolveCherryCloudApiOrigin: () => 'https://cloud.example'
+}))
+vi.mock('@main/services/diagnostics', () => ({ DIAGNOSTIC_UPLOAD_URL: 'https://diagnostics.example' }))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() })
@@ -64,6 +70,7 @@ import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 
 import { REGISTRY_SCHEMA_VERSION } from '@cherrystudio/provider-registry/node'
 
+import { builtinEndpoints } from '../network/endpoints'
 import {
   ProviderRegistryUpdaterService,
   REGISTRY_URL_GITCODE,
@@ -286,6 +293,15 @@ describe('ProviderRegistryUpdaterService.check', () => {
     expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/models.json'), expect.anything())
   })
 
+  it.each(['US', 'CN', null])('diagnoses the updater mirror with a cold country cache (%s)', async (country) => {
+    mockRemote({ country })
+    const endpoints = await builtinEndpoints()
+    const url = endpoints.find((endpoint) => endpoint.id === 'registry')!.url
+    await service.check()
+    expect(netFetchMock).toHaveBeenCalledWith(url, expect.anything())
+    expect(url).toContain(country === 'US' ? 'raw.githubusercontent.com' : 'raw.gitcode.com')
+  })
+
   it('uses the GitCode mirror inside China', async () => {
     mockRemote({ dataVersion: 'v2', country: 'CN' })
 
@@ -301,7 +317,7 @@ describe('ProviderRegistryUpdaterService.check', () => {
 
     expect(netFetchMock).toHaveBeenCalledWith(expect.stringContaining('raw.gitcode.com'), expect.anything())
     expect(regionService.getCachedCountry()).toBeNull()
-    expect(resolveRegistryBaseUrl(regionService.getCachedCountry())).toBe(REGISTRY_URL_GITCODE)
+    await expect(resolveRegistryBaseUrl()).resolves.toBe(REGISTRY_URL_GITCODE)
     expect(writeSnapshotMock).toHaveBeenCalledTimes(1)
   })
 
