@@ -105,6 +105,9 @@ describe('serializeKeyValueString', () => {
       PADDED: '  padded  ',
       APOSTROPHE: "it's #1",
       WRAPPED: '"wrapped"',
+      BACKTICKED: '`wrapped`',
+      MIXED_QUOTES: "it's `code` #1",
+      MIXED_MULTILINE: "it's\n`code`",
       PLAIN: 'plain'
     }
 
