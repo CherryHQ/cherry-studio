@@ -36,7 +36,7 @@ export function DiagnosticsPanel({
       <div
         className={cn(
           'flex flex-wrap items-center justify-between gap-3 px-4 py-2',
-          variant === 'sectioned' && 'border-border border-b bg-background-subtle'
+          variant === 'sectioned' && 'min-h-10 border-border border-b bg-background-subtle py-1'
         )}>
         <div className="min-w-0">
           <h2 id={titleId} className="text-sm font-medium">

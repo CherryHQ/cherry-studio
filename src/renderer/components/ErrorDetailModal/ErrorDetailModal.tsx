@@ -58,7 +58,6 @@ interface ErrorDetailContentProps {
   diagnosticReport?: DiagnosticReportConfig
   subject?: DoctorSubjectRef
   onOpenDiagnosticReport?: (description: string) => void
-  onOpenFullCheck?: () => void
   onDoctorNavigate?: (target: DoctorNavigateTarget) => void
 }
 
@@ -520,7 +519,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   subject,
   diagnosticReport,
   onOpenDiagnosticReport,
-  onOpenFullCheck,
   onDoctorNavigate,
   doctorCloseBlocked = false,
   onDoctorCloseBlockedChange
@@ -596,7 +594,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
               subject={subject}
               onNavigate={onDoctorNavigate ?? ignoreDoctorNavigation}
               onReportProblem={onOpenDiagnosticReport}
-              onRunFullCheck={onOpenFullCheck}
               onCloseBlockedChange={onDoctorCloseBlockedChange}
             />
           ) : (
@@ -658,10 +655,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   )
 }
 
-type ErrorDetailPopupParams = Omit<
-  ErrorDetailContentProps,
-  'onDoctorNavigate' | 'onOpenDiagnosticReport' | 'onOpenFullCheck'
->
+type ErrorDetailPopupParams = Omit<ErrorDetailContentProps, 'onDoctorNavigate' | 'onOpenDiagnosticReport'>
 
 const ErrorDetailDialog = ({ open, resolve, ...props }: ErrorDetailContentProps & PopupInjectedProps<void>) => {
   const [doctorCloseBlocked, setDoctorCloseBlocked] = useState(false)
@@ -705,10 +699,6 @@ export function showErrorDetailPopup(params: ErrorDetailPopupParams) {
   void ErrorDetailPopup.show({
     ...params,
     onDoctorNavigate: (target) => finishHandoff(() => openSettingsTab(target)),
-    onOpenFullCheck: () =>
-      finishHandoff(() => {
-        void DoctorPopup.show({ initialPanel: 'checks', initialRunTier: 'live' })
-      }),
     onOpenDiagnosticReport: (initialDescription) =>
       finishHandoff(() => {
         void DoctorPopup.show({ initialPanel: 'report', initialDescription })

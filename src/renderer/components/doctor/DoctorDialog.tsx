@@ -4,7 +4,10 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { DiagnosticUploadPanelHandle } from '@renderer/components/feedback/DiagnosticUploadPanel'
+import {
+  DiagnosticUploadPanel,
+  type DiagnosticUploadPanelHandle
+} from '@renderer/components/feedback/DiagnosticUploadPanel'
 import { useDoctorController } from '@renderer/hooks/doctor'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
@@ -14,11 +17,6 @@ import type { DoctorPanel } from '@shared/utils/doctor'
 import { DoctorChecksPanel } from './DoctorChecksPanel'
 
 const DiagnosticBundlePanel = lazy(() => import('@renderer/components/feedback/DiagnosticBundlePanel'))
-const DiagnosticUploadPanel = lazy(() =>
-  import('@renderer/components/feedback/DiagnosticUploadPanel').then((module) => ({
-    default: module.DiagnosticUploadPanel
-  }))
-)
 const PANEL_DESCRIPTION_KEYS = {
   checks: 'settings.doctor.panel_descriptions.checks',
   export: 'settings.doctor.panel_descriptions.export',
@@ -68,7 +66,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
     onNavigate: navigate
   })
   const { setPanelInteraction } = controller
-  const isChecksPanel = controller.session.activePanel === 'checks'
+  const isExportPanel = controller.session.activePanel === 'export'
 
   const close = useCallback(async () => {
     if (controller.isCloseBlocked) return
@@ -115,7 +113,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && void close()}>
       <DialogContent
-        {...(isChecksPanel ? { 'aria-describedby': undefined } : {})}
+        {...(!isExportPanel ? { 'aria-describedby': undefined } : {})}
         size="xl"
         closeLabel={t('common.close')}
         closeOnOverlayClick={!controller.isCloseBlocked}
@@ -125,7 +123,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
           if (controller.isCloseBlocked) event.preventDefault()
         }}>
         <DialogHeader
-          className={cn('flex-row items-start gap-3 px-6 pt-6 pr-12 pb-4', !isChecksPanel && 'border-b border-border')}>
+          className={cn('flex-row items-start gap-3 px-6 pt-6 pr-12 pb-4', isExportPanel && 'border-b border-border')}>
           {controller.session.activePanel !== 'checks' && canReturnToChecks ? (
             <Button
               type="button"
@@ -139,7 +137,7 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
           ) : null}
           <div ref={panelHeadingRef} tabIndex={-1} className="min-w-0 flex-1 space-y-1">
             <DialogTitle>{panelTitle}</DialogTitle>
-            {!isChecksPanel ? <DialogDescription>{panelDescription}</DialogDescription> : null}
+            {isExportPanel ? <DialogDescription>{panelDescription}</DialogDescription> : null}
           </div>
         </DialogHeader>
 
@@ -158,15 +156,13 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
         ) : null}
 
         {controller.session.activePanel === 'report' ? (
-          <Suspense fallback={<PanelLoading />}>
-            <DiagnosticUploadPanel
-              ref={reportPanelRef}
-              description={controller.session.descriptionDraft}
-              onBusyChange={setReportBusy}
-              onDescriptionChange={controller.setDescription}
-              onClose={finishSecondaryPanel}
-            />
-          </Suspense>
+          <DiagnosticUploadPanel
+            ref={reportPanelRef}
+            description={controller.session.descriptionDraft}
+            onBusyChange={setReportBusy}
+            onDescriptionChange={controller.setDescription}
+            onClose={finishSecondaryPanel}
+          />
         ) : null}
       </DialogContent>
     </Dialog>

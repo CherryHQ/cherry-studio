@@ -160,12 +160,10 @@ describe('DoctorPopup', () => {
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveClass('max-h-[calc(100vh-100px)]')
     expect(dialog).not.toHaveClass('h-[min(760px,calc(100vh-2rem))]')
-    expect(dialog).toHaveAccessibleDescription('settings.doctor.panel_descriptions.report')
-    // Secondary panels retain the header divider that separates their explanatory copy.
-    expect(dialog.querySelector('[data-slot="dialog-header"]')).toHaveClass('border-b')
+    expect(dialog).not.toHaveAccessibleDescription()
   })
 
-  it('removes the description and dividers only from the checks panel', async () => {
+  it('shows the checks panel without a description or dividers', async () => {
     mocks.doctorState = completedDoctorState()
     render(<PopupHost />)
 

@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => ({
     'settings.about.diagnostics.errors.busy': 'Another diagnostic bundle operation is already in progress',
     'settings.about.diagnostics.inspecting': 'Inspecting diagnostic data…',
     'settings.about.diagnostics.report.acknowledgement':
-      'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.',
+      'Upload logs for troubleshooting only. They may contain chat history, device information, and other data.',
     'settings.about.diagnostics.report.copy_id': 'Copy feedback ID',
     'settings.about.diagnostics.report.description_label': 'Problem description',
     'settings.about.diagnostics.report.description_required': 'A problem description is required',
@@ -81,17 +81,6 @@ vi.mock('react-i18next', () => ({
 
 import { DiagnosticUploadPanel } from '../DiagnosticUploadPanel'
 
-const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
-  hasWarnings: false,
-  sourceLimitBytes: 50 * 1024 * 1024,
-  sources: {
-    chatRecords: { available: true, estimatedBytes: 4_096, messageCount: 4 },
-    crashDumps: { fileCount: 1 },
-    logs: { available: true, estimatedBytes: 1_024, fileCount: 2 },
-    traces: { available: true, estimatedBytes: 2_048, fileCount: 3 }
-  }
-}
-
 const bundleId = '9de71f3c-f4cf-4311-a3f3-86f12a930451'
 const reportId = 'opaque-report-id'
 const fallbackPath = AbsoluteFilePathSchema.parse('/tmp/cherry-studio-diagnostics.zip')
@@ -125,11 +114,6 @@ const savedUploadResult: Extract<OutputFor<'diagnostics.bundle.save_upload'>, { 
 
 async function completeReview(user: ReturnType<typeof userEvent.setup>, description = '  App freezes on launch.  ') {
   await user.type(screen.getByRole('textbox', { name: 'Problem description' }), description)
-  await user.click(
-    screen.getByRole('checkbox', {
-      name: 'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.'
-    })
-  )
   await waitFor(() => expect(screen.getByRole('button', { name: 'Submit diagnostic report' })).toBeEnabled())
 }
 
@@ -178,7 +162,6 @@ describe('DiagnosticUploadPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.request.mockImplementation(async (route: string) => {
-      if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.upload') return uploadedResult
       return undefined
     })
@@ -205,10 +188,10 @@ describe('DiagnosticUploadPanel', () => {
     const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
     const description = screen.getByRole('textbox', { name: 'Problem description' })
     const acknowledgement = screen.getByRole('checkbox', {
-      name: 'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.'
+      name: 'Upload logs for troubleshooting only. They may contain chat history, device information, and other data.'
     })
 
-    await user.click(acknowledgement)
+    expect(acknowledgement).toBeChecked()
     await waitFor(() => expect(submit).toBeEnabled())
     await user.click(submit)
 
@@ -234,11 +217,6 @@ describe('DiagnosticUploadPanel', () => {
     const description = screen.getByRole('textbox', { name: 'Problem description' })
     await user.click(description)
     await user.paste('x'.repeat(4097))
-    await user.click(
-      screen.getByRole('checkbox', {
-        name: 'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.'
-      })
-    )
 
     expect(screen.queryByText('The problem description is too long')).not.toBeInTheDocument()
     await waitFor(() => expect(submit).toBeEnabled())
@@ -248,17 +226,23 @@ describe('DiagnosticUploadPanel', () => {
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(0)
   })
 
-  it('submits a trimmed valid description', async () => {
+  it('defaults to uploading all sources for seven days and blocks submission when unchecked', async () => {
     const user = userEvent.setup()
     render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
 
     const description = screen.getByRole('textbox', { name: 'Problem description' })
     const acknowledgement = screen.getByRole('checkbox', {
-      name: 'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.'
+      name: 'Upload logs for troubleshooting only. They may contain chat history, device information, and other data.'
     })
     const submit = screen.getByRole('button', { name: 'Submit diagnostic report' })
+    expect(acknowledgement).toBeChecked()
+    expect(submit).toBeEnabled()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+    expect(screen.queryByText('Time range')).not.toBeInTheDocument()
     await user.type(description, '  App freezes on launch.  ')
-    await waitFor(() => expect(screen.queryByText('Inspecting diagnostic data…')).not.toBeInTheDocument())
+    await user.click(acknowledgement)
+    expect(acknowledgement).not.toBeChecked()
     expect(submit).toBeDisabled()
     await user.click(acknowledgement)
     await waitFor(() => expect(submit).toBeEnabled())
@@ -270,131 +254,17 @@ describe('DiagnosticUploadPanel', () => {
     await waitFor(() =>
       expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
         description: 'App freezes on launch.   Please investigate.',
-        includeChatRecords: false,
-        includeLogs: true,
-        includeTraces: true,
-        range: '24h'
-      })
-    )
-  })
-
-  it('invalidates acknowledgement whenever the selected diagnostic data changes', async () => {
-    const user = userEvent.setup()
-    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
-    await completeReview(user)
-
-    const acknowledgement = screen.getByRole('checkbox', {
-      name: 'I understand that the problem description and selected diagnostic data may contain sensitive information, and agree to send this content to Cherry Studio for troubleshooting.'
-    })
-    await user.click(screen.getByRole('radio', { name: 'Last 3 days' }))
-    expect(acknowledgement).not.toBeChecked()
-
-    await user.click(acknowledgement)
-    await user.click(screen.getByRole('switch', { name: 'App logs' }))
-    expect(acknowledgement).not.toBeChecked()
-
-    await user.click(acknowledgement)
-    await user.click(screen.getByRole('switch', { name: 'Detailed activity records' }))
-    expect(acknowledgement).not.toBeChecked()
-
-    await user.click(acknowledgement)
-    await user.click(screen.getByRole('switch', { name: 'Chat history' }))
-    expect(acknowledgement).not.toBeChecked()
-  })
-
-  it('submits chat history only after the user explicitly enables it', async () => {
-    const user = userEvent.setup()
-    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
-
-    const chatRecords = await screen.findByRole('switch', { name: 'Chat history' })
-    expect(chatRecords).not.toBeChecked()
-    await user.click(chatRecords)
-    await completeReview(user)
-    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
-
-    await waitFor(() =>
-      expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
-        description: 'App freezes on launch.',
         includeChatRecords: true,
         includeLogs: true,
         includeTraces: true,
-        range: '24h'
+        range: '7d'
       })
     )
-  })
-
-  it('excludes selected chat history when it is unavailable for the new range', async () => {
-    mocks.request.mockImplementation(async (route: string, input?: { range?: string }) => {
-      if (route === 'diagnostics.bundle.inspect') {
-        if (input?.range === '3d') {
-          return {
-            ...inspectResult,
-            sources: {
-              ...inspectResult.sources,
-              chatRecords: { available: false, estimatedBytes: 0, messageCount: 0 }
-            }
-          }
-        }
-        return inspectResult
-      }
-      if (route === 'diagnostics.bundle.upload') return uploadedResult
-      return undefined
-    })
-    const user = userEvent.setup()
-    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
-
-    const chatRecords = await screen.findByRole('switch', { name: 'Chat history' })
-    await user.click(chatRecords)
-    await user.click(screen.getByRole('radio', { name: 'Last 3 days' }))
-    await waitFor(() => expect(chatRecords).toBeDisabled())
-    await completeReview(user)
-    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
-
-    await waitFor(() =>
-      expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.upload', {
-        description: 'App freezes on launch.',
-        includeChatRecords: false,
-        includeLogs: true,
-        includeTraces: true,
-        range: '3d'
-      })
-    )
-  })
-
-  it('keeps range inspection feedback out of the dialog layout', async () => {
-    let resolveRangeInspection: (result: typeof inspectResult) => void = () => undefined
-    mocks.request.mockImplementation((route: string, input?: { range?: string }) => {
-      if (route === 'diagnostics.bundle.inspect' && input?.range === '3d') {
-        return new Promise((resolve) => {
-          resolveRangeInspection = resolve
-        })
-      }
-      if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
-      if (route === 'diagnostics.bundle.upload') return Promise.resolve(uploadedResult)
-      return Promise.resolve(undefined)
-    })
-    const user = userEvent.setup()
-    render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
-
-    await screen.findByRole('switch', { name: 'Chat history' })
-    const inspectionStatus = screen.getByRole('status')
-    // The live announcement must not add a normal-flow row that shifts the panel layout.
-    expect(inspectionStatus).toHaveClass('sr-only')
-    expect(inspectionStatus).toBeEmptyDOMElement()
-
-    await user.click(screen.getByRole('radio', { name: 'Last 3 days' }))
-
-    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '3d' }))
-    expect(inspectionStatus).toHaveTextContent('Inspecting diagnostic data…')
-
-    resolveRangeInspection(inspectResult)
-    await waitFor(() => expect(inspectionStatus).toBeEmptyDOMElement())
   })
 
   it('exposes no dismiss action while submitting and shows only the API feedback ID on success', async () => {
     let resolveUpload: (result: typeof uploadedResult) => void = () => undefined
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
       if (route === 'diagnostics.bundle.upload') {
         return new Promise((resolve) => {
           resolveUpload = resolve
@@ -427,7 +297,6 @@ describe('DiagnosticUploadPanel', () => {
 
   it('offers explicit recovery actions for a rejected submission without opening the manual form automatically', async () => {
     mocks.request.mockImplementation(async (route: string) => {
-      if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.upload') return submissionFailedResult
       if (route === 'diagnostics.bundle.retry_upload') return uploadedResult
       return undefined
@@ -461,7 +330,6 @@ describe('DiagnosticUploadPanel', () => {
   it('reports a busy upload without replacing the editable submission form', async () => {
     let uploadAttempts = 0
     mocks.request.mockImplementation(async (route: string) => {
-      if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.upload') return uploadAttempts++ === 0 ? busyResult : uploadedResult
       return undefined
     })
@@ -485,16 +353,15 @@ describe('DiagnosticUploadPanel', () => {
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.upload')).toHaveLength(2)
     expect(mocks.request).toHaveBeenLastCalledWith('diagnostics.bundle.upload', {
       description: 'The app freezes after reopening.',
-      includeChatRecords: false,
+      includeChatRecords: true,
       includeLogs: true,
       includeTraces: true,
-      range: '24h'
+      range: '7d'
     })
   })
 
   it('saves a retained upload on demand and then exposes its selected filename and location', async () => {
     mocks.request.mockImplementation(async (route: string) => {
-      if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.upload') return submissionFailedResult
       if (route === 'diagnostics.bundle.save_upload') return savedUploadResult
       return undefined
@@ -521,7 +388,6 @@ describe('DiagnosticUploadPanel', () => {
   it('treats an already discarded retained upload as a successful close', async () => {
     let resolveDiscard: (result: OutputFor<'diagnostics.bundle.discard_upload'>) => void = () => undefined
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
       if (route === 'diagnostics.bundle.upload') return Promise.resolve(submissionFailedResult)
       if (route === 'diagnostics.bundle.discard_upload') {
         return new Promise<OutputFor<'diagnostics.bundle.discard_upload'>>((resolve) => {
@@ -549,7 +415,6 @@ describe('DiagnosticUploadPanel', () => {
 
   it('discards a retained upload when its owning dialog unmounts', async () => {
     mocks.request.mockImplementation(async (route: string) => {
-      if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.upload') return submissionFailedResult
       if (route === 'diagnostics.bundle.discard_upload') return { status: 'discarded' }
       return undefined
@@ -568,7 +433,6 @@ describe('DiagnosticUploadPanel', () => {
   it('discards a retained upload that finishes after its owning dialog unmounts', async () => {
     let resolveUpload: (result: typeof submissionUnknownResult) => void = () => undefined
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
       if (route === 'diagnostics.bundle.upload') {
         return new Promise((resolve) => {
           resolveUpload = resolve
@@ -596,7 +460,6 @@ describe('DiagnosticUploadPanel', () => {
 
   it('keeps a retained upload accessible when discard is busy', async () => {
     mocks.request.mockImplementation(async (route: string) => {
-      if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.upload') return submissionFailedResult
       if (route === 'diagnostics.bundle.discard_upload') return { status: 'busy' }
       return undefined
@@ -618,7 +481,6 @@ describe('DiagnosticUploadPanel', () => {
 
   it('keeps a retained upload accessible and reports a discard failure', async () => {
     mocks.request.mockImplementation(async (route: string) => {
-      if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.upload') return submissionFailedResult
       if (route === 'diagnostics.bundle.discard_upload') throw new Error('discard failed')
       return undefined
@@ -639,7 +501,6 @@ describe('DiagnosticUploadPanel', () => {
   it('retries an unknown submission directly and keeps retry locked', async () => {
     let resolveRetry: (result: typeof uploadedResult) => void = () => undefined
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'diagnostics.bundle.inspect') return Promise.resolve(inspectResult)
       if (route === 'diagnostics.bundle.upload') return Promise.resolve(submissionUnknownResult)
       if (route === 'diagnostics.bundle.retry_upload') {
         return new Promise((resolve) => {
@@ -672,7 +533,6 @@ describe('DiagnosticUploadPanel', () => {
 
   it('keeps retry available when manually saving a retained upload fails', async () => {
     mocks.request.mockImplementation(async (route: string) => {
-      if (route === 'diagnostics.bundle.inspect') return inspectResult
       if (route === 'diagnostics.bundle.upload') return submissionFailedResult
       if (route === 'diagnostics.bundle.save_upload') throw new IpcError(diagnosticsErrorCodes.FALLBACK_SAVE_FAILED)
       return undefined

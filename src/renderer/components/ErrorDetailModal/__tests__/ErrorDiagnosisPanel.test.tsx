@@ -93,7 +93,7 @@ function createController(state: DoctorState) {
 
 function renderPanel(state: DoctorState, subject: DoctorSubjectRef = { kind: 'agent', agentId: 'no-model' }) {
   const controller = createController(state)
-  render(<ErrorDiagnosisPanel doctorController={controller} onRunFullCheck={vi.fn()} subject={subject} />)
+  render(<ErrorDiagnosisPanel doctorController={controller} subject={subject} />)
   return controller
 }
 

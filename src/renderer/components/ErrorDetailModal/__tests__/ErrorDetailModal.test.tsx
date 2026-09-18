@@ -86,34 +86,6 @@ const skippedResult: DoctorCheckResult = {
   skippedBy: 'provider-model'
 }
 
-const modelEndpointPass: DoctorCheckResult = {
-  id: 'network-model-endpoint',
-  status: 'pass',
-  durationMs: 1
-}
-
-const modelListFail: DoctorCheckResult = {
-  id: 'provider-model-list',
-  status: 'fail',
-  durationMs: 1,
-  attribution: 'user-fixable',
-  detail: { variant: 'request_failed', params: { category: 'auth' } },
-  evidence: [
-    { key: 'status', value: 401, dataClass: 'public' },
-    { key: 'body', value: 'Not logged in · Please run /login', dataClass: 'local_only' }
-  ],
-  actions: [{ kind: 'navigate', target: '/settings/provider' }]
-}
-
-const conversationPending: DoctorPendingCheck = {
-  checkId: 'provider-model-conversation',
-  requestId: 'confirm-conversation',
-  confirmation: {
-    messageKey: 'settings.doctor.checks.provider-model-conversation.confirmation',
-    params: { model: 'DeepSeek V4 Flash', modelId: 'deepseek-v4-flash', endpoint: 'https://api.deepseek.com/' }
-  }
-}
-
 const chatSubject = { kind: 'chat' as const, providerId: 'deepseek', modelId: 'deepseek-v4-flash' }
 
 const mocks = vi.hoisted(() => ({
@@ -141,7 +113,6 @@ const translations: Record<string, string> = {
   'error.diagnostics.action_required_tag': 'Needs action',
   'error.diagnostics.back_to_overview': 'Back to diagnostic overview',
   'error.diagnostics.basic_information': 'Basic information',
-  'error.diagnostics.basic_information_with_location': 'Basic information ({{location}})',
   'error.diagnostics.checking_progress': 'Checking: {{check}} · {{completed}}/{{total}}',
   'error.diagnostics.diagnosing': 'Diagnosing',
   'error.diagnostics.preparing_result': 'Preparing results…',
@@ -373,12 +344,12 @@ describe('ErrorDetailContent diagnostics', () => {
       error: providerError
     })
 
-    const basicInformation = screen.getByRole('region', { name: 'Basic information (Home conversation)' })
+    const basicInformation = screen.getByRole('region', { name: 'Home conversation' })
     expect(basicInformation).toBeInTheDocument()
     expect(basicInformation).toHaveAttribute('data-variant', 'sectioned')
     expect(screen.getByText('OpenAI:gpt-5')).toBeInTheDocument()
     expect(screen.getByText('API Key is invalid, please check and reconfigure (failed)')).toBeInTheDocument()
-    expect(screen.queryByText('Home conversation')).not.toBeInTheDocument()
+    expect(within(basicInformation).getByRole('heading', { name: 'Home conversation' })).toBeInTheDocument()
     expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
     expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
     expect(screen.queryByText('503')).not.toBeInTheDocument()
@@ -397,7 +368,7 @@ describe('ErrorDetailContent diagnostics', () => {
       error: providerError
     })
 
-    expect(screen.getByRole('region', { name: 'Basic information (Work conversation)' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Work conversation' })).toBeInTheDocument()
   })
 
   it('returns from nested error details through the localized header action without unmounting diagnostics', async () => {
@@ -636,46 +607,21 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
   })
 
-  it('enables the system diagnosis full check without a prior conversation report', async () => {
+  it('refreshes conversation diagnostics from the header', async () => {
     const user = userEvent.setup()
-    const onOpenFullCheck = vi.fn()
-    renderErrorDetailContent({ subject: chatSubject, error: providerError, onOpenFullCheck })
+    renderErrorDetailContent({ subject: chatSubject, error: providerError })
 
     const result = await screen.findByRole('region', { name: 'Diagnostic result' })
-    const fullCheck = await screen.findByRole('button', { name: 'Full check' })
-    await waitFor(() => expect(fullCheck).toBeEnabled())
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run_contextual', { subject: chatSubject })
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run_contextual', { subject: chatSubject })
+    )
     expect(within(result).getByText('Selected model endpoint')).toBeVisible()
     expect(within(result).getByText('Remote model availability')).toBeVisible()
     expect(within(result).getByText('Model conversation')).toBeVisible()
-    expect(screen.queryByText('No diagnostic result yet')).not.toBeInTheDocument()
-
     mocks.request.mockClear()
-    await user.click(fullCheck)
-
-    expect(onOpenFullCheck).toHaveBeenCalledTimes(1)
-    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
-  })
-
-  it('opens System Doctor from a conversation full check after error details close', async () => {
-    const user = userEvent.setup()
-    mocks.doctorState = completedDoctorState([modelEndpointPass, modelListFail], undefined, [conversationPending])
-    render(<PopupHost />)
-    act(() => showErrorDetailPopup({ subject: chatSubject, error: providerError }))
-
-    const fullCheck = await screen.findByRole('button', { name: 'Full check' })
-    await waitFor(() => expect(fullCheck).toBeEnabled())
-    mocks.request.mockClear()
-    await user.click(fullCheck)
-
-    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', expect.anything())
-    expect(mocks.showDoctor).not.toHaveBeenCalled()
-    expect(popupService.getSnapshot()[0]?.open).toBe(false)
-
-    await waitFor(() =>
-      expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'checks', initialRunTier: 'live' })
-    )
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(within(result).getByRole('button', { name: 'Full check' }))
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run_contextual', { subject: chatSubject })
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run_contextual')).toHaveLength(1)
   })
 
   it('offers a basic rerun directly from an expired-result warning', async () => {
@@ -745,47 +691,6 @@ describe('ErrorDetailContent diagnostics', () => {
       expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
     )
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
-  })
-
-  it('runs a full check from the diagnostics header', async () => {
-    const user = userEvent.setup()
-    mocks.doctorState = runningDoctorState('quick')
-    const { rerender } = renderErrorDetailContent({ error: providerError })
-
-    mocks.doctorState = completedDoctorState([passingVersionResult])
-    rerender(
-      <Dialog open>
-        <DialogContent>
-          <ErrorDetailContent subject={{ kind: 'global' }} error={providerError} />
-        </DialogContent>
-      </Dialog>
-    )
-    const networkCheck = await screen.findByRole('button', { name: 'Full check' })
-    await waitFor(() => expect(networkCheck).toBeEnabled())
-    await user.click(networkCheck)
-
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { subject: { kind: 'global' }, tier: 'live' })
-  })
-
-  it('opens System Doctor for the full check after error details close', async () => {
-    const user = userEvent.setup()
-    mocks.doctorState = completedDoctorState([passingVersionResult])
-    render(<PopupHost />)
-
-    act(() => showErrorDetailPopup({ subject: { kind: 'global' }, error: providerError }))
-    await user.click(screen.getByRole('button', { name: 'Full check' }))
-
-    expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.run', {
-      subject: { kind: 'global' },
-      tier: 'live'
-    })
-    expect(mocks.showDoctor).not.toHaveBeenCalled()
-    expect(popupService.getSnapshot()[0]?.open).toBe(false)
-
-    await waitFor(() =>
-      expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'checks', initialRunTier: 'live' })
-    )
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it.each(['quick', 'live'] as const)('cancels an active %s run from the diagnostics header', async (tier) => {

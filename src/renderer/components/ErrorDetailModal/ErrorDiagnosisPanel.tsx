@@ -1,8 +1,9 @@
+import { RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
 
-import { Accordion, Button } from '@cherrystudio/ui'
+import { Accordion, Button, Tooltip } from '@cherrystudio/ui'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
 import { DoctorCheckAccordionItems, DoctorCheckNotices } from '@renderer/components/doctor'
 import type { DoctorController } from '@renderer/hooks/doctor'
@@ -14,7 +15,6 @@ import { actionRequiredRows, ErrorConnectivitySteps } from './ErrorConnectivityS
 
 interface ErrorDiagnosisPanelProps {
   readonly doctorController: DoctorController
-  readonly onRunFullCheck: () => void
   readonly subject: DoctorSubjectRef
 }
 
@@ -22,7 +22,7 @@ function FixedSummary({ children, enabled }: { children?: ReactNode; enabled: bo
   return enabled ? <span className="text-success">{children}</span> : null
 }
 
-export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck, subject }: ErrorDiagnosisPanelProps) {
+export function ErrorDiagnosisPanel({ doctorController, subject }: ErrorDiagnosisPanelProps) {
   const { t } = useTranslation()
   const { interaction } = doctorController.session
   const showConnectivitySteps = subject.kind !== 'global'
@@ -128,16 +128,20 @@ export function ErrorDiagnosisPanel({ doctorController, onRunFullCheck, subject 
             onClick={() => void doctorController.cancel()}>
             {t('settings.doctor.actions.cancel_run')}
           </Button>
-        ) : !isDoctorPending ? (
-          <Button
-            variant="outline"
-            size="sm"
-            loading={interaction.kind === 'run'}
-            disabled={doctorController.isInteracting || (!showConnectivitySteps && !doctorController.viewModel.report)}
-            onClick={() => onRunFullCheck()}>
-            {t('settings.doctor.actions.run_network')}
-          </Button>
-        ) : null
+        ) : (
+          <Tooltip content={t('settings.doctor.actions.run_network')}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="-mr-1.5 text-muted-foreground dark:text-muted-foreground"
+              aria-label={t('settings.doctor.actions.run_network')}
+              disabled={isDoctorPending || doctorController.isInteracting}
+              onClick={() => void doctorController.run(subject.kind === 'global' ? 'quick' : 'contextual')}>
+              <RotateCcw className="size-4" />
+            </Button>
+          </Tooltip>
+        )
       }>
       {showConnectivitySteps ? (
         <div>
