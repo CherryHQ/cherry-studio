@@ -76,6 +76,8 @@ files:
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
+  - "!node_modules/@cherrystudio/system-speech/{native,src,tests,scripts}/**"
+  - "!node_modules/@cherrystudio/system-speech/dist/native/**" # target helper is copied once through mac.extraResources
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
@@ -104,6 +106,8 @@ asarUnpack:
   - "node_modules/node-screenshots-*/**" # native N-API binary must be unpacked for runtime loading
   - "node_modules/node-mac-permissions/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
+  - from: "src/main/ai/voice/localAdapters/NOTICE.txt"
+    to: "voice-audio/NOTICE.txt"
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
   - from: "packages/provider-registry/data"
@@ -138,6 +142,9 @@ portable:
   # electron-builder 26.15.6 uses true for a unique $PLUGINSDIR on every launch.
   unpackDirName: true
 mac:
+  extraResources:
+    - from: packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech
+      to: system-speech/cherry-system-speech
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}

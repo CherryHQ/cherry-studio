@@ -1,0 +1,38 @@
+{
+  "name": "@cherrystudio/system-speech",
+  "version": "0.0.1",
+  "private": true,
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    "./contracts": {
+      "types": "./dist/contracts.d.mts",
+      "import": "./dist/contracts.mjs",
+      "require": "./dist/contracts.cjs"
+    },
+    "./native": {
+      "types": "./dist/nativeClient.d.mts",
+      "import": "./dist/nativeClient.mjs",
+      "require": "./dist/nativeClient.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "build:native": "node scripts/build-native.cjs",
+    "smoke:packaged": "node scripts/smoke-packaged.cjs",
+    "test": "vitest run",
+    "test:native": "swift test --package-path native",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.4",
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^4.1.10"
+  }
+}

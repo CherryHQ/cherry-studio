@@ -262,6 +262,18 @@ export function buildPathRegistry() {
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
     'feature.pdf_translation.temp': path.join(appTemp, 'pdf-translation'),
     'feature.lan_transfer.temp': path.join(appTemp, 'lan-transfer'),
+    'feature.voice.temp': path.join(appTemp, 'voice', path.basename(appUserData)),
+    'feature.voice.helper_file': app.isPackaged
+      ? path.join(appExtraResources, 'system-speech', 'cherry-system-speech')
+      : path.join(
+          app.getAppPath(),
+          'packages',
+          'system-speech',
+          'dist',
+          'native',
+          `darwin-${process.arch}`,
+          'cherry-system-speech'
+        ),
     // FileManager's `withTempCopy` escape hatch parent dir; each call mkdtemps a
     // unique sub-directory under here.
     'feature.files.tempcopy.temp': path.join(appTemp, 'files-tempcopy'),
@@ -363,6 +375,7 @@ const NO_ENSURE = [
   'app.install',
   'app.exe_file',
   'app.extra_resources',
+  'feature.voice.helper_file',
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
