@@ -103,6 +103,7 @@ export const modelConversation = defineDoctorCheck({
   id: 'provider-model-conversation',
   async getConfirmation(ctx) {
     const target = await modelTarget(ctx)
+    if (target.isExternalCli) return { status: 'skip', detail: { variant: 'external_cli' } }
     if (!target.supportsChat) return { status: 'skip', detail: { variant: 'not_chat_model' } }
     return {
       confirmation: {

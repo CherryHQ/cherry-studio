@@ -14,9 +14,10 @@ vi.mock('node:util', async (importOriginal) => {
 vi.mock('child_process')
 vi.mock('fs')
 vi.mock('which')
+vi.mock('../bundledGit', () => ({ getBundledGitPath: () => 'C:\\Cherry\\git\\git.exe' }))
 vi.mock('@main/core/platform', () => ({ isWin: true }))
 
-const { findCommandInShellEnv, findExecutable, findViaMise } = await import('../commandResolver')
+const { findCommandInShellEnv, findExecutable, findExecutableInEnv, findViaMise } = await import('../commandResolver')
 
 describe('findCommandInShellEnv on Windows', () => {
   beforeEach(() => {
@@ -148,6 +149,35 @@ describe('Windows mise lookup', () => {
     })
     await expect(findViaMise('node', { PATH: 'C:\\tools' })).resolves.toBe('C:\\tools\\node.exe')
     expect(fs.existsSync).toHaveBeenCalledWith('C:\\tools\\node.exe')
+  })
+
+  it.each(['git', 'uv'])('preserves the %s fallback after a mise query failure', async (command) => {
+    vi.mocked(which).mockImplementation(async (name) => (name === 'mise' ? ['C:\\tools\\mise.exe'] : null) as never)
+    vi.mocked(which.sync).mockReturnValue(null as never)
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+    asyncExec.mockRejectedValue(Object.assign(new Error('mise timed out'), { code: 'ETIMEDOUT' }))
+
+    await expect(findExecutableInEnv(command, { env: { PATH: 'C:\\tools' } })).resolves.toBe(
+      command === 'git' ? 'C:\\Cherry\\git\\git.exe' : null
+    )
+  })
+
+  it('does not use a fallback when canceled during a mise query', async () => {
+    const controller = new AbortController()
+    vi.mocked(which).mockImplementation(async (name) => (name === 'mise' ? ['C:\\tools\\mise.exe'] : null) as never)
+    vi.mocked(which.sync).mockReturnValue(null as never)
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+    asyncExec.mockImplementation(async () => {
+      controller.abort(new Error('lookup canceled'))
+      throw controller.signal.reason
+    })
+
+    await expect(
+      findExecutableInEnv('git', {
+        env: { PATH: 'C:\\tools' },
+        signal: controller.signal
+      })
+    ).rejects.toThrow('lookup canceled')
   })
 
   it('propagates cancellation into the pending mise process', async () => {

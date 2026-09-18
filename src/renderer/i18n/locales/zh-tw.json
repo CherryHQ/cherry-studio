@@ -4240,6 +4240,7 @@
   "settings.doctor.checks.provider-cherry-account.detail.signed_out": "尚未登入 Cherry 帳戶。",
   "settings.doctor.checks.provider-cherry-account.title": "Cherry 帳戶",
   "settings.doctor.checks.provider-model-conversation.confirmation": "向 {{endpoint}} 的 {{model}}（{{modelId}}）傳送一則簡短測試訊息？這可能產生服務商呼叫費用。",
+  "settings.doctor.checks.provider-model-conversation.detail.external_cli": "此服務商使用外部 CLI，不支援透過 API 檢查對話。",
   "settings.doctor.checks.provider-model-conversation.detail.not_chat_model": "此模型不支援對話，已略過此項檢查。",
   "settings.doctor.checks.provider-model-conversation.detail.request_failed": "{{category}}，無法完成測試對話。",
   "settings.doctor.checks.provider-model-conversation.title": "模型對話檢測",
