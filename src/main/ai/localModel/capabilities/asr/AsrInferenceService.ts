@@ -9,8 +9,29 @@ import type { AsrSegment, AsrTranscribeSource } from './protocol'
 @Injectable('AsrInferenceService')
 @ServicePhase(Phase.WhenReady)
 export class AsrInferenceService extends InferenceServiceBase<AsrInferenceContract> {
+  private lifecycleController: AbortController | null = null
+
   constructor() {
     super(asrInferenceProcess, 'asr')
+  }
+
+  protected override onInit(): void {
+    super.onInit()
+    this.lifecycleController = new AbortController()
+  }
+
+  protected override onStop(): Promise<void> {
+    return this.stopInference()
+  }
+
+  protected override onDestroy(): Promise<void> {
+    return this.stopInference()
+  }
+
+  private async stopInference(): Promise<void> {
+    if (!this.lifecycleController) return
+    this.lifecycleController.abort(new Error('ASR inference service stopped'))
+    await this.terminate()
   }
 
   /**
@@ -24,6 +45,14 @@ export class AsrInferenceService extends InferenceServiceBase<AsrInferenceContra
     source: AsrTranscribeSource,
     signal?: AbortSignal
   ): Promise<{ text: string; segments: AsrSegment[] }> {
-    return this.run('transcribe', { modelPaths: resolveAsrModelPaths(), source }, { signal })
+    const lifecycleSignal = this.lifecycleController?.signal
+    if (!this.isReady || !lifecycleSignal || lifecycleSignal.aborted) {
+      throw new Error('ASR inference service is not running')
+    }
+    return this.run(
+      'transcribe',
+      { modelPaths: resolveAsrModelPaths(), source },
+      { signal: signal ? AbortSignal.any([lifecycleSignal, signal]) : lifecycleSignal }
+    )
   }
 }
