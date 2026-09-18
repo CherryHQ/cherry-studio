@@ -634,6 +634,177 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(displayParts.some((part) => part.type === 'data-error')).toBe(false)
   })
 
+  it('drops a synthetic diagnosis persist when an in-place retry replaced the parts', async () => {
+    const retryMessage = {
+      id: 'retry-message',
+      role: 'assistant',
+      metadata: { status: 'error' },
+      parts: []
+    } as CherryUIMessage
+    // The retry already landed: persisted holds the fresh answer while the
+    // rendered display still synthesizes the no-response error.
+    vi.mocked(dataApiService.get).mockResolvedValue({
+      data: { parts: [{ type: 'text', text: 'fresh answer' }] }
+    })
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[retryMessage]}
+        partsByMessageId={{ 'retry-message': [] }}
+      />
+    )
+
+    const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+    }
+    await options.persistDiagnosis('retry-message-part-0', { summary: 'Provider failed' })
+
+    expect(dataApiService.patch).not.toHaveBeenCalled()
+  })
+
+  it('materializes a synthetic fallback error when persisting its diagnosis', async () => {
+    const emptyMessage = {
+      id: 'empty-message',
+      role: 'assistant',
+      metadata: { status: 'error' },
+      parts: []
+    } as CherryUIMessage
+    vi.mocked(dataApiService.get).mockResolvedValue({ data: { parts: [] } })
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[emptyMessage]}
+        partsByMessageId={{ 'empty-message': [] }}
+      />
+    )
+
+    const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+    }
+    await options.persistDiagnosis('empty-message-part-0', { summary: 'Provider failed' })
+
+    expect(dataApiService.patch).toHaveBeenCalledWith('/messages/empty-message', {
+      body: {
+        data: {
+          parts: [
+            expect.objectContaining({
+              type: 'data-error',
+              providerMetadata: expect.objectContaining({
+                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Provider failed' }) })
+              })
+            })
+          ]
+        }
+      }
+    })
+  })
+
+  it('drops a synthetic error dismissal when an in-place retry replaced the parts', async () => {
+    const retryMessage = {
+      id: 'retry-message',
+      role: 'assistant',
+      metadata: { status: 'error' },
+      parts: []
+    } as CherryUIMessage
+    // Click time: still empty. Write time: the retry landed with real content.
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce({ data: { parts: [] } })
+      .mockResolvedValueOnce({ data: { parts: [{ type: 'text', text: 'fresh answer' }] } })
+    // Faithful resolution without call-order coupling: the persisted map misses
+    // while the display map (with the synthesized fallback) hits.
+    vi.mocked(resolvePartFromParts).mockImplementation((partsMap) => {
+      const parts = partsMap['retry-message'] ?? []
+      const part = parts[0]
+      if (!part || part.type !== 'data-error') return null
+      return { part, messageId: 'retry-message', index: 0 }
+    })
+    let value: MessageListProviderValue | undefined
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[retryMessage]}
+        partsByMessageId={{ 'retry-message': [] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    await waitFor(() => expect(value).toBeDefined())
+
+    await value?.actions.removeMessageErrorPart?.({ messageId: 'retry-message', partId: 'retry-message-part-0' })
+
+    expect(vi.mocked(chatWriteMock.editMessage)).not.toHaveBeenCalled()
+    vi.mocked(resolvePartFromParts).mockReset()
+  })
+
+  it('persists a synthetic error dismissal against freshly re-read parts', async () => {
+    const emptyMessage = {
+      id: 'empty-message',
+      role: 'assistant',
+      metadata: { status: 'error' },
+      parts: []
+    } as CherryUIMessage
+    vi.mocked(dataApiService.get).mockResolvedValue({ data: { parts: [] } })
+    vi.mocked(resolvePartFromParts).mockImplementation((partsMap) => {
+      const parts = partsMap['empty-message'] ?? []
+      const part = parts[0]
+      if (!part || part.type !== 'data-error') return null
+      return { part, messageId: 'empty-message', index: 0 }
+    })
+    let value: MessageListProviderValue | undefined
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[emptyMessage]}
+        partsByMessageId={{ 'empty-message': [] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    await waitFor(() => expect(value).toBeDefined())
+
+    await value?.actions.removeMessageErrorPart?.({ messageId: 'empty-message', partId: 'empty-message-part-0' })
+
+    const written = vi.mocked(chatWriteMock.editMessage).mock.calls.at(-1)?.[1] ?? []
+    expect(vi.mocked(chatWriteMock.editMessage)).toHaveBeenCalledWith(
+      'empty-message',
+      expect.arrayContaining([expect.objectContaining({ type: 'data-no-response-dismissed' })])
+    )
+    expect(written.some((part) => part.type === 'data-error')).toBe(false)
+    vi.mocked(resolvePartFromParts).mockReset()
+  })
+
+  it('skips a synthetic error dismissal while the message is being retried', async () => {
+    const retryMessage = {
+      id: 'retry-message',
+      role: 'assistant',
+      metadata: { status: 'error' },
+      parts: []
+    } as CherryUIMessage
+    vi.mocked(dataApiService.get).mockResolvedValue({ data: { parts: [] } })
+    vi.mocked(resolvePartFromParts).mockImplementation((partsMap) => {
+      const parts = partsMap['retry-message'] ?? []
+      const part = parts[0]
+      if (!part || part.type !== 'data-error') return null
+      return { part, messageId: 'retry-message', index: 0 }
+    })
+    let value: MessageListProviderValue | undefined
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[retryMessage]}
+        partsByMessageId={{ 'retry-message': [] }}
+        streamingLayers={{ historyPartsByMessageId: {}, liveMessageIds: ['retry-message'] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    await waitFor(() => expect(value).toBeDefined())
+
+    await value?.actions.removeMessageErrorPart?.({ messageId: 'retry-message', partId: 'retry-message-part-0' })
+
+    expect(vi.mocked(chatWriteMock.editMessage)).not.toHaveBeenCalled()
+    vi.mocked(resolvePartFromParts).mockReset()
+  })
+
   it.each(['embedding', 'rerank'])('filters %s models from the regenerate model picker', (capability) => {
     let value: MessageListProviderValue | undefined
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)

@@ -52,10 +52,11 @@ import { createComposerRichClipboardContentFromParts } from '@renderer/utils/mes
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
+import { hasRenderableContent } from '@shared/data/messageRenderability'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
-import { createDismissedNoResponsePart } from '@shared/data/types/uiParts'
+import { createDismissedNoResponsePart, hasDismissedNoResponsePart } from '@shared/data/types/uiParts'
 import { isNonChatModel } from '@shared/utils/model'
 
 import {
@@ -67,6 +68,22 @@ import {
 } from './topicImageActionBus'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
+
+/**
+ * Whether a display-derived synthetic-fallback edit is still safe to persist.
+ * An in-place retry reuses the message id, so by write time the persisted
+ * parts may already hold the retried turn. Parts that still need the fallback
+ * (no renderable content, no real error, not dismissed) prove the display
+ * snapshot is still current; anything else means a retry landed and the edit
+ * must be dropped instead of overwriting fresh content.
+ */
+function canPersistSyntheticFallbackEdit(persistedParts: CherryMessagePart[]): boolean {
+  return (
+    !hasDismissedNoResponsePart(persistedParts) &&
+    !hasRenderableContent(persistedParts) &&
+    !persistedParts.some((part) => part.type === 'data-error')
+  )
+}
 
 interface HomeMessageListParams {
   topic: Topic
@@ -240,26 +257,52 @@ export function useHomeMessageListProviderValue({
     displayPartsByMessageIdRef.current = displayPartsByMessageId
   }, [displayPartsByMessageId])
 
-  const persistDiagnosis = useCallback(async (partId: string, diagnosis: DiagnosisResult) => {
-    const parsed = parseMessagePartId(partId)
-    if (!parsed) return
-
-    const persistedMessage = await dataApiService.get(`/messages/${parsed.messageId}`)
-    let updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
-    if (!updatedParts) {
-      // Synthetic fallback error is display-only: persisted lacks it but the
-      // display map has it at the same index. Materialize the fallback into
-      // persisted storage before attaching the diagnosis so the error detail
-      // popup can save.
-      const displayParts = displayPartsByMessageIdRef.current[parsed.messageId]
-      if (displayParts) {
-        updatedParts = withMessagePartDiagnosis(displayParts, parsed.partIndex, diagnosis)
+  const persistDiagnosis = useCallback(
+    async (partId: string, diagnosis: DiagnosisResult) => {
+      const parsed = parseMessagePartId(partId)
+      if (!parsed) return
+      if (streamingLayers?.liveMessageIds.includes(parsed.messageId)) {
+        // A retry owns this message right now and its terminal persist is the
+        // writer; a display-derived edit would race it.
+        logger.warn('Skipping diagnosis persist for a live message', { messageId: parsed.messageId })
+        return
       }
-    }
-    if (!updatedParts) return
 
-    await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
-  }, [])
+      const persistedMessage = await dataApiService.get(`/messages/${parsed.messageId}`)
+      const persistedParts = persistedMessage.data.parts ?? []
+      // The diagnosed error may have been replaced by an in-place retry while
+      // the diagnosis was computed. Only a data-error target still accepts it.
+      const target = parsed.partIndex < persistedParts.length ? persistedParts[parsed.partIndex] : undefined
+      let updatedParts =
+        target?.type === 'data-error' ? withMessagePartDiagnosis(persistedParts, parsed.partIndex, diagnosis) : null
+      if (!updatedParts) {
+        // Synthetic fallback error is display-only: persisted lacks it but the
+        // display map has it at the same index. Materialize the fallback into
+        // persisted storage before attaching the diagnosis so the error detail
+        // popup can save — but only while the display snapshot still matches
+        // the persisted parts; otherwise a retry landed and the edit is dropped.
+        const displayParts = displayPartsByMessageIdRef.current[parsed.messageId]
+        if (displayParts) {
+          const displayTarget = parsed.partIndex < displayParts.length ? displayParts[parsed.partIndex] : undefined
+          if (
+            displayTarget?.type === 'data-error' &&
+            displayParts.length === persistedParts.length + 1 &&
+            JSON.stringify(displayParts.slice(0, displayParts.length - 1)) === JSON.stringify(persistedParts) &&
+            canPersistSyntheticFallbackEdit(persistedParts)
+          ) {
+            updatedParts = withMessagePartDiagnosis(displayParts, parsed.partIndex, diagnosis)
+          }
+        }
+      }
+      if (!updatedParts) {
+        logger.warn('Skipping diagnosis persist for a superseded error part', { partId })
+        return
+      }
+
+      await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
+    },
+    [streamingLayers]
+  )
   const diagnosticReport = useMemo(
     () => (normalInteractionsEnabled ? { location: t('error.diagnostic_report.locations.home') } : undefined),
     [normalInteractionsEnabled, t]
@@ -532,39 +575,51 @@ export function useHomeMessageListProviderValue({
       try {
         const persistedMessage = await dataApiService.get(`/messages/${messageId}`)
         const persistedParts = persistedMessage.data.parts ?? []
-        let resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
-        let partsForEdit = persistedParts
-        let isSyntheticFallback = false
-        if (!resolved || resolved.messageId !== messageId || (resolved.part.type as string) !== 'data-error') {
-          const displayParts = displayPartsByMessageIdRef.current[messageId] ?? []
-          const displayResolved = resolvePartFromParts({ [messageId]: displayParts }, partId)
-          if (
-            !displayResolved ||
-            displayResolved.messageId !== messageId ||
-            (displayResolved.part.type as string) !== 'data-error'
-          )
-            return
-          partsForEdit = displayParts
-          resolved = displayResolved
-          isSyntheticFallback = true
+        const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
+        if (resolved && resolved.messageId === messageId && resolved.part.type === 'data-error') {
+          const filtered = persistedParts.filter((_, index) => index !== resolved.index)
+          // A removed persisted no-response error would recreate itself through the
+          // display fallback, so record the dismissal like the synthetic fallback.
+          const removedData = (resolved.part as unknown as { data?: { name?: unknown } }).data
+          const durableParts =
+            removedData?.name === 'NoResponseError' ? [...filtered, createDismissedNoResponsePart()] : filtered
+
+          await requireChatWrite('removeMessageErrorPart').editMessage(messageId, durableParts)
+          return
         }
 
-        const filtered = partsForEdit.filter((_, index) => index !== resolved.index)
-        // A removed persisted no-response error would recreate itself through the
-        // display fallback, so record the dismissal like the synthetic fallback.
-        const removedData = (resolved.part as unknown as { data?: { name?: unknown } }).data
-        const durableParts =
-          isSyntheticFallback || removedData?.name === 'NoResponseError'
-            ? [...filtered, createDismissedNoResponsePart()]
-            : filtered
+        if (streamingLayers?.liveMessageIds.includes(messageId)) {
+          // A retry owns this message right now and its terminal persist is the
+          // writer; a display-derived edit would race it.
+          logger.warn('Skipping synthetic error dismissal for a live message', { messageId })
+          return
+        }
+        // Synthetic fallback error is display-only: resolve it from the display
+        // map, then persist the dismissal against freshly re-read parts. The
+        // display snapshot may predate an in-place retry, so writing it back
+        // would overwrite the retried parts — drop the edit instead when the
+        // persisted parts no longer need the fallback.
+        const displayParts = displayPartsByMessageIdRef.current[messageId] ?? []
+        const displayResolved = resolvePartFromParts({ [messageId]: displayParts }, partId)
+        if (!displayResolved || displayResolved.messageId !== messageId || displayResolved.part.type !== 'data-error')
+          return
+        const freshMessage = await dataApiService.get(`/messages/${messageId}`)
+        const freshParts = freshMessage.data.parts ?? []
+        if (!canPersistSyntheticFallbackEdit(freshParts)) {
+          logger.warn('Skipping synthetic error dismissal for superseded parts', { messageId })
+          return
+        }
 
-        await requireChatWrite('removeMessageErrorPart').editMessage(messageId, durableParts)
+        await requireChatWrite('removeMessageErrorPart').editMessage(messageId, [
+          ...freshParts,
+          createDismissedNoResponsePart()
+        ])
       } catch (error) {
         logger.error('Failed to remove error part:', error as Error)
         throw error
       }
     },
-    [requireChatWrite]
+    [requireChatWrite, streamingLayers]
   )
 
   const createTranslationUpdater = useCallback(

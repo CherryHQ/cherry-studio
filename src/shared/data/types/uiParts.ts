@@ -99,9 +99,7 @@ export interface KnowledgeScopePartData {
 }
 
 /** Context boundary marker. Hidden from both the transcript and the model. */
-export type ClearPartData = {
-  dismissedNoResponse?: boolean
-}
+export type ClearPartData = Record<string, never>
 
 /** Marker for a dismissed synthetic no-response error. Hidden from both the transcript and the model. */
 export type DismissedNoResponsePartData = Record<string, never>
@@ -356,7 +354,7 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
 
 const KNOWLEDGE_SCOPE_PART_TYPE = 'data-knowledge-scope'
 const CLEAR_CONTEXT_PART_TYPE = 'data-clear'
-const DISMISSED_NO_RESPONSE_PART_TYPE = 'data-no-response-dismissed'
+export const DISMISSED_NO_RESPONSE_PART_TYPE = 'data-no-response-dismissed'
 
 export type ClearContextPart = Extract<CherryMessagePart, { type: typeof CLEAR_CONTEXT_PART_TYPE }>
 
@@ -378,27 +376,14 @@ export function createDismissedNoResponsePart(): DismissedNoResponsePart {
   }
 }
 
-/** Whether parts contain a dismissed no-response marker (new type or legacy data-clear flag). */
+/** Whether parts contain a dismissed no-response marker. */
 export function hasDismissedNoResponsePart(parts: readonly CherryMessagePart[] | undefined): boolean {
-  return (
-    parts?.some(
-      (part) =>
-        part.type === DISMISSED_NO_RESPONSE_PART_TYPE ||
-        (part.type === CLEAR_CONTEXT_PART_TYPE &&
-          (part as unknown as { data?: { dismissedNoResponse?: boolean } }).data?.dismissedNoResponse === true)
-    ) ?? false
-  )
+  return parts?.some((part) => part.type === DISMISSED_NO_RESPONSE_PART_TYPE) ?? false
 }
 
 /** Whether a message's persisted parts contain a model-context boundary. */
 export function hasClearContextPart(parts: readonly CherryMessagePart[] | undefined): boolean {
-  return (
-    parts?.some(
-      (part) =>
-        part.type === CLEAR_CONTEXT_PART_TYPE &&
-        (part as unknown as { data?: { dismissedNoResponse?: boolean } }).data?.dismissedNoResponse !== true
-    ) ?? false
-  )
+  return parts?.some((part) => part.type === CLEAR_CONTEXT_PART_TYPE) ?? false
 }
 
 /** Whether persisted message values describe a blank user turn, without making any tree-level claim. */

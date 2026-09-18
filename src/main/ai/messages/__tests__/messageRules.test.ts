@@ -52,6 +52,43 @@ describe('toModelMessages', () => {
     ])
   })
 
+  it('drops a dismissed marker-only turn instead of sending a placeholder', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui('assistant', [{ type: 'data-no-response-dismissed', data: {} }], 'a1'),
+      ui('user', [{ type: 'text', text: '继续' }], 'u2')
+    ])
+    expect(model).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Q' },
+          { type: 'text', text: '继续' }
+        ]
+      }
+    ])
+  })
+
+  it('keeps the placeholder for a dismissed persisted error (#16195)', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          { type: 'data-error', data: { name: 'NoResponseError' } },
+          { type: 'data-no-response-dismissed', data: {} }
+        ],
+        'a1'
+      ),
+      ui('user', [{ type: 'text', text: '继续' }], 'u2')
+    ])
+    expect(model).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'Q' }] },
+      { role: 'assistant', content: [{ type: 'text', text: '...' }] },
+      { role: 'user', content: [{ type: 'text', text: '继续' }] }
+    ])
+  })
+
   it('drops an incomplete tool call (ignoreIncompleteToolCalls)', async () => {
     const model = await toModelMessages([
       ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
