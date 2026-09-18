@@ -144,6 +144,7 @@ const fakeCacheService = {
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
 const mockCloseSession = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
+const mockHandleUserStop = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -159,6 +160,7 @@ vi.mock('@application', async () => {
     AgentSessionRuntimeService: {
       willContinueTopic: mockWillContinueTopic,
       abortPendingTurn: mockAbortPendingTurn,
+      handleUserStop: mockHandleUserStop,
       closeSession: mockCloseSession
     }
   } as Parameters<typeof mockApplicationFactory>[0])
@@ -283,6 +285,8 @@ describe('AiStreamManager', () => {
     mockSaveSpans.mockResolvedValue(undefined)
     mockWillContinueTopic.mockReturnValue(false)
     mockAbortPendingTurn.mockReturnValue(false)
+    // Default: a user stop resolves like the runtime's graceful-or-close handling.
+    mockHandleUserStop.mockImplementation((sessionId: string) => mockCloseSession(sessionId))
     mockGetMessageById.mockReset()
     sharedCacheStore.clear()
   })
@@ -1863,6 +1867,25 @@ describe('AiStreamManager', () => {
       await expect(stopping).resolves.toBeUndefined()
       await expect(nextTurn).resolves.toBeUndefined()
       expect(nextTurnAdmitted).toBe(true)
+    })
+
+    it('routes a user Stop through the runtime graceful path and every other drain through closeSession', async () => {
+      vi.useRealTimers()
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:agent')]
+      })
+
+      mockHandleUserStop.mockImplementation(async () => undefined)
+      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      expect(mockHandleUserStop).toHaveBeenCalledWith('session-1')
+      expect(mockCloseSession).not.toHaveBeenCalled()
+
+      mockHandleUserStop.mockImplementation((sessionId: string) => mockCloseSession(sessionId))
+      await mgr.abortAndDrain('agent-session:session-1', 'agent-session-purge')
+      expect(mockCloseSession).toHaveBeenCalledWith('session-1')
     })
   })
 

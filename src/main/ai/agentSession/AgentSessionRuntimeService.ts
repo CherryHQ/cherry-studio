@@ -102,7 +102,7 @@ import {
   willAgentSessionRuntimeContinue
 } from './agentSessionRuntimeState'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
-import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
+import { USER_STOP_ABORT_REASON, buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -342,6 +342,8 @@ export class AgentSessionRuntimeService extends BaseService {
   readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
   private readonly closingSessions = new Map<string, { promise: Promise<void>; resumeToken?: string }>()
+  /** Single-flight user-stop handling per session (see {@link handleUserStop}). */
+  private readonly userStopSessions = new Map<string, Promise<void>>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
@@ -792,9 +794,17 @@ export class AgentSessionRuntimeService extends BaseService {
           turn.controller = controller
           this.applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
 
-          // A user Stop is the only abort source now (steer no longer interrupts) — tear the
-          // session down so `connection.close()` kills the warm query and its subagent.
-          const onAbort = () => void this.closeSession(entry.sessionId)
+          // A user Stop is the only abort source now (steer no longer interrupts). It asks the
+          // connection for a graceful SDK interrupt so the subprocess — its background tasks and
+          // subagents — survives; every other abort source tears the session down, which
+          // `connection.close()` turns into killing the warm query and its subagent.
+          const onAbort = () => {
+            if (input.signal.reason === USER_STOP_ABORT_REASON) {
+              void this.handleUserStop(entry.sessionId)
+            } else {
+              void this.closeSession(entry.sessionId)
+            }
+          }
           if (input.signal.aborted) {
             onAbort()
             return
@@ -951,6 +961,33 @@ export class AgentSessionRuntimeService extends BaseService {
       this.refreshIdleTimer(entry)
       if (!this.isSessionBusy(entry.sessionId)) this._onRuntimeIdle.fire({ sessionId: entry.sessionId })
     }
+  }
+
+  /**
+   * A user Stop for a live turn: hand the connection a graceful SDK interrupt and keep the session
+   * (and its subprocess — background tasks, subagents) alive when it succeeds. Falls back to the
+   * full session teardown when the driver cannot gracefully stop (unsupported driver, no live turn,
+   * interrupt not answered in time). Single-flight: the turn stream's abort listener and the
+   * stream manager's stop-and-drain both dispatch here for the same Stop.
+   */
+  handleUserStop(sessionId: string): Promise<void> {
+    const inFlight = this.userStopSessions.get(sessionId)
+    if (inFlight) return inFlight
+    const stopping = this.stopForUser(sessionId).finally(() => {
+      if (this.userStopSessions.get(sessionId) === stopping) this.userStopSessions.delete(sessionId)
+    })
+    this.userStopSessions.set(sessionId, stopping)
+    return stopping
+  }
+
+  private async stopForUser(sessionId: string): Promise<void> {
+    const entry = this.entries.get(sessionId)
+    const connection = entry ? this.currentConnection(entry) : undefined
+    const graceful = await connection?.abortTurn?.().catch((error) => {
+      logger.warn('Agent runtime graceful turn interrupt failed', { sessionId, error })
+      return false
+    })
+    if (graceful !== true) await this.closeSession(sessionId)
   }
 
   closeSession(sessionId: string): Promise<void> {

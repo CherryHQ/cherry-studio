@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
+import { USER_STOP_ABORT_REASON } from '@main/ai/agentSession/topic'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -159,7 +160,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     if (wc) application.get('AiStreamManager').detach(wc, request)
   },
   'ai.stream.abort': async ({ topicId }) => {
-    await application.get('AiStreamManager').abortAndDrain(topicId, 'user-requested')
+    await application.get('AiStreamManager').abortAndDrain(topicId, USER_STOP_ABORT_REASON)
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──
