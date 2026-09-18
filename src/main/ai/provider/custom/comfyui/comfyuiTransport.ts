@@ -67,7 +67,7 @@ export async function listWorkflows(
 ): Promise<string[]> {
   const entries = await requestJson<UserDataEntry[]>(
     `${baseURL}/v2/userdata?path=${WORKFLOW_DIR}`,
-    'paintings.comfyui.list_failed',
+    t('paintings.comfyui.list_failed'),
     signal,
     options
   )
@@ -88,11 +88,12 @@ export async function listWorkflows(
 /**
  * The one place a GET is issued: the listing and every read the transport makes
  * go through it, so the headers, the fetch override and the structured failure
- * have a single owner.
+ * have a single owner. The caller resolves its own fallback message: the i18n
+ * gate only accepts a key written literally where the helper is called.
  */
 async function requestJson<T>(
   url: string,
-  fallbackKey: string,
+  fallback: string,
   signal?: AbortSignal,
   options: ComfyuiRequestOptions = {}
 ): Promise<T> {
@@ -100,14 +101,14 @@ async function requestJson<T>(
   const response = await doFetch(url, { signal, headers: options.headers })
   if (!response.ok) {
     throw createPaintingGenerateError('REMOTE_ERROR', {
-      message: await readErrorMessage(response, t(fallbackKey))
+      message: await readErrorMessage(response, fallback)
     })
   }
   return (await response.json()) as T
 }
 
-const fetchJson = <T,>(url: string, signal?: AbortSignal, options: ComfyuiRequestOptions = {}): Promise<T> =>
-  requestJson<T>(url, 'paintings.comfyui.request_failed', signal, options)
+const fetchJson = <T>(url: string, signal?: AbortSignal, options: ComfyuiRequestOptions = {}): Promise<T> =>
+  requestJson<T>(url, t('paintings.comfyui.request_failed'), signal, options)
 
 /**
  * Turn ComfyUI's validation payload into something a user can act on. The
