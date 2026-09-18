@@ -18,8 +18,9 @@ import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
  * from conversations. A sentinel template is not enough either: before the
  * sentinel guard, a user could save such a task, and it would carry the same
  * template. The shipped statement therefore also requires the reserved
- * `heartbeat_<agentId>` schedule name that only sync mints; a schedule without
- * that shape stays visible, which is the safe direction.
+ * `heartbeat_<agentId>` schedule name that only sync mints — the exact name, or
+ * its create-race disambiguation `heartbeat_<agentId>__<8 hex>`; a schedule
+ * without that shape stays visible, which is the safe direction.
  */
 
 function readBackfillStatement(): string {
@@ -127,7 +128,7 @@ describe('agent session type backfill (migration 0024)', () => {
   })
 
   it('keeps a sentinel-prompted user schedule that is not in the reserved name space', () => {
-    seedSessions(['sess-user-schedule-sentinel', 'sess-prefix-only'])
+    seedSessions(['sess-user-schedule-sentinel', 'sess-prefix-only', 'sess-user-disambig'])
     // Pre-guard, a user could save a task whose prompt is the sentinel; both the
     // fire and its template then carry it. The name is what sync alone mints.
     seedRow({
@@ -147,11 +148,23 @@ describe('agent session type backfill (migration 0024)', () => {
       schedulePrompt: '__heartbeat__',
       scheduleName: 'heartbeat_agent-custom'
     })
+    // Even inside the `heartbeat_<agentId>__` prefix, a suffix sync never mints —
+    // the disambiguation is exactly `randomUUID().slice(0, 8)`, 8 lowercase hex —
+    // is not sync's row and stays visible.
+    seedRow({
+      id: 'user-schedule-disambig-prefix',
+      scheduleId: 'sched-user-disambig',
+      prompt: '__heartbeat__',
+      sessionId: 'sess-user-disambig',
+      schedulePrompt: '__heartbeat__',
+      scheduleName: 'heartbeat_agent__user'
+    })
 
     dbh.sqlite.exec(readBackfillStatement())
 
     expect(typeOf('sess-user-schedule-sentinel')).toBe('conversation')
     expect(typeOf('sess-prefix-only')).toBe('conversation')
+    expect(typeOf('sess-user-disambig')).toBe('conversation')
   })
 
   it('keeps sessions a user task touched, including a sentinel-prompted legacy task', () => {
