@@ -1805,7 +1805,7 @@ export class AgentSessionMessageService {
     return saved
   }
 
-  checkpointWorkflowTaskEvent(sessionId: string, messageId: string, event: AgentTaskEventPartData): void {
+  checkpointWorkflowTaskEvent(sessionId: string, messageId: string, event: AgentTaskEventPartData): boolean {
     const updated = application.get('DbService').withWriteTx((tx) => {
       const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existingRow) return false
@@ -1857,6 +1857,7 @@ export class AgentSessionMessageService {
         }
       ])
     }
+    return updated
   }
 
   /**

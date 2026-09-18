@@ -2297,12 +2297,14 @@ export class AgentSessionRuntimeService extends BaseService {
         const parts = accumulator.latest?.parts
         if (parts) {
           agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, parts)
-          const checkpointed = this.writeWorkflowCheckpointsForMessage(
+          const { matched, persisted } = this.writeWorkflowCheckpointsForMessage(
             entry,
             accumulator.messageId,
             entry.closing === true
           )
-          const finalParts = checkpointed
+          if (!persisted) throw new Error('Failed to persist detached flow workflow checkpoint')
+          // Terminal statistics land in the persisted row only, never in the accumulated parts.
+          const finalParts = matched
             ? agentSessionMessageService.getSessionMessage(entry.sessionId, accumulator.messageId).data.parts
             : parts
           this.releaseBackgroundFlowMessageState(entry, accumulator.messageId)
@@ -2386,9 +2388,9 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.terminalWorkflowSnapshotPersistedTaskIds?.delete(taskId)
       entry.terminalTaskIds?.delete(taskId)
       const checkpoint = entry.workflowCheckpoints?.get(taskId)
-      if (checkpoint?.timer) {
-        this.writeWorkflowCheckpoint(entry, taskId, checkpoint, entry.closing === true)
-        if (checkpoint.timer) clearTimeout(checkpoint.timer)
+      if (checkpoint) {
+        const checkpointed = this.writeWorkflowCheckpoint(entry, taskId, checkpoint, entry.closing === true)
+        if (!checkpointed) continue
       }
       entry.workflowCheckpoints?.delete(taskId)
     }
@@ -2591,13 +2593,19 @@ export class AgentSessionRuntimeService extends BaseService {
     taskId: string,
     checkpoint: WorkflowCheckpoint,
     allowDetached = false
-  ): void {
-    if (entry.workflowCheckpoints?.get(taskId) !== checkpoint || (!allowDetached && !this.isCurrentEntry(entry))) return
+  ): boolean {
+    if (entry.workflowCheckpoints?.get(taskId) !== checkpoint || (!allowDetached && !this.isCurrentEntry(entry)))
+      return false
     if (checkpoint.timer) clearTimeout(checkpoint.timer)
     checkpoint.timer = undefined
     try {
-      agentSessionMessageService.checkpointWorkflowTaskEvent(entry.sessionId, checkpoint.messageId, checkpoint.event)
+      const persisted = agentSessionMessageService.checkpointWorkflowTaskEvent(
+        entry.sessionId,
+        checkpoint.messageId,
+        checkpoint.event
+      )
       checkpoint.lastWrittenAt = Date.now()
+      return persisted !== false
     } catch (error) {
       logger.warn('Failed to checkpoint workflow statistics', {
         sessionId: entry.sessionId,
@@ -2605,6 +2613,12 @@ export class AgentSessionRuntimeService extends BaseService {
         taskId,
         error
       })
+      checkpoint.timer = setTimeout(
+        () => this.writeWorkflowCheckpoint(entry, taskId, checkpoint, allowDetached),
+        WORKFLOW_CHECKPOINT_THROTTLE_MS
+      )
+      checkpoint.timer.unref?.()
+      return false
     }
   }
 
@@ -2612,15 +2626,15 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     messageId: string,
     allowDetached = false
-  ): boolean {
-    let checkpointed = false
+  ): { matched: boolean; persisted: boolean } {
+    let matched = false
+    let persisted = true
     for (const [taskId, checkpoint] of entry.workflowCheckpoints ?? []) {
-      if (checkpoint.messageId === messageId) {
-        checkpointed = true
-        this.writeWorkflowCheckpoint(entry, taskId, checkpoint, allowDetached)
-      }
+      if (checkpoint.messageId !== messageId) continue
+      matched = true
+      persisted = this.writeWorkflowCheckpoint(entry, taskId, checkpoint, allowDetached) && persisted
     }
-    return checkpointed
+    return { matched, persisted }
   }
 
   private prepareTaskEventForTranscript(
