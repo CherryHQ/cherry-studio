@@ -1,12 +1,16 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 
 import { loggerService } from '@logger'
+import { t } from '@main/i18n'
+import { createPaintingGenerateError, PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
 import type {
   ImageGenerationSubmitInput,
   ImageGenerationTransport,
   ImageTransportDescriptor
 } from '../imageGenerationModel'
+import { readErrorMessage } from '../readErrorMessage'
+import { createAbortError, waitWithSignal } from '../transportUtils'
 import {
   convertUiWorkflowToPrompt,
   findPromptTarget,
@@ -60,7 +64,11 @@ export async function listWorkflows(
 ): Promise<string[]> {
   const doFetch = options.fetch ?? fetch
   const response = await doFetch(`${baseURL}/v2/userdata?path=${WORKFLOW_DIR}`, { signal, headers: options.headers })
-  if (!response.ok) throw new Error(`ComfyUI userdata listing failed (HTTP ${response.status})`)
+  if (!response.ok) {
+    throw createPaintingGenerateError('REMOTE_ERROR', {
+      message: await readErrorMessage(response, t('paintings.comfyui.list_failed'))
+    })
+  }
   const entries = (await response.json()) as UserDataEntry[]
   return entries
     .filter((entry) => entry.type === 'file' && entry.name.endsWith(WORKFLOW_FILE_EXTENSION))
@@ -70,15 +78,32 @@ export async function listWorkflows(
 async function fetchJson<T>(url: string, signal?: AbortSignal, options: ComfyuiRequestOptions = {}): Promise<T> {
   const doFetch = options.fetch ?? fetch
   const response = await doFetch(url, { signal, headers: options.headers })
-  if (!response.ok) throw new Error(`ComfyUI request to ${url} failed (HTTP ${response.status})`)
+  if (!response.ok) {
+    throw createPaintingGenerateError('REMOTE_ERROR', {
+      message: await readErrorMessage(response, t('paintings.comfyui.request_failed'))
+    })
+  }
   return (await response.json()) as T
 }
 
-/** Turn ComfyUI's validation payload into something a user can act on. */
-function describePromptError(status: number, body: unknown): string {
-  const payload = body as {
+/**
+ * Turn ComfyUI's validation payload into something a user can act on. The
+ * server's messages are kept verbatim — they name the offending node and input —
+ * and are wrapped in a structured `REMOTE_ERROR` carrying a localized fallback
+ * when the body says nothing useful.
+ */
+async function describePromptError(response: Response): Promise<string> {
+  const fallback = t('paintings.comfyui.workflow_rejected', { status: response.status })
+  const bodyText = await response.text().catch(() => '')
+  if (!bodyText) return fallback
+  let payload: {
     error?: { message?: string; details?: string }
     node_errors?: Record<string, { errors?: Array<{ message?: string; details?: string }> }>
+  }
+  try {
+    payload = JSON.parse(bodyText)
+  } catch {
+    return bodyText.slice(0, 300) || fallback
   }
   const parts: string[] = []
   if (payload?.error?.message) parts.push(payload.error.message)
@@ -88,7 +113,7 @@ function describePromptError(status: number, body: unknown): string {
       parts.push(`node ${nodeId}: ${error.message ?? ''} ${error.details ?? ''}`.trim())
     }
   }
-  return parts.length > 0 ? parts.join('; ') : `ComfyUI rejected the workflow (HTTP ${status})`
+  return parts.length > 0 ? parts.join('; ') : fallback
 }
 
 class ComfyuiTransport implements ImageGenerationTransport {
@@ -122,9 +147,9 @@ class ComfyuiTransport implements ImageGenerationTransport {
 
     const target = findPromptTarget(graph)
     if (!target) {
-      throw new Error(
-        `ComfyUI workflow "${input.modelId}" has no text node that the sampler consumes as positive conditioning, so there is nowhere to put the prompt.`
-      )
+      throw createPaintingGenerateError('REMOTE_ERROR', {
+        message: t('paintings.comfyui.no_prompt_node', { workflow: input.modelId })
+      })
     }
     applyPrompt(graph, target.nodeId, target.input, input.prompt ?? '')
     applySeed(graph, input.seed, target.samplerId)
@@ -136,10 +161,12 @@ class ComfyuiTransport implements ImageGenerationTransport {
       signal: input.signal
     })
     if (!response.ok) {
-      throw new Error(describePromptError(response.status, await response.json().catch(() => ({}))))
+      throw createPaintingGenerateError('REMOTE_ERROR', { message: await describePromptError(response) })
     }
     const { prompt_id: promptId } = (await response.json()) as { prompt_id?: string }
-    if (!promptId) throw new Error('ComfyUI accepted the workflow but returned no prompt id')
+    if (!promptId) {
+      throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.no_prompt_id') })
+    }
     return { taskId: promptId }
   }
 
@@ -149,38 +176,59 @@ class ComfyuiTransport implements ImageGenerationTransport {
       signal?: AbortSignal
       onProgress?: (progress: number) => void
       modelDescriptor?: ImageTransportDescriptor
-    }
+    } = {}
   ): Promise<string[]> {
     const deadline = Date.now() + POLL_TIMEOUT_MS
     let ticks = 0
     while (Date.now() < deadline) {
-      if (options.signal?.aborted) throw new Error('Image generation aborted')
-      const history = await fetchJson<
-        Record<
-          string,
-          {
-            outputs?: Record<string, { images?: Array<{ filename: string; subfolder?: string; type?: string }> }>
-            status?: { status_str?: string; messages?: unknown[] }
+      // Every cancellation path exits as the repo's AbortError convention
+      // (`error.name === 'AbortError'`): the pre-flight check, an abort raised
+      // inside the history request or the inter-tick sleep, and an abort racing
+      // the response. Otherwise a user cancel is rethrown from the generic
+      // catch below as a failed generation.
+      if (options.signal?.aborted) throw createAbortError('Task polling aborted')
+      try {
+        const history = await fetchJson<
+          Record<
+            string,
+            {
+              outputs?: Record<string, { images?: Array<{ filename: string; subfolder?: string; type?: string }> }>
+              status?: { status_str?: string; messages?: unknown[] }
+            }
+          >
+        >(`${this.baseURL}/history/${taskId}`, options.signal, {
+          headers: this.headers,
+          fetch: this.doFetch
+        })
+        const entry = history[taskId]
+        if (entry?.outputs && Object.keys(entry.outputs).length > 0) {
+          const images = Object.values(entry.outputs).flatMap((output) => output.images ?? [])
+          if (images.length === 0) {
+            throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.no_image') })
           }
-        >
-      >(`${this.baseURL}/history/${taskId}`, options.signal, {
-        headers: this.headers,
-        fetch: this.doFetch
-      })
-      const entry = history[taskId]
-      if (entry?.outputs && Object.keys(entry.outputs).length > 0) {
-        const images = Object.values(entry.outputs).flatMap((output) => output.images ?? [])
-        if (images.length === 0) throw new Error('ComfyUI finished without producing an image')
-        return Promise.all(images.map((image) => this.fetchImage(image, options.signal)))
-      }
-      if (entry?.status?.status_str === 'error') {
-        throw new Error(`ComfyUI workflow failed: ${JSON.stringify(entry.status.messages ?? {}).slice(0, 500)}`)
+          return await Promise.all(images.map((image) => this.fetchImage(image, options.signal)))
+        }
+        if (entry?.status?.status_str === 'error') {
+          throw createPaintingGenerateError('REMOTE_ERROR', {
+            message:
+              `${t('paintings.comfyui.workflow_failed')} ${JSON.stringify(entry.status.messages ?? {}).slice(0, 500)}`.trim()
+          })
+        }
+      } catch (error) {
+        if (options.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+          throw createAbortError('Task polling aborted')
+        }
+        // Structured failures (workflow error, no image) end the poll loop;
+        // anything else — a transient network blip on the history GET — retries.
+        if (error instanceof PaintingGenerateError) throw error
       }
       ticks += 1
       options.onProgress?.(Math.min(0.9, ticks * 0.05))
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+      await waitWithSignal(POLL_INTERVAL_MS, options.signal)
     }
-    throw new Error(`ComfyUI did not finish within ${POLL_TIMEOUT_MS / 1000}s`)
+    throw createPaintingGenerateError('REMOTE_ERROR', {
+      message: t('paintings.comfyui.poll_timeout', { seconds: POLL_TIMEOUT_MS / 1000 })
+    })
   }
 
   /**
@@ -221,10 +269,25 @@ class ComfyuiTransport implements ImageGenerationTransport {
         signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
         headers: this.headers
       })
-      if (!response.ok) throw new Error(`ComfyUI could not return ${image.filename} (HTTP ${response.status})`)
+      if (!response.ok) {
+        throw createPaintingGenerateError('REMOTE_ERROR', {
+          message: await readErrorMessage(response, t('paintings.comfyui.image_fetch_failed'))
+        })
+      }
       const buffer = Buffer.from(await response.arrayBuffer())
       const contentType = response.headers.get('content-type') || 'image/png'
       return `data:${contentType};base64,${buffer.toString('base64')}`
+    } catch (error) {
+      // The combined signal aborts for the user's cancellation AND for this
+      // download's own timeout; only the former is an AbortError — a timer fire
+      // is a failed download, not a cancelled generation.
+      if (error instanceof Error && error.name === 'AbortError') {
+        if (signal?.aborted) throw createAbortError('Task polling aborted')
+        throw createPaintingGenerateError('REMOTE_ERROR', {
+          message: t('paintings.comfyui.image_download_timeout', { seconds: IMAGE_TIMEOUT_MS / 1000 })
+        })
+      }
+      throw error
     } finally {
       clearTimeout(timer)
     }

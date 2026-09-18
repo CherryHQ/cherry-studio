@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
 import { applySeed, createComfyuiTransport, listWorkflows } from '../comfyuiTransport'
 import type { ApiPromptNode, ObjectInfo } from '../uiToApiPrompt'
+
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 const objectInfo: ObjectInfo = {
   CLIPTextEncode: { input: { required: { text: ['STRING', { multiline: true }], clip: ['CLIP'] } } },
@@ -39,7 +43,26 @@ const workflow = {
 
 const respond = (data: unknown) => new Response(JSON.stringify(data), { status: 200 })
 
+const submitInput = {
+  modelId: 'flow',
+  prompt: 'a cat',
+  n: 1,
+  size: undefined,
+  seed: 42,
+  files: [] as never[],
+  mask: undefined,
+  providerParams: {}
+}
+
 describe('ComfyuiTransport', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('routes every request through the configured fetch and headers', async () => {
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(init?.headers).toMatchObject({ 'X-Test': '1' })
@@ -75,6 +98,28 @@ describe('ComfyuiTransport', () => {
     expect(body.prompt['1'].inputs.text).toBe('a cat')
     expect(body.prompt['2'].inputs.seed).toBe(42)
   })
+
+  it('propagates a user abort during the prompt POST as an AbortError', async () => {
+    const doFetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(() => {
+      return new Promise((_resolve, reject) => {
+        const e = new Error('The operation was aborted')
+        e.name = 'AbortError'
+        reject(e)
+      })
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+    const controller = new AbortController()
+    controller.abort()
+
+    const promise = transport
+      .submit({ ...submitInput, signal: controller.signal })
+      .then(() => null)
+      .catch((e) => e)
+
+    const error = await promise
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).name).toBe('AbortError')
+  })
 })
 
 describe('listWorkflows', () => {
@@ -91,6 +136,15 @@ describe('listWorkflows', () => {
     })
 
     expect(workflows).toEqual(['a'])
+  })
+
+  it('surfaces a failed listing as a structured REMOTE_ERROR with the server message', async () => {
+    const doFetch = vi.fn(async () => new Response(JSON.stringify({ message: 'server exploded' }), { status: 500 }))
+
+    const error = await listWorkflows('http://localhost:8188', undefined, { fetch: doFetch }).catch((e) => e)
+
+    expect(error).toBeInstanceOf(PaintingGenerateError)
+    expect(error).toMatchObject({ code: 'REMOTE_ERROR', message: 'server exploded' })
   })
 })
 
@@ -120,6 +174,182 @@ describe('cancel', () => {
     const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
 
     await expect(transport.cancel('pid-1')).resolves.toBeUndefined()
+  })
+})
+
+describe('poll', () => {
+  const POLL_INTERVAL_MS = 1500
+  /** A history response with one output image; the transport then fetches it. */
+  const historyWithImage = () =>
+    respond({
+      'pid-1': {
+        outputs: { '9': { images: [{ filename: 'out.png', subfolder: '', type: 'output' }] } },
+        status: { status_str: 'success', messages: [] }
+      }
+    })
+
+  /** Fetch mock whose pending promise rejects with the given error on abort. */
+  const abortableFetch = (rejectWith: () => Error) =>
+    vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>((_input, init) => {
+      return new Promise((_resolve, reject) => {
+        ;(init?.signal as AbortSignal | undefined)?.addEventListener('abort', () => reject(rejectWith()), {
+          once: true
+        })
+      })
+    })
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('returns fetched images as data URLs when the history has outputs', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/history/')) return historyWithImage()
+      if (String(input).includes('/view?')) {
+        return new Response(new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' }), { status: 200 })
+      }
+      throw new Error(`unexpected url ${input}`)
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const promise = transport.poll('pid-1')
+    await vi.advanceTimersByTimeAsync(0)
+    const images = await promise
+
+    expect(images).toEqual(['data:image/png;base64,AQID'])
+    expect(String(doFetch.mock.calls[0][0])).toBe('http://localhost:8188/history/pid-1')
+    expect(String(doFetch.mock.calls[1][0])).toBe('http://localhost:8188/view?filename=out.png&subfolder=&type=output')
+  })
+
+  it('throws an AbortError before fetching when the signal is already aborted', async () => {
+    const doFetch = vi.fn()
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch as never })
+    const controller = new AbortController()
+    controller.abort()
+
+    const promise = transport.poll('pid-1', { signal: controller.signal }).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(0)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).name).toBe('AbortError')
+    expect(doFetch).not.toHaveBeenCalled()
+  })
+
+  it('reports a mid-poll abort from the history request as an AbortError, not a generation failure', async () => {
+    const doFetch = abortableFetch(() => {
+      const e = new Error('The operation was aborted')
+      e.name = 'AbortError'
+      return e
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+    const controller = new AbortController()
+
+    const promise = transport.poll('pid-1', { signal: controller.signal }).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(0)
+    controller.abort()
+    const error = await promise
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).name).toBe('AbortError')
+    expect(doFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a mid-poll abort from the inter-tick sleep as an AbortError', async () => {
+    const doFetch = abortableFetch(() => {
+      const e = new Error('The operation was aborted')
+      e.name = 'AbortError'
+      return e
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+    const controller = new AbortController()
+
+    const promise = transport.poll('pid-1', { signal: controller.signal }).catch((e) => e)
+    await vi.advanceTimersByTimeAsync(0)
+    // The first history poll returns nothing; the transport sleeps until the
+    // next tick. Aborting during that sleep must surface as an AbortError.
+    await vi.advanceTimersByTimeAsync(500)
+    controller.abort()
+    const error = await promise
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).name).toBe('AbortError')
+  })
+
+  it('keeps polling through a transient history failure but fails on a structured one', async () => {
+    let calls = 0
+    const doFetch = vi.fn(async () => {
+      calls += 1
+      if (calls < 3) throw new Error('network blip')
+      return historyWithImage()
+    })
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const promise = transport.poll('pid-1')
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3)
+    const images = await promise
+
+    expect(images).toHaveLength(1)
+    expect(calls).toBeGreaterThanOrEqual(3)
+  })
+
+  it('surfaces a workflow error status as a structured REMOTE_ERROR', async () => {
+    const doFetch = vi.fn(async () =>
+      respond({
+        'pid-1': { status: { status_str: 'error', messages: [['execution_error', { node_type: 'KSampler' }]] } }
+      })
+    )
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    const promise = transport.poll('pid-1').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(0)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(PaintingGenerateError)
+    expect(error.code).toBe('REMOTE_ERROR')
+  })
+
+  it('keeps a user abort during the image download an AbortError and its download timeout a plain failure', async () => {
+    const historyAndHangingView = () =>
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes('/history/')) return historyWithImage()
+        return new Promise<Response>((_resolve, reject) => {
+          ;(init?.signal as AbortSignal | undefined)?.addEventListener('abort', () => {
+            const e = new Error('The operation was aborted')
+            e.name = 'AbortError'
+            reject(e)
+          })
+        })
+      })
+
+    // User abort during the /view download → AbortError.
+    {
+      const doFetch = historyAndHangingView()
+      const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+      const controller = new AbortController()
+      const promise = transport.poll('pid-1', { signal: controller.signal }).catch((e) => e)
+      await vi.advanceTimersByTimeAsync(0)
+      controller.abort()
+      const error = await promise
+      expect(error).toBeInstanceOf(Error)
+      expect((error as Error).name).toBe('AbortError')
+    }
+
+    // The transport's own IMAGE_TIMEOUT_MS timer fires → a structured failure,
+    // NOT an AbortError (which downstream reads as a user cancellation).
+    {
+      const doFetch = historyAndHangingView()
+      const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+      const promise = transport.poll('pid-1').catch((e) => e)
+      await vi.advanceTimersByTimeAsync(60_001)
+      const error = await promise
+      expect(error).toBeInstanceOf(PaintingGenerateError)
+      expect(error.code).toBe('REMOTE_ERROR')
+    }
   })
 })
 
