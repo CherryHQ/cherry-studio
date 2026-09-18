@@ -157,6 +157,16 @@ unrestricted, but a **non-loopback (LAN) peer may reach only `POST /pair`,
 consumers use the configured local port; `gatewayClientOrigin` maps the LAN
 preference `0.0.0.0` back to `127.0.0.1`.
 
+Pairing and provider export are LAN-only product features, because both carry the
+device token (and provider export, API keys) in plaintext. `POST /pair` and
+`GET /v1/export/providers` therefore answer only a socket peer in a private,
+link-local, or CGNAT (`100.64.0.0/10`, Tailscale and similar overlay networks)
+IPv4 range. A loopback peer — how a same-machine tunnel client (frp, ngrok,
+cloudflared) presents public traffic — and a public peer from a router port
+forward both receive `403`. In-process callers have no socket peer and are
+unaffected. This is a product guardrail, not a security boundary: a tunnel
+client running on another LAN host is indistinguishable from a LAN device.
+
 The guard also checks the current LAN configuration on every remote request.
 Disabling LAN first restores `feature.api_gateway.host` to `127.0.0.1`, so new
 remote requests receive `403` while the LAN listener drains and closes.
