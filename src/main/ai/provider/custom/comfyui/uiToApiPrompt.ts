@@ -28,6 +28,7 @@ export interface UiNode {
   inputs?: Array<{ name: string; type?: string; link?: number | null; widget?: { name: string } }>
   outputs?: Array<{ name: string; type?: string; links?: number[] | null }>
   widgets_values?: unknown[] | JsonObject
+  widgets_values_named?: JsonObject
 }
 
 export interface UiLink {
@@ -232,19 +233,27 @@ export function convertUiWorkflowToPrompt(ui: UiWorkflow, objectInfo: ObjectInfo
     return Array.isArray(type) ? type.join(',') : typeof type === 'string' ? type : undefined
   }
 
+  const namedValues = (values: JsonObject, linked: Set<string>): Record<string, unknown> => {
+    const out: Record<string, unknown> = {}
+    for (const [name, value] of Object.entries(values)) {
+      if (!linked.has(name)) out[name] = wrapWidgetValue(value)
+    }
+    return out
+  }
+
   /** Positional widget values, aligned to the backend's declaration order. */
   function widgetValues(node: UiNode, linked: Set<string>): Record<string, unknown> {
     const raw = node.widgets_values
     const info = objectInfo[node.type]
     if (!info) return {}
-    // Named values (object form) key straight to the inputs — a schema change
-    // cannot silently remap them to a different position.
+    // Named values (widgets_values_named, or the object form of widgets_values)
+    // key straight to the inputs — a schema change cannot silently remap them
+    // to a different position.
+    if (Array.isArray(raw) && node.widgets_values_named) {
+      return namedValues(node.widgets_values_named, linked)
+    }
     if (raw !== undefined && !Array.isArray(raw)) {
-      const out: Record<string, unknown> = {}
-      for (const [name, value] of Object.entries(raw)) {
-        if (!linked.has(name)) out[name] = wrapWidgetValue(value)
-      }
-      return out
+      return namedValues(raw, linked)
     }
     if (!Array.isArray(raw)) return {}
     let names = widgetInputNames(info, false, undefined, undefined, raw)
@@ -548,7 +557,11 @@ export function findPromptTarget(
         if (rank !== -1 && (best === undefined || rank < best.rank)) best = { name, rank }
       }
       if (best) return { nodeId, input: best.name, samplerId }
-      for (const value of Object.values(target.inputs)) {
+      for (const [name, value] of Object.entries(target.inputs)) {
+        // Never follow an intermediate node's negative edge (e.g. a
+        // ControlNet apply node carries both streams) — only the sampler's own
+        // negative branch is out of bounds, not a conditioning input anywhere.
+        if (name === 'negative' && isReference(value)) continue
         if (isReference(value)) queue.push(value[0])
       }
     }

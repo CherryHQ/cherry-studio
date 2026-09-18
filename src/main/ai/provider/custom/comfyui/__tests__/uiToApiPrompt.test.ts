@@ -502,6 +502,27 @@ describe('convertUiWorkflowToPrompt', () => {
     expect(prompt['1'].inputs).toMatchObject({ label: 'kept', steps: 4 })
   })
 
+  it('prefers the named widget values the frontend saves alongside the positional ones', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          {
+            id: 1,
+            type: 'NamedWidgets',
+            widgets_values: ['stale positional'],
+            widgets_values_named: { steps: 4 }
+          }
+        ],
+        links: []
+      },
+      { NamedWidgets: { input: { required: { steps: ['INT', {}], label: ['STRING', {}] } } } }
+    )
+
+    expect(prompt['1'].inputs).toMatchObject({ steps: 4 })
+    expect(prompt['1'].inputs).not.toHaveProperty('label')
+    expect(prompt['1'].inputs).not.toHaveProperty('stale positional')
+  })
+
   it('expands a DynamicCombo value with its selected option children', () => {
     const { prompt } = convertUiWorkflowToPrompt(
       {
