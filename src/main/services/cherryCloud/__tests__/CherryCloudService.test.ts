@@ -424,7 +424,7 @@ describe('CherryCloudService', () => {
     )
 
     const createRequest = requestCalls('/api/v1/desktop/authorizations')[0]
-    expect(createRequest[0]).toBe('http://127.0.0.1:8084/api/v1/desktop/authorizations')
+    expect(createRequest[0]).toBe('https://cloud.cherryai.com/api/v1/desktop/authorizations')
     const createBody = JSON.parse(createRequest[1].body as string)
     expect(createBody).toMatchObject({
       code_challenge_method: 'S256',
@@ -447,7 +447,9 @@ describe('CherryCloudService', () => {
     expect(mocks.showMainWindow).toHaveBeenCalledOnce()
 
     const exchangeRequest = requestCalls(`/api/v1/desktop/authorizations/${authorizationId}/exchange`)[0]
-    expect(exchangeRequest[0]).toBe(`http://127.0.0.1:8084/api/v1/desktop/authorizations/${authorizationId}/exchange`)
+    expect(exchangeRequest[0]).toBe(
+      `https://cloud.cherryai.com/api/v1/desktop/authorizations/${authorizationId}/exchange`
+    )
     const exchangeBody = JSON.parse(exchangeRequest[1].body as string)
     expect(exchangeBody).toMatchObject({ state: createBody.state, handoff_code: token('D') })
     expect(exchangeBody.code_verifier).toMatch(/^[A-Za-z0-9_-]{43}$/)
@@ -461,9 +463,9 @@ describe('CherryCloudService', () => {
     expect(await restarted.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(3))
     expect(mocks.netFetch.mock.calls.map(([url]) => url)).toEqual([
-      'http://127.0.0.1:8084/api/v1/product-sessions/refresh',
-      'http://127.0.0.1:8084/api/v1/account',
-      'http://127.0.0.1:8084/v1/models?limit=1000'
+      'https://cloud.cherryai.com/api/v1/product-sessions/refresh',
+      'https://cloud.cherryai.com/api/v1/account',
+      'https://cloud.cherryai.com/v1/models?limit=1000'
     ])
   })
 
@@ -590,23 +592,31 @@ describe('CherryCloudService', () => {
   })
 
   it.each([
-    ['global production', 'global', '', 'https://cloud.cherryai.com'],
-    ['CN production', 'cn', '', 'https://cloud.cherryai.com.cn'],
-    ['configured', 'global', 'https://cloud-dev.cherry-ai.com/', 'https://cloud-dev.cherry-ai.com']
-  ] as const)('uses the %s origin for login requests', async (_label, edition, configuredOrigin, expectedOrigin) => {
-    mocks.appEdition = edition
-    mocks.appIsPackaged = true
-    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', configuredOrigin)
-    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
-    const service = await createService()
+    ['global packaged', 'global', true, '', 'https://cloud.cherryai.com'],
+    ['global development', 'global', false, '', 'https://cloud.cherryai.com'],
+    ['CN packaged', 'cn', true, '', 'https://cloud.cherryai.com.cn'],
+    ['CN development', 'cn', false, '   ', 'https://cloud.cherryai.com.cn'],
+    ['configured packaged', 'global', true, 'http://127.0.0.1:8084/', 'http://127.0.0.1:8084'],
+    ['configured development', 'cn', false, 'http://127.0.0.1:8084/', 'http://127.0.0.1:8084']
+  ] as const)(
+    'uses the %s origin for login requests',
+    async (_label, edition, isPackaged, configuredOrigin, expectedOrigin) => {
+      mocks.appEdition = edition
+      mocks.appIsPackaged = isPackaged
+      vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', configuredOrigin)
+      mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+      const service = await createService()
 
-    await service.startLogin()
+      await service.startLogin()
 
-    const request = mocks.netFetch.mock.calls.find(([input]) => requestPath(input) === '/api/v1/desktop/authorizations')
-    expect(request?.[0]).toBe(`${expectedOrigin}/api/v1/desktop/authorizations`)
-    expect(authorizationRequestBody().callback_port).toBe(49152)
-    expect(mocks.loopbackOpen).toHaveBeenCalledWith(expect.any(Function), expectedOrigin)
-  })
+      const request = mocks.netFetch.mock.calls.find(
+        ([input]) => requestPath(input) === '/api/v1/desktop/authorizations'
+      )
+      expect(request?.[0]).toBe(`${expectedOrigin}/api/v1/desktop/authorizations`)
+      expect(authorizationRequestBody().callback_port).toBe(49152)
+      expect(mocks.loopbackOpen).toHaveBeenCalledWith(expect.any(Function), expectedOrigin)
+    }
+  )
 
   it('returns to signed out when browser authorization expires without a callback', async () => {
     vi.useFakeTimers()
@@ -1570,7 +1580,7 @@ describe('CherryCloudService', () => {
 
     const [url, init] = requestCalls('/api/v1/product-sessions/current')[0]
     const headers = new Headers(init.headers)
-    expect(url).toBe('http://127.0.0.1:8084/api/v1/product-sessions/current')
+    expect(url).toBe('https://cloud.cherryai.com/api/v1/product-sessions/current')
     expect(init.method).toBe('DELETE')
     expect(headers.get('Authorization')).toBe(`Bearer ${token('F')}`)
     expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
