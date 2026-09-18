@@ -1,5 +1,5 @@
 export { AiStreamAdmissionError } from './admission'
-export { AiStreamManager } from './AiStreamManager'
+export { AiStreamManager, nullStreamListener } from './AiStreamManager'
 export { startAgentSessionRun } from './api/startAgentSessionRun'
 export { agentChatContextProvider } from './context/AgentChatContextProvider'
 export type { AgentDispatchOptions, AgentMessageCommit, AgentMessageReservation } from './context/agentSubmission'
