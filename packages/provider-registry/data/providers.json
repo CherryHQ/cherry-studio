@@ -1508,7 +1508,7 @@
     {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "moonshot-global - AI model provider",
+      "description": "Moonshot - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
@@ -1566,7 +1566,7 @@
           "official": "https://www.moonshot.ai/"
         }
       },
-      "name": "moonshot-global",
+      "name": "Moonshot",
       "presetProviderId": "moonshot",
       "serverTools": [
         {
@@ -2602,5 +2602,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "b16a0877c1c16eb5"
+  "version": "c1e12f94463bc3de"
 }

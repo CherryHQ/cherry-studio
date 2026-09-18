@@ -5,7 +5,7 @@ import { openaiCompatible } from './types'
 // the CN preset, served from the global console. Folds under the 'moonshot' preset.
 export default openaiCompatible({
   id: 'moonshot-global',
-  name: 'moonshot-global',
+  name: 'Moonshot',
   availableInEditions: ['global'],
   baseUrl: 'https://api.moonshot.ai',
   reasoningFormat: moonshotReasoningFormat,

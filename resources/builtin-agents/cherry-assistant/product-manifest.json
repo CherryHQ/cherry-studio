@@ -465,7 +465,7 @@
     }
   ],
   "providers": {
-    "version": "b16a0877c1c16eb5",
+    "version": "c1e12f94463bc3de",
     "count": 63,
     "entries": [
       {
@@ -606,7 +606,7 @@
       },
       {
         "id": "moonshot-global",
-        "name": "moonshot-global"
+        "name": "Moonshot"
       },
       {
         "id": "baichuan",
