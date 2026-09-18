@@ -35,6 +35,8 @@ import {
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
 
+import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from '../../ai/agents/agentTaskDefaults'
+
 const AGENT_TASK_TYPE = 'agent.task' as const
 
 /**
@@ -63,7 +65,8 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
   return {
     agentId: template.agentId,
     prompt: template.prompt,
-    timeoutMinutes: typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : 2,
+    timeoutMinutes:
+      typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
     workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' }
   }
 }
