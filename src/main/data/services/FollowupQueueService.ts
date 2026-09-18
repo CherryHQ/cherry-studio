@@ -55,6 +55,7 @@ function rowToItem(row: FollowupQueueRow): FollowupQueueItem {
     draft: row.draft,
     payload: row.payload,
     status: row.status,
+    sentAt: row.sentAt == null ? null : timestampToISO(row.sentAt),
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -241,9 +242,10 @@ export class FollowupQueueService {
   /**
    * Conditional `pending`/`failed` → `sending` transition. Only the caller
    * observing `claimed: true` may send the item — the single atomic UPDATE is
-   * the cross-window arbitration point.
+   * the cross-window arbitration point. `alreadySent` reports a send recorded
+   * before a crash between send and dequeue: dequeue it, don't resend it.
    */
-  claim(id: string): { claimed: boolean } {
+  claim(id: string): { claimed: boolean; alreadySent: boolean } {
     const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
     const [row] = this.db
       .update(followupQueueTable)
@@ -257,28 +259,79 @@ export class FollowupQueueService {
           )
         )
       )
+      .returning({
+        id: followupQueueTable.id,
+        scopeKey: followupQueueTable.scopeKey,
+        sentAt: followupQueueTable.sentAt
+      })
+      .all()
+
+    if (!row) return { claimed: false, alreadySent: false }
+
+    notifyQueueChange('projection', row.scopeKey, [row.id])
+    return { claimed: true, alreadySent: row.sentAt != null }
+  }
+
+  /**
+   * Record a successful send on an owned `sending` row, before the dequeue
+   * write. A crash between send and dequeue then replays as a skip (the next
+   * claim observes `alreadySent`), never as a second send. Best-effort: when
+   * the row is already gone the dequeue already took effect.
+   */
+  markSent(id: string): void {
+    const [row] = this.db
+      .update(followupQueueTable)
+      .set({ sentAt: Date.now() })
+      .where(and(eq(followupQueueTable.id, id), eq(followupQueueTable.status, 'sending')))
       .returning({ id: followupQueueTable.id, scopeKey: followupQueueTable.scopeKey })
       .all()
 
-    if (!row) return { claimed: false }
-
+    if (!row) return
     notifyQueueChange('projection', row.scopeKey, [row.id])
-    return { claimed: true }
+    logger.info('Marked followup sent', { id })
+  }
+
+  /**
+   * Refresh the claim lease on a live `sending` row while its owner's send is
+   * still in flight. Without this, a send outliving the fixed reclaim lease
+   * could be reclaimed by another window and delivered twice. Not a new claim:
+   * stale or absent rows report `live: false` and are left for the reclaim path.
+   */
+  heartbeat(id: string): { live: boolean } {
+    const cutoff = Date.now() - STALE_SENDING_CLAIM_MS
+    const [row] = this.db
+      .update(followupQueueTable)
+      .set({ updatedAt: Date.now() })
+      .where(
+        and(
+          eq(followupQueueTable.id, id),
+          eq(followupQueueTable.status, 'sending'),
+          gte(followupQueueTable.updatedAt, cutoff)
+        )
+      )
+      .returning({ id: followupQueueTable.id, scopeKey: followupQueueTable.scopeKey })
+      .all()
+
+    if (!row) return { live: false }
+    notifyQueueChange('projection', row.scopeKey, [row.id])
+    return { live: true }
   }
 
   /**
    * Atomically claim the oldest claimable row in a scope (FIFO). Select +
    * conditional update run in one transaction, so a concurrent reorder cannot
    * slip a different head in between — the winner always owns the true head.
-   * Returns the row id with a won claim.
+   * Returns the row id with a won claim; `alreadySent` reports a send recorded
+   * before a crash between send and dequeue (dequeue it, don't resend it).
    */
-  claimHead(scopeKey: string): { claimed: true; id: string } | { claimed: false } {
+  claimHead(scopeKey: string): { claimed: true; id: string; alreadySent: boolean } | { claimed: false } {
     const dbService = application.get('DbService')
     const result = dbService.withWriteTx((tx) => {
       const [head] = tx
         .select({
           id: followupQueueTable.id,
           status: followupQueueTable.status,
+          sentAt: followupQueueTable.sentAt,
           updatedAt: followupQueueTable.updatedAt
         })
         .from(followupQueueTable)
@@ -298,7 +351,7 @@ export class FollowupQueueService {
         .returning({ id: followupQueueTable.id })
         .all()
       if (!updated) return { claimed: false as const }
-      return { claimed: true as const, id: head.id }
+      return { claimed: true as const, id: head.id, alreadySent: head.sentAt != null }
     })
 
     if (result.claimed) notifyQueueChange('projection', scopeKey, [result.id])

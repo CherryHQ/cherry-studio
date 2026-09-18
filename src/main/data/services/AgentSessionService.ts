@@ -1161,6 +1161,7 @@ export class AgentSessionService {
       .map((row) => row.workspace.id)
     tx.delete(sessionsTable).where(inArray(sessionsTable.id, purgedIds)).run()
     pinService.purgeForEntitiesTx(tx, 'session', purgedIds)
+    for (const id of purgedIds) followupQueueService.purgeForScopePrefixTx(tx, sessionFollowupScopePrefix(id))
     for (const workspaceId of systemWorkspaceIds) agentWorkspaceService.deleteByIdTx(tx, workspaceId)
     return purgedIds
   }
