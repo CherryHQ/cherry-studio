@@ -23,6 +23,7 @@ import {
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import {
+  BACKGROUND_TASK_TOOL_NAME,
   CONFIG_TOOL_NAME,
   CRON_TOOL_NAME,
   GENERATE_IMAGE_TOOL_NAME,
@@ -90,6 +91,8 @@ const BUILTIN_TOOL_POLICIES = {
   cherryCron: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CRON_TOOL_NAME, 'auto'),
   cherryNotify: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, NOTIFY_TOOL_NAME, 'auto'),
   cherryConfig: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CONFIG_TOOL_NAME, 'auto'),
+  // Detached shell execution outlives the session, so it always asks, like cli_install.
+  cherryBackgroundTask: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, BACKGROUND_TASK_TOOL_NAME, 'required'),
   cherrySessionList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_LIST_TOOL_NAME, 'auto'),
   cherrySessionSearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_SEARCH_TOOL_NAME, 'auto'),
   cherrySessionRead: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, SESSION_READ_TOOL_NAME, 'auto'),

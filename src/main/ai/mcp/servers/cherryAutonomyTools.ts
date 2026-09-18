@@ -8,6 +8,8 @@
  * `CherryBuiltinToolsServer` is constructed with.
  */
 
+import path from 'node:path'
+
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import QRCode from 'qrcode'
@@ -20,6 +22,12 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import {
+  type CompletedBackgroundTask,
+  getDetachedBackgroundTask,
+  listDetachedBackgroundTasks,
+  startDetachedBackgroundTask
+} from '@main/ai/agents/backgroundTasks'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -47,7 +55,7 @@ import {
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
-import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import { BACKGROUND_TASK_TOOL_NAME, CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -401,10 +409,44 @@ const SESSION_SEND_TOOL: Tool = {
   }
 }
 
+const BACKGROUND_TASK_TOOL: Tool = {
+  name: BACKGROUND_TASK_TOOL_NAME,
+  description: [
+    'Run, inspect, or list fully detached background tasks. Unlike the runtime-native background shell (run_in_background-style), whose processes live inside the agent CLI process tree and are killed when the CLI session exits, the user aborts, or the app quits, a task started here is spawned into its own process session (setsid) and keeps running across turns, CLI exits, and app restarts. ',
+    "Completion handling is best-effort: while the app is running, the task's exit notifies configured channels and writes an <id>.done marker; if the app exited first, status/list reconcile from the marker and PID liveness. ",
+    'stdout and stderr stream to a task log file; every task is registered with PID, log path, and start time. ',
+    'Use the runtime-native background shell for short work that should report back inside this session; use this tool when the task must outlive the session or the app. Commands run with shell semantics in the session workspace and require user approval.'
+  ].join(''),
+  inputSchema: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['start', 'status', 'list'],
+        description: 'The action to perform'
+      },
+      command: {
+        type: 'string',
+        description: "Shell command to run detached (required for 'start')."
+      },
+      name: {
+        type: 'string',
+        description: "Optional short label used in records and completion notifications (for 'start')."
+      },
+      task_id: {
+        type: 'string',
+        description: "Task id returned by start (required for 'status')."
+      }
+    },
+    required: ['action']
+  }
+}
+
 const AUTONOMY_TOOLS: readonly Tool[] = [
   CRON_TOOL,
   NOTIFY_TOOL,
   CONFIG_TOOL,
+  BACKGROUND_TASK_TOOL,
   SESSION_LIST_TOOL,
   AGENT_LIST_TOOL,
   SESSION_SEARCH_TOOL,
@@ -474,6 +516,19 @@ export class CherryAutonomyTools {
             )
           }
           return await this.sendNotification(args)
+        case BACKGROUND_TASK_TOOL_NAME: {
+          const action = args.action
+          switch (action) {
+            case 'start':
+              return await this.startBackgroundTask(args)
+            case 'status':
+              return await this.backgroundTaskStatus(args)
+            case 'list':
+              return await this.listBackgroundTasks()
+            default:
+              throw new McpError(ErrorCode.InvalidParams, `Unknown action "${action}", expected start/status/list`)
+          }
+        }
         case SESSION_LIST_TOOL_NAME:
           return this.listSessions(args)
         case AGENT_LIST_TOOL_NAME:
@@ -887,6 +942,74 @@ export class CherryAutonomyTools {
 
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(tasks, null, 2) }]
+    }
+  }
+
+  // ── Background task handlers ──────────────────────────────────────
+
+  private get backgroundTaskStorageDir(): string {
+    return path.join(application.getPath('feature.agents.data'), this.agentId, 'background-tasks')
+  }
+
+  private async startBackgroundTask(args: Record<string, unknown>) {
+    const command = typeof args.command === 'string' ? args.command : ''
+    if (!command.trim()) throw new McpError(ErrorCode.InvalidParams, "'command' is required for start")
+    const record = await startDetachedBackgroundTask({
+      storageDir: this.backgroundTaskStorageDir,
+      command,
+      cwd: this.workspacePath,
+      name: typeof args.name === 'string' ? args.name : undefined,
+      onExit: (task) => this.notifyBackgroundTaskCompletion(task)
+    })
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(record, null, 2) }]
+    }
+  }
+
+  private async backgroundTaskStatus(args: Record<string, unknown>) {
+    const taskId = typeof args.task_id === 'string' ? args.task_id.trim() : ''
+    if (!taskId) throw new McpError(ErrorCode.InvalidParams, "'task_id' is required for status")
+    const record = await getDetachedBackgroundTask(this.backgroundTaskStorageDir, taskId)
+    if (!record) throw new McpError(ErrorCode.InvalidParams, `Task "${taskId}" not found`)
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(record, null, 2) }]
+    }
+  }
+
+  private async listBackgroundTasks() {
+    const tasks = await listDetachedBackgroundTasks(this.backgroundTaskStorageDir)
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify({ tasks }, null, 2) }]
+    }
+  }
+
+  /**
+   * Out-of-band completion delivery — the app's ordinary notify authority does
+   * not exist this long after the starting turn, so this mirrors scheduled-task
+   * delivery: every live channel adapter of the agent, best-effort.
+   */
+  private notifyBackgroundTaskCompletion(task: CompletedBackgroundTask): void {
+    try {
+      const adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
+      for (const adapter of adapters) {
+        for (const chatId of adapter.notifyChatIds) {
+          adapter.sendMessage(chatId, task.summary).catch((err: unknown) => {
+            logger.warn('Failed to deliver background task completion notification', {
+              agentId: this.agentId,
+              taskId: task.record.id,
+              channelId: adapter.channelId,
+              chatId,
+              error: err
+            })
+          })
+        }
+      }
+    } catch (err) {
+      logger.warn('Error while building background task completion notification', {
+        agentId: this.agentId,
+        taskId: task.record.id,
+        error: err
+      })
     }
   }
 
