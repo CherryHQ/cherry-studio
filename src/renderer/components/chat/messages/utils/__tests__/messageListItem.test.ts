@@ -63,6 +63,29 @@ describe('toMessageListItem', () => {
     expect(item.modelId).toBeUndefined()
   })
 
+  it('keeps a snapshot-backed message renderable when its model identity is malformed', () => {
+    const message = {
+      id: 'm3',
+      role: 'assistant',
+      parts: [],
+      metadata: {
+        status: 'success',
+        modelId: null,
+        messageSnapshot: {
+          id: 'assistant-1',
+          name: 'Assistant',
+          model: { id: 'model?version', name: 'Legacy Model', provider: 'provider-a' }
+        }
+      }
+    } as CherryUIMessage
+
+    const item = toMessageListItem(message, { topicId: 'topic-1' })
+
+    expect(item.model).toEqual({ id: 'model?version', name: 'Legacy Model', provider: 'provider-a' })
+    expect(item.modelId).toBeUndefined()
+    expect(item.persistedModelId).toBeNull()
+  })
+
   it('projects a clear-context marker for the divider renderer', () => {
     const message = {
       id: 'clear-1',
@@ -76,7 +99,7 @@ describe('toMessageListItem', () => {
 })
 
 describe('getDirectAssistantModelsByUserId', () => {
-  it('collects only direct assistant child models and falls back to model snapshots', () => {
+  it('collects direct assistant models without inferring snapshot provenance', () => {
     const user = {
       id: 'user-1',
       role: 'user',
@@ -99,6 +122,14 @@ describe('getDirectAssistantModelsByUserId', () => {
       ...firstReply,
       id: 'assistant-a-duplicate',
       createdAt: '2026-01-01T00:00:02.000Z'
+    }
+    const legacySnapshotReply: MessageListItem = {
+      ...firstReply,
+      id: 'assistant-a-legacy',
+      createdAt: '2026-01-01T00:00:02.500Z',
+      modelId: 'provider-a::provider-a::model-a',
+      persistedModelId: null,
+      model: { id: 'provider-a::model-a', name: 'Model A', provider: 'provider-a' }
     }
     const snapshotOnlyReply = {
       id: 'assistant-b',
@@ -133,6 +164,7 @@ describe('getDirectAssistantModelsByUserId', () => {
       user,
       firstReply,
       duplicateReply,
+      legacySnapshotReply,
       snapshotOnlyReply,
       followUpUser,
       descendantReply
@@ -140,9 +172,14 @@ describe('getDirectAssistantModelsByUserId', () => {
 
     expect(modelsByUserId.get('user-1')).toEqual([
       expect.objectContaining({ id: 'provider-a::model-a', name: 'Model A', providerId: 'provider-a' }),
+      expect.objectContaining({
+        id: 'provider-a::provider-a::model-a',
+        name: 'Model A',
+        providerId: 'provider-a'
+      }),
       expect.objectContaining({ id: 'provider-b::model-b', name: 'Model B', providerId: 'provider-b' })
     ])
-    expect(modelsByUserId.get('user-1')).toHaveLength(2)
+    expect(modelsByUserId.get('user-1')).toHaveLength(3)
   })
 
   it('reuses the derived map when only live message metadata changes', () => {
