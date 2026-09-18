@@ -196,6 +196,57 @@ describe('pasteHandling', () => {
     })
   })
 
+  it('attaches every pathless clipboard image in a single paste', async () => {
+    const tempFiles: FileMetadata[] = [
+      {
+        ...selectedFile,
+        name: 'temp_1.png',
+        origin_name: 'temp_1.png',
+        path: '/tmp/temp_1.png',
+        ext: '.png',
+        type: FILE_TYPE.IMAGE
+      },
+      {
+        ...selectedFile,
+        name: 'temp_2.png',
+        origin_name: 'temp_2.png',
+        path: '/tmp/temp_2.png',
+        ext: '.png',
+        type: FILE_TYPE.IMAGE
+      }
+    ]
+    const clipboardImages = ['first.png', 'second.png'].map((name) => ({
+      name,
+      type: 'image/png',
+      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
+    })) as unknown as File[]
+    vi.mocked(window.api.file.createTempFile)
+      .mockResolvedValueOnce(tempFiles[0].path)
+      .mockResolvedValueOnce(tempFiles[1].path)
+    vi.mocked(window.api.file.get).mockImplementation(
+      async (path: string) => tempFiles.find((tempFile) => tempFile.path === path) ?? null
+    )
+
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: () => '',
+        files: clipboardImages
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles)
+
+    expect(handled).toBe(true)
+    expect(window.api.file.createTempFile).toHaveBeenCalledTimes(2)
+    expect(files).toHaveLength(2)
+    expect(files.map((attachment) => attachment.origin_name)).toEqual(['first', 'second'])
+  })
+
   it('attaches a supported screenshot when the clipboard also exposes a text flavor', async () => {
     const tempImageFile: FileMetadata = {
       ...selectedFile,

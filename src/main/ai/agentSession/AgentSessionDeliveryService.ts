@@ -45,6 +45,7 @@ export type AcceptSessionDeliveryInput = {
 export type CreateSessionDeliveryInput = {
   senderAgentId: string
   senderSessionId: string
+  targetAgentId?: string
   sessionName: string
   workspace: AgentSessionWorkspaceSource
   content: string
