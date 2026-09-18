@@ -7,13 +7,12 @@
  * session (Node `detached: true`; libuv calls `setsid()` on POSIX) and keep
  * running across session turns, CLI exits, and app restarts.
  *
- * Durability is file-based on purpose: every task gets a JSON record, a merged
- * log file, and — once it exits while the app was alive — a `<id>.done`
- * sentinel. Any later session reconciles state from those files; nothing lives
- * only in process memory. DB-backed records are future work.
+ * Every task gets a JSON record, a merged log file, and — once it exits while
+ * the app is alive — a `<id>.done` sentinel. The database indexes reconciled
+ * records for the GUI; files preserve process exit evidence across restarts.
  */
 
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import type { SpawnOptions } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
@@ -21,33 +20,18 @@ import { mkdir, open, readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import type { BackgroundTaskRecord, BackgroundTaskStatus } from '@shared/ai/backgroundTask'
+
+export type { BackgroundTaskRecord, BackgroundTaskStatus } from '@shared/ai/backgroundTask'
 
 const logger = loggerService.withContext('AgentBackgroundTasks')
+const activeTaskPids = new Map<string, number>()
 
 export const BACKGROUND_TASK_RECORD_EXT = '.json'
 export const BACKGROUND_TASK_LOG_EXT = '.log'
 export const BACKGROUND_TASK_SENTINEL_EXT = '.done'
 
 export const MAX_BACKGROUND_TASK_COMMAND_LENGTH = 10_000
-
-export type BackgroundTaskStatus = 'running' | 'completed' | 'failed' | 'unknown'
-
-export interface BackgroundTaskRecord {
-  id: string
-  name: string
-  command: string
-  pid: number
-  cwd: string
-  startedAt: string
-  logFile: string
-  status: BackgroundTaskStatus
-  exitCode: number | null
-  signal: string | null
-  finishedAt?: string
-  durationMs?: number
-  /** Present on `unknown` records: why the final state could not be determined. */
-  note?: string
-}
 
 /** Payload handed to the completion callback and written into the sentinel file. */
 export interface BackgroundTaskCompletion {
@@ -125,6 +109,7 @@ export async function startDetachedBackgroundTask(
       name: input.name?.trim() || 'background task',
       command,
       pid: child.pid ?? -1,
+      pidStartTime: child.pid ? getPidStartTime(child.pid) : undefined,
       cwd: input.cwd,
       startedAt,
       logFile,
@@ -132,6 +117,7 @@ export async function startDetachedBackgroundTask(
       exitCode: null,
       signal: null
     }
+    if (record.pid > 0) activeTaskPids.set(id, record.pid)
 
     // 'error' (e.g. ENOENT) and 'exit' are mutually exclusive for spawn
     // failures; finalize guards so at most one completion lands. Handlers go
@@ -140,6 +126,7 @@ export async function startDetachedBackgroundTask(
     const finalize = (status: BackgroundTaskCompletion['status'], exitCode: number | null, signal: string | null) => {
       if (settled) return
       settled = true
+      activeTaskPids.delete(id)
       void finalizeDetachedBackgroundTask(input.storageDir, record, input.onExit, status, exitCode, signal)
     }
     child.on('error', (error) => {
@@ -167,6 +154,77 @@ export async function getDetachedBackgroundTask(
   if (!taskId || taskId.includes('/') || taskId.includes('\\') || taskId.includes('..')) return undefined
   const record = await readRecord(storageDir, `${taskId}${BACKGROUND_TASK_RECORD_EXT}`)
   return record ? reconcileDetachedBackgroundTask(storageDir, record) : undefined
+}
+
+/** Signal only the process group created for this task; never the app or its CLI. */
+export async function stopDetachedBackgroundTask(
+  storageDir: string,
+  taskId: string,
+  force = false
+): Promise<BackgroundTaskRecord | undefined> {
+  const record = await getDetachedBackgroundTask(storageDir, taskId)
+  if (!record || record.status !== 'running' || record.pid <= 0) return undefined
+  // A recycled PID could belong to another application. Old records without a start stamp cannot
+  // be signalled safely after restart; newly created tasks always capture one on POSIX.
+  const liveChild = activeTaskPids.get(record.id) === record.pid
+  if (process.platform === 'win32' && !liveChild) return undefined
+  if (
+    process.platform !== 'win32' &&
+    !liveChild &&
+    (!record.pidStartTime || getPidStartTime(record.pid) !== record.pidStartTime)
+  ) {
+    return undefined
+  }
+  const signal = force ? 'SIGKILL' : 'SIGTERM'
+  const requested = {
+    ...record,
+    stopRequestedAt: new Date().toISOString(),
+    stopSignal: signal,
+    note: force ? 'Kill requested.' : 'Stop requested; use Kill if the process does not exit.'
+  }
+  await writeRecord(storageDir, requested)
+  try {
+    if (process.platform === 'win32') {
+      execFileSync('taskkill', ['/PID', String(record.pid), '/T', ...(force ? ['/F'] : [])], { timeout: 5_000 })
+    } else {
+      process.kill(-record.pid, signal)
+    }
+  } catch (error) {
+    await writeRecord(storageDir, record)
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return undefined
+    throw error
+  }
+  if (!force) return (await getDetachedBackgroundTask(storageDir, taskId)) ?? requested
+  const completion: BackgroundTaskCompletion = {
+    id: record.id,
+    status: 'stopped',
+    exitCode: null,
+    signal,
+    finishedAt: new Date().toISOString(),
+    durationMs: Date.now() - Date.parse(record.startedAt),
+    logFile: record.logFile
+  }
+  const stopped = { ...requested, ...completion, note: undefined }
+  await writeRecord(storageDir, stopped)
+  await writeFile(
+    path.join(storageDir, `${record.id}${BACKGROUND_TASK_SENTINEL_EXT}`),
+    JSON.stringify(completion, null, 2),
+    {
+      mode: 0o600
+    }
+  )
+  return (await getDetachedBackgroundTask(storageDir, taskId)) ?? stopped
+}
+
+function getPidStartTime(pid: number): string | undefined {
+  if (process.platform === 'win32') return undefined
+  try {
+    return (
+      execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8', timeout: 1_000 }).trim() || undefined
+    )
+  } catch {
+    return undefined
+  }
 }
 
 /**
@@ -205,6 +263,15 @@ async function reconcileDetachedBackgroundTask(
     return { ...record, ...completion, status: completion.status }
   }
   if (record.pid > 0 && isPidAlive(record.pid)) return record
+  if (record.stopRequestedAt) {
+    return {
+      ...record,
+      status: 'stopped',
+      signal: record.stopSignal ?? 'SIGTERM',
+      finishedAt: record.finishedAt ?? new Date().toISOString(),
+      note: 'The stopped process is no longer running; no completion event was captured.'
+    }
+  }
   return {
     ...record,
     status: 'unknown',
@@ -221,6 +288,9 @@ async function finalizeDetachedBackgroundTask(
   signal: string | null
 ): Promise<void> {
   try {
+    const current = await readRecord(storageDir, `${record.id}${BACKGROUND_TASK_RECORD_EXT}`)
+    if (current?.status === 'stopped') return
+    if (current?.stopRequestedAt) status = 'stopped'
     const completion: BackgroundTaskCompletion = {
       id: record.id,
       status,
@@ -230,7 +300,7 @@ async function finalizeDetachedBackgroundTask(
       durationMs: Date.now() - Date.parse(record.startedAt),
       logFile: record.logFile
     }
-    const finished: BackgroundTaskRecord = { ...record, ...completion }
+    const finished: BackgroundTaskRecord = { ...(current ?? record), ...completion, note: undefined }
     await writeRecord(storageDir, finished)
     await writeFile(
       path.join(storageDir, `${record.id}${BACKGROUND_TASK_SENTINEL_EXT}`),

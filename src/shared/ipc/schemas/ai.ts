@@ -3,6 +3,7 @@ import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import type { BackgroundTaskRecord } from '@shared/ai/backgroundTask'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import type {
   AiStreamAttachResponse,
@@ -444,6 +445,14 @@ export const aiRequestSchemas = {
   'ai.agent.session.stop_background_task': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1), taskId: z.string().min(1) }),
     output: z.boolean()
+  }),
+  'ai.agent.background_task.list': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1) }),
+    output: z.array(z.custom<BackgroundTaskRecord>())
+  }),
+  'ai.agent.background_task.stop': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1), taskId: z.string().min(1), force: z.boolean().optional() }),
+    output: z.custom<BackgroundTaskRecord | undefined>()
   }),
   // Opens a path a session's tools reported. `path` may be relative to the session's workspace —
   // main owns that resolution, so the renderer never joins paths itself.
