@@ -1071,6 +1071,38 @@ describe('useFollowupQueue', () => {
     expect(result.current.paused).toBe(true)
   })
 
+  it('coalesces rapid Pause/Resume so the server ends with the latest choice', async () => {
+    wireQuery([])
+    const { setPausedTrigger } = wireMutations()
+    let resolveFirst!: (value: unknown) => void
+    setPausedTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFirst = resolve as (value: unknown) => void
+      })
+    )
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    act(() => {
+      result.current.setPaused(true)
+    })
+    expect(setPausedTrigger).toHaveBeenCalledTimes(1)
+    expect(setPausedTrigger).toHaveBeenLastCalledWith({ body: { scopeKey: SCOPE, paused: true } })
+
+    // Second toggle while the first PUT is in flight: coalesced, not sent yet.
+    act(() => {
+      result.current.setPaused(false)
+    })
+    expect(setPausedTrigger).toHaveBeenCalledTimes(1)
+    expect(result.current.paused).toBe(false)
+
+    await act(async () => {
+      resolveFirst(undefined)
+    })
+    expect(setPausedTrigger).toHaveBeenCalledTimes(2)
+    expect(setPausedTrigger).toHaveBeenLastCalledWith({ body: { scopeKey: SCOPE, paused: false } })
+  })
+
   it('keeps retrying the claim while the edge stays unacked', async () => {
     vi.useFakeTimers()
     try {
