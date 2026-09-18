@@ -1383,5 +1383,8 @@ describe('listModels — oMLX', () => {
 
     expect(models.map((m) => m.apiModelId)).toEqual(['qwen3-coder', 'vlm-vision', 'markitdown'])
     expect(models[1].capabilities).toEqual([MODEL_CAPABILITY.IMAGE_RECOGNITION])
+    // Discovered models must declare both registry endpoints so Claude Code resolves the
+    // provider's anthropic-messages endpoint instead of routing through the local gateway.
+    expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
   })
 })

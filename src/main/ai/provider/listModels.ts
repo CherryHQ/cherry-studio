@@ -848,6 +848,11 @@ const omlxFetcher: ModelFetcher = {
         .map((m) =>
           toModel(m.id, provider, {
             ownedBy: 'omlx',
+            // The registry declares an anthropic-messages endpoint for oMLX, and the Claude
+            // Agent SDK speaks only that dialect: without the declared endpoint the model
+            // falls through to `defaultChatEndpoint` and Claude Code routes it through the
+            // local API Gateway instead of the provider's configured Messages endpoint.
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
             ...(m.model_type === 'vlm' ? { capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] } : {})
           })
         )
