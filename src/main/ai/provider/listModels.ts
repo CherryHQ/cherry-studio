@@ -834,7 +834,9 @@ const omlxFetcher: ModelFetcher = {
       abortSignal: signal
     })
     return dedup(
-      response.models.filter((m) => m.model_type === 'llm' || m.model_type === 'vlm'),
+      // The markitdown virtual model rides the same chat completions endpoint,
+      // so the server's own model_type list of chat-servable kinds.
+      response.models.filter((m) => m.model_type === 'llm' || m.model_type === 'vlm' || m.model_type === 'markitdown'),
       (m) => m.id
     )
       .filter((m) => !(m.config_model_type ?? '').startsWith('diffusion'))

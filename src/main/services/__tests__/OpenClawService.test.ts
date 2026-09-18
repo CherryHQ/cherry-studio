@@ -1650,6 +1650,7 @@ describe('OpenClawService gateway status state machine', () => {
           id: 'omlx',
           name: 'oMLX',
           presetProviderId: 'omlx',
+          authOptional: true,
           endpointConfigs: {
             [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://127.0.0.1:8000' }
           }
@@ -1672,7 +1673,7 @@ describe('OpenClawService gateway status state machine', () => {
       expect(syncProviderConfigSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 'omlx',
-          apiKey: 'omlx',
+          apiKey: 'no-key-required',
           apiHost: 'http://127.0.0.1:8000'
         }),
         expect.objectContaining({ id: 'qwen3-coder-30b' })
