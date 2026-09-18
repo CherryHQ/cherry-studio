@@ -206,6 +206,18 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
         apiHost: 'https://api.parallel.ai'
       }
     ]
+  },
+  serply: {
+    name: 'Serply',
+    type: 'api',
+    capabilities: [
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.serply.io'
+      }
+    ]
   }
 } as const satisfies Record<WebSearchProviderId, WebSearchProviderPresetConfig>
 

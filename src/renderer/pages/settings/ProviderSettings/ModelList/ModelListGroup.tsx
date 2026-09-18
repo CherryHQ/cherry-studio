@@ -113,7 +113,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
                 ? t('settings.models.manage.default_model_cannot_remove')
                 : t('settings.models.manage.remove_whole_group')
             }
-            placement="top"
+            placement="left"
             classNames={{ placeholder: modelListClasses.groupHeaderIconTooltipTrigger }}>
             <Button
               type="button"

@@ -106,7 +106,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   })
 
   const canEdit = codeEditor.enabled && editable
-  const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
+  const hasSpecialView = SPECIAL_VIEWS.includes(language)
+  const specialViewDefinition = hasSpecialView
+    ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
+    : undefined
   const startedStreamingRef = useRef(isStreaming)
 
   const [viewState, setViewState] = useState({
@@ -246,9 +249,8 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       })
   }, [codeExecutionTimeoutMinutes])
 
-  const showPreviewTools = useMemo(() => {
-    return hasSpecialView && (viewMode === 'special' || viewMode === 'split')
-  }, [hasSpecialView, viewMode])
+  const showPreviewTools =
+    Boolean(specialViewDefinition?.supportsImageActions) && (viewMode === 'special' || viewMode === 'split')
 
   const handleToggleExpanded = useCallback(() => setExpandOverride((current) => !current), [])
   const handleToggleWrapped = useCallback(() => setWrapOverride((current) => !current), [])
@@ -369,18 +371,20 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   // 特殊视图组件映射
   const specialView = useMemo(() => {
-    const SpecialView = SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
-
-    if (!SpecialView) return null
+    if (!specialViewDefinition) return null
+    const SpecialView = specialViewDefinition.component
 
     return (
       <Suspense fallback={null}>
-        <SpecialView ref={specialViewRef} enableToolbar={codeImageTools} isStreaming={isStreaming}>
+        <SpecialView
+          ref={specialViewDefinition.supportsImageActions ? specialViewRef : undefined}
+          enableToolbar={codeImageTools}
+          isStreaming={isStreaming}>
           {children}
         </SpecialView>
       </Suspense>
     )
-  }, [children, codeImageTools, isStreaming, language])
+  }, [children, codeImageTools, isStreaming, specialViewDefinition])
 
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
@@ -423,7 +427,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     <div
       data-ui="part:code-block"
       className={cn(
-        'code-block relative w-full min-w-0 overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle',
+        'code-block relative w-full min-w-0 overflow-clip rounded-lg border-[0.5px] border-border bg-background-subtle',
         '[&_.code-toolbar]:transform-gpu [&_.code-toolbar]:opacity-0 [&_.code-toolbar]:transition-opacity [&_.code-toolbar]:duration-200 [&_.code-toolbar]:ease-in-out [&_.code-toolbar]:will-change-[opacity]',
         '[&_.code-toolbar.show]:opacity-100 [&:hover_.code-toolbar]:opacity-100',
         isInSpecialView

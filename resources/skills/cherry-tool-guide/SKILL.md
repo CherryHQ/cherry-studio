@@ -1,7 +1,7 @@
 ---
 name: cherry-tool-guide
 description: Cherry Studio first-party tool and bundled-shell routing for general agents. For straightforward local work in shell-capable sessions, run JS/TS with `bun <file>` and one-off JS tools with `bun x`; run Python with `uv run [--with <pkg>] python` and one-off Python CLIs with `uvx`; search with `rg`. Load this guide before changing project dependencies, deciding whether a tool should be ephemeral or reusable, reading or converting local Office/PDF files, coordinating or delegating across Agent Sessions, or using Cherry-owned web/browser, knowledge, persistent memory, schedules/notifications, IM channels, image generation, artifact reporting, managed CLI, skill, or MCP-server-registration capabilities—even if the user names no tool. Consult it before shell/file workarounds; live tool schemas are authoritative.
-version: 1.4.0
+version: 1.5.0
 ---
 
 # Cherry Tool Guide
@@ -52,7 +52,7 @@ parameter names, enums, and required fields. Read it before every call.
 | User intent | Route to | Reference |
 | --- | --- | --- |
 | Look up current/online facts, news, docs | `mcp__cherry-tools__web_search` → `mcp__cherry-tools__web_fetch` | [web.md](references/web.md) |
-| Browser interaction (click, forms, screenshots) | *(unavailable via web built-ins)* | [web.md](references/web.md) |
+| Browser interaction (click, forms, screenshots) | `mcp__browser__*` when enabled; load `cherry-browser` | [web.md](references/web.md) |
 | Answer from the user's own documents | `mcp__cherry-tools__kb_list` → `mcp__cherry-tools__kb_search` → `mcp__cherry-tools__kb_read` | [knowledge.md](references/knowledge.md) |
 | Add / delete / re-index knowledge | `mcp__cherry-tools__kb_manage` (resolve IDs first; needs approval) | [knowledge.md](references/knowledge.md) |
 | Read or convert a local document | `mcp__cherry-tools__to_markdown` → read the returned temporary Markdown path as needed | [documents.md](references/documents.md) |
