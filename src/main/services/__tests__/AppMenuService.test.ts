@@ -85,13 +85,22 @@ import { AppMenuService } from '../AppMenuService'
 
 const latestTemplate = () => menuMock.buildFromTemplate.mock.calls.at(-1)?.[0] as MenuItemConstructorOptions[]
 
+const REAL_PLATFORM = process.platform
+
 describe('AppMenuService', () => {
   let service: AppMenuService
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // AppMenuService is darwin-only; pin the platform so platform-gated
+    // accelerators resolve identically on every CI runner.
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
     preferenceServiceMock.get.mockReturnValue(undefined)
     service = new AppMenuService()
+  })
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: REAL_PLATFORM, configurable: true })
   })
 
   it('registers the settings menu accelerator through the native app menu', async () => {
