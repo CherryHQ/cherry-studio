@@ -4,9 +4,15 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUI from '@cherrystudio/ui'
+import { dataApiService } from '@renderer/data/DataApiService'
+import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import type * as PlatformModule from '@renderer/utils/platform'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { trashErrorCodes } from '@shared/ipc/errors/trash'
 
 import deDE from '../../../i18n/locales/de-de.json'
 import elGR from '../../../i18n/locales/el-gr.json'
@@ -32,11 +38,13 @@ const hookMocks = vi.hoisted(() => ({
   finishTopicRenaming: vi.fn(),
   getTopicMessages: vi.fn(),
   promptShow: vi.fn(),
+  refetchTopics: vi.fn(),
   saveToKnowledge: vi.fn(),
   startTopicRenaming: vi.fn(),
   togglePin: vi.fn(),
   updateTopic: vi.fn(),
   openConversationTab: vi.fn(),
+  restoreTopic: vi.fn(),
   useAgents: vi.fn(),
   useTopics: vi.fn(),
   useAssistants: vi.fn(),
@@ -47,6 +55,16 @@ const hookMocks = vi.hoisted(() => ({
   useUpdateSession: vi.fn()
 }))
 
+const recycleBinFeedbackMocks = vi.hoisted(() => ({
+  showRecycleBinBatchUndo: vi.fn(),
+  showRecycleBinUndo: vi.fn()
+}))
+
+vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
+  ...(await importOriginal<typeof RecycleBinFeedback>()),
+  ...recycleBinFeedbackMocks
+}))
+
 vi.mock('@renderer/utils/platform', async (importOriginal) => ({
   ...(await importOriginal<typeof PlatformModule>()),
   get isMac() {
@@ -54,10 +72,13 @@ vi.mock('@renderer/utils/platform', async (importOriginal) => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
-  const { Checkbox } = await import('../../../../../packages/ui/src/components/primitives/checkbox')
-  return { ...MockCherrystudioUI, Checkbox }
+  return {
+    ...(await importOriginal<typeof CherryStudioUI>()),
+    ...MockCherrystudioUI,
+    Checkbox: (await importOriginal<typeof CherryStudioUI>()).Checkbox
+  }
 })
 
 vi.mock('@renderer/components/VirtualList', () => ({
@@ -158,6 +179,7 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
         ...source,
         rendererTopics: (source.topics ?? []).map(mapApiTopicToRendererTopic),
         orderSignature: '',
+        refetch: source.refetch ?? hookMocks.refetchTopics,
         isLoadingAll: source.isLoadingAll ?? source.isLoading,
         isFullyLoaded: source.isFullyLoaded ?? !source.isLoading
       }
@@ -199,6 +221,7 @@ vi.mock('@renderer/hooks/useTopic', () => ({
     batchUpdateTopics: hookMocks.batchUpdateTopics,
     deleteTopic: hookMocks.deleteTopic,
     deleteTopics: hookMocks.deleteTopics,
+    restoreTopic: hookMocks.restoreTopic,
     updateTopic: hookMocks.updateTopic
   }),
   startTopicRenaming: hookMocks.startTopicRenaming
@@ -293,12 +316,14 @@ vi.mock('react-i18next', () => ({
         'chat.topics.pin': 'Pin Conversation',
         'chat.topics.unpin': 'Unpin Conversation',
         'common.all': 'All',
+        'common.archive': 'Archive',
         'common.assistant': 'Assistant',
         'common.back': 'Back',
         'common.cancel': 'Cancel',
         'common.close': 'Close',
         'common.confirm': 'Confirm',
         'common.delete': 'Delete',
+        'common.delete_permanently': 'Delete Permanently',
         'common.more': 'More',
         'common.name': 'Name',
         'common.required_field': 'Required field',
@@ -308,6 +333,11 @@ vi.mock('react-i18next', () => ({
         'common.select': 'Select',
         'common.select_all': 'Select all',
         'common.unnamed': 'Untitled',
+        'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
+        'recycle_bin.move.confirm_title': 'Move to Recycle Bin?',
+        'recycle_bin.already_moved': 'Already in Recycle Bin',
+        'recycle_bin.move.blocked_generation': 'Stop generation before moving this conversation to the Recycle Bin.',
+        'recycle_bin.move_failed': 'Could not move to Recycle Bin',
         'history.records.bulkDelete': 'Batch Delete',
         'history.records.bulkDeleteTopics.description': 'Delete {{count}} selected conversation(s)?',
         'history.records.bulkDeleteTopics.title': 'Delete selected conversations',
@@ -422,6 +452,7 @@ function setupAssistantHistory({
 
   const onClose = vi.fn()
   const onRecordSelect = vi.fn()
+  const onActiveRecordChange = vi.fn()
   const rendered = render(
     <HistoryRecordsView
       mode="assistant"
@@ -429,14 +460,22 @@ function setupAssistantHistory({
       activeRecordId={activeRecordId}
       onClose={onClose}
       onRecordSelect={onRecordSelect}
+      onActiveRecordChange={onActiveRecordChange}
     />
   )
 
-  return { ...rendered, onClose, onRecordSelect }
+  return { ...rendered, onClose, onRecordSelect, onActiveRecordChange }
 }
 
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
 const flushCommandMenuAction = flushAnimationFrame
+
+async function clickBulkDelete() {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    await flushAnimationFrame()
+  })
+}
 let assistantHistoryLoaded = false
 
 describe('HistoryRecordsView assistant mode', () => {
@@ -475,6 +514,8 @@ describe('HistoryRecordsView assistant mode', () => {
     ])
     hookMocks.deleteTopic.mockReset()
     hookMocks.deleteTopic.mockResolvedValue(undefined)
+    hookMocks.restoreTopic.mockReset()
+    hookMocks.restoreTopic.mockResolvedValue(undefined)
     hookMocks.deleteTopics.mockReset()
     hookMocks.deleteTopics.mockResolvedValue({ deletedIds: ['topic-alpha'], deletedCount: 1 })
     hookMocks.batchUpdateTopics.mockReset()
@@ -484,6 +525,7 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.getTopicMessages.mockReset()
     hookMocks.getTopicMessages.mockResolvedValue([])
     hookMocks.promptShow.mockReset()
+    hookMocks.refetchTopics.mockReset().mockResolvedValue(undefined)
     hookMocks.saveToKnowledge.mockReset()
     hookMocks.startTopicRenaming.mockReset()
     hookMocks.togglePin.mockReset()
@@ -494,6 +536,8 @@ describe('HistoryRecordsView assistant mode', () => {
     hookMocks.usePins.mockReturnValue({ pinnedIds: [], togglePin: hookMocks.togglePin })
     hookMocks.useSessions.mockReset()
     hookMocks.useUpdateSession.mockReset()
+    recycleBinFeedbackMocks.showRecycleBinBatchUndo.mockClear()
+    recycleBinFeedbackMocks.showRecycleBinUndo.mockClear()
 
     if (!assistantHistoryLoaded) {
       await import('../AssistantHistoryRecords')
@@ -741,12 +785,9 @@ describe('HistoryRecordsView assistant mode', () => {
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.deleteTopics.mockResolvedValueOnce({
-      deletedIds: ['topic-alpha', 'topic-beta'],
-      deletedCount: 2
-    })
+    hookMocks.deleteTopics.mockResolvedValue({ deletedIds: ['topic-alpha', 'topic-beta'], deletedCount: 2 })
     const onClose = vi.fn()
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -754,7 +795,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-alpha"
         onClose={onClose}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -763,30 +804,38 @@ describe('HistoryRecordsView assistant mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
 
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    await clickBulkDelete()
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete selected conversations')
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete 2 selected conversation(s)?')
-    expect(hookMocks.deleteTopics).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
+    expect(hookMocks.deleteTopics).toHaveBeenCalledExactlyOnceWith(['topic-alpha', 'topic-beta'])
+    expect(onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-gamma' }))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 2,
+      onUndo: expect.any(Function)
     })
 
-    expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha', 'topic-beta'])
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-gamma' }))
-    expect(onClose).not.toHaveBeenCalled()
+    hookMocks.restoreTopic.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('Restore failed'))
+    await expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
+      restored: ['topic-alpha'],
+      failed: [{ id: 'topic-beta', error: 'Restore failed' }]
+    })
+    expect(hookMocks.refetchTopics).toHaveBeenCalledOnce()
   })
 
-  it('shows an error and keeps the active topic when bulk delete rejects', async () => {
+  it('refreshes and reports once when every selected topic fails to move', async () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' })],
       error: undefined,
-      isLoading: false
+      isLoading: false,
+      refetch
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.deleteTopics.mockRejectedValueOnce(new Error('Bulk delete failed'))
-    const onRecordSelect = vi.fn()
+    hookMocks.deleteTopics.mockRejectedValue(new Error('Delete failed'))
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -794,21 +843,102 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-alpha"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
+    const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+    await clickBulkDelete()
 
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    expect(refetch).toHaveBeenCalledOnce()
+    expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+    expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith('Could not move to Recycle Bin')
+  })
+
+  it('reports all stale bulk topics once without changing selection or active state', async () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    hookMocks.useTopics.mockReturnValue({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' })],
+      error: undefined,
+      isLoading: false,
+      refetch
     })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.deleteTopics.mockRejectedValue(
+      new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, 'Topics already archived')
+    )
+    const onActiveRecordChange = vi.fn()
 
-    expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
-    expect(toast.error).toHaveBeenCalledWith('Bulk delete failed')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    render(
+      <HistoryRecordsView
+        mode="assistant"
+        open
+        activeRecordId="topic-alpha"
+        onClose={vi.fn()}
+        onActiveRecordChange={onActiveRecordChange}
+      />
+    )
+
+    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
+    const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+    await clickBulkDelete()
+
+    expect(refetch).toHaveBeenCalledOnce()
+    expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+    expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenCalledExactlyOnceWith('Already in Recycle Bin')
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('keeps the whole bulk selection when one topic is still generating', async () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    hookMocks.useTopics.mockReturnValue({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' })],
+      error: undefined,
+      isLoading: false,
+      refetch
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.deleteTopics.mockRejectedValue(
+      new IpcError(trashErrorCodes.TRASH_TOPIC_BUSY, 'Topic is busy', { topicIds: ['topic-beta'] })
+    )
+    const onActiveRecordChange = vi.fn()
+
+    render(
+      <HistoryRecordsView
+        mode="assistant"
+        open
+        activeRecordId="topic-alpha"
+        onClose={vi.fn()}
+        onActiveRecordChange={onActiveRecordChange}
+      />
+    )
+
+    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
+    const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+    await clickBulkDelete()
+
+    expect(refetch).toHaveBeenCalledOnce()
+    expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+    expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenCalledExactlyOnceWith(
+      'Stop generation before moving this conversation to the Recycle Bin.'
+    )
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('switches to the previous survivor when bulk deleting the last active topics', async () => {
@@ -822,11 +952,8 @@ describe('HistoryRecordsView assistant mode', () => {
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.deleteTopics.mockResolvedValueOnce({
-      deletedIds: ['topic-beta', 'topic-gamma'],
-      deletedCount: 2
-    })
-    const onRecordSelect = vi.fn()
+    hookMocks.deleteTopics.mockResolvedValue({ deletedIds: ['topic-beta', 'topic-gamma'], deletedCount: 2 })
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -834,7 +961,7 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-gamma"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
@@ -842,14 +969,10 @@ describe('HistoryRecordsView assistant mode', () => {
     const gammaRow = screen.getByText('Gamma topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(betaRow).getByRole('checkbox'))
     fireEvent.click(within(gammaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    await clickBulkDelete()
 
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
-    })
-
-    expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-beta', 'topic-gamma'])
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
+    expect(hookMocks.deleteTopics).toHaveBeenCalledExactlyOnceWith(['topic-beta', 'topic-gamma'])
+    expect(onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
   })
 
   it('skips pinned topics when bulk deleting from the query toolbar', async () => {
@@ -864,30 +987,22 @@ describe('HistoryRecordsView assistant mode', () => {
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-beta'], togglePin: hookMocks.togglePin })
-    hookMocks.deleteTopics.mockResolvedValueOnce({
-      deletedIds: ['topic-alpha'],
-      deletedCount: 1
-    })
     const onClose = vi.fn()
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
-    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+    render(<HistoryRecordsView mode="assistant" open onClose={onClose} onActiveRecordChange={onActiveRecordChange} />)
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
     fireEvent.click(within(betaRow).getByRole('checkbox'))
 
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    await clickBulkDelete()
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete 1 selected conversation(s)?')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
-    })
-
-    expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(hookMocks.deleteTopics).toHaveBeenCalledExactlyOnceWith(['topic-alpha'])
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -906,7 +1021,7 @@ describe('HistoryRecordsView assistant mode', () => {
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
 
     expect(screen.getByRole('button', { name: 'Batch Delete' })).toBeDisabled()
-    expect(hookMocks.deleteTopics).not.toHaveBeenCalled()
+    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
   })
 
   it('excludes pinned topics from row selection and select all', () => {
@@ -1159,37 +1274,6 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(screen.queryByTestId('history-records-view')).not.toBeInTheDocument()
   })
 
-  it('renders the external topic context menu for history rows', () => {
-    hookMocks.useTopics.mockReturnValue({
-      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
-      error: undefined,
-      isLoading: false
-    })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-
-    render(<HistoryRecordsView mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
-
-    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
-    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-
-    expect(menuContent ?? null).toBeInTheDocument()
-    expect(menuContent).toHaveClass('z-50')
-    expect(Array.from(menuContent?.querySelectorAll('[data-testid="context-menu-separator"]') ?? [])).toHaveLength(2)
-    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
-      'Generate conversation name',
-      'Edit conversation name',
-      'Pin Conversation',
-      'Clear messages',
-      '',
-      'Save to notes',
-      'Save to knowledge base',
-      'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to Siyuan',
-      'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
-      '',
-      'Delete'
-    ])
-  })
-
   it('clears a topic from history without an active conversation consumer', async () => {
     const user = userEvent.setup()
     setupAssistantHistory()
@@ -1259,7 +1343,9 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(checkbox).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('deletes a topic from the history row action column without selecting the row', async () => {
+  it('deletes from the history row action column without confirmation and offers Undo', async () => {
+    hookMocks.restoreTopic.mockRejectedValueOnce(DataApiErrorFactory.notFound('Topic', 'topic-alpha'))
+    const getActiveTopic = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-alpha' })
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
@@ -1275,17 +1361,23 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(alphaRow).not.toBeNull()
     fireEvent.click(within(alphaRow as HTMLElement).getByTestId('history-delete-button'))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete Conversations')
-    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
-
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
       await flushAnimationFrame()
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
+      itemName: 'Alpha topic',
+      onUndo: expect.any(Function)
+    })
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
+    expect(hookMocks.restoreTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(getActiveTopic).toHaveBeenCalledWith('/topics/topic-alpha')
+    expect(hookMocks.refetchTopics).toHaveBeenCalledOnce()
+    getActiveTopic.mockRestore()
   })
 
   it('renames a topic from the history row context menu dialog without selecting the row', async () => {
@@ -1443,7 +1535,8 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
   })
 
-  it('confirms topic deletion from the history row context menu', async () => {
+  it('archives a topic from the history row context menu without confirmation', async () => {
+    const user = userEvent.setup()
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
@@ -1455,12 +1548,12 @@ describe('HistoryRecordsView assistant mode', () => {
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
 
-    expect(confirmActionShow).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
+    expect(confirmActionShow).not.toHaveBeenCalled()
 
     await act(async () => {
       await flushAnimationFrame()
@@ -1469,14 +1562,15 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
   })
 
-  it('switches to the adjacent topic after deleting the active topic from the history row context menu', async () => {
+  it('switches to the adjacent topic after archiving the active topic from the history row context menu', async () => {
+    const user = userEvent.setup()
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -1484,13 +1578,13 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-alpha"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1500,33 +1594,49 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta', name: 'Beta topic' }))
+    expect(onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta', name: 'Beta topic' }))
+  })
+
+  it('clears the only active topic through the context menu without opening a conversation', async () => {
+    const user = userEvent.setup()
+    const { onActiveRecordChange, onRecordSelect, onClose } = setupAssistantHistory({ activeRecordId: 'topic-alpha' })
+    const menu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const content = menu?.querySelector('[data-testid="context-menu-content"]')
+    await user.click(within(content as HTMLElement).getByRole('button', { name: 'Archive' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    await act(async () => {
+      await flushAnimationFrame()
+    })
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(onActiveRecordChange).toHaveBeenCalledWith(null)
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('clears the active topic after bulk deleting the last history topic', async () => {
     hookMocks.deleteTopics.mockResolvedValueOnce({ deletedIds: ['topic-alpha'], deletedCount: 1 })
 
-    const { onRecordSelect } = setupAssistantHistory({ activeRecordId: 'topic-alpha' })
+    const { onActiveRecordChange } = setupAssistantHistory({ activeRecordId: 'topic-alpha' })
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
-    })
+    await clickBulkDelete()
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
-    expect(onRecordSelect).toHaveBeenCalledWith(null)
+    expect(onActiveRecordChange).toHaveBeenCalledWith(null)
   })
 
-  it('does not switch topics after deleting a non-active history row', async () => {
+  it('does not switch topics after archiving a non-active history row', async () => {
+    const user = userEvent.setup()
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -1534,13 +1644,13 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-beta"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1550,10 +1660,11 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
   })
 
-  it('keeps the active topic unchanged when history deletion fails', async () => {
+  it('keeps the active topic unchanged when history archiving fails', async () => {
+    const user = userEvent.setup()
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
@@ -1561,7 +1672,7 @@ describe('HistoryRecordsView assistant mode', () => {
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.deleteTopic.mockRejectedValueOnce(new Error('Delete failed'))
-    const onRecordSelect = vi.fn()
+    const onActiveRecordChange = vi.fn()
 
     render(
       <HistoryRecordsView
@@ -1569,13 +1680,13 @@ describe('HistoryRecordsView assistant mode', () => {
         open
         activeRecordId="topic-alpha"
         onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
+        onActiveRecordChange={onActiveRecordChange}
       />
     )
 
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
     await act(async () => {
       await flushCommandMenuAction()
     })
@@ -1585,7 +1696,43 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
-    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
+  })
+
+  it('reports an already-moved topic without changing active history state or offering Undo', async () => {
+    const user = userEvent.setup()
+    hookMocks.useTopics.mockReturnValue({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.deleteTopic.mockRejectedValueOnce(
+      new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, 'Topic already archived')
+    )
+    const onActiveRecordChange = vi.fn()
+
+    render(
+      <HistoryRecordsView
+        mode="assistant"
+        open
+        activeRecordId="topic-alpha"
+        onClose={vi.fn()}
+        onActiveRecordChange={onActiveRecordChange}
+      />
+    )
+
+    const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+      await flushAnimationFrame()
+    })
+
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenCalledWith('Already in Recycle Bin')
   })
 })
 
@@ -1594,11 +1741,15 @@ describe('HistoryRecordsView locale resources', () => {
     const requiredGlobalKeys = [
       'chat.topics.manage.delete.confirm.content',
       'chat.topics.manage.delete.confirm.title',
+      'common.archive',
       'common.back',
       'common.cancel',
       'common.delete',
+      'common.delete_permanently',
       'common.required_field',
-      'common.save'
+      'common.save',
+      'recycle_bin.already_moved',
+      'recycle_bin.move_failed'
     ]
     const requiredRuntimeRecordKeys = [
       'clearSearch',

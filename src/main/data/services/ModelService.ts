@@ -483,21 +483,14 @@ function createPresetFallback(
 }
 
 class ModelService {
-  private getRegistryBaseline(
-    providerId: string,
-    modelId: string,
-    reasoningConfigCache?: Map<string, ReasoningProviderContext>
-  ): Model | null {
-    const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = providerRegistryService.lookupModel(
-      providerId,
-      modelId,
-      reasoningConfigCache
-    )
+  private getRegistryBaseline(providerContext: ReasoningProviderContext, modelId: string): Model | null {
+    const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
+      providerRegistryService.resolveModel(providerContext, modelId)
     if (!presetModel) return null
     return mergePresetModel(
       presetModel,
       registryOverride,
-      providerId,
+      providerContext.id,
       reasoningProfile.wire,
       reasoningProfile.support,
       serviceTierControl
@@ -542,7 +535,11 @@ class ModelService {
     return dtoValues
   }
 
-  private buildUpdates(existing: UserModelRow, dto: UpdateModelDto): Partial<InsertUserModelRow> {
+  private buildUpdatesTx(
+    tx: Pick<DbType, 'select'>,
+    existing: UserModelRow,
+    dto: UpdateModelDto
+  ): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
     const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
       .map(dtoKeyToDbKey)
@@ -551,7 +548,10 @@ class ModelService {
     let baseline: Model | null = null
     if (existing.presetModelId && hasPresetDeltaField) {
       try {
-        baseline = this.getRegistryBaseline(existing.providerId, existing.modelId)
+        const context = providerService
+          .getReasoningContextsByProviderIdsTx(tx, [existing.providerId])
+          .get(existing.providerId)
+        if (context) baseline = this.getRegistryBaseline(context, existing.modelId)
       } catch (error) {
         logger.warn('Registry baseline lookup failed; preserving model fields as user overrides', {
           providerId: existing.providerId,
@@ -687,7 +687,8 @@ class ModelService {
       .orderBy(asc(userModelTable.providerId), asc(userModelTable.orderKey))
       .all()
 
-    let models = this.enrichRowsFromRegistry(
+    let models = this.enrichRowsFromRegistryTx(
+      db,
       availableProviderIds ? rows.filter((row) => availableProviderIds.has(row.providerId)) : rows
     )
 
@@ -707,13 +708,18 @@ class ModelService {
    * capabilities while recognized models receive narrow metadata/reasoning
    * enrichment plus missing limits and pricing. Nothing is written back.
    */
-  private enrichRowsFromRegistry(rows: UserModelRow[]): Model[] {
-    const reasoningConfigCache = new Map<string, ReasoningProviderContext>()
-    return rows.map((row) => {
+  private enrichRowsFromRegistryTx(tx: Pick<DbType, 'select'>, rows: UserModelRow[]): Model[] {
+    const providerContexts = providerService.getReasoningContextsByProviderIdsTx(
+      tx,
+      rows.map((row) => row.providerId)
+    )
+    return rows.flatMap((row) => {
+      const providerContext = providerContexts.get(row.providerId)
+      if (!providerContext) return []
       if (row.presetModelId) {
         try {
           const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-            providerRegistryService.lookupModel(row.providerId, row.modelId, reasoningConfigCache)
+            providerRegistryService.resolveModel(providerContext, row.modelId)
           if (!presetModel) {
             return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
           }
@@ -744,7 +750,7 @@ class ModelService {
       if (!modelId) return model
       try {
         const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-          providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache)
+          providerRegistryService.resolveModel(providerContext, modelId)
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const registryModel = presetModel
           ? mergePresetModel(
@@ -830,7 +836,9 @@ class ModelService {
    */
   findByIdTx(tx: Pick<DbType, 'select'>, id: string): Model | null {
     const [row] = selectWithProviderIdentity(tx).where(eq(userModelTable.id, id)).limit(1).all()
-    return row && isProviderIdentityAvailable(row) ? this.enrichRowsFromRegistry([row.model])[0] : null
+    if (!row) return null
+
+    return this.enrichRowsFromRegistryTx(tx, [row.model])[0] ?? null
   }
 
   /** Check model existence under a provider available in the current edition. */
@@ -864,8 +872,10 @@ class ModelService {
 
     const rows = selectWithProviderIdentity(tx).where(inArray(userModelTable.id, ids)).all()
 
-    const available = rows.filter(isProviderIdentityAvailable).map((row) => row.model)
-    for (const model of this.enrichRowsFromRegistry(available)) {
+    for (const model of this.enrichRowsFromRegistryTx(
+      tx,
+      rows.map((row) => row.model)
+    )) {
       if (model.name) result.set(model.id, model.name)
     }
     return result
@@ -890,7 +900,7 @@ class ModelService {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    return this.enrichRowsFromRegistry([row])[0]
+    return this.enrichRowsFromRegistryTx(db, [row])[0]
   }
 
   /**
@@ -966,7 +976,7 @@ class ModelService {
       })
     }
 
-    return this.enrichRowsFromRegistry(rows)
+    return this.enrichRowsFromRegistryTx(db, rows)
   }
 
   /**
@@ -990,10 +1000,10 @@ class ModelService {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    const updates = this.buildUpdates(existing, dto)
+    const updates = this.buildUpdatesTx(db, existing, dto)
 
     if (Object.keys(updates).length === 0) {
-      return this.enrichRowsFromRegistry([existing])[0]
+      return this.enrichRowsFromRegistryTx(db, [existing])[0]
     }
 
     const [row] = db
@@ -1005,7 +1015,7 @@ class ModelService {
 
     logger.info('Updated model', { providerId, modelId, changes: Object.keys(dto) })
 
-    return this.enrichRowsFromRegistry([row])[0]
+    return this.enrichRowsFromRegistryTx(db, [row])[0]
   }
 
   /**
@@ -1044,7 +1054,7 @@ class ModelService {
           throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
         }
 
-        const updates = this.buildUpdates(existing, patch)
+        const updates = this.buildUpdatesTx(tx, existing, patch)
 
         if (Object.keys(updates).length === 0) {
           results.push(existing)
@@ -1069,7 +1079,7 @@ class ModelService {
       providers: [...new Set(items.map((item) => item.providerId))]
     })
 
-    return this.enrichRowsFromRegistry(rows)
+    return this.enrichRowsFromRegistryTx(db, rows)
   }
 
   /**
@@ -1174,7 +1184,7 @@ class ModelService {
     )
 
     if (deletedIds.length > 0) pinService.notifyPurged()
-    return { models: this.enrichRowsFromRegistry(rows), deletedIds }
+    return { models: this.enrichRowsFromRegistryTx(dbService.getDb(), rows), deletedIds }
   }
 
   /**
