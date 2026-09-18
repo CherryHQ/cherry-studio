@@ -7,6 +7,8 @@
  * manage its own configuration), so they take the per-session agent context.
  */
 
+import path from 'node:path'
+
 import type { CallToolResult, McpServer } from '@modelcontextprotocol/server'
 import QRCode from 'qrcode'
 import * as z from 'zod'
@@ -18,6 +20,12 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import {
+  type CompletedBackgroundTask,
+  getDetachedBackgroundTask,
+  listDetachedBackgroundTasks,
+  startDetachedBackgroundTask
+} from '@main/ai/agents/backgroundTasks'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -46,7 +54,7 @@ import {
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
-import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import { BACKGROUND_TASK_TOOL_NAME, CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
@@ -154,6 +162,24 @@ const NotifyInputSchema = z.object({
     .describe('Optional explicit destination channel. Omit to deliver to all configured recipients for this turn.')
 })
 type NotifyInput = z.output<typeof NotifyInputSchema>
+
+const BACKGROUND_TASK_DESCRIPTION = [
+  'Run, inspect, or list fully detached background tasks. Unlike the runtime-native background shell (run_in_background-style), whose processes live inside the agent CLI process tree and are killed when the CLI session exits, the user aborts, or the app quits, a task started here is spawned into its own process session (setsid) and keeps running across turns, CLI exits, and app restarts. ',
+  "Completion handling is best-effort: while the app is running, the task's exit notifies configured channels and writes an <id>.done marker; if the app exited first, status/list reconcile from the marker and PID liveness. ",
+  'stdout and stderr stream to a task log file; every task is registered with PID, log path, and start time. ',
+  'Use the runtime-native background shell for short work that should report back inside this session; use this tool when the task must outlive the session or the app. Commands run with shell semantics in the session workspace and require user approval.'
+].join('')
+
+const BackgroundTaskInputSchema = z.object({
+  action: z.enum(['start', 'status', 'list']).describe('The action to perform'),
+  command: z.string().optional().describe("Shell command to run detached (required for 'start')."),
+  name: z
+    .string()
+    .optional()
+    .describe("Optional short label used in records and completion notifications (for 'start')."),
+  task_id: z.string().optional().describe("Task id returned by start (required for 'status').")
+})
+type BackgroundTaskInput = z.output<typeof BackgroundTaskInputSchema>
 
 /** Per-adapter-type config schema descriptions (for agent self-documentation). */
 const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: string[]; description: string }> = {
@@ -802,6 +828,70 @@ async function sendNotification(ctx: AutonomyToolsContext, args: NotifyInput): P
   }
 }
 
+// ── Background task handlers ──────────────────────────────────────
+
+function backgroundTaskStorageDir(ctx: AutonomyToolsContext): string {
+  return path.join(application.getPath('feature.agents.data'), ctx.agentId, 'background-tasks')
+}
+
+async function runBackgroundTask(ctx: AutonomyToolsContext, args: BackgroundTaskInput): Promise<CallToolResult> {
+  switch (args.action) {
+    case 'start': {
+      const command = args.command?.trim() ?? ''
+      if (!command) throw new Error("'command' is required for start")
+      const record = await startDetachedBackgroundTask({
+        storageDir: backgroundTaskStorageDir(ctx),
+        command,
+        cwd: ctx.workspacePath,
+        name: args.name,
+        onExit: (task) => notifyBackgroundTaskCompletion(ctx, task)
+      })
+      return { content: [{ type: 'text', text: JSON.stringify(record, null, 2) }] }
+    }
+    case 'status': {
+      const taskId = args.task_id?.trim() ?? ''
+      if (!taskId) throw new Error("'task_id' is required for status")
+      const record = await getDetachedBackgroundTask(backgroundTaskStorageDir(ctx), taskId)
+      if (!record) throw new Error(`Task "${taskId}" not found`)
+      return { content: [{ type: 'text', text: JSON.stringify(record, null, 2) }] }
+    }
+    case 'list': {
+      const tasks = await listDetachedBackgroundTasks(backgroundTaskStorageDir(ctx))
+      return { content: [{ type: 'text', text: JSON.stringify({ tasks }, null, 2) }] }
+    }
+  }
+}
+
+/**
+ * Out-of-band completion delivery — the app's ordinary notify authority does
+ * not exist this long after the starting turn, so this mirrors scheduled-task
+ * delivery: every live channel adapter of the agent, best-effort.
+ */
+function notifyBackgroundTaskCompletion(ctx: AutonomyToolsContext, task: CompletedBackgroundTask): void {
+  try {
+    const adapters = application.get('ChannelManager').getAgentAdapters(ctx.agentId)
+    for (const adapter of adapters) {
+      for (const chatId of adapter.notifyChatIds) {
+        adapter.sendMessage(chatId, task.summary).catch((err: unknown) => {
+          logger.warn('Failed to deliver background task completion notification', {
+            agentId: ctx.agentId,
+            taskId: task.record.id,
+            channelId: adapter.channelId,
+            chatId,
+            error: err
+          })
+        })
+      }
+    }
+  } catch (err) {
+    logger.warn('Error while building background task completion notification', {
+      agentId: ctx.agentId,
+      taskId: task.record.id,
+      error: err
+    })
+  }
+}
+
 // ── Config tool handlers ──────────────────────────────────────────
 
 function configStatus(ctx: AutonomyToolsContext): CallToolResult {
@@ -1133,6 +1223,11 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
   }
   server.registerTool(CONFIG_TOOL_NAME, { description: CONFIG_DESCRIPTION, inputSchema: ConfigInputSchema }, (args) =>
     runConfig(ctx, args)
+  )
+  server.registerTool(
+    BACKGROUND_TASK_TOOL_NAME,
+    { description: BACKGROUND_TASK_DESCRIPTION, inputSchema: BackgroundTaskInputSchema },
+    (args) => runBackgroundTask(ctx, args)
   )
   server.registerTool(
     SESSION_LIST_TOOL_NAME,
