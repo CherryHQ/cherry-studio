@@ -462,6 +462,21 @@ describe('TraceStorageService', () => {
     expect((await service.getSpans('topic-x', 'trace-x')).map((s) => s.id)).toEqual(['warm'])
   })
 
+  // Agent-session topicIds (`agent-session:<uuid>`) carry a colon that NTFS rejects, so an
+  // unencoded topic dir made every Windows flush fail with ENOENT and no history was ever written.
+  it('persists a colon topicId to an encoded directory and reads it back (REGRESSION windows-colon-topic)', async () => {
+    await service._doInit()
+    const topicId = 'agent-session:2fcbb157-516e-4b2f-9ca1-8d0e875f30f4'
+
+    service.saveEntity(span({ id: 'agent-span', traceId: 'trace-agent', topicId }))
+    await service.saveSpans(topicId)
+
+    const entries = await fs.readdir(traceDir)
+    expect(entries).toEqual(['agent-session%3A2fcbb157-516e-4b2f-9ca1-8d0e875f30f4'])
+    // saveSpans clears memory, so this read comes from the history file via the same mapping.
+    await expect(service.getSpans(topicId, 'trace-agent')).resolves.toMatchObject([{ id: 'agent-span' }])
+  })
+
   // A second /v1/traces export of the same span must not drop log events already drained onto it.
   it('preserves drained log events when a later span update arrives with empty or extra events', async () => {
     await service._doInit()

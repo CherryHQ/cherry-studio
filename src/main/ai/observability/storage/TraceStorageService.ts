@@ -103,6 +103,22 @@ function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity
   return Array.from(byId.values())
 }
 
+/**
+ * Map a `topicId`/`traceId` to a single safe filesystem segment. `:` (as in agent-session
+ * topicIds) and the other Windows-illegal characters would make `fs.mkdir` fail with ENOENT on
+ * NTFS, so percent-encode `%` plus `<>:"/\|?*` and C0 controls. Safe ids (letters, digits, `-_.`)
+ * pass through unchanged, keeping existing trace dirs readable.
+ */
+function encodeTraceSegment(value: string): string {
+  const escaped = value
+    .replace(/%/g, '%25')
+    .replace(/[<>:"/\\|?*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)
+  return Array.from(escaped, (char) => {
+    const code = char.charCodeAt(0)
+    return code < 0x20 || code === 0x7f ? `%${code.toString(16).toUpperCase().padStart(2, '0')}` : char
+  }).join('')
+}
+
 @Injectable('TraceStorageService')
 @ServicePhase(Phase.WhenReady)
 export class TraceStorageService extends BaseService implements TraceStore, Activatable {
@@ -682,12 +698,12 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private traceTopicDir(topicId: string): string {
     this.assertSafeSegment(topicId, 'topicId')
-    return path.join(this.traceRootDir(), topicId)
+    return path.join(this.traceRootDir(), encodeTraceSegment(topicId))
   }
 
   private traceFilePath(topicId: string, traceId: string): string {
     this.assertSafeSegment(traceId, 'traceId')
-    return path.join(this.traceTopicDir(topicId), traceId)
+    return path.join(this.traceTopicDir(topicId), encodeTraceSegment(traceId))
   }
 
   /** Size in bytes of an existing trace file, or null when it has not been written yet. */
