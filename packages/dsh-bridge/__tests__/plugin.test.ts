@@ -241,14 +241,15 @@ describe('cherry bridge plugin', () => {
     ).resolves.toEqual({ kind: 'deny', reason: 'The tool caller has no verified workspace directory.' })
   })
 
-  it('rejects a resumed session whose persisted cwd differs from the requested workspace', async () => {
+  it('reports a resumed session whose persisted cwd differs as a cwd-mismatch outcome', async () => {
     const host = await startHost()
     const dispose = vi.fn().mockResolvedValue(undefined)
     const resume = vi.fn().mockResolvedValue({
       agent: { session: { header: { cwd: '/old-workspace' } } },
       dispose
     })
-    const ctx = makeContext({ agents: { resume, create: vi.fn(), get: vi.fn() } })
+    const create = vi.fn()
+    const ctx = makeContext({ agents: { resume, create, get: vi.fn() } })
     process.env[BRIDGE_SOCKET_ENV] = host.socketPath
     process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
 
@@ -261,7 +262,60 @@ describe('cherry bridge plugin', () => {
       })
     expect(process.env[BRIDGE_TOKEN_ENV]).toBeUndefined()
 
-    await expect(host.request('session/open', openParams)).rejects.toThrow('does not match')
+    // A moved workspace is recoverable state, not a fatal error: the outcome
+    // carries both cwds so the host can offer resume-original vs new-session.
+    await expect(host.request('session/open', openParams)).resolves.toEqual({
+      status: 'cwd-mismatch',
+      persistedCwd: '/old-workspace',
+      requestedCwd: '/new-workspace'
+    })
+    // Fail-closed: the wrong-cwd handle is dropped, and no fresh session silently replaces history.
+    expect(dispose).toHaveBeenCalledOnce()
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('leaves no bridge state behind after a cwd mismatch so the session can reopen', async () => {
+    const host = await startHost()
+    const register = vi.fn().mockReturnValue(() => {})
+    const resume = vi.fn().mockResolvedValue({
+      agent: { session: { header: { cwd: '/old-workspace' } } },
+      dispose: vi.fn().mockResolvedValue(undefined)
+    })
+    const ctx = makeContext({
+      agents: { resume, create: vi.fn(), get: vi.fn() },
+      tools: { register, guard: vi.fn() }
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+
+    const toolsV1 = [{ name: 'echo', description: 'echoes its input', inputSchema: { type: 'object' } }]
+    await expect(host.request('session/open', { ...openParams, tools: toolsV1 })).resolves.toEqual({
+      status: 'cwd-mismatch',
+      persistedCwd: '/old-workspace',
+      requestedCwd: '/new-workspace'
+    })
+    // A leaked tool registration would reject the conflicting v2 descriptor.
+    const toolsV2 = [{ name: 'echo', description: 'changed', inputSchema: { type: 'object' } }]
+    await expect(host.request('session/open', { ...openParams, resume: false, tools: toolsV2 })).resolves.toEqual({
+      status: 'opened'
+    })
+  })
+
+  it('fails closed when the persisted session has no verified workspace directory', async () => {
+    const host = await startHost()
+    const dispose = vi.fn().mockResolvedValue(undefined)
+    const resume = vi.fn().mockResolvedValue({ agent: { session: { header: {} } }, dispose })
+    const ctx = makeContext({ agents: { resume, create: vi.fn(), get: vi.fn() } })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+
+    await expect(host.request('session/open', openParams)).rejects.toThrow('no verified workspace directory')
     expect(dispose).toHaveBeenCalledOnce()
   })
 

@@ -9,6 +9,7 @@ export {
   type BridgePermissionMode,
   type BridgePluginRequestMap,
   type BridgePolicy,
+  type BridgeSessionOpenResult,
   type BridgeTextBlock,
   type BridgeToolCallResult,
   type BridgeToolDescriptor
