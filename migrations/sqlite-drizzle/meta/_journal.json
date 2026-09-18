@@ -175,6 +175,13 @@
       "when": 1789636472109,
       "tag": "0024_lying_shatterstar",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1790177323753,
+      "tag": "0025_dizzy_smiling_tiger",
+      "breakpoints": true
     }
   ],
   "version": "7"
