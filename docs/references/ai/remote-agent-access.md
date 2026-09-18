@@ -93,6 +93,10 @@ and on every `GET /v1/export/providers` request. A LAN observer who captures it
 can authenticate to the Agent listener as that device: the encrypted channel
 authenticates the desktop to the client, not the client's possession of a key.
 
+Both plaintext routes are confined to LAN peers (private, link-local, or CGNAT
+addresses; see the [gateway LAN guard](../api-gateway/README.md#lan-exposure-is-confined-to-paired-device-capabilities)),
+so the token is not served through a same-machine tunnel or a port forward.
+
 Build `ws://<reachable desktop IPv4>:<remoteAgent.port><remoteAgent.path>`.
 The OS-assigned port can change after restart or backup suspension; refresh the
 descriptor before reconnecting. The desktop identity remains stable across port
