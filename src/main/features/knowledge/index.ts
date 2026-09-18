@@ -1,5 +1,6 @@
 // Runtime service API.
 export { KnowledgeService } from './KnowledgeService'
+export { ExternalKnowledgeRuntimeError } from './external/ExternalKnowledgeRuntime'
 export { KnowledgeVectorStoreService } from './pipeline/vectorstore/KnowledgeVectorStoreService'
 
 // Index & material rebuild surface — the knowledge-owned primitives the indexing runtime and the
