@@ -227,6 +227,24 @@ describe('UserPopup', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('John Doe')
   })
 
+  it('follows the stored name until the draft is typed', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'Before')
+    showUserPopup()
+    const input = await screen.findByPlaceholderText('settings.general.user_name.placeholder')
+    expect(input).toHaveValue('Before')
+
+    // The mocked hook has no subscription, so re-render through an unrelated interaction.
+    MockUsePreferenceUtils.setPreferenceValue('app.user.name', 'After')
+    fireEvent.click(await screen.findByTestId('popover-trigger'))
+    expect(input).toHaveValue('After')
+
+    await user.type(input, ' X')
+
+    expect(input).toHaveValue('After X')
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.user.name')).toBe('After X')
+  })
+
   it('only customizes avatar picker popover width and padding', async () => {
     showUserPopup()
 
