@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "cd4b67e1-45c4-4ede-9be8-ebed9b74129b",
+  "id": "43529e53-fd02-4c49-a31c-165d456c7e4a",
   "prevId": "f6c0e9b0-adce-44b3-9616-a0e7d1a2f8c4",
   "tables": {
     "agent": {
@@ -2232,8 +2232,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'feishu'"
+          "autoincrement": false
         },
         "app_id": {
           "name": "app_id",
@@ -2261,6 +2260,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "account_user_id": {
+          "name": "account_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "account_open_id": {
@@ -2377,7 +2383,7 @@
         },
         "external_knowledge_connection_identity_nonempty_check": {
           "name": "external_knowledge_connection_identity_nonempty_check",
-          "value": "(\"external_knowledge_connection\".\"account_open_id\" IS NULL OR length(trim(\"external_knowledge_connection\".\"account_open_id\")) > 0)\n          AND (\"external_knowledge_connection\".\"account_union_id\" IS NULL OR length(trim(\"external_knowledge_connection\".\"account_union_id\")) > 0)\n          AND (\"external_knowledge_connection\".\"tenant_key\" IS NULL OR length(trim(\"external_knowledge_connection\".\"tenant_key\")) > 0)"
+          "value": "(\"external_knowledge_connection\".\"account_user_id\" IS NULL OR length(trim(\"external_knowledge_connection\".\"account_user_id\")) > 0)\n          AND (\"external_knowledge_connection\".\"account_open_id\" IS NULL OR length(trim(\"external_knowledge_connection\".\"account_open_id\")) > 0)\n          AND (\"external_knowledge_connection\".\"account_union_id\" IS NULL OR length(trim(\"external_knowledge_connection\".\"account_union_id\")) > 0)\n          AND (\"external_knowledge_connection\".\"tenant_key\" IS NULL OR length(trim(\"external_knowledge_connection\".\"tenant_key\")) > 0)"
         },
         "external_knowledge_connection_display_nonempty_check": {
           "name": "external_knowledge_connection_display_nonempty_check",
@@ -2389,11 +2395,11 @@
         },
         "external_knowledge_connection_connected_identity_check": {
           "name": "external_knowledge_connection_connected_identity_check",
-          "value": "\"external_knowledge_connection\".\"authorization_status\" != 'connected' OR (\n        \"external_knowledge_connection\".\"account_open_id\" IS NOT NULL\n        AND \"external_knowledge_connection\".\"tenant_key\" IS NOT NULL\n        AND \"external_knowledge_connection\".\"authorized_at\" IS NOT NULL\n        AND json_array_length(\"external_knowledge_connection\".\"granted_scopes\") > 0\n      )"
+          "value": "\"external_knowledge_connection\".\"authorization_status\" != 'connected' OR (\n        \"external_knowledge_connection\".\"account_user_id\" IS NOT NULL\n        AND \"external_knowledge_connection\".\"account_open_id\" IS NOT NULL\n        AND \"external_knowledge_connection\".\"tenant_key\" IS NOT NULL\n        AND \"external_knowledge_connection\".\"authorized_at\" IS NOT NULL\n        AND json_array_length(\"external_knowledge_connection\".\"granted_scopes\") > 0\n      )"
         },
         "external_knowledge_connection_pending_identity_check": {
           "name": "external_knowledge_connection_pending_identity_check",
-          "value": "\"external_knowledge_connection\".\"authorization_status\" != 'pending-authorization' OR (\n        \"external_knowledge_connection\".\"account_open_id\" IS NULL\n        AND \"external_knowledge_connection\".\"account_union_id\" IS NULL\n        AND \"external_knowledge_connection\".\"tenant_key\" IS NULL\n        AND \"external_knowledge_connection\".\"display_name\" IS NULL\n        AND \"external_knowledge_connection\".\"avatar_url\" IS NULL\n        AND \"external_knowledge_connection\".\"authorized_at\" IS NULL\n        AND \"external_knowledge_connection\".\"last_validated_at\" IS NULL\n        AND json_array_length(\"external_knowledge_connection\".\"granted_scopes\") = 0\n      )"
+          "value": "\"external_knowledge_connection\".\"authorization_status\" != 'pending-authorization' OR (\n        \"external_knowledge_connection\".\"account_user_id\" IS NULL\n        AND \"external_knowledge_connection\".\"account_open_id\" IS NULL\n        AND \"external_knowledge_connection\".\"account_union_id\" IS NULL\n        AND \"external_knowledge_connection\".\"tenant_key\" IS NULL\n        AND \"external_knowledge_connection\".\"display_name\" IS NULL\n        AND \"external_knowledge_connection\".\"avatar_url\" IS NULL\n        AND \"external_knowledge_connection\".\"authorized_at\" IS NULL\n        AND \"external_knowledge_connection\".\"last_validated_at\" IS NULL\n        AND json_array_length(\"external_knowledge_connection\".\"granted_scopes\") = 0\n      )"
         }
       }
     },

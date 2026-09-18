@@ -9,7 +9,7 @@ import type {
   TokenRotationResult
 } from '../ExternalKnowledgeCredentialStore'
 import { ExternalKnowledgeRuntime } from '../ExternalKnowledgeRuntime'
-import { FEISHU_KNOWLEDGE_USER_SCOPES, FeishuProviderError, type FeishuUserTokenSet } from '../feishuKnowledgeProvider'
+import { FEISHU_REQUIRED_USER_SCOPES, FeishuProviderError, type FeishuUserTokenSet } from '../feishuKnowledgeProvider'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -33,13 +33,14 @@ function connection(
     appCredentialSource: 'custom-app',
     authorizationStatus: 'connected',
     credentialReference,
+    accountUserId: `user_${id}`,
     accountOpenId: `ou_${id}`,
     accountUnionId: null,
     tenantKey: `tenant_${id}`,
     displayName: id,
     avatarUrl: null,
     applicationName: null,
-    grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES],
+    grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES],
     authorizedAt: '2026-01-01T00:00:00.000Z',
     lastValidatedAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -63,6 +64,7 @@ class MemoryConnections {
         appCredentialSource: input.appCredentialSource,
         applicationName: input.applicationName ?? null,
         authorizationStatus: 'pending-authorization',
+        accountUserId: null,
         accountOpenId: null,
         tenantKey: null,
         grantedScopes: [],
@@ -147,6 +149,7 @@ function createProvider(overrides: Record<string, unknown> = {}) {
     getUserIdentity: vi.fn(async (accessToken: string) => {
       const id = accessToken.replace(/^access-/, '')
       return {
+        accountUserId: `user_${id}`,
         accountOpenId: `ou_${id}`,
         accountUnionId: null,
         tenantKey: `tenant_${id}`,
@@ -167,7 +170,7 @@ function validCredential(id: string, now = 1_000): ExternalKnowledgeCredential {
     refreshToken: `refresh-${id}`,
     accessTokenExpiresAt: now + 3_600_000,
     refreshTokenExpiresAt: now + 604_800_000,
-    grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES]
+    grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
   }
 }
 
@@ -194,7 +197,7 @@ describe('ExternalKnowledgeRuntime', () => {
       refreshToken: 'refresh-rotated',
       expiresIn: 7200,
       refreshTokenExpiresIn: 604800,
-      grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES]
+      grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
     })
 
     await expect(Promise.all([first, second])).resolves.toEqual(['access-rotated', 'access-rotated'])
@@ -221,7 +224,7 @@ describe('ExternalKnowledgeRuntime', () => {
           refreshToken: 'refresh-rotated',
           expiresIn: 7200,
           refreshTokenExpiresIn: 604800,
-          grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES]
+          grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
         })
     })
     const runtime = new ExternalKnowledgeRuntime({
@@ -254,6 +257,7 @@ describe('ExternalKnowledgeRuntime', () => {
         .fn()
         .mockRejectedValueOnce(new FeishuProviderError('transient', false, 1_750))
         .mockResolvedValueOnce({
+          accountUserId: value.accountUserId!,
           accountOpenId: value.accountOpenId!,
           accountUnionId: null,
           tenantKey: value.tenantKey!,
@@ -544,9 +548,10 @@ describe('ExternalKnowledgeRuntime', () => {
         refreshToken: 'fresh-refresh',
         expiresIn: 7200,
         refreshTokenExpiresIn: 604800,
-        grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES]
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
       })),
       getUserIdentity: vi.fn(async () => ({
+        accountUserId: value.accountUserId!,
         accountOpenId: value.accountOpenId!,
         accountUnionId: null,
         tenantKey: value.tenantKey!,
@@ -615,9 +620,10 @@ describe('ExternalKnowledgeRuntime', () => {
         refreshToken: 'restored-refresh',
         expiresIn: 7200,
         refreshTokenExpiresIn: 604800,
-        grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES]
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
       })),
       getUserIdentity: vi.fn(async () => ({
+        accountUserId: value.accountUserId!,
         accountOpenId: value.accountOpenId!,
         accountUnionId: null,
         tenantKey: value.tenantKey!,
@@ -635,6 +641,7 @@ describe('ExternalKnowledgeRuntime', () => {
     })
     await expect(runtime.completeUserAuthorization(begun.authorizationSessionId)).resolves.toMatchObject({
       authorizationStatus: 'connected',
+      accountUserId: value.accountUserId,
       accountOpenId: value.accountOpenId
     })
 
@@ -669,10 +676,11 @@ describe('ExternalKnowledgeRuntime', () => {
         refreshToken: 'restored-refresh',
         expiresIn: 7200,
         refreshTokenExpiresIn: 604800,
-        grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES]
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
       })),
       getUserIdentity: vi.fn(async () => ({
-        accountOpenId: value.accountOpenId!,
+        accountUserId: value.accountUserId!,
+        accountOpenId: 'ou_replacement_app',
         accountUnionId: null,
         tenantKey: value.tenantKey!,
         displayName: 'Restored user',
@@ -708,7 +716,8 @@ describe('ExternalKnowledgeRuntime', () => {
       appId: 'cli_replacement',
       appCredentialSource: 'personal-agent',
       applicationName: 'Cherry Studio Knowledge',
-      accountOpenId: value.accountOpenId,
+      accountUserId: value.accountUserId,
+      accountOpenId: 'ou_replacement_app',
       tenantKey: value.tenantKey,
       authorizationStatus: 'connected'
     })
@@ -718,7 +727,10 @@ describe('ExternalKnowledgeRuntime', () => {
     })
   })
 
-  it('rejects reconnecting an existing connection as a different account or tenant', async () => {
+  it.each([
+    { accountUserId: 'user_other', tenantKey: 'tenant_one' },
+    { accountUserId: 'user_one', tenantKey: 'tenant_other' }
+  ])('rejects reconnecting when the stable identity changes: %o', async (identity) => {
     const connections = new MemoryConnections()
     const credentials = new MemoryCredentials()
     const value = connection('one', 'ref-one', { authorizationStatus: 'reauthorization-required' })
@@ -737,12 +749,13 @@ describe('ExternalKnowledgeRuntime', () => {
         refreshToken: 'other-refresh',
         expiresIn: 7200,
         refreshTokenExpiresIn: 604800,
-        grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES]
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
       })),
       getUserIdentity: vi.fn(async () => ({
-        accountOpenId: 'ou_other',
+        accountUserId: identity.accountUserId,
+        accountOpenId: value.accountOpenId!,
         accountUnionId: null,
-        tenantKey: 'tenant_other',
+        tenantKey: identity.tenantKey,
         displayName: 'Other user',
         avatarUrl: null
       }))
@@ -752,12 +765,55 @@ describe('ExternalKnowledgeRuntime', () => {
     const begun = await runtime.beginReconnect(value.id)
 
     await expect(runtime.completeUserAuthorization(begun.authorizationSessionId)).rejects.toMatchObject({
-      code: 'reauthorization-required'
+      code: 'identity-conflict'
     })
     expect(connections.values.get(value.id)).toMatchObject({
       authorizationStatus: 'reauthorization-required',
+      accountUserId: value.accountUserId,
       accountOpenId: value.accountOpenId,
       tenantKey: value.tenantKey
+    })
+  })
+
+  it('reports identity-unverifiable when a reconnect has no stable persisted user id', async () => {
+    const connections = new MemoryConnections()
+    const credentials = new MemoryCredentials()
+    const value = connection('one', 'ref-one', {
+      authorizationStatus: 'reauthorization-required',
+      accountUserId: null
+    })
+    connections.values.set(value.id, value)
+    credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
+    const provider = createProvider({
+      beginDeviceAuthorization: vi.fn(async () => ({
+        deviceCode: 'device-code',
+        userCode: 'ABCD-EFGH',
+        verificationUri: 'https://accounts.feishu.cn/oauth/v1/device/verify?user_code=ABCD-EFGH',
+        expiresIn: 600,
+        interval: 5
+      })),
+      exchangeDeviceAuthorization: vi.fn(async () => ({
+        accessToken: 'restored-access',
+        refreshToken: 'restored-refresh',
+        expiresIn: 7200,
+        refreshTokenExpiresIn: 604800,
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
+      })),
+      getUserIdentity: vi.fn(async () => ({
+        accountUserId: 'user_one',
+        accountOpenId: 'ou_replacement_app',
+        accountUnionId: null,
+        tenantKey: value.tenantKey!,
+        displayName: 'Restored user',
+        avatarUrl: null
+      }))
+    })
+    const runtime = new ExternalKnowledgeRuntime({ connections, credentials, provider, now: () => 1_000 })
+    await runtime.start()
+    const begun = await runtime.beginReconnect(value.id)
+
+    await expect(runtime.completeUserAuthorization(begun.authorizationSessionId)).rejects.toMatchObject({
+      code: 'identity-unverifiable'
     })
   })
 
@@ -768,6 +824,7 @@ describe('ExternalKnowledgeRuntime', () => {
     connections.values.set(value.id, value)
     credentials.values.set('ref-one', { status: 'ok', credential: validCredential('one') })
     const staleIdentity = deferred<{
+      accountUserId: string
       accountOpenId: string
       accountUnionId: null
       tenantKey: string
@@ -787,12 +844,13 @@ describe('ExternalKnowledgeRuntime', () => {
         refreshToken: 'fresh-refresh',
         expiresIn: 7200,
         refreshTokenExpiresIn: 604800,
-        grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES]
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
       })),
       getUserIdentity: vi
         .fn()
         .mockImplementationOnce(() => staleIdentity.promise)
         .mockResolvedValueOnce({
+          accountUserId: value.accountUserId!,
           accountOpenId: value.accountOpenId!,
           accountUnionId: null,
           tenantKey: value.tenantKey!,
@@ -809,6 +867,7 @@ describe('ExternalKnowledgeRuntime', () => {
     const reconnect = await runtime.beginReconnect(value.id)
     await runtime.completeUserAuthorization(reconnect.authorizationSessionId)
     staleIdentity.resolve({
+      accountUserId: value.accountUserId!,
       accountOpenId: value.accountOpenId!,
       accountUnionId: null,
       tenantKey: value.tenantKey!,
@@ -846,9 +905,10 @@ describe('ExternalKnowledgeRuntime', () => {
         refreshToken: 'replacement-refresh',
         expiresIn: 7200,
         refreshTokenExpiresIn: 604800,
-        grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES]
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
       })),
       getUserIdentity: vi.fn(async () => ({
+        accountUserId: value.accountUserId!,
         accountOpenId: value.accountOpenId!,
         accountUnionId: null,
         tenantKey: value.tenantKey!,
@@ -987,6 +1047,7 @@ describe('ExternalKnowledgeRuntime', () => {
       })),
       exchangeDeviceAuthorization: vi.fn(() => exchange.promise),
       getUserIdentity: vi.fn(async () => ({
+        accountUserId: value.accountUserId!,
         accountOpenId: value.accountOpenId!,
         accountUnionId: null,
         tenantKey: value.tenantKey!,
@@ -1007,7 +1068,7 @@ describe('ExternalKnowledgeRuntime', () => {
       refreshToken: 'late-refresh',
       expiresIn: 7200,
       refreshTokenExpiresIn: 604800,
-      grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES]
+      grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
     })
 
     await cancelling
@@ -1154,7 +1215,7 @@ describe('ExternalKnowledgeRuntime', () => {
       refreshToken: 'refresh-token',
       expiresIn: 7200,
       refreshTokenExpiresIn: 604800,
-      grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES, 'drive:drive']
+      grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES, 'drive:drive']
     }
 
     const manualConnections = new MemoryConnections()
@@ -1169,6 +1230,7 @@ describe('ExternalKnowledgeRuntime', () => {
       })),
       exchangeDeviceAuthorization: vi.fn(async () => token),
       getUserIdentity: vi.fn(async () => ({
+        accountUserId: 'user_account',
         accountOpenId: 'ou_user',
         accountUnionId: null,
         tenantKey: 'tenant',
@@ -1230,7 +1292,7 @@ describe('ExternalKnowledgeRuntime', () => {
         refreshToken: 'refresh-token',
         expiresIn: 7200,
         refreshTokenExpiresIn: 604800,
-        grantedScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES]
+        grantedScopes: [...FEISHU_REQUIRED_USER_SCOPES]
       })),
       getUserIdentity: vi
         .fn()
@@ -1238,6 +1300,7 @@ describe('ExternalKnowledgeRuntime', () => {
         .mockRejectedValueOnce(new FeishuProviderError('transient', false))
         .mockRejectedValueOnce(new FeishuProviderError('transient', false))
         .mockResolvedValueOnce({
+          accountUserId: 'user_account',
           accountOpenId: 'ou_user',
           accountUnionId: null,
           tenantKey: 'tenant',

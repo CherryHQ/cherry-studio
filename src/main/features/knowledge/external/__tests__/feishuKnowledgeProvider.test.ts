@@ -2,7 +2,7 @@ import { net } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  FEISHU_KNOWLEDGE_USER_SCOPES,
+  FEISHU_REQUIRED_USER_SCOPES,
   FeishuProviderError,
   beginDeviceAuthorization,
   exchangeDeviceAuthorization,
@@ -24,7 +24,7 @@ function response(body: unknown, options: { status?: number; headers?: Record<st
 describe('feishuKnowledgeProvider', () => {
   beforeEach(() => vi.mocked(net.fetch).mockReset())
 
-  it('starts device authorization with only the required Knowledge scopes', async () => {
+  it('starts device authorization with all required user scopes', async () => {
     vi.mocked(net.fetch).mockResolvedValueOnce(
       response({
         device_code: 'device-code',
@@ -49,7 +49,7 @@ describe('feishuKnowledgeProvider', () => {
     const [, init] = vi.mocked(net.fetch).mock.calls[0]
     expect(init?.signal).toBe(signal)
     expect(init?.body?.toString()).toBe(
-      new URLSearchParams({ client_id: 'cli_test', scope: FEISHU_KNOWLEDGE_USER_SCOPES.join(' ') }).toString()
+      new URLSearchParams({ client_id: 'cli_test', scope: FEISHU_REQUIRED_USER_SCOPES.join(' ') }).toString()
     )
   })
 
@@ -61,7 +61,7 @@ describe('feishuKnowledgeProvider', () => {
           refresh_token: 'refresh-1',
           expires_in: 7200,
           refresh_token_expires_in: 604800,
-          scope: `${FEISHU_KNOWLEDGE_USER_SCOPES.join(' ')} auth:user.id:read`
+          scope: FEISHU_REQUIRED_USER_SCOPES.join(' ')
         })
       )
       .mockResolvedValueOnce(
@@ -71,14 +71,14 @@ describe('feishuKnowledgeProvider', () => {
           refresh_token: 'refresh-2',
           expires_in: 7200,
           refresh_token_expires_in: 604800,
-          scope: FEISHU_KNOWLEDGE_USER_SCOPES.join(' ')
+          scope: FEISHU_REQUIRED_USER_SCOPES.join(' ')
         })
       )
 
     const exchanged = await exchangeDeviceAuthorization({ appId: 'cli_test', appSecret: 'app-secret' }, 'device-code')
     const refreshed = await refreshUserToken({ appId: 'cli_test', appSecret: 'app-secret' }, exchanged.refreshToken)
 
-    expect(exchanged.grantedScopes).toEqual([...FEISHU_KNOWLEDGE_USER_SCOPES, 'auth:user.id:read'])
+    expect(exchanged.grantedScopes).toEqual([...FEISHU_REQUIRED_USER_SCOPES])
     expect(refreshed).toMatchObject({ accessToken: 'access-2', refreshToken: 'refresh-2' })
   })
 
@@ -115,6 +115,7 @@ describe('feishuKnowledgeProvider', () => {
       response({
         code: 0,
         data: {
+          user_id: 'user_account',
           open_id: 'ou_account',
           union_id: 'on_union',
           tenant_key: 'tenant-key',
@@ -125,11 +126,29 @@ describe('feishuKnowledgeProvider', () => {
     )
 
     await expect(getUserIdentity('access-token-sentinel')).resolves.toEqual({
+      accountUserId: 'user_account',
       accountOpenId: 'ou_account',
       accountUnionId: 'on_union',
       tenantKey: 'tenant-key',
       displayName: 'Alice',
       avatarUrl: 'https://example.com/avatar.png'
+    })
+  })
+
+  it('classifies a missing user_id as identity-unverifiable', async () => {
+    vi.mocked(net.fetch).mockResolvedValueOnce(
+      response({
+        code: 0,
+        data: {
+          open_id: 'ou_account',
+          tenant_key: 'tenant-key'
+        }
+      })
+    )
+
+    await expect(getUserIdentity('access-token')).rejects.toMatchObject({
+      code: 'identity-unverifiable',
+      terminal: true
     })
   })
 

@@ -33,6 +33,7 @@ export const ExternalKnowledgeConnectionSchema = z
     appCredentialSource: ExternalKnowledgeAppCredentialSourceSchema,
     authorizationStatus: ExternalKnowledgeAuthorizationStatusSchema,
     credentialReference: ExternalKnowledgeCredentialReferenceSchema,
+    accountUserId: NullableNonBlankStringSchema,
     accountOpenId: NullableNonBlankStringSchema,
     accountUnionId: NullableNonBlankStringSchema,
     tenantKey: NullableNonBlankStringSchema,
@@ -48,6 +49,7 @@ export const ExternalKnowledgeConnectionSchema = z
   .superRefine((value, ctx) => {
     if (value.authorizationStatus === 'pending-authorization') {
       for (const field of [
+        'accountUserId',
         'accountOpenId',
         'accountUnionId',
         'tenantKey',
@@ -73,7 +75,7 @@ export const ExternalKnowledgeConnectionSchema = z
 
     if (value.authorizationStatus !== 'connected') return
 
-    for (const field of ['accountOpenId', 'tenantKey', 'authorizedAt'] as const) {
+    for (const field of ['accountUserId', 'accountOpenId', 'tenantKey', 'authorizedAt'] as const) {
       if (value[field] === null) {
         ctx.addIssue({ code: 'custom', path: [field], message: `Connected connection requires ${field}` })
       }

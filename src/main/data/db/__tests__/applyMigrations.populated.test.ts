@@ -1229,10 +1229,26 @@ describe('applyMigrations over a populated database', () => {
 
     const columns = sqlite.prepare(`PRAGMA table_info('external_knowledge_connection')`).all() as Array<{
       name: string
+      notnull: number
+      dflt_value: string | null
     }>
+    const columnsByName = new Map(columns.map((column) => [column.name, column]))
+    expect(columnsByName.get('account_user_id')).toBeDefined()
+    expect(columnsByName.get('provider')).toMatchObject({ notnull: 1, dflt_value: null })
+    expect(columnsByName.get('granted_scopes')).toMatchObject({ notnull: 1, dflt_value: "'[]'" })
     expect(columns.map((column) => column.name)).not.toEqual(
       expect.arrayContaining(['app_secret', 'access_token', 'refresh_token'])
     )
+    expect(() =>
+      sqlite
+        .prepare(
+          `INSERT INTO external_knowledge_connection
+            (id, app_id, app_credential_source, authorization_status, credential_reference, created_at, updated_at)
+           VALUES ('01994c00-ef10-7000-8000-000000000004', 'cli_example', 'personal-agent',
+             'pending-authorization', 'cred_without_provider', 300, 300)`
+        )
+        .run()
+    ).toThrow(/NOT NULL|constraint/i)
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
     expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
   })

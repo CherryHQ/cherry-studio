@@ -8,7 +8,9 @@ export const FEISHU_KNOWLEDGE_USER_SCOPES = [
   'offline_access'
 ] as const
 
-export const FEISHU_AUTOMATIC_ALLOWED_SCOPES = new Set<string>([...FEISHU_KNOWLEDGE_USER_SCOPES, 'auth:user.id:read'])
+export const FEISHU_IDENTITY_USER_SCOPE = 'auth:user.id:read' as const
+export const FEISHU_REQUIRED_USER_SCOPES = [...FEISHU_KNOWLEDGE_USER_SCOPES, FEISHU_IDENTITY_USER_SCOPE] as const
+export const FEISHU_AUTOMATIC_ALLOWED_SCOPES = new Set<string>(FEISHU_REQUIRED_USER_SCOPES)
 
 const deviceAuthorizationSchema = z.object({
   device_code: z.string().min(1),
@@ -30,6 +32,7 @@ const tokenSchema = z.object({
 const userIdentitySchema = z.object({
   code: z.literal(0),
   data: z.object({
+    user_id: z.string().min(1),
     open_id: z.string().min(1),
     union_id: z.string().min(1).nullish(),
     tenant_key: z.string().min(1),
@@ -57,6 +60,7 @@ export type FeishuUserTokenSet = {
 }
 
 export type FeishuUserIdentity = {
+  accountUserId: string
   accountOpenId: string
   accountUnionId: string | null
   tenantKey: string
@@ -70,6 +74,7 @@ export type FeishuProviderErrorCode =
   | 'authorization-denied'
   | 'authorization-expired'
   | 'app-scope-missing'
+  | 'identity-unverifiable'
   | 'reauthorization-required'
   | 'transient'
   | 'invalid-response'
@@ -160,7 +165,7 @@ export async function beginDeviceAuthorization(
     },
     body: new URLSearchParams({
       client_id: credentials.appId,
-      scope: FEISHU_KNOWLEDGE_USER_SCOPES.join(' ')
+      scope: FEISHU_REQUIRED_USER_SCOPES.join(' ')
     }).toString(),
     signal
   })
@@ -237,9 +242,14 @@ export async function getUserIdentity(accessToken: string, signal?: AbortSignal)
     headers: { Authorization: `Bearer ${accessToken}` },
     signal
   })
+  const userId = (body as { data?: { user_id?: unknown } } | null)?.data?.user_id
+  if (typeof userId !== 'string' || userId.trim().length === 0) {
+    throw new FeishuProviderError('identity-unverifiable', true)
+  }
   const parsed = userIdentitySchema.safeParse(body)
   if (!parsed.success) throw new FeishuProviderError('invalid-response', false)
   return {
+    accountUserId: parsed.data.data.user_id,
     accountOpenId: parsed.data.data.open_id,
     accountUnionId: parsed.data.data.union_id ?? null,
     tenantKey: parsed.data.data.tenant_key,
@@ -271,5 +281,5 @@ export async function revokeUserToken(
 }
 
 export function missingKnowledgeScopes(grantedScopes: readonly string[]): string[] {
-  return FEISHU_KNOWLEDGE_USER_SCOPES.filter((scope) => !grantedScopes.includes(scope))
+  return FEISHU_REQUIRED_USER_SCOPES.filter((scope) => !grantedScopes.includes(scope))
 }

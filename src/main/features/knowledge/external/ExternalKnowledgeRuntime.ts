@@ -17,7 +17,7 @@ import {
   beginDeviceAuthorization,
   exchangeDeviceAuthorization,
   FEISHU_AUTOMATIC_ALLOWED_SCOPES,
-  FEISHU_KNOWLEDGE_USER_SCOPES,
+  FEISHU_REQUIRED_USER_SCOPES,
   FeishuProviderError,
   getUserIdentity,
   missingKnowledgeScopes,
@@ -151,6 +151,8 @@ export type ExternalKnowledgeRuntimeErrorCode =
   | 'credential-unavailable'
   | 'scope-missing'
   | 'automatic-scope-mismatch'
+  | 'identity-conflict'
+  | 'identity-unverifiable'
   | 'reauthorization-required'
   | 'authorization-failed'
 
@@ -235,7 +237,7 @@ export class ExternalKnowledgeRuntime {
           description: 'Read Feishu Wiki nodes and document content',
           addons: {
             preset: false,
-            userScopes: [...FEISHU_KNOWLEDGE_USER_SCOPES]
+            userScopes: [...FEISHU_REQUIRED_USER_SCOPES]
           }
         }
       })
@@ -609,10 +611,7 @@ export class ExternalKnowledgeRuntime {
         )
         this.assertCredentialGeneration(state, session.generation)
         const connection = this.requireConnection(session.connectionId)
-        if (connection.accountOpenId !== null && this.identityChanged(connection, identity)) {
-          this.markReauthorizationRequiredIfCurrent(session.connectionId, state, session.generation)
-          throw new ExternalKnowledgeRuntimeError('reauthorization-required')
-        }
+        if (!session.initial) this.assertMatchingIdentity(connection, identity)
         const connected = this.connections.markConnected(session.connectionId, {
           ...identity,
           grantedScopes: token.grantedScopes
@@ -746,7 +745,7 @@ export class ExternalKnowledgeRuntime {
       this.provider.getUserIdentity(accessToken, signal)
     )
     this.assertCredentialGeneration(state, generation)
-    if (connection.accountOpenId !== null && this.identityChanged(connection, identity)) {
+    if (connection.accountUserId !== null && this.identityChanged(connection, identity)) {
       this.markReauthorizationRequiredIfCurrent(connection.id, state, generation)
       throw new ExternalKnowledgeRuntimeError('reauthorization-required')
     }
@@ -830,8 +829,17 @@ export class ExternalKnowledgeRuntime {
     }
   }
 
+  private assertMatchingIdentity(connection: ExternalKnowledgeConnection, identity: FeishuUserIdentity): void {
+    if (!connection.accountUserId || !identity.accountUserId) {
+      throw new ExternalKnowledgeRuntimeError('identity-unverifiable')
+    }
+    if (connection.tenantKey !== identity.tenantKey || connection.accountUserId !== identity.accountUserId) {
+      throw new ExternalKnowledgeRuntimeError('identity-conflict')
+    }
+  }
+
   private identityChanged(connection: ExternalKnowledgeConnection, identity: FeishuUserIdentity): boolean {
-    return connection.accountOpenId !== identity.accountOpenId || connection.tenantKey !== identity.tenantKey
+    return connection.accountUserId !== identity.accountUserId || connection.tenantKey !== identity.tenantKey
   }
 
   private requireConnection(connectionId: string): ExternalKnowledgeConnection {

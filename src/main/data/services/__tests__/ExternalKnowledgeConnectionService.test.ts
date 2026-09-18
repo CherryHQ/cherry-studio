@@ -13,12 +13,19 @@ const createInput = {
 }
 
 const connectedIdentity = {
+  accountUserId: 'user_example',
   accountOpenId: 'ou_example',
   accountUnionId: 'on_example',
   tenantKey: 'tenant_example',
   displayName: 'Cherry User',
   avatarUrl: 'https://example.com/avatar.png',
-  grantedScopes: ['wiki:node:read', 'wiki:node:retrieve', 'docs:document.content:read', 'offline_access']
+  grantedScopes: [
+    'wiki:node:read',
+    'wiki:node:retrieve',
+    'docs:document.content:read',
+    'offline_access',
+    'auth:user.id:read'
+  ]
 }
 
 describe('ExternalKnowledgeConnectionService', () => {
@@ -31,6 +38,7 @@ describe('ExternalKnowledgeConnectionService', () => {
       provider: 'feishu',
       ...createInput,
       authorizationStatus: 'pending-authorization',
+      accountUserId: null,
       accountOpenId: null,
       tenantKey: null,
       grantedScopes: [],

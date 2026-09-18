@@ -7,6 +7,7 @@ const validConnection = {
   appCredentialSource: 'personal-agent',
   authorizationStatus: 'connected',
   credentialReference: 'cred_01994c00ef10',
+  accountUserId: 'user_example',
   accountOpenId: 'ou_example',
   accountUnionId: 'on_example',
   tenantKey: 'tenant_example',
@@ -42,11 +43,18 @@ describe('ExternalKnowledgeConnectionSchema', () => {
     expect(
       ExternalKnowledgeConnectionSchema.safeParse({
         ...validConnection,
+        accountUserId: null,
         accountOpenId: null,
         tenantKey: null,
         authorizedAt: null
       }).success
     ).toBe(false)
+  })
+
+  it('requires accountUserId on a connected connection', async () => {
+    const { ExternalKnowledgeConnectionSchema } = await import('../externalKnowledgeConnection')
+
+    expect(ExternalKnowledgeConnectionSchema.safeParse({ ...validConnection, accountUserId: null }).success).toBe(false)
   })
 
   it('allows a pending authorization to exist before identity and scopes are available', async () => {
@@ -56,6 +64,7 @@ describe('ExternalKnowledgeConnectionSchema', () => {
       ExternalKnowledgeConnectionSchema.parse({
         ...validConnection,
         authorizationStatus: 'pending-authorization',
+        accountUserId: null,
         accountOpenId: null,
         accountUnionId: null,
         tenantKey: null,
@@ -66,6 +75,26 @@ describe('ExternalKnowledgeConnectionSchema', () => {
         lastValidatedAt: null
       })
     ).toMatchObject({ authorizationStatus: 'pending-authorization', grantedScopes: [] })
+  })
+
+  it('rejects accountUserId on a pending connection', async () => {
+    const { ExternalKnowledgeConnectionSchema } = await import('../externalKnowledgeConnection')
+
+    expect(
+      ExternalKnowledgeConnectionSchema.safeParse({
+        ...validConnection,
+        authorizationStatus: 'pending-authorization',
+        accountUserId: 'user_example',
+        accountOpenId: null,
+        accountUnionId: null,
+        tenantKey: null,
+        displayName: null,
+        avatarUrl: null,
+        grantedScopes: [],
+        authorizedAt: null,
+        lastValidatedAt: null
+      }).success
+    ).toBe(false)
   })
 
   it('rejects authorized identity data on a pending connection', async () => {

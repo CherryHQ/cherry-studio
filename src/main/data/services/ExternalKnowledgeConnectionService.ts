@@ -27,7 +27,7 @@ const CreateExternalKnowledgeConnectionSchema = z.strictObject({
   appId: z.string().trim().min(1).max(256),
   appCredentialSource: z.enum(['personal-agent', 'custom-app']),
   credentialReference: ExternalKnowledgeCredentialReferenceSchema,
-  applicationName: NullableNonBlankStringSchema.optional().default(null)
+  applicationName: NullableNonBlankStringSchema.optional()
 })
 
 const ExternalKnowledgeApplicationSchema = z.strictObject({
@@ -37,6 +37,7 @@ const ExternalKnowledgeApplicationSchema = z.strictObject({
 })
 
 const ConnectedExternalKnowledgeIdentitySchema = z.strictObject({
+  accountUserId: z.string().trim().min(1),
   accountOpenId: z.string().trim().min(1),
   accountUnionId: NullableNonBlankStringSchema,
   tenantKey: z.string().trim().min(1),
@@ -101,15 +102,7 @@ export class ExternalKnowledgeConnectionService {
           .values({
             provider: 'feishu',
             ...parsed,
-            authorizationStatus: 'pending-authorization',
-            accountOpenId: null,
-            accountUnionId: null,
-            tenantKey: null,
-            displayName: null,
-            avatarUrl: null,
-            grantedScopes: [],
-            authorizedAt: null,
-            lastValidatedAt: null
+            authorizationStatus: 'pending-authorization'
           })
           .returning()
           .all(),

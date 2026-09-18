@@ -1,10 +1,11 @@
 CREATE TABLE `external_knowledge_connection` (
 	`id` text PRIMARY KEY NOT NULL,
-	`provider` text DEFAULT 'feishu' NOT NULL,
+	`provider` text NOT NULL,
 	`app_id` text NOT NULL,
 	`app_credential_source` text NOT NULL,
 	`authorization_status` text NOT NULL,
 	`credential_reference` text NOT NULL,
+	`account_user_id` text,
 	`account_open_id` text,
 	`account_union_id` text,
 	`tenant_key` text,
@@ -21,7 +22,8 @@ CREATE TABLE `external_knowledge_connection` (
 	CONSTRAINT "external_knowledge_connection_authorization_status_check" CHECK("external_knowledge_connection"."authorization_status" IN ('pending-authorization', 'connected', 'reauthorization-required')),
 	CONSTRAINT "external_knowledge_connection_app_id_nonempty_check" CHECK(length(trim("external_knowledge_connection"."app_id")) > 0),
 	CONSTRAINT "external_knowledge_connection_credential_reference_nonempty_check" CHECK(length(trim("external_knowledge_connection"."credential_reference")) > 0),
-	CONSTRAINT "external_knowledge_connection_identity_nonempty_check" CHECK(("external_knowledge_connection"."account_open_id" IS NULL OR length(trim("external_knowledge_connection"."account_open_id")) > 0)
+	CONSTRAINT "external_knowledge_connection_identity_nonempty_check" CHECK(("external_knowledge_connection"."account_user_id" IS NULL OR length(trim("external_knowledge_connection"."account_user_id")) > 0)
+          AND ("external_knowledge_connection"."account_open_id" IS NULL OR length(trim("external_knowledge_connection"."account_open_id")) > 0)
           AND ("external_knowledge_connection"."account_union_id" IS NULL OR length(trim("external_knowledge_connection"."account_union_id")) > 0)
           AND ("external_knowledge_connection"."tenant_key" IS NULL OR length(trim("external_knowledge_connection"."tenant_key")) > 0)),
 	CONSTRAINT "external_knowledge_connection_display_nonempty_check" CHECK(("external_knowledge_connection"."display_name" IS NULL OR length(trim("external_knowledge_connection"."display_name")) > 0)
@@ -29,13 +31,15 @@ CREATE TABLE `external_knowledge_connection` (
           AND ("external_knowledge_connection"."application_name" IS NULL OR length(trim("external_knowledge_connection"."application_name")) > 0)),
 	CONSTRAINT "external_knowledge_connection_granted_scopes_json_check" CHECK(json_valid("external_knowledge_connection"."granted_scopes") AND json_type("external_knowledge_connection"."granted_scopes") = 'array'),
 	CONSTRAINT "external_knowledge_connection_connected_identity_check" CHECK("external_knowledge_connection"."authorization_status" != 'connected' OR (
-        "external_knowledge_connection"."account_open_id" IS NOT NULL
+        "external_knowledge_connection"."account_user_id" IS NOT NULL
+        AND "external_knowledge_connection"."account_open_id" IS NOT NULL
         AND "external_knowledge_connection"."tenant_key" IS NOT NULL
         AND "external_knowledge_connection"."authorized_at" IS NOT NULL
         AND json_array_length("external_knowledge_connection"."granted_scopes") > 0
       )),
 	CONSTRAINT "external_knowledge_connection_pending_identity_check" CHECK("external_knowledge_connection"."authorization_status" != 'pending-authorization' OR (
-        "external_knowledge_connection"."account_open_id" IS NULL
+        "external_knowledge_connection"."account_user_id" IS NULL
+        AND "external_knowledge_connection"."account_open_id" IS NULL
         AND "external_knowledge_connection"."account_union_id" IS NULL
         AND "external_knowledge_connection"."tenant_key" IS NULL
         AND "external_knowledge_connection"."display_name" IS NULL
