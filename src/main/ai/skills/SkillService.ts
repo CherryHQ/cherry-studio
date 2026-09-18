@@ -515,7 +515,8 @@ export class SkillService {
     const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(metadata.filename)
 
     const existing =
-      this.findCatalogSkillCaseInsensitive(folderName) ?? this.findReservedAlias(folderName, source, sourceUrl)
+      this.findCatalogSkillCaseInsensitive(folderName) ??
+      this.findReservedAlias(folderName, source, sourceUrl, metadata.name)
     if (existing) {
       // Only the same source + exact origin may replace a folder. The narrow legacy skills.sh path
       // upgrades a prior repo-root URL after an explicit reinstall resolves the same folder.
@@ -661,7 +662,17 @@ export class SkillService {
         }
         throw error
       }
-      await this.installer.commitReplacedFolder(backupPath)
+      try {
+        await this.installer.commitReplacedFolder(backupPath)
+      } catch (commitError) {
+        // The row and files already committed and recovery settles leftover markers, so a
+        // retire failure warns instead of reporting a false install failure.
+        logger.warn('Failed to retire skill migration marker after commit', {
+          prevFolderName: renamed.folderName,
+          backupPath,
+          error: commitError instanceof Error ? commitError.message : String(commitError)
+        })
+      }
       await this.unlinkMirror(renamed.folderName)
       const updated = agentGlobalSkillService.getById(renamed.id)!
       logger.info('Skill folder migrated', { id: renamed.id, prevFolderName: renamed.folderName, folderName, source })
@@ -1459,15 +1470,18 @@ export class SkillService {
     return matches[0] ?? null
   }
 
-  // A pre-suffix install stored a reserved device name bare (`CON`); a reinstall derives the
-  // suffixed form, so resolve the stem row for a same-origin install instead of duplicating it.
-  // The stem must match exactly: a differently-cased same-URL row is a different skill, and
-  // stealing its folder would overwrite an unrelated sibling.
-  private findReservedAlias(folderName: string, source: string, sourceUrl: string | null): InstalledSkill | null {
+  // A pre-suffix install stored a reserved name bare (`CON`); resolve the stem row for a
+  // same-origin, same-name reinstall instead of duplicating it — other siblings are unrelated.
+  private findReservedAlias(
+    folderName: string,
+    source: string,
+    sourceUrl: string | null,
+    skillName: string
+  ): InstalledSkill | null {
     const stem = reservedFolderNameStem(folderName)
     if (!stem) return null
     const candidate = this.findCatalogSkillCaseInsensitive(stem)
-    if (!candidate || candidate.folderName !== stem) return null
+    if (!candidate || candidate.folderName !== stem || candidate.name !== skillName) return null
     if (candidate.source !== source || (candidate.sourceUrl ?? null) !== (sourceUrl ?? null)) {
       return null
     }
