@@ -388,7 +388,10 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   }
 
   const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
-  if (!apiKeys.some((entry) => entry.key.trim())) throw new PiMissingApiKeyError(providerId)
+  // Keyless local servers (registry authOptional) carry no credential at all.
+  if (!apiKeys.some((entry) => entry.key.trim()) && provider.authOptional !== true) {
+    throw new PiMissingApiKeyError(providerId)
+  }
 }
 
 /** pi's thinking ladder. `off` is its name for Cherry's `none`; the rest share Cherry's spelling. */

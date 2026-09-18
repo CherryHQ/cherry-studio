@@ -368,5 +368,8 @@ export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Pro
     return
   }
   const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
-  if (!apiKeys.some((entry) => entry.key.trim())) throw new DshMissingApiKeyError(providerId)
+  // Keyless local servers (registry authOptional) carry no credential at all.
+  if (!apiKeys.some((entry) => entry.key.trim()) && provider.authOptional !== true) {
+    throw new DshMissingApiKeyError(providerId)
+  }
 }
