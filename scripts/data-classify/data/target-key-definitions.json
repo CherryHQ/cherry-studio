@@ -264,6 +264,13 @@
       "description": "Route each request to the best model for its detected task category"
     },
     {
+      "targetKey": "chat.routing.auto_switch_enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow a failing or quota-exhausted model to fall back to a different model automatically; off by default so the answering model never changes without being asked"
+    },
+    {
       "targetKey": "chat.routing.category_models",
       "type": "PreferenceTypes.CategoryModelMap",
       "defaultValue": {},

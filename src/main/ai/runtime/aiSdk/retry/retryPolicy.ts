@@ -25,12 +25,16 @@ export function readRetryPolicy(): RetryPolicy {
 
   // With health priority on and no hand-picked list, fall back to whatever passed its last probe —
   // otherwise a failing model just fails for anyone who never configured a chain.
-  const fallbackModelIds = healthPriority
+  const orderedFallbacks = healthPriority
     ? orderFallbackModels(
         configuredFallbacks.length > 0 ? configuredFallbacks : buildAutoFallbackModelIds(health),
         health
       )
     : configuredFallbacks
+
+  // Answering with a different model changes the character of the reply, so it stays opt-in.
+  // Same-model retries and API-key rotation are unaffected — neither changes who answers.
+  const fallbackModelIds = preferences.get('chat.routing.auto_switch_enabled') ? orderedFallbacks : []
 
   return {
     enabled: preferences.get('chat.retry.enabled'),

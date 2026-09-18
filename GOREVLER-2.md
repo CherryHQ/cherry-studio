@@ -126,6 +126,8 @@ Bir özellik eksik görünüyorsa önce "kapalı mı?" diye bak; çoğu kez yaz�
 | **P4** | ✅ | `forecastQuotaExhaustion` + kota tablosunda "tükenir" sütunu; tablodaki i18n hataları da düzeltildi (iki sütun aynı anahtarı kullanıyordu, bazı başlıklar İngilizce sabitti, ikisi çeviriyi `.replace()` ile kesiyordu) |
 | **L1** | ✅ zaten vardı | LM Studio sağlayıcı kaydı pakette hazır (`provider-registry/src/providers/lmstudio.ts`): `authOptional: true`, `localhost:1234`. Kod yazılmadı — kullanıcı ayarlardan açacak ve LM Studio'da "Local Server"ı başlatacak |
 | **L2** | ✅ | `a616796` — `chat.routing.local_worker_model` tercihi; geçmiş sıkıştırma ve konu başlığı varsayılan olarak ona gidiyor. `TopicNamingService`'in çalışmayan CherryAI son çaresi de böylece atlanıyor |
+| **B2/B3 arayüz** | ✅ | `cb6ef8a` — anahtar satırında tür (ücretsiz/ücretli/deneme) ve aylık kotalarda yenileme günü. **Bulunan boşluk:** `tier`/`renewalAnchor` şemada vardı ama `UpdateApiKeySchema` `strictObject` olduğu için API onları reddediyordu; şema + servis + arayüz birlikte tamamlandı |
+| **C** | ✅ | Oto geçiş düğmesi composer'da (gönder düğmesinin yanı), varsayılan **kapalı**. Kapalıyken `readRetryPolicy` hiç yedek model döndürmüyor — aynı model üzerinde tekrar ve anahtar döndürme etkilenmiyor. Ayrıca kota dolmuş yedek model ve kota dolmuş anahtar artık gerçekten **atlanıyor** (`buildFallbackModels`, `buildApiKeyFallbackModels`), sadece sıralama değişmiyor |
 | **J3** | ⛔ gereksiz | `ProviderService.resolveApiKey` **zaten senkron round-robin** yapıyor, JS tek iş parçacıklı olduğu için anahtar seçiminde yarış durumu yok. Geriye kalan gerçek ihtiyaç — aynı anahtara paralel istekleri oran sınırına göre sıraya almak — **H1**'in işi, ayrı bir madde değil |
 
 ### ⚠️ Depoda önceden var olan, bize ait OLMAYAN hatalar
@@ -139,8 +141,8 @@ Bunları kendi değişikliğinin sonucu sanma. İkisi de bu oturum başlamadan �
    testleri; Latin olmayan/aksanlı diller (zh-cn, zh-tw, ja-jp, el-gr, ru-ru, ro-ro, vi-vn)
    için `updateSession` çağrılmıyor. Latin/ASCII diller geçiyor.
 
-**Sonraki sırada:** R1 (kesilen cevabı sürdürme), C (oto geçiş), P1 (anahtar kendini kursun),
-B2-UI (anahtar türü ve yenileme günü için ayar alanları).
+**Sonraki sırada:** R1 (kesilen cevabı sürdürme — akış yaşam döngüsüne giriyor, güçlü model işi),
+P1 (anahtar yapıştırınca kendini kursun), J2 (arka planda sağlık taraması), D (baş kontrolcü).
 
 ---
 
