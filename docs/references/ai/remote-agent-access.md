@@ -39,8 +39,8 @@ flowchart LR
   Host --> Devices
 ```
 
-`RemoteAccessService` follows the existing gateway's enabled/LAN settings and
-live LAN-listener state. Enabling device connections starts an encrypted Agent
+`RemoteAccessService` follows `ApiGatewayService.isLanServing()` and its change
+event; it never re-derives LAN state from the gateway's preferences. Enabling device connections starts an encrypted Agent
 listener on an OS-assigned port on `0.0.0.0`; disabling device connections or the
 gateway disconnects clients and refuses pending admissions. There is no separate
 Agent listener toggle or port preference. Listener failure does not invalidate
@@ -104,10 +104,10 @@ an unauthenticated WebSocket hello or silently accept a changed key.
 
 | State | Owner / storage |
 |---|---|
-| Device connections enabled and LAN running | Existing API Gateway preferences and shared cache |
+| Device connections enabled and LAN running | `ApiGatewayService.isLanServing()` (gateway preferences + live LAN listener) |
 | Device name, platform, token digest | Existing SQLite `api_gateway_paired_device`, unchanged schema |
 | Desktop secret key and instance ID | Electron `safeStorage`, `Credentials/remote-access/identity.bin` |
-| Command input digest and original receipt | SQLite `remote_command` |
+| Command input digest and original receipt | SQLite `remote_command`, cascading from its paired device |
 | Session keys and subscriptions | Memory only |
 | Conversations, messages, tool decisions | Existing Agent tables and runtime |
 
@@ -122,8 +122,9 @@ available to a paired device. Agent responses omit provider credentials/internal
 resume tokens, but the same device remains authorized for provider export through
 the existing API and conversation content itself may contain secrets.
 
-Backup capture suspends Agent admissions and drains requests before the normal
-runtime quiescence. Restore clears paired-device rows and their command receipts
+`RemoteAccessService` registers as an Agent ingress with `AgentLifecycleService`,
+so backup and restore pause and drain it together with channel ingress, before
+the normal runtime quiescence. Restore clears paired-device rows and their command receipts
 in the staged database so old tokens cannot revive revoked access or replay
 commands against rolled-back receipts; users pair again using the same Device
 Connections flow. A committed

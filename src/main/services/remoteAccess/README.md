@@ -2,7 +2,7 @@
 
 PC LAN access lives here. Start with the [wire protocol and ownership guide](../../../../docs/references/ai/remote-agent-access.md).
 
-- `RemoteAccessService.ts`: lifecycle following Device Connections, backup holds, and resource cleanup.
+- `RemoteAccessService.ts`: lifecycle following the gateway's LAN serving state, Agent-ingress pause/drain for backup, and resource cleanup.
 - `server.ts` / `secureChannel.ts`: WebSocket admission and authenticated encrypted frames; no Electron or business services.
 - `identity.ts`: OS-protected desktop encryption identity. Pairing and tokens belong to the existing `ApiGatewayPairedDeviceService`.
 - `requestRouter.ts` / `protocol.ts`: bounded request dispatch and method schemas.
