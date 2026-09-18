@@ -6,7 +6,7 @@ import { authSchema, type RemoteAuth } from './protocol'
 import { acceptHello, MAX_FRAME_BYTES, type SecureChannel } from './secureChannel'
 
 type ConnectionHandler = { receive(value: unknown): void; dispose(): void }
-type ServerOptions = {
+export type ServerOptions = {
   host: string
   port: number
   identity: { instanceId: string; secretKey: Uint8Array }

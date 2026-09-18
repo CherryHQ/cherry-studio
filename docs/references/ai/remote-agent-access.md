@@ -41,8 +41,12 @@ flowchart LR
 
 `RemoteAccessService` follows `ApiGatewayService.isLanServing()` and its change
 event; it never re-derives LAN state from the gateway's preferences. Enabling device connections starts an encrypted Agent
-listener on an OS-assigned port on `0.0.0.0`; disabling device connections or the
-gateway disconnects clients and refuses pending admissions. There is no separate
+listener on `0.0.0.0`; disabling device connections or the
+gateway disconnects clients and refuses pending admissions. The OS assigns the
+port when the listener first starts; within one desktop run the listener binds
+that same port again after a backup suspension or a listener failure, and moves
+to a free port only if another program has taken it. The port is not kept across
+desktop restarts. There is no separate
 Agent listener toggle or port preference. Listener failure does not invalidate
 pairing or prevent configuration export.
 
@@ -98,9 +102,10 @@ addresses; see the [gateway LAN guard](../api-gateway/README.md#lan-exposure-is-
 so the token is not served through a same-machine tunnel or a port forward.
 
 Build `ws://<reachable desktop IPv4>:<remoteAgent.port><remoteAgent.path>`.
-The OS-assigned port can change after restart or backup suspension; refresh the
-descriptor before reconnecting. The desktop identity remains stable across port
-changes. Pin its identity and public key from the QR when available. Older paired
+The port is stable within one desktop run unless another program takes it during
+a suspension; refresh the descriptor when a reconnect to the known port fails.
+Both the gateway's LAN port and the Agent port are assigned anew on every desktop
+start. The desktop identity remains stable across port changes. Pin its identity and public key from the QR when available. Older paired
 clients bootstrap that pin through the existing trusted-LAN HTTP connection;
 this inherits the existing pairing channel's network trust, not an additional
 secure identity-verification step. Once pinned, never replace the identity from

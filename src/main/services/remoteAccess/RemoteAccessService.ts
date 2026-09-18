@@ -19,7 +19,7 @@ import type { RemoteAgentConnectionInfo } from '@shared/ipc/schemas/apiGateway'
 import { assertWritable } from './agentAccess'
 import { loadIdentity, type RemoteIdentity } from './identity'
 import { RequestRouter } from './requestRouter'
-import { RemoteServer } from './server'
+import { RemoteServer, type ServerOptions } from './server'
 
 const logger = loggerService.withContext('RemoteAccessService')
 
@@ -36,6 +36,8 @@ export class RemoteAccessService extends BaseService implements Activatable, Age
   private server?: RemoteServer
   private identity?: RemoteIdentity
   private holds = 0
+  /** Port of the last listener in this run, rebound after a backup so connected devices find it again. */
+  private lastPort = 0
   private readonly routers = new Map<RequestRouter, string>()
   private readonly reconciler = createLatestReconciler({
     name: 'remoteAccess',
@@ -70,9 +72,8 @@ export class RemoteAccessService extends BaseService implements Activatable, Age
 
   async onActivate(): Promise<void> {
     const identity = await loadIdentity()
-    const server = new RemoteServer({
+    const options: Omit<ServerOptions, 'port'> = {
       host: '0.0.0.0',
-      port: 0,
       identity,
       authenticate: (auth) => {
         assertWritable()
@@ -105,16 +106,29 @@ export class RemoteAccessService extends BaseService implements Activatable, Age
         logger.warn('Remote listener failed', { code: (error as NodeJS.ErrnoException).code })
         this.reconciler.request()
       }
-    })
+    }
+    const listen = async (port: number) => {
+      const server = new RemoteServer({ ...options, port })
+      try {
+        await server.start()
+        return server
+      } catch (error) {
+        await server.stop()
+        throw error
+      }
+    }
     try {
-      await server.start()
+      // Another program may hold the previous port by now; any free port beats not listening.
+      this.server = await listen(this.lastPort).catch((error) => {
+        if (this.lastPort === 0) throw error
+        return listen(0)
+      })
     } catch (error) {
-      await server.stop()
       identity.secretKey.fill(0)
       throw error
     }
     this.identity = identity
-    this.server = server
+    this.lastPort = this.server.port
   }
 
   async onDeactivate(): Promise<void> {
