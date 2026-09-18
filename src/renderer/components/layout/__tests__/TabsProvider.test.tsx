@@ -323,7 +323,9 @@ function TabSnapshot() {
 function WorkspaceControls() {
   const {
     activateWorkspace,
+    addTab,
     activeTabId,
+    attachTab,
     closeTab,
     closeFocusedRoute,
     closeWorkspace,
@@ -339,6 +341,9 @@ function WorkspaceControls() {
     <div>
       <button type="button" onClick={() => openRoute('/app/chat?topicId=second', { forceNew: true })}>
         Open second chat
+      </button>
+      <button type="button" onClick={() => openRoute('/app/chat')}>
+        Open chat app
       </button>
       <button type="button" onClick={() => openRoute('/settings/appearance')}>
         Open settings
@@ -367,12 +372,56 @@ function WorkspaceControls() {
       <button type="button" onClick={() => closeTab(activeTabId)}>
         Close active tab
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          attachTab({
+            id: 'reattached-chat',
+            type: 'route',
+            url: '/app/chat?topicId=detached',
+            title: 'Detached chat',
+            lastAccessTime: 1,
+            isDormant: false
+          })
+        }>
+        Attach detached chat
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          for (let index = 0; index < TAB_LIMITS.softCap - 1; index++) {
+            addTab({
+              id: index === 0 ? 'oldest' : `tab-${index}`,
+              type: 'route',
+              url: `/settings/page-${index}`,
+              title: `Tab ${index}`,
+              lastAccessTime: index + 1,
+              isDormant: false
+            })
+          }
+          addTab({
+            id: 'focused',
+            type: 'route',
+            url: '/settings/appearance',
+            title: 'Focused',
+            lastAccessTime: 100,
+            isDormant: false
+          })
+        }}>
+        Seed soft cap
+      </button>
       <div data-testid="workspace-layout">{navigationLayout}</div>
       <div data-testid="workspace-active">{activeTabId}</div>
       <div data-testid="workspace-tabs">
         {tabs.map((tab) => `${tab.id}:${tab.workspaceKey ?? 'focused'}:${tab.url}`).join(',')}
       </div>
       <div data-testid="tab-bar-tabs">{tabBarTabs.map((tab) => tab.id).join(',')}</div>
+      <div data-testid="workspace-dormant-tabs">
+        {tabs
+          .filter((tab) => tab.isDormant)
+          .map((tab) => tab.id)
+          .join(',')}
+      </div>
     </div>
   )
 }
@@ -980,6 +1029,101 @@ describe('TabsProvider', () => {
     await waitFor(() => expect(screen.getByTestId('workspace-active')).toHaveTextContent('hidden-launchpad'))
     expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent(/^hidden-launchpad$/)
     expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('visible-chat')
+  })
+
+  it('reveals an existing hidden workspace instead of creating another tab', async () => {
+    navigationLayout = 'tabs'
+    pinnedTabsValue = []
+    normalTabsValue = [
+      {
+        id: 'hidden-chat',
+        type: 'route',
+        url: '/app/chat?topicId=preserved',
+        title: 'Chat',
+        workspaceKey: 'app:assistants',
+        isTabBarVisible: false,
+        isDormant: true
+      },
+      {
+        id: 'visible-notes',
+        type: 'route',
+        url: '/app/notes',
+        title: 'Notes',
+        workspaceKey: 'app:notes',
+        isTabBarVisible: true,
+        isDormant: false
+      }
+    ]
+    activeTabIdValue = 'visible-notes'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open chat app' }))
+
+    await waitFor(() => expect(screen.getByTestId('workspace-active')).toHaveTextContent('hidden-chat'))
+    expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent('hidden-chat')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/app/chat?topicId=preserved')
+    expect((screen.getByTestId('workspace-tabs').textContent ?? '').match(/app:assistants/g) ?? []).toHaveLength(1)
+  })
+
+  it('replaces the existing Sidebar workspace when a detached tab is re-attached', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+    normalTabsValue = [
+      {
+        id: 'main-chat',
+        type: 'route',
+        url: '/app/chat?topicId=main',
+        title: 'Main chat',
+        lastAccessTime: 2,
+        isDormant: false
+      }
+    ]
+    activeTabIdValue = 'main-chat'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attach detached chat' }))
+
+    await waitFor(() => expect(screen.getByTestId('workspace-active')).toHaveTextContent('reattached-chat'))
+    expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('main-chat')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent(
+      'reattached-chat:app:assistants:/app/chat?topicId=detached'
+    )
+    expect((screen.getByTestId('workspace-tabs').textContent ?? '').match(/app:assistants/g) ?? []).toHaveLength(1)
+  })
+
+  it('does not hibernate a surviving tab when replacing a focused route at the soft cap', async () => {
+    navigationLayout = 'tabs'
+    pinnedTabsValue = []
+    normalTabsValue = []
+    activeTabIdValue = ''
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed soft cap' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-active')).toHaveTextContent('focused'))
+    expect(screen.getByTestId('workspace-dormant-tabs')).toBeEmptyDOMElement()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open notes' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('focused:focused:/settings/appearance')
+    )
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('oldest')
+    expect(screen.getByTestId('workspace-dormant-tabs')).not.toHaveTextContent('oldest')
   })
 
   it('keeps the active focused route when switching from Sidebar to tabs', async () => {

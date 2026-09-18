@@ -512,11 +512,12 @@ export function TabsProvider({
       const closingIdSet = new Set(ids)
       if (closingIdSet.size === 0) return
 
-      const closingTabs = tabs.filter((tab) => closingIdSet.has(tab.id))
+      const currentTabs = projectedTabsRef.current
+      const closingTabs = currentTabs.filter((tab) => closingIdSet.has(tab.id))
       if (closingTabs.length === 0) return
 
-      const remainingTabs = tabs.filter((tab) => !closingIdSet.has(tab.id))
-      const navigationTabs = navigationLayout !== 'sidebar' ? tabs.filter(isTabVisibleInTabBar) : tabs
+      const remainingTabs = currentTabs.filter((tab) => !closingIdSet.has(tab.id))
+      const navigationTabs = navigationLayout !== 'sidebar' ? currentTabs.filter(isTabVisibleInTabBar) : currentTabs
       let fallbackTab: Tab | null = null
       let newActiveId = activeTabId
       if (closingIdSet.has(activeTabId)) {
@@ -572,6 +573,10 @@ export function TabsProvider({
             }
           : tab
 
+      const shouldUpdateReselectedTab = !!reselectedTab && (reselectedTab.isDormant || shouldRevealReselectedTab)
+      const projectedRemainingTabs = shouldUpdateReselectedTab ? remainingTabs.map(select) : remainingTabs
+      projectedTabsRef.current = fallbackTab ? [...projectedRemainingTabs, fallbackTab] : projectedRemainingTabs
+
       if (pinnedIds.size > 0 || updateReselectedPinned) {
         setPinnedTabs((prev) => {
           // The persist-cache updater receives a readonly view and must return
@@ -590,7 +595,7 @@ export function TabsProvider({
 
       setActiveTabIdState(newActiveId)
     },
-    [tabs, activeTabId, navigationLayout, setPinnedTabs, storesPinned]
+    [activeTabId, navigationLayout, setPinnedTabs, storesPinned]
   )
 
   const closeTab = useCallback((id: string) => closeTabs([id]), [closeTabs])
@@ -774,6 +779,17 @@ export function TabsProvider({
       const workspaceKey = getWorkspaceKeyForUrl(url)
       if (!workspaceKey) return openFocusedRoute(url, undefined, options)
       if (navigationLayout === 'tabs') {
+        const hiddenWorkspaceTab =
+          options.forceNew === true
+            ? undefined
+            : projectedTabsRef.current.find(
+                (tab) => getTabWorkspaceKey(tab) === workspaceKey && !isTabVisibleInTabBar(tab)
+              )
+        if (hiddenWorkspaceTab) {
+          setActiveTab(hiddenWorkspaceTab.id)
+          return hiddenWorkspaceTab.id
+        }
+
         const activeTab = projectedTabsRef.current.find((tab) => tab.id === activeTabId)
         if (activeTab && !getTabWorkspaceKey(activeTab)) closeTabs([activeTab.id])
         return openTabRaw(url, { ...options, workspaceKey })
@@ -797,7 +813,7 @@ export function TabsProvider({
       }
       return activateWorkspace(workspaceKey, url, options)
     },
-    [activateWorkspace, activeTabId, closeTabs, navigationLayout, openFocusedRoute, openTabRaw, updateTab]
+    [activateWorkspace, activeTabId, closeTabs, navigationLayout, openFocusedRoute, openTabRaw, setActiveTab, updateTab]
   )
 
   const openTab = openRoute
@@ -997,17 +1013,25 @@ export function TabsProvider({
   const attachTab = useCallback(
     (tabData: Tab) => {
       // Check if tab already exists
-      const exists = tabs.find((t) => t.id === tabData.id)
+      const exists = projectedTabsRef.current.find((t) => t.id === tabData.id)
       if (exists) {
         setActiveTab(tabData.id)
         logger.info('Tab already exists, activating', { tabId: tabData.id })
         return
       }
 
+      const workspaceKey = getTabWorkspaceKey(tabData)
+      const conflictingWorkspaceTab =
+        navigationLayout === 'sidebar' && workspaceKey
+          ? projectedTabsRef.current.find((tab) => tab.id !== tabData.id && getTabWorkspaceKey(tab) === workspaceKey)
+          : undefined
+      if (conflictingWorkspaceTab) closeTabs([conflictingWorkspaceTab.id])
+
       // Restore tab with updated timestamp. addTab applies the shared awake budget
       // before the attached route can be committed.
       const restoredTab: Tab = {
         ...tabData,
+        workspaceKey,
         lastAccessTime: Date.now(),
         isDormant: false
       }
@@ -1015,7 +1039,7 @@ export function TabsProvider({
       addTab(restoredTab)
       logger.info('Tab attached from detached window', { tabId: tabData.id, url: tabData.url })
     },
-    [addTab, tabs, setActiveTab]
+    [addTab, closeTabs, navigationLayout, setActiveTab]
   )
 
   // Listen for tab attach requests (from Main Process)
