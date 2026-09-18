@@ -8,7 +8,9 @@ import { InputNumber } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
+import { useProvider } from '@renderer/hooks/useProvider'
 import type { ApiKeyLimitPeriod } from '@shared/data/preference/preferenceTypes'
+import type { ApiKeyTier } from '@shared/data/types/provider'
 import { apiKeyLimitId, apiKeyModelLimitId, periodRenewsAt, periodStartOf } from '@shared/utils/apiKeyLimit'
 
 interface Props {
@@ -26,6 +28,12 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
   const limitKey = modelId ? apiKeyModelLimitId(providerId, keyId, modelId) : apiKeyLimitId(providerId, keyId)
   const entry = limits[limitKey]
 
+  const { provider, updateApiKey } = useProvider(providerId)
+  const apiKey = provider?.apiKeys.find((k) => k.id === keyId)
+  const tier: ApiKeyTier = apiKey?.tier ?? 'free'
+  const anchor = apiKey?.renewalAnchor
+  const timezone = apiKey?.renewalTimezone
+
   const now = Date.now()
   const statsParams = useMemo(
     () =>
@@ -34,7 +42,7 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
             query: {
               groupBy: 'apiKey' as const,
               metric: 'requests' as const,
-              from: periodStartOf(entry.period),
+              from: periodStartOf(entry.period, anchor, timezone),
               to: now,
               limit: 50
             }
@@ -42,7 +50,7 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
         : undefined,
     // Recompute only when the limit entry changes, not on every render tick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [entry?.period, entry?.limit]
+    [entry?.period, entry?.limit, anchor, timezone]
   )
 
   const { data: usageData } = useQuery('/ai-usage-records/stats', statsParams)
@@ -50,9 +58,16 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
 
   const renewsAt = useMemo(() => {
     if (!entry) return null
-    const ms = periodRenewsAt(entry.period)
+    const ms = periodRenewsAt(entry.period, anchor, timezone)
     return ms !== null ? new Date(ms) : null
-  }, [entry?.period])
+  }, [entry?.period, anchor, timezone])
+
+  /** Stored as a full ISO date because only its day-of-month / weekday is read back. */
+  const anchorDay = anchor ? new Date(anchor).getUTCDate() : null
+  const setAnchorDay = (day: number | null) => {
+    const iso = day ? new Date(Date.UTC(2024, 0, Math.min(day, 28))).toISOString().slice(0, 10) : ''
+    void updateApiKey(keyId, { renewalAnchor: iso })
+  }
 
   const update = (next: { limit: number; period: ApiKeyLimitPeriod } | undefined) => {
     const { [limitKey]: _removed, ...rest } = limits
@@ -84,6 +99,35 @@ export const ApiKeyQuotaLimit = ({ providerId, keyId, modelId }: Props) => {
           ]}
           onChange={(period: ApiKeyLimitPeriod) => entry && update({ limit: entry.limit, period })}
         />
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground text-xs">{t('settings.provider.api_key.tier_label')}</span>
+        <Selector
+          value={tier}
+          options={[
+            { value: 'free', label: t('settings.usage.quota.tier.free') },
+            { value: 'paid', label: t('settings.usage.quota.tier.paid') },
+            { value: 'trial', label: t('settings.usage.quota.tier.trial') }
+          ]}
+          onChange={(next: ApiKeyTier) => void updateApiKey(keyId, { tier: next })}
+        />
+        {entry && entry.period === 'monthly' && (
+          <>
+            <span className="text-muted-foreground text-xs">{t('settings.provider.api_key.renewal_day')}</span>
+            <div className="w-[90px]">
+              <InputNumber
+                min={1}
+                max={28}
+                step={1}
+                className="h-7 rounded-lg px-2"
+                placeholder={t('settings.provider.api_key.renewal_day_placeholder')}
+                aria-label={t('settings.provider.api_key.renewal_day')}
+                value={anchorDay}
+                onBlur={(value) => setAnchorDay(value)}
+              />
+            </div>
+          </>
+        )}
       </div>
       {entry && (
         <div className="flex flex-col gap-1">

@@ -10,6 +10,7 @@ import { ENDPOINT_TYPE, type EndpointType, type Model, objectValues } from '../.
 import {
   type ApiKeyEntry,
   ApiKeyEntrySchema,
+  ApiKeyTierSchema,
   type AuthConfig,
   AuthConfigSchema,
   type EndpointConfig,
@@ -186,7 +187,11 @@ export type ReplaceProviderApiKeysDto = z.infer<typeof ReplaceProviderApiKeysSch
 export const UpdateApiKeySchema = z.strictObject({
   key: z.string().trim().min(1).optional(),
   label: z.string().optional(),
-  isEnabled: z.boolean().optional()
+  isEnabled: z.boolean().optional(),
+  tier: ApiKeyTierSchema.optional(),
+  /** ISO date the quota period counts from — free tiers usually renew on the signup day. */
+  renewalAnchor: z.string().optional(),
+  renewalTimezone: z.string().optional()
 })
 export type UpdateApiKeyDto = z.infer<typeof UpdateApiKeySchema>
 

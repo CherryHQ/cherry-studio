@@ -124,9 +124,23 @@ Bir özellik eksik görünüyorsa önce "kapalı mı?" diye bak; çoğu kez yaz�
 | **V1** | ✅ kısmi | `6049749` — `app.lite_mode` BootConfig anahtarı + Ayarlar→Genel düğmesi; `AnalyticsService` ve `CherryCloudService` hariç tutuluyor (~2 sn). **Yapılmadı:** `MainNetworkDevtoolsService` zaten yalnızca dev modda açık; `subWindow` warmup'ı `windowRegistry.ts:187`'deki açık değişmez uyarısı yüzünden elle bırakıldı |
 | **J1** | ✅ | `6049749` — `createRetryableWrap`'e `onModelOutcome`; iptal, ağ hatası ve 401/429 hariç tutuluyor, yedek model devraldıysa yazılmıyor |
 | **P4** | ✅ | `forecastQuotaExhaustion` + kota tablosunda "tükenir" sütunu; tablodaki i18n hataları da düzeltildi (iki sütun aynı anahtarı kullanıyordu, bazı başlıklar İngilizce sabitti, ikisi çeviriyi `.replace()` ile kesiyordu) |
+| **L1** | ✅ zaten vardı | LM Studio sağlayıcı kaydı pakette hazır (`provider-registry/src/providers/lmstudio.ts`): `authOptional: true`, `localhost:1234`. Kod yazılmadı — kullanıcı ayarlardan açacak ve LM Studio'da "Local Server"ı başlatacak |
+| **L2** | ✅ | `a616796` — `chat.routing.local_worker_model` tercihi; geçmiş sıkıştırma ve konu başlığı varsayılan olarak ona gidiyor. `TopicNamingService`'in çalışmayan CherryAI son çaresi de böylece atlanıyor |
 | **J3** | ⛔ gereksiz | `ProviderService.resolveApiKey` **zaten senkron round-robin** yapıyor, JS tek iş parçacıklı olduğu için anahtar seçiminde yarış durumu yok. Geriye kalan gerçek ihtiyaç — aynı anahtara paralel istekleri oran sınırına göre sıraya almak — **H1**'in işi, ayrı bir madde değil |
 
-**Sonraki sırada:** R1 (kesilen cevabı sürdürme), L1–L3 (LM Studio), C (oto geçiş), P1 (anahtar kendini kursun).
+### ⚠️ Depoda önceden var olan, bize ait OLMAYAN hatalar
+
+Bunları kendi değişikliğinin sonucu sanma. İkisi de bu oturum başlamadan önceki commit
+(`2ad61dc`) tertemiz haldeyken de başarısız — doğrulandı:
+
+1. **`pnpm i18n:check` — 35 hata.** Hepsi `el-gr` ve `ru-ru`'daki eski anahtarlarda,
+   "şüpheli uzunlukta — açıklama gibi, çeviri değil" uyarısı.
+2. **`TopicNamingService.test.ts` — 7 hata.** `recognizes localized default agent session name`
+   testleri; Latin olmayan/aksanlı diller (zh-cn, zh-tw, ja-jp, el-gr, ru-ru, ro-ro, vi-vn)
+   için `updateSession` çağrılmıyor. Latin/ASCII diller geçiyor.
+
+**Sonraki sırada:** R1 (kesilen cevabı sürdürme), C (oto geçiş), P1 (anahtar kendini kursun),
+B2-UI (anahtar türü ve yenileme günü için ayar alanları).
 
 ---
 

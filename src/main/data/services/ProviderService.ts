@@ -37,6 +37,7 @@ import { isManagedCherryProviderId } from '@shared/data/presets/cherryai'
 import type { EndpointType } from '@shared/data/types/model'
 import type {
   ApiKeyEntry,
+  ApiKeyTier,
   AuthConfig,
   AuthType,
   EndpointConfigOverride,
@@ -861,6 +862,9 @@ class ProviderService {
       key?: string
       label?: string
       isEnabled?: boolean
+      tier?: ApiKeyTier
+      renewalAnchor?: string
+      renewalTimezone?: string
     }
   ): Provider {
     assertManagedCherryProviderMutationAllowed(providerId, `update API key for provider ${providerId}`)
@@ -900,7 +904,18 @@ class ProviderService {
         const updatedEntry = {
           ...entry,
           ...(updates.isEnabled !== undefined ? { isEnabled: updates.isEnabled } : {}),
-          ...(nextKeyValue ? { key: nextKeyValue } : {})
+          ...(nextKeyValue ? { key: nextKeyValue } : {}),
+          ...(updates.tier !== undefined ? { tier: updates.tier } : {}),
+          ...(updates.renewalTimezone !== undefined ? { renewalTimezone: updates.renewalTimezone } : {})
+        }
+
+        // An empty anchor means "no fixed renewal day", so it clears rather than storing "".
+        if (updates.renewalAnchor !== undefined) {
+          if (updates.renewalAnchor) {
+            updatedEntry.renewalAnchor = updates.renewalAnchor
+          } else {
+            delete updatedEntry.renewalAnchor
+          }
         }
 
         if (updates.label !== undefined) {
