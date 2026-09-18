@@ -9,13 +9,15 @@ export const parseKeyValueString = (str: string): Record<string, string> => {
  *
  * Quoting strategy (dotenv does NOT unescape `\"` or `\\`):
  * - Unquoted: safe for most values including those with `"` or `\`
- * - Single-quoted: literal (no escaping), for `#`/whitespace/multiline values
+ * - Single-quoted: literal (no escaping), for `#`/quote/whitespace/multiline values
  * - Backtick-quoted: literal fallback when value contains single quotes
  */
 export const serializeKeyValueString = (vars: Record<string, string>): string =>
   Object.entries(vars)
-    .map(([k, v]) => {
-      const needsQuoting = v.includes('#') || v.includes('\n') || v !== v.trim()
+    .map(([k, raw]) => {
+      // Rows migrated from v1 DXT imports were never validated and can hold non-string values.
+      const v = String(raw)
+      const needsQuoting = /[\n\r"'#]/.test(v) || v !== v.trim()
       if (!needsQuoting) return `${k}=${v}`
       // Prefer single quotes (literal, no escaping needed in dotenv)
       if (!v.includes("'")) return `${k}='${v}'`
