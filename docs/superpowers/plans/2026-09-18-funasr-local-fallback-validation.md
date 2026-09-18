@@ -105,7 +105,7 @@ Pin `sherpa-onnx-node` at `1.13.6`; patch only its binding lookup to prefer `CHE
 
 Expected: catalog, mirror, and path tests pass.
 
-Commit: `git commit -S --signoff -m 'feat(local-model): catalog FunASR runtime and weights'`
+Commit: `git commit -S --signoff -m 'feat(local-model): add explicit FunASR download'`
 
 ### Task 3: Add the FunASR inference UtilityProcess
 
@@ -124,29 +124,29 @@ Commit: `git commit -S --signoff -m 'feat(local-model): catalog FunASR runtime a
 - Modify: `src/main/core/application/serviceRegistry.ts`
 - Modify: `electron.vite.entries.config.ts`
 
-- [ ] **Step 1: Port the handler contract tests before implementation**
+- [x] **Step 1: Port the handler contract tests before implementation**
 
 Use the PR 19981 sherpa fake and assert speech segmentation, timestamps, 25-second chunks, 8 kHz to 16 kHz resampling, local WAV reads, missing-file failure, silent input, empty model output, and exact installed model paths.
 
-- [ ] **Step 2: Run the ASR test and confirm failure**
+- [x] **Step 2: Run the ASR test and confirm failure**
 
 Run: `pnpm test:main src/main/ai/localModel/capabilities/asr/__tests__/AsrInferenceService.test.ts`
 
 Expected: module/type failure because the ASR service and entry do not exist.
 
-- [ ] **Step 3: Implement the smallest ASR process**
+- [x] **Step 3: Implement the smallest ASR process**
 
 Use `OfflineRecognizer`, `Vad`, `LinearResampler`, and `readWave` from the lazy `getSherpa()` loader. Set `COPY_SAMPLES = false` so native buffers are copied into Electron's V8 sandbox. Keep the current `cancellation: 'terminate'` policy instead of porting unrelated PR drift.
 
 Register `inference-asr`, `AsrInferenceService`, its removal hook, and its service export. Force CPU init data for ASR; do not alter embedding/OCR acceleration behavior.
 
-- [ ] **Step 4: Run focused ASR and existing inference tests**
+- [x] **Step 4: Run focused ASR and existing inference tests**
 
 Run: `pnpm test:main src/main/ai/localModel/capabilities/asr/__tests__/AsrInferenceService.test.ts src/main/ai/localModel/runtime/__tests__/inferenceProcess.test.ts src/main/ai/localModel/runtime/__tests__/InferenceServiceBase.test.ts`
 
 Expected: all focused tests pass.
 
-- [ ] **Step 5: Build the utility entries and commit**
+- [x] **Step 5: Build the utility entries and commit**
 
 Run: `pnpm build:utility-process`
 
@@ -163,25 +163,26 @@ Commit: `git commit -S --signoff -m 'feat(local-model): transcribe with FunASR N
 - Modify: `src/renderer/i18n/locales/{de-de,el-gr,en-us,es-es,fr-fr,ja-jp,pt-pt,ro-ro,ru-ru,tr-tr,vi-vn,zh-cn,zh-tw}.json`
 - Test: `src/renderer/pages/settings/DependenciesSettings/__tests__/LocalModelsSection.test.tsx`
 
-- [ ] **Step 1: Add a failing interaction assertion**
+- [x] **Step 1: Add a failing interaction assertion**
 
 Assert the ASR card is visible in `not_downloaded` state and no download request occurs until its Download button is clicked. Assert unsupported state hides that button.
 
-- [ ] **Step 2: Run the focused renderer test and confirm failure**
+- [x] **Step 2: Run the focused renderer test and confirm failure**
 
 Run: `pnpm test:renderer src/renderer/pages/settings/DependenciesSettings/__tests__/LocalModelsSection.test.tsx`
 
 Expected: the ASR card or unsupported behavior is absent.
 
-- [ ] **Step 3: Add the ASR card and translations**
+- [x] **Step 3: Add the ASR card and translations**
 
 Add the `AudioLines` card using `settings.dependencies.localModels.asr.name` and `.subtitle`. Reuse the existing hook and button; do not add automatic effects. Add the unsupported notice per card. Run `pnpm i18n:sync`, then replace every generated placeholder using the translations from PR 19981.
 
-- [ ] **Step 4: Run the renderer test and i18n check, then commit**
+- [x] **Step 4: Run the renderer test and i18n check, then commit**
 
 Run: focused renderer test and `pnpm i18n:check`.
 
-Commit: `git commit -S --signoff -m 'feat(settings): offer explicit FunASR download'`
+Fold these files into the explicit-download commit above so the exhaustive capability records typecheck in every
+commit.
 
 ### Task 5: Validate the real runtime locally and offline
 
