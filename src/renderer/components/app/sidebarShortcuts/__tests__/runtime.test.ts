@@ -57,6 +57,27 @@ function tabContext(tabs: Tab[]): TabsContextValue {
 }
 
 describe('sidebar conversation navigation', () => {
+  it('preserves sidebar workspaces when switching shortcuts', () => {
+    const tabs = tabContext([{ id: 'files', type: 'route', url: '/app/files', title: 'Files' }])
+    tabs.navigationLayout = 'sidebar'
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+
+    act(() => {
+      result.current.openWorkspace({
+        url: '/app/chat?topicId=topic-1',
+        title: 'Chat'
+      })
+    })
+
+    expect(tabs.openRoute).toHaveBeenCalledWith('/app/chat?topicId=topic-1', {
+      title: 'Chat',
+      icon: undefined
+    })
+    expect(tabs.updateTab).not.toHaveBeenCalled()
+    expect(tabs.openTab).not.toHaveBeenCalled()
+  })
+
   it('does not reset an already active app detail route', async () => {
     const tabs = tabContext([{ id: 'files', type: 'route', url: '/app/files?entryId=file-1', title: 'File' }])
     const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)

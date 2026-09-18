@@ -268,13 +268,22 @@ export function useSidebarNavigationSnapshot(): SidebarNavigationSnapshot {
 }
 
 export function useSidebarActivationGateway(): SidebarActivationGateway {
-  const { activeTab, tabs, openTab, setActiveTab, updateTab } = useTabs()
+  const { activeTab, tabs, navigationLayout, openRoute, openTab, setActiveTab, updateTab } = useTabs()
 
   const openWorkspace = useCallback<SidebarActivationGateway['openWorkspace']>(
     (destination, options) => {
       if (!options?.inNewTab) {
         if (activeTab && destination.matchesCurrent?.(activeTab.url)) return
         if (activeTab && destination.conversation && findConversationTab([activeTab], destination.conversation)) return
+      }
+      if (navigationLayout === 'sidebar') {
+        openRoute(destination.url, {
+          title: destination.title,
+          icon: destination.icon
+        })
+        return
+      }
+      if (!options?.inNewTab) {
         const existing = destination.conversation
           ? findConversationTab(tabs, destination.conversation)
           : tabs.find(
@@ -307,7 +316,7 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
         icon: destination.icon
       })
     },
-    [activeTab, openTab, setActiveTab, tabs, updateTab]
+    [activeTab, navigationLayout, openRoute, openTab, setActiveTab, tabs, updateTab]
   )
   return useMemo(() => ({ openWorkspace }), [openWorkspace])
 }
