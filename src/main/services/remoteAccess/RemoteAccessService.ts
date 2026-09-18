@@ -3,8 +3,17 @@ import { createHash } from 'node:crypto'
 import { application } from '@application'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
 import { loggerService } from '@logger'
+import type { AgentIngress } from '@main/ai/agents/AgentLifecycleService'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
-import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  type Activatable,
+  BaseService,
+  DependsOn,
+  type Disposable,
+  Injectable,
+  Phase,
+  ServicePhase
+} from '@main/core/lifecycle'
 import type { RemoteAgentConnectionInfo } from '@shared/ipc/schemas/apiGateway'
 
 import { assertWritable } from './agentAccess'
@@ -16,12 +25,18 @@ const logger = loggerService.withContext('RemoteAccessService')
 
 @Injectable('RemoteAccessService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ApiGatewayService', 'AiStreamManager', 'AgentSessionRuntimeService', 'FileManager'])
-export class RemoteAccessService extends BaseService implements Activatable {
+@DependsOn([
+  'AgentLifecycleService',
+  'ApiGatewayService',
+  'AiStreamManager',
+  'AgentSessionRuntimeService',
+  'FileManager'
+])
+export class RemoteAccessService extends BaseService implements Activatable, AgentIngress {
   private server?: RemoteServer
   private identity?: RemoteIdentity
   private holds = 0
-  private readonly routers = new Set<RequestRouter>()
+  private readonly routers = new Map<RequestRouter, string>()
   private readonly reconciler = createLatestReconciler({
     name: 'remoteAccess',
     getSnapshot: () => ({
@@ -39,6 +54,7 @@ export class RemoteAccessService extends BaseService implements Activatable {
 
   protected onInit(): void {
     this.registerDisposable(application.get('ApiGatewayService').onLanServingChanged(() => this.reconciler.request()))
+    this.registerDisposable(application.get('AgentLifecycleService').registerIngress(this))
     this.registerDisposable(apiGatewayPairedDeviceService.onDeleted((id) => this.server?.disconnect(id)))
     this.registerInterval(() => this.server?.sweep(), 20_000)
   }
@@ -75,7 +91,7 @@ export class RemoteAccessService extends BaseService implements Activatable {
           send,
           close
         )
-        this.routers.add(router)
+        this.routers.set(router, deviceId)
         return {
           receive: (value) => router.receive(value),
           dispose: () => {
@@ -134,25 +150,9 @@ export class RemoteAccessService extends BaseService implements Activatable {
     }
   }
 
-  async suspendForBackup() {
+  pause(): Disposable {
     this.holds++
-    let timeout: ReturnType<typeof setTimeout> | undefined
-    try {
-      this.reconciler.request()
-      await this.reconciler.flush()
-      await Promise.race([
-        Promise.all([...this.routers].map((router) => router.drain())),
-        new Promise<never>((_resolve, reject) => {
-          timeout = setTimeout(() => reject(new Error('REMOTE_ACCESS_BUSY')), 15_000)
-        })
-      ])
-    } catch (error) {
-      this.holds--
-      this.reconciler.request()
-      throw error
-    } finally {
-      if (timeout) clearTimeout(timeout)
-    }
+    this.reconciler.request()
     let released = false
     return {
       dispose: () => {
@@ -162,5 +162,27 @@ export class RemoteAccessService extends BaseService implements Activatable {
         this.reconciler.request()
       }
     }
+  }
+
+  async drainInFlight({ timeoutMs }: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    const deadline = new Promise<void>((resolve) => {
+      timeout = setTimeout(resolve, timeoutMs)
+    })
+    try {
+      await Promise.race([
+        deadline,
+        this.reconciler.flush().then(() => Promise.all([...this.routers.keys()].map((router) => router.drain())))
+      ])
+      return { stragglerIds: this.listActiveWork().map((work) => work.id) }
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  listActiveWork(): Array<{ id: string; summary: string }> {
+    return [...this.routers]
+      .filter(([router]) => router.isBusy)
+      .map(([, deviceId]) => ({ id: `remote-access:${deviceId}`, summary: 'Remote Agent request' }))
   }
 }

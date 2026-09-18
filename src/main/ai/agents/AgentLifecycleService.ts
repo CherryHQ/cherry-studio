@@ -25,6 +25,13 @@ export class AgentSessionArchiveBusyError extends Error {
   }
 }
 
+/** A source of Agent writes owned outside `ai/`; it joins backup and restore quiescence by registering. */
+export interface AgentIngress {
+  pause(reason?: string): Disposable
+  drainInFlight(options: { timeoutMs: number }): Promise<{ stragglerIds: string[] }>
+  listActiveWork(): Array<{ id: string; summary: string }>
+}
+
 @Injectable('AgentLifecycleService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn([
@@ -38,6 +45,7 @@ export class AgentLifecycleService extends BaseService {
   private readonly agentLocks = new KeyedMutex()
   private readonly sessionLocks = new KeyedMutex()
   private readonly ingressHolds = new Set<symbol>()
+  private readonly ingresses = new Set<AgentIngress>()
   private readonly inFlight = new Map<Promise<unknown>, string>()
   private isShuttingDown = false
 
@@ -158,14 +166,19 @@ export class AgentLifecycleService extends BaseService {
     return this.runOperation('sweep-agent-orphans', () => sweepAgentOrphans(signal))
   }
 
+  registerIngress(ingress: AgentIngress): Disposable {
+    this.ingresses.add(ingress)
+    return { dispose: () => void this.ingresses.delete(ingress) }
+  }
+
   pauseIngress(reason?: string): Disposable {
     const token = Symbol(reason)
     this.ingressHolds.add(token)
-    const channelHold = application.get('ChannelManager').pause(reason)
+    const holds = [application.get('ChannelManager'), ...this.ingresses].map((ingress) => ingress.pause(reason))
     return {
       dispose: () => {
         if (!this.ingressHolds.delete(token)) return
-        channelHold.dispose()
+        for (const hold of holds) hold.dispose()
       }
     }
   }
@@ -184,6 +197,7 @@ export class AgentLifecycleService extends BaseService {
   async drainIngress(options: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
     const verdicts = await Promise.all([
       application.get('ChannelManager').drainInFlight(options),
+      ...[...this.ingresses].map((ingress) => ingress.drainInFlight(options)),
       this.drainOperations(options)
     ])
     return { stragglerIds: verdicts.flatMap((verdict) => verdict.stragglerIds) }
@@ -202,6 +216,7 @@ export class AgentLifecycleService extends BaseService {
     return [
       ...[...this.inFlight.values()].map((id) => ({ id, summary: 'Agent lifecycle operation' })),
       ...application.get('ChannelManager').listActiveWork(),
+      ...[...this.ingresses].flatMap((ingress) => ingress.listActiveWork()),
       ...application.get('AgentSessionDeliveryService').listActiveWork(),
       ...application.get('AgentSessionRuntimeService').listActiveWork()
     ]
