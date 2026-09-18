@@ -191,6 +191,30 @@ describe('network-online', () => {
 })
 
 describe('network-provider-endpoint', () => {
+  it.each([
+    ['dns', 'ENOTFOUND', '/settings/provider'],
+    ['refused', 'ECONNREFUSED', '/settings/provider'],
+    ['timeout', 'ERR_TIMED_OUT', '/settings/provider'],
+    ['proxy_auth', 'HTTP 407', '/settings/general'],
+    ['proxy_unreachable', 'ERR_PROXY_CONNECTION_FAILED', '/settings/general']
+  ])('routes %s failures to the settings that own the problem', async (kind, code, target) => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'openai',
+        name: 'OpenAI',
+        orderKey: 'a0',
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.example' } }
+      })
+      .run()
+    every({ http: failed(kind, code), verdict: 'unreachable' })
+
+    await expect(checks.providerEndpoint.run({ ...ctx(), subject: { providerId: 'openai' } })).resolves.toMatchObject({
+      status: 'fail',
+      actions: [{ kind: 'navigate', target }]
+    })
+  })
+
   it("probes the subject provider's chat base URL and reports its HTTP verdict", async () => {
     dbh.db
       .insert(userProviderTable)

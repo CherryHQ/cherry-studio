@@ -47,9 +47,7 @@ export function ErrorBasicInformation({
     location: locationLabel,
     localizedErrorMessage
   }).filter(({ id }) => id !== 'location')
-  const title = locationLabel
-    ? t('error.diagnostics.basic_information_with_location', { location: locationLabel })
-    : t('error.diagnostics.basic_information')
+  const title = locationLabel ?? t('error.diagnostics.basic_information')
 
   return (
     <DiagnosticsPanel
@@ -62,6 +60,7 @@ export function ErrorBasicInformation({
               type="button"
               variant="ghost"
               size="icon-sm"
+              className="text-muted-foreground dark:text-muted-foreground"
               aria-label={t('common.copy')}
               disabled={!error}
               onClick={onCopy}>
@@ -74,6 +73,7 @@ export function ErrorBasicInformation({
               type="button"
               variant="ghost"
               size="icon-sm"
+              className="text-muted-foreground dark:text-muted-foreground"
               aria-label={t('error.diagnosis.view_details')}
               onClick={onViewDetails}>
               <Eye className="size-4" />

@@ -51,6 +51,7 @@ import {
   AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
+  LMStudioModelsResponseSchema,
   NewApiModelsResponseSchema,
   OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
@@ -237,13 +238,16 @@ const ollamaFetcher: ModelFetcher = {
     const contextWindows = await Promise.all(
       models.map((m) => fetchOllamaContextWindow(baseUrl, provider, m.name, signal))
     )
-    return models.map((m, index) =>
-      toModel(m.name, provider, {
+    return models.map((m, index) => {
+      const capabilities: Model['capabilities'] = []
+      if (m.capabilities?.includes('thinking')) capabilities.push(MODEL_CAPABILITY.REASONING)
+      if (m.capabilities?.includes('tools')) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+      return toModel(m.name, provider, {
         ownedBy: 'ollama',
-        capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : [],
+        capabilities,
         ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
       })
-    )
+    })
   }
 }
 
@@ -787,22 +791,73 @@ const openAIFetcher: ModelFetcher = {
   }
 }
 
+async function listOpenAICompatibleModels(
+  provider: Provider,
+  baseUrl: string,
+  signal?: AbortSignal
+): Promise<Partial<Model>[]> {
+  const response = await getFromApi({
+    url: `${baseUrl}/models`,
+    headers: defaultHeaders(provider),
+    responseSchema: OpenAIModelsResponseSchema,
+    abortSignal: signal
+  })
+  return dedup(response.data, (m) => m.id).map((m) =>
+    toModel(m.id, provider, {
+      name: m.name || m.id,
+      ownedBy: m.owned_by
+    })
+  )
+}
+
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
+  fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
+}
+
+// Native v1 lists downloaded models even when JIT loading is disabled.
+const lmStudioFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.lmstudio),
   fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(getBaseUrl(provider))
-    const response = await getFromApi({
-      url: `${baseUrl}/models`,
-      headers: defaultHeaders(provider),
-      responseSchema: OpenAIModelsResponseSchema,
-      abortSignal: signal
-    })
-    return dedup(response.data, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
-        name: m.name || m.id,
-        ownedBy: m.owned_by
+    // Both native and OpenAI-compatible endpoints must resolve from the server root.
+    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false).replace(/\/api\/v[01]$/, ''))
+    let response: z.infer<typeof LMStudioModelsResponseSchema>
+    try {
+      response = await getFromApi({
+        url: `${root}/api/v1/models`,
+        headers: defaultHeaders(provider),
+        responseSchema: LMStudioModelsResponseSchema,
+        abortSignal: signal
       })
-    )
+    } catch (error) {
+      // LM Studio below 0.4.0 has no native v1 — fall back to the endpoint every version serves.
+      // A genuine failure (auth, server down) surfaces from the fallback call instead.
+      logger.warn('LM Studio /api/v1/models failed; falling back to /v1/models', {
+        providerId: provider.id,
+        errorType: getErrorType(error)
+      })
+      return listOpenAICompatibleModels(provider, formatApiHost(root), signal)
+    }
+
+    return dedup(response.models, (m) => m.key).map((m) => {
+      const endpointTypes = m.type === 'embedding' ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : undefined
+      const implied = endpointImpliedCapability(endpointTypes?.[0])
+      const capabilities: Model['capabilities'] = []
+      if (implied) {
+        capabilities.push(implied)
+      } else {
+        if (m.capabilities?.trained_for_tool_use) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
+        if (m.capabilities?.vision) capabilities.push(MODEL_CAPABILITY.IMAGE_RECOGNITION)
+      }
+
+      return toModel(m.key, provider, {
+        name: m.display_name || m.key,
+        ownedBy: m.publisher,
+        ...(endpointTypes ? { endpointTypes } : {}),
+        capabilities,
+        ...(m.max_context_length ? { contextWindow: m.max_context_length } : {})
+      })
+    })
   }
 }
 
@@ -840,6 +895,7 @@ export async function probeOllamaModel(
 const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
+  lmStudioFetcher,
   geminiFetcher,
   vertexFetcher,
   copilotFetcher,

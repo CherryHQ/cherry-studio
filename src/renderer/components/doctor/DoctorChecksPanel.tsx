@@ -1,49 +1,37 @@
-import { ChevronDown, Copy, Download, Loader2 } from 'lucide-react'
+import { ChevronDown, Copy, Download, FileText, FolderOpen, Terminal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
   Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-  Badge,
   Button,
   DialogFooter,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Scrollbar
 } from '@cherrystudio/ui'
-import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import { DOCTOR_STATUS_LABEL_KEYS, formatDoctorReportForCopy } from '@renderer/utils/doctor'
 import { doctorCheckTitleKey } from '@shared/utils/doctor'
 
+import { DoctorCheckAccordionItems } from './DoctorCheckAccordionItems'
 import { DoctorCheckNotices } from './DoctorCheckNotices'
-import { DoctorCheckAccordionItems } from './DoctorCheckResults'
 
 const logger = loggerService.withContext('DoctorChecksPanel')
+
+const CHECK_STATUS_PRIORITY = { fail: 0, error: 0, warn: 1, pending: 2, skip: 2, pass: 2 }
 
 export function DoctorChecksPanel({ controller }: { readonly controller: DoctorController }) {
   const { t } = useTranslation()
   const { session, viewModel } = controller
   const dataPath = viewModel.report?.basics.userDataPath
-  const actionRequiredRows = viewModel.rows.filter((row) => {
-    const result = row.result
-    return result && (result.status === 'warn' || result.status === 'fail') && result.attribution === 'user-fixable'
-  })
-  const otherFindingRows = viewModel.rows.filter((row) => {
-    const result = row.result
-    return (
-      row.status === 'error' ||
-      row.status === 'skip' ||
-      (result && (result.status === 'warn' || result.status === 'fail') && result.attribution !== 'user-fixable')
-    )
-  })
-
+  const sortedRows = viewModel.rows.toSorted(
+    (a, b) => CHECK_STATUS_PRIORITY[a.status] - CHECK_STATUS_PRIORITY[b.status]
+  )
   const copyResults = async () => {
     if (!viewModel.report) return
     try {
@@ -83,74 +71,23 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden">
       <Scrollbar className="min-h-0 px-6 py-2">
         <div className="space-y-4 pb-2">
-          <DoctorSummary controller={controller} />
+          {viewModel.status !== 'running' ? <DoctorCheckNotices controller={controller} /> : null}
 
-          {viewModel.status === 'completed' && actionRequiredRows.length > 0 ? (
-            <DiagnosticsPanel title={t('error.diagnostics.action_required')} variant="sectioned">
-              <Accordion
-                type="single"
-                collapsible
-                defaultValue={`doctor-${actionRequiredRows[0].id}`}
-                className="[&>[data-slot=accordion-item]:first-child]:border-t-0">
-                <DoctorCheckAccordionItems
-                  compact
-                  defaultLocalDetailsExpanded
-                  controller={controller}
-                  rows={actionRequiredRows}
-                />
-              </Accordion>
-            </DiagnosticsPanel>
+          {viewModel.rows.length > 0 ? (
+            <Accordion
+              type="single"
+              collapsible
+              role="region"
+              aria-label={t('settings.doctor.copy.checks_heading')}
+              className="min-w-0 overflow-hidden rounded-xl border border-border bg-background [&>[data-slot=accordion-item]:first-child]:border-t-0">
+              <DoctorCheckAccordionItems
+                compact
+                defaultLocalDetailsExpanded
+                controller={controller}
+                rows={sortedRows}
+              />
+            </Accordion>
           ) : null}
-          {viewModel.status === 'completed' && otherFindingRows.length > 0 ? (
-            <DiagnosticsPanel title={t('settings.doctor.copy.checks_heading')} variant="sectioned">
-              <Accordion
-                type="single"
-                collapsible
-                defaultValue={`doctor-${otherFindingRows[0].id}`}
-                className="[&>[data-slot=accordion-item]:first-child]:border-t-0">
-                <DoctorCheckAccordionItems
-                  compact
-                  defaultLocalDetailsExpanded
-                  controller={controller}
-                  rows={otherFindingRows}
-                />
-              </Accordion>
-            </DiagnosticsPanel>
-          ) : null}
-          {viewModel.status !== 'completed' && viewModel.status !== 'running' ? (
-            <DoctorCheckNotices controller={controller} />
-          ) : null}
-
-          <Accordion type="single" collapsible className="rounded-xl border border-border px-4">
-            <AccordionItem value="advanced-tools" className="border-0 first:border-t-0">
-              <AccordionTrigger className="py-3 font-medium">{t('settings.doctor.advanced.title')}</AccordionTrigger>
-              <AccordionContent className="flex flex-wrap gap-2 pt-0 pb-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={controller.isInteracting}
-                  onClick={() => void controller.toggleDevTools()}>
-                  {t('settings.about.debug.title')}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={controller.isInteracting}
-                  onClick={() => void controller.openLogsPath()}>
-                  {t('settings.about.diagnostics.sources.logs.title')}
-                </Button>
-                {dataPath ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={controller.isInteracting}
-                    onClick={() => void controller.openPath(dataPath)}>
-                    {t('settings.doctor.basics.data_path')}
-                  </Button>
-                ) : null}
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
         </div>
       </Scrollbar>
 
@@ -186,6 +123,21 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
               <Download className="size-4" />
               {t('settings.doctor.panels.export')}
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled={controller.isInteracting} onSelect={() => void controller.toggleDevTools()}>
+              <Terminal className="size-4" />
+              {t('settings.about.debug.title')}
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={controller.isInteracting} onSelect={() => void controller.openLogsPath()}>
+              <FileText className="size-4" />
+              {t('settings.about.diagnostics.sources.logs.title')}
+            </DropdownMenuItem>
+            {dataPath ? (
+              <DropdownMenuItem disabled={controller.isInteracting} onSelect={() => void controller.openPath(dataPath)}>
+                <FolderOpen className="size-4" />
+                {t('settings.doctor.basics.data_path')}
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
         <Button
@@ -198,75 +150,4 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
       </DialogFooter>
     </div>
   )
-}
-
-function DoctorSummary({ controller }: { readonly controller: DoctorController }) {
-  const { t } = useTranslation()
-  const { appUpdateState, session, viewModel } = controller
-  if (viewModel.status === 'running') {
-    const completed = viewModel.rows.filter((row) => row.status !== 'pending').length
-    const activeCheckId = viewModel.activeCheckIds[0]
-    const progress = activeCheckId
-      ? t('error.diagnostics.checking_progress', {
-          check: t(doctorCheckTitleKey(activeCheckId)),
-          completed,
-          total: viewModel.rows.length
-        })
-      : t('settings.doctor.summary.progress', { completed, total: viewModel.rows.length })
-    return (
-      <DiagnosticsPanel
-        role="status"
-        aria-busy="true"
-        aria-live="polite"
-        title={
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 truncate">{progress}</span>
-            <Loader2 className="text-foreground-tertiary size-4 shrink-0 motion-safe:animate-spin" aria-hidden />
-          </span>
-        }
-      />
-    )
-  }
-
-  if (viewModel.report) {
-    const summary =
-      viewModel.problemCount > 0
-        ? null
-        : viewModel.summary.error > 0 || viewModel.summary.skip > 0
-          ? t('settings.doctor.summary.incomplete')
-          : t(
-              viewModel.report.tier === 'quick'
-                ? 'settings.doctor.summary.basic_healthy'
-                : 'settings.doctor.summary.live_healthy'
-            )
-    return (
-      <DiagnosticsPanel
-        variant="sectioned"
-        title={t('error.diagnostics.result')}
-        actions={
-          appUpdateState.downloading ? (
-            <Badge variant="outline">
-              {t('settings.doctor.actions.downloading_update', {
-                progress: Math.round(appUpdateState.downloadProgress)
-              })}
-            </Badge>
-          ) : undefined
-        }
-        bodyClassName="space-y-3 px-4 py-3">
-        <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5">
-          {session.fixedCheckIds.length > 0 ? (
-            <span className="text-success">
-              {t('settings.doctor.summary.fixed', { count: session.fixedCheckIds.length })}
-            </span>
-          ) : null}
-          <span className="text-warning">
-            {t('settings.doctor.summary.needs_attention', { count: viewModel.problemCount })}
-          </span>
-          {summary ? <span className="text-muted-foreground">{summary}</span> : null}
-        </p>
-        <DoctorCheckNotices controller={controller} />
-      </DiagnosticsPanel>
-    )
-  }
-  return null
 }

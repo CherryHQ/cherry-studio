@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { DoctorAction, DoctorCheckResult, DoctorReport, DoctorState } from '@shared/types/doctor'
 import { DOCTOR_CHECK_CATALOG, DOCTOR_CHECK_IDS } from '@shared/types/doctor'
 
-import { buildDoctorViewModel, defaultExpandedDoctorDomains } from '../doctorViewModel'
+import { buildDoctorViewModel } from '../doctorViewModel'
 
 const NOW = Date.parse('2026-09-04T09:00:00.000Z')
 const QUICK_CHECK_IDS = DOCTOR_CHECK_IDS.filter((id) => DOCTOR_CHECK_CATALOG[id].tier === 'quick')
@@ -212,6 +212,5 @@ describe('buildDoctorViewModel', () => {
       error: 1,
       skip: 1
     })
-    expect(defaultExpandedDoctorDomains(viewModel.groups)).toEqual(['permission', 'network', 'logs'])
   })
 })

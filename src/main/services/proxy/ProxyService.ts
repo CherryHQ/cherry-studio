@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
+import { WEBVIEW_SECURITY_PARTITIONS } from '@shared/utils/webviewSecurity'
 
 import { NodeProxyController } from './NodeProxyController'
 
@@ -196,8 +196,7 @@ export class ProxyService extends BaseService {
     // (features/miniApp/runtime/network.ts) that a user proxy change must never overwrite.
     const sessions = [
       session.defaultSession,
-      session.fromPartition('persist:webview'),
-      session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+      ...Object.values(WEBVIEW_SECURITY_PARTITIONS).map((partition) => session.fromPartition(partition))
     ]
     // Drain every write even on failure so the next apply cannot race stale session writes.
     const outcomes = await Promise.allSettled([...sessions.map((s) => s.setProxy(config)), app.setProxy(config)])

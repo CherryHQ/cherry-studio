@@ -118,22 +118,6 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
   })
 }
 
-export function defaultExpandedDoctorDomains(
-  groups: readonly DoctorGroupViewModel[]
-): readonly DisplayedDoctorDomain[] {
-  return groups.filter((group) => group.rows.some(isDoctorRowExpandedByDefault)).map((group) => group.domain)
-}
-
-export function isDoctorRowExpandedByDefault(row: DoctorRowViewModel): boolean {
-  return (
-    row.status === 'warn' ||
-    row.status === 'fail' ||
-    row.status === 'error' ||
-    row.status === 'skip' ||
-    row.actions.length > 0
-  )
-}
-
 export function buildDoctorViewModel(state: DoctorState, now = Date.now()): DoctorViewModel {
   const report = state.status === 'completed' ? state.report : undefined
   const runId = state.status === 'completed' ? state.report.runId : state.status === 'idle' ? undefined : state.runId

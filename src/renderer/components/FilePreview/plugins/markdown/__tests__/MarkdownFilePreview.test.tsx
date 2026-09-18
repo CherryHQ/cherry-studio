@@ -76,7 +76,7 @@ function renderPreview(
     <MarkdownFilePreview
       filePath={overrides.filePath ?? filePath}
       fileName={overrides.fileName ?? 'README.md'}
-      metadata={{ size: overrides.size ?? 15 }}
+      metadata={{ size: overrides.size ?? 15, modifiedAt: 1 }}
       refreshKey={overrides.refreshKey ?? 0}
       type={overrides.type ?? 'file'}
     />
@@ -165,12 +165,22 @@ describe('MarkdownFilePreview', () => {
     await screen.findByTestId('markdown-preview')
 
     view.rerender(
-      <MarkdownFilePreview filePath={secondPath} fileName="CHANGELOG.md" metadata={{ size: 15 }} refreshKey={0} />
+      <MarkdownFilePreview
+        filePath={secondPath}
+        fileName="CHANGELOG.md"
+        metadata={{ size: 15, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(secondPath))
 
     view.rerender(
-      <MarkdownFilePreview filePath={secondPath} fileName="CHANGELOG.md" metadata={{ size: 15 }} refreshKey={1} />
+      <MarkdownFilePreview
+        filePath={secondPath}
+        fileName="CHANGELOG.md"
+        metadata={{ size: 15, modifiedAt: 1 }}
+        refreshKey={1}
+      />
     )
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
   })
@@ -189,7 +199,12 @@ describe('MarkdownFilePreview', () => {
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(filePath))
 
     view.rerender(
-      <MarkdownFilePreview filePath={secondPath} fileName="SECOND.md" metadata={{ size: 15 }} refreshKey={0} />
+      <MarkdownFilePreview
+        filePath={secondPath}
+        fileName="SECOND.md"
+        metadata={{ size: 15, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
     expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# Second file')
 

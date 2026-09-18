@@ -118,6 +118,9 @@ export default defineProvider({
     {
       modelId: 'deepseek-v4-flash',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
+      // Use the hosted V4 cap from DeepSeek's Pi example; the API reference disagrees.
+      // https://api-docs.deepseek.com/quick_start/agent_integrations/pi_mono/
+      limits: { maxOutputTokens: 384000 },
       pricing: v4FlashPeakPricing,
       reasoningContracts: {
         'openai-chat-completions': { wire: v4ChatEffortWire },
@@ -136,6 +139,7 @@ export default defineProvider({
     {
       modelId: 'deepseek-v4-pro',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
+      limits: { maxOutputTokens: 384000 },
       pricing: v4ProPeakPricing,
       reasoningContracts: {
         'openai-chat-completions': { wire: v4ChatEffortWire },

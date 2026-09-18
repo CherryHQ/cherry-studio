@@ -8,7 +8,7 @@ import type {
 } from '@main/services/network'
 import { providerChatBaseUrl } from '@main/utils/providerEndpoint'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
-import type { DoctorCheckId, DoctorEvidenceItem } from '@shared/types/doctor'
+import type { DoctorCheckId, DoctorEvidenceItem, DoctorNavigateTarget } from '@shared/types/doctor'
 
 import { defaultChatModel } from '../subjectDefaults'
 import { defineDoctorCheck, type DoctorContextBase, type DoctorProbeOutcome } from '../types'
@@ -149,7 +149,10 @@ const HTTP_VARIANT: Partial<Record<NetworkFailureKind, 'proxy_auth' | 'server_er
 type EndpointCheckId = Extract<DoctorCheckId, `network-endpoint-${string}` | 'network-provider-endpoint'>
 
 /** The HTTP layer is the verdict; the other layers already reported through their own checks. */
-function endpointOutcome<Id extends EndpointCheckId>(diagnosis: EndpointDiagnosis): DoctorProbeOutcome<Id> {
+function endpointOutcome<Id extends EndpointCheckId>(
+  diagnosis: EndpointDiagnosis,
+  settingsTarget: DoctorNavigateTarget
+): DoctorProbeOutcome<Id> {
   const evidence = layerEvidence([diagnosis], 'http')
   if (diagnosis.http.status === 'ok') {
     return {
@@ -164,7 +167,11 @@ function endpointOutcome<Id extends EndpointCheckId>(diagnosis: EndpointDiagnosi
     status: variant === 'server_error' ? 'warn' : 'fail',
     attribution: variant === 'server_error' ? 'transient' : 'user-fixable',
     detail: { variant, params: { code: failure?.code ?? '' } },
-    actions: [NAVIGATE_PROXY],
+    actions: [
+      failure?.kind === 'proxy_auth' || failure?.kind === 'proxy_unreachable'
+        ? NAVIGATE_PROXY
+        : { kind: 'navigate', target: settingsTarget }
+    ],
     devMessage: `${diagnosis.endpointId} (${diagnosis.host}) ${failure?.kind ?? 'skipped'}: ${failure?.code}`,
     evidence
   }
@@ -179,7 +186,7 @@ function endpointCheck<Id extends Extract<DoctorCheckId, `network-endpoint-${str
     async run(ctx): Promise<DoctorProbeOutcome<Id>> {
       const diagnosis = (await diagnoseAll(ctx))?.find((d) => d.endpointId === endpointId)
       if (!diagnosis) throw new Error(`Endpoint "${endpointId}" was not probed`)
-      return endpointOutcome(diagnosis)
+      return endpointOutcome(diagnosis, '/settings/general')
     },
     fixes: {}
   })
@@ -207,7 +214,7 @@ export const providerEndpoint = defineDoctorCheck({
     const diagnosis = await diagnoseProvider(ctx, providerId)
     // A provider without a configured base URL (login-based, cloud SDKs) has nothing to reach.
     if (!diagnosis) return { status: 'pass' }
-    return endpointOutcome(diagnosis)
+    return endpointOutcome(diagnosis, '/settings/provider')
   },
   fixes: {}
 })
