@@ -255,7 +255,7 @@ their capability under `capabilities/<name>/protocol.ts`, then form a typed cont
 load embedding or OCR dependencies by accident.
 
 The ASR entry lazily loads `sherpa-onnx`, resolves only installed catalog paths, reads a
-local WAV, applies Silero VAD, resamples speech segments to 16 kHz, and runs FunASR Nano.
+local WAV, resamples the full input to 16 kHz, applies Silero VAD, and runs FunASR Nano.
 The result contains the combined text and timestamped segments. The process neither accepts
 a URL nor contains a network client.
 
