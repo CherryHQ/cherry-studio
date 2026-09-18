@@ -118,3 +118,16 @@ struct InstallAsrAssetsSuccess: Encodable, Sendable {
     let operation = "install_asr_assets"
     let result: InstallAsrAssetsResult
 }
+
+struct SynthesizeResult: Encodable, Sendable {
+    let voiceId: String
+    let outputPath: String
+    let sampleRate: Int
+    let channels: Int
+    let frameCount: Int
+}
+
+struct SynthesizeSuccess: Encodable, Sendable {
+    let operation = "synthesize"
+    let result: SynthesizeResult
+}
