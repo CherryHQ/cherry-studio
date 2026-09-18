@@ -50,6 +50,19 @@ export const followupQueueHandlers: HandlersFor<FollowupQueueSchemas> = {
     }
   },
 
+  '/followup-queues/:id/sent': {
+    POST: async ({ params }) => {
+      followupQueueService.markSent(params.id)
+      return undefined
+    }
+  },
+
+  '/followup-queues/:id/heartbeat': {
+    POST: async ({ params }) => {
+      return followupQueueService.heartbeat(params.id)
+    }
+  },
+
   '/followup-queues/claim:head': {
     POST: async ({ body }) => {
       const parsed = ClaimFollowupQueueHeadSchema.parse(body)

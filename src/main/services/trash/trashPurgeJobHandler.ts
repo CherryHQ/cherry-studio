@@ -2,6 +2,7 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantDataService } from '@data/services/AssistantService'
 import { fileEntryService } from '@data/services/FileEntryService'
+import { followupQueueService } from '@data/services/FollowupQueueService'
 import { paintingService } from '@data/services/PaintingService'
 import { promptService } from '@data/services/PromptService'
 import { topicService } from '@data/services/TopicService'
@@ -50,7 +51,10 @@ const PURGE_DOMAINS: ReadonlyArray<{
       const purgedIds = application
         .get('DbService')
         .withWriteTx((tx) => topicService.purgeExpiredTx(tx, cutoffMs, limit))
-      return completedPurgeBatch(purgedIds, purgedIds.length === limit, () => topicService.notifyPurged(purgedIds))
+      return completedPurgeBatch(purgedIds, purgedIds.length === limit, () => {
+        topicService.notifyPurged(purgedIds)
+        if (purgedIds.length > 0) followupQueueService.notifyPurged()
+      })
     }
   },
   {

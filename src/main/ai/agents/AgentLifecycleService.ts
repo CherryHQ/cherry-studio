@@ -304,6 +304,7 @@ export class AgentLifecycleService extends BaseService {
                 .get('DbService')
                 .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, expiredSessionIds, cutoffMs))
         agentSessionService.notifyPurged(purgedIds)
+        if (purgedIds.length > 0) followupQueueService.notifyPurged()
         return { purgedIds, hasMore: sessionIds.length === limit }
       } finally {
         for (const release of releases.reverse()) release()

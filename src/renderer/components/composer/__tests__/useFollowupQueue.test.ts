@@ -2,7 +2,6 @@ import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { cacheService } from '@data/CacheService'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
@@ -27,6 +26,7 @@ const row = (
   draft: { text, tokens: [] },
   payload: { text, userMessageParts: [] },
   status,
+  sentAt: null,
   orderKey: id,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt
@@ -64,6 +64,8 @@ function wireMutations() {
   const claimTrigger = vi.fn(async (): Promise<any> => undefined)
   const claimHeadTrigger = vi.fn(async (): Promise<any> => undefined)
   const failTrigger = vi.fn(async (): Promise<any> => undefined)
+  const markSentTrigger = vi.fn(async (): Promise<any> => undefined)
+  const heartbeatTrigger = vi.fn(async (): Promise<any> => ({ live: true }))
   const setPausedTrigger = vi.fn(async (): Promise<any> => undefined)
   mockUseMutation.mockImplementation((method: string, path: string) => {
     if (method === 'POST' && path === '/followup-queues')
@@ -78,11 +80,25 @@ function wireMutations() {
       return { trigger: claimHeadTrigger, isLoading: false, error: undefined }
     if (method === 'POST' && path === '/followup-queues/:id/fail')
       return { trigger: failTrigger, isLoading: false, error: undefined }
+    if (method === 'POST' && path === '/followup-queues/:id/sent')
+      return { trigger: markSentTrigger, isLoading: false, error: undefined }
+    if (method === 'POST' && path === '/followup-queues/:id/heartbeat')
+      return { trigger: heartbeatTrigger, isLoading: false, error: undefined }
     if (method === 'PUT' && path === '/followup-queue-states')
       return { trigger: setPausedTrigger, isLoading: false, error: undefined }
     throw new Error(`unexpected mutation ${method} ${path}`)
   })
-  return { postTrigger, deleteTrigger, reorderTrigger, claimTrigger, claimHeadTrigger, failTrigger, setPausedTrigger }
+  return {
+    postTrigger,
+    deleteTrigger,
+    reorderTrigger,
+    claimTrigger,
+    claimHeadTrigger,
+    failTrigger,
+    markSentTrigger,
+    heartbeatTrigger,
+    setPausedTrigger
+  }
 }
 
 function baseProps(overrides: Record<string, unknown> = {}) {
@@ -98,9 +114,6 @@ function baseProps(overrides: Record<string, unknown> = {}) {
 describe('useFollowupQueue', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
-    // The sent-ids journal is profile-global in production; reset it per test
-    // so one test's successful send never leaks into another test's mirror.
-    cacheService.setPersist('followup.sent_ids', {})
   })
 
   it('surfaces the persisted rows as items', () => {
@@ -609,6 +622,102 @@ describe('useFollowupQueue', () => {
     expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
+  it('returns the draft to its scope when the scope moves during the take delete', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, deleteTrigger, postTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: false })
+    let resolveDelete!: () => void
+    deleteTrigger.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDelete = () => resolve(undefined)
+      })
+    )
+
+    const { result, rerender } = renderHook(({ scopeKey }) => useFollowupQueue(baseProps({ scopeKey })), {
+      initialProps: { scopeKey: SCOPE }
+    })
+
+    let taken: unknown = 'unset'
+    await act(async () => {
+      void result.current.takeForEdit('h').then((value) => {
+        taken = value
+      })
+    })
+    // Switch conversations while DELETE is pending: the deleted row must go
+    // back to its own scope instead of restoring into the new composer.
+    await act(async () => {
+      rerender({ scopeKey: 's2' })
+    })
+    await act(async () => {
+      resolveDelete()
+    })
+
+    expect(taken).toBeUndefined()
+    expect(postTrigger).toHaveBeenCalledWith({
+      body: { scopeKey: SCOPE, draft: draft('head'), payload: payload('head') }
+    })
+  })
+
+  it('does not restore a take for an item that was already sent', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, deleteTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true, alreadySent: true })
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let taken: unknown = 'unset'
+    await act(async () => {
+      taken = await result.current.takeForEdit('h')
+    })
+
+    // The delete above is the correct dequeue; restoring its draft would
+    // invite resending content that already went out.
+    expect(taken).toBeUndefined()
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+  })
+
+  it('refreshes an owned claim while the send is in flight and stops after settle', async () => {
+    vi.useFakeTimers()
+    try {
+      wireQuery([row('h', 'head')])
+      const { claimHeadTrigger, deleteTrigger, heartbeatTrigger } = wireMutations()
+      claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
+      let resolveSend!: (value: boolean) => void
+      const onDrain = vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveSend = resolve
+          })
+      )
+      const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
+        initialProps: { isFulfilled: false }
+      })
+
+      await act(async () => {
+        rerender({ isFulfilled: true })
+      })
+      expect(onDrain).toHaveBeenCalledOnce()
+      expect(heartbeatTrigger).not.toHaveBeenCalled()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+      })
+      expect(heartbeatTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+
+      await act(async () => {
+        resolveSend(true)
+      })
+      const beats = heartbeatTrigger.mock.calls.length
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+      })
+      expect(heartbeatTrigger.mock.calls.length).toBe(beats)
+      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not drain while the pause-state read errors', async () => {
     const refetch = vi.fn()
     mockUseQuery.mockImplementation((path: string) => {
@@ -946,37 +1055,31 @@ describe('useFollowupQueue', () => {
 
   it('skips the send for a row this profile already sent', async () => {
     wireQuery([row('h', 'head')])
-    const { claimHeadTrigger, deleteTrigger } = wireMutations()
-    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
+    const { claimHeadTrigger, deleteTrigger, markSentTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: true })
     const onDrain = vi.fn(async () => true)
     const markSeen = vi.fn()
-    cacheService.setPersist('followup.sent_ids', { h: Date.now() })
-    try {
-      const { rerender } = renderHook(
-        ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
-        { initialProps: { isFulfilled: false } }
-      )
+    const { rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
+      { initialProps: { isFulfilled: false } }
+    )
 
-      await act(async () => {
-        rerender({ isFulfilled: true })
-      })
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
 
-      expect(onDrain).not.toHaveBeenCalled()
-      expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
-      expect(markSeen).toHaveBeenCalledOnce()
-      expect(cacheService.getPersist('followup.sent_ids')).toEqual({})
-    } finally {
-      cacheService.setPersist('followup.sent_ids', {})
-    }
+    expect(onDrain).not.toHaveBeenCalled()
+    expect(markSentTrigger).not.toHaveBeenCalled()
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(markSeen).toHaveBeenCalledOnce()
   })
 
-  it('records a sent row for crash recovery', async () => {
+  it('records a sent row server-side before dequeuing it', async () => {
     vi.useFakeTimers()
     try {
-      cacheService.setPersist('followup.sent_ids', {})
       wireQuery([row('h', 'head')])
-      const { claimHeadTrigger, deleteTrigger } = wireMutations()
-      claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
+      const { claimHeadTrigger, deleteTrigger, markSentTrigger } = wireMutations()
+      claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
       deleteTrigger.mockRejectedValue(new Error('db down'))
       const onDrain = vi.fn(async () => true)
       const { rerender, unmount } = renderHook(
@@ -991,7 +1094,9 @@ describe('useFollowupQueue', () => {
       })
 
       expect(onDrain).toHaveBeenCalledOnce()
-      expect(cacheService.getPersist('followup.sent_ids')['h']).toBeDefined()
+      // The send is journaled on the row before the dequeue write, so a crash
+      // between the two replays as a skip instead of a second send.
+      expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
       // The failed dequeue keeps retrying in the background while mounted...
       const attempts = deleteTrigger.mock.calls.length
       await act(async () => {
@@ -1005,31 +1110,28 @@ describe('useFollowupQueue', () => {
       })
     } finally {
       vi.useRealTimers()
-      cacheService.setPersist('followup.sent_ids', {})
     }
   })
 
-  it('drops the journal entry when the row is already gone', async () => {
-    cacheService.setPersist('followup.sent_ids', {})
+  it('settles the inline resolve when the row is already gone', async () => {
     wireQuery([row('h', 'head')])
-    const { claimHeadTrigger, deleteTrigger } = wireMutations()
-    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h' })
+    const { claimHeadTrigger, deleteTrigger, markSentTrigger } = wireMutations()
+    claimHeadTrigger.mockResolvedValueOnce({ claimed: true, id: 'h', alreadySent: false })
     deleteTrigger.mockRejectedValue(new DataApiError(ErrorCode.NOT_FOUND, 'gone', 404))
     const onDrain = vi.fn(async () => true)
-    try {
-      const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
-        initialProps: { isFulfilled: false }
-      })
+    const { rerender } = renderHook(({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })), {
+      initialProps: { isFulfilled: false }
+    })
 
-      await act(async () => {
-        rerender({ isFulfilled: true })
-      })
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
 
-      expect(onDrain).toHaveBeenCalledOnce()
-      expect(cacheService.getPersist('followup.sent_ids')).toEqual({})
-    } finally {
-      cacheService.setPersist('followup.sent_ids', {})
-    }
+    expect(onDrain).toHaveBeenCalledOnce()
+    expect(markSentTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    // The row is already gone, so the dequeue already took effect: no
+    // background retry is scheduled.
+    expect(deleteTrigger).toHaveBeenCalledOnce()
   })
 
   it('holds an explicit Pause across the persistence round-trip', async () => {

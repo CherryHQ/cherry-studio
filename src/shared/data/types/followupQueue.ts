@@ -53,6 +53,13 @@ export const FOLLOWUP_QUEUE_LIMIT = 20
  */
 export const STALE_SENDING_CLAIM_MS = 30 * 60 * 1000
 
+/**
+ * Ownership heartbeat cadence while a window holds a claim on an in-flight
+ * send. Well under the reclaim lease, so a live (but slow) send is never
+ * reclaimed by another window and replayed.
+ */
+export const FOLLOWUP_QUEUE_HEARTBEAT_MS = 5 * 60 * 1000
+
 /** Canonical membership dimension for `/followup-queues` change effects. */
 export const FOLLOWUP_QUEUE_SCOPE_DIMENSION = 'scopeKey'
 
@@ -127,6 +134,8 @@ export const FollowupQueueItemSchema = z.strictObject({
   payload: FollowupQueuePayloadSchema,
   /** Drain status for cross-window send arbitration */
   status: FollowupQueueStatusSchema,
+  /** Send timestamp (ISO string) when the owning window's send succeeded, else null */
+  sentAt: z.iso.datetime().nullable(),
   /** Fractional-indexing order key within this scopeKey */
   orderKey: z.string().min(1),
   /** Creation timestamp (ISO string) */

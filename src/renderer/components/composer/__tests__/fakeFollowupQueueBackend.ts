@@ -14,8 +14,9 @@ import { STALE_SENDING_CLAIM_MS, type FollowupQueueItem as FollowupQueueRow } fr
  *
  * Claim and reorder semantics mirror production: `claim:head` arbitrates on
  * the oldest row only (a live `sending` head parks the round instead of
- * handing out the next row), stale `sending` rows are reclaimable, and
- * reorders are refused while a live send holds a claim.
+ * handing out the next row), stale `sending` rows are reclaimable, reorders
+ * are refused while a live send holds a claim, and reorders rewrite `orderKey`
+ * so `claim:head` keeps selecting the display head.
  *
  * Install in `beforeEach` — state is fresh per test.
  */
@@ -82,6 +83,7 @@ export function installFakeFollowupQueueBackend() {
               draft: body.draft,
               payload: body.payload,
               status: 'pending',
+              sentAt: null,
               orderKey: `a${counter}`,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
@@ -130,6 +132,12 @@ export function installFakeFollowupQueueBackend() {
                 state.rows.splice(move.anchor.before ? targetIndex : targetIndex + 1, 0, moved)
               }
             }
+            // Mirror production: reorder rewrites orderKey, so claim:head
+            // (which sorts by orderKey) keeps selecting the display head.
+            const scoped = state.rows.filter((row) => row.scopeKey === first.scopeKey)
+            for (const [index, row] of scoped.entries()) {
+              row.orderKey = `a${String(index).padStart(6, '0')}`
+            }
             return undefined
           }
         )
@@ -143,9 +151,9 @@ export function installFakeFollowupQueueBackend() {
           if (row && isClaimable(row)) {
             row.status = 'sending'
             row.updatedAt = new Date().toISOString()
-            return { claimed: true }
+            return { claimed: true, alreadySent: row.sentAt != null }
           }
-          return { claimed: false }
+          return { claimed: false, alreadySent: false }
         })
       }
     }
@@ -159,7 +167,7 @@ export function installFakeFollowupQueueBackend() {
           if (!head || !isClaimable(head)) return { claimed: false }
           head.status = 'sending'
           head.updatedAt = new Date().toISOString()
-          return { claimed: true, id: head.id }
+          return { claimed: true, id: head.id, alreadySent: head.sentAt != null }
         })
       }
     }
@@ -170,6 +178,29 @@ export function installFakeFollowupQueueBackend() {
           const row = state.rows.find((candidate) => candidate.id === params.id)
           if (row && row.status === 'sending') row.status = 'failed'
           return undefined
+        })
+      }
+    }
+    if (method === 'POST' && path === '/followup-queues/:id/sent') {
+      return {
+        ...shell,
+        trigger: vi.fn(async ({ params }: { params: { id: string } }) => {
+          const row = state.rows.find((candidate) => candidate.id === params.id)
+          if (row && row.status === 'sending') row.sentAt = new Date().toISOString()
+          return undefined
+        })
+      }
+    }
+    if (method === 'POST' && path === '/followup-queues/:id/heartbeat') {
+      return {
+        ...shell,
+        trigger: vi.fn(async ({ params }: { params: { id: string } }) => {
+          const row = state.rows.find((candidate) => candidate.id === params.id)
+          if (row && row.status === 'sending' && isLiveSending(row)) {
+            row.updatedAt = new Date().toISOString()
+            return { live: true }
+          }
+          return { live: false }
         })
       }
     }
