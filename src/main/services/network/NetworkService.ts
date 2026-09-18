@@ -49,7 +49,7 @@ export class NetworkService extends BaseService {
     return next
   }
 
-  builtinEndpoints(): readonly NetworkEndpoint[] {
+  builtinEndpoints(): Promise<readonly NetworkEndpoint[]> {
     return builtinEndpoints()
   }
 

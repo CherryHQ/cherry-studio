@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { DoctorContext } from '../../types'
+import { DOCTOR_CHECK_CATALOG, type DoctorCheckId } from '@shared/types/doctor'
+
+import { runDoctorChecks } from '../../engine'
+import type { DoctorContext, DoctorProbeOutcome } from '../../types'
 
 const network = vi.hoisted(() => ({
   isOnline: vi.fn(),
@@ -12,6 +15,8 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({ NetworkService: network } as never)
 })
+
+vi.mock('@main/services/AppUpdaterService', () => ({ RELEASE_HISTORY_URL: 'https://update.example' }))
 
 const checks = await import('../network')
 
@@ -46,7 +51,8 @@ const every = (over: Record<string, unknown>) =>
 
 beforeEach(() => {
   vi.clearAllMocks()
-  network.builtinEndpoints.mockReturnValue(ENDPOINT_IDS.map((id) => ({ id, url: `https://${id}.example` })))
+  network.isOnline.mockReturnValue(true)
+  network.builtinEndpoints.mockResolvedValue(ENDPOINT_IDS.map((id) => ({ id, url: `https://${id}.example` })))
   network.diagnoseEndpoint.mockImplementation(async ({ id }: { id: string }) => diagnosis(id))
   network.effectiveProxy.mockResolvedValue(direct)
 })
@@ -135,6 +141,26 @@ describe('network-proxy-applied', () => {
 })
 
 describe('network-endpoint-*', () => {
+  it('reports healthy endpoints even when another host fails DNS', async () => {
+    only('cloud', { dns: failed('dns', 'ENOTFOUND'), http: skipped('dns_failed'), verdict: 'unreachable' })
+    const results = await runDoctorChecks<DoctorCheckId, DoctorProbeOutcome<DoctorCheckId>>({
+      checks: [checks.online, checks.dnsResolution, checks.endpointUpdate, checks.endpointCloud].map((check) => ({
+        id: check.id,
+        requires: DOCTOR_CHECK_CATALOG[check.id].requires,
+        timeoutMs: 1000,
+        lane: 'live',
+        run: () => check.run(ctx())
+      }))
+    })
+    expect(results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'network-dns-resolution', status: 'fail' }),
+        expect.objectContaining({ id: 'network-endpoint-update', status: 'pass' }),
+        expect.objectContaining({ id: 'network-endpoint-cloud', status: 'fail' })
+      ])
+    )
+  })
+
   it.each([
     ['update', checks.endpointUpdate],
     ['registry', checks.endpointRegistry],

@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { RELEASE_HISTORY_URL } from '@main/services/AppUpdaterService'
 import type {
   EndpointDiagnosis,
   NetworkEndpointId,
@@ -11,9 +12,11 @@ import { defineDoctorCheck, type DoctorContext, type DoctorProbeOutcome } from '
 
 /** One diagnosis pass per run: every network check reads it instead of resolving the same hosts again. */
 function diagnoseAll(ctx: DoctorContext): Promise<readonly EndpointDiagnosis[]> {
-  return ctx.share('network:diagnoses', (signal) => {
+  return ctx.share('network:diagnoses', async (signal) => {
     const network = application.get('NetworkService')
-    return Promise.all(network.builtinEndpoints().map((endpoint) => network.diagnoseEndpoint(endpoint, signal)))
+    const endpoints = await network.builtinEndpoints()
+    signal.throwIfAborted()
+    return Promise.all(endpoints.map((endpoint) => network.diagnoseEndpoint(endpoint, signal)))
   })
 }
 
@@ -100,7 +103,7 @@ export const proxyApplied = defineDoctorCheck({
   id: 'network-proxy-applied',
   async run(): Promise<DoctorProbeOutcome<'network-proxy-applied'>> {
     const network = application.get('NetworkService')
-    const proxy = await network.effectiveProxy(network.builtinEndpoints()[0].url)
+    const proxy = await network.effectiveProxy(RELEASE_HISTORY_URL)
     const evidence: DoctorEvidenceItem[] = [
       { key: 'effective', value: proxy.effective, dataClass: 'local_only' },
       { key: 'configuredMode', value: proxy.configuredMode, dataClass: 'public' }
