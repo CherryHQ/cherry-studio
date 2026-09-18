@@ -358,7 +358,8 @@ const OPENCLAW_API_TYPES = {
 const NO_KEY_PLACEHOLDERS: Record<string, string> = {
   gpustack: 'gpustack',
   ollama: 'ollama',
-  lmstudio: 'lmstudio'
+  lmstudio: 'lmstudio',
+  omlx: 'omlx'
 }
 
 /**
