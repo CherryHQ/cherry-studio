@@ -197,4 +197,66 @@ describe('agentSessionHandlers', () => {
       expect(setWorkspaceMock).not.toHaveBeenCalled()
     })
   })
+
+  describe('/agent-sessions/:id/order', () => {
+    it('scopes the session, then forwards the parsed anchor to reorder', async () => {
+      await agentSessionHandlers['/agent-sessions/:id/order'].PATCH({
+        params: { id: 'session-1' },
+        body: { after: 'session-2' }
+      })
+
+      expect(getConversationByIdMock).toHaveBeenCalledWith('session-1')
+      expect(reorderMock).toHaveBeenCalledWith('session-1', { after: 'session-2' })
+    })
+
+    it('rejects an out-of-scope session before reordering', async () => {
+      getConversationByIdMock.mockImplementationOnce(() => {
+        throw new Error('not found')
+      })
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/:id/order'].PATCH({
+          params: { id: 'session-bg' },
+          body: { after: 'session-2' }
+        })
+      ).rejects.toThrow('not found')
+
+      expect(reorderMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/agent-sessions/order:batch', () => {
+    it('scopes every moved session, then forwards the moves to reorderBatch', async () => {
+      const moves = [
+        { id: 'session-1', anchor: { after: 'session-2' } },
+        { id: 'session-3', anchor: { before: 'session-2' } }
+      ]
+
+      await agentSessionHandlers['/agent-sessions/order:batch'].PATCH({ body: { moves } })
+
+      expect(getConversationByIdMock).toHaveBeenCalledTimes(2)
+      expect(getConversationByIdMock).toHaveBeenNthCalledWith(1, 'session-1')
+      expect(getConversationByIdMock).toHaveBeenNthCalledWith(2, 'session-3')
+      expect(reorderBatchMock).toHaveBeenCalledWith(moves)
+    })
+
+    it('rejects when any moved session is out of scope and reorders nothing', async () => {
+      getConversationByIdMock.mockImplementationOnce(() => {
+        throw new Error('not found')
+      })
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/order:batch'].PATCH({
+          body: {
+            moves: [
+              { id: 'session-1', anchor: { after: 'session-2' } },
+              { id: 'session-bg', anchor: { after: 'session-2' } }
+            ]
+          }
+        })
+      ).rejects.toThrow('not found')
+
+      expect(reorderBatchMock).not.toHaveBeenCalled()
+    })
+  })
 })
