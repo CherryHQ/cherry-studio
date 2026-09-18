@@ -128,11 +128,17 @@ describe('sidebar conversation navigation', () => {
   })
 
   it.each([
-    ['core.assistant', '/topics/latest', 'topic', '/app/chat?extra=1&topicId=conversation-1'],
-    ['core.agent', '/agent-sessions/latest', 'session', '/app/agents?extra=1&sessionId=conversation-1']
+    ['core.assistant', '/topics/latest', 'topic', '/app/chat?extra=1&topicId=conversation-1', 'conversation-1'],
+    [
+      'core.agent',
+      '/agent-sessions/latest',
+      'session',
+      '/app/agents?extra=1&sessionId=conversation-1',
+      'agentId=owner-1'
+    ]
   ] as const)(
     'reuses an existing canonical conversation for %s, but honors an explicit new tab',
-    async (providerId, endpoint, field, url) => {
+    async (providerId, endpoint, field, url, newTabUrlPart) => {
       MockDataApiUtils.setCustomResponse(endpoint, 'GET', { [field]: { id: 'conversation-1' } })
       const tabs = tabContext([
         { id: 'other', type: 'route', url: '/app/files', title: 'Files' },
@@ -155,12 +161,33 @@ describe('sidebar conversation navigation', () => {
         })
       )
       expect(tabs.openTab).toHaveBeenCalledWith(
-        expect.stringContaining('conversation-1'),
+        expect.stringContaining(newTabUrlPart),
         expect.objectContaining({ forceNew: true })
       )
       MockDataApiUtils.resetMocks()
     }
   )
+
+  it('retargets the current Agent tab with agentId when that session is already open', async () => {
+    MockDataApiUtils.setCustomResponse('/agent-sessions/latest', 'GET', { session: { id: 'conversation-1' } })
+    const tabs = tabContext([
+      { id: 'conversation', type: 'route', url: '/app/agents?sessionId=conversation-1', title: 'Conversation' }
+    ])
+    const wrapper = ({ children }: PropsWithChildren) => createElement(TabsContext, { value: tabs }, children)
+    const { result } = renderHook(() => useSidebarActivationGateway(), { wrapper })
+    const provider = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === 'core.agent')!
+    const target = createSidebarShortcutTarget('core.agent', 'owner-1')
+
+    await act(async () => provider.activate(target, result.current))
+
+    expect(tabs.updateTab).toHaveBeenCalledWith(
+      'conversation',
+      expect.objectContaining({ url: '/app/agents?agentId=owner-1' })
+    )
+    expect(tabs.setActiveTab).not.toHaveBeenCalled()
+    expect(tabs.openTab).not.toHaveBeenCalled()
+    MockDataApiUtils.resetMocks()
+  })
 
   it('drops the previous conversation owner as soon as the route changes', () => {
     MockUseDataApiUtils.mockQueryData('/topics/topic-1', {
