@@ -25,6 +25,7 @@ import {
   type BeginUserAuthorizationInput,
   ExternalKnowledgeRuntime
 } from './external/ExternalKnowledgeRuntime'
+import { createIndexKnowledgeItem } from './ingestion/indexKnowledgeItem'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
   KnowledgeConceptContent,
@@ -52,6 +53,7 @@ import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from '
 @DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService', 'WebSearchService'])
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KeyedMutex()
+  private readonly indexKnowledgeItem = createIndexKnowledgeItem(this.knowledgeLockManager)
   private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager)
   private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, this.ingestionService)
   private readonly queryService = new KnowledgeQueryService()
@@ -64,7 +66,7 @@ export class KnowledgeService extends BaseService {
       'knowledge.prepare-root',
       createPrepareRootJobHandler(this.knowledgeLockManager, this.ingestionService)
     )
-    jobManager.registerHandler('knowledge.index-documents', createIndexDocumentsJobHandler(this.knowledgeLockManager))
+    jobManager.registerHandler('knowledge.index-documents', createIndexDocumentsJobHandler(this.indexKnowledgeItem))
     jobManager.registerHandler(
       'knowledge.check-file-processing-result',
       createCheckFileProcessingResultJobHandler(this.knowledgeLockManager, this.ingestionService)

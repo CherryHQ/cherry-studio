@@ -1,5 +1,5 @@
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
@@ -12,7 +12,9 @@ import {
   createAbortedCtx,
   createBase,
   createCtx,
+  createExternalItem,
   createFileItem,
+  createIndexKnowledgeItem,
   createIndexDocumentsJobHandler,
   createNoteItem,
   createUrlItem,
@@ -57,6 +59,22 @@ function lastRebuildInput(): RebuildMaterialInput & { embeddings: RebuildMateria
 }
 
 describe('index-documents job handler', () => {
+  it('exposes indexing as a feature operation that reads external content from its pinned snapshot', async () => {
+    const indexKnowledgeItem = createIndexKnowledgeItem(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createExternalItem())
+
+    await indexKnowledgeItem({
+      baseId: 'kb-1',
+      itemId: 'external-1',
+      signal: new AbortController().signal,
+      reportProgress: vi.fn()
+    })
+
+    expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(createExternalItem())
+    expect(lastRebuildInput().material.relativePath).toBe('external.md')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('external-1', 'completed')
+  })
+
   it('updates statuses, writes vectors, and completes the item', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))

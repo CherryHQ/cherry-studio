@@ -775,7 +775,7 @@ export const DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY: KnowledgeAddConflictStrate
  * `getKnowledgeItemConflictKey` vs `getKnowledgeItemDisplayTitle`).
  */
 export const KnowledgeAddItemConflictSchema = z.object({
-  type: KnowledgeItemTypeSchema,
+  type: KnowledgeItemTypeSchema.exclude(['external']),
   title: z.string()
 })
 export type KnowledgeAddItemConflict = z.infer<typeof KnowledgeAddItemConflictSchema>

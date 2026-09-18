@@ -19,6 +19,7 @@ import {
   type KnowledgeItem,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
@@ -60,6 +61,18 @@ const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileE
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 
+export type KnowledgeRestoreItemInput =
+  | KnowledgeAddItemInput
+  | {
+      groupId?: string | null
+      type: 'external'
+      data: {
+        source: string
+        title: string
+        snapshotPath: AbsoluteFilePath
+      }
+    }
+
 /**
  * The workflow re-entry seam job handlers call back into (workflow-architecture.md): expand a
  * container, index a leaf, or poll a file-processing job. Handlers depend on exactly this surface,
@@ -90,6 +103,18 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     inputs: KnowledgeAddItemInput[],
     conflictStrategy: KnowledgeAddConflictStrategy = DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY
   ): Promise<KnowledgeAddItemsResult> {
+    return await this.addRuntimeItems(baseId, inputs, conflictStrategy)
+  }
+
+  async restoreItems(baseId: string, inputs: KnowledgeRestoreItemInput[]): Promise<KnowledgeAddItemsResult> {
+    return await this.addRuntimeItems(baseId, inputs, DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY)
+  }
+
+  private async addRuntimeItems(
+    baseId: string,
+    inputs: KnowledgeRestoreItemInput[],
+    conflictStrategy: KnowledgeAddConflictStrategy
+  ): Promise<KnowledgeAddItemsResult> {
     const base = assertBaseCanRunRuntimeOperation(baseId, 'addItems')
 
     if (inputs.length === 0) {
@@ -99,10 +124,11 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     // rename (the default, and every internal caller — restore/migrator): keep all,
     // auto-rename on collision. detect/replace first resolve same-name conflicts
     // against the existing root items and earlier items in the same batch.
-    let itemsToAdd = inputs
+    let itemsToAdd: KnowledgeRestoreItemInput[] = inputs
     if (conflictStrategy !== 'rename') {
+      const publicInputs = this.assertPublicAddInputs(inputs)
       const existingRoots = knowledgeItemService.getRootItemsByBaseId(base.id)
-      const resolution = resolveKnowledgeAddConflicts(inputs, existingRoots)
+      const resolution = resolveKnowledgeAddConflicts(publicInputs, existingRoots)
       if (conflictStrategy === 'detect') {
         if (resolution.conflicts.length > 0) {
           // Report and add nothing — the UI asks the user how to resolve.
@@ -133,7 +159,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           // Purge the conflicting existing items synchronously inside the lock and
           // BEFORE reserving paths, so the freed name is claimed by the incoming
           // source instead of being auto-renamed with a numeric suffix.
-          await this.purgeConflictingExistingItems(base, itemsToAdd)
+          await this.purgeConflictingExistingItems(base, this.assertPublicAddInputs(itemsToAdd))
         }
 
         // Reserve every existing on-disk path up front, then let each new file
@@ -147,7 +173,11 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           // so track it for rollback too — otherwise a mid-batch failure orphans the
           // snapshot and a same-titled re-restore later hard-fails on the leftover file
           // (the add-side twin of the delete-side leak fixed in deleteKnowledgeItemFiles).
-          if (createInput.type === 'file' || (createInput.type === 'url' && createInput.data.relativePath)) {
+          if (
+            createInput.type === 'file' ||
+            createInput.type === 'external' ||
+            (createInput.type === 'url' && createInput.data.relativePath)
+          ) {
             copiedFileItems.push(createInput)
           }
           const createdItem = knowledgeItemService.createActive(base.id, createInput)
@@ -177,6 +207,13 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     }
 
     return { status: 'added' }
+  }
+
+  private assertPublicAddInputs(inputs: KnowledgeRestoreItemInput[]): KnowledgeAddItemInput[] {
+    if (inputs.some((input) => input.type === 'external')) {
+      throw DataApiErrorFactory.invalidOperation('addItems', 'External items can only be created by trusted workflows')
+    }
+    return inputs.filter((input): input is KnowledgeAddItemInput => input.type !== 'external')
   }
 
   /**
@@ -586,9 +623,20 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   private async prepareRuntimeAddItemInput(
     baseId: string,
     fileProcessorId: string | null | undefined,
-    input: KnowledgeAddItemInput,
+    input: KnowledgeRestoreItemInput,
     reservedPaths: Set<string>
   ): Promise<CreateKnowledgeItemDto> {
+    if (input.type === 'external') {
+      const snapshotName = getKnowledgeSourceRelativePath(input.data.snapshotPath)
+      const relativePath = reserveImportedFileRelativePath(snapshotName, false, reservedPaths)
+      await copyFileIntoKnowledgeBaseAt(baseId, input.data.snapshotPath, relativePath)
+      return {
+        groupId: input.groupId,
+        type: 'external',
+        data: { source: input.data.source, title: input.data.title, relativePath }
+      }
+    }
+
     if (input.type === 'url') {
       if (!input.data.snapshotPath) {
         return input

@@ -22,8 +22,8 @@ import { stripOkfFrontmatter } from '../sources/okfFrontmatter'
  * byte-identical to read).
  */
 export async function loadSnapshotDocuments(
-  item: KnowledgeItemOf<'url'> | KnowledgeItemOf<'note'>,
-  kind: 'URL' | 'note'
+  item: KnowledgeItemOf<'url'> | KnowledgeItemOf<'note'> | KnowledgeItemOf<'external'>,
+  kind: 'URL' | 'note' | 'external'
 ): Promise<Document[]> {
   if (!item.data.relativePath) {
     throw new Error(`Knowledge ${kind} item ${item.id} has no captured snapshot to read`)
