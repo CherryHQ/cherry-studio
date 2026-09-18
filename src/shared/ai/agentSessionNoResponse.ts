@@ -1,4 +1,24 @@
+import { getToolName, isToolUIPart } from 'ai'
+
 import type { CherryMessagePart } from '../data/types/message'
+import { AGENT_RUNTIME_CAPABILITIES } from './agentRuntimeCapabilities'
+import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from './agentSessionDelivery'
+import {
+  KB_LIST_TOOL_NAME,
+  KB_MANAGE_TOOL_NAME,
+  KB_READ_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  MCP_RESOURCE_LIST_TOOL_NAME,
+  MCP_RESOURCE_READ_TOOL_NAME,
+  PROVIDER_WEB_SEARCH_TOOL_NAME,
+  REPORT_ARTIFACTS_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
+} from './builtinTools'
+import { CLAUDE_TOOL_DEFS } from './claudecode/toolRegistry'
+import { DSH_BUILTIN_TOOLS } from './dshBuiltinTools'
+import { GENERATE_IMAGE_TOOL_NAME } from './generateImageTool'
+import { META_TOOL_NAMES } from './metaToolNames'
+import { PI_BUILTIN_TOOLS } from './piBuiltinTools'
 
 /**
  * Part types that never render as visible content in an agent-session turn.
@@ -16,6 +36,44 @@ export const AGENT_SESSION_HIDDEN_PART_TYPES: ReadonlySet<string> = new Set([
   'data-clear'
 ])
 
+/**
+ * Tool names the renderer gives a card (chooseTool / MessageTools). Tools outside
+ * this set render nothing, so a turn containing only them is turn-empty.
+ */
+const RENDERED_TOOL_NAMES: ReadonlySet<string> = new Set([
+  ...CLAUDE_TOOL_DEFS.map((def) => def.name),
+  ...PI_BUILTIN_TOOLS.map((tool) => tool.name),
+  ...DSH_BUILTIN_TOOLS.map((tool) => tool.name),
+  ...META_TOOL_NAMES,
+  ...AGENT_RUNTIME_CAPABILITIES.dsh.builtinTools().map((tool) => tool.id),
+  'web_fetch',
+  'memory',
+  KB_SEARCH_TOOL_NAME,
+  KB_LIST_TOOL_NAME,
+  KB_READ_TOOL_NAME,
+  KB_MANAGE_TOOL_NAME,
+  MCP_RESOURCE_LIST_TOOL_NAME,
+  MCP_RESOURCE_READ_TOOL_NAME,
+  SESSION_CREATE_TOOL_NAME,
+  SESSION_SEND_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME,
+  PROVIDER_WEB_SEARCH_TOOL_NAME,
+  GENERATE_IMAGE_TOOL_NAME,
+  REPORT_ARTIFACTS_TOOL_NAME,
+  // Historical `builtin_*` wire names kept for messages already stored in DB.
+  'builtin_web_search',
+  'builtin_web_search_preview',
+  'builtin_knowledge_search'
+])
+
+function isRenderedToolPart(part: CherryMessagePart): boolean {
+  if (!isToolUIPart(part as Parameters<typeof isToolUIPart>[0])) return false
+  if (part.type === 'dynamic-tool') return true
+  const toolName = getToolName(part as Parameters<typeof getToolName>[0])?.trim()
+  if (!toolName) return false
+  return RENDERED_TOOL_NAMES.has(toolName) || toolName.startsWith('mcp__')
+}
+
 /** True when a part can render as visible turn content. */
 export function isVisibleAgentSessionPart(part: CherryMessagePart): boolean {
   if (AGENT_SESSION_HIDDEN_PART_TYPES.has(part.type)) return false
@@ -24,6 +82,9 @@ export function isVisibleAgentSessionPart(part: CherryMessagePart): boolean {
   if (part.type === 'text') return !!part.text?.trim()
   // A reasoning part still streaming holds no text yet but is not terminal-empty.
   if (part.type === 'reasoning') return part.state === 'streaming' || !!part.text?.trim()
+  if (part.type === 'dynamic-tool' || (typeof part.type === 'string' && part.type.startsWith('tool-'))) {
+    return isRenderedToolPart(part)
+  }
   return true
 }
 
