@@ -217,10 +217,10 @@ Commit: `git commit -S --signoff -m 'test(local-model): validate FunASR offline'
 
 ### Task 6: Completion verification
 
-- [ ] Run all focused system-speech and local-model tests.
-- [ ] Run `pnpm lint`.
-- [ ] Run `pnpm build:check`.
-- [ ] Run `pnpm test:lint`.
-- [ ] Inspect `git diff main...HEAD` for unrelated changes.
-- [ ] Verify every new commit has a `gpgsig` header and DCO signoff.
-- [ ] Update this plan's checkboxes and commit the final verification record if documentation changed.
+- [x] Run all focused system-speech and local-model tests.
+- [x] Run `pnpm lint`.
+- [x] Run `pnpm build:check`.
+- [x] Run `pnpm test:lint`.
+- [x] Inspect `git diff main...HEAD` for unrelated changes.
+- [x] Verify every new commit has a `gpgsig` header and DCO signoff.
+- [x] Update this plan's checkboxes and commit the final verification record if documentation changed.
