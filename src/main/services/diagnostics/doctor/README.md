@@ -1,0 +1,130 @@
+# System Doctor
+
+Runs health checks in main and publishes progress + the final report on the shared cache key
+`doctor.state`. Product spec (Feishu): System Doctor PRD.
+
+## Layout
+
+| File | Role |
+|------|------|
+| `@shared/types/doctor.ts` | **Source of truth.** `DOCTOR_CHECK_CATALOG` declares every check (domain, tier, fixes, detail variants, prerequisites); all other types derive from it |
+| `@shared/ipc/schemas/doctor.ts` | Routes `diagnostics.doctor.run` / `.cancel` / `.fix` |
+| `types.ts` | `DoctorCheckDefinition<Id>` — what a check implementation must provide |
+| `checks/<domain>.ts` | One file per domain, `defineDoctorCheck({...})` per check |
+| `registry.ts` | `{ [Id in DoctorCheckId]: DoctorCheckDefinition<Id> }` — exhaustive and closed |
+| `engine.ts` | Pure runner: prerequisites, admission, continuation, timeout, cancellation and concurrency |
+| `execution.ts` | Per-run results and pending confirmations; applies catalog policies before dispatch |
+| `DoctorService.ts` | Lifecycle service: run / cancel / fix, publishes `doctor.state` |
+
+## Adding a check (three edits, all compile-checked)
+
+1. **Catalog** — add the id to `DOCTOR_CHECK_IDS` and an entry to `DOCTOR_CHECK_CATALOG`:
+   ```ts
+   'network-proxy-applied': {
+     domain: 'network',            // must equal the id prefix
+     tier: 'live',                 // quick ≤ 1 s local | live = network | deep = opt-in
+     fixes: [],                    // or [{ id: 'restart', risk: 'low', reversible: true, relaunch: false }]
+     details: ['custom_without_url'],
+     requires: []                  // other check ids; on their fail/error this check is skipped
+   }
+   ```
+2. **Implementation** — `checks/network.ts`:
+   ```ts
+   export const proxyApplied = defineDoctorCheck({
+     id: 'network-proxy-applied',
+     async run({ signal }) {
+       // return { status: 'pass' } or
+       return {
+         status: 'warn',
+         attribution: 'user-fixable',
+         detail: { variant: 'custom_without_url' },           // only declared variants compile
+         actions: [{ kind: 'navigate', target: '/settings/general' }],
+         evidence: [{ key: 'mode', value: 'custom', dataClass: 'public' }]
+       }
+     },
+     fixes: {}                                                  // one handler per declared fix
+   })
+   ```
+   `ctx.share(key, factory)` memoizes a probe for the current run, so checks in different layers (all the
+   network checks, for instance) reuse one pass instead of probing again.
+3. **Registry** — add the line in `registry.ts`. Until you do, the build fails.
+
+Reference implementations: `checks/config.ts` (a check with a fix) and `checks/storage.ts` (a silent-fallback
+detector). A check must be able to fail at runtime — anything preboot already guarantees is a dead check.
+
+Then add i18n keys `settings.doctor.checks.<id>.title` and `.detail.<variant>` to `en-us.json` and run `pnpm i18n:sync`.
+
+Rules the types enforce: a `fix` action can only name a fix the catalog declares; `detail.variant` must be declared;
+`error` is engine-owned; a check can return `skip` with a declared detail for an inapplicable operation; every declared fix needs a handler.
+
+## Data classes
+
+Every evidence item and basics field carries a `dataClass`. `projectDoctorReport(report, view)` builds the
+`display` / `copy` / `export` / `upload` views; `consent_required` items only travel on explicit opt-in.
+Paths and hostnames are `local_only`; raw error bodies are `consent_required`.
+
+## Consuming from the renderer
+
+```ts
+const state = useSharedCacheValue('doctor.state')   // idle | running | completed | canceled
+await ipcApi.request('diagnostics.doctor.run', { tier: 'quick' })      // then, on user click:
+await ipcApi.request('diagnostics.doctor.run', { tier: 'live' })       // live = quick + live checks
+await ipcApi.request('diagnostics.doctor.cancel', { runId })
+await ipcApi.request('diagnostics.doctor.fix', { runId, checkId: 'mcp-servers-connected', fixId: 'restart', target: serverId })
+```
+
+`run` returns `busy` with the in-flight `runId` while a run is active. `fix` is bound to the report's `runId`
+and re-probes before executing; it answers `stale` when the run was superseded or the finding changed.
+Only MCP restart requires a target; other fixes reject one. Passing checks never offer actions.
+Runs and fixes are mutually exclusive and refused before all services have initialized. Selected checks
+include their transitive prerequisites. Fixes revalidate identity, expiry and the offered action after
+re-probing; only the original report is updated. Expired reports require another run.
+
+## Execution confirmation
+
+A catalog entry can declare `execution: 'confirmation'` (omission means `automatic`). Its main-process
+check definition must implement `getConfirmation(ctx)` as well as the existing `run(ctx)`; the registry
+and factory enforce this at compile time. The callback prepares localized prompt data plus an
+`isCurrent()` validator that remains in main. It must not execute the operation. If the operation is
+inapplicable, it can return a normal outcome instead, such as `skip` for a non-chat model.
+
+`DoctorExecution` is per-run state owned by DoctorService, not a lifecycle service. It retains the
+completed results, shared prepared inputs and pending request IDs. The engine defers a check and its
+dependents until admission succeeds, then continues from completed results without rerunning them.
+Each confirmation admits only its own check; other gated prerequisites require separate confirmation.
+The final dispatch validates the captured target again, including after queueing.
+
+Automatic work completes without holding a timer or active execution slot while the user decides.
+The report's optional `pendingChecks` is separate from health outcomes. Each prompt carries its check
+ID, a Main-generated request UUID, a check-specific i18n key and interpolation values. Prompts and
+request IDs are display-only; copy/export/upload projections omit them even with sensitive-data consent.
+
+`diagnostics.doctor.confirm_check` takes `{ scope, runId, requestId }`. Main validates the run and its
+expiry, claims the request before awaiting, then calls the registered check's `run`. Duplicate calls
+return `busy` during execution and `stale` after consumption; failure never renews consent. A changed
+Agent model, provider configuration or global default invalidates the original target. A new run,
+cancellation or service shutdown invalidates pending decisions. Existing cancel routes also cancel
+confirmed work. Normal reports are patched under the same run; connectivity results are returned directly.
+Fix pre/post-checks use the same admission policy and refuse to proceed if explicit confirmation is needed.
+
+## Contextual model connectivity (backend API)
+
+`diagnostics.doctor.connectivity` accepts a Chat or Agent `subject` and a caller-generated UUID `runId`.
+Its report contains `uniqueModelId`, `expiresAt`, `results` and `pendingChecks`. These are catalog checks:
+
+- `network-model-endpoint`: automatically measures the selected model's Base URL; HTTP 404 still proves reachability.
+- `provider-model-list`: automatically reads the remote list without merging the registry; skips unsupported or
+  unavailable (404/405/501) listing endpoints and warns when the selected wire model is absent.
+- `provider-model-conversation`: requests confirmation before a minimal conversation, since it may incur usage fees.
+
+The entries use `includeByDefault: false`, so an existing full-system sweep does not start these new
+contextual checks. Explicit subsets still pass through the same policy. Every probe has a 15-second
+deadline. Listing failure never implicitly prevents an independently confirmed conversation.
+
+`AiService.prepareModelCheck` captures the model/provider configuration and exposes model operations,
+resolved target information and snapshot validity. It imports no Doctor contracts. Conversation reuses
+`AiService.checkModel` in chat-only mode without history, tools, retry or fallback. Ollama sends a real
+chat request; non-chat models skip without prompting. NetworkService retains ownership of reachability.
+
+The contextual API does not replace the existing Doctor report cache. Renderer confirmation buttons
+and context-based AI error analysis are separate work.

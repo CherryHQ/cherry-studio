@@ -158,10 +158,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       removeToken: (tokenId) => updateTokens((props.draftTokens ?? []).filter((token) => token.id !== tokenId)),
       // A token needs its prompt text woven into the document at the caret, which only the rich
       // editor can do; the whole range travels along so the runtime still replaces a selection.
-      insertToken: (token) => {
+      insertToken: (token, updateOnly) => {
         const input = textareaRef.current
         intentRef.current.insertToken = {
           token,
+          updateOnly,
           selection: {
             start: input?.selectionStart ?? props.text.length,
             end: input?.selectionEnd ?? props.text.length
@@ -198,6 +199,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   }
 
   const captureTransfer = (kind: 'paste' | 'drop', data: DataTransfer | null) => {
+    if (props.editable === false) return
     const transfer = cloneTransfer(data)
     if (transfer) intentRef.current.transfer = { kind, data: transfer }
     requestRuntime()
@@ -267,14 +269,14 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             value={props.text}
             placeholder={props.placeholder}
             rows={1}
-            disabled={props.editable === false}
+            readOnly={props.editable === false}
             spellCheck={props.enableSpellCheck}
             data-ui="part:composer-input"
             className="box-border block w-full min-w-0 flex-1 resize-none overflow-auto bg-transparent text-foreground outline-none"
             style={{
               height: editorMinHeight,
               minHeight: editorMinHeight,
-              padding: '6px 44px 0 15px',
+              padding: '6px 15px 0',
               fontSize: props.fontSize,
               lineHeight: 1.4
             }}
@@ -303,10 +305,11 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
               // about to unmount, so read the final value here rather than waiting for `change`.
               const input = event.currentTarget
               selectionRef.current = { start: input.selectionStart, end: input.selectionEnd }
-              if (input.value !== props.text) props.onTextChange(input.value)
+              if (props.editable !== false && input.value !== props.text) props.onTextChange(input.value)
               setIsComposing(false)
             }}
             onKeyDown={(event) => {
+              if (props.editable === false) return
               requestRuntime()
               if (navigateInputHistory(event)) {
                 event.preventDefault()

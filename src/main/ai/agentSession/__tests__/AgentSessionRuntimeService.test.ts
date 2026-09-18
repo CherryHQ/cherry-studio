@@ -363,6 +363,17 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('exposes the current output identity without retaining a completed turn identity', () => {
+    const service = new AgentSessionRuntimeService()
+    expect(service.getLiveAssistantMessageId('session-1')).toBeUndefined()
+    service.beginTurn(baseTurnInput)
+    expect(service.getLiveAssistantMessageId('session-1')).toBe('assistant-1')
+    service.markTurnTerminal('session-1', 'success')
+    expect(service.getLiveAssistantMessageId('session-1')).toBeUndefined()
+    service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-2' })
+    expect(service.getLiveAssistantMessageId('session-1')).toBe('assistant-2')
+  })
+
   it('aborts live streams before shutdown clears their pending approvals', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
@@ -3533,6 +3544,60 @@ describe('AgentSessionRuntimeService', () => {
     connectionClose.resolve()
     await expect(Promise.all([firstClose, repeatedClose])).resolves.toBeDefined()
     expect(connection.close).toHaveBeenCalledOnce()
+  })
+
+  it('lists resume tokens from active and warm-idle entries without duplicates', () => {
+    const service = new AgentSessionRuntimeService()
+    const idleHandle = service.beginTurn(baseTurnInput)
+    getEntry(service).lastResumeToken = 'resume-idle'
+    void terminalListener(idleHandle).onDone({ status: 'success', isTopicDone: true })
+
+    service.beginTurn({
+      ...baseTurnInput,
+      sessionId: 'session-2',
+      topicId: 'agent-session:session-2',
+      assistantMessageId: 'assistant-2'
+    })
+    ;(service as any).entries.get('session-2').lastResumeToken = 'resume-active'
+    service.beginTurn({
+      ...baseTurnInput,
+      sessionId: 'session-3',
+      topicId: 'agent-session:session-3',
+      assistantMessageId: 'assistant-3'
+    })
+    ;(service as any).entries.get('session-3').lastResumeToken = 'resume-idle'
+
+    expect(service.listClaimedResumeTokens()).toEqual(new Set(['resume-idle', 'resume-active']))
+  })
+
+  it('returns a fresh claimed-resume-token snapshot', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    getEntry(service).lastResumeToken = 'resume-1'
+
+    const snapshot = service.listClaimedResumeTokens()
+    ;(snapshot as Set<string>).clear()
+
+    expect(service.listClaimedResumeTokens()).toEqual(new Set(['resume-1']))
+  })
+
+  it('keeps a closing resume token claimed only until its close barrier settles', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const connectionClose = createDeferred<void>()
+    const connection = { close: vi.fn(() => connectionClose.promise), send: vi.fn(), events: [] }
+    const entry = getEntry(service)
+    entry.lastResumeToken = 'resume-closing'
+    entry.connection = connection
+
+    const closing = service.closeSession('session-1')
+
+    expect(service.listClaimedResumeTokens()).toEqual(new Set(['resume-closing']))
+
+    connectionClose.resolve()
+    await closing
+
+    expect(service.listClaimedResumeTokens()).toEqual(new Set())
   })
 
   it('waits for a pending connection attempt when synchronous close cleanup falls back', async () => {

@@ -45,6 +45,7 @@ import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
+  BACKUP_BACKGROUND_TASKS_ERROR_CODE,
   BACKUP_DISK_FULL_ERROR_CODE,
   BACKUP_NEWER_VERSION_ERROR_CODE,
   BACKUP_OPERATION_BUSY_ERROR_CODE,
@@ -334,28 +335,24 @@ class BackupManager {
       logger.debug('[backupDirect] Capturing v2 backup resources')
 
       const quiesceReason = 'backup: capture consistent snapshot'
-      const channelManager = application.get('ChannelManager')
-      const channelHold = channelManager.pause(quiesceReason)
+      const agentLifecycle = application.get('AgentLifecycleService')
+      const ingressHold = agentLifecycle.pauseIngress(quiesceReason)
       try {
-        const channelVerdict = await channelManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
+        const ingressVerdict = await agentLifecycle.drainIngress({ timeoutMs: QUIESCE_TIMEOUT_MS })
         signal?.throwIfAborted()
-        this.assertWritersDrained([channelVerdict])
+        this.assertWritersDrained([ingressVerdict])
 
         const aiStreamManager = application.get('AiStreamManager')
-        const agentSessionRuntime = application.get('AgentSessionRuntimeService')
-        const agentSessionDelivery = application.get('AgentSessionDeliveryService')
         const jobManager = application.get('JobManager')
         const writerHolds: Array<{ dispose(): void }> = []
         try {
           writerHolds.push(aiStreamManager.pause(quiesceReason))
-          writerHolds.push(agentSessionRuntime.pause(quiesceReason))
-          writerHolds.push(agentSessionDelivery.pause(quiesceReason))
+          writerHolds.push(agentLifecycle.pauseExecution(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
 
           const writerVerdicts = await Promise.all([
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
-            agentSessionRuntime.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
-            agentSessionDelivery.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            agentLifecycle.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             jobManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
           ])
           signal?.throwIfAborted()
@@ -447,7 +444,7 @@ class BackupManager {
           }
         }
       } finally {
-        channelHold.dispose()
+        ingressHold.dispose()
       }
 
       onProgress({ stage: 'compressing', progress: 80, total: 100 })
@@ -1088,8 +1085,21 @@ class BackupManager {
 
       const jobManager = application.get('JobManager')
       const quiesceHold = jobManager.pause('backup restore: stage promotion journal')
+      const agentLifecycle = application.get('AgentLifecycleService')
+      const agentIngressHold = agentLifecycle.pauseIngress('backup restore')
+      const writerHolds: Array<{ dispose(): void }> = []
       try {
         await this.assertJobsDrained(jobManager)
+        this.assertWritersDrained([await agentLifecycle.drainIngress({ timeoutMs: QUIESCE_TIMEOUT_MS })])
+        const aiStreamManager = application.get('AiStreamManager')
+        writerHolds.push(aiStreamManager.pause('backup restore'))
+        writerHolds.push(agentLifecycle.pauseExecution('backup restore'))
+        this.assertWritersDrained(
+          await Promise.all([
+            aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            agentLifecycle.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
+          ])
+        )
         this.assertNoActiveDataWriters()
         const dbService = application.get('DbService')
         dbService.checkpointTruncate()
@@ -1115,6 +1125,8 @@ class BackupManager {
         logger.info('[restoreDirect] Restore journal committed and ready for relaunch', { restoreId })
       } finally {
         if (!journalCommitted) {
+          for (const hold of writerHolds.reverse()) hold.dispose()
+          agentIngressHold.dispose()
           quiesceHold.dispose()
         }
       }
@@ -1551,15 +1563,14 @@ class BackupManager {
 
   private assertWritersDrained(verdicts: Array<{ stragglerIds: string[]; startupRecoveryPending?: boolean }>): void {
     if (verdicts.some((verdict) => verdict.stragglerIds.length > 0 || verdict.startupRecoveryPending === true)) {
-      throw new Error('Background data writes did not quiesce in time. Please retry after current tasks finish.')
+      throw new Error(`${BACKUP_BACKGROUND_TASKS_ERROR_CODE}: Background data writes did not quiesce in time.`)
     }
   }
 
   private assertNoActiveDataWriters(): void {
     if (
       application.get('AiStreamManager').hasLiveStreams() ||
-      application.get('AgentSessionRuntimeService').hasBusySessions() ||
-      application.get('AgentSessionDeliveryService').listActiveWork().length > 0
+      application.get('AgentLifecycleService').listActiveWork().length > 0
     ) {
       throw new Error(
         `${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running. Wait for it to finish, then retry the backup or restore.`

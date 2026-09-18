@@ -19,7 +19,9 @@ const BaseNavigatorGroupSection = ({
   onCreateBaseInGroup,
   onCreateGroup,
   onDeleteGroup,
-  onDeleteBase
+  onDeleteBase,
+  onToggleSidebar,
+  sidebarPinnedBaseIds
 }: BaseNavigatorGroupSectionProps) => {
   const groupValue = section.groupId ?? UNGROUPED_SECTION_VALUE
 
@@ -51,6 +53,8 @@ const BaseNavigatorGroupSection = ({
               onRenameBase={onRenameBase}
               onCreateGroup={onCreateGroup}
               onDeleteBase={onDeleteBase}
+              onToggleSidebar={onToggleSidebar}
+              sidebarPinned={sidebarPinnedBaseIds.has(base.id)}
             />
           ))}
         </div>

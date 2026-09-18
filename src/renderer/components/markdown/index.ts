@@ -7,5 +7,5 @@
 
 export { MarkdownHostProvider } from './MarkdownHostProvider'
 export { MarkdownImageRenderer, scrollToMarkdownAnchor, shouldShowMarkdownLinkFavicon } from './MarkdownRenderers'
-export { remarkLatexMath } from './remarkLatexMath'
+export { createLatexMarkdownBlockParser } from './parseLatexMarkdownBlocks'
 export { StaticMarkdown } from './StaticMarkdown'
