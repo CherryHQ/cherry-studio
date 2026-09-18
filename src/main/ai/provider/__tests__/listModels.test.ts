@@ -1370,7 +1370,13 @@ describe('listModels — oMLX', () => {
     aiSdkGetFromApiMock.mockResolvedValueOnce({
       value: {
         models: [
-          { id: 'qwen3-coder', model_type: 'llm', config_model_type: 'qwen3_5' },
+          {
+            id: 'qwen3-coder',
+            model_type: 'llm',
+            config_model_type: 'qwen3_5',
+            max_context_window: 262144,
+            max_tokens: 32768
+          },
           { id: 'vlm-vision', model_type: 'vlm', config_model_type: 'qwen3_5' },
           { id: 'diffusiongemma-26B', model_type: 'vlm', config_model_type: 'diffusion_gemma' },
           { id: 'markitdown', model_type: 'markitdown', config_model_type: 'markitdown' },
@@ -1386,5 +1392,12 @@ describe('listModels — oMLX', () => {
     // Discovered models must declare both registry endpoints so Claude Code resolves the
     // provider's anthropic-messages endpoint instead of routing through the local gateway.
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+    // The server's own limits travel with the discovered model instead of being
+    // dropped, so the window and output cap match what it enforces.
+    expect(models[0].contextWindow).toBe(262144)
+    expect(models[0].maxOutputTokens).toBe(32768)
+    // A model the server reports no limits for stays unlimited rather than 0.
+    expect(models[1].contextWindow).toBeUndefined()
+    expect(models[1].maxOutputTokens).toBeUndefined()
   })
 })

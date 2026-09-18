@@ -853,6 +853,10 @@ const omlxFetcher: ModelFetcher = {
             // falls through to `defaultChatEndpoint` and Claude Code routes it through the
             // local API Gateway instead of the provider's configured Messages endpoint.
             endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+            // The server reports the window it serves and its output cap; a
+            // discovered model would otherwise carry no limits at all.
+            ...(m.max_context_window ? { contextWindow: m.max_context_window } : {}),
+            ...(m.max_tokens ? { maxOutputTokens: m.max_tokens } : {}),
             ...(m.model_type === 'vlm' ? { capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] } : {})
           })
         )
