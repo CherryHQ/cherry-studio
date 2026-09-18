@@ -163,6 +163,7 @@ vi.mock('react-i18next', () => ({
           'launchpad.deepseek_harness_shortcut': 'DSH',
           'launchpad.miniApps': 'Mini Apps',
           'launchpad.pin_to_sidebar': 'Add to Sidebar',
+          'launchpad.team_sharing_shortcut': 'Team Sharing',
           'launchpad.unpin_from_sidebar': 'Remove from Sidebar',
           'miniApp.reorder_failed': 'Failed to reorder mini apps',
           'miniApp.title': 'Mini Apps',
@@ -316,6 +317,16 @@ describe('LaunchpadPage', () => {
       to: '/app/code',
       search: { tool: 'deepseek-harness' }
     })
+  })
+
+  it('opens the mini apps page from the Team Sharing shortcut', async () => {
+    const user = userEvent.setup()
+
+    render(<LaunchpadPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Team Sharing' }))
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/mini-app' })
   })
 
   it('suppresses only the dragged launchpad item click', () => {

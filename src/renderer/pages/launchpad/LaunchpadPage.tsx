@@ -14,6 +14,7 @@ import knowledgeIcon from '@renderer/assets/images/apps/launchpad-knowledge.svg'
 import miniAppIcon from '@renderer/assets/images/apps/launchpad-mini-app.svg'
 import notesIcon from '@renderer/assets/images/apps/launchpad-notes.svg'
 import paintingsIcon from '@renderer/assets/images/apps/launchpad-paintings.svg'
+import teamSharingIcon from '@renderer/assets/images/apps/launchpad-team-sharing.svg'
 import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
@@ -35,6 +36,7 @@ import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 const BASE_URL = 'https://www.cherry-ai.com/'
 const DEEPSEEK_HARNESS_URL = '/app/code?tool=deepseek-harness'
+const TEAM_SHARING_URL = '/app/mini-app'
 
 const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
@@ -157,6 +159,10 @@ export default function LaunchpadPage() {
 
   const openDeepSeekHarness = () => {
     void navigateToUrl(DEEPSEEK_HARNESS_URL)
+  }
+
+  const openTeamSharing = () => {
+    void navigateToUrl(TEAM_SHARING_URL)
   }
 
   const pinToSidebar = useCallback(
@@ -326,6 +332,19 @@ export default function LaunchpadPage() {
                 </span>
                 <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
                   {t('launchpad.deepseek_harness_shortcut')}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={openTeamSharing}
+                className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
+                <span className={APP_ICON_TILE_CLASS}>
+                  <span className={APP_ICON_FRAME_CLASS}>
+                    <img src={teamSharingIcon} alt="" className={APP_ICON_CLASS} draggable={false} />
+                  </span>
+                </span>
+                <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
+                  {t('launchpad.team_sharing_shortcut')}
                 </span>
               </button>
             </div>

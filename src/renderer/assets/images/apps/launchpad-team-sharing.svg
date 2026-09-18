@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="back-doc" x1="24" y1="8" x2="54" y2="42" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C9D2FF"/>
+      <stop offset="1" stop-color="#9AA8F4"/>
+    </linearGradient>
+    <linearGradient id="front-doc" x1="10" y1="14" x2="44" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9B8CF5"/>
+      <stop offset=".55" stop-color="#7B6AE6"/>
+      <stop offset="1" stop-color="#6354D4"/>
+    </linearGradient>
+    <linearGradient id="badge" x1="34" y1="34" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7ED0FF"/>
+      <stop offset="1" stop-color="#5B8BFF"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="18" y1="18" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E8ECFF"/>
+    </linearGradient>
+  </defs>
+  <rect x="26" y="8" width="26" height="34" rx="7" fill="url(#back-doc)"/>
+  <path d="M30 14c5.4 1.2 9.8 4.4 12.8 9.2" stroke="#fff" stroke-opacity=".34" stroke-width="2.5" stroke-linecap="round"/>
+  <rect x="10" y="14" width="30" height="40" rx="8" fill="url(#front-doc)"/>
+  <path d="M14 22c7.2-2.8 14.6-3 21.4-.4V14H18a8 8 0 0 0-8 8v4.4c1.2-1.8 2.5-3.2 4-4.4Z" fill="#fff" fill-opacity=".16"/>
+  <path d="M24 20c1.1 3.6 3.7 6.2 7.3 7.3C27.7 28.4 25.1 31 24 34.6 22.9 31 20.3 28.4 16.7 27.3 20.3 26.2 22.9 23.6 24 20Z" fill="url(#spark)"/>
+  <circle cx="46" cy="46" r="12" fill="url(#badge)"/>
+  <circle cx="46" cy="46" r="12" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="1.5"/>
+  <g fill="#fff">
+    <circle cx="46" cy="41.2" r="3.1"/>
+    <circle cx="40.4" cy="43.6" r="2.2" fill-opacity=".92"/>
+    <circle cx="51.6" cy="43.6" r="2.2" fill-opacity=".92"/>
+    <path d="M40.2 52.4c.4-3.4 2.7-5.2 5.8-5.2s5.4 1.8 5.8 5.2c-1.7.8-3.7 1.2-5.8 1.2s-4.1-.4-5.8-1.2Z"/>
+    <path d="M36.2 51.6c.3-2.2 1.6-3.4 3.4-3.6-.2 1.2-.2 2.4 0 3.7-.9.2-1.9.4-3.4-.1Z" fill-opacity=".9"/>
+    <path d="M55.8 51.6c-.3-2.2-1.6-3.4-3.4-3.6.2 1.2.2 2.4 0 3.7.9.2 1.9.4 3.4-.1Z" fill-opacity=".9"/>
+  </g>
+</svg>
