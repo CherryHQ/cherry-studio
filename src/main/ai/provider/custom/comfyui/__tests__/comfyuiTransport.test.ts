@@ -127,7 +127,14 @@ describe('listWorkflows', () => {
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('http://localhost:8188/v2/userdata?path=workflows')
       expect(init?.headers).toEqual({ 'X-Test': '1' })
-      return respond([{ name: 'a.json', type: 'file' }])
+      return respond([
+        { name: 'a.json', type: 'file', path: 'workflows/a.json' },
+        // The listing walks subdirectories: the handle must stay the relative
+        // path, or reading it back from the root directory would 404.
+        { name: 'nested.json', type: 'file', path: 'workflows/sub/nested.json' },
+        { name: 'sub', type: 'directory', path: 'workflows/sub' },
+        { name: 'notes.txt', type: 'file', path: 'workflows/notes.txt' }
+      ])
     })
 
     const workflows = await listWorkflows('http://localhost:8188', undefined, {
@@ -135,7 +142,7 @@ describe('listWorkflows', () => {
       fetch: doFetch
     })
 
-    expect(workflows).toEqual(['a'])
+    expect(workflows).toEqual(['a', 'sub/nested'])
   })
 
   it('surfaces a failed listing as a structured REMOTE_ERROR with the server message', async () => {

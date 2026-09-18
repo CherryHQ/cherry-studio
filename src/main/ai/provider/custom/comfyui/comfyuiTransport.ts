@@ -52,6 +52,9 @@ export interface ComfyuiTransportSettings extends ComfyuiRequestOptions {
 interface UserDataEntry {
   name: string
   type: string
+  /** Path relative to the user data root (`workflows/sub/x.json`); the listing
+   * walks subdirectories, so `name` alone is only the basename. */
+  path?: string
 }
 
 export const WORKFLOW_FILE_EXTENSION = '.json'
@@ -70,9 +73,18 @@ export async function listWorkflows(
     })
   }
   const entries = (await response.json()) as UserDataEntry[]
+  const prefix = `${WORKFLOW_DIR}/`
   return entries
     .filter((entry) => entry.type === 'file' && entry.name.endsWith(WORKFLOW_FILE_EXTENSION))
-    .map((entry) => entry.name.slice(0, -WORKFLOW_FILE_EXTENSION.length))
+    .map((entry) => {
+      // The listing walks subdirectories, so a workflow in one arrives with the
+      // basename in `name` and its real location in `path`. Keep the relative
+      // path as the handle: it is what resolves again when the workflow is read
+      // back and submitted.
+      const relative = (entry.path ?? `${WORKFLOW_DIR}/${entry.name}`).replace(/^\/+/, '')
+      const workflowPath = relative.startsWith(prefix) ? relative.slice(prefix.length) : relative
+      return workflowPath.slice(0, -WORKFLOW_FILE_EXTENSION.length)
+    })
 }
 
 async function fetchJson<T>(url: string, signal?: AbortSignal, options: ComfyuiRequestOptions = {}): Promise<T> {

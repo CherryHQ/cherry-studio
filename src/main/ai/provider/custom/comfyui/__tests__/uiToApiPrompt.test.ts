@@ -38,6 +38,12 @@ const objectInfo: ObjectInfo = {
     }
   },
   MarkdownNote: { input: { required: { text: ['STRING', {}] } } },
+  // Integer-like keys iterate first in JS, so the bare object order is not the
+  // declaration order — `input_order` is what the server sends instead.
+  OrderedSampler: {
+    input: { required: { '2': ['INT', {}], '1': ['STRING', {}] } },
+    input_order: { required: ['1', '2'] }
+  },
   // `strength` forces its widget into a socket (frontend ≥ 1.16), so it must
   // not spend a positional slot; `caption`/`styles` declare a widgetType.
   StyledImage: {
@@ -662,6 +668,16 @@ describe('convertUiWorkflowToPrompt', () => {
       'format.input_color_space': 'sRGB'
     })
     expect(prompt['1'].inputs).not.toHaveProperty('format.crf')
+  })
+
+  it('reads positional values in the server’s declared input order', () => {
+    const { prompt, warnings } = convertUiWorkflowToPrompt(
+      { nodes: [{ id: 1, type: 'OrderedSampler', widgets_values: ['first', 2] }], links: [] },
+      objectInfo
+    )
+
+    expect(prompt['1'].inputs).toMatchObject({ '1': 'first', '2': 2 })
+    expect(warnings).toEqual([])
   })
 
   it('spends no positional slot on a forced input, and one on a widgetType override', () => {

@@ -58,7 +58,15 @@ interface UiWorkflow extends UiGraph {
 }
 
 /** Node classes the backend can execute, keyed by class name. */
-export type ObjectInfo = Record<string, { input?: { required?: JsonObject; optional?: JsonObject } }>
+export type ObjectInfo = Record<
+  string,
+  {
+    input?: { required?: JsonObject; optional?: JsonObject }
+    /** The server's own declaration order per section. Object key order is not
+     * a reliable substitute: integer-like keys iterate first, in numeric order. */
+    input_order?: { required?: string[]; optional?: string[] }
+  }
+>
 
 export interface ApiPromptNode {
   class_type: string
@@ -134,12 +142,19 @@ function widgetInputNames(
   spec: JsonObject = info.input ?? {},
   prefix?: string,
   values?: unknown[],
-  acc: WidgetNames = { positions: [], curves: new Set() }
+  acc: WidgetNames = { positions: [], curves: new Set() },
+  order: { required?: string[]; optional?: string[] } = info.input_order ?? {}
 ): WidgetNames {
   for (const section of ['required', 'optional'] as const) {
     const sectionSpec = spec[section] as JsonObject | undefined
     if (!sectionSpec) continue
-    for (const [name, raw] of Object.entries(sectionSpec)) {
+    // The backend's declaration order is `input_order` when the server sends
+    // it; iterating the object instead would move integer-like keys to the
+    // front and shift every saved value after them onto the wrong input.
+    const declared = order[section] ?? []
+    const sectionNames = declared.length > 0 ? declared.filter((name) => name in sectionSpec) : Object.keys(sectionSpec)
+    for (const name of sectionNames) {
+      const raw = sectionSpec[name]
       const fullName = prefix ? `${prefix}.${name}` : name
       const entry = raw as unknown[]
       if (!Array.isArray(entry) || entry.length === 0) continue
@@ -164,7 +179,9 @@ function widgetInputNames(
       if (widgetType === 'COMFY_DYNAMICCOMBO_V3') {
         const selected = values![acc.positions.length - 1]
         const option = (config.options as JsonObject[] | undefined)?.find((candidate) => candidate.key === selected)
-        widgetInputNames(info, includeAdvanced, (option?.inputs ?? {}) as JsonObject, fullName, values, acc)
+        // A dynamic option's own inputs carry no order of their own, and the
+        // node's `input_order` describes its top-level sections only.
+        widgetInputNames(info, includeAdvanced, (option?.inputs ?? {}) as JsonObject, fullName, values, acc, {})
       }
     }
   }
