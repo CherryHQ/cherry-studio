@@ -4,7 +4,7 @@ import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import type { StreamListener } from '@main/ai/streamManager'
+import { nullStreamListener } from '@main/ai/streamManager'
 
 import {
   assertWritable,
@@ -15,15 +15,6 @@ import {
   processEpoch
 } from './agentAccess'
 import { type MethodInput, RemoteRequestError } from './protocol'
-
-const receiptListener: StreamListener = {
-  id: 'command-receipt',
-  isAlive: () => false,
-  onChunk() {},
-  onDone() {},
-  onError() {},
-  onPaused() {}
-}
 
 class ExistingCommand extends Error {
   constructor() {
@@ -91,7 +82,7 @@ export async function sendMessage(context: DeviceContext, input: MethodInput<'me
   let receipt: Record<string, unknown> | undefined
   try {
     const response = await application.get('AiStreamManager').dispatch(
-      receiptListener,
+      nullStreamListener,
       {
         topicId: buildAgentSessionTopicId(input.sessionId),
         trigger: 'submit-message',

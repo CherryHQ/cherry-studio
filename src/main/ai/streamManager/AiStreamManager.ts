@@ -303,7 +303,7 @@ function toolNameFromApprovalChunk(chunk: UIMessageChunk): string | undefined {
  * whose window closed mid-stream). `isAlive: false` so it's scrubbed on the first dispatch; the
  * turn still runs in the background and a window re-attaches via the status cache.
  */
-const nullStreamListener: StreamListener = {
+export const nullStreamListener: StreamListener = {
   id: 'null',
   onChunk: () => {},
   onDone: () => {},
