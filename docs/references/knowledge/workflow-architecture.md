@@ -2,6 +2,7 @@
 description: 'Knowledge workflow architecture: scheduling model, durable JobManager jobs, per-base mutation lock, crash semantics'
 sources:
   - src/main/features/knowledge/ingestion
+  - src/main/features/knowledge/ingestion/indexKnowledgeItem.ts
   - src/main/features/knowledge/tasks
   - src/main/features/knowledge/KnowledgeService.ts
 ---
@@ -36,7 +37,7 @@ Helpers may own source planning, lifecycle writes, knowledge-owned raw files, an
 `addItems`, `deleteItems`, and `reindexItems` are async workflow entry points. API resolution means the durable workflow has been accepted, not that every physical side effect has finished.
 
 - `addItems` resolves after root rows are created and first Knowledge jobs are queued.
-- `deleteItems` resolves after top-level target subtrees are marked `deleting` and `knowledge.delete-subtree` is queued.
+- `deleteItems` resolves after top-level target subtrees are atomically marked `deleting`, confirmed not to contain active document-owned external items, and queued for `knowledge.delete-subtree`.
 - `reindexItems` resolves after each top-level target subtree is confirmed terminal (`completed` or `failed`) and `knowledge.reindex-subtree` is queued.
 
 Default item list, search, and RAG hydration exclude `deleting` items. `deleting` is a durable cleanup marker, not a tombstone or terminal success state.
@@ -52,6 +53,7 @@ The workflow service owns all branching:
 ```text
 scheduleItem(baseId, itemId)
   directory         -> enqueue knowledge.prepare-root
+  external          -> enqueue knowledge.index-documents for its pinned snapshot
   file / note / url -> source planning
        direct         -> enqueue knowledge.index-documents
        invalid        -> mark item failed
@@ -71,14 +73,30 @@ prepare-root(container)
        workflowService.scheduleItem(baseId, childId)
 ```
 
-If a child is another `directory`, `scheduleItem` queues another `knowledge.prepare-root`. If a child is `file`, `note`, or `url`, `scheduleItem` routes it to source planning and indexing. Recursive processing therefore lives in the workflow service loop, not inside a reader-specific branch.
+If a child is another `directory`, `scheduleItem` queues another `knowledge.prepare-root`. If a child is `file`, `note`, `url`, or `external`, `scheduleItem` routes it to indexing. Recursive processing therefore lives in the workflow service loop, not inside a reader-specific branch.
+
+## Indexing Operation
+
+`createIndexKnowledgeItem` creates the Knowledge feature-local operation with
+this call shape:
+
+```ts
+indexKnowledgeItem({ baseId, itemId, signal, reportProgress })
+```
+
+It owns leaf validation, local snapshot reading, chunking, embedding reuse,
+material rebuild, lifecycle writes, and progress. The current
+`knowledge.index-documents` handler only adapts JobManager context to this
+operation and retains the job's existing retry, timeout, recovery, and settled
+semantics. External items use their already-pinned local snapshot; this layer
+does not perform provider I/O.
 
 ## Job Types
 
 Registered job types:
 
 - `knowledge.prepare-root`: expand a container and schedule each child.
-- `knowledge.index-documents`: read/chunk/embed/write vectors for a concrete document source. Empty reader results or zero chunks still write an empty vector set and complete the item.
+- `knowledge.index-documents`: call `indexKnowledgeItem` to read/chunk/embed/rebuild a concrete document source. Empty reader results or zero chunks fail the item without replacing the existing material.
 - `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, delete base-directory files, then delete resolved item ids with `deleteItemsByIds`. The create/index path does not register FileManager refs, so there is no separate file-ref detach step; any historical `FileEntry` rows are left to the file module's no-reference policy.
 - `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf roots keep their source files on disk and are repaired by `index-documents` from `knowledge_item.data`.
 
@@ -101,5 +119,10 @@ Same-base Knowledge mutations must go through the per-base mutation lock (`Keyed
 Crash safety comes from durable jobs, durable item states, JobManager recovery, and idempotent cleanup. The in-memory mutation lock only serializes concurrent work in the current process.
 
 Delete and reindex span two stores: the main SQLite database and the per-base vector store. They cannot be one cross-store transaction. Consistency relies on durable re-entry and idempotent vector/artifact/row cleanup.
+
+Delete admission is still a single-main-database transaction: recursive
+`deleting` status writes, active external-document ownership enforcement, and
+job enqueueing commit or roll back together. The renderer's subtree-aware
+`canDelete` field is only a read projection and cannot bypass this check.
 
 User-triggered reindex is not a cancellation primitive. The service admits reindex only when the entire selected subtree is already `completed` or `failed`. Active states (`idle`, `preparing`, `processing`, `reading`, `embedding`) and `deleting` are rejected; delete remains the operation that can be requested at any time.

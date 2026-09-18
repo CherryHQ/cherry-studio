@@ -8,9 +8,9 @@ sources:
 
 # Knowledge Reference
 
-This is the entry point for the current Knowledge domain: SQLite-backed base
-and item state, Knowledge-owned source files, per-base derived indexes, durable
-ingestion jobs, renderer IPC, and agent retrieval tools.
+This is the entry point for the current Knowledge domain: SQLite-backed base,
+item, and external-source state; Knowledge-owned source files; per-base derived
+indexes; durable ingestion jobs; renderer IPC; and agent retrieval tools.
 
 | Document | What it covers |
 |---|---|
