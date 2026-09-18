@@ -1,5 +1,6 @@
 import '../tasks/jobTypes'
 import { application } from '@application'
+import { externalKnowledgeDocumentService } from '@data/services/ExternalKnowledgeDocumentService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
@@ -246,7 +247,14 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
     await this.knowledgeLockManager.runExclusive(baseId, () =>
       application.get('DbService').withWriteTx((tx) => {
-        knowledgeItemService.setSubtreeStatusTx(tx, baseId, rootItemIds, 'deleting')
+        const targetItemIds = knowledgeItemService.setSubtreeStatusTx(tx, baseId, rootItemIds, 'deleting')
+        const managedItemIds = externalKnowledgeDocumentService.getActiveOwnedKnowledgeItemIds(targetItemIds, tx)
+        if (managedItemIds.size > 0) {
+          throw DataApiErrorFactory.invalidOperation(
+            'deleteItems',
+            `Cannot delete ${managedItemIds.size} external knowledge item(s) managed by an active document owner`
+          )
+        }
         application.get('JobManager').enqueueTx(
           tx,
           'knowledge.delete-subtree',

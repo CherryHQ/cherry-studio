@@ -1,4 +1,5 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowledgeConnection'
@@ -13,6 +14,7 @@ const CONNECTION_ID = '0198f3f2-7d1a-7abc-8def-123456789ab1'
 const SOURCE_ID = '0198f3f2-7d1a-7abc-8def-123456789ab2'
 const FIRST_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789ab3'
 const SECOND_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789ab4'
+const DIRECTORY_ID = '0198f3f2-7d1a-7abc-8def-123456789ab7'
 
 describe('ExternalKnowledgeDocumentService', () => {
   const dbh = setupTestDatabase()
@@ -136,6 +138,35 @@ describe('ExternalKnowledgeDocumentService', () => {
       externalKnowledgeDocumentService.getActiveOwnedKnowledgeItemIds([FIRST_ITEM_ID, SECOND_ITEM_ID, FIRST_ITEM_ID])
     ).toEqual(new Set([FIRST_ITEM_ID]))
     expect(externalKnowledgeDocumentService.getActiveOwnedKnowledgeItemIds([])).toEqual(new Set())
+  })
+
+  it('projects deletion blocking onto every listed subtree root in one query', () => {
+    seedOwnership()
+    dbh.db
+      .insert(knowledgeItemTable)
+      .values({
+        id: DIRECTORY_ID,
+        baseId: BASE_ID,
+        groupId: null,
+        type: 'directory',
+        data: { source: '/external' },
+        status: 'completed',
+        error: null
+      })
+      .run()
+    dbh.db
+      .update(knowledgeItemTable)
+      .set({ groupId: DIRECTORY_ID })
+      .where(eq(knowledgeItemTable.id, FIRST_ITEM_ID))
+      .run()
+
+    expect(
+      externalKnowledgeDocumentService.getKnowledgeItemIdsWithActiveOwnedSubtree(BASE_ID, [
+        DIRECTORY_ID,
+        FIRST_ITEM_ID,
+        SECOND_ITEM_ID
+      ])
+    ).toEqual(new Set([DIRECTORY_ID, FIRST_ITEM_ID]))
   })
 
   it('reads one document and returns null for a missing id', () => {

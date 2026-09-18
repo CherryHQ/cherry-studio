@@ -5,6 +5,7 @@ import {
   type ExternalKnowledgeDocumentRow,
   externalKnowledgeDocumentTable
 } from '@data/db/schemas/externalKnowledgeDocument'
+import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import type { DbOrTx } from '@data/db/types'
 import type {
   ExternalKnowledgeDocumentListResponse,
@@ -89,6 +90,41 @@ export class ExternalKnowledgeDocumentService {
       .all()
 
     return new Set(rows.flatMap((row) => (row.knowledgeItemId === null ? [] : [row.knowledgeItemId])))
+  }
+
+  getKnowledgeItemIdsWithActiveOwnedSubtree(
+    baseId: string,
+    rootItemIds: readonly string[],
+    db: DbOrTx = this.db
+  ): Set<string> {
+    const uniqueRootIds = [...new Set(rootItemIds)]
+    if (uniqueRootIds.length === 0) return new Set()
+
+    const rows = db.all<{ rootId: string }>(sql`
+      WITH RECURSIVE subtree(root_id, item_id) AS (
+        SELECT id, id
+        FROM ${knowledgeItemTable}
+        WHERE base_id = ${baseId}
+          AND id IN (${sql.join(
+            uniqueRootIds.map((id) => sql`${id}`),
+            sql`, `
+          )})
+
+        UNION ALL
+
+        SELECT subtree.root_id, child.id
+        FROM ${knowledgeItemTable} child
+        INNER JOIN subtree ON child.group_id = subtree.item_id
+        WHERE child.base_id = ${baseId}
+      )
+      SELECT DISTINCT subtree.root_id AS "rootId"
+      FROM subtree
+      INNER JOIN ${externalKnowledgeDocumentTable} document
+        ON document.knowledge_item_id = subtree.item_id
+      WHERE document.availability = 'active'
+    `)
+
+    return new Set(rows.map((row) => row.rootId))
   }
 }
 

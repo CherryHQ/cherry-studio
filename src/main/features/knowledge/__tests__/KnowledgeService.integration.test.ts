@@ -2,6 +2,9 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { externalKnowledgeConnectionTable } from '@data/db/schemas/externalKnowledgeConnection'
+import { externalKnowledgeDocumentTable } from '@data/db/schemas/externalKnowledgeDocument'
+import { externalKnowledgeSourceTable } from '@data/db/schemas/externalKnowledgeSource'
 import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -11,6 +14,7 @@ import { BaseService } from '@main/core/lifecycle'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+  KnowledgeRelativePathSchema,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
 } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -61,6 +65,11 @@ const SOURCE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SOURCE_GROUP_ID = '22222222-2222-4222-8222-222222222222'
 const SOURCE_ROOT_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const SOURCE_CHILD_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
+const EXTERNAL_CONNECTION_ID = '0198f3f2-7d1c-7abc-8def-123456789abc'
+const EXTERNAL_SOURCE_ID = '0198f3f2-7d1d-7abc-8def-123456789abc'
+const EXTERNAL_ITEM_ID = '0198f3f2-7d1e-7abc-8def-123456789abc'
+const EXTERNAL_DOCUMENT_ID = '0198f3f2-7d1f-7abc-8def-123456789abc'
+const EXTERNAL_DIRECTORY_ID = '0198f3f2-7d20-7abc-8def-123456789abc'
 
 describe('KnowledgeService integration', () => {
   const dbh = setupTestDatabase()
@@ -134,6 +143,65 @@ describe('KnowledgeService integration', () => {
       }
     ])
   })
+
+  const seedExternalItem = async (options: {
+    owned: boolean
+    sourceState?: 'active' | 'paused'
+    groupId?: string | null
+  }) => {
+    await dbh.db.insert(knowledgeItemTable).values({
+      id: EXTERNAL_ITEM_ID,
+      baseId: SOURCE_BASE_ID,
+      groupId: options.groupId ?? null,
+      type: 'external',
+      data: {
+        source: 'feishu://document/doc-1',
+        title: 'External doc',
+        relativePath: KnowledgeRelativePathSchema.parse('external/doc-1.md')
+      },
+      status: 'completed',
+      error: null
+    })
+
+    if (!options.owned) return
+
+    await dbh.db.insert(externalKnowledgeConnectionTable).values({
+      id: EXTERNAL_CONNECTION_ID,
+      provider: 'feishu',
+      appId: 'cli_example',
+      appCredentialSource: 'personal-agent',
+      authorizationStatus: 'pending-authorization',
+      credentialReference: 'cred_delete_enforcement'
+    })
+    await dbh.db.insert(externalKnowledgeSourceTable).values({
+      id: EXTERNAL_SOURCE_ID,
+      baseId: SOURCE_BASE_ID,
+      connectionId: EXTERNAL_CONNECTION_ID,
+      provider: 'feishu',
+      tenantId: 'tenant-delete',
+      spaceId: 'space-delete',
+      scope: { kind: 'space' },
+      name: 'Delete enforcement source',
+      state: options.sourceState ?? 'active',
+      revision: 0
+    })
+    await dbh.db.insert(externalKnowledgeDocumentTable).values({
+      id: EXTERNAL_DOCUMENT_ID,
+      sourceId: EXTERNAL_SOURCE_ID,
+      remoteObjectId: 'doc-1',
+      canonicalNodeId: 'node-1',
+      parentNodeId: null,
+      relativeBreadcrumb: ['External doc'],
+      title: 'External doc',
+      originalUrl: 'https://example.feishu.cn/wiki/node-1',
+      remoteRevision: '1',
+      contentHash: 'hash-1',
+      lastSeenAt: 1,
+      availability: 'active',
+      knowledgeItemId: EXTERNAL_ITEM_ID,
+      currentWarning: null
+    })
+  }
 
   it('restores a failed base into a new base and enqueues indexing for restored roots', async () => {
     const service = new KnowledgeService()
@@ -223,6 +291,87 @@ describe('KnowledgeService integration', () => {
       .from(knowledgeItemTable)
       .where(eq(knowledgeItemTable.id, SOURCE_ROOT_ITEM_ID))
     expect(rootRow.status).toBe('processing')
+  })
+
+  it('rejects deleting an external item with an active document owner', async () => {
+    await seedExternalItem({ owned: true })
+    const service = new KnowledgeService()
+
+    await expect(service.deleteItems(SOURCE_BASE_ID, [EXTERNAL_ITEM_ID])).rejects.toMatchObject({
+      code: 'INVALID_OPERATION'
+    })
+
+    const [item] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, EXTERNAL_ITEM_ID))
+    expect(item.status).toBe('completed')
+    expect(enqueueTxMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps active document ownership blocking while the source is paused', async () => {
+    await seedExternalItem({ owned: true, sourceState: 'paused' })
+    const service = new KnowledgeService()
+
+    await expect(service.deleteItems(SOURCE_BASE_ID, [EXTERNAL_ITEM_ID])).rejects.toMatchObject({
+      code: 'INVALID_OPERATION'
+    })
+
+    expect(enqueueTxMock).not.toHaveBeenCalled()
+  })
+
+  it('allows deleting an ownerless completed external item as static external content', async () => {
+    await seedExternalItem({ owned: false })
+    const service = new KnowledgeService()
+
+    await expect(service.deleteItems(SOURCE_BASE_ID, [EXTERNAL_ITEM_ID])).resolves.toBeUndefined()
+
+    const [item] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, EXTERNAL_ITEM_ID))
+    expect(item.status).toBe('deleting')
+    expect(enqueueTxMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rolls back every selected item when a mixed delete contains managed external content', async () => {
+    await seedExternalItem({ owned: true })
+    const service = new KnowledgeService()
+
+    await expect(service.deleteItems(SOURCE_BASE_ID, [SOURCE_ROOT_ITEM_ID, EXTERNAL_ITEM_ID])).rejects.toMatchObject({
+      code: 'INVALID_OPERATION'
+    })
+
+    const rows = await dbh.db
+      .select({ id: knowledgeItemTable.id, status: knowledgeItemTable.status })
+      .from(knowledgeItemTable)
+      .where(eq(knowledgeItemTable.baseId, SOURCE_BASE_ID))
+    const statusById = new Map(rows.map((row) => [row.id, row.status]))
+    expect(statusById.get(SOURCE_ROOT_ITEM_ID)).toBe('processing')
+    expect(statusById.get(SOURCE_CHILD_ITEM_ID)).toBe('processing')
+    expect(statusById.get(EXTERNAL_ITEM_ID)).toBe('completed')
+    expect(enqueueTxMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects deleting a directory whose subtree contains managed external content', async () => {
+    await dbh.db.insert(knowledgeItemTable).values({
+      id: EXTERNAL_DIRECTORY_ID,
+      baseId: SOURCE_BASE_ID,
+      groupId: null,
+      type: 'directory',
+      data: { source: '/external' },
+      status: 'completed',
+      error: null
+    })
+    await seedExternalItem({ owned: true, groupId: EXTERNAL_DIRECTORY_ID })
+    const service = new KnowledgeService()
+
+    await expect(service.deleteItems(SOURCE_BASE_ID, [EXTERNAL_DIRECTORY_ID])).rejects.toMatchObject({
+      code: 'INVALID_OPERATION'
+    })
+
+    const rows = await dbh.db
+      .select({ id: knowledgeItemTable.id, status: knowledgeItemTable.status })
+      .from(knowledgeItemTable)
+      .where(eq(knowledgeItemTable.baseId, SOURCE_BASE_ID))
+    const statusById = new Map(rows.map((row) => [row.id, row.status]))
+    expect(statusById.get(EXTERNAL_DIRECTORY_ID)).toBe('completed')
+    expect(statusById.get(EXTERNAL_ITEM_ID)).toBe('completed')
+    expect(enqueueTxMock).not.toHaveBeenCalled()
   })
 
   describe('addItems conflict resolution', () => {

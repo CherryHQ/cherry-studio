@@ -2,8 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
-import type { KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { KnowledgeItemListItem, KnowledgeItemListResponse } from '@shared/data/api/schemas/knowledges'
 
 const mockUseInfiniteQuery = vi.fn()
 
@@ -27,7 +26,7 @@ vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => vi.fn()
 }))
 
-const makeItem = (overrides: Partial<KnowledgeItem> = {}): KnowledgeItem =>
+const makeItem = (overrides: Partial<KnowledgeItemListItem> = {}): KnowledgeItemListItem =>
   ({
     id: 'item-1',
     baseId: 'base-1',
@@ -38,8 +37,9 @@ const makeItem = (overrides: Partial<KnowledgeItem> = {}): KnowledgeItem =>
     error: null,
     createdAt: '2026-04-21T10:00:00+08:00',
     updatedAt: '2026-04-21T10:00:00+08:00',
+    canDelete: true,
     ...overrides
-  }) as KnowledgeItem
+  }) as KnowledgeItemListItem
 
 const createQueryResult = (
   overrides: Partial<{
