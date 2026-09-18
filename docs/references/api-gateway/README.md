@@ -124,6 +124,7 @@ guard, described below.
 | `GET /v1/mcps/:id` | Cherry REST | one active server plus its warmed tool catalog |
 | `POST /v1/mcps/:id/mcp` | MCP Streamable HTTP | initialize/session request or sessionless one-shot JSON-RPC |
 | `GET /v1/export/providers` | Cherry mobile export | enabled providers + enabled credentials/models; paired-device Bearer token only |
+| `GET /v1/remote-agent` | Cherry mobile Agent connection discovery | encrypted listener descriptor; unauthenticated, contains no secrets |
 
 The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
@@ -131,9 +132,9 @@ The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 Gemini routes carry a separate local auth guard because Gemini clients use
 `x-goog-api-key` or `?key=`. The `/v1` scoped guard must not intercept `/v1beta`.
 
-The provider-export route also carries a separate local guard and is mounted
-before the broad `/v1` group. Its credential-bearing response is available only
-to a paired device token, never the desktop gateway API key, and is marked
+The provider-export and Agent-discovery routes carry paired-device guards and are
+mounted before the broad `/v1` group. Their responses require a paired device
+token, never the desktop gateway API key, and are marked
 `Cache-Control: no-store`.
 
 The MCP proxy validates browser `Origin` as loopback-only to prevent DNS
@@ -141,7 +142,7 @@ rebinding. Native clients normally send no `Origin`. Live sessions are bounded
 and owned by `McpSessionStore`; GET carries server push and DELETE terminates a
 session.
 
-### LAN exposure is confined to pairing + export
+### LAN exposure is confined to paired-device capabilities
 
 The local gateway keeps its configured port (default `23333`) on loopback.
 Enabling LAN access starts a separate `ApiGateway` listener on `0.0.0.0` with an
@@ -151,8 +152,8 @@ streams and new local requests continue on the original listener.
 
 Both listeners reuse `buildApp()`. A root `onRequest` guard (`lanGuard.ts`)
 screens each request by its socket peer: loopback and in-process callers are
-unrestricted, but a **non-loopback (LAN) peer may reach only `POST /pair` and
-`GET /v1/export/providers`** — everything else returns `403`. The desktop's own
+unrestricted, but a **non-loopback (LAN) peer may reach only `POST /pair`,
+`GET /v1/export/providers`, and `GET /v1/remote-agent`** — everything else returns `403`. The desktop's own
 consumers use the configured local port; `gatewayClientOrigin` maps the LAN
 preference `0.0.0.0` back to `127.0.0.1`.
 
@@ -377,7 +378,11 @@ Paired-device records are SQLite-backed business data in
 `api_gateway_paired_device`. The raw `cs-dt-…` token is returned once by
 `POST /pair`; only its SHA-256 hash is persisted. Renderer-facing DataApi returns
 device metadata only (`GET /api-gateway/paired-devices`) and exposes revocation
-as `DELETE /api-gateway/paired-devices/:id`.
+as `DELETE /api-gateway/paired-devices/:id`. The same pairing also authorizes
+all desktop Agent operations through the encrypted remote listener; deleting the
+record revokes both capabilities and disconnects the Agent connection. No second
+device table, token, grant, or settings entry is created. See
+[Agent remote access](../ai/remote-agent-access.md) for the wire contract.
 The owning data service validates device metadata before insertion; the HTTP
 pairing body reuses the same entity-derived metadata schema.
 
@@ -394,7 +399,11 @@ The QR code contains JSON, not a URL:
 the mobile client must choose an address reachable on its network and use
 `http://<ip>:<port>` as the gateway origin. `port` is the active LAN listener
 port, not the configured local API port; it can change after re-enabling LAN or
-restarting the gateway. The code is valid for five minutes, is consumed by the
+restarting the gateway. The QR may also include `remoteAgent` with `protocolVersion`, `instanceId`,
+`serverPublicKey`, `port`, and `path`. This describes an encrypted Agent listener
+that follows the existing LAN switch; it does not change the pairing flow. Paired
+clients refresh it with unauthenticated `GET /v1/remote-agent` (503 when unavailable) and must not send the device token there.
+The code is valid for five minutes, is consumed by the
 first successful pairing, and is invalidated after ten wrong attempts, disabling
 LAN, or a gateway stop/restart. Displaying it again before expiry reuses the same
 live code. Disabling LAN, stopping the gateway, completing pairing, or leaving
@@ -425,7 +434,7 @@ enabled API keys and models, authentication configuration, and portable request
 settings. The exact field projection lives in
 [`providerExport.ts`](../../../src/main/features/apiGateway/routes/providerExport.ts).
 Missing credentials receive `401`; unknown or revoked tokens receive `403`.
-After revocation, the device must pair again. Both mobile routes are hidden from
+After revocation, the device must pair again. These mobile routes are hidden from
 OpenAPI. Disabling LAN closes its listener; requests arriving during shutdown
 receive `403`.
 Transfers use plain HTTP and include provider secrets; the successful export
@@ -448,9 +457,9 @@ candidate to the same timing-safe comparison and shapes guard failures in the
 Google error envelope.
 
 Paired-device authentication is deliberately separate. A `cs-dt-…` Bearer
-token is hashed and looked up only by the local guard on
-`GET /v1/export/providers`; it does not grant access to the existing `/v1` or
-`/v1beta` routes. Future mobile-only endpoints opt into this guard explicitly.
+token is hashed and looked up by the local guard on
+`GET /v1/export/providers` and by the encrypted Agent handshake. It does not grant access to the generic `/v1` or `/v1beta` provider
+routes. Future mobile-only endpoints opt into this guard explicitly.
 
 ## Error handling
 
@@ -496,9 +505,10 @@ streaming `buildStreamErrorFrame`.
   so a generation client gets back the protocol it spoke.
 - **Auth key is the persisted preference.** `feature.api_gateway.api_key`, compared
   timing-safe; auto-generated on first activation.
-- **Paired tokens are endpoint-scoped.** They authorize only the provider-export
-  route today, are stored as hashes, and never become a fallback credential for
-  existing gateway routes.
+- **Paired tokens authorize device capabilities.** The same token authorizes
+  provider export and encrypted Agent operations. Provider export still sends it over
+  plain HTTP, so a LAN observer of an export can replay it against the Agent listener.
+  Tokens are stored as hashes and do not authorize generic gateway routes.
 
 ## Related references
 
