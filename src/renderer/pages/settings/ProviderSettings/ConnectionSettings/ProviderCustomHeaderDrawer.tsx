@@ -174,10 +174,16 @@ const REASONING_FORMAT_ENDPOINT_TYPES = new Set<EndpointType>([
  * Each drafted endpoint's `baseUrl` and `reasoningFormat` are written or
  * stripped from the draft; other configured fields on the entry are kept.
  * An empty entry is dropped.
+ *
+ * `snapshot` is the endpointConfigs the drafts were taken from (the drawer
+ * opening). A draft that still matches the snapshot is untouched, so a
+ * reasoning format committed elsewhere after the snapshot (the ApiHost
+ * selector) is kept instead of being wiped by this stale save.
  */
 export function mergeEndpointConfigs(
   existing: Partial<Record<EndpointType, EndpointConfig>> | undefined,
-  drafts: Record<string, EndpointDraft>
+  drafts: Record<string, EndpointDraft>,
+  snapshot: Partial<Record<EndpointType, EndpointConfig>> | undefined = existing
 ): Partial<Record<EndpointType, EndpointConfig>> {
   const out: Partial<Record<EndpointType, EndpointConfig>> = { ...existing }
   for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
@@ -191,9 +197,10 @@ export function mergeEndpointConfigs(
     if (REASONING_FORMAT_ENDPOINT_TYPES.has(type)) {
       if (draft.reasoningFormat) {
         next.reasoningFormat = draft.reasoningFormat
-      } else {
+      } else if (snapshot?.[type]?.reasoningFormat !== undefined || next.reasoningFormat === undefined) {
         delete next.reasoningFormat
       }
+      // Else untouched here but set elsewhere since — keep the newer value.
     }
     if (!isEmpty(next)) {
       out[type] = next
@@ -251,6 +258,9 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   const [headersUiMode, setHeadersUiMode] = useState<HeadersUiMode>('list')
   const [jsonDraft, setJsonDraft] = useState('')
   const wasOpenRef = useRef(false)
+  // endpointConfigs the open drafts were taken from — handleSave reconciles
+  // reasoning formats committed elsewhere after this point.
+  const openEndpointConfigsRef = useRef(provider?.endpointConfigs)
 
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current
@@ -271,6 +281,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       }
     }
     setEndpointDrafts(drafts)
+    openEndpointConfigsRef.current = provider?.endpointConfigs
     setDefaultChatEndpoint(primaryEndpoint)
     setImageEndpointDraft(readProviderImageEndpointDraft(provider?.endpointConfigs))
     setInvalidImageEndpointField(null)
@@ -333,7 +344,11 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    const textEndpointConfigs = mergeEndpointConfigs(provider.endpointConfigs, endpointDrafts)
+    const textEndpointConfigs = mergeEndpointConfigs(
+      provider.endpointConfigs,
+      endpointDrafts,
+      openEndpointConfigsRef.current
+    )
     const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
     const previousDefaultBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
     const defaultEndpointChanged = defaultChatEndpoint !== primaryEndpoint

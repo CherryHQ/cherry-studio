@@ -59,6 +59,23 @@ describe('mergeEndpointConfigs', () => {
     )
     expect(out[PRIMARY]).toEqual({ baseUrl: 'https://new', modelsApiUrls: ['https://models'] })
   })
+
+  it('keeps a reasoning format committed after the drawer snapshot when the draft is untouched', () => {
+    const snapshot = { [PRIMARY]: { baseUrl: 'https://old' } } as any
+    const live = {
+      [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } }
+    } as any
+    const out = mergeEndpointConfigs(live, { [PRIMARY]: { baseUrl: 'https://old' } }, snapshot)
+    expect(out[PRIMARY]).toEqual({ baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } })
+  })
+
+  it('honors a drawer-side reasoning format clear over the snapshot value', () => {
+    const snapshot = {
+      [PRIMARY]: { baseUrl: 'https://old', reasoningFormat: { type: 'self-hosted' } }
+    } as any
+    const out = mergeEndpointConfigs(snapshot, { [PRIMARY]: { baseUrl: 'https://old' } }, snapshot)
+    expect(out[PRIMARY]).toEqual({ baseUrl: 'https://old' })
+  })
 })
 
 describe('resolveEndpointTypes', () => {
