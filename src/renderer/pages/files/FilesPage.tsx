@@ -1,14 +1,9 @@
-import { ArrowLeft, MoreHorizontal, Trash2, Upload } from 'lucide-react'
+import { ArrowLeft, MoreHorizontal, Upload } from 'lucide-react'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -17,14 +12,20 @@ import {
   PageHeader,
   Scrollbar
 } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { ipcApi } from '@renderer/ipc'
+import { requestBatchedFileMutation } from '@renderer/services/fileBatchMutation'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
+import { popup } from '@renderer/services/popup'
+import { showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
@@ -48,9 +49,7 @@ type FileMetadataById = OutputFor<'file.batch_get_metadata'>
 type PhysicalPathById = OutputFor<'file.batch_get_physical_paths'>
 type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
 type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_entries'>
-type FileBatchMutationResult = OutputFor<'file.batch_trash'>
 type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
-type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_restore' | 'file.batch_permanent_delete'
 
 interface EmbeddedFilePreview {
   fileName: string
@@ -66,6 +65,30 @@ interface EmbeddedFilePreview {
 const FILE_IPC_BATCH_SIZE = 500
 // Keep at or below `FILE_IPC_MAX_BATCH_CREATE_ITEMS` from the IPC schema.
 const FILE_IPC_CREATE_BATCH_SIZE = 100
+const FILE_DETAIL_LOOKUP_CONCURRENCY = 8
+
+async function inspectFailedFileIds(
+  failures: readonly { id: FileEntryId }[]
+): Promise<{ activeInternalIds: Set<FileEntryId>; trashedInternalIds: Set<FileEntryId> }> {
+  const activeInternalIds = new Set<FileEntryId>()
+  const trashedInternalIds = new Set<FileEntryId>()
+  for (let index = 0; index < failures.length; index += FILE_DETAIL_LOOKUP_CONCURRENCY) {
+    const chunk = failures.slice(index, index + FILE_DETAIL_LOOKUP_CONCURRENCY)
+    await Promise.all(
+      chunk.map(async ({ id }) => {
+        try {
+          const current = await dataApiService.get(`/files/entries/${id}`)
+          if (current.origin !== 'internal') return
+          if (current.deletedAt == null) activeInternalIds.add(id)
+          else trashedInternalIds.add(id)
+        } catch {
+          // Missing or inaccessible entries remain real failures.
+        }
+      })
+    )
+  }
+  return { activeInternalIds, trashedInternalIds }
+}
 
 async function requestBatchedFileRecords<Route extends FileBatchRoute>(
   route: Route,
@@ -92,36 +115,6 @@ async function requestBatchedFileRecords<Route extends FileBatchRoute>(
     })
   )
   return Object.assign({}, ...results) as OutputFor<Route>
-}
-
-async function requestBatchedFileMutation(
-  route: FileBatchMutationRoute,
-  ids: readonly string[]
-): Promise<FileBatchMutationResult> {
-  if (ids.length === 0) return { succeeded: [], failed: [] }
-
-  const chunks: string[][] = []
-  for (let i = 0; i < ids.length; i += FILE_IPC_BATCH_SIZE) {
-    chunks.push(ids.slice(i, i + FILE_IPC_BATCH_SIZE))
-  }
-
-  const results = await Promise.all(
-    chunks.map((chunk) => {
-      switch (route) {
-        case 'file.batch_trash':
-          return ipcApi.request('file.batch_trash', { ids: chunk })
-        case 'file.batch_restore':
-          return ipcApi.request('file.batch_restore', { ids: chunk })
-        case 'file.batch_permanent_delete':
-          return ipcApi.request('file.batch_permanent_delete', { ids: chunk })
-      }
-    })
-  )
-
-  return {
-    succeeded: results.flatMap((result) => result.succeeded),
-    failed: results.flatMap((result) => result.failed)
-  }
 }
 
 async function requestBatchedInternalEntryCreates(
@@ -238,16 +231,6 @@ function warnMutationFailures(
   return true
 }
 
-function reportMutationFailures(
-  action: string,
-  result: { failed: Array<{ id: string; error: string }> } | null,
-  message: string
-): void {
-  if (warnMutationFailures(action, result)) {
-    toast.error(message)
-  }
-}
-
 function reportImportFailures(result: { failed: Array<{ sourceRef: string; error: string }> }, message: string): void {
   if (result.failed.length > 0) {
     logger.warn('file import partially failed', { failed: result.failed })
@@ -268,17 +251,15 @@ function shouldIgnoreFileShortcut(event: KeyboardEvent): boolean {
 // ─── Toolbar + Action Bar ───
 
 const FileToolbar = memo(function FileToolbar({
-  isTrash,
   selectedCount,
   batchDeleteLabel,
   onBatchDelete,
-  onBatchRestore
+  deleteDisabled
 }: {
-  isTrash: boolean
   selectedCount: number
   batchDeleteLabel: string
   onBatchDelete: () => void
-  onBatchRestore: () => void
+  deleteDisabled: boolean
 }) {
   const { t } = useTranslation()
 
@@ -292,18 +273,14 @@ const FileToolbar = memo(function FileToolbar({
           <Button
             variant="ghost"
             size="icon-sm"
+            disabled={deleteDisabled}
             className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-foreground"
             aria-label={t('files.actions')}>
             <MoreHorizontal size={14} />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-36">
-          {isTrash && (
-            <DropdownMenuItem onSelect={onBatchRestore}>
-              {t('files.restore')} ({selectedCount})
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem variant="destructive" onSelect={onBatchDelete}>
+          <DropdownMenuItem disabled={deleteDisabled} variant="destructive" onSelect={onBatchDelete}>
             {batchDeleteLabel} ({selectedCount})
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -314,26 +291,37 @@ const FileToolbar = memo(function FileToolbar({
 
 // ─── Main FilePage ───
 
-function FilesPage() {
+interface FilesPageProps {
+  entryId?: string
+  onEntryIdChange?: (entryId?: string) => void
+}
+
+function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
   const { t } = useTranslation()
+  const previewErrorMessage = t('files.preview.error')
+  const { isPinned: isSidebarShortcutPinned, setPinned: setSidebarShortcutPinned } = useSidebarShortcuts()
   const [embeddedPreview, setEmbeddedPreview] = useState<EmbeddedFilePreview | null>(null)
-  // Guards the async open flow: each open bumps the token, and stale physical-path
-  // resolutions (success or failure) are ignored so a slower earlier click can never
-  // overwrite — or error over — the file the user most recently opened.
   const openRequestTokenRef = useRef(0)
+  const imageRequestTokenRef = useRef(0)
+  useEffect(
+    () => () => {
+      imageRequestTokenRef.current += 1
+    },
+    [entryId]
+  )
   const [metadataById, setMetadataById] = useState<FileMetadataById>({})
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
   const [filter, setFilter] = useState<SidebarFilter>({ kind: 'library', value: 'all' })
-  const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const selectionAnchorIdRef = useRef<string | null>(null)
+  const deleteRequestPendingRef = useRef(false)
+  const [deleteRequestPending, setDeleteRequestPending] = useState(false)
 
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [dragOver, setDragOver] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [pendingPermanentDeleteIds, setPendingPermanentDeleteIds] = useState<Set<string> | null>(null)
   const contentScrollRef = useRef<HTMLDivElement | null>(null)
   const pendingLoadMoreRef = useRef(false)
 
@@ -350,10 +338,6 @@ function FilesPage() {
     }),
     [activeFileType, serverSortKey, sortDir]
   )
-  const trashedFilesQuery = useMemo(
-    () => ({ inTrash: true, sortBy: serverSortKey, sortOrder: sortDir }),
-    [serverSortKey, sortDir]
-  )
 
   const {
     pages: activeFilePages,
@@ -367,22 +351,6 @@ function FilesPage() {
   } = useInfiniteQuery('/files/entries', {
     query: activeFilesQuery,
     limit: FILES_PAGE_LIMIT,
-    enabled: !isTrash,
-    swrOptions: { keepPreviousData: true }
-  })
-  const {
-    pages: trashedFilePages,
-    isLoading: isTrashedFilesLoading,
-    isRefreshing: isTrashedFilesRefreshing,
-    error: trashedFilesError,
-    hasNext: hasMoreTrashedFiles,
-    loadNext: loadMoreTrashedFiles,
-    refresh: refreshTrashedFiles,
-    reset: resetTrashedFiles
-  } = useInfiniteQuery('/files/entries', {
-    query: trashedFilesQuery,
-    limit: FILES_PAGE_LIMIT,
-    enabled: isTrash,
     swrOptions: { keepPreviousData: true }
   })
   const {
@@ -393,44 +361,29 @@ function FilesPage() {
     swrOptions: { keepPreviousData: true }
   })
 
-  const viewKey = isTrash ? 'trash' : 'active'
-  const currentFilePages = isTrash ? trashedFilePages : activeFilePages
-  const entries = useStableFileEntries(useInfiniteFlatItems(currentFilePages))
+  const isFilesLoading = isActiveFilesLoading
+  const isFilesRefreshing = isActiveFilesRefreshing
+  const entries = useStableFileEntries(useInfiniteFlatItems(activeFilePages))
   const activeFilesTotal =
     activeFilePages[0]?.total ?? activeFilePages.reduce((sum, page) => sum + page.items.length, 0)
-  const trashedFilesTotal =
-    trashedFilePages[0]?.total ?? trashedFilePages.reduce((sum, page) => sum + page.items.length, 0)
-  const isFilesLoading = isTrash ? isTrashedFilesLoading : isActiveFilesLoading
-  const isFilesRefreshing = isTrash ? isTrashedFilesRefreshing : isActiveFilesRefreshing
-  const previousNonEmptyEntriesRef = useRef<{ active: FileEntry[]; trash: FileEntry[] }>({ active: [], trash: [] })
-  const previousEntries = previousNonEmptyEntriesRef.current[viewKey]
+  const previousNonEmptyEntriesRef = useRef<FileEntry[]>([])
   const displayEntryCandidate =
-    entries.length === 0 && (isFilesLoading || isFilesRefreshing) && previousEntries.length > 0
-      ? previousEntries
+    entries.length === 0 && (isFilesLoading || isFilesRefreshing) && previousNonEmptyEntriesRef.current.length > 0
+      ? previousNonEmptyEntriesRef.current
       : entries
-  const displayStateCandidate = useMemo(
-    () => ({ viewKey, entries: displayEntryCandidate }),
-    [displayEntryCandidate, viewKey]
-  )
-  const deferredDisplayState = useDeferredValue(displayStateCandidate)
-  const displayEntries = deferredDisplayState.viewKey === viewKey ? deferredDisplayState.entries : displayEntryCandidate
+  const displayEntries = useDeferredValue(displayEntryCandidate)
 
   useEffect(() => {
-    if (entries.length > 0) previousNonEmptyEntriesRef.current[viewKey] = entries
-  }, [entries, viewKey])
+    if (entries.length > 0) previousNonEmptyEntriesRef.current = entries
+  }, [entries])
 
   useEffect(() => {
     resetActiveFiles()
-    resetTrashedFiles()
-  }, [resetActiveFiles, resetTrashedFiles, serverSortKey, sortDir])
+  }, [resetActiveFiles, serverSortKey, sortDir])
 
   useEffect(() => {
     if (activeFilesError) logger.error('Failed to load active files', activeFilesError)
   }, [activeFilesError])
-
-  useEffect(() => {
-    if (trashedFilesError) logger.error('Failed to load trashed files', trashedFilesError)
-  }, [trashedFilesError])
 
   useEffect(() => {
     if (fileStatsError) logger.error('Failed to load file stats', fileStatsError)
@@ -468,7 +421,7 @@ function FilesPage() {
     return () => {
       cancelled = true
     }
-  }, [displayEntries, isFilesLoading, isFilesRefreshing, viewKey])
+  }, [displayEntries, isFilesLoading, isFilesRefreshing])
 
   const files = useMemo(() => {
     return displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
@@ -476,14 +429,13 @@ function FilesPage() {
 
   const refetchFiles = useCallback(async () => {
     resetActiveFiles()
-    resetTrashedFiles()
-    await Promise.all([refreshActiveFiles(), refreshTrashedFiles(), refetchFileStats()])
-  }, [refetchFileStats, refreshActiveFiles, refreshTrashedFiles, resetActiveFiles, resetTrashedFiles])
+    await Promise.all([refreshActiveFiles(), refetchFileStats()])
+  }, [refetchFileStats, refreshActiveFiles, resetActiveFiles])
 
   const isImageGrid = filter.kind === 'type' && filter.value === 'image'
   const activeFilterLabel =
     filter.kind === 'library'
-      ? t(filter.value === 'all' ? 'files.all' : 'files.trash')
+      ? t('files.all')
       : t(
           {
             audio: 'files.audio',
@@ -494,10 +446,9 @@ function FilesPage() {
             video: 'files.video'
           }[filter.value]
         )
-  const hasMoreCurrentFiles = isTrash ? hasMoreTrashedFiles : hasMoreActiveFiles
+  const hasMoreCurrentFiles = hasMoreActiveFiles
   const isLoadingMoreActiveFiles = isActiveFilesRefreshing && activeFilePages.length > 0
-  const isLoadingMoreTrashedFiles = isTrashedFilesRefreshing && trashedFilePages.length > 0
-  const isLoadingMoreCurrentFiles = isTrash ? isLoadingMoreTrashedFiles : isLoadingMoreActiveFiles
+  const isLoadingMoreCurrentFiles = isLoadingMoreActiveFiles
 
   useEffect(() => {
     pendingLoadMoreRef.current = false
@@ -524,24 +475,23 @@ function FilesPage() {
       !pendingLoadMoreRef.current &&
       el.scrollHeight - el.scrollTop - el.clientHeight < 160
     ) {
-      const loadMoreFiles = isTrash ? loadMoreTrashedFiles : loadMoreActiveFiles
-      requestLoadMore(loadMoreFiles)
+      requestLoadMore(loadMoreActiveFiles)
     }
-  }, [
-    hasMoreCurrentFiles,
-    isLoadingMoreCurrentFiles,
-    isTrash,
-    loadMoreActiveFiles,
-    loadMoreTrashedFiles,
-    requestLoadMore
-  ])
+  }, [hasMoreCurrentFiles, isLoadingMoreCurrentFiles, loadMoreActiveFiles, requestLoadMore])
 
   const handleOpen = useCallback(
     (file: FileItem) => {
-      const requestToken = ++openRequestTokenRef.current
+      const imageRequestToken = ++imageRequestTokenRef.current
+      if (file.type !== 'image' && onEntryIdChange) {
+        onEntryIdChange(file.id)
+        return
+      }
+
+      const requestRef = file.type === 'image' ? imageRequestTokenRef : openRequestTokenRef
+      const requestToken = file.type === 'image' ? imageRequestToken : ++openRequestTokenRef.current
       void requestBatchedFileRecords('file.batch_get_physical_paths', [file.id])
         .then((physicalPaths) => {
-          if (openRequestTokenRef.current !== requestToken) return
+          if (requestRef.current !== requestToken) return
           const filePath = physicalPaths[file.id]
           if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
           const normalizedPath = normalizeFilePreviewPath(filePath)
@@ -560,14 +510,54 @@ function FilesPage() {
           }))
         })
         .catch((error: unknown) => {
-          if (openRequestTokenRef.current !== requestToken) return
+          if (requestRef.current !== requestToken) return
           const normalized = error instanceof Error ? error : new Error(String(error))
           logger.error('Failed to open file preview', normalized)
           toast.error(t('files.preview.error'))
         })
     },
-    [t]
+    [onEntryIdChange, t]
   )
+
+  useEffect(() => {
+    const requestToken = ++openRequestTokenRef.current
+    if (!entryId) {
+      setEmbeddedPreview(null)
+      return
+    }
+
+    void Promise.all([
+      dataApiService.get(`/files/entries/${entryId}`),
+      requestBatchedFileRecords('file.batch_get_physical_paths', [entryId])
+    ])
+      .then(([entry, physicalPaths]) => {
+        if (openRequestTokenRef.current !== requestToken) return
+        const filePath = physicalPaths[entry.id]
+        if (!filePath) throw new Error(`Physical path is unavailable for file ${entry.id}`)
+        setEmbeddedPreview({
+          fileName: displayNameOf(entry),
+          filePath: normalizeFilePreviewPath(filePath),
+          refreshKey: 0
+        })
+      })
+      .catch((error: unknown) => {
+        if (openRequestTokenRef.current !== requestToken) return
+        const normalized = error instanceof Error ? error : new Error(String(error))
+        logger.error('Failed to reveal file entry', normalized)
+        toast.error(previewErrorMessage)
+        onEntryIdChange?.()
+      })
+
+    return () => {
+      if (openRequestTokenRef.current === requestToken) openRequestTokenRef.current += 1
+    }
+  }, [entryId, onEntryIdChange, previewErrorMessage])
+
+  const closeEmbeddedPreview = useCallback(() => {
+    openRequestTokenRef.current += 1
+    setEmbeddedPreview(null)
+    onEntryIdChange?.()
+  }, [onEntryIdChange])
 
   const handleShowInFolder = useCallback((id: string) => {
     void ipcApi.request('file.show_in_folder', createFileEntryHandle(id)).catch((error) => {
@@ -612,11 +602,8 @@ function FilesPage() {
   const filteredFiles = useMemo(() => {
     let result = files
 
-    if (filter.kind === 'library') {
-      if (filter.value === 'trash') result = result.filter((f) => f.trashed)
-      else result = result.filter((f) => !f.trashed)
-    } else if (filter.kind === 'type') {
-      result = result.filter((f) => !f.trashed && f.type === filter.value)
+    if (filter.kind === 'type') {
+      result = result.filter((f) => f.type === filter.value)
     }
 
     return result
@@ -624,8 +611,7 @@ function FilesPage() {
 
   const fileCounts = useMemo(() => {
     const counts: Record<string, number> = {
-      all: fileStats?.activeTotal ?? activeFilesTotal,
-      trash: fileStats?.trashTotal ?? trashedFilesTotal
+      all: fileStats?.activeTotal ?? activeFilesTotal
     }
 
     if (!fileStats) return counts
@@ -638,17 +624,16 @@ function FilesPage() {
       counts[`type_${type}`] = (counts[`type_${type}`] ?? 0) + count
     }
     return counts
-  }, [activeFilesTotal, fileStats, trashedFilesTotal])
+  }, [activeFilesTotal, fileStats])
 
   const selectedFiles = useMemo(() => files.filter((file) => selectedIds.has(file.id)), [files, selectedIds])
   const batchDeleteLabel = useMemo(() => {
-    if (isTrash) return t('files.permanent_delete')
     if (selectedFiles.length > 0 && selectedFiles.every((file) => file.origin === 'external')) {
       return t('files.remove_from_library')
     }
     if (selectedFiles.some((file) => file.origin === 'external')) return t('files.delete_or_remove')
     return t('files.delete.label')
-  }, [isTrash, selectedFiles, t])
+  }, [selectedFiles, t])
 
   const handleSelect = useCallback(
     (id: string, isChecked: boolean, shouldSelectRange: boolean) => {
@@ -704,101 +689,127 @@ function FilesPage() {
       const targets = files.filter((file) => targetIds.has(file.id))
       if (targets.length === 0) return
 
-      try {
-        if (isTrash) {
-          const result = await requestBatchedFileMutation(
-            'file.batch_permanent_delete',
-            targets.map((file) => file.id)
-          )
-          reportMutationFailures('file permanent delete', result, t('files.error.delete_partial_failed'))
-        } else {
-          const trashIds = targets.filter((file) => file.origin === 'internal').map((file) => file.id)
-          const removeIds = targets.filter((file) => file.origin === 'external').map((file) => file.id)
-          const [trashResult, removeResult] = await Promise.all([
-            trashIds.length > 0 ? requestBatchedFileMutation('file.batch_trash', trashIds) : Promise.resolve(null),
-            removeIds.length > 0
-              ? requestBatchedFileMutation('file.batch_permanent_delete', removeIds)
-              : Promise.resolve(null)
-          ])
-          const trashFailed = warnMutationFailures('file trash', trashResult)
-          const removeFailed = warnMutationFailures('file remove external entries', removeResult)
-          if (trashFailed || removeFailed) {
-            toast.error(t('files.error.delete_partial_failed'))
-          }
-        }
+      const trashIds = targets.filter((file) => file.origin === 'internal').map((file) => file.id)
+      const removeIds = targets.filter((file) => file.origin === 'external').map((file) => file.id)
+      const [trashResult, removeResult] = await Promise.all([
+        requestBatchedFileMutation('file.batch_trash', trashIds),
+        requestBatchedFileMutation('file.batch_remove_from_library', removeIds)
+      ])
+      const requestFailed = trashResult.requestFailed || removeResult.requestFailed
 
-        setSelectedIds(new Set())
+      try {
         await refetchFiles()
       } catch (error) {
-        logger.error('Failed to delete files', error as Error)
-        toast.error(t('files.error.delete_failed'))
+        logger.warn('Failed to refresh files after deletion', error as Error)
+      }
+
+      const { trashedInternalIds: alreadyTrashedIds } = await inspectFailedFileIds(trashResult.failed)
+      const effectiveTrashResult = {
+        ...trashResult,
+        failed: trashResult.failed.filter(({ id }) => !alreadyTrashedIds.has(id))
+      }
+      const trashFailed = warnMutationFailures('file trash', effectiveTrashResult)
+      const removeFailed = warnMutationFailures('file remove external entries', removeResult)
+      const completedIds = new Set([...trashResult.succeeded, ...removeResult.succeeded, ...alreadyTrashedIds])
+
+      if (alreadyTrashedIds.size > 0) toast.info(t('recycle_bin.already_moved'))
+
+      if (trashFailed || removeFailed) {
+        toast.error(
+          t(
+            requestFailed && completedIds.size === 0 ? 'files.error.delete_failed' : 'files.error.delete_partial_failed'
+          )
+        )
+      }
+      if (requestFailed) {
+        logger.error('Failed to delete files', new Error('One or more file mutation requests failed'))
+      }
+
+      setSelectedIds((current) => new Set([...current].filter((id) => !completedIds.has(id))))
+
+      if (trashResult.succeeded.length > 0) {
+        const trashedIds = [...trashResult.succeeded]
+        showRecycleBinBatchUndo({
+          itemCount: trashedIds.length,
+          onUndo: async () => {
+            const restoreResult = await requestBatchedFileMutation('file.batch_restore', trashedIds)
+            try {
+              await refetchFiles()
+            } catch (error) {
+              logger.warn('Failed to refresh files after restore', error as Error)
+            }
+            const { activeInternalIds } = await inspectFailedFileIds(restoreResult.failed)
+            const reconciledResult = {
+              restored: [
+                ...restoreResult.succeeded,
+                ...restoreResult.failed.filter(({ id }) => activeInternalIds.has(id)).map(({ id }) => id)
+              ],
+              failed: restoreResult.failed.filter(({ id }) => !activeInternalIds.has(id))
+            }
+            warnMutationFailures('file restore', reconciledResult)
+            return reconciledResult
+          }
+        })
       }
     },
-    [files, isTrash, refetchFiles, t]
+    [files, refetchFiles, t]
   )
 
   const requestDelete = useCallback(
     (targetIds: Set<string>) => {
+      if (deleteRequestPendingRef.current) return
       const targets = files.filter((file) => targetIds.has(file.id))
       if (targets.length === 0) return
 
-      if (isTrash) {
-        setPendingPermanentDeleteIds(new Set(targets.map((file) => file.id)))
-        return
-      }
+      deleteRequestPendingRef.current = true
+      setDeleteRequestPending(true)
+      void (async () => {
+        try {
+          const internalCount = targets.filter((file) => file.origin === 'internal').length
+          const externalCount = targets.length - internalCount
+          if (externalCount === 0) {
+            await performDelete(new Set(targets.map((file) => file.id)))
+            return
+          }
 
-      void performDelete(new Set(targets.map((file) => file.id)))
+          const confirmed = await popup.confirm(
+            internalCount > 0
+              ? {
+                  title: t('files.delete_or_remove_confirm.title'),
+                  content: (
+                    <div className="space-y-1">
+                      <p>{t('files.delete_or_remove_confirm.internal_count', { count: internalCount })}</p>
+                      <p>{t('files.delete_or_remove_confirm.external_count', { count: externalCount })}</p>
+                    </div>
+                  ),
+                  okText: t('files.delete_or_remove'),
+                  cancelText: t('common.cancel'),
+                  okButtonProps: { danger: true }
+                }
+              : {
+                  title: t('files.remove_from_library_confirm.title'),
+                  content: t('files.remove_from_library_confirm.description'),
+                  okText: t('files.remove_from_library'),
+                  cancelText: t('common.cancel'),
+                  okButtonProps: { danger: true }
+                }
+          )
+          if (confirmed) await performDelete(new Set(targets.map((file) => file.id)))
+        } catch (error) {
+          logger.error('Failed to delete files', error as Error)
+          toast.error(t('files.error.delete_failed'))
+        } finally {
+          deleteRequestPendingRef.current = false
+          setDeleteRequestPending(false)
+        }
+      })()
     },
-    [files, isTrash, performDelete]
+    [files, performDelete, t]
   )
 
   const handleDelete = useCallback(
     (ids?: Set<string>) => requestDelete(ids ?? selectedIds),
     [requestDelete, selectedIds]
-  )
-
-  const emptyTrash = useCallback(async () => {
-    try {
-      const result = await ipcApi.request('file.empty_trash')
-      reportMutationFailures('file empty trash', result, t('files.error.delete_partial_failed'))
-      setSelectedIds(new Set())
-      await refetchFiles()
-    } catch (error) {
-      logger.error('Failed to empty trash', error as Error)
-      toast.error(t('files.error.delete_failed'))
-    }
-  }, [refetchFiles, t])
-
-  const handlePermanentDeleteConfirm = useCallback(() => {
-    const ids = pendingPermanentDeleteIds
-    if (!ids) return
-
-    setPendingPermanentDeleteIds(null)
-    if (ids.size === 0) {
-      void emptyTrash()
-      return
-    }
-    void performDelete(ids)
-  }, [emptyTrash, pendingPermanentDeleteIds, performDelete])
-
-  const handleEmptyTrash = useCallback(() => {
-    if (!isTrash || filteredFiles.length === 0) return
-    setPendingPermanentDeleteIds(new Set())
-  }, [filteredFiles, isTrash])
-
-  const handleRestore = useCallback(
-    async (ids: Set<string>) => {
-      try {
-        const result = await requestBatchedFileMutation('file.batch_restore', [...ids])
-        reportMutationFailures('file restore', result, t('files.error.restore_partial_failed'))
-        setSelectedIds(new Set())
-        await refetchFiles()
-      } catch (error) {
-        logger.error('Failed to restore files', error as Error)
-        toast.error(t('files.error.restore_failed'))
-      }
-    },
-    [refetchFiles, t]
   )
 
   const handleRename = useCallback(
@@ -837,18 +848,30 @@ function FilesPage() {
   }, [])
 
   const handleDeleteOne = useCallback((id: string) => requestDelete(new Set([id])), [requestDelete])
-  const handleRestoreOne = useCallback((id: string) => void handleRestore(new Set([id])), [handleRestore])
   const handleRenameConfirm = useCallback((id: string, name: string) => void handleRename(id, name), [handleRename])
   const handleRenameCancel = useCallback(() => setRenamingId(null), [])
 
+  const isFilePinnedToSidebar = useCallback(
+    (id: string) => isSidebarShortcutPinned(createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.FILE_ENTRY, id)),
+    [isSidebarShortcutPinned]
+  )
+  const handleToggleFileSidebar = useCallback(
+    (file: FileItem) => {
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.FILE_ENTRY, file.id)
+      setSidebarShortcutPinned(target, !isSidebarShortcutPinned(target), file.name)
+    },
+    [isSidebarShortcutPinned, setSidebarShortcutPinned]
+  )
+
   const listMenuActions = useMemo<FileContextMenuActions>(
     () => ({
+      isSidebarPinned: isFilePinnedToSidebar,
       onRename: startInlineRename,
       onDelete: handleDeleteOne,
-      onRestore: handleRestoreOne,
-      onShowInFolder: handleShowInFolder
+      onShowInFolder: handleShowInFolder,
+      onToggleSidebar: handleToggleFileSidebar
     }),
-    [handleDeleteOne, handleRestoreOne, handleShowInFolder, startInlineRename]
+    [handleDeleteOne, handleShowInFolder, handleToggleFileSidebar, isFilePinnedToSidebar, startInlineRename]
   )
 
   const handleSort = useCallback(
@@ -861,14 +884,12 @@ function FilesPage() {
     },
     [sortKey]
   )
-  const isEmptyTrashConfirm = pendingPermanentDeleteIds?.size === 0
-  const permanentDeleteConfirmCount = isEmptyTrashConfirm ? fileCounts.trash : (pendingPermanentDeleteIds?.size ?? 0)
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (embeddedPreview || renamingId || shouldIgnoreFileShortcut(e)) return
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
         e.preventDefault()
+        if (deleteRequestPending) return
         handleDelete()
       }
       if ((e.key === 'F2' || (isMac && e.key === 'Enter')) && selectedIds.size === 1) {
@@ -894,15 +915,16 @@ function FilesPage() {
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [
+    deleteRequestPending,
     embeddedPreview,
     files,
-    selectedIds,
-    handleDelete,
-    renamingId,
-    startInlineRename,
-    isImageGrid,
     filteredFiles,
-    handleSelectAllVisible
+    handleDelete,
+    handleSelectAllVisible,
+    isImageGrid,
+    renamingId,
+    selectedIds,
+    startInlineRename
   ])
 
   return (
@@ -914,50 +936,21 @@ function FilesPage() {
             setFilter(f)
             setSelectedIds(new Set())
             setRenamingId(null)
-            setPendingPermanentDeleteIds(null)
           }}
           fileCounts={fileCounts}
         />
-
-        <Dialog
-          open={pendingPermanentDeleteIds !== null}
-          onOpenChange={(open) => {
-            if (!open) setPendingPermanentDeleteIds(null)
-          }}>
-          <DialogContent aria-describedby={undefined} className="max-w-sm rounded-xl">
-            <DialogHeader>
-              <DialogTitle>{t('files.permanent_delete_confirm.title')}</DialogTitle>
-            </DialogHeader>
-            <p className="text-sm text-muted-foreground">
-              {t('files.permanent_delete_confirm.description', { count: permanentDeleteConfirmCount })}
-            </p>
-            <DialogFooter>
-              <Button variant="outline" size="sm" onClick={() => setPendingPermanentDeleteIds(null)}>
-                {t('common.cancel')}
-              </Button>
-              <Button variant="destructive" size="sm" onClick={handlePermanentDeleteConfirm}>
-                {isEmptyTrashConfirm ? t('files.empty_trash') : t('files.permanent_delete')}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         <div
           data-ui="files.content"
           className={`relative flex min-w-0 flex-1 flex-col transition-colors ${dragOver ? 'bg-accent/25' : ''}`}
           onDragOver={(e) => {
             e.preventDefault()
-            if (isTrash) {
-              setDragOver(false)
-              return
-            }
             setDragOver(true)
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => {
             e.preventDefault()
             setDragOver(false)
-            if (isTrash) return
             const paths = Array.from(e.dataTransfer.files)
               .map((file) => AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(file)).data)
               .filter((path): path is AbsoluteFilePath => Boolean(path))
@@ -970,33 +963,20 @@ function FilesPage() {
               <div className="flex shrink-0 items-center gap-2">
                 {!isImageGrid && selectedIds.size > 0 && (
                   <FileToolbar
-                    isTrash={isTrash}
                     selectedCount={selectedIds.size}
                     batchDeleteLabel={batchDeleteLabel}
+                    deleteDisabled={deleteRequestPending}
                     onBatchDelete={() => handleDelete()}
-                    onBatchRestore={() => void handleRestore(new Set(selectedIds))}
                   />
                 )}
-                {isTrash ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={filteredFiles.length === 0}
-                    onClick={handleEmptyTrash}
-                    className="h-7 -translate-y-px px-2.5 text-xs text-muted-foreground hover:text-destructive">
-                    <Trash2 className="size-3.5" />
-                    {t('files.empty_trash')}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void handleUploadClick()}
-                    className="h-7 -translate-y-px gap-1.5 rounded-md px-2.5 text-xs text-muted-foreground hover:text-foreground">
-                    <Upload className="size-3.5 translate-y-px" />
-                    <span>{t('files.upload')}</span>
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleUploadClick()}
+                  className="h-7 -translate-y-px gap-1.5 rounded-md px-2.5 text-xs text-muted-foreground hover:text-foreground">
+                  <Upload className="size-3.5 translate-y-px" />
+                  <span>{t('files.upload')}</span>
+                </Button>
               </div>
             }
           />
@@ -1040,7 +1020,7 @@ function FilesPage() {
                 </div>
               ) : (
                 <div className="flex h-full flex-1 flex-col items-center justify-center px-6">
-                  {isTrash || files.filter((f) => !f.trashed).length === 0 ? (
+                  {files.length === 0 ? (
                     <EmptyState title={t('files.empty.title')} />
                   ) : (
                     <EmptyState preset="no-result" title={t('files.empty.no_match_title')} />
@@ -1055,11 +1035,11 @@ function FilesPage() {
                     scrollRef={contentScrollRef}
                     onOpen={handleOpen}
                     onDelete={handleDeleteOne}
-                    isTrash={isTrash}
                     menuActions={listMenuActions}
                     renamingId={renamingId}
                     onRenameConfirm={handleRenameConfirm}
                     onRenameCancel={handleRenameCancel}
+                    deleteDisabled={deleteRequestPending}
                   />
                 ) : (
                   <FileList
@@ -1068,15 +1048,14 @@ function FilesPage() {
                     selectedIds={selectedIds}
                     onSelect={handleSelect}
                     onOpen={handleOpen}
-                    isTrash={isTrash}
                     menuActions={listMenuActions}
                     onDelete={handleDeleteOne}
-                    onRestore={handleRestoreOne}
                     onRename={startInlineRename}
                     onShowInFolder={handleShowInFolder}
                     renamingId={renamingId}
                     onRenameConfirm={handleRenameConfirm}
                     onRenameCancel={handleRenameCancel}
+                    deleteDisabled={deleteRequestPending}
                   />
                 )}
               </>
@@ -1100,7 +1079,7 @@ function FilesPage() {
                   size="icon-sm"
                   aria-label={t('common.back')}
                   className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                  onClick={() => setEmbeddedPreview(null)}>
+                  onClick={closeEmbeddedPreview}>
                   <ArrowLeft className="size-3.5" />
                 </Button>
                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">{embeddedPreview.fileName}</span>

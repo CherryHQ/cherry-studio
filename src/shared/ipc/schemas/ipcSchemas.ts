@@ -4,6 +4,7 @@ import { type ApiGatewayEventSchemas, apiGatewayRequestSchemas } from './apiGate
 import { type AppEventSchemas, appRequestSchemas } from './app'
 import { type BackupEventSchemas, backupRequestSchemas } from './backup'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
+import { type BrowserEventSchemas, browserRequestSchemas } from './browser'
 import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { type CherryCloudEventSchemas, cherryCloudRequestSchemas } from './cherryCloud'
 import { cherryinRequestSchemas } from './cherryin'
@@ -35,6 +36,7 @@ import { skillRequestSchemas } from './skill'
 import { type SystemEventSchemas, systemRequestSchemas } from './system'
 import { type TabEventSchemas, tabRequestSchemas } from './tab'
 import { type TranslateEventSchemas, translateRequestSchemas } from './translate'
+import { trashRequestSchemas } from './trash'
 import { webSearchRequestSchemas } from './webSearch'
 import { webviewRequestSchemas } from './webview'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -52,6 +54,7 @@ export const ipcRequestSchemas = {
   ...appRequestSchemas,
   ...backupRequestSchemas,
   ...binaryRequestSchemas,
+  ...browserRequestSchemas,
   ...channelRequestSchemas,
   ...cherryinRequestSchemas,
   ...cherryCloudRequestSchemas,
@@ -83,6 +86,7 @@ export const ipcRequestSchemas = {
   ...systemRequestSchemas,
   ...tabRequestSchemas,
   ...translateRequestSchemas,
+  ...trashRequestSchemas,
   ...webSearchRequestSchemas,
   ...webviewRequestSchemas,
   ...windowRequestSchemas
@@ -102,6 +106,7 @@ export type IpcEventSchemas = AiEventSchemas &
   AppEventSchemas &
   BackupEventSchemas &
   BinaryEventSchemas &
+  BrowserEventSchemas &
   ChannelEventSchemas &
   CherryCloudEventSchemas &
   FileEventSchemas &

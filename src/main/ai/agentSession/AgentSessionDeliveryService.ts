@@ -1,17 +1,11 @@
 import { application } from '@application'
-import { agentService } from '@data/services/AgentService'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
-import type {
-  AgentSessionEntity,
-  ReusableAgentSessionPlaceholdersResponse,
-  ReuseOrCreateAgentSessionDto
-} from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 import { agentChatContextProvider, finalizeInterruptedParts, type StreamListener } from '../streamManager'
@@ -51,6 +45,7 @@ export type AcceptSessionDeliveryInput = {
 export type CreateSessionDeliveryInput = {
   senderAgentId: string
   senderSessionId: string
+  targetAgentId?: string
   sessionName: string
   workspace: AgentSessionWorkspaceSource
   content: string
@@ -102,52 +97,6 @@ export class AgentSessionDeliveryService extends BaseService {
     const created = agentSessionMessageService.createSessionWithDelivery(input)
     this.kick(created.message.sessionId)
     return created
-  }
-
-  deleteSessions(ids: string[]): Promise<{ deletedIds: string[] }> {
-    const uniqueIds = [...new Set(ids)]
-    const work = this.deleteSessionsInternal(uniqueIds)
-    this.track(
-      `delete:${uniqueIds.join(',')}`,
-      work.then(() => undefined)
-    )
-    return work
-  }
-
-  reuseOrCreateSession(input: ReuseOrCreateAgentSessionDto): Promise<ReusableAgentSessionPlaceholdersResponse> {
-    const work = this.reuseOrCreateSessionInternal(input)
-    this.track(
-      `reuse-or-create:${input.agentId}`,
-      work.then(() => undefined)
-    )
-    return work
-  }
-
-  deleteAgent(agentId: string, deleteSessions: boolean): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
-    const work = this.deleteAgentInternal(agentId, deleteSessions)
-    this.track(
-      `delete-agent:${agentId}`,
-      work.then(() => undefined)
-    )
-    return work
-  }
-
-  deleteAgentSessions(agentId: string): Promise<{ deletedIds: string[] }> {
-    const work = this.deleteAgentSessionsInternal(agentId)
-    this.track(
-      `delete-agent-sessions:${agentId}`,
-      work.then(() => undefined)
-    )
-    return work
-  }
-
-  deleteWorkspace(workspaceId: string): Promise<{ deletedIds: string[] }> {
-    const work = this.deleteWorkspaceInternal(workspaceId)
-    this.track(
-      `delete-workspace:${workspaceId}`,
-      work.then(() => undefined)
-    )
-    return work
   }
 
   kick(sessionId?: string): void {
@@ -241,77 +190,14 @@ export class AgentSessionDeliveryService extends BaseService {
     }
   }
 
-  private async deleteSessionsInternal(ids: string[]): Promise<{ deletedIds: string[] }> {
-    this.assertWritesAvailable()
-    const result = agentSessionService.deleteByIdsForDelivery(ids)
-    await this.finishDeletion(result.deletedIds, result.deliveryResults)
-    return { deletedIds: result.deletedIds }
-  }
-
-  private async reuseOrCreateSessionInternal(
-    input: ReuseOrCreateAgentSessionDto
-  ): Promise<ReusableAgentSessionPlaceholdersResponse> {
-    this.assertWritesAvailable()
-    const result = agentSessionService.reuseOrCreatePlaceholderForDelivery(input)
-    await this.finishDeletion(result.deletedDuplicateSessionIds, result.deliveryResults)
-    return {
-      session: result.session,
-      created: result.created,
-      deletedDuplicateSessionIds: result.deletedDuplicateSessionIds
-    }
-  }
-
-  private async deleteAgentInternal(
-    agentId: string,
-    deleteSessions: boolean
-  ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
-    this.assertWritesAvailable()
-    const result = agentService.deleteAgentForDelivery(agentId, { deleteSessions })
-    if (!deleteSessions) {
-      const manager = application.get('AiStreamManager')
-      result.affectedSessionIds.forEach((sessionId) =>
-        manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
-      )
-    }
-    await this.finishDeletion(
-      result.affectedSessionIds,
-      result.deliveryResults,
-      deleteSessions ? [] : result.affectedSessionIds
-    )
-    return {
-      deleted: result.deleted,
-      ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
-    }
-  }
-
-  private async deleteAgentSessionsInternal(agentId: string): Promise<{ deletedIds: string[] }> {
-    this.assertWritesAvailable()
-    const result = agentSessionService.deleteByAgentIdForDelivery(agentId)
-    await this.finishDeletion(result.deletedIds, result.deliveryResults)
-    return { deletedIds: result.deletedIds }
-  }
-
-  private async deleteWorkspaceInternal(workspaceId: string): Promise<{ deletedIds: string[] }> {
-    this.assertWritesAvailable()
-    const result = agentSessionService.deleteWorkspaceCascadeForDelivery(workspaceId)
-    await this.finishDeletion(result.deletedIds, result.deliveryResults)
-    return { deletedIds: result.deletedIds }
-  }
-
-  private async finishDeletion(
-    sessionIds: string[],
-    deliveryResults: AgentSessionMessageEntity[],
-    retrySessionIds: string[] = []
-  ): Promise<void> {
-    const closed = await Promise.allSettled(
-      sessionIds.map((sessionId) => application.get('AgentSessionRuntimeService').closeSession(sessionId))
-    )
-    for (const deliveryResult of deliveryResults) this.kick(deliveryResult.sessionId)
-    retrySessionIds.forEach((sessionId) => this.kick(sessionId))
-
-    const failures = closed.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
-    if (failures.length > 0) {
-      throw new AggregateError(failures, 'One or more deleted Agent Session runtimes failed to close')
+  async drainSessionQueues(sessionIds: readonly string[]): Promise<void> {
+    for (;;) {
+      const queues = sessionIds.flatMap((sessionId) => {
+        const queue = this.kicks.get(sessionId)
+        return queue ? [queue] : []
+      })
+      if (queues.length === 0) return
+      await Promise.allSettled(queues)
     }
   }
 

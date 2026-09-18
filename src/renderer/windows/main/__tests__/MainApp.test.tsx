@@ -4,6 +4,8 @@ import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
+
 const onboardingModule = vi.hoisted(() => ({ evaluations: 0 }))
 
 vi.mock('../onboarding/OnboardingPage', () => {
@@ -53,6 +55,11 @@ function appendBootSpinner() {
   document.body.appendChild(spinner)
 }
 
+function appShortcut(resourceId: string) {
+  const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId: 'core.app', resourceId } }
+  return { type: 'shortcut' as const, id: createSidebarShortcutId(target), target }
+}
+
 describe('MainWindowContent', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
@@ -92,10 +99,7 @@ describe('MainWindowContent', () => {
 
   it('passes the first visible sidebar app as the startup landing tab', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [
-      { type: 'app', id: 'agents' },
-      { type: 'app', id: 'translate' }
-    ])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut', [appShortcut('agents'), appShortcut('translate')])
     MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
 
     render(<MainWindowContent />)
@@ -105,7 +109,7 @@ describe('MainWindowContent', () => {
 
   it('falls back to launchpad when no sidebar app is visible', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut', [])
     MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
 
     render(<MainWindowContent />)
